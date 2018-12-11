@@ -66,4 +66,5 @@ package com.falstad.afilter.client;
 	}
 	double getValue() { return inductance; }
 	void setValue(double c) { inductance = c; }
+	int getShortcut() { return 'L'; }
     }

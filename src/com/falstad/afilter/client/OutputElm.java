@@ -82,4 +82,5 @@ package com.falstad.afilter.client;
 		g.fillRect(x-3, y-3, 7, 7);
     }
     
+	int getShortcut() { return 'o'; }
     }

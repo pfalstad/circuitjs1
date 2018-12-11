@@ -160,5 +160,6 @@ class SweepElm extends CircuitElm {
 	}
 	setParams();
     }
+    int getShortcut() { return 'i'; }
 }
     

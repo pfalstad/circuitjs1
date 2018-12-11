@@ -152,4 +152,5 @@ package com.falstad.afilter.client;
 	void setGainProduct(double bw) {
 	    gbw = bw;
 	}
+	int getShortcut() { return 'a'; }
     }
