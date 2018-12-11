@@ -1,0 +1,39 @@
+### setuplist.txt first line must be a comment
++Simple Passive Filters
+filt-hipass.txt High-Pass Filter (RC)
+filt-lopass.txt Low-Pass Filter (RC)
+filt-hipass-l.txt High-Pass Filter (RL)
+filt-lopass-l.txt Low-Pass Filter (RL)
+bandpass.txt Band-pass Filter
+notch.txt Notch Filter
+twint.txt Twin-T Filter
+-
++Larger Passive Filters
+passlp.txt Low-Pass Butterworth/Chebyshev/Bessel
+passhp.txt High-Pass Butterworth/Chebyshev/Bessel
+passbp.txt Band-Pass Butterworth/Chebyshev/Bessel
+passbs.txt Band-Stop Butterworth/Chebyshev/Bessel
+invcheb5lo.txt Inverse Chebyshev Low-Pass (5 pole)
+ladder-short.txt LC Ladder
+-
++Active Filters
+actlp.txt Low-Pass Butterworth/Chebyshev/Bessel
+acthp.txt High-Pass Butterworth/Chebyshev/Bessel
+actbp.txt Band-Pass Butterworth/Chebyshev/Bessel
+allpass.txt All-pass Unity Gain
+-
++Op-Amp Circuits
+amp-invert.txt Inverting Amplifier
+amp-noninvert.txt Noninverting Amplifier
+amp-follower.txt Follower
+amp-integ.txt Integrator
+amp-dfdx.txt Differentiator
+phaseoscfilt.txt Phase Shift Oscillator Filter
+-
++Transmission Lines
+tlstubshort.txt Shorted Stub
+tlstubopen.txt Open Stub
+tlstubterm.txt Terminated Stub
+tllopass.txt Low-Pass Filter
+-
+blank.txt Blank Circuit
