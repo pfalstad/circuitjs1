@@ -132,7 +132,8 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem linearCheckItem;
     CheckboxMenuItem polesCheckItem;
     CheckboxMenuItem phaseCheckItem;
-    private Label powerLabel, scrollXLabel;
+    CheckboxMenuItem currentSpeedCheckItem;
+    private Label powerLabel, scrollXLabel, speedLabel, currentLabel;
     private Scrollbar speedBar;
     private Scrollbar currentBar;
     private Scrollbar powerBar;
@@ -559,6 +560,11 @@ MouseOutHandler, MouseWheelHandler {
 		}
 	}));
 	m.addItem(phaseCheckItem = new CheckboxMenuItem("Show Phase"));
+	m.addItem(currentSpeedCheckItem = new CheckboxMenuItem("Show Current Speed Bar",
+		new Command() { public void execute() {
+			showHideCurrentSpeedBar();
+		}
+	}));
 	m.addItem(optionsItem = new CheckboxAlignedMenuItem("Other Options...",
 			new MyCommand("options","other")));
 	/*
@@ -614,17 +620,19 @@ MouseOutHandler, MouseWheelHandler {
 		verticalPanel.add(loadFileInput = new LoadFile(this));
 	
 	Label l;
-//	verticalPanel.add(l = new Label("Simulation Speed"));
-//	l.addStyleName("topSpace");
+//	verticalPanel.add(speedLabel = new Label("Simulation Speed"));
+//	speedLabel.addStyleName("topSpace");
 
 	// was max of 140
 //	verticalPanel.add(
 		speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, -320, 260);
 //		);
 
-//	verticalPanel.add( l = new Label("Current Speed"));
-//	l.addStyleName("topSpace");
-	currentBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 100);
+//	verticalPanel.add(
+		currentLabel = new Label("Current Speed");
+//		);
+	currentLabel.addStyleName("topSpace");
+	currentBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 70);
 //	verticalPanel.add(currentBar);
 	
 	verticalPanel.add(l = new Label("Spectrum Width"));
@@ -3905,6 +3913,16 @@ MouseOutHandler, MouseWheelHandler {
         }
     }
 
+    void showHideCurrentSpeedBar() {
+	if (currentSpeedCheckItem.getState()) {
+	    verticalPanel.insert(currentLabel, 5);
+	    verticalPanel.insert(currentBar, 6);
+	} else {
+	    verticalPanel.remove(currentLabel);
+	    verticalPanel.remove(currentBar);
+	}
+    }
+    
     // IES - remove interaction
     
 //    CircuitElm constructElement(Class c, int x0, int y0) {
