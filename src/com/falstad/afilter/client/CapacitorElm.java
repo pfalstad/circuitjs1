@@ -78,11 +78,11 @@ package com.falstad.afilter.client;
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("Capacitance (uF)", capacitance*1e6, 0, 0);
+		return new EditInfo("Capacitance (F)", capacitance, 0, 0);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    capacitance = ei.value*1e-6;
+	    capacitance = ei.value;
 	}
  	void calculateCurrent() {
  	    Complex q = new Complex(volts[0]-volts[1], voltsi[0]-voltsi[1]);
@@ -95,4 +95,5 @@ package com.falstad.afilter.client;
  	double getValue() { return capacitance; }
  	void setValue(double c) { capacitance = c; }
 	boolean needsShortcut() { return true; }
+	int getShortcut() { return 'c'; }
     }
