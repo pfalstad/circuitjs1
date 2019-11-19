@@ -2092,7 +2092,7 @@ MouseOutHandler, MouseWheelHandler {
 		if (ce instanceof OutputElm) {
 		    int n = ce.getNode(0);
 		    response[fi] = circuitRightSide[n-1].mag();
-		    phaseResponse[fi] = circuitRightSide[n-1].phase();
+		    phaseResponse[fi] = -circuitRightSide[n-1].phase();
 		}
 	    }
 
