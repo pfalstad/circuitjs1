@@ -5,6 +5,7 @@ import java.util.Vector;
 class BoxElm extends CircuitElm {
     String text;
     final int FLAG_HIDDEN = 1;
+    final int FLAG_ESCAPE = 2;
     public BoxElm(int xx, int yy) {
 	super(xx, yy);
 	text = "Box";
@@ -13,11 +14,18 @@ class BoxElm extends CircuitElm {
 		   StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
 	text = st.nextToken();
-	while (st.hasMoreTokens())
-	    text += ' ' + st.nextToken();
+        if ((flags & FLAG_ESCAPE) == 0) {
+            // old-style dump before escape/unescape
+            while (st.hasMoreTokens())
+                text += ' ' + st.nextToken();
+        } else {
+            // new-style dump
+            text = CustomLogicModel.unescape(text); 
+        }
     }
     String dump() {
-	return super.dump() + " " + text;
+        flags |= FLAG_ESCAPE;
+        return super.dump() + " " + CustomLogicModel.escape(text);
     }
     int getDumpType() { return 'B'; }
     void draw(Graphics g) {
