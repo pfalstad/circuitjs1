@@ -28,31 +28,33 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 /*
  * An abstract class for circuitjs which allows components to prompt for files from the user.
  */
-public abstract class EditDialogLoadFile extends FileUpload implements ChangeHandler  {
-	
-	static public final boolean isSupported() { return LoadFile.isSupported(); }
-	
-	static public void doErrorCallback(String msg) {
-		Window.alert(Locale.LS(msg));
-	}
-	
-	EditDialogLoadFile() {
-		super();
-		this.setName(Locale.LS("Load File"));
-		this.getElement().setId("EditDialogLoadFileElement");
-		this.addChangeHandler(this);
-		this.addStyleName("offScreen");
-		this.setPixelSize(0, 0);
-	}
-	
-	public void onChange(ChangeEvent e) {
-		handle();
-	}
-	
-	public final native void open() 
-	/*-{
-		$doc.getElementById("EditDialogLoadFileElement").click();
-	}-*/;
-	
-	public abstract void handle();
+public abstract class EditDialogLoadFile extends FileUpload implements ChangeHandler {
+
+    static public final boolean isSupported() {
+	return LoadFile.isSupported();
+    }
+
+    static public void doErrorCallback(String msg) {
+	Window.alert(Locale.LS(msg));
+    }
+
+    EditDialogLoadFile() {
+	super();
+	this.setName(Locale.LS("Load File"));
+	this.getElement().setId("EditDialogLoadFileElement");
+	this.addChangeHandler(this);
+	this.addStyleName("offScreen");
+	this.setPixelSize(0, 0);
+    }
+
+    public void onChange(ChangeEvent e) {
+	handle();
+    }
+
+    public final native void open()
+    /*-{
+    	$doc.getElementById("EditDialogLoadFileElement").click();
+    }-*/;
+
+    public abstract void handle();
 }

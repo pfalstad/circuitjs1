@@ -28,8 +28,7 @@ class LineElm extends GraphicElm {
 	setBbox(x, y, x2, y2);
     }
 
-    public LineElm(int xa, int ya, int xb, int yb, int f,
-		   StringTokenizer st) {
+    public LineElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
 	x2 = xb;
 	y2 = yb;
@@ -40,7 +39,9 @@ class LineElm extends GraphicElm {
 	return super.dump();
     }
 
-    int getDumpType() { return 423; }
+    int getDumpType() {
+	return 423;
+    }
 
     void drag(int xx, int yy) {
 	x2 = xx;
@@ -48,11 +49,11 @@ class LineElm extends GraphicElm {
     }
 
     boolean creationFailed() {
-	return Math.hypot(x-x2, y-y2) < 16;
+	return Math.hypot(x - x2, y - y2) < 16;
     }
-    
+
     void draw(Graphics g) {
-	//g.setColor(needsHighlight() ? selectColor : lightGrayColor);
+	// g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	g.setColor(needsHighlight() ? selectColor : Color.GRAY);
 	setBbox(x, y, x2, y2);
 	g.drawLine(x, y, x2, y2);
@@ -69,6 +70,7 @@ class LineElm extends GraphicElm {
     }
 
     @Override
-    int getShortcut() { return 0; }
+    int getShortcut() {
+	return 0;
+    }
 }
-

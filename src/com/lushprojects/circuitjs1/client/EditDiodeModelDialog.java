@@ -4,7 +4,7 @@ public class EditDiodeModelDialog extends EditDialog {
 
     DiodeModel model;
     DiodeElm diodeElm;
-    
+
     public EditDiodeModelDialog(DiodeModel dm, CirSim f, DiodeElm de) {
 	super(dm, f);
 	model = dm;
@@ -19,13 +19,13 @@ public class EditDiodeModelDialog extends EditDialog {
 	if (diodeElm != null)
 	    diodeElm.newModelCreated(model);
     }
-    
+
     public void closeDialog() {
 	super.closeDialog();
 	EditDialog edlg = CirSim.editDialog;
 	CirSim.console("resetting dialog " + edlg);
 	if (edlg != null)
-	    edlg.resetDialog();	
+	    edlg.resetDialog();
 	CirSim.diodeModelEditDialog = null;
     }
 }

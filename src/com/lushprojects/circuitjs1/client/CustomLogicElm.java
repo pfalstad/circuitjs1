@@ -12,55 +12,54 @@ public class CustomLogicElm extends ChipElm {
     boolean patternValues[];
     boolean highImpedance[];
     static String lastModelName = "default";
-    
+
     public CustomLogicElm(int xx, int yy) {
 	super(xx, yy);
 	modelName = lastModelName;
 	setupPins();
     }
 
-    public CustomLogicElm(int xa, int ya, int xb, int yb, int f,
-            StringTokenizer st) {
+    public CustomLogicElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f, st);
 	modelName = CustomLogicModel.unescape(st.nextToken());
 	updateModels();
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
 	    if (pins[i].output) {
-		volts[i] = new Double(st.nextToken()).doubleValue();
+		volts[i] = Double.valueOf(st.nextToken()).doubleValue();
 		pins[i].value = volts[i] > getThreshold();
 	    }
 	}
     }
-    
+
     String dump() {
 	String s = super.dump();
 	s += " " + CustomLogicModel.escape(modelName);
 
 	// the code to do this in ChipElm doesn't work here because we don't know
-	// how many pins to read until we read the model name!  So we have to
+	// how many pins to read until we read the model name! So we have to
 	// duplicate it here.
-        int i;
-        for (i = 0; i != getPostCount(); i++) {
-            if (pins[i].output)
-                s += " " + volts[i];
-        }
+	int i;
+	for (i = 0; i != getPostCount(); i++) {
+	    if (pins[i].output)
+		s += " " + volts[i];
+	}
 	return s;
     }
-    
+
     String dumpModel() {
 	if (model.dumped)
 	    return "";
 	return model.dump();
     }
-    
+
     public void updateModels() {
 	model = CustomLogicModel.getModelWithNameOrCopy(modelName, model);
 	setupPins();
 	allocNodes();
 	setPoints();
     }
-    
+
     @Override
     void setupPins() {
 	if (modelName == null) {
@@ -68,7 +67,7 @@ public class CustomLogicElm extends ChipElm {
 	    allocNodes();
 	    return;
 	}
-	
+
 	model = CustomLogicModel.getModelWithName(modelName);
 	inputCount = model.inputs.length;
 	outputCount = model.outputs.length;
@@ -76,7 +75,7 @@ public class CustomLogicElm extends ChipElm {
 	if (sizeY == 0)
 	    sizeY = 1;
 	sizeX = 2;
-	postCount = inputCount+outputCount;
+	postCount = inputCount + outputCount;
 	pins = new Pin[postCount];
 	int i;
 	for (i = 0; i != inputCount; i++) {
@@ -84,48 +83,56 @@ public class CustomLogicElm extends ChipElm {
 	    pins[i].fixName();
 	}
 	for (i = 0; i != outputCount; i++) {
-	    pins[i+inputCount] = new Pin(i, SIDE_E, model.outputs[i]);
-	    pins[i+inputCount].output = true;
-	    pins[i+inputCount].fixName();
+	    pins[i + inputCount] = new Pin(i, SIDE_E, model.outputs[i]);
+	    pins[i + inputCount].output = true;
+	    pins[i + inputCount].fixName();
 	}
 	lastValues = new boolean[postCount];
 	patternValues = new boolean[26];
 	highImpedance = new boolean[postCount];
     }
 
-    int getPostCount() { return postCount; }
-    
+    int getPostCount() {
+	return postCount;
+    }
+
     @Override
     int getVoltageSourceCount() {
 	return outputCount;
     }
 
-    // keep track of whether we have any tri-state outputs.  if not, then we can simplify things quite a bit, making the simulation faster
-    boolean hasTriState() { return model == null ? false : model.triState; }
-    
-    boolean nonLinear() { return hasTriState(); }
-    
-    int getInternalNodeCount() {
-	// for tri-state outputs, we need an internal node to connect a voltage source to, and then connect a resistor from there to the output.
-	// we do this for all outputs if any of them are tri-state
-	return (hasTriState()) ? outputCount : 0; 
+    // keep track of whether we have any tri-state outputs. if not, then we can
+    // simplify things quite a bit, making the simulation faster
+    boolean hasTriState() {
+	return model == null ? false : model.triState;
     }
-    
+
+    boolean nonLinear() {
+	return hasTriState();
+    }
+
+    int getInternalNodeCount() {
+	// for tri-state outputs, we need an internal node to connect a voltage source
+	// to, and then connect a resistor from there to the output.
+	// we do this for all outputs if any of them are tri-state
+	return (hasTriState()) ? outputCount : 0;
+    }
+
     void stamp() {
 	int i;
 	int add = (hasTriState()) ? outputCount : 0;
 	for (i = 0; i != getPostCount(); i++) {
 	    Pin p = pins[i];
 	    if (p.output) {
-		sim.stampVoltageSource(0, nodes[i+add], p.voltSource);
+		sim.stampVoltageSource(0, nodes[i + add], p.voltSource);
 		if (hasTriState()) {
-		    sim.stampNonLinear(nodes[i+add]);
+		    sim.stampNonLinear(nodes[i + add]);
 		    sim.stampNonLinear(nodes[i]);
 		}
 	    }
 	}
     }
-    
+
     void doStep() {
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
@@ -138,12 +145,13 @@ public class CustomLogicElm extends ChipElm {
 	for (i = 0; i != getPostCount(); i++) {
 	    Pin p = pins[i];
 	    if (p.output) {
-		// connect output voltage source (to internal node if tri-state, otherwise connect directly to output)
-		sim.updateVoltageSource(0, nodes[i+add], p.voltSource, p.value ? highVoltage : 0);
-		
+		// connect output voltage source (to internal node if tri-state, otherwise
+		// connect directly to output)
+		sim.updateVoltageSource(0, nodes[i + add], p.voltSource, p.value ? highVoltage : 0);
+
 		// add resistor for tri-state if necessary
 		if (hasTriState())
-		    sim.stampResistor(nodes[i+add], nodes[i], highImpedance[i] ? 1e8 : 1e-3);
+		    sim.stampResistor(nodes[i + add], nodes[i], highImpedance[i] ? 1e8 : 1e-3);
 	    }
 	}
     }
@@ -161,62 +169,62 @@ public class CustomLogicElm extends ChipElm {
 			continue;
 		    break;
 		}
-		
+
 		// don't care
 		if (x == '?')
 		    continue;
-		
+
 		// up transition
 		if (x == '+') {
 		    if (pins[j].value && !lastValues[j])
 			continue;
 		    break;
 		}
-		
+
 		// down transition
 		if (x == '-') {
 		    if (!pins[j].value && lastValues[j])
 			continue;
 		    break;
 		}
-		
+
 		// save pattern values
 		if (x >= 'a' && x <= 'z') {
-		    patternValues[x-'a'] = pins[j].value;
+		    patternValues[x - 'a'] = pins[j].value;
 		    continue;
 		}
-		
+
 		// compare pattern values
 		if (x >= 'A' && x <= 'z') {
-		    if (patternValues[x-'A'] != pins[j].value)
+		    if (patternValues[x - 'A'] != pins[j].value)
 			break;
 		    continue;
 		}
 	    }
 	    if (j != rl.length())
 		continue;
-	    
+
 	    // success
 	    String rr = model.rulesRight.get(i);
 	    for (j = 0; j != rr.length(); j++) {
 		char x = rr.charAt(j);
-		highImpedance[j+inputCount] = false;
+		highImpedance[j + inputCount] = false;
 		if (x >= 'a' && x <= 'z')
-		    pins[j+inputCount].value = patternValues[x-'a'];
+		    pins[j + inputCount].value = patternValues[x - 'a'];
 		else if (x == '_')
-		    highImpedance[j+inputCount] = true;
+		    highImpedance[j + inputCount] = true;
 		else
-		    pins[j+inputCount].value = (x == '1');
+		    pins[j + inputCount].value = (x == '1');
 	    }
 	    break;
 	}
-	
+
 	// save values for transition checking
 	int j;
 	for (j = 0; j != postCount; j++)
 	    lastValues[j] = pins[j].value;
     }
-    
+
     public EditInfo getChipEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Model Name", 0, -1, -1);
@@ -225,13 +233,13 @@ public class CustomLogicElm extends ChipElm {
 	    return ei;
 	}
 	if (n == 1) {
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button(Locale.LS("Edit Model"));
-            return ei;
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.button = new Button(Locale.LS("Edit Model"));
+	    return ei;
 	}
 	return null;
     }
-    
+
     public void setChipEditValue(int n, EditInfo ei) {
 	if (n == 0) {
 	    String newModelName = ei.textf.getText();
@@ -251,8 +259,10 @@ public class CustomLogicElm extends ChipElm {
 	    return;
 	}
     }
-    
-    int getDumpType() { return 208; }
+
+    int getDumpType() {
+	return 208;
+    }
 
     void getInfo(String arr[]) {
 	super.getInfo(arr);

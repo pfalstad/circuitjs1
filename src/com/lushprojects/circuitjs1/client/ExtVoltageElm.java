@@ -22,47 +22,65 @@ package com.lushprojects.circuitjs1.client;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class ExtVoltageElm extends RailElm {
-	public ExtVoltageElm(int xx, int yy) { super(xx, yy, WF_AC); name = "ext"; }
-	public ExtVoltageElm(int xa, int ya, int xb, int yb, int f,
-		       StringTokenizer st) {
-	    super(xa, ya, xb, yb, f, st);
-	    name = CustomLogicModel.unescape(st.nextToken());
-	    waveform = WF_AC;
-	}
-	
-        String name;
-        double voltage;
-
-        String dump() { return super.dump() + " " + CustomLogicModel.escape(name); }
-        
-	void drawRail(Graphics g) {
-	    drawRailText(g, name);
-	}
-	void setVoltage(double v) { if (!Double.isNaN(v)) voltage = v; }
-	String getName() { return name; }
-	
-	double getVoltage() {
-            return voltage;
-	}
-
-	int getDumpType() { return 418; }
-	int getShortcut() { return 0; }
-
-	public EditInfo getEditInfo(int n) {
-	    if (n == 0) {
-		EditInfo ei = new EditInfo("Name", 0, -1, -1);
-		ei.text = name;
-		return ei;
-	    }
-	    return null;
-	}
-	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0)
-		name = ei.textf.getText();
-	}
-
-	void getInfo(String arr[]) {
-	    super.getInfo(arr);
-	    arr[0] = Locale.LS("ext. voltage") + " (" + name + ")";
-	}
+    public ExtVoltageElm(int xx, int yy) {
+	super(xx, yy, WF_AC);
+	name = "ext";
     }
+
+    public ExtVoltageElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
+	super(xa, ya, xb, yb, f, st);
+	name = CustomLogicModel.unescape(st.nextToken());
+	waveform = WF_AC;
+    }
+
+    String name;
+    double voltage;
+
+    String dump() {
+	return super.dump() + " " + CustomLogicModel.escape(name);
+    }
+
+    void drawRail(Graphics g) {
+	drawRailText(g, name);
+    }
+
+    void setVoltage(double v) {
+	if (!Double.isNaN(v))
+	    voltage = v;
+    }
+
+    String getName() {
+	return name;
+    }
+
+    double getVoltage() {
+	return voltage;
+    }
+
+    int getDumpType() {
+	return 418;
+    }
+
+    int getShortcut() {
+	return 0;
+    }
+
+    public EditInfo getEditInfo(int n) {
+	if (n == 0) {
+	    EditInfo ei = new EditInfo("Name", 0, -1, -1);
+	    ei.text = name;
+	    return ei;
+	}
+	return null;
+    }
+
+    public void setEditValue(int n, EditInfo ei) {
+	if (n == 0)
+	    name = ei.textf.getText();
+    }
+
+    void getInfo(String arr[]) {
+	super.getInfo(arr);
+	arr[0] = Locale.LS("ext. voltage") + " (" + name + ")";
+    }
+}

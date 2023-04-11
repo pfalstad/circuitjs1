@@ -19,39 +19,47 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class AntennaElm extends RailElm {
-	public AntennaElm(int xx, int yy) { super(xx, yy, WF_AC); }
-	public AntennaElm(int xa, int ya, int xb, int yb, int f,
-		       StringTokenizer st) {
-	    super(xa, ya, xb, yb, f, st);
-	    waveform = WF_AC;
-	}
-	double fmphase;
-	
-	void drawRail(Graphics g) {
-	    drawRailText(g, "Ant");
-	}
-	
-	double getVoltage() {
-	    double fm = 3*Math.sin(fmphase);
-	    return Math.sin(2*pi*sim.t*3000)*(1.3+Math.sin(2*pi*sim.t*12))*3 +
-	           Math.sin(2*pi*sim.t*2710)*(1.3+Math.sin(2*pi*sim.t*13))*3 +
-		   Math.sin(2*pi*sim.t*2433)*(1.3+Math.sin(2*pi*sim.t*14))*3 + fm;
-	}
-	
-	void stepFinished() {
-	    fmphase += 2*pi*(2200+Math.sin(2*pi*sim.t*13)*100)*sim.timeStep;
-	}
-
-	int getDumpType() { return 'A'; }
-	int getShortcut() { return 0; }
-	
-	void getInfo(String arr[]) {
-	    super.getInfo(arr);
-	    arr[0] = "Antenna (amplified)";
-	}
-
-	public EditInfo getEditInfo(int n) {
-	    return null;
-	}
+class AntennaElm extends RailElm {
+    public AntennaElm(int xx, int yy) {
+	super(xx, yy, WF_AC);
     }
+
+    public AntennaElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
+	super(xa, ya, xb, yb, f, st);
+	waveform = WF_AC;
+    }
+
+    double fmphase;
+
+    void drawRail(Graphics g) {
+	drawRailText(g, "Ant");
+    }
+
+    double getVoltage() {
+	double fm = 3 * Math.sin(fmphase);
+	return Math.sin(2 * pi * sim.t * 3000) * (1.3 + Math.sin(2 * pi * sim.t * 12)) * 3
+		+ Math.sin(2 * pi * sim.t * 2710) * (1.3 + Math.sin(2 * pi * sim.t * 13)) * 3
+		+ Math.sin(2 * pi * sim.t * 2433) * (1.3 + Math.sin(2 * pi * sim.t * 14)) * 3 + fm;
+    }
+
+    void stepFinished() {
+	fmphase += 2 * pi * (2200 + Math.sin(2 * pi * sim.t * 13) * 100) * sim.timeStep;
+    }
+
+    int getDumpType() {
+	return 'A';
+    }
+
+    int getShortcut() {
+	return 0;
+    }
+
+    void getInfo(String arr[]) {
+	super.getInfo(arr);
+	arr[0] = "Antenna (amplified)";
+    }
+
+    public EditInfo getEditInfo(int n) {
+	return null;
+    }
+}

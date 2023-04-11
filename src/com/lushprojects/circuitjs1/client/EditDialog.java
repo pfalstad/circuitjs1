@@ -19,7 +19,6 @@
 
 package com.lushprojects.circuitjs1.client;
 
-
 import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.VerticalPanel;
@@ -39,283 +38,306 @@ import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 
 interface Editable {
     EditInfo getEditInfo(int n);
+
     void setEditValue(int n, EditInfo ei);
 }
 
 class EditDialog extends Dialog {
-	Editable elm;
-	CirSim cframe;
-	Button applyButton, okButton, cancelButton;
-	EditInfo einfos[];
-	int einfocount;
-	final int barmax = 1000;
-	VerticalPanel vp;
-	HorizontalPanel hp;
-	static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
+    Editable elm;
+    CirSim cframe;
+    Button applyButton, okButton, cancelButton;
+    EditInfo einfos[];
+    int einfocount;
+    final int barmax = 1000;
+    VerticalPanel vp;
+    HorizontalPanel hp;
+    static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
 
-	EditDialog(Editable ce, CirSim f) {
-//		super(f, "Edit Component", false);
-		super(); // Do we need this?
-		setText(Locale.LS("Edit Component"));
-		cframe = f;
-		elm = ce;
-//		setLayout(new EditDialogLayout());
-		vp=new VerticalPanel();
-		setWidget(vp);
-		einfos = new EditInfo[10];
-//		noCommaFormat = DecimalFormat.getInstance();
-//		noCommaFormat.setMaximumFractionDigits(10);
-//		noCommaFormat.setGroupingUsed(false);
-		hp=new HorizontalPanel();
-		hp.setWidth("100%");
-		hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_LEFT);
-		hp.setStyleName("topSpace");
-		vp.add(hp);
-		applyButton = new Button(Locale.LS("Apply"));
-		hp.add(applyButton);
-		applyButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-				apply();
-			}
-		});
-		hp.add(okButton = new Button(Locale.LS("OK")));
-		okButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-				apply();
-				closeDialog();
-			}
-		});
-		hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
-		hp.add(cancelButton = new Button(Locale.LS("Cancel")));
-		cancelButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-				closeDialog();
-			}
-		});
-		buildDialog();
-		this.center();
-	}
-	
-	void buildDialog() {
-		int i;
-		int idx;
-		for (i = 0; ; i++) {
-			Label l = null;
-			einfos[i] = elm.getEditInfo(i);
-			if (einfos[i] == null)
-				break;
-			final EditInfo ei = einfos[i];
-			idx = vp.getWidgetIndex(hp);
-			String name = Locale.LS(ei.name);
-			if (ei.name.startsWith("<"))
-			    vp.insert(l = new HTML(name),idx);
-			else
-			    vp.insert(l = new Label(name),idx);
-			if (i!=0 && l != null)
-				l.setStyleName("topSpace");
-			idx = vp.getWidgetIndex(hp);
-			if (ei.choice != null) {
-				vp.insert(ei.choice,idx);
-				ei.choice.addChangeHandler( new ChangeHandler() {
-					public void onChange(ChangeEvent e){
-						itemStateChanged(e);
-					}
-				});
-			} else if (ei.checkbox != null) {
-				vp.insert(ei.checkbox,idx);
-				ei.checkbox.addValueChangeHandler( new ValueChangeHandler<Boolean>() {
-					public void onValueChange(ValueChangeEvent<Boolean> e){
-						itemStateChanged(e);
-					}
-				});
-			} else if (ei.button != null) {
-			    vp.insert(ei.button, idx);
-			    if (ei.loadFile != null) {
-			    	//Open file dialog
-			    	vp.add(ei.loadFile);
-				    ei.button.addClickHandler( new ClickHandler() {
-						public void onClick(ClickEvent event) {
-					    	ei.loadFile.open();
-						}
-				    });
-			    } else {
-			    	//Normal button press
-				    ei.button.addClickHandler( new ClickHandler() {
-						public void onClick(ClickEvent event) {
-						    itemStateChanged(event);
-						}
-				    });
-			    }
-			} else if (ei.textArea != null) {
-			    vp.insert(ei.textArea, idx);
-			    closeOnEnter = false;
-			} else if (ei.widget != null) {
-			    vp.insert(ei.widget, idx);
-			} else {
-			    vp.insert(ei.textf = new TextBox(), idx);
-			    if (ei.text != null) {
-				ei.textf.setText(ei.text);
-				ei.textf.setVisibleLength(50);
-			    }
-			    if (ei.text == null) {
-				ei.textf.setText(unitString(ei));
-			    }
-			}
-		}
-		einfocount = i;
-	}
+    EditDialog(Editable ce, CirSim f) {
+	// super(f, "Edit Component", false);
+	super(); // Do we need this?
+	setText(Locale.LS("Edit Component"));
+	cframe = f;
+	elm = ce;
+	// setLayout(new EditDialogLayout());
+	vp = new VerticalPanel();
+	setWidget(vp);
+	einfos = new EditInfo[10];
+	// noCommaFormat = DecimalFormat.getInstance();
+	// noCommaFormat.setMaximumFractionDigits(10);
+	// noCommaFormat.setGroupingUsed(false);
+	hp = new HorizontalPanel();
+	hp.setWidth("100%");
+	hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_LEFT);
+	hp.setStyleName("topSpace");
+	vp.add(hp);
+	applyButton = new Button(Locale.LS("Apply"));
+	hp.add(applyButton);
+	applyButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		apply();
+	    }
+	});
+	hp.add(okButton = new Button(Locale.LS("OK")));
+	okButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		apply();
+		closeDialog();
+	    }
+	});
+	hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
+	hp.add(cancelButton = new Button(Locale.LS("Cancel")));
+	cancelButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		closeDialog();
+	    }
+	});
+	buildDialog();
+	this.center();
+    }
 
-	static final double ROOT2 = 1.41421356237309504880;
-	
-	double diffFromInteger(double x) {
-	    return Math.abs(x-Math.round(x));
-	}
-	
-	String unitString(EditInfo ei) {
-	    // for voltage elements, express values in rms if that would be shorter
-	    if (elm != null && elm instanceof VoltageElm &&
-		Math.abs(ei.value) > 1e-4 &&
-		diffFromInteger(ei.value*1e4) > diffFromInteger(ei.value*1e4/ROOT2))
-		return unitString(ei, ei.value/ROOT2) + "rms";
-	    return unitString(ei, ei.value);
-	}
-
-	static String unitString(EditInfo ei, double v) {
-		double va = Math.abs(v);
-		if (ei != null && ei.dimensionless)
-			return noCommaFormat.format(v);
-		if (Double.isInfinite(va))
-			return noCommaFormat.format(v);
-		if (v == 0) return "0";
-		if (va < 1e-12)
-			return noCommaFormat.format(v*1e15) + "f";
-		if (va < 1e-9)
-			return noCommaFormat.format(v*1e12) + "p";
-		if (va < 1e-6)
-			return noCommaFormat.format(v*1e9) + "n";
-		if (va < 1e-3)
-			return noCommaFormat.format(v*1e6) + "u";
-		if (va < 1 /*&& !ei.forceLargeM*/)
-			return noCommaFormat.format(v*1e3) + "m";
-		if (va < 1e3)
-			return noCommaFormat.format(v);
-		if (va < 1e6)
-			return noCommaFormat.format(v*1e-3) + "k";
-		if (va < 1e9)
-			return noCommaFormat.format(v*1e-6) + "M";
-		return noCommaFormat.format(v*1e-9) + "G";
-	}
-
-	double parseUnits(EditInfo ei) throws java.text.ParseException {
-		String s = ei.textf.getText();
-		return parseUnits(s);
-	}
-	
-	static double parseUnits(String s) throws java.text.ParseException {
-		s = s.trim();
-		double rmsMult = 1;
-		if (s.endsWith("rms")) {
-		    s = s.substring(0, s.length()-3).trim();
-		    rmsMult = ROOT2;
-		}
-		// rewrite shorthand (eg "2k2") in to normal format (eg 2.2k) using regex
-		s=s.replaceAll("([0-9]+)([pPnNuUmMkKgG])([0-9]+)", "$1.$3$2");
-		// rewrite meg to M
-		s=s.replaceAll("[mM][eE][gG]$", "M");
-		int len = s.length();
-		char uc = s.charAt(len-1);
-		double mult = 1;
-		switch (uc) {
-		case 'f': case 'F': mult = 1e-15; break;
-		case 'p': case 'P': mult = 1e-12; break;
-		case 'n': case 'N': mult = 1e-9; break;
-		case 'u': case 'U': mult = 1e-6; break;
-
-		// for ohm values, we used to assume mega for lowercase m, otherwise milli
-		case 'm': mult = /*(ei.forceLargeM) ? 1e6 : */ 1e-3; break;
-
-		case 'k': case 'K': mult = 1e3; break;
-		case 'M': mult = 1e6; break;
-		case 'G': case 'g': mult = 1e9; break;
-		}
-		if (mult != 1)
-			s = s.substring(0, len-1).trim();
-		return noCommaFormat.parse(s) * mult * rmsMult;
-	}
-
-	void apply() {
-		int i;
-		for (i = 0; i != einfocount; i++) {
-			EditInfo ei = einfos[i];
-			if (ei.textf!=null && ei.text==null) {
-				try {
-					double d = parseUnits(ei);
-					ei.value = d;
-				} catch (Exception ex) { /* ignored */ }
-			}
-			if (ei.button != null)
-			    continue;
-			elm.setEditValue(i, ei);
-			
-			// update slider if any
-			if (elm instanceof CircuitElm) {
-			    Adjustable adj = cframe.findAdjustable((CircuitElm)elm, i);
-			    if (adj != null)
-				adj.setSliderValue(ei.value);
-			}
-		}
-		cframe.needAnalyze();
-	}
-
-	public void itemStateChanged(GwtEvent e) {
-	    Object src = e.getSource();
-	    int i;
-	    boolean changed = false;
-	    boolean applied = false;
-	    for (i = 0; i != einfocount; i++) {
-		EditInfo ei = einfos[i];
-		if (ei.choice == src || ei.checkbox == src || ei.button == src) {
-		    
-		    // if we're pressing a button, make sure to apply changes first
-		    if (ei.button == src && !ei.newDialog) {
-			apply();
-			applied = true;
+    void buildDialog() {
+	int i;
+	int idx;
+	for (i = 0;; i++) {
+	    Label l = null;
+	    einfos[i] = elm.getEditInfo(i);
+	    if (einfos[i] == null)
+		break;
+	    final EditInfo ei = einfos[i];
+	    idx = vp.getWidgetIndex(hp);
+	    String name = Locale.LS(ei.name);
+	    if (ei.name.startsWith("<"))
+		vp.insert(l = new HTML(name), idx);
+	    else
+		vp.insert(l = new Label(name), idx);
+	    if (i != 0 && l != null)
+		l.setStyleName("topSpace");
+	    idx = vp.getWidgetIndex(hp);
+	    if (ei.choice != null) {
+		vp.insert(ei.choice, idx);
+		ei.choice.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			itemStateChanged(e);
 		    }
-		    
-		    elm.setEditValue(i, ei);
-		    if (ei.newDialog)
-			changed = true;
-		    cframe.needAnalyze();
+		});
+	    } else if (ei.checkbox != null) {
+		vp.insert(ei.checkbox, idx);
+		ei.checkbox.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			itemStateChanged(e);
+		    }
+		});
+	    } else if (ei.button != null) {
+		vp.insert(ei.button, idx);
+		if (ei.loadFile != null) {
+		    // Open file dialog
+		    vp.add(ei.loadFile);
+		    ei.button.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+			    ei.loadFile.open();
+			}
+		    });
+		} else {
+		    // Normal button press
+		    ei.button.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+			    itemStateChanged(event);
+			}
+		    });
+		}
+	    } else if (ei.textArea != null) {
+		vp.insert(ei.textArea, idx);
+		closeOnEnter = false;
+	    } else if (ei.widget != null) {
+		vp.insert(ei.widget, idx);
+	    } else {
+		vp.insert(ei.textf = new TextBox(), idx);
+		if (ei.text != null) {
+		    ei.textf.setText(ei.text);
+		    ei.textf.setVisibleLength(50);
+		}
+		if (ei.text == null) {
+		    ei.textf.setText(unitString(ei));
 		}
 	    }
-	    if (changed) {
-		// apply changes before we reset everything
-		// (need to check if we already applied changes; otherwise Diode create simple model button doesn't work)
-		if (!applied)
-		    apply();
-		
-		clearDialog();
-		buildDialog();
+	}
+	einfocount = i;
+    }
+
+    static final double ROOT2 = 1.41421356237309504880;
+
+    double diffFromInteger(double x) {
+	return Math.abs(x - Math.round(x));
+    }
+
+    String unitString(EditInfo ei) {
+	// for voltage elements, express values in rms if that would be shorter
+	if (elm != null && elm instanceof VoltageElm && Math.abs(ei.value) > 1e-4
+		&& diffFromInteger(ei.value * 1e4) > diffFromInteger(ei.value * 1e4 / ROOT2))
+	    return unitString(ei, ei.value / ROOT2) + "rms";
+	return unitString(ei, ei.value);
+    }
+
+    static String unitString(EditInfo ei, double v) {
+	double va = Math.abs(v);
+	if (ei != null && ei.dimensionless)
+	    return noCommaFormat.format(v);
+	if (Double.isInfinite(va))
+	    return noCommaFormat.format(v);
+	if (v == 0)
+	    return "0";
+	if (va < 1e-12)
+	    return noCommaFormat.format(v * 1e15) + "f";
+	if (va < 1e-9)
+	    return noCommaFormat.format(v * 1e12) + "p";
+	if (va < 1e-6)
+	    return noCommaFormat.format(v * 1e9) + "n";
+	if (va < 1e-3)
+	    return noCommaFormat.format(v * 1e6) + "u";
+	if (va < 1 /* && !ei.forceLargeM */)
+	    return noCommaFormat.format(v * 1e3) + "m";
+	if (va < 1e3)
+	    return noCommaFormat.format(v);
+	if (va < 1e6)
+	    return noCommaFormat.format(v * 1e-3) + "k";
+	if (va < 1e9)
+	    return noCommaFormat.format(v * 1e-6) + "M";
+	return noCommaFormat.format(v * 1e-9) + "G";
+    }
+
+    double parseUnits(EditInfo ei) throws java.text.ParseException {
+	String s = ei.textf.getText();
+	return parseUnits(s);
+    }
+
+    static double parseUnits(String s) throws java.text.ParseException {
+	s = s.trim();
+	double rmsMult = 1;
+	if (s.endsWith("rms")) {
+	    s = s.substring(0, s.length() - 3).trim();
+	    rmsMult = ROOT2;
+	}
+	// rewrite shorthand (eg "2k2") in to normal format (eg 2.2k) using regex
+	s = s.replaceAll("([0-9]+)([pPnNuUmMkKgG])([0-9]+)", "$1.$3$2");
+	// rewrite meg to M
+	s = s.replaceAll("[mM][eE][gG]$", "M");
+	int len = s.length();
+	char uc = s.charAt(len - 1);
+	double mult = 1;
+	switch (uc) {
+	case 'f':
+	case 'F':
+	    mult = 1e-15;
+	    break;
+	case 'p':
+	case 'P':
+	    mult = 1e-12;
+	    break;
+	case 'n':
+	case 'N':
+	    mult = 1e-9;
+	    break;
+	case 'u':
+	case 'U':
+	    mult = 1e-6;
+	    break;
+
+	// for ohm values, we used to assume mega for lowercase m, otherwise milli
+	case 'm':
+	    mult = /* (ei.forceLargeM) ? 1e6 : */ 1e-3;
+	    break;
+
+	case 'k':
+	case 'K':
+	    mult = 1e3;
+	    break;
+	case 'M':
+	    mult = 1e6;
+	    break;
+	case 'G':
+	case 'g':
+	    mult = 1e9;
+	    break;
+	}
+	if (mult != 1)
+	    s = s.substring(0, len - 1).trim();
+	return noCommaFormat.parse(s) * mult * rmsMult;
+    }
+
+    void apply() {
+	int i;
+	for (i = 0; i != einfocount; i++) {
+	    EditInfo ei = einfos[i];
+	    if (ei.textf != null && ei.text == null) {
+		try {
+		    double d = parseUnits(ei);
+		    ei.value = d;
+		} catch (Exception ex) {
+		    /* ignored */ }
+	    }
+	    if (ei.button != null)
+		continue;
+	    elm.setEditValue(i, ei);
+
+	    // update slider if any
+	    if (elm instanceof CircuitElm) {
+		Adjustable adj = cframe.findAdjustable((CircuitElm) elm, i);
+		if (adj != null)
+		    adj.setSliderValue(ei.value);
 	    }
 	}
-	
-	public void resetDialog() {
+	cframe.needAnalyze();
+    }
+
+    public void itemStateChanged(GwtEvent e) {
+	Object src = e.getSource();
+	int i;
+	boolean changed = false;
+	boolean applied = false;
+	for (i = 0; i != einfocount; i++) {
+	    EditInfo ei = einfos[i];
+	    if (ei.choice == src || ei.checkbox == src || ei.button == src) {
+
+		// if we're pressing a button, make sure to apply changes first
+		if (ei.button == src && !ei.newDialog) {
+		    apply();
+		    applied = true;
+		}
+
+		elm.setEditValue(i, ei);
+		if (ei.newDialog)
+		    changed = true;
+		cframe.needAnalyze();
+	    }
+	}
+	if (changed) {
+	    // apply changes before we reset everything
+	    // (need to check if we already applied changes; otherwise Diode create simple
+	    // model button doesn't work)
+	    if (!applied)
+		apply();
+
 	    clearDialog();
 	    buildDialog();
 	}
-	
-	public void clearDialog() {
-		while (vp.getWidget(0)!=hp)
-			vp.remove(0);
-	}
-	
-	public void closeDialog()
-	{
-		super.closeDialog();
-		if (CirSim.editDialog == this)
-		    CirSim.editDialog = null;
-		if (CirSim.customLogicEditDialog == this)
-		    CirSim.customLogicEditDialog = null;
-	}
-}
+    }
 
+    public void resetDialog() {
+	clearDialog();
+	buildDialog();
+    }
+
+    public void clearDialog() {
+	while (vp.getWidget(0) != hp)
+	    vp.remove(0);
+    }
+
+    public void closeDialog() {
+	super.closeDialog();
+	if (CirSim.editDialog == this)
+	    CirSim.editDialog = null;
+	if (CirSim.customLogicEditDialog == this)
+	    CirSim.customLogicEditDialog = null;
+    }
+}

@@ -20,33 +20,33 @@
 package com.lushprojects.circuitjs1.client;
 
 public class SRAMLoadFile extends EditDialogLoadFile {
-	
-	public final native void handle()
-	/*-{
-		var oFiles = $doc.getElementById("EditDialogLoadFileElement").files,
-		nFiles = oFiles.length;
-		if (nFiles>=1) {
-			if (oFiles[0].size >= 128000) {
-				@com.lushprojects.circuitjs1.client.EditDialogLoadFile::doErrorCallback(Ljava/lang/String;)("Cannot load: That file is too large!");
-				return;
-			}
-			
-			var reader = new FileReader();
-			reader.onload = function(e) {
-				var arr = new Uint8Array(reader.result);
-				var str = "0:";
-				for (var i = 0; i < arr.length; i++)
-					str += " " + arr[i];
-				@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;)(str);
-			};
-	
-			reader.readAsArrayBuffer(oFiles[0]);
-		}
-	}-*/;
-	
-	static public void doLoadCallback(String data) {
-		SRAMElm.contentsOverride = data;
-		CirSim.editDialog.resetDialog();
-		SRAMElm.contentsOverride = null;
-	}
+
+    public final native void handle()
+    /*-{
+    	var oFiles = $doc.getElementById("EditDialogLoadFileElement").files,
+    	nFiles = oFiles.length;
+    	if (nFiles>=1) {
+    		if (oFiles[0].size >= 128000) {
+    			@com.lushprojects.circuitjs1.client.EditDialogLoadFile::doErrorCallback(Ljava/lang/String;)("Cannot load: That file is too large!");
+    			return;
+    		}
+    		
+    		var reader = new FileReader();
+    		reader.onload = function(e) {
+    			var arr = new Uint8Array(reader.result);
+    			var str = "0:";
+    			for (var i = 0; i < arr.length; i++)
+    				str += " " + arr[i];
+    			@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;)(str);
+    		};
+    
+    		reader.readAsArrayBuffer(oFiles[0]);
+    	}
+    }-*/;
+
+    static public void doLoadCallback(String data) {
+	SRAMElm.contentsOverride = data;
+	CirSim.editDialog.resetDialog();
+	SRAMElm.contentsOverride = null;
+    }
 }

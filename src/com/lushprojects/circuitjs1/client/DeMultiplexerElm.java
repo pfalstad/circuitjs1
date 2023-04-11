@@ -21,72 +21,92 @@ package com.lushprojects.circuitjs1.client;
 
 // contributed by Edward Calver
 
-    class DeMultiplexerElm extends ChipElm {
-	int selectBitCount;
-	int outputCount;
-	int qPin;
-	boolean hasReset() {return false;}
-	public DeMultiplexerElm(int xx, int yy) { super(xx, yy); }
-	public DeMultiplexerElm(int xa, int ya, int xb, int yb, int f,
-			    StringTokenizer st) {
-	    super(xa, ya, xb, yb, f, st);
-	    try {
-		selectBitCount = Integer.parseInt(st.nextToken());
-		setupPins();
-		allocNodes();
-	    } catch (Exception e) {}
-	}
-	String getChipName() { return "demultiplexer"; }
-	String dump() { return super.dump() + " " + selectBitCount; }
+class DeMultiplexerElm extends ChipElm {
+    int selectBitCount;
+    int outputCount;
+    int qPin;
 
-	void setupPins() {
-	    if (selectBitCount == 0)
-		selectBitCount = 2;
-	    outputCount = 1 << selectBitCount;
-	    sizeX = 1+selectBitCount;
-	    sizeY = 1+outputCount;
-	    pins = new Pin[getPostCount()];
-	    int i;
-	    for (i = 0; i != outputCount; i++) {
-		pins[i] = new Pin(i, SIDE_E, "Q" + i);
-		pins[i].output=true;
-	    }
-	    for (i = 0; i != selectBitCount; i++) {
-		int ii = i+outputCount;
-		pins[ii] = new Pin(i, SIDE_S, "S" + i);
-	    }
-	    qPin = outputCount+selectBitCount;
-	    pins[qPin] = new Pin(0, SIDE_W, "Q");
-	}
-	int getPostCount() {
-	    return qPin+1;
-	}
-	int getVoltageSourceCount() { return outputCount; }
-
-	void execute() {
-	    int val = 0;
-	    int i;
-	    for (i = 0; i != selectBitCount; i++)
-		if (pins[i+outputCount].value)
-		    val |= 1<<i;
-	    for (i = 0; i != outputCount; i++)
-		pins[i].value = false;
-	    pins[val].value = pins[qPin].value;
-	}
-
-	public EditInfo getChipEditInfo(int n) {
-            if (n == 0)
-                return new EditInfo("# of Select Bits", selectBitCount).setDimensionless();
-            return null;
-        }
-        public void setChipEditValue(int n, EditInfo ei) {
-            if (n == 0 && ei.value >= 1 && ei.value <= 6) {
-                selectBitCount = (int)ei.value;
-                setupPins();
-                setPoints();
-            }
-        }
-
-	int getDumpType() { return 185; }
-
+    boolean hasReset() {
+	return false;
     }
+
+    public DeMultiplexerElm(int xx, int yy) {
+	super(xx, yy);
+    }
+
+    public DeMultiplexerElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
+	super(xa, ya, xb, yb, f, st);
+	try {
+	    selectBitCount = Integer.parseInt(st.nextToken());
+	    setupPins();
+	    allocNodes();
+	} catch (Exception e) {
+	}
+    }
+
+    String getChipName() {
+	return "demultiplexer";
+    }
+
+    String dump() {
+	return super.dump() + " " + selectBitCount;
+    }
+
+    void setupPins() {
+	if (selectBitCount == 0)
+	    selectBitCount = 2;
+	outputCount = 1 << selectBitCount;
+	sizeX = 1 + selectBitCount;
+	sizeY = 1 + outputCount;
+	pins = new Pin[getPostCount()];
+	int i;
+	for (i = 0; i != outputCount; i++) {
+	    pins[i] = new Pin(i, SIDE_E, "Q" + i);
+	    pins[i].output = true;
+	}
+	for (i = 0; i != selectBitCount; i++) {
+	    int ii = i + outputCount;
+	    pins[ii] = new Pin(i, SIDE_S, "S" + i);
+	}
+	qPin = outputCount + selectBitCount;
+	pins[qPin] = new Pin(0, SIDE_W, "Q");
+    }
+
+    int getPostCount() {
+	return qPin + 1;
+    }
+
+    int getVoltageSourceCount() {
+	return outputCount;
+    }
+
+    void execute() {
+	int val = 0;
+	int i;
+	for (i = 0; i != selectBitCount; i++)
+	    if (pins[i + outputCount].value)
+		val |= 1 << i;
+	for (i = 0; i != outputCount; i++)
+	    pins[i].value = false;
+	pins[val].value = pins[qPin].value;
+    }
+
+    public EditInfo getChipEditInfo(int n) {
+	if (n == 0)
+	    return new EditInfo("# of Select Bits", selectBitCount).setDimensionless();
+	return null;
+    }
+
+    public void setChipEditValue(int n, EditInfo ei) {
+	if (n == 0 && ei.value >= 1 && ei.value <= 6) {
+	    selectBitCount = (int) ei.value;
+	    setupPins();
+	    setPoints();
+	}
+    }
+
+    int getDumpType() {
+	return 185;
+    }
+
+}

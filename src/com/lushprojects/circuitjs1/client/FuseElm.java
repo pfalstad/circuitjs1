@@ -22,154 +22,174 @@ package com.lushprojects.circuitjs1.client;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class FuseElm extends CircuitElm {
-	double resistance;
-	double heat;
-	double i2t;
-	boolean blown;
-	final int FLAG_IEC_SYMBOL = 1;
-	final double blownResistance = 1e9;
-	public FuseElm(int xx, int yy) {
-	    super(xx, yy);
-	    // from https://m.littelfuse.com/~/media/electronics/datasheets/fuses/littelfuse_fuse_218_datasheet.pdf.pdf
-	    i2t = 6.73;
-	    resistance = .0613;
-	}
-	public FuseElm(int xa, int ya, int xb, int yb, int f,
-		    StringTokenizer st) {
-	    super(xa, ya, xb, yb, f);
-	    resistance = new Double(st.nextToken()).doubleValue();
-	    i2t = new Double(st.nextToken()).doubleValue();
-	    heat = new Double(st.nextToken()).doubleValue();
-	    blown = new Boolean(st.nextToken()).booleanValue();
-	}
-	String dump() {
-	    return super.dump() + " " + resistance + " " + i2t + " " + heat + " " + blown;
-	}
-	int getDumpType() { return 404; }
+    double resistance;
+    double heat;
+    double i2t;
+    boolean blown;
+    final int FLAG_IEC_SYMBOL = 1;
+    final double blownResistance = 1e9;
 
-	boolean isIECSymbol() { return (flags & FLAG_IEC_SYMBOL) != 0; }
-	
-	void reset() {
-	    super.reset();
+    public FuseElm(int xx, int yy) {
+	super(xx, yy);
+	// from
+	// https://m.littelfuse.com/~/media/electronics/datasheets/fuses/littelfuse_fuse_218_datasheet.pdf.pdf
+	i2t = 6.73;
+	resistance = .0613;
+    }
+
+    public FuseElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
+	super(xa, ya, xb, yb, f);
+	resistance = Double.valueOf(st.nextToken()).doubleValue();
+	i2t = Double.valueOf(st.nextToken()).doubleValue();
+	heat = Double.valueOf(st.nextToken()).doubleValue();
+	blown = Boolean.valueOf(st.nextToken()).booleanValue();
+    }
+
+    String dump() {
+	return super.dump() + " " + resistance + " " + i2t + " " + heat + " " + blown;
+    }
+
+    int getDumpType() {
+	return 404;
+    }
+
+    boolean isIECSymbol() {
+	return (flags & FLAG_IEC_SYMBOL) != 0;
+    }
+
+    void reset() {
+	super.reset();
+	heat = 0;
+	blown = false;
+    }
+
+    void setPoints() {
+	super.setPoints();
+	int llen = isIECSymbol() ? 32 : 16;
+	calcLeads(llen);
+    }
+
+    Color getTempColor(Graphics g) {
+	Color c = getVoltageColor(g, volts[0]);
+	double temp = heat / i2t;
+	if (temp < .3333) {
+	    double val = temp * 3;
+	    int x = (int) (255 * val);
+	    if (x < 0)
+		x = 0;
+	    return new Color(x + (255 - x) * c.getRed() / 255, (255 - x) * c.getGreen() / 255,
+		    (255 - x) * c.getBlue() / 255);
+	}
+	if (temp < .6667) {
+	    int x = (int) ((temp - .3333) * 3 * 255);
+	    if (x < 0)
+		x = 0;
+	    return new Color(255, x, 0);
+	}
+	if (temp < 1) {
+	    int x = (int) ((temp - .6666) * 3 * 255);
+	    if (x < 0)
+		x = 0;
+	    return new Color(255, 255, x);
+	}
+	return Color.white;
+    }
+
+    void draw(Graphics g) {
+	int segments = 16;
+	int i;
+	int hs = 6;
+	setBbox(point1, point2, hs);
+	draw2Leads(g);
+
+	// double segf = 1./segments;
+	double len = distance(lead1, lead2);
+	g.context.save();
+	g.context.setLineWidth(3.0);
+	g.context.transform(((double) (lead2.x - lead1.x)) / len, ((double) (lead2.y - lead1.y)) / len,
+		-((double) (lead2.y - lead1.y)) / len, ((double) (lead2.x - lead1.x)) / len, lead1.x, lead1.y);
+	g.context.setStrokeStyle(getTempColor(g).getHexValue());
+	if (!isIECSymbol()) {
+	    if (!blown) {
+		g.context.beginPath();
+		g.context.moveTo(0, 0);
+		for (i = 0; i <= segments; i++)
+		    g.context.lineTo(i * len / segments, hs * Math.sin(i * Math.PI * 2 / segments));
+		g.context.stroke();
+	    }
+	} else {
+	    if (!blown) {
+		g.context.beginPath();
+		g.context.moveTo(0, 0);
+		g.context.lineTo(len, 0);
+		g.context.stroke();
+		g.context.strokeRect(0, -hs, len, 2.0 * hs);
+	    }
+	}
+	g.context.restore();
+	doDots(g);
+	drawPosts(g);
+    }
+
+    void calculateCurrent() {
+	current = (volts[0] - volts[1]) / (blown ? blownResistance : resistance);
+    }
+
+    void stamp() {
+	sim.stampNonLinear(nodes[0]);
+	sim.stampNonLinear(nodes[1]);
+    }
+
+    boolean nonLinear() {
+	return true;
+    }
+
+    void startIteration() {
+	double i = getCurrent();
+
+	// accumulate heat
+	heat += i * i * sim.timeStep;
+
+	// dissipate heat. we assume the fuse can dissipate its entire i2t in 3 seconds
+	heat -= sim.timeStep * i2t / 3;
+
+	if (heat < 0)
 	    heat = 0;
-	    blown = false;
-	}
-	void setPoints() {
-	    super.setPoints();
-	    int llen = isIECSymbol() ? 32 : 16;
-	    calcLeads(llen);
-	}
+	if (heat > i2t)
+	    blown = true;
+    }
 
-	Color getTempColor(Graphics g) {
-	    Color c = getVoltageColor(g, volts[0]);
-	    double temp = heat/i2t;
-	    if (temp < .3333) {
-		double val = temp*3;
-		int x = (int) (255*val);
-		if (x < 0)
-		    x = 0;
-		return new Color(x+(255-x)*c.getRed()/255, (255-x)*c.getGreen()/255, (255-x)*c.getBlue()/255);
-	    }
-	    if (temp < .6667) {
-		int x = (int) ((temp-.3333)*3*255);
-		if (x < 0)
-		    x = 0;
-		return new Color(255, x, 0);
-	    }
-	    if (temp < 1) {
-		int x = (int) ((temp-.6666)*3*255);
-		if (x < 0)
-		    x = 0;
-		return new Color(255, 255, x);
-	    }
-	    return Color.white;
-	}
-	
-	void draw(Graphics g) {
-	    int segments = 16;
-	    int i;
-	    int hs=6;
-	    setBbox(point1, point2, hs);
-	    draw2Leads(g);
-	    
-	    //   double segf = 1./segments;
-	    double len = distance(lead1, lead2);
-	    g.context.save();
-	    g.context.setLineWidth(3.0);
-	    g.context.transform(((double)(lead2.x-lead1.x))/len, ((double)(lead2.y-lead1.y))/len, -((double)(lead2.y-lead1.y))/len,((double)(lead2.x-lead1.x))/len,lead1.x,lead1.y);
-	    g.context.setStrokeStyle(getTempColor(g).getHexValue());
-	    if (!isIECSymbol()) {
-		if (!blown) {
-		    g.context.beginPath();
-		    g.context.moveTo(0,0);
-		    for (i = 0; i <= segments; i++)
-			g.context.lineTo(i*len/segments, hs*Math.sin(i*Math.PI*2/segments));
-		    g.context.stroke();
-		}
-	    } else {
-		if (!blown) {
-		    g.context.beginPath();
-		    g.context.moveTo(0, 0);
-		    g.context.lineTo(len, 0);
-		    g.context.stroke();
-		    g.context.strokeRect(0, -hs, len, 2.0*hs);
-		}
-	    }
-	    g.context.restore();
-	    doDots(g);
-	    drawPosts(g);
-	}
+    void doStep() {
+	sim.stampResistor(nodes[0], nodes[1], blown ? blownResistance : resistance);
+    }
 
-	void calculateCurrent() {
-	    current = (volts[0]-volts[1])/(blown ? blownResistance : resistance);
-	}
-	void stamp() {
-	    sim.stampNonLinear(nodes[0]);
-	    sim.stampNonLinear(nodes[1]);
-	}
-	boolean nonLinear() { return true; }
-	void startIteration() {
-	    double i = getCurrent();
-	    
-	    // accumulate heat
-	    heat += i*i*sim.timeStep;
+    void getInfo(String arr[]) {
+	arr[0] = blown ? "fuse (blown)" : "fuse";
+	getBasicInfo(arr);
+	arr[3] = "R = " + getUnitText(resistance, Locale.ohmString);
+	arr[4] = "I2t = " + i2t;
+	if (!blown)
+	    arr[5] = ((int) (heat * 100 / i2t)) + "% " + Locale.LS("melted");
+    }
 
-	    // dissipate heat.  we assume the fuse can dissipate its entire i2t in 3 seconds
-	    heat -= sim.timeStep*i2t/3;
-	    
-	    if (heat < 0)
-		heat = 0;
-	    if (heat > i2t)
-		blown = true;
-	}
-	void doStep() {
-	    sim.stampResistor(nodes[0], nodes[1], blown ? blownResistance : resistance);
-	}
-	void getInfo(String arr[]) {
-	    arr[0] = blown ? "fuse (blown)" : "fuse";
-	    getBasicInfo(arr);
-	    arr[3] = "R = " + getUnitText(resistance, Locale.ohmString);
-	    arr[4] = "I2t = " + i2t;
-	    if (!blown)
-		arr[5] = ((int)(heat*100/i2t)) + "% " + Locale.LS("melted");
-	}
-	public EditInfo getEditInfo(int n) {
-	    if (n == 0)
-		return new EditInfo("I2t", i2t, 0, 0);
-	    if (n == 1)
-		return new EditInfo("Resistance", resistance, 0, 0);
-	    if (n == 2)
-		return EditInfo.createCheckbox("IEC Symbol", isIECSymbol());
-	    return null;
-	}
-	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value > 0)
-		i2t = ei.value;
-	    if (n == 1 && ei.value > 0)
-		resistance = ei.value;
-	    if (n == 2) {
-		flags = ei.changeFlag(flags, FLAG_IEC_SYMBOL);
-		setPoints();
-	    }
+    public EditInfo getEditInfo(int n) {
+	if (n == 0)
+	    return new EditInfo("I2t", i2t, 0, 0);
+	if (n == 1)
+	    return new EditInfo("Resistance", resistance, 0, 0);
+	if (n == 2)
+	    return EditInfo.createCheckbox("IEC Symbol", isIECSymbol());
+	return null;
+    }
+
+    public void setEditValue(int n, EditInfo ei) {
+	if (n == 0 && ei.value > 0)
+	    i2t = ei.value;
+	if (n == 1 && ei.value > 0)
+	    resistance = ei.value;
+	if (n == 2) {
+	    flags = ei.changeFlag(flags, FLAG_IEC_SYMBOL);
+	    setPoints();
 	}
     }
+}

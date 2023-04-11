@@ -19,15 +19,20 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class NoiseElm extends RailElm {
-	public NoiseElm(int xx, int yy) { super(xx, yy, WF_NOISE); }
-	public NoiseElm(int xa, int ya, int xb, int yb, int f,
-		       StringTokenizer st) {
-	    super(xa, ya, xb, yb, f, st);
-	    waveform = WF_NOISE;
-	}
-	
-	// dump this class as a RailElm.  The 'n' dump type is still used in CirSim.createCe to read old files
-//	int getDumpType() { return 'n'; }
-	int getShortcut() { return 0; }
+class NoiseElm extends RailElm {
+    public NoiseElm(int xx, int yy) {
+	super(xx, yy, WF_NOISE);
     }
+
+    public NoiseElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
+	super(xa, ya, xb, yb, f, st);
+	waveform = WF_NOISE;
+    }
+
+    // dump this class as a RailElm. The 'n' dump type is still used in
+    // CirSim.createCe to read old files
+    // int getDumpType() { return 'n'; }
+    int getShortcut() {
+	return 0;
+    }
+}

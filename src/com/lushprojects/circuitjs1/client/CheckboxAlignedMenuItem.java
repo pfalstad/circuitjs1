@@ -24,9 +24,9 @@ import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.safehtml.shared.SafeHtmlUtils;
 
 public class CheckboxAlignedMenuItem extends MenuItem {
-	
-	public CheckboxAlignedMenuItem(String s, Command cmd) {
-		super(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+"&nbsp;</div>"+s), cmd);
-	}
+
+    public CheckboxAlignedMenuItem(String s, Command cmd) {
+	super(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml + "&nbsp;</div>" + s), cmd);
+    }
 
 }

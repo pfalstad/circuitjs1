@@ -19,14 +19,19 @@
 
 package com.lushprojects.circuitjs1.client;
 
-
 class PhaseCompElm extends ChipElm {
-    public PhaseCompElm(int xx, int yy) { super(xx, yy); }
-    public PhaseCompElm(int xa, int ya, int xb, int yb, int f,
-			StringTokenizer st) {
+    public PhaseCompElm(int xx, int yy) {
+	super(xx, yy);
+    }
+
+    public PhaseCompElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f, st);
     }
-    String getChipName() { return "phase comparator"; }
+
+    String getChipName() {
+	return "phase comparator";
+    }
+
     void setupPins() {
 	sizeX = 2;
 	sizeY = 2;
@@ -36,14 +41,20 @@ class PhaseCompElm extends ChipElm {
 	pins[2] = new Pin(0, SIDE_E, "O");
 	pins[2].output = true;
     }
-    boolean nonLinear() { return true; }
+
+    boolean nonLinear() {
+	return true;
+    }
+
     void stamp() {
-	int vn = sim.nodeList.size()+pins[2].voltSource;
+	int vn = sim.nodeList.size() + pins[2].voltSource;
 	sim.stampNonLinear(vn);
 	sim.stampNonLinear(0);
 	sim.stampNonLinear(nodes[2]);
     }
+
     boolean ff1, ff2;
+
     void doStep() {
 	boolean v1 = volts[0] > getThreshold();
 	boolean v2 = volts[1] > getThreshold();
@@ -54,19 +65,27 @@ class PhaseCompElm extends ChipElm {
 	if (ff1 && ff2)
 	    ff1 = ff2 = false;
 	double out = (ff1) ? highVoltage : (ff2) ? 0 : -1;
-	//System.out.println(out + " " + v1 + " " + v2);
+	// System.out.println(out + " " + v1 + " " + v2);
 	if (out != -1)
 	    sim.stampVoltageSource(0, nodes[2], pins[2].voltSource, out);
 	else {
 	    // tie current through output pin to 0
-	    int vn = sim.nodeList.size()+pins[2].voltSource;
+	    int vn = sim.nodeList.size() + pins[2].voltSource;
 	    sim.stampMatrix(vn, vn, 1);
 	}
 	pins[0].value = v1;
 	pins[1].value = v2;
     }
-    int getPostCount() { return 3; }
-    int getVoltageSourceCount() { return 1; }
-    int getDumpType() { return 161; }
+
+    int getPostCount() {
+	return 3;
+    }
+
+    int getVoltageSourceCount() {
+	return 1;
+    }
+
+    int getDumpType() {
+	return 161;
+    }
 }
-    
