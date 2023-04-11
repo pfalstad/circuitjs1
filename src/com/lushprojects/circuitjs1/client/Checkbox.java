@@ -23,21 +23,21 @@ import com.google.gwt.user.client.ui.CheckBox;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class Checkbox extends CheckBox {
-	public Checkbox(String s){
-		super(Locale.LS(s));
-	}
-	
-	public Checkbox(String s, boolean b){
-		super(Locale.LS(s));
-		this.setValue(b);
-	}
-	
-	public boolean getState(){
-		return this.getValue();
-	}
-	
-	public void setState(boolean s){
-		this.setValue(s);
-	}
-	
+    public Checkbox(String s) {
+	super(Locale.LS(s));
+    }
+
+    public Checkbox(String s, boolean b) {
+	super(Locale.LS(s));
+	this.setValue(b);
+    }
+
+    public boolean getState() {
+	return this.getValue();
+    }
+
+    public void setState(boolean s) {
+	this.setValue(s);
+    }
+
 }

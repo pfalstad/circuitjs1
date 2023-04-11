@@ -27,9 +27,10 @@ class TextElm extends GraphicElm {
     String text;
     Vector<String> lines;
     int size;
-//    final int FLAG_CENTER = 1;
+    // final int FLAG_CENTER = 1;
     final int FLAG_BAR = 2;
     final int FLAG_ESCAPE = 4;
+
     public TextElm(int xx, int yy) {
 	super(xx, yy);
 	text = "hello";
@@ -37,22 +38,23 @@ class TextElm extends GraphicElm {
 	lines.add(text);
 	size = 24;
     }
-    public TextElm(int xa, int ya, int xb, int yb, int f,
-		   StringTokenizer st) {
+
+    public TextElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
-	size = new Integer(st.nextToken()).intValue();
+	size = Integer.valueOf(st.nextToken()).intValue();
 	text = st.nextToken();
 	if ((flags & FLAG_ESCAPE) == 0) {
 	    // old-style dump before escape/unescape
 	    while (st.hasMoreTokens())
 		text += ' ' + st.nextToken();
-	    text=text.replaceAll("%2[bB]", "+");
+	    text = text.replaceAll("%2[bB]", "+");
 	} else {
 	    // new-style dump
-	    text = CustomLogicModel.unescape(text); 
+	    text = CustomLogicModel.unescape(text);
 	}
 	split();
     }
+
     void split() {
 	int i;
 	lines = new Vector<String>();
@@ -64,7 +66,7 @@ class TextElm extends GraphicElm {
 		c = sb.charAt(i);
 		if (c == 'n') {
 		    lines.add(sb.substring(0, i));
-		    sb.delete(0, i+1);
+		    sb.delete(0, i + 1);
 		    i = -1;
 		    continue;
 		}
@@ -72,32 +74,38 @@ class TextElm extends GraphicElm {
 	}
 	lines.add(sb.toString());
     }
+
     String dump() {
 	flags |= FLAG_ESCAPE;
 	return super.dump() + " " + size + " " + CustomLogicModel.escape(text);
-	//return super.dump() + " " + size + " " + text;
+	// return super.dump() + " " + size + " " + text;
     }
-    int getDumpType() { return 'x'; }
+
+    int getDumpType() {
+	return 'x';
+    }
+
     void drag(int xx, int yy) {
 	x = xx;
 	y = yy;
-	x2 = xx+16;
+	x2 = xx + 16;
 	y2 = yy;
     }
+
     void draw(Graphics g) {
-	//Graphics2D g2 = (Graphics2D)g;
-	//g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-	//	RenderingHints.VALUE_ANTIALIAS_ON);
+	// Graphics2D g2 = (Graphics2D)g;
+	// g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+	// RenderingHints.VALUE_ANTIALIAS_ON);
 	g.save();
 	g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	Font f = new Font("SansSerif", 0, size);
 	g.setFont(f);
-//	FontMetrics fm = g.getFontMetrics();
+	// FontMetrics fm = g.getFontMetrics();
 	int i;
 	int maxw = -1;
 	for (i = 0; i != lines.size(); i++) {
-//	    int w = fm.stringWidth((String) (lines.elementAt(i)));
-		int w= (int)g.context.measureText((String) (lines.elementAt(i))).getWidth();
+	    // int w = fm.stringWidth((String) (lines.elementAt(i)));
+	    int w = (int) g.context.measureText((String) (lines.elementAt(i))).getWidth();
 	    if (w > maxw)
 		maxw = w;
 	}
@@ -106,20 +114,20 @@ class TextElm extends GraphicElm {
 	for (i = 0; i != lines.size(); i++) {
 	    String s = (String) (lines.elementAt(i));
 	    s = Locale.LS(s);
-	    int sw=(int)g.context.measureText(s).getWidth();
+	    int sw = (int) g.context.measureText(s).getWidth();
 	    g.drawString(s, x, cury);
 	    if ((flags & FLAG_BAR) != 0) {
-		int by = cury-g.currentFontSize;
-		g.drawLine(x, by, x+sw-1, by);
+		int by = cury - g.currentFontSize;
+		g.drawLine(x, by, x + sw - 1, by);
 	    }
-	    adjustBbox(x, cury-g.currentFontSize,
-		       x+sw, cury+3);
-	    cury += g.currentFontSize+3;
+	    adjustBbox(x, cury - g.currentFontSize, x + sw, cury + 3);
+	    cury += g.currentFontSize + 3;
 	}
 	x2 = boundingBox.x + boundingBox.width;
 	y2 = boundingBox.y + boundingBox.height;
 	g.restore();
     }
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Text", 0, -1, -1);
@@ -130,12 +138,12 @@ class TextElm extends GraphicElm {
 	    return new EditInfo("Size", size, 5, 100);
 	if (n == 2) {
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
-	    ei.checkbox =
-		new Checkbox("Draw Bar On Top", (flags & FLAG_BAR) != 0);
+	    ei.checkbox = new Checkbox("Draw Bar On Top", (flags & FLAG_BAR) != 0);
 	    return ei;
 	}
 	return null;
     }
+
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0) {
 	    text = ei.textf.getText();
@@ -150,11 +158,14 @@ class TextElm extends GraphicElm {
 		flags &= ~FLAG_BAR;
 	}
     }
-//    boolean isCenteredText() { return (flags & FLAG_CENTER) != 0; }
+
+    // boolean isCenteredText() { return (flags & FLAG_CENTER) != 0; }
     void getInfo(String arr[]) {
 	arr[0] = text;
     }
-    @Override
-    int getShortcut() { return 't'; }
-}
 
+    @Override
+    int getShortcut() {
+	return 't';
+    }
+}

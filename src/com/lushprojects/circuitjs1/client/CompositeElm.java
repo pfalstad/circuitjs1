@@ -20,15 +20,17 @@ import java.util.Map.Entry;
 
 public abstract class CompositeElm extends CircuitElm {
 
-    // need to use escape() instead of converting spaces to _'s so composite elements can be nested
+    // need to use escape() instead of converting spaces to _'s so composite
+    // elements can be nested
     final int FLAG_ESCAPE = 1;
-    
+
     // list of elements contained in this subcircuit
     Vector<CircuitElm> compElmList;
-    
-    // list of nodes, mapping each one to a list of elements that reference that node
+
+    // list of nodes, mapping each one to a list of elements that reference that
+    // node
     protected Vector<CircuitNode> compNodeList;
-    
+
     protected int numPosts = 0;
     protected int numNodes = 0;
     protected Point posts[];
@@ -37,11 +39,11 @@ public abstract class CompositeElm extends CircuitElm {
     CompositeElm(int xx, int yy) {
 	super(xx, yy);
     }
-    
+
     public CompositeElm(int xa, int ya, int xb, int yb, int f) {
 	super(xa, ya, xb, yb, f);
     }
-    
+
     CompositeElm(int xx, int yy, String s, int externalNodes[]) {
 	super(xx, yy);
 	loadComposite(null, s, externalNodes);
@@ -54,8 +56,10 @@ public abstract class CompositeElm extends CircuitElm {
 	allocNodes();
     }
 
-    boolean useEscape() { return (flags & FLAG_ESCAPE) != 0; }
-    
+    boolean useEscape() {
+	return (flags & FLAG_ESCAPE) != 0;
+    }
+
     public void loadComposite(StringTokenizer stIn, String model, int externalNodes[]) {
 	HashMap<Integer, CircuitNode> compNodeHash = new HashMap<Integer, CircuitNode>();
 	StringTokenizer modelLinet = new StringTokenizer(model, "\r");
@@ -74,13 +78,13 @@ public abstract class CompositeElm extends CircuitElm {
 	    StringTokenizer stModel = new StringTokenizer(line, " +\t\n\r\f");
 	    String ceType = stModel.nextToken();
 	    CircuitElm newce = CirSim.constructElement(ceType, 0, 0);
-	    if (stIn!=null) {
+	    if (stIn != null) {
 		int tint = newce.getDumpType();
-		String dumpedCe= stIn.nextToken();
+		String dumpedCe = stIn.nextToken();
 		if (useEscape())
 		    dumpedCe = CustomLogicModel.unescape(dumpedCe);
 		StringTokenizer stCe = new StringTokenizer(dumpedCe, useEscape() ? " " : "_");
-		int flags = new Integer(stCe.nextToken()).intValue();
+		int flags = Integer.valueOf(stCe.nextToken()).intValue();
 		newce = CirSim.createCe(tint, 0, 0, 0, 0, flags, stCe);
 	    }
 	    if (newce instanceof GroundElm)
@@ -89,7 +93,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	    int thisPost = 0;
 	    while (stModel.hasMoreTokens()) {
-		int nodeOfThisPost = new Integer(stModel.nextToken()).intValue();
+		int nodeOfThisPost = Integer.valueOf(stModel.nextToken()).intValue();
 
 		// node = 0 means ground
 		if (nodeOfThisPost == 0) {
@@ -143,24 +147,25 @@ public abstract class CompositeElm extends CircuitElm {
 
 	numNodes = compNodeList.size();
 
-//	CirSim.console("Dumping compNodeList");
-//	for (int i = 0; i < numNodes; i++) {
-//	    CirSim.console("New node" + i + " Size of links:" + compNodeList.get(i).links.size());
-//	}
+	// CirSim.console("Dumping compNodeList");
+	// for (int i = 0; i < numNodes; i++) {
+	// CirSim.console("New node" + i + " Size of links:" +
+	// compNodeList.get(i).links.size());
+	// }
 
 	posts = new Point[numPosts];
-	
+
 	// Enumerate voltage sources
 	for (int i = 0; i < compElmList.size(); i++) {
 	    int cnt = compElmList.get(i).getVoltageSourceCount();
-	    for (int j=0;j < cnt ; j++) {
+	    for (int j = 0; j < cnt; j++) {
 		vsRecord = new VoltageSourceRecord();
 		vsRecord.elm = compElmList.get(i);
 		vsRecord.vsNumForElement = j;
 		voltageSources.add(vsRecord);
 	    }
 	}
-	
+
 	// dump new circuits with escape()
 	flags |= FLAG_ESCAPE;
     }
@@ -173,7 +178,7 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     public String dump() {
-	String dumpStr=super.dump();
+	String dumpStr = super.dump();
 	dumpStr += dumpElements();
 	return dumpStr;
     }
@@ -182,26 +187,29 @@ public abstract class CompositeElm extends CircuitElm {
 	String dumpStr = "";
 	for (int i = 0; i < compElmList.size(); i++) {
 	    String tstring = compElmList.get(i).dump();
-	    tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", ""); // remove unused tint x1 y1 x2 y2 coords for internal components
-	    dumpStr += " "+ CustomLogicModel.escape(tstring);
+	    tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", ""); // remove unused tint x1 y1 x2 y2 coords for
+									 // internal components
+	    dumpStr += " " + CustomLogicModel.escape(tstring);
 	}
 	return dumpStr;
     }
 
-    // dump subset of elements (some of them may not have any state, and/or may be very long, so we avoid dumping them for brevity)
+    // dump subset of elements (some of them may not have any state, and/or may be
+    // very long, so we avoid dumping them for brevity)
     public String dumpWithMask(int mask) {
-	String dumpStr=super.dump();
+	String dumpStr = super.dump();
 	return dumpStr + dumpElements(mask);
     }
 
     public String dumpElements(int mask) {
 	String dumpStr = "";
 	for (int i = 0; i < compElmList.size(); i++) {
-	    if ((mask & (1<<i)) == 0)
+	    if ((mask & (1 << i)) == 0)
 		continue;
 	    String tstring = compElmList.get(i).dump();
-	    tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", ""); // remove unused tint x1 y1 x2 y2 coords for internal components
-	    dumpStr += " "+ CustomLogicModel.escape(tstring);
+	    tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", ""); // remove unused tint x1 y1 x2 y2 coords for
+									 // internal components
+	    dumpStr += " " + CustomLogicModel.escape(tstring);
 	}
 	return dumpStr;
     }
@@ -218,7 +226,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    int n = connectedNodes.get(i);
 	    if (n == n2)
 		return true;
-	    
+
 	    // find all elements connected to n
 	    Vector<CircuitNodeLink> cnLinks = compNodeList.get(n).links;
 	    for (int j = 0; j < cnLinks.size(); j++) {
@@ -241,7 +249,7 @@ public abstract class CompositeElm extends CircuitElm {
 	}
 	return false;
     }
-    
+
     // is n1 connected to ground somehow?
     public boolean hasGroundConnection(int n1) {
 	Vector<Integer> connectedNodes = new Vector<Integer>();
@@ -251,7 +259,7 @@ public abstract class CompositeElm extends CircuitElm {
 	int i;
 	for (i = 0; i < connectedNodes.size(); i++) {
 	    // next node in list
-	    int n = connectedNodes.get(i);	    
+	    int n = connectedNodes.get(i);
 	    // find all elements connected to n
 	    Vector<CircuitNodeLink> cnLinks = compNodeList.get(n).links;
 	    for (int j = 0; j < cnLinks.size(); j++) {
@@ -278,7 +286,7 @@ public abstract class CompositeElm extends CircuitElm {
     public void reset() {
 	for (int i = 0; i < compElmList.size(); i++)
 	    compElmList.get(i).reset();
-    } 
+    }
 
     int getPostCount() {
 	return numPosts;
@@ -321,7 +329,7 @@ public abstract class CompositeElm extends CircuitElm {
 	for (int i = 0; i < compElmList.size(); i++)
 	    compElmList.get(i).startIteration();
     }
-    
+
     public void doStep() {
 	for (int i = 0; i < compElmList.size(); i++)
 	    compElmList.get(i).doStep();
@@ -339,7 +347,7 @@ public abstract class CompositeElm extends CircuitElm {
 	super.setNode(p, n);
 	cnLinks = compNodeList.get(p).links;
 
-        // call setNode() for all elements that use that node
+	// call setNode() for all elements that use that node
 	for (int i = 0; i < cnLinks.size(); i++) {
 	    cnLinks.get(i).elm.setNode(cnLinks.get(i).num, n);
 	}
@@ -354,7 +362,7 @@ public abstract class CompositeElm extends CircuitElm {
 	for (int i = 0; i < cnLinks.size(); i++) {
 	    cnLinks.get(i).elm.setNodeVoltage(cnLinks.get(i).num, c);
 	}
-	volts[n]=c;
+	volts[n] = c;
     }
 
     public boolean canViewInScope() {
@@ -364,7 +372,7 @@ public abstract class CompositeElm extends CircuitElm {
     public void delete() {
 	for (int i = 0; i < compElmList.size(); i++)
 	    compElmList.get(i).delete();
-        super.delete();
+	super.delete();
     }
 
     public int getVoltageSourceCount() {
@@ -377,35 +385,34 @@ public abstract class CompositeElm extends CircuitElm {
     void setVoltageSource(int n, int v) {
 	// voltSource(n) = v;
 	VoltageSourceRecord vsr;
-	vsr=voltageSources.get(n);
+	vsr = voltageSources.get(n);
 	vsr.elm.setVoltageSource(vsr.vsNumForElement, v);
-	vsr.vsNode=v;
+	vsr.vsNode = v;
     }
-    
+
     @Override
-     public void   setCurrent(int vsn, double c) {
-	for (int i=0;i<voltageSources.size(); i++)
+    public void setCurrent(int vsn, double c) {
+	for (int i = 0; i < voltageSources.size(); i++)
 	    if (voltageSources.get(i).vsNode == vsn) {
 		voltageSources.get(i).elm.setCurrent(vsn, c);
 	    }
-	
+
     }
 
     double getCurrentIntoNode(int n) {
-	double c=0;
+	double c = 0;
 	Vector<CircuitNodeLink> cnLinks;
 	cnLinks = compNodeList.get(n).links;
 	for (int i = 0; i < cnLinks.size(); i++) {
-	    c+=cnLinks.get(i).elm.getCurrentIntoNode(cnLinks.get(i).num);
+	    c += cnLinks.get(i).elm.getCurrentIntoNode(cnLinks.get(i).num);
 	}
 	return c;
     }
 
 }
 
-
 class VoltageSourceRecord {
-	int vsNumForElement;
-	int vsNode;
-	CircuitElm elm;
+    int vsNumForElement;
+    int vsNode;
+    CircuitElm elm;
 }

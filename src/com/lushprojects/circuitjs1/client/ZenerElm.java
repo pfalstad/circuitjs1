@@ -23,30 +23,33 @@ package com.lushprojects.circuitjs1.client;
 // http://www.camotruck.net/rollins/simulator.html
 class ZenerElm extends DiodeElm {
     static String lastZenerModelName = "default-zener";
-    
+
     public ZenerElm(int xx, int yy) {
 	super(xx, yy);
 	modelName = lastZenerModelName;
 	setup();
     }
-    public ZenerElm(int xa, int ya, int xb, int yb, int f,
-		    StringTokenizer st) {
+
+    public ZenerElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f, st);
 	if ((f & FLAG_MODEL) == 0) {
-	    double zvoltage = new Double(st.nextToken()).doubleValue();
-            model = DiodeModel.getModelWithParameters(model.fwdrop, zvoltage);
-            modelName = model.name;
-            CirSim.console("model name wparams = " + modelName);
+	    double zvoltage = Double.valueOf(st.nextToken()).doubleValue();
+	    model = DiodeModel.getModelWithParameters(model.fwdrop, zvoltage);
+	    modelName = model.name;
+	    CirSim.console("model name wparams = " + modelName);
 	}
 	setup();
     }
-    int getDumpType() { return 'z'; }
-    
+
+    int getDumpType() {
+	return 'z';
+    }
+
     final int hs = 8;
     Polygon poly;
     Point cathode[];
     Point wing[];
-	
+
     void setPoints() {
 	super.setPoints();
 	calcLeads(16);
@@ -59,7 +62,7 @@ class ZenerElm extends DiodeElm {
 	interpPoint(cathode[1], cathode[0], wing[1], -0.2, -hs);
 	poly = createPolygon(pa[0], pa[1], lead2);
     }
-	
+
     void draw(Graphics g) {
 	setBbox(point1, point2, hs);
 
@@ -80,11 +83,11 @@ class ZenerElm extends DiodeElm {
 	// draw wings on cathode
 	drawThickLine(g, wing[0], cathode[0]);
 	drawThickLine(g, wing[1], cathode[1]);
-	    
+
 	doDots(g);
 	drawPosts(g);
     }
-	
+
     final double default_zvoltage = 5.6;
 
     void getInfo(String arr[]) {
@@ -92,9 +95,11 @@ class ZenerElm extends DiodeElm {
 	arr[0] = "Zener diode";
 	arr[5] = "Vz = " + getVoltageText(model.breakdownVoltage);
     }
-    
-    int getShortcut() { return 'z'; }
-    
+
+    int getShortcut() {
+	return 'z';
+    }
+
     void setLastModelName(String n) {
 	lastZenerModelName = n;
     }

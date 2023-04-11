@@ -17,8 +17,6 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-
 package com.lushprojects.circuitjs1.client;
 
 // contributed by Edward Calver
@@ -40,9 +38,9 @@ class TriStateElm extends CircuitElm {
 	r_off = 1e10;
 	r_off_ground = 0;
 	try {
-	    r_on = new Double(st.nextToken()).doubleValue();
-	    r_off = new Double(st.nextToken()).doubleValue();
-	    r_off_ground = new Double(st.nextToken()).doubleValue();
+	    r_on = Double.valueOf(st.nextToken()).doubleValue();
+	    r_off = Double.valueOf(st.nextToken()).doubleValue();
+	    r_off_ground = Double.valueOf(st.nextToken()).doubleValue();
 	} catch (Exception e) {
 	}
 
@@ -77,8 +75,8 @@ class TriStateElm extends CircuitElm {
 	gatePoly = createPolygon(triPoints);
 
 	int sign = ((flags & FLAG_FLIP) == 0) ? -1 : 1;
-	point3 = interpPoint(point1, point2, .5, sign*hs);
-	lead3 = interpPoint(point1, point2, .5, sign*hs/2);
+	point3 = interpPoint(point1, point2, .5, sign * hs);
+	lead3 = interpPoint(point1, point2, .5, sign * hs / 2);
     }
 
     void draw(Graphics g) {
@@ -98,13 +96,13 @@ class TriStateElm extends CircuitElm {
 
     void calculateCurrent() {
 	// current from node 3 to node 1
-	double current31 = (volts[3]-volts[1])/resistance;
-	
+	double current31 = (volts[3] - volts[1]) / resistance;
+
 	// current from node 1 through pulldown
-	double current10 = (r_off_ground == 0) ? 0 : volts[1]/r_off_ground;
+	double current10 = (r_off_ground == 0) ? 0 : volts[1] / r_off_ground;
 
 	// output current is difference of these
-	current = current31-current10;
+	current = current31 - current10;
     }
 
     double getCurrentIntoNode(int n) {
@@ -122,7 +120,8 @@ class TriStateElm extends CircuitElm {
     // node 1: output
     // node 2: control input
     // node 3: internal node
-    // there is a voltage source connected to node 3, and a resistor (r_off or r_on) from node 3 to 1.
+    // there is a voltage source connected to node 3, and a resistor (r_off or r_on)
+    // from node 3 to 1.
     // then there is a pulldown resistor from node 1 to ground.
     void stamp() {
 	sim.stampVoltageSource(0, nodes[3], voltSource);
@@ -134,19 +133,20 @@ class TriStateElm extends CircuitElm {
 	open = (volts[2] < 2.5);
 	resistance = (open) ? r_off : r_on;
 	sim.stampResistor(nodes[3], nodes[1], resistance);
-	
-	// Add pulldown resistor for output, so that disabled tristate has output near ground if nothing
-	// else is driving the output.  Otherwise people get confused.
+
+	// Add pulldown resistor for output, so that disabled tristate has output near
+	// ground if nothing
+	// else is driving the output. Otherwise people get confused.
 	if (r_off_ground > 0)
 	    sim.stampResistor(nodes[1], 0, r_off_ground);
-	
+
 	sim.updateVoltageSource(0, nodes[3], voltSource, volts[0] > 2.5 ? 5 : 0);
     }
 
     void drag(int xx, int yy) {
 	// use mouse to select which side the buffer enable should be on
 	boolean flip = (xx < x) == (yy < y);
-	
+
 	xx = sim.snapGrid(xx);
 	yy = sim.snapGrid(yy);
 	if (abs(x - xx) < abs(y - yy))
@@ -168,7 +168,7 @@ class TriStateElm extends CircuitElm {
     int getPostCount() {
 	return 3;
     }
-    
+
     int getInternalNodeCount() {
 	return 1;
     }

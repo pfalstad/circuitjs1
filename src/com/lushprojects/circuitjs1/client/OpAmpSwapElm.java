@@ -20,10 +20,16 @@
 package com.lushprojects.circuitjs1.client;
 
 class OpAmpSwapElm extends OpAmpElm {
-	public OpAmpSwapElm(int xx, int yy) {
-	    super(xx, yy);
-	    flags |= FLAG_SWAP;
-	}
-	Class getDumpClass() { return OpAmpElm.class; }
-	int getShortcut() { return 'A'; }
+    public OpAmpSwapElm(int xx, int yy) {
+	super(xx, yy);
+	flags |= FLAG_SWAP;
     }
+
+    Class<OpAmpElm> getDumpClass() {
+	return OpAmpElm.class;
+    }
+
+    int getShortcut() {
+	return 'A';
+    }
+}

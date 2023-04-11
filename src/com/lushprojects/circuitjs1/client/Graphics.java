@@ -22,166 +22,165 @@ package com.lushprojects.circuitjs1.client;
 import com.google.gwt.canvas.dom.client.Context2d;
 
 public class Graphics {
-	
-	Context2d context;
-	int currentFontSize;
-	Color lastColor;
-	int savedFontSize;
-	static boolean isFullScreen=false;
-	
-	  public Graphics(Context2d context) {
-		    this.context = context;
-		  }
-	  
-	  public void setColor(Color color) {
-		    if (color != null) {
-		      String colorString = color.getHexValue();
-		      context.setStrokeStyle(colorString);
-		      context.setFillStyle(colorString);
-		    } else {
-		      System.out.println("Ignoring null-Color");
-		    }
-		    lastColor=color;
-		  }
-	  
-	  public void setColor(String color) {
-	      context.setStrokeStyle(color);
-	      context.setFillStyle(color);
-	      lastColor=null;
-	  }
-	  
-	  public void clipRect(int x, int y, int width, int height) {
-		  context.beginPath();
-		  context.rect(x, y, width, height);
-		  context.clip();
-	  }
-	  
-	  public void restore() {
-	      context.restore();
-	      currentFontSize = savedFontSize;
-	  }
-	  public void save() {
-	      context.save();
-	      savedFontSize = currentFontSize;
-	  }
-	  
-	  
-	  public void fillRect(int x, int y, int width, int height) {
-		//  context.beginPath();
-		  context.fillRect(x, y, width, height);
-		//  context.closePath();
-	  }
-	  
-	  public void drawRect(int x, int y, int width, int height) {
-		//  context.beginPath();
-		  context.strokeRect(x, y, width, height);
-		//  context.closePath();
-	  }
-	  
-	  public void fillOval(int x, int y, int width, int height) {
-		  context.beginPath();
-		  context.arc(x+width/2, y+width/2, width/2, 0, 2.0*3.14159);
-		  context.closePath();
-		  context.fill();
-	  }
-	  
-	  public void drawString(String s, int x, int y){
-		  context.fillText(s, x, y);
-	  }
-	  
-	  public double measureWidth(String s) {
-	      return context.measureText(s).getWidth();
-	  }
-	  
-	  public void setLineWidth(double width){
-		  context.setLineWidth(width);
-	  }
-	  
-	  public void drawLine(int x1, int y1, int x2, int y2) {
-		  context.beginPath();
-		  context.moveTo(x1, y1);
-		  context.lineTo(x2, y2);
-		  context.stroke();
-	//	  context.closePath();
-	  }
-	  
-	  public void drawPolyline(int[] xpoints, int[] ypoints, int n) {
-		  int i;
-		  context.beginPath();
-		  for (i=0; i<n;i++){
-			  if (i==0)
-				  context.moveTo(xpoints[i],ypoints[i]);
-			  else
-				  context.lineTo(xpoints[i],ypoints[i]);
-		  }
-		  context.closePath();
-		  context.stroke();
-	  }
-	
-	  
-	  public void fillPolygon(Polygon p) {
-		  int i;
-		  context.beginPath();
-		  for (i=0; i<p.npoints;i++){
-			  if (i==0)
-				  context.moveTo(p.xpoints[i],p.ypoints[i]);
-			  else
-				  context.lineTo(p.xpoints[i],p.ypoints[i]);
-		  }
-		  context.closePath();
-		  context.fill();
-		  }
-	  
-	  public void setFont(Font f){
-		  if (f!=null){
-			  context.setFont(f.fontname);
-			  currentFontSize=f.size;
-		  }
-	  }
 
-//	  Font getFont(){
-//	          // this may return wrong font if g.save/restore() is used.  just use that instead
-//		  return currentFont;
-//	  }
-	  
-	  public void drawLock(int x, int y) {
-	      context.save();
-	      setColor(new Color(209,75,75));
-	      context.setLineWidth(3);
-	      fillRect(x,y,30,20);
-	      context.beginPath();
-	      context.moveTo(x+15-10, y);
-	      context.lineTo(x+15-10 , y -4);
-	      context.arc(x+15,y-4,10,-3.1415, 0);
-	      context.lineTo(x+15+10, y);
-	      context.stroke();
-	      context.restore();
-	  }
-	  
-	   static int distanceSq(int x1, int y1, int x2, int y2) {
-	    	x2 -= x1;
-	    	y2 -= y1;
-	    	return x2*x2+y2*y2;
-	        }
-	  
-	   void setLineDash(int a, int b) {
-	       setLineDash(context, a, b);
-	   }
-	   
-	   native static void setLineDash(Context2d context, int a, int b) /*-{
+    Context2d context;
+    int currentFontSize;
+    Color lastColor;
+    int savedFontSize;
+    static boolean isFullScreen = false;
+
+    public Graphics(Context2d context) {
+	this.context = context;
+    }
+
+    public void setColor(Color color) {
+	if (color != null) {
+	    String colorString = color.getHexValue();
+	    context.setStrokeStyle(colorString);
+	    context.setFillStyle(colorString);
+	} else {
+	    System.out.println("Ignoring null-Color");
+	}
+	lastColor = color;
+    }
+
+    public void setColor(String color) {
+	context.setStrokeStyle(color);
+	context.setFillStyle(color);
+	lastColor = null;
+    }
+
+    public void clipRect(int x, int y, int width, int height) {
+	context.beginPath();
+	context.rect(x, y, width, height);
+	context.clip();
+    }
+
+    public void restore() {
+	context.restore();
+	currentFontSize = savedFontSize;
+    }
+
+    public void save() {
+	context.save();
+	savedFontSize = currentFontSize;
+    }
+
+    public void fillRect(int x, int y, int width, int height) {
+	// context.beginPath();
+	context.fillRect(x, y, width, height);
+	// context.closePath();
+    }
+
+    public void drawRect(int x, int y, int width, int height) {
+	// context.beginPath();
+	context.strokeRect(x, y, width, height);
+	// context.closePath();
+    }
+
+    public void fillOval(int x, int y, int width, int height) {
+	context.beginPath();
+	context.arc(x + width / 2, y + width / 2, width / 2, 0, 2.0 * 3.14159);
+	context.closePath();
+	context.fill();
+    }
+
+    public void drawString(String s, int x, int y) {
+	context.fillText(s, x, y);
+    }
+
+    public double measureWidth(String s) {
+	return context.measureText(s).getWidth();
+    }
+
+    public void setLineWidth(double width) {
+	context.setLineWidth(width);
+    }
+
+    public void drawLine(int x1, int y1, int x2, int y2) {
+	context.beginPath();
+	context.moveTo(x1, y1);
+	context.lineTo(x2, y2);
+	context.stroke();
+	// context.closePath();
+    }
+
+    public void drawPolyline(int[] xpoints, int[] ypoints, int n) {
+	int i;
+	context.beginPath();
+	for (i = 0; i < n; i++) {
+	    if (i == 0)
+		context.moveTo(xpoints[i], ypoints[i]);
+	    else
+		context.lineTo(xpoints[i], ypoints[i]);
+	}
+	context.closePath();
+	context.stroke();
+    }
+
+    public void fillPolygon(Polygon p) {
+	int i;
+	context.beginPath();
+	for (i = 0; i < p.npoints; i++) {
+	    if (i == 0)
+		context.moveTo(p.xpoints[i], p.ypoints[i]);
+	    else
+		context.lineTo(p.xpoints[i], p.ypoints[i]);
+	}
+	context.closePath();
+	context.fill();
+    }
+
+    public void setFont(Font f) {
+	if (f != null) {
+	    context.setFont(f.fontname);
+	    currentFontSize = f.size;
+	}
+    }
+
+    // Font getFont(){
+    // // this may return wrong font if g.save/restore() is used. just use that
+    // instead
+    // return currentFont;
+    // }
+
+    public void drawLock(int x, int y) {
+	context.save();
+	setColor(new Color(209, 75, 75));
+	context.setLineWidth(3);
+	fillRect(x, y, 30, 20);
+	context.beginPath();
+	context.moveTo(x + 15 - 10, y);
+	context.lineTo(x + 15 - 10, y - 4);
+	context.arc(x + 15, y - 4, 10, -3.1415, 0);
+	context.lineTo(x + 15 + 10, y);
+	context.stroke();
+	context.restore();
+    }
+
+    static int distanceSq(int x1, int y1, int x2, int y2) {
+	x2 -= x1;
+	y2 -= y1;
+	return x2 * x2 + y2 * y2;
+    }
+
+    void setLineDash(int a, int b) {
+	setLineDash(context, a, b);
+    }
+
+    native static void setLineDash(Context2d context, int a, int b) /*-{
 	       if (a == 0)
 	           context.setLineDash([]);
 	       else
 	       	   context.setLineDash([a, b]);
 	   }-*/;
-	   
-	   
-	   public static void viewFullScreen() {
-	       requestFullScreen();
-	       isFullScreen=true;
-	   }
-	   
-	   private native static void requestFullScreen() /*-{
+
+    public static void viewFullScreen() {
+	requestFullScreen();
+	isFullScreen = true;
+    }
+
+    private native static void requestFullScreen() /*-{
 	   var element = $doc.documentElement;
 
 	   if (element.requestFullscreen) {
@@ -194,13 +193,13 @@ public class Graphics {
 	     element.msRequestFullscreen();
 	   }
 	 }-*/;
-	   
-	   public static void exitFullScreen() {
-	       requestExitFullScreen();
-	       isFullScreen=false;
-	   }
-	   
-	   private native static void requestExitFullScreen() /*-{
+
+    public static void exitFullScreen() {
+	requestExitFullScreen();
+	isFullScreen = false;
+    }
+
+    private native static void requestExitFullScreen() /*-{
 	   var d = $doc;
 
 	   if (d.exitFullscreen) {
@@ -213,6 +212,5 @@ public class Graphics {
 	     d.msExitFullscreen();
 	   }
 	 }-*/;
-	   
-	   
+
 }

@@ -12,30 +12,31 @@ public class Adjustable implements Command {
     double minValue, maxValue;
     int flags;
     String sliderText;
-    
-    // null if this Adjustable has its own slider, non-null if it's sharing another one.
+
+    // null if this Adjustable has its own slider, non-null if it's sharing another
+    // one.
     Adjustable sharedSlider;
-    
+
     final int FLAG_SHARED = 1;
-    
+
     // index of value in getEditInfo() list that this slider controls
     int editItem;
-    
+
     Label label;
     Scrollbar slider;
     boolean settingValue;
-    
+
     Adjustable(CircuitElm ce, int item) {
 	minValue = 1;
 	maxValue = 1000;
 	flags = 0;
 	elm = ce;
 	editItem = item;
-        EditInfo ei = ce.getEditInfo(editItem);
-        if (ei != null && ei.maxVal > 0) {
-            minValue = ei.minVal;
-            maxValue = ei.maxVal;
-        }
+	EditInfo ei = ce.getEditInfo(editItem);
+	if (ei != null && ei.maxVal > 0) {
+	    minValue = ei.minVal;
+	    maxValue = ei.maxVal;
+	}
     }
 
     // undump
@@ -46,12 +47,13 @@ public class Adjustable implements Command {
 	try {
 	    String ei = st.nextToken();
 
-	    // forgot to dump a "flags" field in the initial code, so we have to do this to support backward compatibility
+	    // forgot to dump a "flags" field in the initial code, so we have to do this to
+	    // support backward compatibility
 	    if (ei.startsWith("F")) {
 		flags = Integer.parseInt(ei.substring(1));
 		ei = st.nextToken();
 	    }
-	    
+
 	    editItem = Integer.parseInt(ei);
 	    minValue = Double.parseDouble(st.nextToken());
 	    maxValue = Double.parseDouble(st.nextToken());
@@ -60,12 +62,14 @@ public class Adjustable implements Command {
 		sharedSlider = ano == -1 ? null : sim.adjustables.get(ano);
 	    }
 	    sliderText = CustomLogicModel.unescape(st.nextToken());
-	} catch (Exception ex) {}
+	} catch (Exception ex) {
+	}
 	try {
 	    elm = sim.getElm(e);
-	} catch (Exception ex) {}
+	} catch (Exception ex) {
+	}
     }
-    
+
     boolean createSlider(CirSim sim) {
 	if (elm == null)
 	    return false;
@@ -82,10 +86,10 @@ public class Adjustable implements Command {
     }
 
     void createSlider(CirSim sim, double value) {
-        sim.addWidgetToVerticalPanel(label = new Label(Locale.LS(sliderText)));
-        label.addStyleName("topSpace");
-        int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
-        sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 101, this, elm));
+	sim.addWidgetToVerticalPanel(label = new Label(Locale.LS(sliderText)));
+	label.addStyleName("topSpace");
+	int intValue = (int) ((value - minValue) * 100 / (maxValue - minValue));
+	sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 101, this, elm));
     }
 
     void setSliderValue(double value) {
@@ -93,12 +97,12 @@ public class Adjustable implements Command {
 	    sharedSlider.setSliderValue(value);
 	    return;
 	}
-        int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
-        settingValue = true; // don't recursively set value again in execute()
-        slider.setValue(intValue);
-        settingValue = false;
+	int intValue = (int) ((value - minValue) * 100 / (maxValue - minValue));
+	settingValue = true; // don't recursively set value again in execute()
+	slider.setValue(intValue);
+	settingValue = false;
     }
-    
+
     public void execute() {
 	if (settingValue)
 	    return;
@@ -110,32 +114,33 @@ public class Adjustable implements Command {
 		adj.executeSlider();
 	}
     }
-    
+
     void executeSlider() {
-	elm.sim.analyzeFlag = true;
+	CircuitElm.sim.analyzeFlag = true;
 	EditInfo ei = elm.getEditInfo(editItem);
 	ei.value = getSliderValue();
 	elm.setEditValue(editItem, ei);
-	elm.sim.repaint();
+	CircuitElm.sim.repaint();
     }
-    
+
     double getSliderValue() {
 	double val = sharedSlider == null ? slider.getValue() : sharedSlider.slider.getValue();
-	return minValue + (maxValue-minValue)*val/100;
+	return minValue + (maxValue - minValue) * val / 100;
     }
-    
+
     void deleteSlider(CirSim sim) {
 	try {
 	    sim.removeWidgetFromVerticalPanel(label);
 	    sim.removeWidgetFromVerticalPanel(slider);
-	} catch (Exception e) {}
+	} catch (Exception e) {
+	}
     }
-    
+
     void setMouseElm(CircuitElm e) {
 	if (slider != null)
 	    slider.draw();
     }
-    
+
     boolean sliderBeingShared() {
 	int i;
 	for (i = 0; i != CirSim.theSim.adjustables.size(); i++) {
@@ -145,19 +150,22 @@ public class Adjustable implements Command {
 	}
 	return false;
     }
-    
+
     String dump() {
 	int ano = -1;
 	if (sharedSlider != null)
 	    ano = CirSim.theSim.adjustables.indexOf(sharedSlider);
-	
-	return elm.sim.locateElm(elm) + " F1 " + editItem + " " + minValue + " " + maxValue + " " + ano + " " +
-			CustomLogicModel.escape(sliderText);
+
+	return CircuitElm.sim.locateElm(elm) + " F1 " + editItem + " " + minValue + " " + maxValue + " " + ano + " "
+		+ CustomLogicModel.escape(sliderText);
     }
-    
-    // reorder adjustables so that items with sliders come first in the list, followed by items that reference them.
-    // this simplifies the UI code, and also makes it much easier to dump/undump the adjustables list, since we will
-    // always be undumping the adjustables with sliders first, then the adjustables that reference them.
+
+    // reorder adjustables so that items with sliders come first in the list,
+    // followed by items that reference them.
+    // this simplifies the UI code, and also makes it much easier to dump/undump the
+    // adjustables list, since we will
+    // always be undumping the adjustables with sliders first, then the adjustables
+    // that reference them.
     static void reorderAdjustables() {
 	Vector<Adjustable> newList = new Vector<Adjustable>();
 	Vector<Adjustable> oldList = CirSim.theSim.adjustables;

@@ -22,16 +22,16 @@ package com.lushprojects.circuitjs1.client;
 import com.google.gwt.user.client.Command;
 
 public class MyCommand implements Command {
-	private final String menuName;
-	private final String itemName;
-	
-	public MyCommand(String name, String item){
-		menuName=name;
-		itemName=item;
-	}
-	
-	public void execute() {
-		circuitjs1.mysim.menuPerformed(menuName, itemName);
-	}
+    private final String menuName;
+    private final String itemName;
+
+    public MyCommand(String name, String item) {
+	menuName = name;
+	itemName = item;
+    }
+
+    public void execute() {
+	circuitjs1.mysim.menuPerformed(menuName, itemName);
+    }
 
 }

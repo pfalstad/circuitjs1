@@ -29,8 +29,8 @@ class WattmeterElm extends CircuitElm {
 	super(xx, yy);
 	setup();
     }
-    public WattmeterElm(int xa, int ya, int xb, int yb, int f,
-	    StringTokenizer st) {
+
+    public WattmeterElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
 	width = Integer.parseInt(st.nextToken());
 	setup();
@@ -42,17 +42,27 @@ class WattmeterElm extends CircuitElm {
 	curcounts = new double[2];
     }
 
-    String dump() { return super.dump() + " " + width; }
+    String dump() {
+	return super.dump() + " " + width;
+    }
 
-    int getVoltageSourceCount() { return 2; }
-    int getDumpType() { return 420; }
-    int getPostCount() { return 4; }
+    int getVoltageSourceCount() {
+	return 2;
+    }
+
+    int getDumpType() {
+	return 420;
+    }
+
+    int getPostCount() {
+	return 4;
+    }
 
     void drag(int xx, int yy) {
 	xx = sim.snapGrid(xx);
 	yy = sim.snapGrid(yy);
-	int w1 = max(sim.gridSize, abs(yy-y));
-	int w2 = max(sim.gridSize, abs(xx-x));
+	int w1 = max(sim.gridSize, abs(yy - y));
+	int w2 = max(sim.gridSize, abs(xx - x));
 	if (w1 > w2) {
 	    xx = x;
 	    width = w2;
@@ -60,7 +70,8 @@ class WattmeterElm extends CircuitElm {
 	    yy = y;
 	    width = w1;
 	}
-	x2 = xx; y2 = yy;
+	x2 = xx;
+	y2 = yy;
 	setPoints();
     }
 
@@ -71,17 +82,17 @@ class WattmeterElm extends CircuitElm {
     void setPoints() {
 	super.setPoints();
 	int ds = (dy == 0) ? sign(dx) : -sign(dy);
-	
+
 	// get 2 more terminals
-	Point p3 = interpPoint(point1, point2, 0, -width*ds);
-	Point p4 = interpPoint(point1, point2, 1, -width*ds);
-	
+	Point p3 = interpPoint(point1, point2, 0, -width * ds);
+	Point p4 = interpPoint(point1, point2, 1, -width * ds);
+
 	// get stubs
 	int sep = sim.gridSize;
-	Point p5 = interpPoint(point1, point2,   sep/dn);
-	Point p6 = interpPoint(point1, point2, 1-sep/dn);
-	Point p7 = interpPoint(p3, p4,   sep/dn);
-	Point p8 = interpPoint(p3, p4, 1-sep/dn);
+	Point p5 = interpPoint(point1, point2, sep / dn);
+	Point p6 = interpPoint(point1, point2, 1 - sep / dn);
+	Point p7 = interpPoint(p3, p4, sep / dn);
+	Point p8 = interpPoint(p3, p4, 1 - sep / dn);
 
 	// we number the posts like this because we want the lower-numbered
 	// points to be on the bottom, so that if some of them are unconnected
@@ -91,15 +102,15 @@ class WattmeterElm extends CircuitElm {
 	inner = new Point[] { p7, p8, p5, p6 };
 
 	// get rectangle
-	Point r1 = interpPoint(point1, point2,   sep/dn, ds*sep);
-	Point r2 = interpPoint(point1, point2, 1-sep/dn, ds*sep);
-	Point r3 = interpPoint(point1, point2,   sep/dn, -ds*(sep+width));
-	Point r4 = interpPoint(point1, point2, 1-sep/dn, -ds*(sep+width));
+	Point r1 = interpPoint(point1, point2, sep / dn, ds * sep);
+	Point r2 = interpPoint(point1, point2, 1 - sep / dn, ds * sep);
+	Point r3 = interpPoint(point1, point2, sep / dn, -ds * (sep + width));
+	Point r4 = interpPoint(point1, point2, 1 - sep / dn, -ds * (sep + width));
 	rectPointsX = new int[] { r1.x, r2.x, r4.x, r3.x };
 	rectPointsY = new int[] { r1.y, r2.y, r4.y, r3.y };
 
 	center = interpPoint(r1, r4, .5);
-	maxTextLen = max(abs(r1.x-r4.x)-5, 5);
+	maxTextLen = max(abs(r1.x - r4.x) - 5, 5);
     }
 
     int rectPointsX[], rectPointsY[];
@@ -127,13 +138,13 @@ class WattmeterElm extends CircuitElm {
 	for (i = 0; i != 4; i++) {
 	    setVoltageColor(g, volts[i]);
 	    drawThickLine(g, posts[i], inner[i]);
-	    drawDots(g, posts[i], inner[i], curcounts[i/2]*flip);
+	    drawDots(g, posts[i], inner[i], curcounts[i / 2] * flip);
 	    flip *= -1;
 	}
-	
+
 	g.setColor(Color.lightGray);
 	drawThickPolygon(g, rectPointsX, rectPointsY, 4);
-	
+
 	setBbox(posts[0].x, posts[0].y, posts[3].x, posts[3].y);
 	drawPosts(g);
 
@@ -144,38 +155,55 @@ class WattmeterElm extends CircuitElm {
 	// adjust font size to fit
 	while (true) {
 	    g.setFont(new Font("SansSerif", 0, fsize));
-	    w=(int)g.context.measureText(str).getWidth();
+	    w = (int) g.context.measureText(str).getWidth();
 	    if (w < maxTextLen)
 		break;
 	    fsize--;
 	}
 	g.setColor(whiteColor);
 	g.context.setTextBaseline("middle");
-	g.drawString(str, center.x-w/2, center.y);
+	g.drawString(str, center.x - w / 2, center.y);
 	g.restore();
     }
 
-    double getPower() { return getVoltageDiff()*getCurrent(); }
+    double getPower() {
+	return getVoltageDiff() * getCurrent();
+    }
 
     void setCurrent(int vn, double c) {
 	currents[vn == voltSources[0] ? 0 : 1] = c;
     }
+
     double getCurrentIntoNode(int n) {
 	if (n % 2 == 0)
-	    return -currents[n/2];
+	    return -currents[n / 2];
 	else
-	    return currents[n/2];
+	    return currents[n / 2];
     }
 
-    boolean getConnection(int n1, int n2) { return (n1/2) == (n2/2); }
-    boolean hasGroundConnection(int n1) { return false; }
+    boolean getConnection(int n1, int n2) {
+	return (n1 / 2) == (n2 / 2);
+    }
+
+    boolean hasGroundConnection(int n1) {
+	return false;
+    }
 
     void getInfo(String arr[]) {
 	arr[0] = "wattmeter";
 	getBasicInfo(arr);
 	arr[3] = "P = " + getUnitText(getPower(), "W");
     }
-    boolean canViewInScope() { return true; }
-    double getCurrent() { return currents[1]; }
-    double getVoltageDiff() { return volts[2]-volts[0]; }
+
+    boolean canViewInScope() {
+	return true;
+    }
+
+    double getCurrent() {
+	return currents[1];
+    }
+
+    double getVoltageDiff() {
+	return volts[2] - volts[0];
+    }
 }

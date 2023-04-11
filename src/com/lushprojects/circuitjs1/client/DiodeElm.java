@@ -34,16 +34,15 @@ class DiodeElm extends CircuitElm {
     static String lastModelName = "default";
     boolean hasResistance;
     int diodeEndNode;
-    
+
     public DiodeElm(int xx, int yy) {
 	super(xx, yy);
 	modelName = lastModelName;
 	diode = new Diode(sim);
 	setup();
     }
-    
-    public DiodeElm(int xa, int ya, int xb, int yb, int f,
-		    StringTokenizer st) {
+
+    public DiodeElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
 	final double defaultdrop = .805904783;
 	diode = new Diode(sim);
@@ -54,54 +53,62 @@ class DiodeElm extends CircuitElm {
 	} else {
 	    if ((f & FLAG_FWDROP) > 0) {
 		try {
-		    fwdrop = new Double(st.nextToken()).doubleValue();
+		    fwdrop = Double.valueOf(st.nextToken()).doubleValue();
 		} catch (Exception e) {
 		}
 	    }
 	    model = DiodeModel.getModelWithParameters(fwdrop, zvoltage);
 	    modelName = model.name;
-//	    CirSim.console("model name wparams = " + modelName);
+	    // CirSim.console("model name wparams = " + modelName);
 	}
 	setup();
     }
-    boolean nonLinear() { return true; }
-        
+
+    boolean nonLinear() {
+	return true;
+    }
+
     void setup() {
-//	CirSim.console("setting up for model " + modelName + " " + model);
-        model = DiodeModel.getModelWithNameOrCopy(modelName, model);
-        modelName = model.name;   // in case we couldn't find that model
+	// CirSim.console("setting up for model " + modelName + " " + model);
+	model = DiodeModel.getModelWithNameOrCopy(modelName, model);
+	modelName = model.name; // in case we couldn't find that model
 	diode.setup(model);
 	hasResistance = (model.seriesResistance > 0);
 	diodeEndNode = (hasResistance) ? 2 : 1;
 	allocNodes();
     }
-    
-    int getInternalNodeCount() { return hasResistance ? 1 : 0; }
-    
+
+    int getInternalNodeCount() {
+	return hasResistance ? 1 : 0;
+    }
+
     public void updateModels() {
 	setup();
     }
-    
-    int getDumpType() { return 'd'; }
+
+    int getDumpType() {
+	return 'd';
+    }
+
     String dump() {
 	flags |= FLAG_MODEL;
-/*	if (modelName == null) {
-	    sim.console("model name is null??");
-	    modelName = "default";
-	}*/
+	/*
+	 * if (modelName == null) { sim.console("model name is null??"); modelName =
+	 * "default"; }
+	 */
 	return super.dump() + " " + CustomLogicModel.escape(modelName);
     }
-    
+
     String dumpModel() {
 	if (model.builtIn || model.dumped)
 	    return null;
 	return model.dump();
     }
-    
+
     final int hs = 8;
     Polygon poly;
     Point cathode[];
-	
+
     void setPoints() {
 	super.setPoints();
 	calcLeads(16);
@@ -111,20 +118,20 @@ class DiodeElm extends CircuitElm {
 	interpPoint2(lead1, lead2, cathode[0], cathode[1], 1, hs);
 	poly = createPolygon(pa[0], pa[1], lead2);
     }
-	
+
     void draw(Graphics g) {
 	drawDiode(g);
 	doDots(g);
 	drawPosts(g);
     }
-	
+
     void reset() {
 	diode.reset();
 	volts[0] = volts[1] = curcount = 0;
 	if (hasResistance)
 	    volts[2] = 0;
     }
-	
+
     void drawDiode(Graphics g) {
 	setBbox(point1, point2, hs);
 
@@ -143,7 +150,7 @@ class DiodeElm extends CircuitElm {
 	setPowerColor(g, true);
 	drawThickLine(g, cathode[0], cathode[1]);
     }
-	
+
     void stamp() {
 	if (hasResistance) {
 	    // create diode from node 0 to internal node
@@ -154,12 +161,15 @@ class DiodeElm extends CircuitElm {
 	    // don't need any internal nodes if no series resistance
 	    diode.stamp(nodes[0], nodes[1]);
     }
+
     void doStep() {
-	diode.doStep(volts[0]-volts[diodeEndNode]);
+	diode.doStep(volts[0] - volts[diodeEndNode]);
     }
+
     void calculateCurrent() {
-	current = diode.calculateCurrent(volts[0]-volts[diodeEndNode]);
+	current = diode.calculateCurrent(volts[0] - volts[diodeEndNode]);
     }
+
     void getInfo(String arr[]) {
 	if (model.oldStyle)
 	    arr[0] = "diode";
@@ -171,12 +181,12 @@ class DiodeElm extends CircuitElm {
 	if (model.oldStyle)
 	    arr[4] = "Vf = " + getVoltageText(model.fwdrop);
     }
-    
+
     Vector<DiodeModel> models;
-    
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
-	    EditInfo ei =  new EditInfo("Model", 0, -1, -1);
+	    EditInfo ei = new EditInfo("Model", 0, -1, -1);
 	    models = DiodeModel.getModelList(this instanceof ZenerElm);
 	    ei.choice = new Choice();
 	    int i;
@@ -188,32 +198,32 @@ class DiodeElm extends CircuitElm {
 	    }
 	    return ei;
 	}
-        if (n == 1) {
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button(Locale.LS("Create New Simple Model"));
-            return ei;
-        }
-        if (n == 2) {
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button(Locale.LS("Create New Advanced Model"));
-            return ei;
-        }
-        if (n == 3) {
-            if (model.readOnly)
-        	return null;
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button(Locale.LS("Edit Model"));
-            return ei;
-        }
-        return null;
+	if (n == 1) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.button = new Button(Locale.LS("Create New Simple Model"));
+	    return ei;
+	}
+	if (n == 2) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.button = new Button(Locale.LS("Create New Advanced Model"));
+	    return ei;
+	}
+	if (n == 3) {
+	    if (model.readOnly)
+		return null;
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.button = new Button(Locale.LS("Edit Model"));
+	    return ei;
+	}
+	return null;
     }
-    
+
     public void newModelCreated(DiodeModel dm) {
 	model = dm;
 	modelName = model.name;
 	setup();
     }
-    
+
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0) {
 	    model = models.get(ei.choice.getSelectedIndex());
@@ -222,41 +232,44 @@ class DiodeElm extends CircuitElm {
 	    ei.newDialog = true;
 	    return;
 	}
-        if (n == 1 || n == 2) {
-            DiodeModel newModel = new DiodeModel(model);
-            newModel.setSimple(n == 1);
-            if (newModel.isSimple())
-        	newModel.setForwardVoltage();
-            EditDialog editDialog = new EditDiodeModelDialog(newModel, sim, this);
-            CirSim.diodeModelEditDialog = editDialog;
-            editDialog.show();
-            return;
-        }
-        if (n == 3) {
-            if (model.readOnly) {
-        	// probably never reached
-        	Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
-        	return;
-            }
-            if (model.isSimple())
-        	model.setForwardVoltage();            
-            EditDialog editDialog = new EditDiodeModelDialog(model, sim, null);
-            CirSim.diodeModelEditDialog = editDialog;
-            editDialog.show();
-            return;
-        }
+	if (n == 1 || n == 2) {
+	    DiodeModel newModel = new DiodeModel(model);
+	    newModel.setSimple(n == 1);
+	    if (newModel.isSimple())
+		newModel.setForwardVoltage();
+	    EditDialog editDialog = new EditDiodeModelDialog(newModel, sim, this);
+	    CirSim.diodeModelEditDialog = editDialog;
+	    editDialog.show();
+	    return;
+	}
+	if (n == 3) {
+	    if (model.readOnly) {
+		// probably never reached
+		Window.alert(
+			Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
+		return;
+	    }
+	    if (model.isSimple())
+		model.setForwardVoltage();
+	    EditDialog editDialog = new EditDiodeModelDialog(model, sim, null);
+	    CirSim.diodeModelEditDialog = editDialog;
+	    editDialog.show();
+	    return;
+	}
     }
-    int getShortcut() { return 'd'; }
-    
+
+    int getShortcut() {
+	return 'd';
+    }
+
     void setLastModelName(String n) {
 	lastModelName = n;
     }
-    
-    void stepFinished() {
-        // stop for huge currents that make simulator act weird
-        if (Math.abs(current) > 1e12)
-            sim.stop("max current exceeded", this);
-    }
 
+    void stepFinished() {
+	// stop for huge currents that make simulator act weird
+	if (Math.abs(current) > 1e12)
+	    sim.stop("max current exceeded", this);
+    }
 
 }
