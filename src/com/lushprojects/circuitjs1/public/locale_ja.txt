@@ -1218,7 +1218,7 @@
 "Series Capacitance (F)"="直列静電容量 (F)"
 "Show Info"="情報を表示"
 "Signal"="信号"
-"Some nodes are unconnected!"="つながっていないノードがあります"
+"Some nodes are unconnected!"="接続されていないノードがあります"
 "Symbol"="シンボル"
 "TRIAC"="双方向サイリスタ"
 "Temperature"="温度"
