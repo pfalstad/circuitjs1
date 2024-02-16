@@ -1349,7 +1349,7 @@
 "Repeat"="繰り返し"
 "S3S2S1S0"="S3S2S1S0"
 "Sample Length (s)"="Sample Length (s)"
-"Save Across Sessions"="セッション全体で保存"
+"Save Across Sessions"="ブラウザに保存"
 "Scale Factor"="Scale Factor"
 "Selection Color"="選択された時の色"
 "Sequence"="シーケンス"
