@@ -1372,6 +1372,6 @@
 "old model"="古いモデル"
 "sequence generator"="シーケンスジェネレータ"
 "unexpected end of input"="unexpected end of input"
-"wattmeter"="電圧計"
+"wattmeter"="電力計"
 
 "Max="="最大値="
