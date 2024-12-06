@@ -149,6 +149,7 @@ MouseOutHandler, MouseWheelHandler {
     MenuBar scopeMenuBar;
     MenuBar transScopeMenuBar;
     MenuBar mainMenuBar;
+    boolean hideMenu = false;
     CheckboxMenuItem scopeVMenuItem;
     CheckboxMenuItem scopeIMenuItem;
     CheckboxMenuItem scopeScaleMenuItem;
@@ -294,7 +295,7 @@ MouseOutHandler, MouseWheelHandler {
     	int width, height;
     	width=(int)RootLayoutPanel.get().getOffsetWidth();
     	height=(int)RootLayoutPanel.get().getOffsetHeight();
-    	height=height-MENUBARHEIGHT;
+        height=height-(hideMenu?0:MENUBARHEIGHT);
     	width=width-VERTICALPANELWIDTH;
 		if (cv != null) {
 			cv.setWidth(width + "PX");
@@ -379,6 +380,7 @@ MouseOutHandler, MouseWheelHandler {
 		startCircuit = qp.getValue("startCircuit");
 		startLabel   = qp.getValue("startLabel");
 		euro = qp.getBooleanValue("euroResistors", false);
+		hideMenu = qp.getBooleanValue("hideMenu", false);
 //		useFrameStr  = qp.getValue("useFrame");
 //		String x = applet.getParameter("whiteBackground");
 //		if (x != null && x.equalsIgnoreCase("true"))
@@ -588,7 +590,9 @@ MouseOutHandler, MouseWheelHandler {
     	if (VERTICALPANELWIDTH < 128)
     	    VERTICALPANELWIDTH = 128;
 
+        if (!hideMenu)
 	  layoutPanel.addNorth(menuBar, MENUBARHEIGHT);
+
 	  layoutPanel.addEast(verticalPanel, VERTICALPANELWIDTH);
 	  RootLayoutPanel.get().add(layoutPanel);
 	
@@ -920,7 +924,7 @@ MouseOutHandler, MouseWheelHandler {
     		}
     	}
   //  	int ih=RootLayoutPanel.get().getOffsetHeight()-(iFrame.getAbsoluteTop()-RootLayoutPanel.get().getAbsoluteTop());
-    	int ih=RootLayoutPanel.get().getOffsetHeight()-MENUBARHEIGHT-cumheight;
+    	int ih=RootLayoutPanel.get().getOffsetHeight()-(hideMenu?0:MENUBARHEIGHT)-cumheight;
 //    	GWT.log("Root OH="+RootLayoutPanel.get().getOffsetHeight());
 //    	GWT.log("iF top="+iFrame.getAbsoluteTop() );
 //    	GWT.log("RP top="+RootLayoutPanel.get().getAbsoluteTop());
