@@ -79,7 +79,7 @@ public class DarlingtonElm extends CompositeElm {
 	setPowerColor(g, true);
 	g.fillPolygon(rectPoly);
 
-	if ((needsHighlight() || app.dragElm == this) && dy == 0) {
+	if ((needsHighlight() || isCreating()) && dy == 0) {
 	    g.setColor(whiteColor);
 	    // IES
 	    // g.setFont(unitsFont);

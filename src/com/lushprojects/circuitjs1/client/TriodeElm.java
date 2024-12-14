@@ -105,7 +105,7 @@ class TriodeElm extends CircuitElm {
 	curcountp = updateDotCount(currentp, curcountp);
 	curcountc = updateDotCount(currentc, curcountc);
 	curcountg = updateDotCount(currentg, curcountg);
-	if (app.dragElm != this) {
+	if (!isCreating()) {
 	    drawDots(g, plate[0], midgrid, curcountp);
 	    drawDots(g, midgrid,  midcath, curcountc);
 	    drawDots(g, midcath,  cath[1], addCurCount(curcountc, 8));

@@ -174,7 +174,7 @@ class VoltageElm extends CircuitElm {
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
 	updateDotCount();
-	if (app.dragElm != this) {
+	if (!isCreating()) {
 	    if (waveform == WF_DC)
 		drawDots(g, point1, point2, curcount);
 	    else {

@@ -187,7 +187,7 @@ class MosfetElm extends CircuitElm {
 		}
 		
 		// label pins when highlighted
-		if (needsHighlight() || app.dragElm == this) {
+		if (needsHighlight() || isCreating()) {
 		    g.setColor(whiteColor);
 		    g.setFont(unitsFont);
 

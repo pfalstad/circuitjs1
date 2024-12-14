@@ -168,7 +168,7 @@ abstract class ChipElm extends CircuitElm {
 	int labelX, labelY;
 		
 	void setPoints() {
-	    if (x2-x > sizeX*cspc2 && this == app.dragElm)
+	    if (x2-x > sizeX*cspc2 && isCreating())
 		setSize(2);
 	    int x0 = x+cspc2; int y0 = y;
 	    int xr = x0-cspc;

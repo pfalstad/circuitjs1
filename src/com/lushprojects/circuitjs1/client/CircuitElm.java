@@ -577,7 +577,7 @@ public abstract class CircuitElm implements Editable {
 	// we normally do this in updateCircuit() now because the logic is more complicated.
 	// we only handle the case where we have to draw all the posts.  That happens when
 	// this element is selected or is being created
-	if (app.dragElm == null && !needsHighlight())
+	if (!isCreating() && !needsHighlight())
 	    return;
 	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
 	    app.mouseMode == CirSim.MODE_DRAG_COLUMN)
@@ -666,7 +666,7 @@ public abstract class CircuitElm implements Editable {
     
     /*
     void drawPost(Graphics g, int x0, int y0, int n) {
-	if (app.dragElm == null && !needsHighlight() &&
+	if (!isCreating() && !needsHighlight() &&
 	    app.getCircuitNode(n).links.size() == 2)
 	    return;
 	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
@@ -991,7 +991,7 @@ public abstract class CircuitElm implements Editable {
     // update and draw current for simple two-terminal element
     void doDots(Graphics g) {
 	updateDotCount();
-	if (app.dragElm != this)
+	if (!isCreating())
 	    drawDots(g, point1, point2, curcount);
     }
     
@@ -1116,6 +1116,7 @@ public abstract class CircuitElm implements Editable {
 		// Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
 		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this); 
     }
+    boolean isCreating() { return app.dragElm == this; }
     boolean isSelected() { return selected; }
     boolean canShowValueInScope(int v) { return false; }
     void setSelected(boolean x) { selected = x; }

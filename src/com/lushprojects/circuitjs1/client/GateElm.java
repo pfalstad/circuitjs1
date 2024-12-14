@@ -75,7 +75,7 @@ package com.lushprojects.circuitjs1.client;
 	void setPoints() {
 	    super.setPoints();
 	    inputStates = new boolean[inputCount];
-	    if (dn > 150 && this == app.dragElm)
+	    if (dn > 150 && isCreating())
 		setSize(2);
 	    int hs = gheight;
 	    int i;

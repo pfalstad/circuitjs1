@@ -160,14 +160,14 @@ class TriacElm extends CircuitElm {
 	curcount_1 = updateDotCount(i1, curcount_1);
 	curcount_2 = updateDotCount(i2, curcount_2);
 	curcount_g = updateDotCount(ig, curcount_g);
-	if (app.dragElm != this) {
+	if (!isCreating()) {
 	    drawDots(g, point1, lead2, curcount_2);
 	    drawDots(g, point2, lead2, curcount_1);
 	    drawDots(g, gate[1], gate[0], curcount_g);
 	    drawDots(g, gate[0], lead2, curcount_g+distance(gate[1], gate[0]));
 	}
 	
-	if ((needsHighlight() || app.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
+	if ((needsHighlight() || isCreating()) && point1.x == point2.x && point2.y > point1.y) {
 	    g.setColor(whiteColor);
 	    int ds = sign(dx);
 	    g.drawString("MT1", lead2.x+((ds < 0) ? 5 : -30), lead2.y+12);

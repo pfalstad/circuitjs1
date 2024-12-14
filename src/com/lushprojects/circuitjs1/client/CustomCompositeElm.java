@@ -94,7 +94,7 @@ public class CustomCompositeElm extends CompositeElm {
 	chip.x2 = x2;
 	chip.y2 = y2;
 	chip.flags = (flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
-        if (x2-x > model.sizeX*16 && this == app.dragElm)
+        if (x2-x > model.sizeX*16 && isCreating())
 	    flags &= ~FLAG_SMALL;
 	chip.setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
 	chip.setLabel((model.flags & CustomCompositeModel.FLAG_SHOW_LABEL) != 0 ? model.name : null);

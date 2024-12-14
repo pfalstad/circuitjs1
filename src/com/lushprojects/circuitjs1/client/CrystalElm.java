@@ -112,7 +112,7 @@ class CrystalElm extends CompositeElm {
 		drawThickLine(g,  sandwichPoints[i], sandwichPoints[(i+1) % 4]);
 	    
 	    updateDotCount();
-	    if (app.dragElm != this) {
+	    if (!isCreating()) {
 		drawDots(g, point1, lead1, curcount);
 		drawDots(g, point2, lead2, -curcount);
 	    }

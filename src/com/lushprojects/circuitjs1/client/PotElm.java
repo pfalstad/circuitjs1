@@ -190,7 +190,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	curcount1 = updateDotCount(current1, curcount1);
 	curcount2 = updateDotCount(current2, curcount2);
 	curcount3 = updateDotCount(current3, curcount3);
-	if (app.dragElm != this) {
+	if (!isCreating()) {
 	    drawDots(g, point1, midpoint, curcount1);
 	    drawDots(g, point2, midpoint, curcount2);
 	    drawDots(g, post3, corner2, curcount3);

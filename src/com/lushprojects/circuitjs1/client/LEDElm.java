@@ -66,7 +66,7 @@ class LEDElm extends DiodeElm {
 	}
 	
 	void draw(Graphics g) {
-	    if (needsHighlight() || this == app.dragElm) {
+	    if (needsHighlight() || isCreating()) {
 		super.draw(g);
 		return;
 	    }

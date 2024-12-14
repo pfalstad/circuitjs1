@@ -94,7 +94,7 @@ class SweepElm extends CircuitElm {
 	    
 	drawPosts(g);
 	curcount = updateDotCount(-current, curcount);
-	if (app.dragElm != this)
+	if (!isCreating())
 	    drawDots(g, point1, lead1, curcount);
     }
 	

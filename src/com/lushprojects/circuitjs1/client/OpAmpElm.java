@@ -101,7 +101,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	void setPoints() {
 	    super.setPoints();
-	    if (dn > 150 && this == app.dragElm)
+	    if (dn > 150 && isCreating())
 		setSize(2);
 	    int ww = opwidth;
 	    if (ww > dn/2)

@@ -119,7 +119,7 @@ class ProbeElm extends CircuitElm {
 	int hs = (drawAsCircle()) ? circleSize : 8;
 	setBbox(point1, point2, hs);
 	boolean selected = needsHighlight();
-	double len = (selected || app.dragElm == this || mustShowVoltage()) ? 16 : dn-32;
+	double len = (selected || isCreating() || mustShowVoltage()) ? 16 : dn-32;
 	if (drawAsCircle())
 	    len = circleSize*2;
 	calcLeads((int) len);

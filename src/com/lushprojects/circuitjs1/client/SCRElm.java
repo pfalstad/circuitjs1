@@ -156,14 +156,14 @@ class SCRElm extends CircuitElm {
 	curcount_a = updateDotCount(ia, curcount_a);
 	curcount_c = updateDotCount(ic, curcount_c);
 	curcount_g = updateDotCount(ig, curcount_g);
-	if (app.dragElm != this) {
+	if (!isCreating()) {
 	    drawDots(g, point1, lead2, curcount_a);
 	    drawDots(g, point2, lead2, curcount_c);
 	    drawDots(g, gate[1], gate[0], curcount_g);
 	    drawDots(g, gate[0], lead2, curcount_g+distance(gate[1], gate[0]));
 	}
 	
-	if ((needsHighlight() || app.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
+	if ((needsHighlight() || isCreating()) && point1.x == point2.x && point2.y > point1.y) {
 	    g.setColor(whiteColor);
 	    int ds = sign(dx);
 	    g.drawString("C", lead2.x+((ds < 0) ? 5 : -15), lead2.y+12);
