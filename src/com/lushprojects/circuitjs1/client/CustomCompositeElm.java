@@ -25,7 +25,7 @@ public class CustomCompositeElm extends CompositeElm {
 	modelName = (xx == 0 && yy == 0) ? "default" : lastModelName;
 		
 	flags |= FLAG_ESCAPE;
-	if (sim.smallGridCheckItem.getState())
+	if (useSmallGrid())
 	    flags |= FLAG_SMALL;
 	updateModels();
     }
@@ -34,7 +34,7 @@ public class CustomCompositeElm extends CompositeElm {
 	super(xx, yy);
 	modelName = name;
 	flags |= FLAG_ESCAPE;
-	if (sim.smallGridCheckItem.getState())
+	if (useSmallGrid())
 	    flags |= FLAG_SMALL;
 	updateModels();
     }
@@ -94,7 +94,7 @@ public class CustomCompositeElm extends CompositeElm {
 	chip.x2 = x2;
 	chip.y2 = y2;
 	chip.flags = (flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
-        if (x2-x > model.sizeX*16 && this == sim.dragElm)
+        if (x2-x > model.sizeX*16 && this == app.dragElm)
 	    flags &= ~FLAG_SMALL;
 	chip.setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
 	chip.setLabel((model.flags & CustomCompositeModel.FLAG_SHOW_LABEL) != 0 ? model.name : null);
@@ -229,7 +229,7 @@ public class CustomCompositeElm extends CompositeElm {
             return;
         }
         if (n == 2) {
-            sim.readCircuit(model.modelCircuit);
+            app.readCircuit(model.modelCircuit);
             CirSim.editDialog.closeDialog();
         }
     }

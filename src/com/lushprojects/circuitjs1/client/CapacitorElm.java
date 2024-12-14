@@ -93,7 +93,7 @@ class CapacitorElm extends CircuitElm {
 	    drawThickLine(g, point1, lead1);
 	    setPowerColor(g, false);
 	    drawThickLine(g, plate1[0], plate1[1]);
-	    if (sim.powerCheckItem.getState())
+	    if (showPower())
 		g.setColor(Color.gray);
 
 	    // draw second lead and plate
@@ -109,18 +109,18 @@ class CapacitorElm extends CircuitElm {
 	    }
 	    
 	    updateDotCount();
-	    if (sim.dragElm != this) {
+	    if (app.dragElm != this) {
 		drawDots(g, point1, lead1, curcount);
 		drawDots(g, point2, lead2, -curcount);
 	    }
 	    drawPosts(g);
-	    if (sim.showValuesCheckItem.getState()) {
+	    if (showValues()) {
 		String s = getShortUnitText(capacitance, "F");
 		drawValues(g, s, hs);
 	    }
 	}
 	void stamp() {
-	    if (sim.dcAnalysisFlag) {
+	    if (doDcAnalysis()) {
 		// when finding DC operating point, replace cap with a 100M resistor
 		sim.stampResistor(nodes[0], nodes[1], 1e8);
 		curSourceValue = 0;
@@ -170,7 +170,7 @@ class CapacitorElm extends CircuitElm {
 	
 	void calculateCurrent() {
 	    double voltdiff = volts[0] - volts[capNode2];
-	    if (sim.dcAnalysisFlag) {
+	    if (doDcAnalysis()) {
 		current = voltdiff/1e8;
 		return;
 	    }
@@ -182,11 +182,11 @@ class CapacitorElm extends CircuitElm {
 	}
 	double curSourceValue;
 	void doStep() {
-	    if (sim.dcAnalysisFlag)
+	    if (doDcAnalysis())
 		return;
 	    sim.stampCurrentSource(nodes[0], nodes[capNode2], curSourceValue);
  	}
-	int getInternalNodeCount() { return (!sim.dcAnalysisFlag && seriesResistance > 0) ? 1 : 0; }
+	int getInternalNodeCount() { return (!doDcAnalysis() && seriesResistance > 0) ? 1 : 0; }
 	void getInfo(String arr[]) {
 	    arr[0] = "capacitor";
 	    getBasicInfo(arr);

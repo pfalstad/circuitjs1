@@ -36,7 +36,7 @@ abstract class ChipElm extends CircuitElm {
 	    highVoltage = 5;
 	    noDiagonal = true;
 	    setupPins();
-	    setSize(sim.smallGridCheckItem.getState() ? 1 : 2);
+	    setSize(useSmallGrid() ? 1 : 2);
 	}
 	public ChipElm(int xa, int ya, int xb, int yb, int f,
 		       StringTokenizer st) {
@@ -99,7 +99,7 @@ abstract class ChipElm extends CircuitElm {
 		p.curcount = updateDotCount(p.current, p.curcount);
 		drawDots(g, b, a, p.curcount);
 		if (p.bubble) {
-		    g.setColor(sim.getBackgroundColor());
+		    g.setColor(app.getBackgroundColor());
 		    drawThickCircle(g, p.bubbleX, p.bubbleY, 1);
 		    g.setColor(lightGrayColor);
 		    drawThickCircle(g, p.bubbleX, p.bubbleY, 3);
@@ -154,12 +154,12 @@ abstract class ChipElm extends CircuitElm {
 	int sizeX, sizeY, flippedSizeX, flippedSizeY;
 	boolean lastClock;
 	void drag(int xx, int yy) {
-	    yy = sim.snapGrid(yy);
+	    yy = snapGrid(yy);
 	    if (xx < x) {
 		xx = x; yy = y;
 	    } else {
 		y = y2 = yy;
-		x2 = sim.snapGrid(xx);
+		x2 = snapGrid(xx);
 	    }
 	    setPoints();
 	}
@@ -168,7 +168,7 @@ abstract class ChipElm extends CircuitElm {
 	int labelX, labelY;
 		
 	void setPoints() {
-	    if (x2-x > sizeX*cspc2 && this == sim.dragElm)
+	    if (x2-x > sizeX*cspc2 && this == app.dragElm)
 		setSize(2);
 	    int x0 = x+cspc2; int y0 = y;
 	    int xr = x0-cspc;

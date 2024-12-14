@@ -141,7 +141,7 @@ class ThreePhaseMotorElm extends CircuitElm {
             for (j = 0; j != i; j++)
                 xformMatrix[i][j] = xformMatrix[j][i] = couplingCoefs[i][j]*Math.sqrt(coilInductances[i]*coilInductances[j]);
 	
-        CirSim.invertMatrix(xformMatrix, coilCount);
+        SimulationManager.invertMatrix(xformMatrix, coilCount);
 
         double ts = sim.timeStep;
         for (i = 0; i != coilCount; i++)

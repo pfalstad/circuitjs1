@@ -81,20 +81,20 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
     }
 
     void createSlider() {
-	sim.addWidgetToVerticalPanel(label = new Label(sliderText));
+	app.addWidgetToVerticalPanel(label = new Label(sliderText));
 	label.addStyleName("topSpace");
 	int value = (int) (position*100);
-	sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
+	app.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
     }
 
     public void execute() {
-	sim.analyzeFlag = true;
+	app.analyzeFlag = true;
 	setPoints();
     }
 
     void delete() {
-	sim.removeWidgetFromVerticalPanel(label);
-	sim.removeWidgetFromVerticalPanel(slider);
+	app.removeWidgetFromVerticalPanel(label);
+	app.removeWidgetFromVerticalPanel(slider);
     }
     Point ps3, ps4;   
 
@@ -127,7 +127,7 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
 	grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
 	grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());
 	g.context.setStrokeStyle(grad);
-	if (!sim.euroResistorCheckItem.getState()) {
+	if (!showEuroResistors()) {
 	    g.context.beginPath();
 	    g.context.moveTo(0,0);
 	    for (i=0;i<4;i++){
@@ -149,7 +149,7 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
 
 
 	g.context.restore();
-	if (sim.showValuesCheckItem.getState()) {
+	if (showValues()) {
 	    temperature = temprFromSliderPos();
 	    resistance = calcResistance(temperature);
 	    String s = getShortUnitText(resistance, "");
@@ -208,7 +208,7 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
 	if (n == 4) {
 	    sliderText = ei.textf.getText();
 	    label.setText(sliderText);
-	    sim.setiFrameHeight();
+	    app.setiFrameHeight();
 	}
 	rneg40 = calcResistance(minTempr);
 	b25100 = calcB25100(); //	

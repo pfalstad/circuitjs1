@@ -119,7 +119,7 @@ class LampElm extends CircuitElm {
 	    setVoltageColor(g, (v1+v2)*.5);
 	    drawThickLine(g, filament[0], filament[1]);
 	    updateDotCount();
-	    if (sim.dragElm != this) {
+	    if (app.dragElm != this) {
 		drawDots(g, point1, lead1, curcount);
 		double cc = addCurCount(curcount, (dn-16)/2);
 		drawDots(g, lead1,  filament[0], cc);

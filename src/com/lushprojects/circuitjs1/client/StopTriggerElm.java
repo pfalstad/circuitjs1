@@ -74,7 +74,7 @@ class StopTriggerElm extends CircuitElm {
 	    if (triggered && sim.t >= triggerTime+delay) {
 		triggered = false;
 		stopped = true;
-		sim.setSimRunning(false);
+		app.setSimRunning(false);
 	    }
 	}
 	

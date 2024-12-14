@@ -135,12 +135,12 @@ class Expr {
 	case E_LASTOUTPUT:
 	    return es.lastOutput;
 	case E_TIMESTEP:
-	    return CirSim.theSim.timeStep;
+	    return SimulationManager.theSim.timeStep;
 	default:
 	    if (type >= E_LASTA)
 		return es.lastValues[type-E_LASTA];
 	    if (type >= E_DADT)
-		return (es.values[type-E_DADT]-es.lastValues[type-E_DADT])/CirSim.theSim.timeStep;
+		return (es.values[type-E_DADT]-es.lastValues[type-E_DADT])/SimulationManager.theSim.timeStep;
 	    if (type >= E_A)
 		return es.values[type-E_A];
 	    CirSim.console("unknown\n");

@@ -71,7 +71,7 @@ class SweepElm extends CircuitElm {
 	if (tm > 1000)
 	    tm = 2000-tm;
 	double w = 1+tm*.002;
-	if (sim.simIsRunning())
+	if (app.simIsRunning())
 	    w = 1+2*(frequency-minF)/(maxF-minF);
 	
 	g.context.beginPath();
@@ -86,7 +86,7 @@ class SweepElm extends CircuitElm {
 	g.context.stroke();
 	g.context.setLineWidth(1.0);
 
-	if (sim.showValuesCheckItem.getState()) {
+	if (showValues()) {
 	    String s = getShortUnitText(frequency, "Hz");
 	    if (dx == 0 || dy == 0)
 		drawValues(g, s, circleSize);
@@ -94,7 +94,7 @@ class SweepElm extends CircuitElm {
 	    
 	drawPosts(g);
 	curcount = updateDotCount(-current, curcount);
-	if (sim.dragElm != this)
+	if (app.dragElm != this)
 	    drawDots(g, point1, lead1, curcount);
     }
 	

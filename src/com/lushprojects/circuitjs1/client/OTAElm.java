@@ -120,8 +120,8 @@ public class OTAElm extends CompositeElm {
 	in3p[1] = lead1;
 	in4p[0] = interpPoint(lead1, lead2, 1.0 - (16.0 / wtot), 32);
 	in4p[1] = interpPoint(lead1, lead2, 1.0 - (16.0 / wtot), 8);
-	// in4p[0].x=sim.snapGrid(in4p[0].x);
-	// in4p[0].y=sim.snapGrid(in4p[0].y);
+	// in4p[0].x=snapGrid(in4p[0].x);
+	// in4p[0].y=snapGrid(in4p[0].y);
 	Point tris[] = newPointArray(3);
 	interpPoint2(lead1, lead2, tris[0], tris[1], 0, 3 * hs / 2);
 	tris[2] = interpPoint(lead1, lead2, (2.0 * ww) / wtot);

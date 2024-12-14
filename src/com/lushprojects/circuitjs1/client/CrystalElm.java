@@ -97,7 +97,7 @@ class CrystalElm extends CompositeElm {
 	    drawThickLine(g, point1, lead1);
 	    setPowerColor(g, false);
 	    drawThickLine(g, plate1[0], plate1[1]);
-	    if (sim.powerCheckItem.getState())
+	    if (showPower())
 		g.setColor(Color.gray);
 
 	    // draw second lead and plate
@@ -112,7 +112,7 @@ class CrystalElm extends CompositeElm {
 		drawThickLine(g,  sandwichPoints[i], sandwichPoints[(i+1) % 4]);
 	    
 	    updateDotCount();
-	    if (sim.dragElm != this) {
+	    if (app.dragElm != this) {
 		drawDots(g, point1, lead1, curcount);
 		drawDots(g, point2, lead2, -curcount);
 	    }

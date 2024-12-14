@@ -47,7 +47,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    int segments = 16;
 	    int i;
 	    int ox = 0;
-	    //int hs = sim.euroResistorCheckItem.getState() ? 6 : 8;
+	    //int hs = showEuroResistors() ? 6 : 8;
 	    int hs=6;
 	    double v1 = volts[0];
 	    double v2 = volts[1];
@@ -59,7 +59,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    g.context.save();
 	    g.context.setLineWidth(3.0);
 	    g.context.transform(((double)(lead2.x-lead1.x))/len, ((double)(lead2.y-lead1.y))/len, -((double)(lead2.y-lead1.y))/len,((double)(lead2.x-lead1.x))/len,lead1.x,lead1.y);
-	    if (sim.voltsCheckItem.getState() ) {
+	    if (app.voltsCheckItem.getState() ) {
 		CanvasGradient grad = g.context.createLinearGradient(0,0,len,0);
 		grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
 		grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());
@@ -68,7 +68,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 		setPowerColor(g, true);
 	    if (dn < 30)
 		hs = 2;
-	    if (!sim.euroResistorCheckItem.getState()) {
+	    if (!showEuroResistors()) {
 		g.context.beginPath();
 		g.context.moveTo(0,0);
 		for (i=0;i<4;i++){
@@ -82,7 +82,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 		g.context.strokeRect(0, -hs, len, 2.0*hs);
 	    }
 	    g.context.restore();
-	    if (sim.showValuesCheckItem.getState()) {
+	    if (showValues()) {
 		String s = getShortUnitText(resistance, "");
 		drawValues(g, s, hs+2);
 	    }

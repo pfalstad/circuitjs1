@@ -55,9 +55,9 @@ class OutputElm extends CircuitElm {
 	    g.setColor(selected ? selectColor : whiteColor);
 	    String s = showVoltage() ? getUnitTextWithScale(volts[0], "V", scale, isFixed()) : Locale.LS("out");
 //	    FontMetrics fm = g.getFontMetrics();
-	    if (this == sim.plotXElm)
+	    if (this == app.plotXElm)
 		s = "X";
-	    if (this == sim.plotYElm)
+	    if (this == app.plotYElm)
 		s = "Y";
 	    interpPoint(point1, point2, lead1, 1-((int)g.context.measureText(s).getWidth()/2+8)/dn);
 	    setBbox(point1, lead1, 0);

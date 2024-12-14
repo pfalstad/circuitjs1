@@ -124,7 +124,7 @@ class MosfetElm extends CircuitElm {
 		int segments = 6;
 		int i;
 		setPowerColor(g, true);
-		boolean power = sim.powerCheckItem.getState();
+		boolean power = showPower();
 		double segf = 1./segments;
 		boolean enhancement = vt > 0 && showBulk();
 		for (i = 0; i != segments; i++) {
@@ -187,7 +187,7 @@ class MosfetElm extends CircuitElm {
 		}
 		
 		// label pins when highlighted
-		if (needsHighlight() || sim.dragElm == this) {
+		if (needsHighlight() || app.dragElm == this) {
 		    g.setColor(whiteColor);
 		    g.setFont(unitsFont);
 

@@ -39,7 +39,7 @@ package com.lushprojects.circuitjs1.client;
 	    if (lastSchmitt)
 		flags |= FLAG_SCHMITT;
 	    
-	    setSize(sim.smallGridCheckItem.getState() ? 1 : 2);
+	    setSize(useSmallGrid() ? 1 : 2);
 	}
 	public GateElm(int xa, int ya, int xb, int yb, int f,
 			StringTokenizer st) {
@@ -75,7 +75,7 @@ package com.lushprojects.circuitjs1.client;
 	void setPoints() {
 	    super.setPoints();
 	    inputStates = new boolean[inputCount];
-	    if (dn > 150 && this == sim.dragElm)
+	    if (dn > 150 && this == app.dragElm)
 		setSize(2);
 	    int hs = gheight;
 	    int i;
@@ -126,7 +126,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	String getGateText() { return null; }
-	static boolean useEuroGates() { return sim.euroGatesCheckItem.getState(); }
+	static boolean useEuroGates() { return app.euroGatesCheckItem.getState(); }
 
 	void drawGatePolygon(Graphics g) {
 	    drawThickPolygon(g, gatePoly);
@@ -206,7 +206,7 @@ package com.lushprojects.circuitjs1.client;
 		    if (oscillationCount++ > 50) {
 			// output is oscillating too much, randomly leave output the same
 			oscillationCount = 0;
-			if (sim.getrand(10) > 5)
+			if (app.getrand(10) > 5)
 			    f = lastOutput;
 		    }
 		} else

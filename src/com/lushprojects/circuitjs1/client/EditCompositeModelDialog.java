@@ -63,7 +63,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	
         boolean createModel() {
             HashSet<Integer> nodeSet = new HashSet<Integer>();
-            model = CirSim.theSim.getCircuitAsComposite();
+            model = SimulationManager.theSim.getCircuitAsComposite();
             if (model == null)
         	return false;
             if (model.extList.size() == 0) {
@@ -105,7 +105,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
             model.sizeX = Math.max(minWidth, pinsNS + xOffsetLeft + xOffsetRight);
             model.sizeY = Math.max(minHeight, pinsWE);
 
-            model.modelCircuit = CirSim.theSim.dumpCircuit();
+            model.modelCircuit = CirSim.theApp.dumpCircuit();
             return true;
         }
         
@@ -251,8 +251,8 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		model.setName(CustomCompositeElm.lastModelName = name);
 	    }
 	    model.setSaved(saveCheck.getState());
-	    CirSim.theSim.updateModels();
-	    CirSim.theSim.needAnalyze(); // will get singular matrix if we don't do this
+	    CirSim.theApp.updateModels();
+	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
 	    closeDialog();
 	}
 
@@ -263,7 +263,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    double scalew = context.getCanvas().getWidth()  / (double)(chip.boundingBox.width + chip.boundingBox.x*2);
 	    double scaleh = context.getCanvas().getHeight() / (double)(chip.boundingBox.height + chip.boundingBox.y*2);
 	    scale = 1/Math.min(scalew, scaleh);
-	    context.setFillStyle(CirSim.theSim.getBackgroundColor().getHexValue());
+	    context.setFillStyle(CirSim.theApp.getBackgroundColor().getHexValue());
 		context.setTransform(1, 0, 0, 1, 0, 0);
 	    context.fillRect(0, 0, context.getCanvas().getWidth(), context.getCanvas().getHeight());
 	    context.setTransform(1/scale, 0, 0, 1/scale, 0, 0);

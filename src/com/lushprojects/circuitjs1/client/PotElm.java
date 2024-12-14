@@ -71,22 +71,22 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     		position + " " + sliderText; }
     
     void createSlider() {
-    	sim.addWidgetToVerticalPanel(label = new Label(sliderText));
+    	app.addWidgetToVerticalPanel(label = new Label(sliderText));
     	label.addStyleName("topSpace");
     	int value = (int) Math.round((position-.005)/.0099);
-    	sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
+    	app.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
    // 	sim.verticalPanel.validate();
    // 	slider.addAdjustmentListener(this);
     }
     
     public void execute() {
-	sim.analyzeFlag = true;
+	app.analyzeFlag = true;
 	setPoints();
     }
     
     void delete() {
-	sim.removeWidgetFromVerticalPanel(label);
-	sim.removeWidgetFromVerticalPanel(slider);
+	app.removeWidgetFromVerticalPanel(label);
+	app.removeWidgetFromVerticalPanel(slider);
         super.delete();
     }
     
@@ -99,12 +99,12 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	int offset = 0;
 	int myLen =0;
 	if (abs(dx) > abs(dy) != hasFlag(FLAG_FLIP)) {
-	    myLen =  2 * sim.gridSize * Integer.signum(dx) * ((((int)Math.abs(dx))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
+	    myLen =  2 * app.gridSize * Integer.signum(dx) * ((((int)Math.abs(dx))+ 2 * app.gridSize -1) / (2 * app.gridSize));
 	    point2.x =  point1.x + myLen;
 	    offset = (dx < 0) ? dy : -dy;
 	    point2.y = point1.y;
 	} else {
-	    myLen =  2 * sim.gridSize * Integer.signum(dy) * ((((int)Math.abs(dy))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
+	    myLen =  2 * app.gridSize * Integer.signum(dy) * ((((int)Math.abs(dy))+ 2 * app.gridSize -1) / (2 * app.gridSize));
 	    if (dy != 0) {
 		point2.y = point1.y + myLen;
 		offset = (dy > 0) ? dx : -dx;
@@ -112,7 +112,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	    }
 	}
 	if (offset == 0)
-	    offset = (hasFlag(FLAG_FLIP_OFFSET)) ? -sim.gridSize : sim.gridSize;
+	    offset = (hasFlag(FLAG_FLIP_OFFSET)) ? -app.gridSize : app.gridSize;
 	dn = distance(point1, point2);
 	int bodyLen = 32;
 	calcLeads(bodyLen);
@@ -136,7 +136,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	int segments = 16;
 	int i;
 	int ox = 0;
-	int hs = sim.euroResistorCheckItem.getState() ? 6 : 8;
+	int hs = showEuroResistors() ? 6 : 8;
 	double v1 = volts[0];
 	double v2 = volts[1];
 	double v3 = volts[2];
@@ -146,7 +146,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	setPowerColor(g, true);
 	double segf = 1./segments;
 	int divide = (int) (segments*position);
-	if (!sim.euroResistorCheckItem.getState()) {
+	if (!showEuroResistors()) {
 	    // draw zigzag
 	    for (i = 0; i != segments; i++) {
 		int nx = 0;
@@ -190,7 +190,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	curcount1 = updateDotCount(current1, curcount1);
 	curcount2 = updateDotCount(current2, curcount2);
 	curcount3 = updateDotCount(current3, curcount3);
-	if (sim.dragElm != this) {
+	if (app.dragElm != this) {
 	    drawDots(g, point1, midpoint, curcount1);
 	    drawDots(g, point2, midpoint, curcount2);
 	    drawDots(g, post3, corner2, curcount3);
@@ -198,7 +198,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	}
 	drawPosts(g);
 
-	if (sim.showValuesCheckItem.getState() && resistance1 > 0 && (flags & FLAG_SHOW_VALUES) != 0) {
+	if (showValues() && resistance1 > 0 && (flags & FLAG_SHOW_VALUES) != 0) {
 	    // check for vertical pot with 3rd terminal on left
 	    boolean reverseY = (post3.x < lead1.x && lead1.x == lead2.x);
 	    // check for horizontal pot with 3rd terminal on top
@@ -310,7 +310,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	if (n == 1) {
 	    sliderText = ei.textf.getText();
 	    label.setText(sliderText);
-	    sim.setiFrameHeight();
+	    app.setiFrameHeight();
 	}
 	if (n == 2)
 	    flags = ei.changeFlag(flags, FLAG_SHOW_VALUES);

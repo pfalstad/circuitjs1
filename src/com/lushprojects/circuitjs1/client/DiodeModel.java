@@ -286,7 +286,7 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	if (n == 4)
 	    breakdownVoltage = Math.abs(ei.value);
 	updateModel();
-	CirSim.theSim.updateModels();
+	CirSim.theApp.updateModels();
     }
 
     // set emission coefficient for simple mode if we have enough data  

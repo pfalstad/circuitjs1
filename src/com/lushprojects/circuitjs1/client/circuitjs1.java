@@ -42,7 +42,7 @@ public class circuitjs1 implements EntryPoint {
     // as the circuit simulator
     public static final boolean shortRelaySupported = true;
 
-    static CirSim mysim;
+    static CirSim theApp;
 
     // This is the program entrypoint! 
     // Called by gtw automagically (see circuitjs1.gwt.xml)
@@ -147,17 +147,17 @@ public class circuitjs1 implements EntryPoint {
 
     public void loadSimulator(HashMap<String, String> localizationMap) {
         Locale.localizationMap = localizationMap;
-        mysim = new CirSim();
-        mysim.init();
+        theApp = new CirSim();
+        theApp.init();
 
         Window.addResizeHandler(new ResizeHandler() {
             public void onResize(ResizeEvent event) {
-                mysim.setCanvasSize();
-                mysim.setiFrameHeight();
+                theApp.setCanvasSize();
+                theApp.setiFrameHeight();
             }
         });
 
-        mysim.updateCircuit();
+        theApp.updateCircuit();
     }
 
 }

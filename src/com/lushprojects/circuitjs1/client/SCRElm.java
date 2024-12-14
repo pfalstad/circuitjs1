@@ -118,16 +118,16 @@ class SCRElm extends CircuitElm {
 
 	gate = newPointArray(2);
 	double leadlen = (dn-16)/2;
-	int gatelen = sim.gridSize;
-	gatelen += leadlen % sim.gridSize;
+	int gatelen = app.gridSize;
+	gatelen += leadlen % app.gridSize;
 	if (leadlen < gatelen) {
 	    x2 = x; y2 = y;
 	    return;
 	}
 	interpPoint(lead2, point2, gate[0], gatelen/leadlen, gatelen*dir);
-	interpPoint(lead2, point2, gate[1], gatelen/leadlen, sim.gridSize*2*dir);
-	gate[1].x = sim.snapGrid(gate[1].x);
-	gate[1].y = sim.snapGrid(gate[1].y);
+	interpPoint(lead2, point2, gate[1], gatelen/leadlen, app.gridSize*2*dir);
+	gate[1].x = snapGrid(gate[1].x);
+	gate[1].y = snapGrid(gate[1].y);
     }
 	
     void draw(Graphics g) {
@@ -156,14 +156,14 @@ class SCRElm extends CircuitElm {
 	curcount_a = updateDotCount(ia, curcount_a);
 	curcount_c = updateDotCount(ic, curcount_c);
 	curcount_g = updateDotCount(ig, curcount_g);
-	if (sim.dragElm != this) {
+	if (app.dragElm != this) {
 	    drawDots(g, point1, lead2, curcount_a);
 	    drawDots(g, point2, lead2, curcount_c);
 	    drawDots(g, gate[1], gate[0], curcount_g);
 	    drawDots(g, gate[0], lead2, curcount_g+distance(gate[1], gate[0]));
 	}
 	
-	if ((needsHighlight() || sim.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
+	if ((needsHighlight() || app.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
 	    g.setColor(whiteColor);
 	    int ds = sign(dx);
 	    g.drawString("C", lead2.x+((ds < 0) ? 5 : -15), lead2.y+12);
@@ -258,7 +258,7 @@ class SCRElm extends CircuitElm {
     // is pointed and flip won't work.  fix this
     void fixEnds() {
 	Point pt = new Point();
-	interpPoint(point1, point2, pt, 1, sim.gridSize*dir);
+	interpPoint(point1, point2, pt, 1, app.gridSize*dir);
 	x2 = pt.x; y2 = pt.y;
     }
 

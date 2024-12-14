@@ -57,7 +57,7 @@ package com.lushprojects.circuitjs1.client;
 	    draw2Leads(g);
 	    setPowerColor(g, false);
 	    drawCoil(g, 8, lead1, lead2, v1, v2);
-	    if (sim.showValuesCheckItem.getState()) {
+	    if (showValues()) {
 		String s = getShortUnitText(inductance, "H");
 		drawValues(g, s, hs);
 	    }

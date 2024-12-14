@@ -252,13 +252,13 @@ public class Scrollbar extends  Composite implements
 	    	if (dragging)
 	    	    return;
 		if (enabled && attachedElm!=null && attachedElm.isMouseElm())
-			CircuitElm.sim.setMouseElm(null);
+			CirSim.theApp.setMouseElm(null);
 	}
 	
 	public void onMouseOver(MouseOverEvent e){
 		
 		if (enabled && attachedElm!=null)
-			 CircuitElm.sim.setMouseElm(attachedElm);
+			 CirSim.theApp.setMouseElm(attachedElm);
 	}
 	
 	public void onMouseWheel(MouseWheelEvent e) {

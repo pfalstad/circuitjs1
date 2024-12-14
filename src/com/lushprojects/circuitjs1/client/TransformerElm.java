@@ -60,8 +60,8 @@ package com.lushprojects.circuitjs1.client;
 	    polarity = (hasFlag(FLAG_REVERSE)) ? -1 : 1; 
 	}
 	void drag(int xx, int yy) {
-	    xx = sim.snapGrid(xx);
-	    yy = sim.snapGrid(yy);
+	    xx = snapGrid(xx);
+	    yy = snapGrid(yy);
 	    if (abs(xx-x) > abs(yy-y)) {
 		flags &= ~FLAG_VERTICAL;
 	    } else

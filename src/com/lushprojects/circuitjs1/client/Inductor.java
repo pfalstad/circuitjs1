@@ -23,12 +23,12 @@ class Inductor {
     public static final int FLAG_BACK_EULER = 2;
     int nodes[];
     int flags;
-    CirSim sim;
+    SimulationManager sim;
     
     double inductance;
     double compResistance, current;
     double curSourceValue;
-    Inductor(CirSim s) {
+    Inductor(SimulationManager s) {
 	sim = s;
 	nodes = new int[2];
     }

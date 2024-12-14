@@ -31,7 +31,7 @@ public class MyCommand implements Command {
 	}
 	
 	public void execute() {
-		circuitjs1.mysim.menuPerformed(menuName, itemName);
+		CirSim.theApp.menuPerformed(menuName, itemName);
 	}
 
 	public String getMenuName() { return menuName; }

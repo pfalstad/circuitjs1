@@ -24,9 +24,10 @@ import com.google.gwt.user.client.Window;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class EditOptions implements Editable {
-	CirSim sim;
+	CirSim app;
+	SimulationManager sim;
 	
-	public EditOptions(CirSim s) { sim = s; }
+	public EditOptions(CirSim a, SimulationManager s) { app = a; sim = s; }
 	
 	public EditInfo getEditInfo(int n) {
 		if (n == 0)
@@ -71,13 +72,13 @@ class EditOptions implements Editable {
 		    return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits);
 		if (n == 10) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
-		    ei.checkbox = new Checkbox("Developer Mode", sim.developerMode);
+		    ei.checkbox = new Checkbox("Developer Mode", app.developerMode);
 		    return ei;
 		}
 		if (n == 11)
-		    return new EditInfo("Minimum Target Frame Rate", sim.minFrameRate);
+		    return new EditInfo("Minimum Target Frame Rate", app.minFrameRate);
 		if (n == 12)
-		    return new EditInfo("Mouse Wheel Sensitivity", sim.wheelSensitivity);
+		    return new EditInfo("Mouse Wheel Sensitivity", app.wheelSensitivity);
 		if (n == 13) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
@@ -152,14 +153,14 @@ class EditOptions implements Editable {
 		if (n == 9)
 		    CircuitElm.setDecimalDigits((int)ei.value, false, true);
 		if (n == 10)
-	            sim.developerMode = ei.checkbox.getState();
+	            app.developerMode = ei.checkbox.getState();
 		if (n == 11 && ei.value > 0)
-		    sim.minFrameRate = ei.value;
+		    app.minFrameRate = ei.value;
 		if (n == 12 && ei.value > 0) {
-		    sim.wheelSensitivity = ei.value;
+		    app.wheelSensitivity = ei.value;
 		    Storage stor = Storage.getLocalStorageIfSupported();
 		    if (stor != null)
-			stor.setItem("wheelSensitivity", Double.toString(sim.wheelSensitivity));
+			stor.setItem("wheelSensitivity", Double.toString(app.wheelSensitivity));
 		}
 		if (n == 13) {
 		    sim.adjustTimeStep = ei.checkbox.getState();

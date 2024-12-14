@@ -114,10 +114,10 @@ class VoltageElm extends CircuitElm {
     }
     void stepFinished() {
 	if (waveform == WF_NOISE)
-	    noiseValue = (sim.random.nextDouble()*2-1) * maxVoltage + bias;
+	    noiseValue = (app.random.nextDouble()*2-1) * maxVoltage + bias;
     }
     double getVoltage() {
-	if (waveform != WF_DC && sim.dcAnalysisFlag)
+	if (waveform != WF_DC && doDcAnalysis())
 	    return bias;
 	
 	double w = 2*pi*(sim.t-freqTimeZero)*frequency + phaseShift;
@@ -174,7 +174,7 @@ class VoltageElm extends CircuitElm {
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
 	updateDotCount();
-	if (sim.dragElm != this) {
+	if (app.dragElm != this) {
 	    if (waveform == WF_DC)
 		drawDots(g, point1, point2, curcount);
 	    else {
@@ -256,7 +256,7 @@ class VoltageElm extends CircuitElm {
 	    break;
 	}
 	}
-	if (sim.showValuesCheckItem.getState() && waveform != WF_NOISE) {
+	if (showValues() && waveform != WF_NOISE) {
 	    String s = getShortUnitText(frequency, "Hz");
 	    if (dx == 0 || dy == 0)
 		drawValues(g, s, circleSize);
@@ -294,7 +294,7 @@ class VoltageElm extends CircuitElm {
 		arr[i++] = "wavelength = " +
 		    getUnitText(2.9979e8/frequency, "m");
 	}
-	if (waveform == WF_DC && current != 0 && sim.showResistanceInVoltageSources)
+	if (waveform == WF_DC && current != 0 && app.showResistanceInVoltageSources)
 	    arr[i++] = "(R = " + getUnitText(maxVoltage/current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + getUnitText(getPower(), "W");
     }

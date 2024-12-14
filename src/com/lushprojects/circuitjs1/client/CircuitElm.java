@@ -41,7 +41,8 @@ public abstract class CircuitElm implements Editable {
     // scratch points for convenience
     static Point ps1, ps2;
     
-    static CirSim sim;
+    static CirSim app;
+    static SimulationManager sim;
     static public Color whiteColor, lightGrayColor, selectColor;
     static public Color positiveColor, negativeColor, neutralColor, currentColor;
     static Font unitsFont;
@@ -109,9 +110,10 @@ public abstract class CircuitElm implements Editable {
 
     boolean hasFlag(int f) { return (flags & f) != 0; }
     
-    static void initClass(CirSim s) {
+    static void initClass(CirSim app_, SimulationManager sim_) {
 	unitsFont = new Font("SansSerif", 0, 12);
-	sim = s;
+	sim = sim_;
+	app = app_;
 	
 	colorScale = new Color[colorScaleCount];
 	
@@ -253,7 +255,7 @@ public abstract class CircuitElm implements Editable {
     void delete() {
 	if (mouseElmRef==this)
 	    mouseElmRef=null;
-	sim.deleteSliders(this);
+	app.deleteSliders(this);
     }
     void startIteration() {}
     
@@ -301,8 +303,8 @@ public abstract class CircuitElm implements Editable {
 	int roundx = (flipX) ? 1 : -1;
 	int roundy = (flipY) ? 1 : -1;
 
-        int adjx = sim.snapGrid(cx+roundx)-cx;
-        int adjy = sim.snapGrid(cy+roundy)-cy;
+        int adjx = snapGrid(cx+roundx)-cx;
+        int adjy = snapGrid(cy+roundy)-cy;
         lead1.move(adjx, adjy);
         lead2.move(adjx, adjy);
     }
@@ -388,11 +390,13 @@ public abstract class CircuitElm implements Editable {
 	return a;
     }
 
+    int snapGrid(int z) { return app.snapGrid(z); }
+
     final int CURRENT_TOO_FAST = 100;
 
     // draw current dots from point a to b
     void drawDots(Graphics g, Point pa, Point pb, double pos) {
-	 if ((!sim.simIsRunning()) || pos == 0 || !sim.dotsCheckItem.getState())
+	 if ((!app.simIsRunning()) || pos == 0 || !app.dotsCheckItem.getState())
 	    return;
 	int dx = pb.x-pa.x;
 	int dy = pb.y-pa.y;
@@ -468,8 +472,8 @@ public abstract class CircuitElm implements Editable {
     
     // draw second point to xx, yy
     void drag(int xx, int yy) {
-	xx = sim.snapGrid(xx);
-	yy = sim.snapGrid(yy);
+	xx = snapGrid(xx);
+	yy = snapGrid(yy);
 	if (noDiagonal) {
 	    if (Math.abs(x-xx) < Math.abs(y-yy)) {
 		xx = x;
@@ -508,8 +512,8 @@ public abstract class CircuitElm implements Editable {
 	int nx2 = x2+dx;
 	int ny2 = y2+dy;
 	int i;
-	for (i = 0; i != sim.elmList.size(); i++) {
-	    CircuitElm ce = sim.getElm(i);
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.getElm(i);
 	    if (ce.x == nx && ce.y == ny && ce.x2 == nx2 && ce.y2 == ny2)
 		return false;
 	    if (ce.x == nx2 && ce.y == ny2 && ce.x2 == nx && ce.y2 == ny)
@@ -573,10 +577,10 @@ public abstract class CircuitElm implements Editable {
 	// we normally do this in updateCircuit() now because the logic is more complicated.
 	// we only handle the case where we have to draw all the posts.  That happens when
 	// this element is selected or is being created
-	if (sim.dragElm == null && !needsHighlight())
+	if (app.dragElm == null && !needsHighlight())
 	    return;
-	if (sim.mouseMode == CirSim.MODE_DRAG_ROW ||
-	    sim.mouseMode == CirSim.MODE_DRAG_COLUMN)
+	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
+	    app.mouseMode == CirSim.MODE_DRAG_COLUMN)
 	    return;
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
@@ -662,11 +666,11 @@ public abstract class CircuitElm implements Editable {
     
     /*
     void drawPost(Graphics g, int x0, int y0, int n) {
-	if (sim.dragElm == null && !needsHighlight() &&
-	    sim.getCircuitNode(n).links.size() == 2)
+	if (app.dragElm == null && !needsHighlight() &&
+	    app.getCircuitNode(n).links.size() == 2)
 	    return;
-	if (sim.mouseMode == CirSim.MODE_DRAG_ROW ||
-	    sim.mouseMode == CirSim.MODE_DRAG_COLUMN)
+	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
+	    app.mouseMode == CirSim.MODE_DRAG_COLUMN)
 	    return;
 	drawPost(g, x0, y0);
     }
@@ -800,7 +804,7 @@ public abstract class CircuitElm implements Editable {
 	g.context.setLineWidth(3.0);
 	g.context.transform(((double)(p2.x-p1.x))/len, ((double)(p2.y-p1.y))/len,
 		-((double)(p2.y-p1.y))/len,((double)(p2.x-p1.x))/len,p1.x,p1.y);
-	if (sim.voltsCheckItem.getState() ) {
+	if (app.voltsCheckItem.getState() ) {
 	    CanvasGradient grad = g.context.createLinearGradient(0,0,len,0);
 	    grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
 	    grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());
@@ -973,7 +977,7 @@ public abstract class CircuitElm implements Editable {
     // update dot positions (curcount) for drawing current (general case for multiple currents)
     double updateDotCount(double cur, double cc) {
   
-	 if (!sim.simIsRunning())
+	 if (!app.simIsRunning())
 	    return cc;
 	double cadd = cur*currentMult;
 	if (cadd > 6 || cadd < -6)
@@ -987,7 +991,7 @@ public abstract class CircuitElm implements Editable {
     // update and draw current for simple two-terminal element
     void doDots(Graphics g) {
 	updateDotCount();
-	if (sim.dragElm != this)
+	if (app.dragElm != this)
 	    drawDots(g, point1, point2, curcount);
     }
     
@@ -1013,7 +1017,7 @@ public abstract class CircuitElm implements Editable {
     	if (needsHighlight()) {
     	    	return (selectColor);
     	}
-    	if (!sim.voltsCheckItem.getState()) {
+    	if (!app.voltsCheckItem.getState()) {
     	    	return(whiteColor);
     	}
     	int c = (int) ((volts+voltageRange)*(colorScaleCount-1)/
@@ -1036,13 +1040,13 @@ public abstract class CircuitElm implements Editable {
 	  setConductanceColor(g, current/getVoltageDiff());
 	  return;
 	  }*/
-	if (!sim.powerCheckItem.getState() )
+	if (!showPower() )
 	    return;
 	setPowerColor(g, getPower());
     }
     
     void setPowerColor(Graphics g, double w0) {
-	if (!sim.powerCheckItem.getState() )
+	if (!showPower() )
 	    return;
     	if (needsHighlight()) {
 	    	g.setColor(selectColor);
@@ -1108,7 +1112,7 @@ public abstract class CircuitElm implements Editable {
 	return ((x1 == y1 && x2 == y2) || (x1 == y2 && x2 == y1));
     }
     boolean needsHighlight() { 
-	return mouseElmRef==this || selected || sim.plotYElm == this ||
+	return mouseElmRef==this || selected || app.plotYElm == this ||
 		// Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
 		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this); 
     }
@@ -1133,6 +1137,11 @@ public abstract class CircuitElm implements Editable {
     Rectangle getBoundingBox() { return boundingBox; }
     boolean needsShortcut() { return getShortcut() > 0; }
     int getShortcut() { return 0; }
+    boolean showValues() { return app.showValuesCheckItem.getState(); }
+    boolean showPower() { return app.powerCheckItem.getState(); }
+    boolean showEuroResistors() { return app.euroResistorCheckItem.getState(); }
+    boolean useSmallGrid() { return app.smallGridCheckItem.getState(); }
+    boolean doDcAnalysis() { return app.dcAnalysisFlag; }
 
     boolean isGraphicElmt() { return false; }
     

@@ -35,7 +35,7 @@ package com.lushprojects.circuitjs1.client;
 	    gbw = 1e6;
            flags = FLAG_GAIN; // need to do this before setSize()
 	    gain = 100000;
-           setSize(sim.smallGridCheckItem.getState() ? 1 : 2);
+           setSize(useSmallGrid() ? 1 : 2);
 	}
 	public OpAmpElm(int xa, int ya, int xb, int yb, int f,
 			StringTokenizer st) {
@@ -101,7 +101,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	void setPoints() {
 	    super.setPoints();
-	    if (dn > 150 && this == sim.dragElm)
+	    if (dn > 150 && this == app.dragElm)
 		setSize(2);
 	    int ww = opwidth;
 	    if (ww > dn/2)
@@ -158,10 +158,10 @@ package com.lushprojects.circuitjs1.client;
 	    double dx = 0;
 	    double maxAdj = maxOut-midpoint;
 	    double minAdj = minOut-midpoint;
-	    if (vd >= maxAdj/gain && (lastvd >= 0 || sim.getrand(4) == 1)) {
+	    if (vd >= maxAdj/gain && (lastvd >= 0 || app.getrand(4) == 1)) {
 		dx = 1e-4;
 		x = maxOut - dx*maxAdj/gain;
-	    } else if (vd <= minAdj/gain && (lastvd <= 0 || sim.getrand(4) == 1)) {
+	    } else if (vd <= minAdj/gain && (lastvd <= 0 || app.getrand(4) == 1)) {
 		dx = 1e-4;
 		x = minOut - dx*minAdj/gain;
 	    } else {

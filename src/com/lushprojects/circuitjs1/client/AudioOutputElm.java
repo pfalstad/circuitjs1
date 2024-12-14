@@ -221,7 +221,7 @@ public class AudioOutputElm extends CircuitElm {
             String label = "&#9654; " + Locale.LS("Play Audio");
             if (labelNum > 1)
         	label += " " + labelNum;
-            sim.addWidgetToVerticalPanel(button = new Button(label));
+            app.addWidgetToVerticalPanel(button = new Button(label));
             button.setStylePrimaryName("topButton");
             button.addClickHandler(new ClickHandler() {
         	public void onClick(ClickEvent event) {
@@ -231,7 +231,7 @@ public class AudioOutputElm extends CircuitElm {
             
         }
         void delete() {
-            sim.removeWidgetFromVerticalPanel(button);
+            app.removeWidgetFromVerticalPanel(button);
             super.delete();
         }
         

@@ -69,8 +69,8 @@ class CustomTransformerElm extends CircuitElm {
 	    parseDescription(description);
 	}
 	void drag(int xx, int yy) {
-	    xx = sim.snapGrid(xx);
-	    yy = sim.snapGrid(yy);
+	    xx = snapGrid(xx);
+	    yy = snapGrid(yy);
 //	    width = max(32, abs(yy-y));
 	    if (xx == x)
 	        yy = y;
@@ -320,7 +320,7 @@ class CustomTransformerElm extends CircuitElm {
 		for (j = 0; j != i; j++)
 		    xformMatrix[i][j] = xformMatrix[j][i] = couplingCoef*Math.sqrt(coilInductances[i]*coilInductances[j])*coilPolarities[i]*coilPolarities[j];
 
-	    CirSim.invertMatrix(xformMatrix, coilCount);
+	    SimulationManager.invertMatrix(xformMatrix, coilCount);
 	    
 	    double ts = isTrapezoidal() ? sim.timeStep/2 : sim.timeStep;
 	    for (i = 0; i != coilCount; i++)

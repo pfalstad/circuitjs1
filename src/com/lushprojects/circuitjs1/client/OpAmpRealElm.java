@@ -213,7 +213,7 @@ public class OpAmpRealElm extends CompositeElm {
         interpPoint2(lead1 , lead2,  textp[0], textp[1], .2, hsswap);
         
         // position rails; ideally in middle, but may need to be off-center to fit grid
-        double railPos = .5 - ((dn/2) % sim.gridSize)/(ww*2);
+        double railPos = .5 - ((dn/2) % app.gridSize)/(ww*2);
         interpPoint2(lead1 , lead2,  rail1p[1], rail2p[1], railPos, hs*2*(1-railPos));
         interpPoint2(lead1 , lead2,  rail1p[0], rail2p[0], railPos, hs*2);
         

@@ -59,7 +59,7 @@ class RailElm extends VoltageElm {
 	drawRail(g);
 	drawPosts(g);
 	curcount = updateDotCount(-current, curcount);
-	if (sim.dragElm != this)
+	if (app.dragElm != this)
 	    drawDots(g, point1, lead1, curcount);
     }
 

@@ -65,7 +65,7 @@ public class CheckboxMenuItem extends MenuItem implements Command {
 		setState(!on);
 		if (extcmd!=null) {
 		    extcmd.execute();
-		    CircuitElm.sim.repaint();
+		    CirSim.theApp.repaint();
 		}
       }
 

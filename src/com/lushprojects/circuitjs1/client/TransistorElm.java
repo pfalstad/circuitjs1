@@ -125,7 +125,7 @@ class TransistorElm extends CircuitElm {
 	    g.fillPolygon(arrowPoly);
 	    // draw base
 	    setVoltageColor(g, volts[0]);
-	    if (sim.powerCheckItem.getState())
+	    if (showPower())
 		g.setColor(Color.gray);
 	    drawThickLine(g, point1, base);
 	    // draw dots
@@ -140,7 +140,7 @@ class TransistorElm extends CircuitElm {
 	    setPowerColor(g, true);
 	    g.fillPolygon(rectPoly);
 
-	    if ((needsHighlight() || sim.dragElm == this) && dy == 0) {
+	    if ((needsHighlight() || app.dragElm == this) && dy == 0) {
 		g.setColor(whiteColor);
 // IES
 //		g.setFont(unitsFont);
@@ -510,7 +510,7 @@ class TransistorElm extends CircuitElm {
 	    }
 	    if (n == 4) {
 		TransistorModel newModel = new TransistorModel(model);
-		EditDialog editDialog = new EditTransistorModelDialog(newModel, sim, this);
+		EditDialog editDialog = new EditTransistorModelDialog(newModel, app, this);
 		CirSim.diodeModelEditDialog = editDialog;
 		editDialog.show();
 		return;
@@ -521,7 +521,7 @@ class TransistorElm extends CircuitElm {
 		    Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
 		    return;
 		}
-		EditDialog editDialog = new EditTransistorModelDialog(model, sim, null);
+		EditDialog editDialog = new EditTransistorModelDialog(model, app, null);
 		CirSim.diodeModelEditDialog = editDialog;
 		editDialog.show();
 		return;

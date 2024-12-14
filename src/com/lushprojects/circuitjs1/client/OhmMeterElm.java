@@ -27,7 +27,7 @@ public class OhmMeterElm extends CurrentElm {
 
 	    setBbox(point1, point2, cr);
 	    doDots(g);
-	    if (sim.showValuesCheckItem.getState() && current != 0) {
+	    if (showValues() && current != 0) {
 		String s = getShortUnitText(getVoltageDiff()/current, Locale.ohmString);
 		if (dx == 0 || dy == 0)
 		    drawValues(g, s, cr);

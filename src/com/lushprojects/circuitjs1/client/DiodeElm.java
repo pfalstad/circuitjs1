@@ -227,7 +227,7 @@ class DiodeElm extends CircuitElm {
             newModel.setSimple(n == 1);
             if (newModel.isSimple())
         	newModel.setForwardVoltage();
-            EditDialog editDialog = new EditDiodeModelDialog(newModel, sim, this);
+            EditDialog editDialog = new EditDiodeModelDialog(newModel, app, this);
             CirSim.diodeModelEditDialog = editDialog;
             editDialog.show();
             return;
@@ -240,7 +240,7 @@ class DiodeElm extends CircuitElm {
             }
             if (model.isSimple())
         	model.setForwardVoltage();            
-            EditDialog editDialog = new EditDiodeModelDialog(model, sim, null);
+            EditDialog editDialog = new EditDiodeModelDialog(model, app, null);
             CirSim.diodeModelEditDialog = editDialog;
             editDialog.show();
             return;

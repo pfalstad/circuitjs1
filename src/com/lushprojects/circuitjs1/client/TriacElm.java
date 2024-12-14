@@ -123,15 +123,15 @@ class TriacElm extends CircuitElm {
 	    arrows[i] = createPolygon(p1, p2, p3);
 	}
 	
-	int gatelen = sim.gridSize;
+	int gatelen = app.gridSize;
         double leadlen = (dn-16)/2;
-	gatelen += leadlen % sim.gridSize;
+	gatelen += leadlen % app.gridSize;
 	if (leadlen < gatelen) {
 	    x2 = x; y2 = y;
 	    return;
 	}
 	interpPoint(lead2, point2, gate[0], gatelen/leadlen, gatelen*dir);
-	interpPoint(lead2, point2, gate[1], gatelen/leadlen, sim.gridSize*2*dir);
+	interpPoint(lead2, point2, gate[1], gatelen/leadlen, app.gridSize*2*dir);
 	
     }
     
@@ -160,14 +160,14 @@ class TriacElm extends CircuitElm {
 	curcount_1 = updateDotCount(i1, curcount_1);
 	curcount_2 = updateDotCount(i2, curcount_2);
 	curcount_g = updateDotCount(ig, curcount_g);
-	if (sim.dragElm != this) {
+	if (app.dragElm != this) {
 	    drawDots(g, point1, lead2, curcount_2);
 	    drawDots(g, point2, lead2, curcount_1);
 	    drawDots(g, gate[1], gate[0], curcount_g);
 	    drawDots(g, gate[0], lead2, curcount_g+distance(gate[1], gate[0]));
 	}
 	
-	if ((needsHighlight() || sim.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
+	if ((needsHighlight() || app.dragElm == this) && point1.x == point2.x && point2.y > point1.y) {
 	    g.setColor(whiteColor);
 	    int ds = sign(dx);
 	    g.drawString("MT1", lead2.x+((ds < 0) ? 5 : -30), lead2.y+12);

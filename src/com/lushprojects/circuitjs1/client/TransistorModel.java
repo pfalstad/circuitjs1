@@ -229,7 +229,7 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 11) BCleakCur = ei.value;
 	if (n == 12) leakBCemissionCoeff = ei.value;
 	updateModel();
-	CirSim.theSim.updateModels();
+	CirSim.theApp.updateModels();
     }
 
     void updateModel() {
