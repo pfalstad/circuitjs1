@@ -532,6 +532,9 @@ public class SimulationManager {
 			cnobj.links.addElement(cnl);
 			// this is needed so findUnconnectedNodes() works
 			cnobj.internal = false;
+			// if it's the ground node, make sure the node voltage is 0
+			if (cn == 0)
+			    ce.setNodeVoltage(i, 0);
 		    }
 		}
 	    }
