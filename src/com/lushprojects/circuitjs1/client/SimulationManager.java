@@ -1406,19 +1406,6 @@ public class SimulationManager {
 		}
 	    }
 	
-	    boolean first = true;
-	    for (i = 0; i != unconnectedNodes.size(); i++) {
-		int q = unconnectedNodes.get(i);
-		if (!extnodes[q] && used[q]) {
-		    if (nodesWithGroundConnectionCount == 0 && first) {
-			first = false;
-			continue;
-		    }
-		    Window.alert("Some nodes are unconnected!");
-		    return null;
-		}
-	    }	    
-
 	    CustomCompositeModel ccm = new CustomCompositeModel();
 	    ccm.nodeList = nodeDump;
 	    ccm.elmDump = dump;
