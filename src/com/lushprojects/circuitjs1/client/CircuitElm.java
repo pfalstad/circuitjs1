@@ -1086,13 +1086,6 @@ public abstract class CircuitElm implements Editable {
     public EditInfo getEditInfo(int n) { return null; }
     public void setEditValue(int n, EditInfo ei) {}
     
-    // get number of nodes that can be retrieved by getConnectionNode()
-    int getConnectionNodeCount() { return getPostCount(); }
-    
-    // get nodes that can be passed to getConnection(), to test if this element connects
-    // those two nodes; this is the same as getNode() for all but labeled nodes.
-    int getConnectionNode(int n) { return getNode(n); }
-    
     // are n1 and n2 connected by this element?  this is used to determine
     // unconnected nodes, and look for loops
     boolean getConnection(int n1, int n2) { return true; }

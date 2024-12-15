@@ -359,20 +359,20 @@ public class SimulationManager {
 		// loop through all ce's nodes to see if they are connected
 		// to other nodes not in closure
 		boolean hasGround = false;
-		for (j = 0; j < ce.getConnectionNodeCount(); j++) {
+		for (j = 0; j < ce.getPostCount(); j++) {
 		    boolean hg = ce.hasGroundConnection(j);
 		    if (hg)
 			hasGround = true;
-		    if (!closure[ce.getConnectionNode(j)]) {
+		    if (!closure[ce.getNode(j)]) {
 			if (hg)
-			    closure[ce.getConnectionNode(j)] = changed = true;
+			    closure[ce.getNode(j)] = changed = true;
 			continue;
 		    }
 		    int k;
-		    for (k = 0; k != ce.getConnectionNodeCount(); k++) {
+		    for (k = 0; k != ce.getPostCount(); k++) {
 			if (j == k)
 			    continue;
-			int kn = ce.getConnectionNode(k);
+			int kn = ce.getNode(k);
 			if (ce.getConnection(j, k) && !closure[kn]) {
 			    closure[kn] = true;
 			    changed = true;
@@ -907,13 +907,13 @@ public class SimulationManager {
 		    // look for posts which have a ground connection;
 		    // our path can go through ground
 		    int j;
-		    for (j = 0; j != ce.getConnectionNodeCount(); j++)
-			if (ce.hasGroundConnection(j) && findPath(ce.getConnectionNode(j)))
+		    for (j = 0; j != ce.getPostCount(); j++)
+			if (ce.hasGroundConnection(j) && findPath(ce.getNode(j)))
 			    return true;
 		}
 		int j;
-		for (j = 0; j != ce.getConnectionNodeCount(); j++) {
-		    if (ce.getConnectionNode(j) == n1) {
+		for (j = 0; j != ce.getPostCount(); j++) {
+		    if (ce.getNode(j) == n1) {
 			if (ce.hasGroundConnection(j) && findPath(0))
 			    return true;
 			if (type == INDUCT && ce instanceof InductorElm) {
@@ -925,10 +925,10 @@ public class SimulationManager {
 				continue;
 			}
 			int k;
-			for (k = 0; k != ce.getConnectionNodeCount(); k++) {
+			for (k = 0; k != ce.getPostCount(); k++) {
 			    if (j == k)
 				continue;
-			    if (ce.getConnection(j, k) && findPath(ce.getConnectionNode(k))) {
+			    if (ce.getConnection(j, k) && findPath(ce.getNode(k))) {
 				//System.out.println("got findpath " + n1);
 				return true;
 			    }
