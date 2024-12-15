@@ -528,7 +528,10 @@ public class SimulationManager {
 			CircuitNodeLink cnl = new CircuitNodeLink();
 			cnl.num = i;
 			cnl.elm = ce;
-			getCircuitNode(cn).links.addElement(cnl);
+			CircuitNode cnobj = getCircuitNode(cn);
+			cnobj.links.addElement(cnl);
+			// this is needed so findUnconnectedNodes() works
+			cnobj.internal = false;
 		    }
 		}
 	    }
