@@ -12,6 +12,8 @@ public class SimulationManager {
 
     CirSim app;
     static SimulationManager theSim;
+
+    // this is different than the main elmList; it has CompositeElm child elms in it
     Vector<CircuitElm> elmList;
     
     Vector<CircuitNode> nodeList;
@@ -501,6 +503,7 @@ public class SimulationManager {
     boolean preStampCircuit(boolean subcircuit) {
 	int i, j;
 	nodeList = new Vector<CircuitNode>();
+	elmList = app.elmList;
 
 	calculateWireClosure();
 	setGroundNode(subcircuit);
@@ -512,6 +515,25 @@ public class SimulationManager {
 	    return false;
 	nodeMap = null; // done with this
 	
+	// add composite child elements to elmList and make node links
+	elmList = new Vector<>(app.elmList);
+	for (CircuitElm elm: elmList) {
+	    Vector<CircuitElm> list = elm.getChildElmList();
+	    if (list != null) {
+		elmList.addAll(list);
+		for (CircuitElm ce: list) {
+		    int nodeCount = ce.getNodeCount();
+		    for (i = 0; i != nodeCount; i++) {
+			int cn = ce.getNode(i);
+			CircuitNodeLink cnl = new CircuitNodeLink();
+			cnl.num = i;
+			cnl.elm = ce;
+			getCircuitNode(cn).links.addElement(cnl);
+		    }
+		}
+	    }
+	}
+
 	int vscount = 0;
 	circuitNonLinear = false;
 

@@ -166,7 +166,7 @@ class ThreePhaseMotorElm extends CircuitElm {
         coilCurSourceValues = new double[coilCount];
         coilCurrents = new double[coilCount];
         
-        int nodeCount = getPostCount() + getInternalNodeCount();
+        int nodeCount = getNodeCount();
         nodeCurrents = new double[nodeCount];
     }
     
@@ -211,7 +211,7 @@ class ThreePhaseMotorElm extends CircuitElm {
     
     void calculateCurrent() {
         int i;
-        int nodeCount = getPostCount() + getInternalNodeCount();
+        int nodeCount = getNodeCount();
         if (nodeCurrents == null)
             return;
         for (i = 0; i != nodeCount; i++)

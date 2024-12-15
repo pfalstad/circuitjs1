@@ -213,7 +213,7 @@ public abstract class CircuitElm implements Editable {
     
     // allocate nodes/volts arrays we need
     void allocNodes() {
-	int n = getPostCount() + getInternalNodeCount();
+	int n = getNodeCount();
 	// preserve voltages if possible
 	if (nodes == null || nodes.length != n) {
 	    nodes = new int[n];
@@ -231,7 +231,7 @@ public abstract class CircuitElm implements Editable {
     // handle reset button
     void reset() {
 	int i;
-	for (i = 0; i != getPostCount()+getInternalNodeCount(); i++)
+	for (i = 0; i != getNodeCount(); i++)
 	    volts[i] = 0;
 	curcount = 0;
     }
@@ -245,6 +245,8 @@ public abstract class CircuitElm implements Editable {
 
     void setParentList(Vector<CircuitElm> elmList) {}
     
+    Vector<CircuitElm> getChildElmList() { return null; }
+
     // stamp matrix values for linear elements.
     // for non-linear elements, use this to stamp values that don't change each iteration, and call stampRightSide() or stampNonLinear() as needed
     void stamp() {}
@@ -623,6 +625,8 @@ public abstract class CircuitElm implements Editable {
     
     // number of internal nodes (nodes not visible in UI that are needed for implementation)
     int getInternalNodeCount() { return 0; }
+
+    int getNodeCount() { return getPostCount() + getInternalNodeCount(); }
     
     // notify this element that its pth node is n.  This value n can be passed to stampMatrix()
     void setNode(int p, int n) { nodes[p] = n; }

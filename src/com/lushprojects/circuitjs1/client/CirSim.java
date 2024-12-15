@@ -2887,7 +2887,7 @@ MouseOutHandler, MouseWheelHandler {
 		     * debug code to check if allocNodes() is called in constructor.  It gets called in
 		     * setPoints() but that doesn't get called for subcircuits.
 		    double vv[] = newce.volts;
-		    int vc = newce.getPostCount() + newce.getInternalNodeCount();
+		    int vc = newce.getNodeCount();
 		    if (vv.length != vc)
 			console("allocnodes not called! " + tint);
 		     */

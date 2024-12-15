@@ -32,7 +32,7 @@ public abstract class CompositeElm extends CircuitElm {
     protected int numPosts = 0;
     protected int numNodes = 0;
     protected Point posts[];
-    protected Vector<VoltageSourceRecord> voltageSources;
+    //protected Vector<VoltageSourceRecord> voltageSources;
 
     CompositeElm(int xx, int yy) {
 	super(xx, yy);
@@ -54,6 +54,8 @@ public abstract class CompositeElm extends CircuitElm {
 	allocNodes();
     }
 
+    Vector<CircuitElm> getChildElmList() { return compElmList; }
+
     boolean useEscape() { return (flags & FLAG_ESCAPE) != 0; }
     
     public void loadComposite(StringTokenizer stIn, String model, int externalNodes[]) {
@@ -65,7 +67,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	compElmList = new Vector<CircuitElm>();
 	compNodeList = new Vector<CircuitNode>();
-	voltageSources = new Vector<VoltageSourceRecord>();
+	//voltageSources = new Vector<VoltageSourceRecord>();
 
 	// Build compElmList and compNodeHash from input string
 
@@ -150,6 +152,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	posts = new Point[numPosts];
 	
+/*
 	// Enumerate voltage sources
 	for (int i = 0; i < compElmList.size(); i++) {
 	    int cnt = compElmList.get(i).getVoltageSourceCount();
@@ -160,17 +163,20 @@ public abstract class CompositeElm extends CircuitElm {
 		voltageSources.add(vsRecord);
 	    }
 	}
+*/
 	
 	// dump new circuits with escape()
 	flags |= FLAG_ESCAPE;
     }
 
+/*
     public boolean nonLinear() {
 	for (int i = 0; i < compElmList.size(); i++)
 	    if (compElmList.get(i).nonLinear())
 		return true;
 	return false;
     }
+*/
 
     public String dump() {
 	String dumpStr=super.dump();
@@ -206,99 +212,12 @@ public abstract class CompositeElm extends CircuitElm {
 	return dumpStr;
     }
 
-    // are n1 and n2 connected internally somehow?
-    public boolean getConnectionSlow(int n1, int n2) {
-	Vector<Integer> connectedNodes = new Vector<Integer>();
-
-	// keep list of nodes connected to n1
-	connectedNodes.add(n1);
-	int i;
-	for (i = 0; i < connectedNodes.size(); i++) {
-	    // next node in list
-	    int n = connectedNodes.get(i);
-	    if (n == n2)
-		return true;
-	    
-	    // find all elements connected to n
-	    Vector<CircuitNodeLink> cnLinks = compNodeList.get(n).links;
-	    for (int j = 0; j < cnLinks.size(); j++) {
-		CircuitNodeLink link = cnLinks.get(j);
-		CircuitElm lelm = link.elm;
-		// loop through all other nodes this element has
-		for (int k = 0; k != lelm.getConnectionNodeCount(); k++)
-		    // are they connected?
-		    if (k != link.num && lelm.getConnection(link.num, k)) {
-			int kn = lelm.getConnectionNode(k);
-			if (kn == 0)
-			    return true;
-			int m;
-			// find local node number (kn is global) and add it to list
-			for (m = 0; m != nodes.length; m++)
-			    if (nodes[m] == kn && !connectedNodes.contains(m))
-				connectedNodes.add(m);
-		    }
-	    }
-	}
-	return false;
-    }
-    
-    HashMap<IntPair, Boolean> connectionMap;
-    HashMap<Integer, Boolean> groundConnectionMap;
-
     public boolean getConnection(int n1, int n2) {
-	if (connectionMap == null)
-	    connectionMap = new HashMap<IntPair, Boolean>();
-	IntPair key = new IntPair(n1, n2);
-	Boolean result = connectionMap.get(key);
-	if (result != null)
-	    return result;
-	result = getConnectionSlow(n1, n2);
-	connectionMap.put(key, result);
-	return result;
+	return false;
     }
 
     // is n1 connected to ground somehow?
     public boolean hasGroundConnection(int n1) {
-	if (groundConnectionMap == null)
-	    groundConnectionMap = new HashMap<Integer, Boolean>();
-	Integer key = n1;
-	Boolean result = groundConnectionMap.get(key);
-	if (result != null)
-	   return result;
-	result = hasGroundConnectionSlow(n1);
-	groundConnectionMap.put(key, result);
-	return result;
-    }
-
-    public boolean hasGroundConnectionSlow(int n1) {
-	Vector<Integer> connectedNodes = new Vector<Integer>();
-
-	// keep list of nodes connected to n1
-	connectedNodes.add(n1);
-	int i;
-	for (i = 0; i < connectedNodes.size(); i++) {
-	    // next node in list
-	    int n = connectedNodes.get(i);	    
-	    // find all elements connected to n
-	    Vector<CircuitNodeLink> cnLinks = compNodeList.get(n).links;
-	    for (int j = 0; j < cnLinks.size(); j++) {
-		CircuitNodeLink link = cnLinks.get(j);
-		CircuitElm lelm = link.elm;
-		if (lelm.hasGroundConnection(link.num))
-		    return true;
-		// loop through all other nodes this element has
-		for (int k = 0; k != lelm.getConnectionNodeCount(); k++)
-		    // are they connected?
-		    if (k != link.num && lelm.getConnection(link.num, k)) {
-			int kn = lelm.getConnectionNode(k);
-			int m;
-			// find local node number (kn is global) and add it to list
-			for (m = 0; m != nodes.length; m++)
-			    if (nodes[m] == kn && !connectedNodes.contains(m))
-				connectedNodes.add(m);
-		    }
-	    }
-	}
 	return false;
     }
 
@@ -340,23 +259,7 @@ public abstract class CompositeElm extends CircuitElm {
 	for (int i = 0; i < compElmList.size(); i++) {
 	    CircuitElm ce = compElmList.get(i);
 	    ce.setParentList(compElmList);
-	    ce.stamp();
 	}
-    }
-
-    public void startIteration() {
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).startIteration();
-    }
-    
-    public void doStep() {
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).doStep();
-    }
-
-    public void stepFinished() {
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).stepFinished();
     }
 
     // called to set node p (local to this element) to equal n (global)
@@ -373,17 +276,6 @@ public abstract class CompositeElm extends CircuitElm {
 
     }
 
-    public void setNodeVoltage(int n, double c) {
-	// volts[n] = c;
-	Vector<CircuitNodeLink> cnLinks;
-	super.setNodeVoltage(n, c);
-	cnLinks = compNodeList.get(n).links;
-	for (int i = 0; i < cnLinks.size(); i++) {
-	    cnLinks.get(i).elm.setNodeVoltage(cnLinks.get(i).num, c);
-	}
-	volts[n]=c;
-    }
-
     public boolean canViewInScope() {
 	return false;
     }
@@ -392,30 +284,6 @@ public abstract class CompositeElm extends CircuitElm {
 	for (int i = 0; i < compElmList.size(); i++)
 	    compElmList.get(i).delete();
         super.delete();
-    }
-
-    public int getVoltageSourceCount() {
-	return voltageSources.size();
-    }
-
-    // Find the component with the nth voltage
-    // and set the
-    // appropriate source in that component
-    void setVoltageSource(int n, int v) {
-	// voltSource(n) = v;
-	VoltageSourceRecord vsr;
-	vsr=voltageSources.get(n);
-	vsr.elm.setVoltageSource(vsr.vsNumForElement, v);
-	vsr.vsNode=v;
-    }
-    
-    @Override
-     public void   setCurrent(int vsn, double c) {
-	for (int i=0;i<voltageSources.size(); i++)
-	    if (voltageSources.get(i).vsNode == vsn) {
-		voltageSources.get(i).elm.setCurrent(vsn, c);
-	    }
-	
     }
 
     double getCurrentIntoNode(int n) {
@@ -427,7 +295,6 @@ public abstract class CompositeElm extends CircuitElm {
 	}
 	return c;
     }
-
 }
 
 
