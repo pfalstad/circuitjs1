@@ -47,26 +47,32 @@ public class Toolbar extends HorizontalPanel {
 	add(createIconButton("zoom-in", "Zoom In", new MyCommand("zoom", "zoomin")));
 	add(createIconButton("zoom-out", "Zoom Out", new MyCommand("zoom", "zoomout")));
 
-	add(createIconButton(wireIcon, "Wire", new MyCommand("main", "WireElm")));
-	add(resistorButton = createIconButton(resistorIcon, "Resistor", new MyCommand("main", "ResistorElm")));
-	add(createIconButton(groundIcon, "Ground", new MyCommand("main", "GroundElm")));
-	add(createIconButton(capacitorIcon, "Capacitor", new MyCommand("main", "CapacitorElm")));
-	add(createIconButton(inductIcon, "Inductor", new MyCommand("main", "InductorElm")));
-	add(createIconButton(diodeIcon, "Diode", new MyCommand("main", "DiodeElm")));
-	add(createIconButton(voltage2Icon, "Voltage Source", new MyCommand("main", "DCVoltageElm")));
-	add(createIconButton(railIcon, "Voltage Rail", new MyCommand("main", "RailElm")));
-	add(createIconButton(switchIcon, "Switch", new MyCommand("main", "SwitchElm")));
-	add(createIconButton(opAmpIcon, "Op-Amp", new MyCommand("main", "OpAmpElm")));
+	add(createIconButton(wireIcon, "WireElm"));
+	add(resistorButton = createIconButton(resistorIcon, "ResistorElm"));
+	add(createIconButton(groundIcon, "GroundElm"));
+	add(createIconButton(capacitorIcon, "CapacitorElm"));
+	add(createIconButton(inductIcon, "InductorElm"));
+	add(createIconButton(diodeIcon, "DiodeElm"));
+	String srcInfo[] = { voltage2Icon, "DCVoltageElm", acSrcIcon, "ACVoltageElm" };
+	add(createButtonSet(srcInfo));
+	add(createIconButton(railIcon, "RailElm"));
 
-	String transistorInfo[] = { transistorIcon, "Transistor", "NTransistorElm", pnpTransistorIcon, "Transistor", "PTransistorElm" };
+	String switchInfo[] = { switchIcon, "SwitchElm", spdtIcon, "Switch2Elm", aswitch1Icon, "AnalogSwitchElm",
+				aswitch2Icon, "AnalogSwitch2Elm" };
+	add(createButtonSet(switchInfo));
+
+	String opAmpInfo[] = { opAmpBotIcon, "OpAmpElm", opAmpTopIcon, "OpAmpSwapElm" };
+	add(createButtonSet(opAmpInfo));
+
+	String transistorInfo[] = { transistorIcon, "NTransistorElm", pnpTransistorIcon, "PTransistorElm" };
 	add(createButtonSet(transistorInfo));
 
-	String fetInfo[] = { fetIcon, "MOSFET", "NMosfetElm", fetIcon2, "MOSFET", "PMosfetElm" };
+	String fetInfo[] = { fetIcon, "NMosfetElm", fetIcon2, "PMosfetElm" };
 	add(createButtonSet(fetInfo));
 
-	add(createIconButton(inverterIcon, "Inverter", new MyCommand("main", "InverterElm")));
-	String gateInfo[] = { andIcon, "AND", "AndGateElm", nandIcon, "NAND", "NandGateElm", 
-			      orIcon, "OR", "OrGateElm", norIcon, "NOR", "NorGateElm", xorIcon, "XOR", "XorGateElm" };
+	add(createIconButton(inverterIcon, "InverterElm"));
+	String gateInfo[] = { andIcon, "AndGateElm", nandIcon, "NandGateElm", 
+			      orIcon, "OrGateElm", norIcon, "NorGateElm", xorIcon, "XorGateElm" };
 	add(createButtonSet(gateInfo));
 
         // Spacer to push the mode label to the right
@@ -81,6 +87,11 @@ public class Toolbar extends HorizontalPanel {
     }
 
     public void setModeLabel(String text) { modeLabel.setText(Locale.LS("Mode: ") + text); }
+
+    private Label createIconButton(String icon, String cls) {
+	CirSim app = CirSim.theApp;
+	return createIconButton(icon, app.getLabelTextForClass(cls), new MyCommand("main", cls));
+    }
 
     private Label createIconButton(String iconClass, String tooltip, MyCommand command) {
         // Create a label to hold the icon
@@ -112,9 +123,10 @@ public class Toolbar extends HorizontalPanel {
             public void onClick(ClickEvent event) {
 		// un-highlight
         	iconLabel.getElement().getStyle().setColor("#333");
-		if (iconLabel == activeButton)
+		if (iconLabel == activeButton) {
 		    new MyCommand("main", "Select").execute();
-		else
+		    activeButton = null;
+		} else
 		    command.execute();
             }
         });
@@ -134,8 +146,9 @@ public class Toolbar extends HorizontalPanel {
 
     // New method for creating variant buttons
     private Label createButtonSet(String info[]) {
-	MyCommand mainCommand = new MyCommand("main", info[2]);
-	Label iconLabel = createIconButton(info[0], info[1], mainCommand);
+	MyCommand mainCommand = new MyCommand("main", info[1]);
+	CirSim app = CirSim.theApp;
+	Label iconLabel = createIconButton(info[0], app.getLabelTextForClass(info[1]), mainCommand);
 	
 	FlowPanel paletteContainer = new FlowPanel();
 	paletteContainer.setVisible(false); // Hidden by default
@@ -151,14 +164,13 @@ public class Toolbar extends HorizontalPanel {
 	paletteStyle.setBorderStyle(Style.BorderStyle.SOLID);
 	paletteStyle.setPadding(5, Style.Unit.PX);
 
-	// Define some variant buttons (for demonstration purposes)
 	int i;
-	for (i = 0; i < info.length; i += 3) {
+	for (i = 0; i < info.length; i += 2) {
 	    // Create each variant button
 	    Label variantButton = new Label();
 	    variantButton.setText(""); // No text, just an icon
 	    variantButton.getElement().setInnerHTML(makeSvg(info[i], 40));
-	    variantButton.setTitle(info[i+1]);
+	    variantButton.setTitle(app.getLabelTextForClass(info[i+1]));
 
 	    // Style the variant button
 	    Style variantStyle = variantButton.getElement().getStyle();
@@ -166,13 +178,15 @@ public class Toolbar extends HorizontalPanel {
 	    //variantStyle.setPadding(5, Style.Unit.PX);
 	    variantStyle.setCursor(Style.Cursor.POINTER);
 
-	    final MyCommand command = new MyCommand("main", info[i+2]);
+	    final MyCommand command = new MyCommand("main", info[i+1]);
 	    final String smallSvg = makeSvg(info[i], 24);
 
 	    // Add click handler to update the main button and execute the command
 	    variantButton.addClickHandler(event -> {
 		// Change the icon of the main button to reflect the variant selected
 		iconLabel.getElement().setInnerHTML(smallSvg);
+		highlightableButtons.remove(mainCommand.getItemName());
+                highlightableButtons.put(command.getItemName(), iconLabel);
 		paletteContainer.setVisible(false);
 		mainCommand.setItemName(command.getItemName());
 		command.execute();  // Execute the corresponding command for the selected variant
@@ -191,7 +205,7 @@ public class Toolbar extends HorizontalPanel {
 
 	    // Position the palette relative to the icon label
 	    int leftOffset = iconLabel.getAbsoluteLeft() - 12;
-	    int topOffset = iconLabel.getAbsoluteTop() + iconLabel.getOffsetHeight();
+	    int topOffset = iconLabel.getAbsoluteTop() + iconLabel.getOffsetHeight() - 2;
 	    paletteContainer.getElement().getStyle().setLeft(leftOffset, Style.Unit.PX);
 	    paletteContainer.getElement().getStyle().setTop(topOffset, Style.Unit.PX);
 	});
@@ -252,14 +266,12 @@ public class Toolbar extends HorizontalPanel {
 
     final String diodeIcon = "<svg><defs /><g transform='translate(-323.76,-72.06) scale(0.470588)'><path fill='none' stroke='currentColor' d=' M 688 176 L 704 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 720 176 L 736 176' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 704 168 L 704 184 L 720 176 Z' /><path fill='none' stroke='currentColor' d=' M 720 168 L 720 184' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 691 176 A 3 3 0 1 1 690.9997392252899 175.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 739 176 A 3 3 0 1 1 738.9997392252899 175.96044522459943 Z' /></g></svg>";
 
-    final String switchIcon = "<svg><defs /><g transform='translate(55.79,-100.42) scale(0.421053)'><path fill='none' stroke='currentColor' d=' M -128 272 L -120 272' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M -88 272 L -80 272' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M -120 272 L -88 256' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M -125 272 A 3 3 0 1 1 -125.00026077471007 271.9604452245994 Z' /><path fill='currentColor' stroke='currentColor' d=' M -77 272 A 3 3 0 1 1 -77.00026077471007 271.9604452245994 Z' /></g></svg>";
+    final String switchIcon = "<svg><defs /><g transform='translate(55.79,-100.42) scale(0.421053)'><path fill='none' stroke='currentColor' d=' M -128 272 L -120 272' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M -88 272 L -80 272' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M -120 272 L -88 256' stroke-linecap='round' stroke-width='3' /></g></svg>";
 
     final String voltage2Icon = "<svg><defs /><g transform='scale(.8) translate(-122.00,-53.00) scale(0.500000)'><path fill='none' stroke='currentColor' d=' M 272 160 L 272 140' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 132 L 272 112' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 262 140 L 282 140' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 256 132 L 288 132' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 275 160 A 3 3 0 1 1 274.99973922528994 159.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 275 112 A 3 3 0 1 1 274.99973922528994 111.96044522459944 Z' /></g></svg>";
 
     final String transistorIcon = "<svg><defs /><g transform='translate(-107.73,-90.40) scale(0.533333)'><path fill='none' stroke='currentColor' d=' M 240 176 L 227 186' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 240 208 L 227 198' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 240 208 L 236 200 L 231 206 Z' /><path fill='none' stroke='currentColor' d=' M 208 192 L 224 192' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 224 176 L 227 176 L 227 208 L 224 208 Z' /><path fill='currentColor' stroke='currentColor' d=' M 211 192 A 3 3 0 1 1 210.99973922528991 191.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 243 176 A 3 3 0 1 1 242.99973922528991 175.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 243 208 A 3 3 0 1 1 242.99973922528991 207.96044522459943 Z' /></g></svg>";
     final String pnpTransistorIcon = "<svg><defs /><g transform='translate(-116.27,-90.40) scale(0.533333)'><path fill='none' stroke='currentColor' d=' M 256 208 L 243 198' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 256 176 L 243 186' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 245 187 L 253 184 L 248 178 Z' /><path fill='none' stroke='currentColor' d=' M 224 192 L 240 192' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 240 176 L 243 176 L 243 208 L 240 208 Z' /><path fill='currentColor' stroke='currentColor' d=' M 227 192 A 3 3 0 1 1 226.99973922528991 191.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 259 208 A 3 3 0 1 1 258.99973922528994 207.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 259 176 A 3 3 0 1 1 258.99973922528994 175.96044522459943 Z' /></g></svg>";
-
-    final String opAmpIcon = "<svg><defs /><g transform='translate(-56.26,-45.81) scale(0.258065)'><path fill='none' stroke='currentColor' d=' M 224 208 L 238 208' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 224 240 L 238 240' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 290 224 L 304 224' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 238 192 L 238 256 L 290 224 Z' stroke-linecap='round' stroke-width='3' /><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='248' y='206' text-anchor='middle' dominant-baseline='central'>-</text></g><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='248' y='240' text-anchor='middle' dominant-baseline='central'>+</text></g><path fill='currentColor' stroke='currentColor' d=' M 227 208 A 3 3 0 1 1 226.99973922528991 207.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 227 240 A 3 3 0 1 1 226.99973922528991 239.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 307 224 A 3 3 0 1 1 306.99973922528994 223.96044522459943 Z' /></g></svg>";
 
     final String fetIcon = "<svg><defs /><g transform='translate(-68.92,-50.27) scale(0.324324)'><path fill='none' stroke='currentColor' d=' M 272 208 L 250 208' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 176 L 250 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 208 L 250 203' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 197 L 250 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 192 L 250 187' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 181 L 250 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 208 L 250 213' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 176 L 250 171' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 208 L 272 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 192 L 250 192' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 250 192 L 262 197 L 262 187 Z' /><path fill='none' stroke='currentColor' d=' M 224 192 L 244 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 244 184 L 244 200' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 176 L 272 160' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 208 L 272 224' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 227 192 A 3 3 0 1 1 226.99973922528991 191.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 275 160 A 3 3 0 1 1 274.99973922528994 159.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 275 224 A 3 3 0 1 1 274.99973922528994 223.96044522459943 Z' /></g></svg>";
     final String fetIcon2 = "<svg><defs /><g transform='translate(-68.92,-50.27) scale(0.324324)'><path fill='none' stroke='currentColor' d=' M 272 176 L 272 160' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 208 L 272 224' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 208 L 250 208' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 176 L 250 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 208 L 250 203' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 197 L 250 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 192 L 250 187' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 181 L 250 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 208 L 250 213' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 250 176 L 250 171' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 176 L 272 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 272 192 L 250 192' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 272 192 L 260 187 L 260 197 Z' /><path fill='none' stroke='currentColor' d=' M 224 192 L 244 192' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 244 184 L 244 200' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 275 160 A 3 3 0 1 1 274.99973922528994 159.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 275 224 A 3 3 0 1 1 274.99973922528994 223.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 227 192 A 3 3 0 1 1 226.99973922528991 191.96044522459943 Z' /></g></svg>";
@@ -274,6 +286,13 @@ public class Toolbar extends HorizontalPanel {
     final String nandIcon = "<svg><g transform='translate(-143.64,-142.18) scale(0.363636)'><path fill='none' stroke='currentColor' d=' M 400 432 L 414 432' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 400 416 L 414 416' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 450 424 L 456 424' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 414 410 L 428 410 A 14 14 0 0 1 428 438 L 414 438 Z' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 448.94 424 A 2.94 2.94 0 1 1 448.93999853000014 423.99706000049' stroke-linecap='round' stroke-width='3' /></g></svg>";
     final String norIcon = "<svg><g transform='translate(-143.64,-165.45) scale(0.363636)'><path fill='none' stroke='currentColor' d=' M 400 496 L 414 496' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 400 480 L 414 480' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 450 488 L 456 488' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 413 474 L 422 474 C 434 477 434 477 442 488 C 434 499 434 499 422 502 L 413 502 C 416 488 416 488 413 474 Z' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 448.94 488 A 2.94 2.94 0 1 1 448.93999853000014 487.99706000049' stroke-linecap='round' stroke-width='3' /></g></svg>";
     final String inverterIcon = "<svg><g transform='translate(-288.41,-166.76) scale(0.413793)'><path fill='none' stroke='currentColor' d=' M 704 432 L 712 432' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 746 432 L 752 432' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 712 416 L 712 448 L 739 432 Z' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 744.94 432 A 2.94 2.94 0 1 1 744.9399985300001 431.99706000049' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String aswitch1Icon = "<svg><g transform='translate(-242.27,-122.92) scale(0.324324)'><path fill='none' stroke='currentColor' d=' M 752 416 L 768 416' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 800 416 L 816 416' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 768 416 L 800 400' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 784 432 L 784 424' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String aswitch2Icon = "<svg><g transform='translate(-237.08,-146.27) scale(0.324324)'><path fill='none' stroke='currentColor' d=' M 736 480 L 752 480' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 784 496 L 800 496' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 784 464 L 800 464' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 752 480 L 784 464' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 768 496 L 768 512' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String dpdtIcon = "<svg><g transform='translate(-205.60,-130.93) scale(0.266667)'><path fill='none' stroke='currentColor' d=' M 784 512 L 800 512' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 848 528 L 832 528' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 848 496 L 832 496' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 816 520 L 816 557' stroke-linecap='round' /><path fill='none' stroke='currentColor' d=' M 800 512 L 832 528' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 784 560 L 800 560' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 848 576 L 832 576' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 848 544 L 832 544' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 800 560 L 832 576' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String spdtIcon = "<svg><g transform='translate(-242.27,-143.68) scale(0.324324)'><path fill='none' stroke='currentColor' d=' M 752 480 L 768 480' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 800 464 L 816 464' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 800 496 L 816 496' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 768 480 L 800 464' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String acSrcIcon = "<svg><g transform='translate(-104.09,-66.93) scale(0.266667)'><path fill='none' stroke='currentColor' d=' M 432 336 L 432 313' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 432 279 L 432 256' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 448.66 296 A 16.66 16.66 0 1 1 448.6599916700007 295.98334000277663' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 422 296 L 423 294 L 424 292 L 425 290 L 426 289 L 427 289 L 428 289 L 429 290 L 430 292 L 431 294 L 432 296 L 433 298 L 434 300 L 435 302 L 436 303 L 437 303 L 438 303 L 439 302 L 440 300 L 441 298 L 442 296' stroke-linecap='round' stroke-width='3' /></g></svg>";
+    final String opAmpTopIcon = "<svg><g transform='translate(-169.33,-86.13) scale(0.266667)'><path fill='none' stroke='currentColor' d=' M 640 384 L 654 384' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 640 352 L 654 352' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 706 368 L 720 368' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 654 400 L 654 336 L 706 368 Z' stroke-linecap='round' stroke-width='3' /><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='664' y='382' text-anchor='middle' dominant-baseline='central'>-</text></g><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='664' y='352' text-anchor='middle' dominant-baseline='central'>+</text></g></g></svg>";
+    final String opAmpBotIcon = "<svg><g transform='translate(-169.33,-86.13) scale(0.266667)'><path fill='none' stroke='currentColor' d=' M 640 352 L 654 352' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 640 384 L 654 384' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 706 368 L 720 368' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 654 336 L 654 400 L 706 368 Z' stroke-linecap='round' stroke-width='3' /><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='664' y='350' text-anchor='middle' dominant-baseline='central'>-</text></g><g><text fill='currentColor' stroke='currentColor' font-family='sans-serif' font-size='14px' font-style='normal' font-weight='normal' text-decoration='normal' x='664' y='384' text-anchor='middle' dominant-baseline='central'>+</text></g></g></svg>";
 
 }
 

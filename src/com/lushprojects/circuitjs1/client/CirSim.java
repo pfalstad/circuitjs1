@@ -3115,6 +3115,8 @@ MouseOutHandler, MouseWheelHandler {
     	    	    menus.elmEditMenuItem .setEnabled(mouseElm.getEditInfo(0) != null);
     	    	    menus.elmSplitMenuItem.setEnabled(canSplit(mouseElm));
     	    	    menus.elmSliderMenuItem.setEnabled(sliderItemEnabled(mouseElm));
+		    menus.elmSplitMenuItem.setEnabled(canSplit(mouseElm));
+
 		    boolean canFlipX = mouseElm.canFlipX();
 		    boolean canFlipY = mouseElm.canFlipY();
 		    boolean canFlipXY = mouseElm.canFlipXY();
@@ -4060,7 +4062,11 @@ MouseOutHandler, MouseWheelHandler {
 	toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
 	toolbar.highlightButton(mouseModeStr);
     }
-    
+
+    String getLabelTextForClass(String cls) {
+	return classToLabelMap.get(cls);
+    }
+
     void createNewLoadFile() {
     	// This is a hack to fix what IMHO is a bug in the <INPUT FILE element
     	// reloading the same file doesn't create a change event so importing the same file twice
