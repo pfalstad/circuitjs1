@@ -126,7 +126,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	String getGateText() { return null; }
-	static boolean useEuroGates() { return app.euroGatesCheckItem.getState(); }
+	static boolean useEuroGates() { return app.menus.euroGatesCheckItem.getState(); }
 
 	void drawGatePolygon(Graphics g) {
 	    drawThickPolygon(g, gatePoly);

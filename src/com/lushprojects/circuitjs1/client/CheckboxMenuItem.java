@@ -69,6 +69,8 @@ public class CheckboxMenuItem extends MenuItem implements Command {
 		}
       }
 
+	public void setCommand(Command cmd) { extcmd = cmd; }
+
 	public void setTitle(String s) {
 	    	name = s;
 	}

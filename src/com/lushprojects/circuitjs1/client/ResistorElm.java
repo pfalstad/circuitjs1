@@ -59,7 +59,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    g.context.save();
 	    g.context.setLineWidth(3.0);
 	    g.context.transform(((double)(lead2.x-lead1.x))/len, ((double)(lead2.y-lead1.y))/len, -((double)(lead2.y-lead1.y))/len,((double)(lead2.x-lead1.x))/len,lead1.x,lead1.y);
-	    if (app.voltsCheckItem.getState() ) {
+	    if (app.menus.voltsCheckItem.getState() ) {
 		CanvasGradient grad = g.context.createLinearGradient(0,0,len,0);
 		grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
 		grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());

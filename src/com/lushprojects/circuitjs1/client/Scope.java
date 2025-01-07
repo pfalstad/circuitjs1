@@ -156,10 +156,10 @@ class ScopePlot {
 	    color = CircuitElm.positiveColor.getHexValue();
 	    break;
 	case Scope.UNITS_A:
-	    color = (CirSim.theApp.printableCheckItem.getState()) ? "#A0A000" : "#FFFF00";
+	    color = (CirSim.theApp.isPrintable()) ? "#A0A000" : "#FFFF00";
 	    break;
 	default:
-	    color = (CirSim.theApp.printableCheckItem.getState()) ? "#000000" : "#FFFFFF";
+	    color = (CirSim.theApp.isPrintable()) ? "#000000" : "#FFFFFF";
 	    break;
 	}
     }
@@ -460,7 +460,7 @@ class Scope {
 	    
 	    // create plot for current if applicable
 	    if (ce != null &&
-		    app.dotsCheckItem.getState() &&
+		    app.menus.dotsCheckItem.getState() &&
 		    !(ce instanceof OutputElm ||
 		    ce instanceof LogicOutputElm ||
 		    ce instanceof AudioOutputElm ||
@@ -629,7 +629,7 @@ class Scope {
     		draw_ox = x2;
     		draw_oy = y2;
     	}
-		if (app.printableCheckItem.getState()) {
+		if (app.isPrintable()) {
 			imageContext.setStrokeStyle("#000000");
 		} else {
 			imageContext.setStrokeStyle("#ffffff");
@@ -644,7 +644,7 @@ class Scope {
 	
     void clear2dView() {
     	if (imageContext!=null) {
-    		if (app.printableCheckItem.getState()) {
+    		if (app.isPrintable()) {
     			imageContext.setFillStyle("#eee");
     		} else {
     			imageContext.setFillStyle("#111");
@@ -808,7 +808,7 @@ class Scope {
     		// fade out plot
     		alphaCounter=0;
     		imageContext.setGlobalAlpha(0.01);
-    		if (app.printableCheckItem.getState()) {
+    		if (app.isPrintable()) {
     			imageContext.setFillStyle("#ffffff");
     		} else {
     			imageContext.setFillStyle("#000000");
@@ -1138,7 +1138,7 @@ class Scope {
 
     	String minorDiv = "#404040";
     	String majorDiv = "#A0A0A0";
-    	if (app.printableCheckItem.getState()) {
+    	if (app.isPrintable()) {
     	    minorDiv = "#D0D0D0";
     	    majorDiv = "#808080";
     	    curColor = "#A0A000";
@@ -1344,7 +1344,7 @@ class Scope {
 	g.drawLine(x, rect.y, x, rect.y+rect.height);
 	if (drawY)
 	    g.drawLine(rect.x, app.mouseCursorY, rect.x+rect.width, app.mouseCursorY);
-	g.setColor(app.printableCheckItem.getState() ? Color.white : Color.black);
+	g.setColor(app.isPrintable() ? Color.white : Color.black);
 	int bx = x;
 	if (bx < szw/2)
 	    bx = szw/2;

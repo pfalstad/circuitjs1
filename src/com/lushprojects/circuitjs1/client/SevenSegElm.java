@@ -278,7 +278,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	void setColor(Graphics g, int p) {
-	    boolean whiteBkg = app.printableCheckItem.getState();
+	    boolean whiteBkg = isPrintable(); 
 	    if (diodeDirection == 0) {
 		g.setColor(pins[p].value ? Color.red :
 			whiteBkg ? lightgray : darkred);

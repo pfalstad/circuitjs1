@@ -398,7 +398,7 @@ public abstract class CircuitElm implements Editable {
 
     // draw current dots from point a to b
     void drawDots(Graphics g, Point pa, Point pb, double pos) {
-	 if ((!app.simIsRunning()) || pos == 0 || !app.dotsCheckItem.getState())
+	 if ((!app.simIsRunning()) || pos == 0 || !app.menus.dotsCheckItem.getState())
 	    return;
 	int dx = pb.x-pa.x;
 	int dy = pb.y-pa.y;
@@ -808,7 +808,7 @@ public abstract class CircuitElm implements Editable {
 	g.context.setLineWidth(3.0);
 	g.context.transform(((double)(p2.x-p1.x))/len, ((double)(p2.y-p1.y))/len,
 		-((double)(p2.y-p1.y))/len,((double)(p2.x-p1.x))/len,p1.x,p1.y);
-	if (app.voltsCheckItem.getState() ) {
+	if (app.menus.voltsCheckItem.getState() ) {
 	    CanvasGradient grad = g.context.createLinearGradient(0,0,len,0);
 	    grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
 	    grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());
@@ -1021,7 +1021,7 @@ public abstract class CircuitElm implements Editable {
     	if (needsHighlight()) {
     	    	return (selectColor);
     	}
-    	if (!app.voltsCheckItem.getState()) {
+    	if (!app.menus.voltsCheckItem.getState()) {
     	    	return(whiteColor);
     	}
     	int c = (int) ((volts+voltageRange)*(colorScaleCount-1)/
@@ -1135,11 +1135,12 @@ public abstract class CircuitElm implements Editable {
     Rectangle getBoundingBox() { return boundingBox; }
     boolean needsShortcut() { return getShortcut() > 0; }
     int getShortcut() { return 0; }
-    boolean showValues() { return app.showValuesCheckItem.getState(); }
-    boolean showPower() { return app.powerCheckItem.getState(); }
-    boolean showEuroResistors() { return app.euroResistorCheckItem.getState(); }
-    boolean useSmallGrid() { return app.smallGridCheckItem.getState(); }
+    boolean showValues() { return app.menus.showValuesCheckItem.getState(); }
+    boolean showPower() { return app.menus.powerCheckItem.getState(); }
+    boolean showEuroResistors() { return app.menus.euroResistorCheckItem.getState(); }
+    boolean useSmallGrid() { return app.menus.smallGridCheckItem.getState(); }
     boolean doDcAnalysis() { return app.dcAnalysisFlag; }
+    boolean isPrintable() { return app.isPrintable(); }
 
     boolean isGraphicElmt() { return false; }
     
