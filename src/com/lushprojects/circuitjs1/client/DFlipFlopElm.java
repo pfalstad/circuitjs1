@@ -85,7 +85,7 @@ package com.lushprojects.circuitjs1.client;
 	    if (hasSet() && pins[5].value != invertSetReset())
 		isSet = true;
 	    if (hasReset() && pins[4].value != invertSetReset())
-		isReset = false;
+		isReset = true;
 
 	    if (isSet || isReset) {
 	    	writeOutput(1, false);
