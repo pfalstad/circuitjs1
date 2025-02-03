@@ -162,6 +162,10 @@ class EditDialog extends Dialog {
 			    if (ei.text == null) {
 				ei.textf.setText(unitString(ei));
 			    }
+				if (ei.isColor){
+				ei.textf.getElement().setAttribute("type", "color");
+				ei.textf.getElement().setAttribute("style", "width:178px;padding:0");
+				}
 			}
 			if (vp.getWidgetCount() > 15) {
 			    // start a new column

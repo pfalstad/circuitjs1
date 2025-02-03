@@ -55,16 +55,36 @@ class EditOptions implements Editable {
 	            return ei;
 		}
 		
-		if (n == 3)
-		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue());
-		if (n == 4)
-		    return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue());
-		if (n == 5)
-		    return new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue());
-		if (n == 6)
-		    return new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue());
-		if (n == 7)
-		    return new EditInfo("Current Color", CircuitElm.currentColor.getHexValue());
+		if (n == 3){
+			EditInfo ei = new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue());
+			ei.isColor = true;
+			return ei;
+		}
+		    
+		if (n == 4){
+			EditInfo ei = new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue());
+			ei.isColor = true;
+			return ei;
+		}
+		    
+		if (n == 5){
+			EditInfo ei = new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue());
+			ei.isColor = true;
+			return ei;
+		}
+		    
+		if (n == 6){
+			EditInfo ei = new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue());
+			ei.isColor = true;
+			return ei;
+		}
+		    
+		if (n == 7){
+			EditInfo ei = new EditInfo("Current Color", CircuitElm.currentColor.getHexValue());
+			ei.isColor = true;
+			return ei;
+		}
+		    
 		if (n == 8)
 		    return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
 		if (n == 9)
