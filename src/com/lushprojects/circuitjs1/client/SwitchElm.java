@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 // SPST switch
 class SwitchElm extends CircuitElm {
     boolean momentary;
@@ -64,6 +67,15 @@ class SwitchElm extends CircuitElm {
 	if ((flags & FLAG_LABEL) != 0)
 	    s += " " + CustomLogicModel.escape(label);
 	return s;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        dumpAttrib(elem, "p", position);
+	if (momentary)
+            dumpAttrib(elem, "mm", momentary);
+	if (label != null)
+            dumpAttrib(elem, "lab", label);
     }
 
     Point ps, ps2;

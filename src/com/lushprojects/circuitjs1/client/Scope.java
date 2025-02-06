@@ -21,6 +21,8 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.storage.client.Storage;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 import java.util.Vector;
@@ -1863,6 +1865,49 @@ class Scope {
     	return x;
     }
     
+    void dumpXml(Document doc, Element root) {
+	ScopePlot vPlot = plots.get(0);
+	
+	CircuitElm elm = vPlot.elm;
+    	if (elm == null)
+    	    return;
+    	int flags = getFlags();
+    	int eno = app.locateElm(elm);
+    	if (eno < 0)
+    	    return;
+	Element xmlElm = doc.createElement("o");
+	CircuitElm.dumpAttrib(xmlElm, "en", eno);
+	CircuitElm.dumpAttrib(xmlElm, "sp", vPlot.scopePlotSpeed);
+
+	// we don't care about any of these flags because they are all related to old dump format
+	int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_MAN_SCALE | FLAG_PLOTS);
+
+	CircuitElm.dumpAttrib(xmlElm, "f", exportAsDecOrHex(f, 0));
+	CircuitElm.dumpAttrib(xmlElm, "p", position);
+	if (manDivisions != 8)
+	    CircuitElm.dumpAttrib(xmlElm, "md", manDivisions);
+	root.appendChild(xmlElm);
+	
+    	int i;
+    	for (i = 0; i < plots.size(); i++) {
+    	    ScopePlot p = plots.get(i);
+	    Element pelm = doc.createElement("p");
+	    if (p.getPlotFlags() > 0)
+		CircuitElm.dumpAttrib(pelm, "f", Integer.toHexString(p.getPlotFlags()));
+	    CircuitElm.dumpAttrib(pelm, "e", app.locateElm(p.elm));
+	    CircuitElm.dumpAttrib(pelm, "v", p.value);
+	    CircuitElm.dumpAttrib(pelm, "sc", scale[p.units]);
+    	    if (isManualScale()) {
+		CircuitElm.dumpAttrib(pelm, "ms", p.manScale);
+		CircuitElm.dumpAttrib(pelm, "mp", p.manVPosition);
+    	    }
+	    xmlElm.appendChild(pelm);
+    	}
+	
+    	if (text != null)
+	    xmlElm.setAttribute("x", text);
+    }
+
     void undump(StringTokenizer st) {
     	initialize();
     	int e = new Integer(st.nextToken()).intValue();

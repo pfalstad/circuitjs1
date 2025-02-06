@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 class CapacitorElm extends CircuitElm {
 	double capacitance;
@@ -68,6 +70,17 @@ class CapacitorElm extends CircuitElm {
 	    return super.dump() + " " + capacitance + " " + voltdiff + " " + initialVoltage + " " + seriesResistance;
 	}
 	
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    dumpAttrib(elem, "c", capacitance);
+	    dumpAttrib(elem, "iv", initialVoltage);
+	    dumpAttrib(elem, "sr", seriesResistance);
+	}
+
+	void dumpXmlState(Document doc, Element elem) {
+	    dumpAttrib(elem, "vd", voltdiff);
+	}
+
 	// used for PolarCapacitorElm
 	Point platePoints[];
 	

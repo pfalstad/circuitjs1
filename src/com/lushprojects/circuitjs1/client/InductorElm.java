@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
     class InductorElm extends CircuitElm {
 	Inductor ind;
 	double inductance;
@@ -44,6 +47,17 @@ package com.lushprojects.circuitjs1.client;
 	String dump() {
 	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent;
 	}
+	
+        void dumpXml(Document doc, Element elem) {
+            super.dumpXml(doc, elem);
+            dumpAttrib(elem, "l", inductance);
+            dumpAttrib(elem, "ic", initialCurrent);
+        }
+ 
+        void dumpXmlState(Document doc, Element elem) {
+            dumpAttrib(elem, "i", current);
+        }
+
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);

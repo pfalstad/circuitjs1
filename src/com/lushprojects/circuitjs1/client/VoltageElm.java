@@ -22,6 +22,9 @@ package com.lushprojects.circuitjs1.client;
 import com.google.gwt.user.client.Window;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class VoltageElm extends CircuitElm {
     static final int FLAG_COS = 2;
     static final int FLAG_PULSE_DUTY = 4;
@@ -88,6 +91,19 @@ class VoltageElm extends CircuitElm {
 	    maxVoltage + " " + bias + " " + phaseShift + " " +
 	    dutyCycle;
 	// VarRailElm adds text at the end
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        dumpAttrib(elem, "wf", waveform);
+        dumpAttrib(elem, "f", frequency);
+        dumpAttrib(elem, "maxv", maxVoltage);
+	if (bias != 0)
+            dumpAttrib(elem, "bias", bias);
+	if (phaseShift != 0)
+            dumpAttrib(elem, "phaseShift", phaseShift);
+	if (dutyCycle != .5)
+            dumpAttrib(elem, "dutyCycle", dutyCycle);
     }
 
     void reset() {

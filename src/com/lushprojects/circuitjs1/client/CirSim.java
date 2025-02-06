@@ -113,8 +113,8 @@ MouseOutHandler, MouseWheelHandler {
     private Label powerLabel;
     private Label titleLabel;
     private Scrollbar speedBar;
-    private Scrollbar currentBar;
-    private Scrollbar powerBar;
+    Scrollbar currentBar;
+    Scrollbar powerBar;
     boolean hideMenu = false;
     MenuBar selectScopeMenuBar;
     Vector<MenuItem> selectScopeMenuItems;
@@ -2220,27 +2220,9 @@ MouseOutHandler, MouseWheelHandler {
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
 	
-	String dump = dumpOptions();
-		
-	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
-	    String m = ce.dumpModel();
-	    if (m != null && !m.isEmpty())
-		dump += m + "\n";
-	    dump += ce.dump() + "\n";
-	}
-	for (i = 0; i != scopeCount; i++) {
-	    String d = scopes[i].dump();
-	    if (d != null)
-		dump += d + "\n";
-	}
-	for (i = 0; i != adjustables.size(); i++) {
-	    Adjustable adj = adjustables.get(i);
-	    dump += "38 " + adj.dump() + "\n";
-	}
-	if (hintType != -1)
-	    dump += "h " + hintType + " " + hintItem1 + " " +
-		hintItem2 + "\n";
+	//String dump = dumpOptions();
+	XMLSerializer xml = new XMLSerializer(this);
+	String dump = xml.dumpCircuit();
 	return dump;
     }
 

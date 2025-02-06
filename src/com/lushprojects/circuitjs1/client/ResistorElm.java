@@ -21,6 +21,8 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.canvas.dom.client.CanvasGradient;
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
     class ResistorElm extends CircuitElm {
 	double resistance;
@@ -31,8 +33,14 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    resistance = new Double(st.nextToken()).doubleValue();
 	}
 	int getDumpType() { return 'r'; }
+
 	String dump() {
 	    return super.dump() + " " + resistance;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    dumpAttrib(elem, "r", resistance);
 	}
 
 	Point ps3, ps4;
