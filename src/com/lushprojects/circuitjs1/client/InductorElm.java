@@ -50,12 +50,12 @@ import com.google.gwt.xml.client.Document;
 	
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
-            dumpAttrib(elem, "l", inductance);
-            dumpAttrib(elem, "ic", initialCurrent);
+            XMLSerializer.dumpAttrib(elem, "l", inductance);
+            XMLSerializer.dumpAttrib(elem, "ic", initialCurrent);
         }
  
         void dumpXmlState(Document doc, Element elem) {
-            dumpAttrib(elem, "i", current);
+            XMLSerializer.dumpAttrib(elem, "i", current);
         }
 
 	void setPoints() {

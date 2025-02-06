@@ -1876,16 +1876,16 @@ class Scope {
     	if (eno < 0)
     	    return;
 	Element xmlElm = doc.createElement("o");
-	CircuitElm.dumpAttrib(xmlElm, "en", eno);
-	CircuitElm.dumpAttrib(xmlElm, "sp", vPlot.scopePlotSpeed);
+	XMLSerializer.dumpAttrib(xmlElm, "en", eno);
+	XMLSerializer.dumpAttrib(xmlElm, "sp", vPlot.scopePlotSpeed);
 
 	// we don't care about any of these flags because they are all related to old dump format
 	int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_MAN_SCALE | FLAG_PLOTS);
 
-	CircuitElm.dumpAttrib(xmlElm, "f", exportAsDecOrHex(f, 0));
-	CircuitElm.dumpAttrib(xmlElm, "p", position);
+	XMLSerializer.dumpAttrib(xmlElm, "f", exportAsDecOrHex(f, 0));
+	XMLSerializer.dumpAttrib(xmlElm, "p", position);
 	if (manDivisions != 8)
-	    CircuitElm.dumpAttrib(xmlElm, "md", manDivisions);
+	    XMLSerializer.dumpAttrib(xmlElm, "md", manDivisions);
 	root.appendChild(xmlElm);
 	
     	int i;
@@ -1893,13 +1893,13 @@ class Scope {
     	    ScopePlot p = plots.get(i);
 	    Element pelm = doc.createElement("p");
 	    if (p.getPlotFlags() > 0)
-		CircuitElm.dumpAttrib(pelm, "f", Integer.toHexString(p.getPlotFlags()));
-	    CircuitElm.dumpAttrib(pelm, "e", app.locateElm(p.elm));
-	    CircuitElm.dumpAttrib(pelm, "v", p.value);
-	    CircuitElm.dumpAttrib(pelm, "sc", scale[p.units]);
+		XMLSerializer.dumpAttrib(pelm, "f", Integer.toHexString(p.getPlotFlags()));
+	    XMLSerializer.dumpAttrib(pelm, "e", app.locateElm(p.elm));
+	    XMLSerializer.dumpAttrib(pelm, "v", p.value);
+	    XMLSerializer.dumpAttrib(pelm, "sc", scale[p.units]);
     	    if (isManualScale()) {
-		CircuitElm.dumpAttrib(pelm, "ms", p.manScale);
-		CircuitElm.dumpAttrib(pelm, "mp", p.manVPosition);
+		XMLSerializer.dumpAttrib(pelm, "ms", p.manScale);
+		XMLSerializer.dumpAttrib(pelm, "mp", p.manVPosition);
     	    }
 	    xmlElm.appendChild(pelm);
     	}

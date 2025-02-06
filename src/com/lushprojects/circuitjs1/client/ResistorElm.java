@@ -40,7 +40,7 @@ import com.google.gwt.xml.client.Document;
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    dumpAttrib(elem, "r", resistance);
+	    XMLSerializer.dumpAttrib(elem, "r", resistance);
 	}
 
 	Point ps3, ps4;

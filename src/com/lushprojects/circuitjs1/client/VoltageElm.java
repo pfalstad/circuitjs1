@@ -95,15 +95,15 @@ class VoltageElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        dumpAttrib(elem, "wf", waveform);
-        dumpAttrib(elem, "f", frequency);
-        dumpAttrib(elem, "maxv", maxVoltage);
+        XMLSerializer.dumpAttrib(elem, "wf", waveform);
+        XMLSerializer.dumpAttrib(elem, "f", frequency);
+        XMLSerializer.dumpAttrib(elem, "maxv", maxVoltage);
 	if (bias != 0)
-            dumpAttrib(elem, "bias", bias);
+            XMLSerializer.dumpAttrib(elem, "bias", bias);
 	if (phaseShift != 0)
-            dumpAttrib(elem, "phaseShift", phaseShift);
+            XMLSerializer.dumpAttrib(elem, "phaseShift", phaseShift);
 	if (dutyCycle != .5)
-            dumpAttrib(elem, "dutyCycle", dutyCycle);
+            XMLSerializer.dumpAttrib(elem, "dutyCycle", dutyCycle);
     }
 
     void reset() {
