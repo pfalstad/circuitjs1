@@ -118,7 +118,7 @@ class XMLSerializer {
 
 	for (CircuitElm ce: sim.elmList) {
 	    int t = ce.getDumpType();
-	    String n = (t < 127) ? Character.toString((char) t) : "t" + t;
+	    String n = (t < 127) ? Character.toString((char) t) : ce.getClassName().replace("Elm", "");
 	    Element elem = doc.createElement(n);
 	    ce.dumpXml(doc, elem);
 	    ce.dumpXmlState(doc, elem);
@@ -141,7 +141,7 @@ class XMLSerializer {
 
     static void dumpAttrib(Element elem, String name, String value) { elem.setAttribute(name, value); }
 
-    static void dumpAttrib(Element elem, String name, int value) { setAttribute(name, String.valueOf(value)); }
+    static void dumpAttrib(Element elem, String name, int value) { elem.setAttribute(name, String.valueOf(value)); }
 
     static void dumpAttrib(Element elem, String name, boolean value) { elem.setAttribute(name, String.valueOf(value)); }
 

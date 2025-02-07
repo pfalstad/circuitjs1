@@ -75,16 +75,18 @@ class XMLDeserializer {
 	    int y1 = Integer.parseInt(xs[1]);
 	    int x2 = Integer.parseInt(xs[2]);
 	    int y2 = Integer.parseInt(xs[3]);
-	    int f = Integer.parseInt(elem.getAttribute("f"));
 	    int tint = (int) tagName.charAt(0);
-	    String className = CirSim.dumpTypeMap.get(tint);
+	    String className;
+	    if (tagName.length() > 1)
+		className = tagName + "Elm";
+	    else
+		className = CirSim.dumpTypeMap.get(tint);
 	    CircuitElm elm = app.constructElement(className, 0, 0);
 	    currentXmlElement = elem;
 	    currentElm = elm;
 	    elm.undumpXml(this);
 	    app.console("des " + elm + " " + className);
 	    elm.setPosition(x1, y1, x2, y2);
-	    elm.flags = f;
 	    app.elmList.add(elm);
 	}
         app.needAnalyze();
