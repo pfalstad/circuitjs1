@@ -81,6 +81,14 @@ class CapacitorElm extends CircuitElm {
 	    XMLSerializer.dumpAttrib(elem, "vd", voltdiff);
 	}
 
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("c", x -> capacitance = x);
+	    xml.parseDoubleAttr("iv", x -> initialVoltage = x);
+	    xml.parseDoubleAttr("sr", x -> seriesResistance = x);
+	    xml.parseDoubleAttr("vd", x -> voltdiff = x);
+	}
+
 	// used for PolarCapacitorElm
 	Point platePoints[];
 	

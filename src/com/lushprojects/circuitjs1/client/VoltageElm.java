@@ -106,6 +106,16 @@ class VoltageElm extends CircuitElm {
             XMLSerializer.dumpAttrib(elem, "dutyCycle", dutyCycle);
     }
 
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	xml.parseIntAttr("wf", x -> waveform = x);
+	xml.parseDoubleAttr("f", x -> frequency = x);
+	xml.parseDoubleAttr("maxv", x -> maxVoltage = x);
+	xml.parseDoubleAttr("bias", x -> bias = x);
+	xml.parseDoubleAttr("phaseShift", x -> phaseShift = x);
+	xml.parseDoubleAttr("dutyCycle", x -> dutyCycle = x);
+    }
+
     void reset() {
 	freqTimeZero = 0;
 	curcount = 0;

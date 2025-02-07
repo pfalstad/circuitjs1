@@ -58,6 +58,14 @@ import com.google.gwt.xml.client.Document;
             XMLSerializer.dumpAttrib(elem, "i", current);
         }
 
+        void undumpXml(XMLDeserializer xml) {
+            super.undumpXml(xml);
+            xml.parseDoubleAttr("l", x -> inductance = x);
+            xml.parseDoubleAttr("ic", x -> initialCurrent = x);
+            xml.parseDoubleAttr("i", x -> current = x);
+	    ind.setup(inductance, current, flags);
+        }
+
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);

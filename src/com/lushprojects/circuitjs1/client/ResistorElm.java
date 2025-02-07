@@ -43,6 +43,11 @@ import com.google.gwt.xml.client.Document;
 	    XMLSerializer.dumpAttrib(elem, "r", resistance);
 	}
 
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("r", r -> resistance = r);
+	}
+
 	Point ps3, ps4;
 	void setPoints() {
 	    super.setPoints();

@@ -1198,8 +1198,12 @@ public abstract class CircuitElm implements Editable {
     String getClassName() { return getClass().getName().replace("com.lushprojects.circuitjs1.client.", ""); }
     
     void dumpXml(Document doc, Element elem) {
-	XMLSerializer.dumpAttrib(elem, "x", x + " " + x2 + " " + y + " " + y2);
+	XMLSerializer.dumpAttrib(elem, "x", x + " " + y + " " + x2 + " " + y2);
 	XMLSerializer.dumpAttrib(elem, "f", flags);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	xml.parseIntAttr("f", f -> flags = f);
     }
 
     void dumpXmlState(Document doc, Element elem) { }

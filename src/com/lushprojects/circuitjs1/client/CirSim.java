@@ -2312,12 +2312,22 @@ MouseOutHandler, MouseWheelHandler {
 }
 
     void readCircuit(String text, int flags) {
+	if (text.startsWith("<")) {
+	    XMLDeserializer xml = new XMLDeserializer(this);
+	    xml.readCircuit(text, flags);
+	    return;
+	}
 	readCircuit(text.getBytes(), flags);
 	if ((flags & RC_KEEP_TITLE) == 0)
 	    titleLabel.setText(null);
     }
 
     void readCircuit(String text) {
+	if (text.startsWith("<")) {
+	    XMLDeserializer xml = new XMLDeserializer(this);
+	    xml.readCircuit(text, 0);
+	    return;
+	}
 	readCircuit(text.getBytes(), 0);
 	titleLabel.setText(null);
     }
