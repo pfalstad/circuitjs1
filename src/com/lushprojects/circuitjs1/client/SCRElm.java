@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 // Silicon-Controlled Rectifier
 // 3 nodes, 1 internal node
 // 0 = anode, 1 = cathode, 2 = gate
@@ -80,6 +83,22 @@ class SCRElm extends CircuitElm {
 	    (volts[anode]-volts[gnode]) + " " + triggerI + " "+  holdingI + " " +
 	    gresistance;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "tr", triggerI);
+        XMLSerializer.dumpAttrib(elem, "ho", holdingI);
+        XMLSerializer.dumpAttrib(elem, "gr", gresistance);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseDoubleAttr("tr", x -> triggerI = x);
+        xml.parseDoubleAttr("ho", x -> holdingI = x);
+        xml.parseDoubleAttr("gr", x -> gresistance = x);
+	setup();
+    }
+
     double ia, ic, ig, curcount_a, curcount_c, curcount_g;
     double lastvac, lastvag;
     double gresistance, triggerI, holdingI;

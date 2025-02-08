@@ -204,6 +204,7 @@ MouseOutHandler, MouseWheelHandler {
     boolean unsavedChanges;
     HashMap<String, String> classToLabelMap;
     static HashMap<Integer, String> dumpTypeMap;
+    static HashMap<String, String> xmlDumpTypeMap;
     Toolbar toolbar;
 
     DockLayoutPanel layoutPanel;
@@ -4088,8 +4089,10 @@ MouseOutHandler, MouseWheelHandler {
     
     void register(String origClassName, CircuitElm elm) {
 	String className = origClassName;
-	if (dumpTypeMap == null)
+	if (dumpTypeMap == null) {
 	    dumpTypeMap = new HashMap<Integer, String>();
+	    xmlDumpTypeMap = new HashMap<String, String>();
+	}
 	if (elm == null)
 	    return;
 	int t = elm.getDumpType();
@@ -4106,6 +4109,15 @@ MouseOutHandler, MouseWheelHandler {
 		console("dump type conflict for " + className + " " + t);
 	} else {
 	    dumpTypeMap.put(t, className);
+	}
+
+	String xt = elm.getXmlDumpType();
+	s = xmlDumpTypeMap.get(xt);
+	if (s != null) {
+	    if (!s.equals(className))
+		console("xml dump type conflict for " + className + " " + xt);
+	} else {
+	    xmlDumpTypeMap.put(xt, className);
 	}
     }
 

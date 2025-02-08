@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class GroundElm extends CircuitElm {
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class GroundElm extends CircuitElm {
 	static int lastSymbolType = 0;
 	int symbolType;
 	
@@ -42,6 +45,17 @@ package com.lushprojects.circuitjs1.client;
 	String dump() {
 	    return super.dump() + " " + symbolType;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "sy", symbolType);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseIntAttr("sy", x -> symbolType = x);
+	}
+
 	int getDumpType() { return 'g'; }
 	int getPostCount() { return 1; }
 	void draw(Graphics g) {

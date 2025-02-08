@@ -21,6 +21,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 // contributed by Edward Calver
 
 class TriStateElm extends CircuitElm {
@@ -65,9 +68,24 @@ class TriStateElm extends CircuitElm {
 	return super.dump() + " " + r_on + " " + r_off + " " + r_off_ground + " " + highVoltage;
     }
 
-    int getDumpType() {
-	return 180;
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "ron", r_on);
+        XMLSerializer.dumpAttrib(elem, "roff", r_off);
+        XMLSerializer.dumpAttrib(elem, "rog", r_off_ground);
+        XMLSerializer.dumpAttrib(elem, "hi", highVoltage);
     }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseDoubleAttr("ron", x -> r_on = x);
+        xml.parseDoubleAttr("roff", x -> r_off = x);
+        xml.parseDoubleAttr("rog", x -> r_off_ground = x);
+        xml.parseDoubleAttr("hi", x -> highVoltage = x);
+    }
+
+    int getDumpType() { return 180; }
+    String getXmlDumpType() { return "ts"; }
 
     boolean open;
 

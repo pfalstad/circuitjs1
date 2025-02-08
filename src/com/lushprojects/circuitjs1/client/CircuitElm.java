@@ -105,6 +105,12 @@ public abstract class CircuitElm implements Editable {
 	// bug affecting OTAElm to make sure this method (which should really be abstract) throws
 	// an exception.  If you're getting this, try making small update to CompositeElm.java and try again
  }
+    String getXmlDumpType() { 
+	int t = getDumpType();
+	if (t > 64 && t < 127)
+	    return Character.toString((char) t);
+	return getClassName().replace("Elm", "");
+    }
     
     // leftover from java, doesn't do anything anymore. 
     Class getDumpClass() { return getClass(); }

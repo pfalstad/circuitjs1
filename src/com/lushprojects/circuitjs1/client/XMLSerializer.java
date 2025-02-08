@@ -117,9 +117,7 @@ class XMLSerializer {
 	XMLSerializer.dumpAttrib(root, "mts", sim.minTimeStep);
 
 	for (CircuitElm ce: sim.elmList) {
-	    int t = ce.getDumpType();
-	    String n = (t < 127) ? Character.toString((char) t) : ce.getClassName().replace("Elm", "");
-	    Element elem = doc.createElement(n);
+	    Element elem = doc.createElement(ce.getXmlDumpType());
 	    ce.dumpXml(doc, elem);
 	    ce.dumpXmlState(doc, elem);
 	    root.appendChild(elem);
@@ -139,7 +137,13 @@ class XMLSerializer {
 	return prettyPrint(doc);
     }
 
-    static void dumpAttrib(Element elem, String name, String value) { elem.setAttribute(name, value); }
+    static void dumpAttrib(Element elem, String name, String value) {
+	value = value.replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;")
+                .replace("<", "&lt;");  // `>` doesn't need escaping
+	elem.setAttribute(name, value);
+    }
 
     static void dumpAttrib(Element elem, String name, int value) { elem.setAttribute(name, String.valueOf(value)); }
 

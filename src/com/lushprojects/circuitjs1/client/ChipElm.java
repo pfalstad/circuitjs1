@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 abstract class ChipElm extends CircuitElm {
 	int csize, cspc, cspc2;
 	int bits;
@@ -315,6 +318,37 @@ abstract class ChipElm extends CircuitElm {
 	    return s;
 	}
 	
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    if (bits > 0)
+		XMLSerializer.dumpAttrib(elem, "bi", bits);
+	    if (highVoltage != 5)
+		XMLSerializer.dumpAttrib(elem, "hv", highVoltage);
+
+	    int i;
+	    for (i = 0; i != getPostCount(); i++) {
+		if (pins[i].state && volts[i] > 0)
+		    XMLSerializer.dumpAttrib(elem, "v" + i, volts[i]);
+	    }
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseIntAttr("bi", x -> bits = x);
+	    xml.parseDoubleAttr("hv", x -> highVoltage = x);
+
+	    setupPins();
+	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+
+	    int i;
+	    for (i = 0; i != getPostCount(); i++) {
+		final int i0 = i;
+		xml.parseDoubleAttr("v" + i, x -> volts[i0] = x);
+		if (pins != null)
+		    pins[i].value = volts[i] > getThreshold();
+	    }
+	}
+
 	void writeOutput(int n, boolean value) {
 	    if (!pins[n].output)
 		CirSim.console("pin " + n + " is not an output!");

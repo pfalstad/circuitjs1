@@ -75,12 +75,7 @@ class XMLDeserializer {
 	    int y1 = Integer.parseInt(xs[1]);
 	    int x2 = Integer.parseInt(xs[2]);
 	    int y2 = Integer.parseInt(xs[3]);
-	    int tint = (int) tagName.charAt(0);
-	    String className;
-	    if (tagName.length() > 1)
-		className = tagName + "Elm";
-	    else
-		className = CirSim.dumpTypeMap.get(tint);
+	    String className = CirSim.xmlDumpTypeMap.get(tagName);
 	    CircuitElm elm = app.constructElement(className, 0, 0);
 	    currentXmlElement = elem;
 	    currentElm = elm;
@@ -117,6 +112,11 @@ class XMLDeserializer {
 	String s = currentXmlElement.getAttribute(attr);
 	if (s == null)
 	    return;
+    	s = s.replace("&quot;", "\"")
+             .replace("&apos;", "'")
+             .replace("&lt;", "<")
+             .replace("&gt;", ">")
+             .replace("&amp;", "&");
 	setter.accept(s);
     }
 

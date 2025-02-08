@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class OutputElm extends CircuitElm {
@@ -41,6 +44,17 @@ class OutputElm extends CircuitElm {
 	String dump() {
 	    return super.dump() + " " + scale;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "sc", scale);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseIntAttr("sc", x -> scale = x);
+	}
+
 	int getDumpType() { return 'O'; }
 	int getPostCount() { return 1; }
 	void setPoints() {

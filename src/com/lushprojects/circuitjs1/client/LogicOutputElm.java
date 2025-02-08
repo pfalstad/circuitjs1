@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class LogicOutputElm extends CircuitElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class LogicOutputElm extends CircuitElm {
 	final int FLAG_TERNARY = 1;
 	final int FLAG_NUMERIC = 2;
 	final int FLAG_PULLDOWN = 4;
@@ -41,6 +44,17 @@ package com.lushprojects.circuitjs1.client;
 	String dump() {
 	    return super.dump() + " " + threshold;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "th", threshold);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("th", x -> threshold = x);
+	}
+
 	int getDumpType() { return 'M'; }
 	int getPostCount() { return 1; }
 	boolean isTernary() { return (flags & FLAG_TERNARY) != 0; }

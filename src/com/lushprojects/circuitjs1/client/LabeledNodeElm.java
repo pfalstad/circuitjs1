@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import java.util.HashMap;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -46,6 +49,16 @@ class LabeledNodeElm extends CircuitElm {
     String dump() {
 	flags |= FLAG_ESCAPE;
 	return super.dump() + " " + CustomLogicModel.escape(text);
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "te", text);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseStringAttr("te", x -> text = x);
     }
 
     String text;
@@ -97,6 +110,7 @@ class LabeledNodeElm extends CircuitElm {
     }
     
     int getDumpType() { return 207; }
+    String getXmlDumpType() { return "ln"; }
     int getPostCount() { return 1; }
     
     // this is basically a wire, since it just connects two or more nodes together

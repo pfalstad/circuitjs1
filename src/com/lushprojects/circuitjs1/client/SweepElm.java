@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class SweepElm extends CircuitElm {
     double maxV, maxF, minF, sweepTime, frequency;
     final int FLAG_LOG = 1;
@@ -41,6 +44,7 @@ class SweepElm extends CircuitElm {
 	reset();
     }
     int getDumpType() { return 170; }
+    String getXmlDumpType() { return "sw"; }
     int getPostCount() { return 1; }
     final int circleSize = 17;
 
@@ -48,10 +52,29 @@ class SweepElm extends CircuitElm {
 	return super.dump() + " " + minF + " " + maxF + " " + maxV + " " +
 	    sweepTime;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "mi", minF);
+        XMLSerializer.dumpAttrib(elem, "ma", maxF);
+        XMLSerializer.dumpAttrib(elem, "mv", maxV);
+        XMLSerializer.dumpAttrib(elem, "sw", sweepTime);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseDoubleAttr("mi", x -> minF = x);
+        xml.parseDoubleAttr("ma", x -> maxF = x);
+        xml.parseDoubleAttr("mv", x -> maxV = x);
+        xml.parseDoubleAttr("sw", x -> sweepTime = x);
+	reset();
+    }
+
     void setPoints() {
 	super.setPoints();
 	lead1 = interpPoint(point1, point2, 1-circleSize/dn);
     }
+
     void draw(Graphics g) {
 	setBbox(point1, point2, circleSize);
 	setVoltageColor(g, volts[0]);

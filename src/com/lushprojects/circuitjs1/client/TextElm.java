@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import java.util.Vector;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
@@ -72,11 +75,26 @@ class TextElm extends GraphicElm {
 	}
 	lines.add(sb.toString());
     }
+
     String dump() {
 	flags |= FLAG_ESCAPE;
 	return super.dump() + " " + size + " " + CustomLogicModel.escape(text);
 	//return super.dump() + " " + size + " " + text;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "si", size);
+        XMLSerializer.dumpAttrib(elem, "te", text);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseIntAttr("si", x -> size = x);
+        xml.parseStringAttr("te", x -> text = x);
+	split();
+    }
+
     int getDumpType() { return 'x'; }
     void drag(int xx, int yy) {
 	x = xx;

@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class LogicInputElm extends SwitchElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class LogicInputElm extends SwitchElm {
 	final int FLAG_TERNARY = 1;
 	final int FLAG_NUMERIC = 2;
 	double hiV, loV;
@@ -48,6 +51,19 @@ package com.lushprojects.circuitjs1.client;
 	String dump() {
 	    return super.dump() + " " + hiV + " " + loV;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "hi", hiV);
+	    XMLSerializer.dumpAttrib(elem, "lo", loV);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("hi", x -> hiV = x);
+	    xml.parseDoubleAttr("lo", x -> loV = x);
+	}
+
 	int getPostCount() { return 1; }
 	void setPoints() {
 	    super.setPoints();

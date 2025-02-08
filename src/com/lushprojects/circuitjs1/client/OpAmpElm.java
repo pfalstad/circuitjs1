@@ -18,6 +18,8 @@
 */
 
 package com.lushprojects.circuitjs1.client;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
     class OpAmpElm extends CircuitElm {
 	int opsize, opheight, opwidth, opaddtext;
@@ -70,6 +72,23 @@ package com.lushprojects.circuitjs1.client;
 	    flags |= FLAG_GAIN;
 	    return super.dump() + " " + maxOut + " " + minOut + " " + gbw + " " + volts[0] + " " + volts[1] + " " + gain;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "ma", maxOut);
+	    XMLSerializer.dumpAttrib(elem, "mi", minOut);
+	    //XMLSerializer.dumpAttrib(elem, "gb", gbw);
+	    XMLSerializer.dumpAttrib(elem, "ga", gain);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("ma", x -> maxOut = x);
+	    xml.parseDoubleAttr("mi", x -> minOut = x);
+	    //xml.parseDoubleAttr("gb", x -> gbw = x);
+	    xml.parseDoubleAttr("ga", x -> gain = x);
+	}
+
 	boolean nonLinear() { return true; }
 	void draw(Graphics g) {
 	    setBbox(point1, point2, opheight*2);

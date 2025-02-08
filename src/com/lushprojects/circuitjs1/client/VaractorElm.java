@@ -1,5 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class VaractorElm extends DiodeElm {
     double baseCapacitance;
     
@@ -40,6 +43,18 @@ class VaractorElm extends DiodeElm {
     }
     String dump() {
 	return super.dump() + " " + capvoltdiff + " " + baseCapacitance;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttrib(elem, "ca", capvoltdiff);
+        XMLSerializer.dumpAttrib(elem, "ba", baseCapacitance);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        xml.parseDoubleAttr("ca", x -> capvoltdiff = x);
+        xml.parseDoubleAttr("ba", x -> baseCapacitance = x);
     }
     void setPoints() {
 	super.setPoints();
