@@ -47,14 +47,14 @@ class VaractorElm extends DiodeElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "ca", capvoltdiff);
-        XMLSerializer.dumpAttrib(elem, "ba", baseCapacitance);
+        XMLSerializer.dumpAttr(elem, "ca", capvoltdiff);
+        XMLSerializer.dumpAttr(elem, "ba", baseCapacitance);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseDoubleAttr("ca", x -> capvoltdiff = x);
-        xml.parseDoubleAttr("ba", x -> baseCapacitance = x);
+        capvoltdiff = xml.parseDoubleAttr("ca", capvoltdiff);
+        baseCapacitance = xml.parseDoubleAttr("ba", baseCapacitance);
     }
     void setPoints() {
 	super.setPoints();

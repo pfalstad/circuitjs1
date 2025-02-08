@@ -55,18 +55,18 @@ class SweepElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "mi", minF);
-        XMLSerializer.dumpAttrib(elem, "ma", maxF);
-        XMLSerializer.dumpAttrib(elem, "mv", maxV);
-        XMLSerializer.dumpAttrib(elem, "sw", sweepTime);
+        XMLSerializer.dumpAttr(elem, "mi", minF);
+        XMLSerializer.dumpAttr(elem, "ma", maxF);
+        XMLSerializer.dumpAttr(elem, "mv", maxV);
+        XMLSerializer.dumpAttr(elem, "sw", sweepTime);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseDoubleAttr("mi", x -> minF = x);
-        xml.parseDoubleAttr("ma", x -> maxF = x);
-        xml.parseDoubleAttr("mv", x -> maxV = x);
-        xml.parseDoubleAttr("sw", x -> sweepTime = x);
+        minF = xml.parseDoubleAttr("mi", minF);
+        maxF = xml.parseDoubleAttr("ma", maxF);
+        maxV = xml.parseDoubleAttr("mv", maxV);
+        sweepTime = xml.parseDoubleAttr("sw", sweepTime);
 	reset();
     }
 

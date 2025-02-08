@@ -321,23 +321,23 @@ abstract class ChipElm extends CircuitElm {
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
 	    if (bits > 0)
-		XMLSerializer.dumpAttrib(elem, "bi", bits);
+		XMLSerializer.dumpAttr(elem, "bi", bits);
 	    if (highVoltage != 5)
-		XMLSerializer.dumpAttrib(elem, "hv", highVoltage);
+		XMLSerializer.dumpAttr(elem, "hv", highVoltage);
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		if (pins[i].state && volts[i] > 0)
-		    XMLSerializer.dumpAttrib(elem, "v" + i, volts[i]);
+		    XMLSerializer.dumpAttr(elem, "v" + i, volts[i]);
 	    }
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseIntAttr("bi", x -> bits = x);
-	    xml.parseDoubleAttr("hv", x -> highVoltage = x);
+	    bits = xml.parseIntAttr("bi", bits);
+	    highVoltage = xml.parseDoubleAttr("hv", highVoltage);
 
 	    setupPins();
 	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
@@ -345,7 +345,7 @@ abstract class ChipElm extends CircuitElm {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		final int i0 = i;
-		xml.parseDoubleAttr("v" + i, x -> volts[i0] = x);
+		volts[i0] = xml.parseDoubleAttr("v" + i, 0);
 		if (pins != null)
 		    pins[i].value = volts[i] > getThreshold();
 	    }

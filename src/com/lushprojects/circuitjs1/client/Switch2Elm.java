@@ -56,14 +56,14 @@ import com.google.gwt.xml.client.Document;
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "li", link);
-	    XMLSerializer.dumpAttrib(elem, "th", throwCount);
+	    XMLSerializer.dumpAttr(elem, "li", link);
+	    XMLSerializer.dumpAttr(elem, "th", throwCount);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseIntAttr("li", x -> link = x);
-	    xml.parseIntAttr("th", x -> throwCount = x);
+	    link = xml.parseIntAttr("li", link);
+	    throwCount = xml.parseIntAttr("th", throwCount);
 	}
 
 	final int openhs = 16;

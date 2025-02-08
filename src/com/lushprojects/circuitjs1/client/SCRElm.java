@@ -86,16 +86,16 @@ class SCRElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "tr", triggerI);
-        XMLSerializer.dumpAttrib(elem, "ho", holdingI);
-        XMLSerializer.dumpAttrib(elem, "gr", gresistance);
+        XMLSerializer.dumpAttr(elem, "tr", triggerI);
+        XMLSerializer.dumpAttr(elem, "ho", holdingI);
+        XMLSerializer.dumpAttr(elem, "gr", gresistance);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseDoubleAttr("tr", x -> triggerI = x);
-        xml.parseDoubleAttr("ho", x -> holdingI = x);
-        xml.parseDoubleAttr("gr", x -> gresistance = x);
+        triggerI = xml.parseDoubleAttr("tr", triggerI);
+        holdingI = xml.parseDoubleAttr("ho", holdingI);
+        gresistance = xml.parseDoubleAttr("gr", gresistance);
 	setup();
     }
 

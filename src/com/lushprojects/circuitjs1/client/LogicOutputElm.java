@@ -47,12 +47,12 @@ class LogicOutputElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "th", threshold);
+	    XMLSerializer.dumpAttr(elem, "th", threshold);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("th", x -> threshold = x);
+	    threshold = xml.parseDoubleAttr("th", threshold);
 	}
 
 	int getDumpType() { return 'M'; }

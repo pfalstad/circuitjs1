@@ -51,14 +51,14 @@ class CounterElm extends ChipElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "in", invertreset);
-	    XMLSerializer.dumpAttrib(elem, "mo", modulus);
+	    XMLSerializer.dumpAttr(elem, "in", invertreset);
+	    XMLSerializer.dumpAttr(elem, "mo", modulus);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseBooleanAttr("in", x -> invertreset = x);
-	    xml.parseIntAttr("mo", x -> modulus = x);
+	    invertreset = xml.parseBooleanAttr("in", invertreset);
+	    modulus = xml.parseIntAttr("mo", modulus);
 	    pins[1].bubble = invertreset;
 	}
 

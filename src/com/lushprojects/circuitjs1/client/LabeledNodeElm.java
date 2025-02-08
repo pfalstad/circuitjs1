@@ -53,12 +53,12 @@ class LabeledNodeElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "te", text);
+        XMLSerializer.dumpAttr(elem, "te", text);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseStringAttr("te", x -> text = x);
+        text = xml.parseStringAttr("te", text);
     }
 
     String text;

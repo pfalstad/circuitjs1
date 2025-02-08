@@ -72,22 +72,22 @@ class CapacitorElm extends CircuitElm {
 	
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "c", capacitance);
-	    XMLSerializer.dumpAttrib(elem, "iv", initialVoltage);
-	    XMLSerializer.dumpAttrib(elem, "sr", seriesResistance);
+	    XMLSerializer.dumpAttr(elem, "c", capacitance);
+	    XMLSerializer.dumpAttr(elem, "iv", initialVoltage);
+	    XMLSerializer.dumpAttr(elem, "sr", seriesResistance);
 	    // PolarCapacitorElm uses mv
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
-	    XMLSerializer.dumpAttrib(elem, "vd", voltdiff);
+	    XMLSerializer.dumpAttr(elem, "vd", voltdiff);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("c", x -> capacitance = x);
-	    xml.parseDoubleAttr("iv", x -> initialVoltage = x);
-	    xml.parseDoubleAttr("sr", x -> seriesResistance = x);
-	    xml.parseDoubleAttr("vd", x -> voltdiff = x);
+	    capacitance = xml.parseDoubleAttr("c", capacitance);
+	    initialVoltage = xml.parseDoubleAttr("iv", initialVoltage);
+	    seriesResistance = xml.parseDoubleAttr("sr", seriesResistance);
+	    voltdiff = xml.parseDoubleAttr("vd", voltdiff);
 	}
 
 	// used for PolarCapacitorElm

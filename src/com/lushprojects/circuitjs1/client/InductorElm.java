@@ -50,19 +50,19 @@ import com.google.gwt.xml.client.Document;
 	
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
-            XMLSerializer.dumpAttrib(elem, "l", inductance);
-            XMLSerializer.dumpAttrib(elem, "ic", initialCurrent);
+            XMLSerializer.dumpAttr(elem, "l", inductance);
+            XMLSerializer.dumpAttr(elem, "ic", initialCurrent);
         }
  
         void dumpXmlState(Document doc, Element elem) {
-            XMLSerializer.dumpAttrib(elem, "i", current);
+            XMLSerializer.dumpAttr(elem, "i", current);
         }
 
         void undumpXml(XMLDeserializer xml) {
             super.undumpXml(xml);
-            xml.parseDoubleAttr("l", x -> inductance = x);
-            xml.parseDoubleAttr("ic", x -> initialCurrent = x);
-            xml.parseDoubleAttr("i", x -> current = x);
+            inductance = xml.parseDoubleAttr("l", inductance);
+            initialCurrent = xml.parseDoubleAttr("ic", initialCurrent);
+            current = xml.parseDoubleAttr("i", current);
 	    ind.setup(inductance, current, flags);
         }
 

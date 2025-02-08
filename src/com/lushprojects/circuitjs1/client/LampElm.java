@@ -54,20 +54,20 @@ class LampElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "te", temp);
-	    XMLSerializer.dumpAttrib(elem, "np", nom_pow);
-	    XMLSerializer.dumpAttrib(elem, "nv", nom_v);
-	    XMLSerializer.dumpAttrib(elem, "wa", warmTime);
-	    XMLSerializer.dumpAttrib(elem, "co", coolTime);
+	    XMLSerializer.dumpAttr(elem, "te", temp);
+	    XMLSerializer.dumpAttr(elem, "np", nom_pow);
+	    XMLSerializer.dumpAttr(elem, "nv", nom_v);
+	    XMLSerializer.dumpAttr(elem, "wa", warmTime);
+	    XMLSerializer.dumpAttr(elem, "co", coolTime);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("te", x -> temp = x);
-	    xml.parseDoubleAttr("np", x -> nom_pow = x);
-	    xml.parseDoubleAttr("nv", x -> nom_v = x);
-	    xml.parseDoubleAttr("wa", x -> warmTime = x);
-	    xml.parseDoubleAttr("co", x -> coolTime = x);
+	    temp = xml.parseDoubleAttr("te", temp);
+	    nom_pow = xml.parseDoubleAttr("np", nom_pow);
+	    nom_v = xml.parseDoubleAttr("nv", nom_v);
+	    warmTime = xml.parseDoubleAttr("wa", warmTime);
+	    coolTime = xml.parseDoubleAttr("co", coolTime);
 	}
 	int getDumpType() { return 181; }
 

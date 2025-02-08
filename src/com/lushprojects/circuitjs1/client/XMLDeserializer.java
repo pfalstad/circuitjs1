@@ -20,7 +20,6 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.Vector;
-import java.util.function.Consumer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -95,39 +94,6 @@ class XMLDeserializer {
 	    app.elmList.add(elm);
 	}
         app.needAnalyze();
-    }
-
-    public void parseDoubleAttr(String attr, Consumer<Double> setter) {
-	String v = currentXmlElement.getAttribute(attr);
-	if (v == null)
-	    return;
-	setter.accept(Double.parseDouble(v));
-    }
-
-    public void parseIntAttr(String attr, Consumer<Integer> setter) {
-	String v = currentXmlElement.getAttribute(attr);
-	if (v == null)
-	    return;
-	setter.accept(Integer.parseInt(v));
-    }
-    
-    public void parseBooleanAttr(String attr, Consumer<Boolean> setter) {
-	String v = currentXmlElement.getAttribute(attr);
-	if (v == null)
-	    return;
-	setter.accept(Boolean.parseBoolean(v));
-    }
-    
-    public void parseStringAttr(String attr, Consumer<String> setter) {
-	String s = currentXmlElement.getAttribute(attr);
-	if (s == null)
-	    return;
-    	s = s.replace("&quot;", "\"")
-             .replace("&apos;", "'")
-             .replace("&lt;", "<")
-             .replace("&gt;", ">")
-             .replace("&amp;", "&");
-	setter.accept(s);
     }
 
     public double parseDoubleAttr(String attr, double def) {

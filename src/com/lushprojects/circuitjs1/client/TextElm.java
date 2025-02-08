@@ -84,14 +84,14 @@ class TextElm extends GraphicElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "si", size);
-        XMLSerializer.dumpAttrib(elem, "te", text);
+        XMLSerializer.dumpAttr(elem, "si", size);
+        XMLSerializer.dumpAttr(elem, "te", text);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseIntAttr("si", x -> size = x);
-        xml.parseStringAttr("te", x -> text = x);
+        size = xml.parseIntAttr("si", size);
+        text = xml.parseStringAttr("te", text);
 	split();
     }
 

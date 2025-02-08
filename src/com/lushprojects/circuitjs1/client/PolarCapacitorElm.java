@@ -23,12 +23,12 @@ public class PolarCapacitorElm extends CapacitorElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "mv", maxNegativeVoltage);
+	    XMLSerializer.dumpAttr(elem, "mv", maxNegativeVoltage);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("mv", x -> maxNegativeVoltage = x);
+	    maxNegativeVoltage = xml.parseDoubleAttr("mv", maxNegativeVoltage);
 	}
 	
 	Point plusPoint;

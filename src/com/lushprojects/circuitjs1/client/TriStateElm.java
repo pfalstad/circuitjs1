@@ -70,18 +70,18 @@ class TriStateElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "ron", r_on);
-        XMLSerializer.dumpAttrib(elem, "roff", r_off);
-        XMLSerializer.dumpAttrib(elem, "rog", r_off_ground);
-        XMLSerializer.dumpAttrib(elem, "hi", highVoltage);
+        XMLSerializer.dumpAttr(elem, "ron", r_on);
+        XMLSerializer.dumpAttr(elem, "roff", r_off);
+        XMLSerializer.dumpAttr(elem, "rog", r_off_ground);
+        XMLSerializer.dumpAttr(elem, "hi", highVoltage);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseDoubleAttr("ron", x -> r_on = x);
-        xml.parseDoubleAttr("roff", x -> r_off = x);
-        xml.parseDoubleAttr("rog", x -> r_off_ground = x);
-        xml.parseDoubleAttr("hi", x -> highVoltage = x);
+        r_on = xml.parseDoubleAttr("ron", r_on);
+        r_off = xml.parseDoubleAttr("roff", r_off);
+        r_off_ground = xml.parseDoubleAttr("rog", r_off_ground);
+        highVoltage = xml.parseDoubleAttr("hi", highVoltage);
     }
 
     int getDumpType() { return 180; }

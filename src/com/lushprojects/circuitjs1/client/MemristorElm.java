@@ -56,20 +56,20 @@ class MemristorElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "ron", r_on);
-        XMLSerializer.dumpAttrib(elem, "rof", r_off);
-        XMLSerializer.dumpAttrib(elem, "do", dopeWidth);
-        XMLSerializer.dumpAttrib(elem, "to", totalWidth);
-        XMLSerializer.dumpAttrib(elem, "mo", mobility);
+        XMLSerializer.dumpAttr(elem, "ron", r_on);
+        XMLSerializer.dumpAttr(elem, "rof", r_off);
+        XMLSerializer.dumpAttr(elem, "do", dopeWidth);
+        XMLSerializer.dumpAttr(elem, "to", totalWidth);
+        XMLSerializer.dumpAttr(elem, "mo", mobility);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseDoubleAttr("ron", x -> r_on = x);
-        xml.parseDoubleAttr("rof", x -> r_off = x);
-        xml.parseDoubleAttr("do", x -> dopeWidth = x);
-        xml.parseDoubleAttr("to", x -> totalWidth = x);
-        xml.parseDoubleAttr("mo", x -> mobility = x);
+        r_on = xml.parseDoubleAttr("ron", r_on);
+        r_off = xml.parseDoubleAttr("rof", r_off);
+        dopeWidth = xml.parseDoubleAttr("do", dopeWidth);
+        totalWidth = xml.parseDoubleAttr("to", totalWidth);
+        mobility = xml.parseDoubleAttr("mo", mobility);
     }
 
     Point ps3, ps4;

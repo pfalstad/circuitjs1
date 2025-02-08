@@ -51,14 +51,14 @@ class InverterElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "sl", slewRate);
-	    XMLSerializer.dumpAttrib(elem, "hi", highVoltage);
+	    XMLSerializer.dumpAttr(elem, "sl", slewRate);
+	    XMLSerializer.dumpAttr(elem, "hi", highVoltage);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("sl", x -> slewRate = x);
-	    xml.parseDoubleAttr("hi", x -> highVoltage = x);
+	    slewRate = xml.parseDoubleAttr("sl", slewRate);
+	    highVoltage = xml.parseDoubleAttr("hi", highVoltage);
 	}
 	
 	int getDumpType() { return 'I'; }

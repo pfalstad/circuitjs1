@@ -110,14 +110,14 @@ class MosfetElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "vt", vt);
-	    XMLSerializer.dumpAttrib(elem, "be", beta);
+	    XMLSerializer.dumpAttr(elem, "vt", vt);
+	    XMLSerializer.dumpAttr(elem, "be", beta);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("vt", x -> vt = x);
-	    xml.parseDoubleAttr("be", x -> beta = x);
+	    vt = xml.parseDoubleAttr("vt", vt);
+	    beta = xml.parseDoubleAttr("be", beta);
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
 	}

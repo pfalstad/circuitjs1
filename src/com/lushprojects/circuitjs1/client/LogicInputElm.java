@@ -54,14 +54,14 @@ class LogicInputElm extends SwitchElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "hi", hiV);
-	    XMLSerializer.dumpAttrib(elem, "lo", loV);
+	    XMLSerializer.dumpAttr(elem, "hi", hiV);
+	    XMLSerializer.dumpAttr(elem, "lo", loV);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("hi", x -> hiV = x);
-	    xml.parseDoubleAttr("lo", x -> loV = x);
+	    hiV = xml.parseDoubleAttr("hi", hiV);
+	    loV = xml.parseDoubleAttr("lo", loV);
 	}
 
 	int getPostCount() { return 1; }

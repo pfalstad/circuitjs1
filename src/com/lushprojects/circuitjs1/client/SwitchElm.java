@@ -71,18 +71,18 @@ class SwitchElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "p", position);
+        XMLSerializer.dumpAttr(elem, "p", position);
 	if (momentary)
-            XMLSerializer.dumpAttrib(elem, "mm", momentary);
+            XMLSerializer.dumpAttr(elem, "mm", momentary);
 	if (label != null)
-            XMLSerializer.dumpAttrib(elem, "lab", label);
+            XMLSerializer.dumpAttr(elem, "lab", label);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
-        xml.parseIntAttr("p", x -> position = x);
-        xml.parseBooleanAttr("ic", x -> momentary = x);
-        xml.parseStringAttr("i", x -> label = x);
+        position = xml.parseIntAttr("p", position);
+        momentary = xml.parseBooleanAttr("ic", momentary);
+        label = xml.parseStringAttr("i", label);
     }
 
     Point ps, ps2;

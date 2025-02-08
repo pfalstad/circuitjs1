@@ -47,12 +47,12 @@ class OutputElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "sc", scale);
+	    XMLSerializer.dumpAttr(elem, "sc", scale);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseIntAttr("sc", x -> scale = x);
+	    scale = xml.parseIntAttr("sc", scale);
 	}
 
 	int getDumpType() { return 'O'; }

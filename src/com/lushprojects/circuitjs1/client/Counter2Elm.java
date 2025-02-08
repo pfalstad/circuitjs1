@@ -45,12 +45,12 @@ class Counter2Elm extends ChipElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "mo", modulus);
+	    XMLSerializer.dumpAttr(elem, "mo", modulus);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseIntAttr("mo", x -> modulus = x);
+	    modulus = xml.parseIntAttr("mo", modulus);
 	}
 
 	boolean needsBits() { return true; }

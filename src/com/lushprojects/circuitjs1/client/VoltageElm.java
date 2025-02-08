@@ -95,25 +95,25 @@ class VoltageElm extends CircuitElm {
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttrib(elem, "wf", waveform);
-        XMLSerializer.dumpAttrib(elem, "f", frequency);
-        XMLSerializer.dumpAttrib(elem, "maxv", maxVoltage);
+        XMLSerializer.dumpAttr(elem, "wf", waveform);
+        XMLSerializer.dumpAttr(elem, "f", frequency);
+        XMLSerializer.dumpAttr(elem, "maxv", maxVoltage);
 	if (bias != 0)
-            XMLSerializer.dumpAttrib(elem, "bias", bias);
+            XMLSerializer.dumpAttr(elem, "bias", bias);
 	if (phaseShift != 0)
-            XMLSerializer.dumpAttrib(elem, "phaseShift", phaseShift);
+            XMLSerializer.dumpAttr(elem, "phaseShift", phaseShift);
 	if (dutyCycle != .5)
-            XMLSerializer.dumpAttrib(elem, "dutyCycle", dutyCycle);
+            XMLSerializer.dumpAttr(elem, "dutyCycle", dutyCycle);
     }
 
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
-	xml.parseIntAttr("wf", x -> waveform = x);
-	xml.parseDoubleAttr("f", x -> frequency = x);
-	xml.parseDoubleAttr("maxv", x -> maxVoltage = x);
-	xml.parseDoubleAttr("bias", x -> bias = x);
-	xml.parseDoubleAttr("phaseShift", x -> phaseShift = x);
-	xml.parseDoubleAttr("dutyCycle", x -> dutyCycle = x);
+	waveform = xml.parseIntAttr("wf", waveform);
+	frequency = xml.parseDoubleAttr("f", frequency);
+	maxVoltage = xml.parseDoubleAttr("maxv", maxVoltage);
+	bias = xml.parseDoubleAttr("bias", bias);
+	phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);
+	dutyCycle = xml.parseDoubleAttr("dutyCycle", dutyCycle);
     }
 
     void reset() {

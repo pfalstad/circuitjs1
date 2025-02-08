@@ -108,13 +108,13 @@ class XMLSerializer {
         // 32 = linear scale in afilter
 	SimulationManager sim = app.sim;
         f |= sim.adjustTimeStep ? 64 : 0;
-	XMLSerializer.dumpAttrib(root, "f", f);
-	XMLSerializer.dumpAttrib(root, "ts", sim.maxTimeStep);
-	XMLSerializer.dumpAttrib(root, "ic", app.getIterCount());
-	XMLSerializer.dumpAttrib(root, "cb", app.currentBar.getValue());
-	XMLSerializer.dumpAttrib(root, "pb", app.powerBar.getValue());
-	XMLSerializer.dumpAttrib(root, "vr", CircuitElm.voltageRange);
-	XMLSerializer.dumpAttrib(root, "mts", sim.minTimeStep);
+	XMLSerializer.dumpAttr(root, "f", f);
+	XMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
+	XMLSerializer.dumpAttr(root, "ic", app.getIterCount());
+	XMLSerializer.dumpAttr(root, "cb", app.currentBar.getValue());
+	XMLSerializer.dumpAttr(root, "pb", app.powerBar.getValue());
+	XMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
+	XMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
 
 	for (CircuitElm ce: sim.elmList) {
 	    Element elem = doc.createElement(ce.getXmlDumpType());
@@ -137,7 +137,7 @@ class XMLSerializer {
 	return prettyPrint(doc);
     }
 
-    static void dumpAttrib(Element elem, String name, String value) {
+    static void dumpAttr(Element elem, String name, String value) {
 	value = value.replace("&", "&amp;")
                 .replace("\"", "&quot;")
                 .replace("'", "&apos;")
@@ -145,10 +145,10 @@ class XMLSerializer {
 	elem.setAttribute(name, value);
     }
 
-    static void dumpAttrib(Element elem, String name, int value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, int value) { elem.setAttribute(name, String.valueOf(value)); }
 
-    static void dumpAttrib(Element elem, String name, boolean value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, boolean value) { elem.setAttribute(name, String.valueOf(value)); }
 
-    static void dumpAttrib(Element elem, String name, double value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, double value) { elem.setAttribute(name, String.valueOf(value)); }
 }
 

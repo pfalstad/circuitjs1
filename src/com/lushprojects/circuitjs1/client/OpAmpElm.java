@@ -75,18 +75,18 @@ import com.google.gwt.xml.client.Document;
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttrib(elem, "ma", maxOut);
-	    XMLSerializer.dumpAttrib(elem, "mi", minOut);
+	    XMLSerializer.dumpAttr(elem, "ma", maxOut);
+	    XMLSerializer.dumpAttr(elem, "mi", minOut);
 	    //XMLSerializer.dumpAttrib(elem, "gb", gbw);
-	    XMLSerializer.dumpAttrib(elem, "ga", gain);
+	    XMLSerializer.dumpAttr(elem, "ga", gain);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    xml.parseDoubleAttr("ma", x -> maxOut = x);
-	    xml.parseDoubleAttr("mi", x -> minOut = x);
-	    //xml.parseDoubleAttr("gb", x -> gbw = x);
-	    xml.parseDoubleAttr("ga", x -> gain = x);
+	    maxOut = xml.parseDoubleAttr("ma", maxOut);
+	    minOut = xml.parseDoubleAttr("mi", minOut);
+	    //gbw = xml.parseDoubleAttr("gb", gbw);
+	    gain = xml.parseDoubleAttr("ga", gain);
 	}
 
 	boolean nonLinear() { return true; }
