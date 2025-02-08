@@ -1914,6 +1914,7 @@ class Scope {
 	    return;
     	CircuitElm ce = app.getElm(e);
     	setElm(ce);
+	plots = new Vector<ScopePlot>();
 	int speed = xml.parseIntAttr("sp", 64);
 	String fs = xml.parseStringAttr("f", "0");
 	int flags = importDecOrHex(fs);
