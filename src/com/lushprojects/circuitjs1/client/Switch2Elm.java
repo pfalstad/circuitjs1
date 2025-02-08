@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 // SPDT switch
 
     class Switch2Elm extends SwitchElm {
@@ -49,6 +52,18 @@ package com.lushprojects.circuitjs1.client;
 	int getDumpType() { return 'S'; }
 	String dump() {
 	    return super.dump() + " " + link + " " + throwCount;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "li", link);
+	    XMLSerializer.dumpAttrib(elem, "th", throwCount);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseIntAttr("li", x -> link = x);
+	    xml.parseIntAttr("th", x -> throwCount = x);
 	}
 
 	final int openhs = 16;

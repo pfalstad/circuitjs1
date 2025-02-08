@@ -324,7 +324,9 @@ abstract class ChipElm extends CircuitElm {
 		XMLSerializer.dumpAttrib(elem, "bi", bits);
 	    if (highVoltage != 5)
 		XMLSerializer.dumpAttrib(elem, "hv", highVoltage);
+	}
 
+	void dumpXmlState(Document doc, Element elem) {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		if (pins[i].state && volts[i] > 0)

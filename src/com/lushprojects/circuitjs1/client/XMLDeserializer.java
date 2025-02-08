@@ -24,6 +24,8 @@ import java.util.function.Consumer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Random;
 import java.lang.Math;
@@ -55,6 +57,7 @@ class XMLDeserializer {
         NodeList children = root.getChildNodes();
 
         app.elmList.clear();
+	app.scopeCount = 0;
         
         for (int i = 0; i < children.getLength(); i++) {
             Node node = children.item(i);
@@ -64,8 +67,15 @@ class XMLDeserializer {
 	    Element elem = (Element) node;
 	    String tagName = elem.getTagName();
 	    app.console("tag " + tagName);
-	    if (tagName.equals("o"))
+	    
+	    if (tagName.equals("o")) {
+		Scope sc = new Scope(app, app.sim);
+		sc.position = app.scopeCount;
+		currentXmlElement = elem;
+		sc.undumpXml(this);
+		app.scopes[app.scopeCount++] = sc;
 		continue;
+	    }
 	    
 	    String x = elem.getAttribute("x");
 	    app.console("x: " + x);
@@ -120,5 +130,52 @@ class XMLDeserializer {
 	setter.accept(s);
     }
 
+    public double parseDoubleAttr(String attr, double def) {
+	String v = currentXmlElement.getAttribute(attr);
+	if (v == null)
+	    return def;
+	return Double.parseDouble(v);
+    }
+
+    public int parseIntAttr(String attr, int def) {
+	String v = currentXmlElement.getAttribute(attr);
+	if (v == null)
+	    return def;
+	return Integer.parseInt(v);
+    }
+    
+    public boolean parseBooleanAttr(String attr, boolean def) {
+	String v = currentXmlElement.getAttribute(attr);
+	if (v == null)
+	    return def;
+	return Boolean.parseBoolean(v);
+    }
+    
+    public String parseStringAttr(String attr, String def) {
+	String s = currentXmlElement.getAttribute(attr);
+	if (s == null)
+	    return def;
+    	s = s.replace("&quot;", "\"")
+             .replace("&apos;", "'")
+             .replace("&lt;", "<")
+             .replace("&gt;", ">")
+             .replace("&amp;", "&");
+	return s;
+    }
+
+    public List<Element> getChildElements() {
+        List<Element> elements = new ArrayList<>();
+        NodeList children = currentXmlElement.getChildNodes();
+        
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                elements.add((Element) node);
+            }
+        }
+        return elements;
+    }
+
+    public void parseChildElement(Element e) { currentXmlElement = e; }
 }
 

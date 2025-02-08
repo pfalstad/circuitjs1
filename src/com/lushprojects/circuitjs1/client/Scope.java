@@ -1908,6 +1908,41 @@ class Scope {
 	    xmlElm.setAttribute("x", text);
     }
 
+    void undumpXml(XMLDeserializer xml) {
+	int e = xml.parseIntAttr("en", -1);
+	if (e == -1)
+	    return;
+    	CircuitElm ce = app.getElm(e);
+    	setElm(ce);
+	int speed = xml.parseIntAttr("sp", 64);
+	String fs = xml.parseStringAttr("f", "0");
+	int flags = importDecOrHex(fs);
+	position = xml.parseIntAttr("p", 0);
+	manDivisions = xml.parseIntAttr("md", 8);
+	text = xml.parseStringAttr("x", (String)null);
+	int i = 0;
+	for (Element elem: xml.getChildElements()) {
+	    xml.parseChildElement(elem);
+	    int plotFlags = Integer.parseInt(xml.parseStringAttr("f", "0"), 16);
+	    CircuitElm elm = app.getElm(xml.parseIntAttr("e", -1));
+	    int val = xml.parseIntAttr("v", -1);
+	    int u = elm.getScopeUnits(val);
+	    double sc = xml.parseDoubleAttr("sc", -1);
+	    if (sc >= 0)
+		scale[u] = sc;
+	    ScopePlot p = new ScopePlot(elm, u, val, getManScaleFromMaxScale(u, false));
+	    plots.add(p);
+	    p.acCoupled = (plotFlags & ScopePlot.FLAG_AC) != 0;
+	    double ms = xml.parseDoubleAttr("ms", -1);
+	    if (ms >= 0) {
+		p.manScaleSet = true;
+		p.manScale = ms;
+		p.manVPosition = xml.parseIntAttr("mp", 0);
+	    }
+	}
+    	setFlags(flags);
+    }
+
     void undump(StringTokenizer st) {
     	initialize();
     	int e = new Integer(st.nextToken()).intValue();

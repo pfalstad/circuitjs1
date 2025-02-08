@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class MosfetElm extends CircuitElm {
@@ -104,6 +107,21 @@ class MosfetElm extends CircuitElm {
 	String dump() {
 	    return super.dump() + " " + vt + " " + beta;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "vt", vt);
+	    XMLSerializer.dumpAttrib(elem, "be", beta);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("vt", x -> vt = x);
+	    xml.parseDoubleAttr("be", x -> beta = x);
+	    globalFlags = flags & (FLAGS_GLOBAL);
+	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
+	}
+
 	int getDumpType() { return 'f'; }
 	final int hs = 16;
 	

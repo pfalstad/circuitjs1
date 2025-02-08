@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class Counter2Elm extends ChipElm {
@@ -38,6 +41,16 @@ class Counter2Elm extends ChipElm {
 
 	String dump() {
 	    return super.dump() + " " + modulus;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "mo", modulus);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseIntAttr("mo", x -> modulus = x);
 	}
 
 	boolean needsBits() { return true; }
@@ -145,4 +158,5 @@ class Counter2Elm extends ChipElm {
 	    writeOutput(rco, carry && pins[ent].value);
 	}
 	int getDumpType() { return 421; }
+	String getXmlDumpType() { return "ctr2"; }
     }

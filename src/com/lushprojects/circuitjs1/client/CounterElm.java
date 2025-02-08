@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class CounterElm extends ChipElm {
@@ -44,6 +47,19 @@ class CounterElm extends ChipElm {
 
 	String dump() {
 	    return super.dump() + " " + invertreset + " " + modulus;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "in", invertreset);
+	    XMLSerializer.dumpAttrib(elem, "mo", modulus);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseBooleanAttr("in", x -> invertreset = x);
+	    xml.parseIntAttr("mo", x -> modulus = x);
+	    pins[1].bubble = invertreset;
 	}
 
 	boolean needsBits() { return true; }
@@ -157,4 +173,5 @@ class CounterElm extends ChipElm {
 	    lastClock = pins[0].value;
 	}
 	int getDumpType() { return 164; }
+	String getXmlDumpType() { return "ctr"; }
     }

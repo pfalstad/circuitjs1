@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class InverterElm extends CircuitElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class InverterElm extends CircuitElm {
 	double slewRate; // V/ns
 	double highVoltage;
 	public InverterElm(int xx, int yy) {
@@ -44,6 +47,18 @@ package com.lushprojects.circuitjs1.client;
 	}
 	String dump() {
 	    return super.dump() + " " + slewRate + " " + highVoltage;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttrib(elem, "sl", slewRate);
+	    XMLSerializer.dumpAttrib(elem, "hi", highVoltage);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    xml.parseDoubleAttr("sl", x -> slewRate = x);
+	    xml.parseDoubleAttr("hi", x -> highVoltage = x);
 	}
 	
 	int getDumpType() { return 'I'; }
