@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 // contributed by Edward Calver
 
     class DeMultiplexerElm extends ChipElm {
@@ -38,6 +41,16 @@ package com.lushprojects.circuitjs1.client;
 	}
 	String getChipName() { return "demultiplexer"; }
 	String dump() { return super.dump() + " " + selectBitCount; }
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "se", selectBitCount);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    selectBitCount = xml.parseIntAttr("se", selectBitCount);
+	}
 
 	void setupPins() {
 	    if (selectBitCount == 0)

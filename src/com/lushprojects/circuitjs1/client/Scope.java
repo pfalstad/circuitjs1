@@ -1894,7 +1894,8 @@ class Scope {
 	    Element pelm = doc.createElement("p");
 	    if (p.getPlotFlags() > 0)
 		XMLSerializer.dumpAttr(pelm, "f", Integer.toHexString(p.getPlotFlags()));
-	    XMLSerializer.dumpAttr(pelm, "e", app.locateElm(p.elm));
+	    if (p.elm != elm)
+		XMLSerializer.dumpAttr(pelm, "e", app.locateElm(p.elm));
 	    XMLSerializer.dumpAttr(pelm, "v", p.value);
 	    XMLSerializer.dumpAttr(pelm, "sc", scale[p.units]);
     	    if (isManualScale()) {
@@ -1915,7 +1916,7 @@ class Scope {
     	CircuitElm ce = app.getElm(e);
     	setElm(ce);
 	plots = new Vector<ScopePlot>();
-	int speed = xml.parseIntAttr("sp", 64);
+	speed = xml.parseIntAttr("sp", 64);
 	String fs = xml.parseStringAttr("f", "0");
 	int flags = importDecOrHex(fs);
 	position = xml.parseIntAttr("p", 0);
@@ -1925,7 +1926,7 @@ class Scope {
 	for (Element elem: xml.getChildElements()) {
 	    xml.parseChildElement(elem);
 	    int plotFlags = Integer.parseInt(xml.parseStringAttr("f", "0"), 16);
-	    CircuitElm elm = app.getElm(xml.parseIntAttr("e", -1));
+	    CircuitElm elm = app.getElm(xml.parseIntAttr("e", e));
 	    int val = xml.parseIntAttr("v", -1);
 	    int u = elm.getScopeUnits(val);
 	    double sc = xml.parseDoubleAttr("sc", -1);

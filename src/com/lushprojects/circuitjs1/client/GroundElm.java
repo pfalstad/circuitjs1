@@ -48,12 +48,13 @@ class GroundElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttr(elem, "sy", symbolType);
+	    if (symbolType != 0)
+		XMLSerializer.dumpAttr(elem, "sy", symbolType);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    symbolType = xml.parseIntAttr("sy", symbolType);
+	    symbolType = xml.parseIntAttr("sy", 0);
 	}
 
 	int getDumpType() { return 'g'; }

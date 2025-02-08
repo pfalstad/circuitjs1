@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class SevenSegElm extends ChipElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class SevenSegElm extends ChipElm {
 	// base segment count not including decimal point or colon
 	int baseSegmentCount;
 	
@@ -60,6 +63,21 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
 	String dump() { return super.dump() + " " + baseSegmentCount + " " + extraSegment + " " + diodeDirection; }
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ba", baseSegmentCount);
+	    XMLSerializer.dumpAttr(elem, "ex", extraSegment);
+	    XMLSerializer.dumpAttr(elem, "di", diodeDirection);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    baseSegmentCount = xml.parseIntAttr("ba", baseSegmentCount);
+	    extraSegment = xml.parseIntAttr("ex", extraSegment);
+	    diodeDirection = xml.parseIntAttr("di", diodeDirection);
+	    setPinCount();
+	}
 	
 	String getChipName() { return segmentCount + "-segment display"; }
 	Color darkred, lightgray;
@@ -300,6 +318,7 @@ package com.lushprojects.circuitjs1.client;
 	int getPostCount() { return pinCount; }
 	int getVoltageSourceCount() { return 0; }
 	int getDumpType() { return 157; }
+	String getXmlDumpType() { return "ssd"; }
 	
 	public EditInfo getChipEditInfo(int n) {
 	        if (n == 0) {

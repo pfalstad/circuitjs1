@@ -335,6 +335,7 @@ abstract class ChipElm extends CircuitElm {
 	}
 
 	void undumpXml(XMLDeserializer xml) {
+	    flags = 0;  // might get set by setSize() in constructor
 	    super.undumpXml(xml);
 	    bits = xml.parseIntAttr("bi", bits);
 	    highVoltage = xml.parseDoubleAttr("hv", highVoltage);

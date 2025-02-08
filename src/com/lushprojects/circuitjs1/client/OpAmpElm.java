@@ -82,11 +82,13 @@ import com.google.gwt.xml.client.Document;
 	}
 
 	void undumpXml(XMLDeserializer xml) {
+	    flags = 0; // size might have changed
 	    super.undumpXml(xml);
 	    maxOut = xml.parseDoubleAttr("ma", maxOut);
 	    minOut = xml.parseDoubleAttr("mi", minOut);
 	    //gbw = xml.parseDoubleAttr("gb", gbw);
 	    gain = xml.parseDoubleAttr("ga", gain);
+	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
 	}
 
 	boolean nonLinear() { return true; }

@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import java.util.Vector;
 
 import com.google.gwt.user.client.Window;
@@ -84,17 +87,42 @@ class TransistorElm extends CircuitElm {
 	    return super.dump() + " " + pnp + " " + (volts[0]-volts[1]) + " " +
 		(volts[0]-volts[2]) + " " + beta + " " + CustomLogicModel.escape(modelName);
 	}
-	
-	    public void updateModels() {
-	        setup();
-	    }
 
-	    String dumpModel() {
-	        if (model.builtIn || model.dumped)
-	            return null;
-	        return model.dump();
-	    }
-	    
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "pn", pnp);
+	    XMLSerializer.dumpAttr(elem, "be", beta);
+	    XMLSerializer.dumpAttr(elem, "mo", modelName);
+	}
+
+	void dumpXmlState(Document doc, Element elem) {
+	    XMLSerializer.dumpAttr(elem, "vbe", volts[0]-volts[1]);
+	    XMLSerializer.dumpAttr(elem, "vbc", volts[0]-volts[2]);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    pnp = xml.parseIntAttr("pn", pnp);
+	    beta = xml.parseDoubleAttr("be", beta);
+	    modelName = xml.parseStringAttr("mo", "default");
+	    lastvbe = xml.parseDoubleAttr("vbe", 0);
+	    lastvbc = xml.parseDoubleAttr("vbc", 0);
+	    volts[0] = 0;
+	    volts[1] = -lastvbe;
+	    volts[2] = -lastvbc;
+            globalFlags = flags & (FLAGS_GLOBAL);
+	    setup();
+	}
+	
+	public void updateModels() {
+	    setup();
+	}
+
+	String dumpModel() {
+	    if (model.builtIn || model.dumped)
+		return null;
+	    return model.dump();
+	}
 	
 	double ic, ie, ib, curcount_c, curcount_e, curcount_b;
 	

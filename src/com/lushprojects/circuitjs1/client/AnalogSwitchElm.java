@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class AnalogSwitchElm extends CircuitElm {
     final int FLAG_INVERT = 1;
     final int FLAG_PULLDOWN = 2;
@@ -55,8 +58,24 @@ class AnalogSwitchElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + r_on + " " + r_off + " " + threshold;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "ron", r_on);
+        XMLSerializer.dumpAttr(elem, "roff", r_off);
+        XMLSerializer.dumpAttr(elem, "th", threshold);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        r_on = xml.parseDoubleAttr("ron", r_on);
+        r_off = xml.parseDoubleAttr("roff", r_off);
+        threshold = xml.parseDoubleAttr("th", threshold);
+    }
     
     int getDumpType() { return 159; }
+    String getXmlDumpType() { return "as"; }
+
     boolean open;
     int openhs;
 	

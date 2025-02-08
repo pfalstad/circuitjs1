@@ -71,6 +71,7 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	return (n == 0) ? point1 : (n == 3) ? ctlPoint : swposts[n-1];
     }
     int getDumpType() { return 160; }
+    String getXmlDumpType() { return "as2"; }
 
     void calculateCurrent() {
 	if (open)

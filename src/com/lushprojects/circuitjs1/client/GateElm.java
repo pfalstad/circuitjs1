@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    abstract class GateElm extends CircuitElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+abstract class GateElm extends CircuitElm {
 	final int FLAG_SMALL = 1<<0;
 	final int FLAG_SCHMITT = 1<<1;
 	final int FLAG_INVERT_INPUTS = 1<<2;
@@ -69,6 +72,34 @@ package com.lushprojects.circuitjs1.client;
 	String dump() {
 	    return super.dump() + " " + inputCount + " " + volts[inputCount] + " " + highVoltage;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    if (highVoltage != 5)
+		XMLSerializer.dumpAttr(elem, "hi", highVoltage);
+	    if (inputCount > 2)
+		XMLSerializer.dumpAttr(elem, "in", inputCount);
+	}
+
+	void dumpXmlState(Document doc, Element elem) {
+	    if (volts[inputCount] != 0)
+		XMLSerializer.dumpAttr(elem, "o", volts[inputCount]);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    flags = 0; // SMALL might have gotten set
+	    super.undumpXml(xml);
+	    highVoltage = xml.parseDoubleAttr("hi", highVoltage);
+	    inputCount = xml.parseIntAttr("in", inputCount);
+	    double lastOutputVoltage = xml.parseDoubleAttr("o", 0);
+	    lastOutput = lastOutputVoltage > highVoltage*.5;
+	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+	    allocNodes();
+	    setupVolts();
+	}
+
+	String getXmlDumpType() { return getClassName().replace("GateElm", ""); }
+
 	Point inPosts[], inGates[];
 	boolean inputStates[];
 	int ww;

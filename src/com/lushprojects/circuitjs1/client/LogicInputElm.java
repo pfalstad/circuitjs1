@@ -54,8 +54,10 @@ class LogicInputElm extends SwitchElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttr(elem, "hi", hiV);
-	    XMLSerializer.dumpAttr(elem, "lo", loV);
+	    if (hiV != 5)
+		XMLSerializer.dumpAttr(elem, "hi", hiV);
+	    if (loV != 0)
+		XMLSerializer.dumpAttr(elem, "lo", loV);
 	}
 
 	void undumpXml(XMLDeserializer xml) {

@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class TriodeElm extends CircuitElm {
     double mu, kg1;
     double curcountp, curcountc, curcountg, currentp, currentg, currentc;
@@ -46,6 +49,18 @@ class TriodeElm extends CircuitElm {
     }
     String dump() {
 	return super.dump() + " " + mu + " " + kg1;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "mu", mu);
+        XMLSerializer.dumpAttr(elem, "kg", kg1);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        mu = xml.parseDoubleAttr("mu", mu);
+        kg1 = xml.parseDoubleAttr("kg", kg1);
     }
     int getDumpType() { return 173; }
 	

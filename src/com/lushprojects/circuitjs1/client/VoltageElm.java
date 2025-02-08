@@ -96,7 +96,8 @@ class VoltageElm extends CircuitElm {
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "wf", waveform);
-        XMLSerializer.dumpAttr(elem, "f", frequency);
+	if (waveform != WF_DC)
+	    XMLSerializer.dumpAttr(elem, "fr", frequency);
         XMLSerializer.dumpAttr(elem, "maxv", maxVoltage);
 	if (bias != 0)
             XMLSerializer.dumpAttr(elem, "bias", bias);
@@ -109,7 +110,7 @@ class VoltageElm extends CircuitElm {
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
 	waveform = xml.parseIntAttr("wf", waveform);
-	frequency = xml.parseDoubleAttr("f", frequency);
+	frequency = xml.parseDoubleAttr("fr", frequency);
 	maxVoltage = xml.parseDoubleAttr("maxv", maxVoltage);
 	bias = xml.parseDoubleAttr("bias", bias);
 	phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);

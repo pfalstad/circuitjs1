@@ -47,7 +47,8 @@ class LogicOutputElm extends CircuitElm {
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
-	    XMLSerializer.dumpAttr(elem, "th", threshold);
+	    if (threshold != 2.5)
+		XMLSerializer.dumpAttr(elem, "th", threshold);
 	}
 
 	void undumpXml(XMLDeserializer xml) {

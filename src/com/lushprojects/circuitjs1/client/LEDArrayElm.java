@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class LEDArrayElm extends ChipElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class LEDArrayElm extends ChipElm {
 	public LEDArrayElm(int xx, int yy) {
 	    super(xx, yy);
 	}
@@ -36,6 +39,18 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
 	String dump() { return super.dump() + " " + sizeX + " " + sizeY ; }
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "sx", sizeX);
+	    XMLSerializer.dumpAttr(elem, "sy", sizeY);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+            sizeX = xml.parseIntAttr("sx", sizeX);
+            sizeY = xml.parseIntAttr("sy", sizeY);
+	}
 	
 	String getChipName() { return "LED array"; }
 	

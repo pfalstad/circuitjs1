@@ -137,7 +137,13 @@ class XMLSerializer {
 	return prettyPrint(doc);
     }
 
+    static void checkAttr(Element elem, String name) {
+	if (elem.getAttribute(name) != null)
+	    throw new RuntimeException("naming conflict: " + name);
+    }
+
     static void dumpAttr(Element elem, String name, String value) {
+	checkAttr(elem, name);
 	value = value.replace("&", "&amp;")
                 .replace("\"", "&quot;")
                 .replace("'", "&apos;")
@@ -145,10 +151,10 @@ class XMLSerializer {
 	elem.setAttribute(name, value);
     }
 
-    static void dumpAttr(Element elem, String name, int value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, int value) { checkAttr(elem, name); elem.setAttribute(name, String.valueOf(value)); }
 
-    static void dumpAttr(Element elem, String name, boolean value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, boolean value) { checkAttr(elem, name); elem.setAttribute(name, String.valueOf(value)); }
 
-    static void dumpAttr(Element elem, String name, double value) { elem.setAttribute(name, String.valueOf(value)); }
+    static void dumpAttr(Element elem, String name, double value) { checkAttr(elem, name); elem.setAttribute(name, String.valueOf(value)); }
 }
 

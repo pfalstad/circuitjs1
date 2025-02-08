@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class DecimalDisplayElm extends ChipElm {
     int bitCount;
     
@@ -60,7 +63,20 @@ class DecimalDisplayElm extends ChipElm {
     }
     
     String dump() { return super.dump() + " " + bitCount; }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "bc", bitCount);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        bitCount = xml.parseIntAttr("bc", bitCount);
+	setupPins();
+    }
     
+    String getXmlDumpType() { return "dd"; }
+
     void setupPins() {
 	sizeX = 3;
 	sizeY = bitCount;
