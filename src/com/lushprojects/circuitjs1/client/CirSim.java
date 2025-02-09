@@ -112,7 +112,7 @@ MouseOutHandler, MouseWheelHandler {
     Button dumpMatrixButton;
     private Label powerLabel;
     private Label titleLabel;
-    private Scrollbar speedBar;
+    Scrollbar speedBar;
     Scrollbar currentBar;
     Scrollbar powerBar;
     boolean hideMenu = false;
@@ -2385,33 +2385,36 @@ MouseOutHandler, MouseWheelHandler {
     static final int RC_SUBCIRCUITS = 4;
     static final int RC_KEEP_TITLE = 8;
 
+    void clearCircuit() {
+	clearMouseElm();
+	for (int i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    ce.delete();
+	}
+	sim.resetTime();
+	elmList.removeAllElements();
+	hintType = -1;
+	sim.maxTimeStep = 5e-6;
+	sim.minTimeStep = 50e-12;
+	menus.dotsCheckItem.setState(false);
+	menus.smallGridCheckItem.setState(false);
+	menus.powerCheckItem.setState(false);
+	menus.voltsCheckItem.setState(true);
+	menus.showValuesCheckItem.setState(true);
+	setGrid();
+	speedBar.setValue(117); // 57
+	currentBar.setValue(50);
+	powerBar.setValue(50);
+	CircuitElm.voltageRange = 5;
+	scopeCount = 0;
+	sim.lastIterTime = 0;
+    }
+
     void readCircuit(byte b[], int flags) {
 	int i;
 	int len = b.length;
-	if ((flags & RC_RETAIN) == 0) {
-	    clearMouseElm();
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		ce.delete();
-	    }
-	    sim.resetTime();
-	    elmList.removeAllElements();
-	    hintType = -1;
-	    sim.maxTimeStep = 5e-6;
-	    sim.minTimeStep = 50e-12;
-	    menus.dotsCheckItem.setState(false);
-	    menus.smallGridCheckItem.setState(false);
-	    menus.powerCheckItem.setState(false);
-	    menus.voltsCheckItem.setState(true);
-	    menus.showValuesCheckItem.setState(true);
-	    setGrid();
-	    speedBar.setValue(117); // 57
-	    currentBar.setValue(50);
-	    powerBar.setValue(50);
-	    CircuitElm.voltageRange = 5;
-	    scopeCount = 0;
-	    sim.lastIterTime = 0;
-	}
+	if ((flags & RC_RETAIN) == 0)
+	    clearCircuit();
 	boolean subs = (flags & RC_SUBCIRCUITS) != 0;
 	//cv.repaint();
 	int p;
@@ -2562,12 +2565,7 @@ MouseOutHandler, MouseWheelHandler {
 	    return;
 	}
 	
-	menus.dotsCheckItem.setState((flags & 1) != 0);
-	menus.smallGridCheckItem.setState((flags & 2) != 0);
-	menus.voltsCheckItem.setState((flags & 4) == 0);
-	menus.powerCheckItem.setState((flags & 8) == 8);
-	menus.showValuesCheckItem.setState((flags & 16) == 0);
-	sim.adjustTimeStep = (flags & 64) != 0;
+	readCircuitFlags(flags);
 	sim.maxTimeStep = sim.timeStep = new Double (st.nextToken()).doubleValue();
 	double sp = new Double(st.nextToken()).doubleValue();
 	int sp2 = (int) (Math.log(10*sp)*24+61.5);
@@ -2584,6 +2582,15 @@ MouseOutHandler, MouseWheelHandler {
 	setGrid();
     }
     
+    void readCircuitFlags(int flags) {
+	menus.dotsCheckItem.setState((flags & 1) != 0);
+	menus.smallGridCheckItem.setState((flags & 2) != 0);
+	menus.voltsCheckItem.setState((flags & 4) == 0);
+	menus.powerCheckItem.setState((flags & 8) == 8);
+	menus.showValuesCheckItem.setState((flags & 16) == 0);
+	sim.adjustTimeStep = (flags & 64) != 0;
+    }
+
     int snapGrid(int x) {
 	return (x+gridRound) & gridMask;
     }

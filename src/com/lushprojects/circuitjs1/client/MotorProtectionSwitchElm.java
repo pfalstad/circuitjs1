@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.google.gwt.canvas.dom.client.Context2d.LineCap;
 import com.google.gwt.canvas.dom.client.Context2d.TextBaseline;
 import com.lushprojects.circuitjs1.client.util.Locale;
@@ -58,6 +61,22 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	}
 	String dump() {
 	    return super.dump() + " " + resistance + " " + i2t + " " + blown + " " + CustomLogicModel.escape(label);
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "re", resistance);
+	    XMLSerializer.dumpAttr(elem, "i2", i2t);
+	    XMLSerializer.dumpAttr(elem, "bl", blown);
+	    XMLSerializer.dumpAttr(elem, "la", label);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    resistance = xml.parseDoubleAttr("re", resistance);
+	    i2t = xml.parseDoubleAttr("i2", i2t);
+	    blown = xml.parseBooleanAttr("bl", blown);
+	    label = xml.parseStringAttr("la", label);
 	}
 	int getDumpType() { return 428; }
 

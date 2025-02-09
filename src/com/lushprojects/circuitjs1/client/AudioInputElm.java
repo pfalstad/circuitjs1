@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+
 import com.google.gwt.core.client.JsArrayNumber;
 import java.util.HashMap;
 import com.google.gwt.dom.client.Element;
@@ -58,18 +60,18 @@ class AudioInputElm extends RailElm {
 	    maxVoltage = Double.parseDouble(st.nextToken());
 	    startPosition = Double.parseDouble(st.nextToken());
 	    fileNum = Integer.parseInt(st.nextToken());
-
-	    AudioFileEntry ent = audioFileMap.get(fileNum);
-	    if (ent != null) {
-		fileName = ent.fileName;
-		data = ent.data;
-	    }
+	    lookupFileNumber();
 	    samplingRate = lastSamplingRate;
 	}
 	
 	double fmphase;
 	
 	String dump() {
+	    genFileNumber();
+	    return super.dump() + " " + maxVoltage + " " + startPosition + " " + fileNum;
+	}
+	
+	void genFileNumber() {
 	    // add a file number to the dump so we can preserve the audio file data when doing cut and paste, or undo/redo.
 	    // we don't save the entire file in the dump because it would be huge.
 	    if (data != null) {
@@ -80,9 +82,33 @@ class AudioInputElm extends RailElm {
 		ent.data = data;
 		audioFileMap.put(fileNum, ent);
 	    }
-	    return super.dump() + " " + maxVoltage + " " + startPosition + " " + fileNum;
 	}
-	
+
+	void lookupFileNumber() {
+	    AudioFileEntry ent = audioFileMap.get(fileNum);
+	    if (ent != null) {
+		fileName = ent.fileName;
+		data = ent.data;
+	    }
+	}
+
+	void dumpXml(Document doc, com.google.gwt.xml.client.Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ma", maxVoltage);
+	    XMLSerializer.dumpAttr(elem, "st", startPosition);
+	    genFileNumber();
+	    XMLSerializer.dumpAttr(elem, "fi", fileNum);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    maxVoltage = xml.parseDoubleAttr("ma", maxVoltage);
+	    startPosition = xml.parseDoubleAttr("st", startPosition);
+	    fileNum = xml.parseIntAttr("fi", fileNum);
+	    lookupFileNumber();
+	    samplingRate = lastSamplingRate;
+	}
+
 	void reset() {
 	    timeOffset = startPosition;
 	}
@@ -119,6 +145,7 @@ class AudioInputElm extends RailElm {
 	}
 	
 	int getDumpType() { return 411; }
+	String getXmlDumpType() { return "ain"; }
 	int getShortcut() { return 0; }
 	
 	public EditInfo getEditInfo(int n) {

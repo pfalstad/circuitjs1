@@ -45,7 +45,7 @@ class XMLDeserializer {
     Element currentXmlElement;
     CircuitElm currentElm;
 
-    void readCircuit(String text, int flags) {
+    void readCircuit(String text, int readFlags) {
         // Parse the XML
         Document doc = XMLParser.parse(text);
         
@@ -55,8 +55,21 @@ class XMLDeserializer {
 	// Get all child elements of root
         NodeList children = root.getChildNodes();
 
-        app.elmList.clear();
-	app.scopeCount = 0;
+	app.clearCircuit();
+	currentXmlElement = root;
+
+        int flags = parseIntAttr("f", 0);
+	app.readCircuitFlags(flags);
+	SimulationManager sim = app.sim;
+        sim.maxTimeStep = sim.timeStep = parseDoubleAttr("ts", sim.maxTimeStep);
+        double sp = parseDoubleAttr("ic", app.getIterCount());
+        int sp2 = (int) (Math.log(10*sp)*24+61.5);
+        app.speedBar.setValue(sp2);
+        app.currentBar.setValue(parseIntAttr("cb", app.currentBar.getValue()));
+        CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);
+	app.powerBar.setValue(parseIntAttr("pb", app.powerBar.getValue()));
+        sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
+        app.setGrid();
         
         for (int i = 0; i < children.getLength(); i++) {
             Node node = children.item(i);

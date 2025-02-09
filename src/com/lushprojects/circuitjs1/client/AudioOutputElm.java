@@ -1,5 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import java.util.Date;
 
 import com.google.gwt.core.client.JsArrayInteger;
@@ -44,6 +47,22 @@ public class AudioOutputElm extends CircuitElm {
 	String dump() { 
 	    return super.dump() + " " + duration + " " + samplingRate + " " + labelNum;
 	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "du", duration);
+	    XMLSerializer.dumpAttr(elem, "sa", samplingRate);
+	    XMLSerializer.dumpAttr(elem, "la", labelNum);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    duration = xml.parseDoubleAttr("du", duration);
+	    samplingRate = xml.parseIntAttr("sa", samplingRate);
+	    labelNum = xml.parseIntAttr("la", labelNum);
+	    setDataCount();
+	    setButtonLabel();
+	}
 	
 	void draggingDone() {
 	    setTimeStep();
@@ -67,7 +86,9 @@ public class AudioOutputElm extends CircuitElm {
 	}
 	
 	int getDumpType() { return 211; }
+	String getXmlDumpType() { return "aout"; }
 	int getPostCount() { return 1; }
+
 	void reset() {
 	    dataPtr = 0;
 	    dataFull = false;
@@ -218,11 +239,9 @@ public class AudioOutputElm extends CircuitElm {
 	}
 	
         void createButton() {
-            String label = "&#9654; " + Locale.LS("Play Audio");
-            if (labelNum > 1)
-        	label += " " + labelNum;
-            app.addWidgetToVerticalPanel(button = new Button(label));
+            app.addWidgetToVerticalPanel(button = new Button(""));
             button.setStylePrimaryName("topButton");
+	    setButtonLabel();
             button.addClickHandler(new ClickHandler() {
         	public void onClick(ClickEvent event) {
         	    play();
@@ -230,6 +249,14 @@ public class AudioOutputElm extends CircuitElm {
             });
             
         }
+
+	void setButtonLabel() {
+            String label = "&#9654; " + Locale.LS("Play Audio");
+            if (labelNum > 1)
+        	label += " " + labelNum;
+	    button.setHTML(label);
+	}
+
         void delete() {
             app.removeWidgetFromVerticalPanel(button);
             super.delete();

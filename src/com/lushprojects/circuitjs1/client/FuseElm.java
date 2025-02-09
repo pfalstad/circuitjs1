@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class FuseElm extends CircuitElm {
@@ -44,6 +47,22 @@ class FuseElm extends CircuitElm {
 	}
 	String dump() {
 	    return super.dump() + " " + resistance + " " + i2t + " " + heat + " " + blown;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "re", resistance);
+	    XMLSerializer.dumpAttr(elem, "i2", i2t);
+	    XMLSerializer.dumpAttr(elem, "he", heat);
+	    XMLSerializer.dumpAttr(elem, "bl", blown);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    resistance = xml.parseDoubleAttr("re", resistance);
+	    i2t = xml.parseDoubleAttr("i2", i2t);
+	    heat = xml.parseDoubleAttr("he", heat);
+	    blown = xml.parseBooleanAttr("bl", blown);
 	}
 	int getDumpType() { return 404; }
 
