@@ -959,6 +959,8 @@ MouseOutHandler, MouseWheelHandler {
     	} catch (Exception e) {}
     	CheckboxMenuItem mi;
     	register(t, elm);
+	if (elm == null)
+		console("can't create class: " + t);
     	if ( elm!=null ) {
     		if (elm.needsShortcut() ) {
     			shortcut += (char)elm.getShortcut();
@@ -2486,7 +2488,7 @@ MouseOutHandler, MouseWheelHandler {
 		    
 		    CircuitElm newce = createCe(tint, x1, y1, x2, y2, f, st);
 		    if (newce==null) {
-			System.out.println("unrecognized dump type: " + type);
+			console("unrecognized dump type: " + type);
 			break;
 		    }
 		    /*
@@ -4072,6 +4074,8 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void addWidgetToVerticalPanel(Widget w) {
+	if (verticalPanel == null)
+	    return;
     	if (iFrame!=null) {
     		int i=verticalPanel.getWidgetIndex(iFrame);
     		verticalPanel.insert(w, i);
@@ -4082,6 +4086,8 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void removeWidgetFromVerticalPanel(Widget w){
+	if (verticalPanel == null)
+	    return;
     	verticalPanel.remove(w);
     	if (iFrame!=null)
     		setiFrameHeight();
