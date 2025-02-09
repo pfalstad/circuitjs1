@@ -1880,7 +1880,7 @@ class Scope {
 	XMLSerializer.dumpAttr(xmlElm, "sp", vPlot.scopePlotSpeed);
 
 	// we don't care about any of these flags because they are all related to old dump format
-	int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_MAN_SCALE | FLAG_PLOTS);
+	int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_PLOTS);
 
 	XMLSerializer.dumpAttr(xmlElm, "f", exportAsDecOrHex(f, 0));
 	XMLSerializer.dumpAttr(xmlElm, "p", position);
