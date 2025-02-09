@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class MBBSwitchElm extends SwitchElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class MBBSwitchElm extends SwitchElm {
 	int link;
 	int voltSources[];
 	double currents[];
@@ -48,6 +51,16 @@ package com.lushprojects.circuitjs1.client;
 	int getDumpType() { return 416; }
 	String dump() {
 	    return super.dump() + " " + link;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "li", link);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    link = xml.parseIntAttr("li", link);
 	}
 
 	final int openhs = 16;
@@ -181,7 +194,9 @@ package com.lushprojects.circuitjs1.client;
 	public EditInfo getEditInfo(int n) {
 	    if (n == 1)
 	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless();
-	    return super.getEditInfo(n);
+	    if (n == 0)
+		return super.getEditInfo(n);
+	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 1) {

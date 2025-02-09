@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class SparkGapElm extends CircuitElm {
@@ -46,6 +49,23 @@ class SparkGapElm extends CircuitElm {
 	return super.dump() + " " + onresistance + " " + offresistance + " "
 	    + breakdown + " " + holdcurrent;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "on", onresistance);
+        XMLSerializer.dumpAttr(elem, "of", offresistance);
+        XMLSerializer.dumpAttr(elem, "br", breakdown);
+        XMLSerializer.dumpAttr(elem, "ho", holdcurrent);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        onresistance = xml.parseDoubleAttr("on", onresistance);
+        offresistance = xml.parseDoubleAttr("of", offresistance);
+        breakdown = xml.parseDoubleAttr("br", breakdown);
+        holdcurrent = xml.parseDoubleAttr("ho", holdcurrent);
+    }
+
     Polygon arrow1, arrow2;
     void setPoints() {
 	super.setPoints();

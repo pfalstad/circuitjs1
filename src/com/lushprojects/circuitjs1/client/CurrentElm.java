@@ -19,7 +19,10 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    class CurrentElm extends CircuitElm {
+    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
+class CurrentElm extends CircuitElm {
 	double currentValue;
 	boolean broken;
 	public CurrentElm(int xx, int yy) {
@@ -37,6 +40,16 @@ package com.lushprojects.circuitjs1.client;
 	}
 	String dump() {
 	    return super.dump() + " " + currentValue;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "cu", currentValue);
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    currentValue = xml.parseDoubleAttr("cu", currentValue);
 	}
 	int getDumpType() { return 'i'; }
 	

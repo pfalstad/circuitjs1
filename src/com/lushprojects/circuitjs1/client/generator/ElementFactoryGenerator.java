@@ -92,10 +92,12 @@ public class ElementFactoryGenerator extends Generator {
 
             JClassType[] subtypes = circuitElmType.getSubtypes();
             for (JClassType subtype : subtypes) {
-		if (subtype.isAbstract() || !hasTwoIntConstructor(subtype))
-		    continue;
                 String simpleClassName = subtype.getSimpleSourceName();
-System.out.println("class " + simpleClassName);
+		if (subtype.isAbstract() || !hasTwoIntConstructor(subtype)) {
+		    System.out.println("skipping class " + simpleClassName);
+		    continue;
+		}
+                System.out.println("class " + simpleClassName);
                 sw.println("if (\"" + simpleClassName + "\".equals(className)) {");
                 sw.indent();
                 sw.println("return new " + subtype.getQualifiedSourceName() + "(x1, y1);");

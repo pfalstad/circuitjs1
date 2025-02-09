@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
     class TappedTransformerElm extends CircuitElm {
 	double inductance, ratio, couplingCoef;
 	int flip;
@@ -37,6 +40,7 @@ package com.lushprojects.circuitjs1.client;
 	    curSourceValue = new double[3];
 	    a = new double[9];
 	}
+	
 	public TappedTransformerElm(int xa, int ya, int xb, int yb, int f,
 			      StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
@@ -59,10 +63,35 @@ package com.lushprojects.circuitjs1.client;
 	    a = new double[9];
 	}
 	int getDumpType() { return 169; }
+	String getXmlDumpType() { return "tt"; }
 	String dump() {
 	    return super.dump() + " " + inductance + " " + ratio + " " +
 		current[0] + " " + current[1] + " " + current[2] + " " + couplingCoef;
 	}
+
+        void dumpXml(Document doc, Element elem) {
+            super.dumpXml(doc, elem);
+            XMLSerializer.dumpAttr(elem, "in", inductance);
+            XMLSerializer.dumpAttr(elem, "ra", ratio);
+            XMLSerializer.dumpAttr(elem, "co", couplingCoef);
+        }
+
+        void dumpXmlState(Document doc, Element elem) {
+            XMLSerializer.dumpAttr(elem, "c0", current[0]);
+            XMLSerializer.dumpAttr(elem, "c1", current[1]);
+            XMLSerializer.dumpAttr(elem, "c2", current[2]);
+        }
+
+        void undumpXml(XMLDeserializer xml) {
+            super.undumpXml(xml);
+            inductance = xml.parseDoubleAttr("in", inductance);
+            ratio = xml.parseDoubleAttr("ra", ratio);
+            couplingCoef = xml.parseDoubleAttr("co", couplingCoef);
+            current[0] = xml.parseDoubleAttr("c0", 0);
+            current[1] = xml.parseDoubleAttr("c1", 0);
+            current[2] = xml.parseDoubleAttr("c2", 0);
+        }
+
 	void draw(Graphics g) {
 	    int i;
 	    for (i = 0; i != 5; i++) {

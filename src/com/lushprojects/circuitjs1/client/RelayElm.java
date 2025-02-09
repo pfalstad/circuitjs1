@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.google.gwt.user.client.ui.Button;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -98,6 +101,11 @@ class RelayElm extends CircuitElm {
 	    switchingTime = Double.parseDouble(st.nextToken());
 	    d_position = i_position = Integer.parseInt(st.nextToken());
 	} catch (Exception e) {}	
+	postUndump();
+    }
+
+    void postUndump()
+    {
 	if (i_position == 1)
 	    onState = true;
 	// intermediate state?
@@ -121,11 +129,44 @@ class RelayElm extends CircuitElm {
     }
     
     int getDumpType() { return 178; }
+    String getXmlDumpType() { return "rl"; }
     
     String dump() {
 	return super.dump() + " " + poleCount + " " +
 	    inductance + " " + coilCurrent + " " +
 	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "po", poleCount);
+        XMLSerializer.dumpAttr(elem, "in", inductance);
+        XMLSerializer.dumpAttr(elem, "ron", r_on);
+        XMLSerializer.dumpAttr(elem, "roff", r_off);
+        XMLSerializer.dumpAttr(elem, "on", onCurrent);
+        XMLSerializer.dumpAttr(elem, "coR", coilR);
+        XMLSerializer.dumpAttr(elem, "of", offCurrent);
+        XMLSerializer.dumpAttr(elem, "sw", switchingTime);
+    }
+
+    void dumpXmlState(Document doc, Element elem) {
+        XMLSerializer.dumpAttr(elem, "i", coilCurrent);
+        XMLSerializer.dumpAttr(elem, "ip", i_position);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        poleCount = xml.parseIntAttr("po", poleCount);
+        inductance = xml.parseDoubleAttr("in", inductance);
+        r_on = xml.parseDoubleAttr("ron", r_on);
+        r_off = xml.parseDoubleAttr("roff", r_off);
+        onCurrent = xml.parseDoubleAttr("on", onCurrent);
+        coilR = xml.parseDoubleAttr("coR", coilR);
+        offCurrent = xml.parseDoubleAttr("of", offCurrent);
+        switchingTime = xml.parseDoubleAttr("sw", switchingTime);
+        coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
+        i_position = xml.parseIntAttr("ip", i_position);
+	postUndump();
     }
     
     void draw(Graphics g) {

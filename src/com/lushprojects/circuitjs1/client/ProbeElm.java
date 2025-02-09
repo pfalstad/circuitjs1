@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 // much of this was adapted from Bill Collis's code in TestPointElm.java
@@ -65,6 +68,22 @@ class ProbeElm extends CircuitElm {
     String dump() {
         return super.dump() + " " + meter + " " + scale + " " + resistance;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "me", meter);
+        XMLSerializer.dumpAttr(elem, "sc", scale);
+        XMLSerializer.dumpAttr(elem, "re", resistance);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	flags = 0;
+        super.undumpXml(xml);
+        meter = xml.parseIntAttr("me", meter);
+        scale = xml.parseIntAttr("sc", scale);
+        resistance = xml.parseDoubleAttr("re", 0);
+    }
+
     String getMeter(){
         switch (meter) {
         case TP_VOL:

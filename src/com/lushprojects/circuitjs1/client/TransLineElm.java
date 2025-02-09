@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class TransLineElm extends CircuitElm {
@@ -47,9 +50,26 @@ class TransLineElm extends CircuitElm {
     int getDumpType() { return 171; }
     int getPostCount() { return 4; }
     int getInternalNodeCount() { return 2; }
+    String getXmlDumpType() { return "tl"; }
     String dump() {
 	return super.dump() + " " + delay + " " + imped + " " + width + " " + 0.;
     }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "de", delay);
+        XMLSerializer.dumpAttr(elem, "im", imped);
+        XMLSerializer.dumpAttr(elem, "wi", width);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        delay = xml.parseDoubleAttr("de", delay);
+        imped = xml.parseDoubleAttr("im", imped);
+        width = xml.parseIntAttr("wi", width);
+	reset();
+    }
+
     void drag(int xx, int yy) {
 	xx = snapGrid(xx);
 	yy = snapGrid(yy);

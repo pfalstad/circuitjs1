@@ -92,7 +92,6 @@ class TransformerElm extends CircuitElm {
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
-	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "c0", current[0]);
 	    XMLSerializer.dumpAttr(elem, "c1", current[1]);
 	}
@@ -101,9 +100,9 @@ class TransformerElm extends CircuitElm {
 	    super.undumpXml(xml);
 
 	    if (hasFlag(FLAG_VERTICAL))
-		width = -max(32, abs(xb-xa));
+		width = -max(32, abs(x2-x));
 	    else
-		width = max(32, abs(yb-ya));
+		width = max(32, abs(y2-y));
 
 	    inductance = xml.parseDoubleAttr("in", inductance);
 	    ratio = xml.parseDoubleAttr("ra", ratio);

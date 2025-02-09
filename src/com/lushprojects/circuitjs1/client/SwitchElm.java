@@ -82,8 +82,8 @@ class SwitchElm extends CircuitElm {
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
         position = xml.parseIntAttr("p", position);
-        momentary = xml.parseBooleanAttr("ic", momentary);
-        label = xml.parseStringAttr("i", label);
+        momentary = xml.parseBooleanAttr("mm", momentary);
+        label = xml.parseStringAttr("lab", label);
     }
 
     Point ps, ps2;

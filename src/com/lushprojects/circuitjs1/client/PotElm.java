@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import com.google.gwt.user.client.ui.Label;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.google.gwt.user.client.Command;
@@ -62,6 +65,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     
     int getPostCount() { return 3; }
     int getDumpType() { return 174; }
+    String getXmlDumpType() { return "pt"; }
     
     Point getPost(int n) {
 	return (n == 0) ? point1 : (n == 1) ? point2 : post3;
@@ -69,11 +73,33 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     
     String dump() { return super.dump() + " " + maxResistance + " " +
     		position + " " + sliderText; }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "ma", maxResistance);
+        XMLSerializer.dumpAttr(elem, "po", position);
+        XMLSerializer.dumpAttr(elem, "sl", sliderText);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        maxResistance = xml.parseDoubleAttr("ma", maxResistance);
+        position = xml.parseDoubleAttr("po", position);
+        sliderText = xml.parseStringAttr("sl", sliderText);
+	int value = calcSliderValue();
+	slider.setValue(value);
+	label.setText(sliderText);
+    }
     
+    int calcSliderValue() {
+    	int value = (int) Math.round((position-.005)/.0099);
+	return value;
+    }
+
     void createSlider() {
     	app.addWidgetToVerticalPanel(label = new Label(sliderText));
     	label.addStyleName("topSpace");
-    	int value = (int) Math.round((position-.005)/.0099);
+	int value = calcSliderValue();
     	app.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
    // 	sim.verticalPanel.validate();
    // 	slider.addAdjustmentListener(this);
