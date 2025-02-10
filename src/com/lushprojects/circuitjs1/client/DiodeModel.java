@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Vector;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 public class DiodeModel implements Editable, Comparable<DiodeModel> {
 
@@ -239,6 +241,23 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	updateModel();
     }
     
+    static DiodeModel undumpModelXml(XMLDeserializer xml) {
+	String name = xml.parseStringAttr("nm", null);
+	DiodeModel dm = DiodeModel.getModelWithName(name);
+	dm.undumpXml(xml);
+	return dm;
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        flags = xml.parseIntAttr("f", flags);
+	saturationCurrent = xml.parseDoubleAttr("is", saturationCurrent);
+	seriesResistance = xml.parseDoubleAttr("rs", seriesResistance);
+	emissionCoefficient = xml.parseDoubleAttr("n", emissionCoefficient);
+	breakdownVoltage = xml.parseDoubleAttr("bv", breakdownVoltage);
+	forwardCurrent = xml.parseDoubleAttr("fi", forwardCurrent);
+	updateModel();
+    }
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Model Name", 0);
@@ -314,6 +333,20 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	return "34 " + CustomLogicModel.escape(name) + " " + flags + " " + saturationCurrent + " " + seriesResistance + " " + emissionCoefficient + " " + breakdownVoltage + " " + forwardCurrent;
     }
     
+    void dumpXml(Document doc) {
+	dumped = true;
+        Element elem = doc.createElement("dm");
+        XMLSerializer.dumpAttr(elem, "nm", name);
+        XMLSerializer.dumpAttr(elem, "f", flags);
+        XMLSerializer.dumpAttr(elem, "is", saturationCurrent);
+        XMLSerializer.dumpAttr(elem, "rs", seriesResistance);
+        XMLSerializer.dumpAttr(elem, "n", emissionCoefficient);
+        XMLSerializer.dumpAttr(elem, "bv", breakdownVoltage);
+	if (forwardCurrent > 0)
+	    XMLSerializer.dumpAttr(elem, "fi", forwardCurrent);
+	doc.getDocumentElement().appendChild(elem);
+    }
+
     boolean isSimple() {
 	return (flags & FLAGS_SIMPLE) != 0;
     }

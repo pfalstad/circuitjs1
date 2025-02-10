@@ -50,6 +50,8 @@ import com.google.gwt.xml.client.Document;
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
 	    selectBitCount = xml.parseIntAttr("se", selectBitCount);
+	    setupPins();
+	    allocNodes();
 	}
 
 	void setupPins() {
@@ -101,5 +103,6 @@ import com.google.gwt.xml.client.Document;
         }
 
 	int getDumpType() { return 185; }
+	String getXmlDumpType() { return "dmux"; }
 
     }

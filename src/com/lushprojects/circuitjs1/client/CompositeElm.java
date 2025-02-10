@@ -4,6 +4,10 @@ import java.util.Vector;
 import java.util.HashMap;
 import java.util.Map.Entry;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.NamedNodeMap;
+
 // Circuit element made up of a composition of other circuit elements
 // Using this will be (relatively) inefficient in terms of simulation performance because
 // all the internal workings of the element are simulated from the individual components.
@@ -210,6 +214,38 @@ public abstract class CompositeElm extends CircuitElm {
 	    dumpStr += " "+ CustomLogicModel.escape(tstring);
 	}
 	return dumpStr;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+        super.dumpXml(doc, elem);
+
+	int i;
+	for (i = 0; i != compElmList.size(); i++) {
+	    CircuitElm ce = compElmList.get(i);
+            Element child = doc.createElement(ce.getXmlDumpType());
+            ce.dumpXmlState(doc, child);
+
+	    // if no state dumped, skip it
+	    NamedNodeMap attrs = child.getAttributes();
+	    if (attrs == null || attrs.getLength() == 0)
+		continue;
+	    XMLSerializer.dumpAttr(child, "ix", i);
+            elem.appendChild(child);
+	}
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+
+        int i = 0;
+        for (Element elem: xml.getChildElements()) {
+            xml.parseChildElement(elem);
+	    int ix = xml.parseIntAttr("ix", -1);
+	    CircuitElm ce = compElmList.get(ix);
+	    if (!elem.getTagName().equals(ce.getXmlDumpType()))
+		throw new RuntimeException("dump type mismatch for composite child: " + ix);
+	    ce.undumpXml(xml);
+	}
     }
 
     public boolean getConnection(int n1, int n2) {

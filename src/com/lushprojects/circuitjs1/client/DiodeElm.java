@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 import java.util.Vector;
 
 import com.google.gwt.user.client.Window;
@@ -85,10 +88,6 @@ class DiodeElm extends CircuitElm {
     int getDumpType() { return 'd'; }
     String dump() {
 	flags |= FLAG_MODEL;
-/*	if (modelName == null) {
-	    sim.console("model name is null??");
-	    modelName = "default";
-	}*/
 	return super.dump() + " " + CustomLogicModel.escape(modelName);
     }
     
@@ -98,6 +97,19 @@ class DiodeElm extends CircuitElm {
 	return model.dump();
     }
     
+    void dumpXml(Document doc, Element elem) {
+	if (!(model.builtIn || model.dumped))
+	    model.dumpXml(doc);
+        super.dumpXml(doc, elem);
+        XMLSerializer.dumpAttr(elem, "mo", modelName);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        super.undumpXml(xml);
+        modelName = xml.parseStringAttr("mo", modelName);
+	setup();
+    }
+
     final int hs = 8;
     Polygon poly;
     Point cathode[];

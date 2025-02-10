@@ -7,6 +7,8 @@ import java.util.Vector;
 
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.TextArea;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 public class CustomLogicModel implements Editable {
 
@@ -92,6 +94,21 @@ public class CustomLogicModel implements Editable {
 	parseRules();
     }
     
+    static void undumpModelXml(XMLDeserializer xml) {
+        String name = xml.parseStringAttr("nm", null);
+        CustomLogicModel model = getModelWithName(name);
+        model.undumpXml(xml);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+        flags = xml.parseIntAttr("f", flags);
+        inputs = listToArray(xml.parseStringAttr("in", null));
+        outputs = listToArray(xml.parseStringAttr("o", null));
+        infoText = xml.parseStringAttr("if", null);
+	rules = xml.parseContents().trim();
+	parseRules();
+    }
+
     String arrayToList(String arr[]) {
 	if (arr == null)
 	    return "";
@@ -169,7 +186,7 @@ public class CustomLogicModel implements Editable {
 	rulesRight = new Vector<String>();
 	triState = false;
 	for (i = 0; i != lines.length; i++) {
-	    String s = lines[i].toLowerCase();
+	    String s = lines[i].toLowerCase().trim();
 	    if (s.length() == 0 || s.startsWith("#"))
 		continue;
 	    String s0[] = s.replaceAll(" ", "").split("=");
@@ -227,6 +244,18 @@ public class CustomLogicModel implements Editable {
 		escape(arrayToList(outputs)) + " " + escape(infoText) + " " + escape(rules); 
     }
     
+    void dumpXml(Document doc) {
+        dumped = true;
+        Element elem = doc.createElement("clm");
+        XMLSerializer.dumpAttr(elem, "nm", name);
+        XMLSerializer.dumpAttr(elem, "f", flags);
+        XMLSerializer.dumpAttr(elem, "in", arrayToList(inputs));
+        XMLSerializer.dumpAttr(elem, "o", arrayToList(outputs));
+        XMLSerializer.dumpAttr(elem, "if", infoText);
+	elem.appendChild(doc.createTextNode(rules));
+        doc.getDocumentElement().appendChild(elem);
+    }
+
     static String escape(String s) {
 	if (s.length() == 0)
 	    return "\\0";

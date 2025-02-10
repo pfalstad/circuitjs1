@@ -2,10 +2,10 @@ package com.lushprojects.circuitjs1.client;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
 
-// Test element to evaluate if constructing compound elements from individual transistors is feasible
-
 // Iain Sharp, Feb 2017
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 public class DarlingtonElm extends CompositeElm {
 
@@ -47,7 +47,20 @@ public class DarlingtonElm extends CompositeElm {
 	return super.dump()+" "+pnp;
     }
 
+    String getXmlDumpType() { return "dar"; }
     
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "pnp", pnp);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	pnp = xml.parseIntAttr("pnp", pnp);
+	((TransistorElm) compElmList.get(0)).pnp=pnp;
+	((TransistorElm) compElmList.get(1)).pnp=pnp;
+    }
+
     void draw(Graphics g) {
 	setBbox(point1, point2, 16);
 	setPowerColor(g, true);

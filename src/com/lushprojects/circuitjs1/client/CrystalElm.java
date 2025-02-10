@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 class CrystalElm extends CompositeElm {
 	double seriesCapacitance, parallelCapacitance;
@@ -63,7 +65,25 @@ class CrystalElm extends CompositeElm {
 
 
 	int getDumpType() { return 412; }
-	
+	String getXmlDumpType() { return "cr"; }
+
+        void dumpXml(Document doc, Element elem) {
+            super.dumpXml(doc, elem);
+            XMLSerializer.dumpAttr(elem, "pc", parallelCapacitance);
+            XMLSerializer.dumpAttr(elem, "sc", parallelCapacitance);
+            XMLSerializer.dumpAttr(elem, "in", inductance);
+            XMLSerializer.dumpAttr(elem, "r", resistance);
+        }
+
+        void undumpXml(XMLDeserializer xml) {
+            super.undumpXml(xml);
+            resistance = xml.parseDoubleAttr("r", resistance);
+            inductance = xml.parseDoubleAttr("in", inductance);
+            parallelCapacitance = xml.parseDoubleAttr("pc", parallelCapacitance);
+            seriesCapacitance = xml.parseDoubleAttr("sc", seriesCapacitance);
+	    initCrystal();
+        }
+
 	Point sandwichPoints[];
 	
 	void setPoints() {

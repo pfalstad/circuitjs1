@@ -115,6 +115,7 @@ class MosfetElm extends CircuitElm {
 	}
 
 	void undumpXml(XMLDeserializer xml) {
+	    flags = 0;
 	    super.undumpXml(xml);
 	    vt = xml.parseDoubleAttr("vt", vt);
 	    beta = xml.parseDoubleAttr("be", beta);

@@ -78,7 +78,6 @@ class XMLDeserializer {
 
 	    Element elem = (Element) node;
 	    String tagName = elem.getTagName();
-	    app.console("tag " + tagName);
 	    
 	    if (tagName.equals("o")) {
 		Scope sc = new Scope(app, app.sim);
@@ -88,10 +87,18 @@ class XMLDeserializer {
 		app.scopes[app.scopeCount++] = sc;
 		continue;
 	    }
+	    if (tagName.equals("dm")) {
+		currentXmlElement = elem;
+		DiodeModel.undumpModelXml(this);
+		continue;
+	    }
+	    if (tagName.equals("clm")) {
+		currentXmlElement = elem;
+		CustomLogicModel.undumpModelXml(this);
+		continue;
+	    }
 	    
 	    String x = elem.getAttribute("x");
-	    app.console("x: " + x);
-	    app.console("f: " + elem.getAttribute("f"));
 	    String xs[] = x.split(" ");
 	    int x1 = Integer.parseInt(xs[0]);
 	    int y1 = Integer.parseInt(xs[1]);
@@ -102,7 +109,6 @@ class XMLDeserializer {
 	    currentXmlElement = elem;
 	    currentElm = elm;
 	    elm.undumpXml(this);
-	    app.console("des " + elm + " " + className);
 	    elm.setPosition(x1, y1, x2, y2);
 	    app.elmList.add(elm);
 	}
@@ -140,6 +146,10 @@ class XMLDeserializer {
              .replace("&gt;", ">")
              .replace("&amp;", "&");
 	return s;
+    }
+
+    public String parseContents() {
+	return currentXmlElement.getFirstChild().getNodeValue();
     }
 
     public List<Element> getChildElements() {

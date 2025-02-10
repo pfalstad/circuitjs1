@@ -72,23 +72,27 @@ class XMLSerializer {
             // Self-closing tag if no children
             sb.append("/>\n");
         } else {
-            sb.append(">\n");
+            sb.append(">");
 
             // Recursively process children
             for (int i = 0; i < children.getLength(); i++) {
                 Node child = children.item(i);
                 if (child.getNodeType() == Node.ELEMENT_NODE) {
+		    if (i == 0)
+			sb.append("\n");
                     sb.append(prettyPrint(child, indent + 1));
                 } else if (child.getNodeType() == Node.TEXT_NODE) {
                     String text = child.getNodeValue().trim();
                     if (!text.isEmpty()) {
-                        sb.append(indentStr).append("  ").append(text).append("\n");
+                        //sb.append(indentStr).append("  ").append(text).append("\n");
+                        sb.append(text);
                     }
                 }
             }
 
             // Closing tag
-            sb.append(indentStr).append("</").append(node.getNodeName()).append(">\n");
+            //sb.append(indentStr).append("</").append(node.getNodeName()).append(">\n");
+            sb.append("</").append(node.getNodeName()).append(">\n");
         }
 
         return sb.toString();
@@ -116,7 +120,7 @@ class XMLSerializer {
 	XMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
 	XMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
 
-	for (CircuitElm ce: sim.elmList) {
+	for (CircuitElm ce: app.elmList) {
 	    Element elem = doc.createElement(ce.getXmlDumpType());
 	    ce.dumpXml(doc, elem);
 	    ce.dumpXmlState(doc, elem);

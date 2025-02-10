@@ -2,6 +2,8 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.ui.Button;
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 public class CustomLogicElm extends ChipElm {
     String modelName;
@@ -54,6 +56,19 @@ public class CustomLogicElm extends ChipElm {
 	return model.dump();
     }
     
+    void dumpXml(Document doc, Element elem) {
+	if (!model.dumped)
+	    model.dumpXml(doc);
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "mo", modelName);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	modelName = xml.parseStringAttr("mo", null);
+	updateModels();
+    }
+
     public void updateModels() {
 	model = CustomLogicModel.getModelWithNameOrCopy(modelName, model);
 	setupPins();
@@ -253,6 +268,7 @@ public class CustomLogicElm extends ChipElm {
     }
     
     int getDumpType() { return 208; }
+    String getXmlDumpType() { return "cl"; }
 
     void getInfo(String arr[]) {
 	super.getInfo(arr);
