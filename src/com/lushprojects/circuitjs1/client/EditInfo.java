@@ -78,6 +78,7 @@ class EditInfo {
 	boolean dimensionless;
 	boolean noSliders;
 	double minVal, maxVal;
+	boolean isColor = false;
 	
 	// for slider dialog
 	TextBox minBox, maxBox, labelBox;
