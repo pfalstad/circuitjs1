@@ -172,4 +172,7 @@ public class OTAElm extends CompositeElm {
 	initOTA();
     }
 
+    boolean canFlipX() { return false; }
+    boolean canFlipY() { return false; }
+
 }

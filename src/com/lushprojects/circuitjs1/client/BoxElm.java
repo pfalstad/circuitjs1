@@ -79,5 +79,29 @@ class BoxElm extends GraphicElm {
 
     @Override
     int getShortcut() { return 0; }
+
+    int getMouseDistance(int gx, int gy) {
+	int thresh = 10;
+	int dx1 = Math.abs(gx-x);
+	int dy1 = Math.abs(gy-y);
+	int dx2 = Math.abs(gx-x2);
+	int dy2 = Math.abs(gy-y2);
+	if (Math.abs(dx1) < thresh)
+	   return dx1*dx1;
+	if (Math.abs(dx2) < thresh)
+	   return dx2*dx2;
+	if (Math.abs(dy1) < thresh)
+	   return dy1*dy1;
+	if (Math.abs(dy2) < thresh)
+	   return dy2*dy2;
+	return -1;
+    }
+
+    void selectRect(Rectangle r, boolean add) {
+        if (r.contains(boundingBox))
+            selected = true;
+        else if (!add)
+            selected = false;
+    }
 }
 

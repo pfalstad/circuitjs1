@@ -120,4 +120,8 @@
 	.trigger+.triggerLabel+div+div {
 		width: 100% !important;
 	}
+	/* added extra div for toolbar */
+	.trigger+.triggerLabel+div+div+div {
+		width: 100% !important;
+	}
 }

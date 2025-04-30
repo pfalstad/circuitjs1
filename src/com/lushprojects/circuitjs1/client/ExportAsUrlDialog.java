@@ -45,6 +45,8 @@ public class ExportAsUrlDialog extends Dialog {
 	String requrl;
 	
 	public boolean shortIsSupported() {
+		if (CirSim.theSim.isElectron())
+		    return false;
 		return circuitjs1.shortRelaySupported;
 	}
 	
@@ -94,6 +96,8 @@ public class ExportAsUrlDialog extends Dialog {
 		super();
 		closeOnEnter = false;
 		String start[] = Location.getHref().split("\\?");
+		if (CirSim.theSim.isElectron())
+		    start[0] = "https://www.falstad.com/circuit/circuitjs.html";
 		String query="?ctz=" + compress(dump);
 		dump = start[0] + query;
 		requrl = URL.encodeQueryString(query);

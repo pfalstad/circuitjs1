@@ -193,6 +193,7 @@ class Scope {
     final int FLAG_PERPLOTFLAGS = 1<<18; // new-new style dump with plot flags
     final int FLAG_PERPLOT_MAN_SCALE = 1<<19; // new-new style dump with manual included in each plot
     final int FLAG_MAN_SCALE = 16;
+    final int FLAG_DIVISIONS = 1<<21; // dump manDivisions
     // other flags go here too, see getFlags()
     
     static final int VAL_POWER = 7;
@@ -241,13 +242,14 @@ class Scope {
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
     boolean reduceRange[];
     double scaleX, scaleY;  // for X-Y plots
-    int wheelDeltaY;
+    double wheelDeltaY;
     int selectedPlot;
     ScopePropertiesDialog properties;
     String curColor, voltColor;
     double gridStepX, gridStepY;
     double maxValue, minValue;
-    int manDivisions = 8; // Number of vertical divisions when in manual mode
+    int manDivisions; // Number of vertical divisions when in manual mode
+    static int lastManDivisions;
     boolean drawGridLines;
     boolean somethingSelected;
     
@@ -259,6 +261,7 @@ class Scope {
     	sim = s;
     	scale = new double[UNITS_COUNT];
     	reduceRange = new boolean[UNITS_COUNT];
+	manDivisions = lastManDivisions;
     	
     	rect = new Rectangle(0, 0, 1, 1);
    	imageCanvas=Canvas.createIfSupported();
@@ -351,6 +354,10 @@ class Scope {
 	}
     }
     
+    void setManDivisions(int d) {
+	manDivisions = lastManDivisions = d;
+    }
+
     boolean active() { return plots.size() > 0 && plots.get(0).elm != null; }
     
     void initialize() {
@@ -718,7 +725,7 @@ class Scope {
 	  real[i] = .5*(maxV[ii]+minV[ii]);
 	  imag[i] = 0;
       }
-      fft.fft(real, imag);
+      fft.fft(real, imag, true);
       double maxM = 1e-8;
       for (int i = 0; i < scopePointCount / 2; i++) {
     	  double m = fft.magnitude(real[i], imag[i]);
@@ -1808,6 +1815,9 @@ class Scope {
 	// If none of our plots has a flag set we will use the old format with no plot flags, or
 	// else we will set FLAG_PLOTFLAGS and include flags in all plots
 	flags |= (allPlotFlags !=0) ? FLAG_PERPLOTFLAGS :0; // (1<<18)
+
+	if (isManualScale())
+	    flags |= FLAG_DIVISIONS;
 	return flags;
     }
     
@@ -1828,6 +1838,8 @@ class Scope {
     			+ exportAsDecOrHex(flags, FLAG_PERPLOTFLAGS) + " " +
     			scale[UNITS_V] + " " + scale[UNITS_A] + " " + position + " " +
     			plots.size();
+	if ((flags & FLAG_DIVISIONS) != 0)
+	    x += " " + manDivisions;
     	int i;
     	for (i = 0; i < plots.size(); i++) {
     	    ScopePlot p = plots.get(i);
@@ -1880,6 +1892,9 @@ class Scope {
     	    try {
     		position = Integer.parseInt(st.nextToken());
     		int sz = Integer.parseInt(st.nextToken());
+		manDivisions = 8;
+		if ((flags & FLAG_DIVISIONS) != 0)
+		    manDivisions = lastManDivisions = Integer.parseInt(st.nextToken());
     		int i;
     		int u = ce.getScopeUnits(value);
 		if (u > UNITS_A)
@@ -1888,7 +1903,6 @@ class Scope {
     		// setValue(0) creates an extra plot for current, so remove that
     		while (plots.size() > 1)
     		    plots.removeElementAt(1);
-
 		
     		int plotFlags = 0;
     		for (i = 0; i != sz; i++) {
@@ -1923,6 +1937,7 @@ class Scope {
     	    // old-style dump
     	    CircuitElm yElm = null;
     	    int ivalue = 0;
+	    manDivisions = 8;
     	    try {
     		position = new Integer(st.nextToken()).intValue();
     		int ye = -1;
@@ -2109,14 +2124,14 @@ class Scope {
     }
     
     void onMouseWheel(MouseWheelEvent e) {
-        wheelDeltaY += e.getDeltaY();
+        wheelDeltaY += e.getDeltaY()*sim.wheelSensitivity;
         if (wheelDeltaY > 5) {
             slowDown();
             wheelDeltaY = 0;
         }
         if (wheelDeltaY < -5) {
             speedUp();
-        	    wheelDeltaY = 0;
+	    wheelDeltaY = 0;
     	}
     }
     

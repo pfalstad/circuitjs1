@@ -36,7 +36,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class circuitjs1 implements EntryPoint {
 
-    public static final String versionString = "2.9.0js";
+    public static final String versionString = "3.1.3js";
 
     // Set to true if the server runs the shortrelay.php file in the same directory
     // as the circuit simulator
@@ -119,6 +119,36 @@ public class circuitjs1 implements EntryPoint {
 
     }
 
+    static String convertUnicodeEscapes(String input) {
+	if (input.indexOf("\\u") < 0)
+	    return input;
+        StringBuilder result = new StringBuilder();
+        int length = input.length();
+        int i = 0;
+
+        while (i < length) {
+            if (i + 5 < length && input.charAt(i) == '\\' && input.charAt(i + 1) == 'u') {
+                // Found a Unicode escape sequence
+                String hexCode = input.substring(i + 2, i + 6);
+                try {
+                    // Convert hex code to a Unicode character
+                    int codePoint = Integer.parseInt(hexCode, 16);
+                    result.append((char) codePoint);
+                    i += 6;  // Skip past the escape sequence
+                } catch (NumberFormatException e) {
+                    // If the hex code is invalid, append as is
+                    result.append("\\u").append(hexCode);
+                    i += 6;
+                }
+            } else {
+                // Normal character, just append it
+                result.append(input.charAt(i));
+                i++;
+            }
+        }
+        return result.toString();
+    }
+
     HashMap<String, String> processLocale(String data) {
         HashMap<String, String> localizationMap = new HashMap<String, String>();
         String lines[] = data.split("\r?\n");
@@ -130,6 +160,7 @@ public class circuitjs1 implements EntryPoint {
                 CirSim.console("ignoring line in string catalog: " + line);
                 continue;
             }
+	    line = convertUnicodeEscapes(line);
             int q2 = line.indexOf('"', 1);
             if ((q2 < 0)
                 || (line.charAt(q2 + 1) != '=')

@@ -33,6 +33,7 @@ class SCRElm extends CircuitElm {
     final int inode = 3;
     final int FLAG_GATE_FIX = 1;
     Diode diode;
+    int dir;
     
     public SCRElm(int xx, int yy) {
 	super(xx, yy);
@@ -91,7 +92,7 @@ class SCRElm extends CircuitElm {
     
     void setPoints() {
 	super.setPoints();
-	int dir = 0;
+	dir = 0;
 	if (abs(dx) > abs(dy)) {
 	    dir = -sign(dx)*sign(dy);
 	    
@@ -251,6 +252,27 @@ class SCRElm extends CircuitElm {
 	    holdingI = ei.value;
 	if (n == 2 && ei.value > 0)
 	    gresistance = ei.value;
+    }
+
+    // if point1 and point2 are in line, then we don't know which way the gate
+    // is pointed and flip won't work.  fix this
+    void fixEnds() {
+	Point pt = new Point();
+	interpPoint(point1, point2, pt, 1, sim.gridSize*dir);
+	x2 = pt.x; y2 = pt.y;
+    }
+
+    void flipX(int c2, int count) {
+	fixEnds();
+	super.flipX(c2, count);
+    }
+    void flipY(int c2, int count) {
+	fixEnds();
+	super.flipY(c2, count);
+    }
+    void flipXY(int c2, int count) {
+	fixEnds();
+	super.flipXY(c2, count);
     }
 }
 

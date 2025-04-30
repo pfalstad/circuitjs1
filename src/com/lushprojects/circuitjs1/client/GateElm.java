@@ -54,6 +54,7 @@ package com.lushprojects.circuitjs1.client;
 	    lastOutput = lastOutputVoltage > highVoltage*.5;
 	    setSize((f & FLAG_SMALL) != 0 ? 1 : 2);
 	    allocNodes();
+	    setupVolts();
 	}
 	boolean isInverting() { return false; }
 	int gsize, gwidth, gwidth2, gheight, hs2;
@@ -86,7 +87,6 @@ package com.lushprojects.circuitjs1.client;
 	    calcLeads(ww*2);
 	    inPosts = new Point[inputCount];
 	    inGates = new Point[inputCount];
-	    allocNodes();
 	    int i0 = -inputCount/2;
 	    if (hasFlag(FLAG_INVERT_INPUTS))
 		icircles = new Point[inputCount];
@@ -100,7 +100,6 @@ package com.lushprojects.circuitjs1.client;
 		inGates[i] = interpPoint(lead1,  lead2,  icircles != null ? -8/(ww*2.)+adj : adj, hs*i0);
 		if (icircles != null)
 		    icircles[i] = interpPoint(lead1, lead2,  -4/(ww*2.), hs*i0);
-		volts[i] = (lastOutput ^ isInverting()) ? 5 : 0;
 	    }
 	    hs2 = gwidth*(inputCount/2+1);
 	    setBbox(point1, point2, hs2);
@@ -108,6 +107,15 @@ package com.lushprojects.circuitjs1.client;
 		schmittPoly = getSchmittPolygon(gsize, .47f);
 	}
 	
+	// Restore state if loading from file or volts is reallocated.
+	void setupVolts() {
+	    int i;
+	    // We don't remember all the inputs, just the last output.
+	    // Fill inputs with something that keeps output the same.
+	    for (i = 0; i != inputCount; i++)
+		volts[i] = (lastOutput ^ isInverting()) ? highVoltage : 0;
+	}
+
 	double getLeadAdjustment(int ix) { return 0; }
 	
 	void createEuroGatePolygon() {
@@ -179,8 +187,8 @@ package com.lushprojects.circuitjs1.client;
 	    if (!hasSchmittInputs())
 		return (volts[x] > highVoltage*.5) ? high : !high;
 	    boolean res = volts[x] > highVoltage*(inputStates[x] ? .35 : .55);
-	    inputStates[x] = res ? high : !high;
-	    return res;
+	    inputStates[x] = res;
+	    return res ? high : !high;
 	}
 	abstract boolean calcFunction();
 	
@@ -227,6 +235,8 @@ package com.lushprojects.circuitjs1.client;
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 0 && ei.value >= 1) {
 		inputCount = (int) ei.value;
+		allocNodes();
+		setupVolts();
 		setPoints();
 	    }
 	    if (n == 1)

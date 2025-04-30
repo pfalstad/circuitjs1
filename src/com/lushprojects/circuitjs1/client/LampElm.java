@@ -32,6 +32,7 @@ class LampElm extends CircuitElm {
 	    nom_v = 120;
 	    warmTime = .4;
 	    coolTime = .4;
+	    startIteration(); // set resistance
 	}
 	public LampElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
@@ -43,6 +44,7 @@ class LampElm extends CircuitElm {
 	    nom_v = new Double(st.nextToken()).doubleValue();
 	    warmTime = new Double(st.nextToken()).doubleValue();
 	    coolTime = new Double(st.nextToken()).doubleValue();
+	    startIteration(); // set resistance
 	}
 	String dump() {
 	    return super.dump() + " " + temp + " " + nom_pow + " " + nom_v +
@@ -57,9 +59,7 @@ class LampElm extends CircuitElm {
 	    super.reset();
 	    temp = roomTemp;
 	    
-	    // make sure resistance is not 0 or NaN or current will be NaN before we have a chance
-	    // to call startIteration()
-	    resistance = 100;
+	    startIteration(); // set resistance
 	}
 	final int filament_len = 24;
 	void setPoints() {

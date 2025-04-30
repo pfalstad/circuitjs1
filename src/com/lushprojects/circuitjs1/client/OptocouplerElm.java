@@ -119,12 +119,35 @@ public class OptocouplerElm extends CompositeElm {
         stubs[1] = diode.getPost(1);
         
         int midp = (posts[2].y+posts[3].y)/2;
+	transistor.setFlipped(isFlippedY());
         transistor.setPosition(posts[2].x-40*dx, midp, posts[2].x-24*dx, midp);
         stubs[2] = transistor.getPost(1);
         stubs[3] = transistor.getPost(2);
     }
 
     boolean isFlippedX() { return (flags & ChipElm.FLAG_FLIP_X) != 0; }
+    boolean isFlippedY() { return (flags & ChipElm.FLAG_FLIP_Y) != 0; }
+    boolean canFlipXY()  { return false; }
+
+    void flipX(int center2, int count) {
+	flags ^= ChipElm.FLAG_FLIP_X;
+	if (count != 1) {
+	    int xs = 3*cspc2;
+	    x  = center2-x - xs;
+	    x2 = center2-x2;
+	}
+	setPoints();
+    }
+
+    void flipY(int center2, int count) {
+	flags ^= ChipElm.FLAG_FLIP_Y;
+	if (count != 1) {
+	    int ys = 1*cspc2;
+	    y  = center2-y - ys;
+	    y2 = center2-y2;
+	}
+	setPoints();
+    }
 
     void setPin(int n, int px, int py, int dx, int dy, int dax, int day, int sx, int sy) {
 	int pos = n % 2; 
@@ -133,6 +156,12 @@ public class OptocouplerElm extends CompositeElm {
 	    dax = -dax;
 	    px += cspc2;
 	    sx = -sx;
+	}
+	if (isFlippedY()) {
+	    dy = -dy;
+	    day = -day;
+	    py += cspc2;
+	    sy = -sy;
 	}
 
         int xa = px+cspc2*dx*pos+sx;
@@ -153,18 +182,6 @@ public class OptocouplerElm extends CompositeElm {
     }
 
     public EditInfo getEditInfo(int n) {
-        if (n == 0) {
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Flip X", (flags & ChipElm.FLAG_FLIP_X) != 0);
-            return ei;
-        }
         return null;
-    }
-
-    public void setEditValue(int n, EditInfo ei) {
-        if (n == 0) {
-            flags = ei.changeFlag(flags, ChipElm.FLAG_FLIP_X);
-            setPoints();
-        }
     }
 }

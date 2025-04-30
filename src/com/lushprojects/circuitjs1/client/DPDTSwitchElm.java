@@ -132,10 +132,10 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	void setCurrent(int vn, double c) {
-	    if (vn == voltageSources[0])
-		currents[0] = c;
-	    else
-		currents[1] = c;
+	    int i;
+	    for (i = 0; i != poleCount; i++)
+		if (vn == voltageSources[i])
+		    currents[i] = c;
 	}
 	Rectangle getSwitchRect() {
 	    return new Rectangle(poleLeads[0]).union(new Rectangle(throwLeads[1])).union(new Rectangle(throwLeads[poleCount*4-4]));
@@ -167,7 +167,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
 	boolean getConnection(int n1, int n2) {
-	    return comparePair(n1, n2, 0, 1+position);
+	    return comparePair(n1, n2, 0, 1+position) || comparePair(n1, n2, 3, 4+position);
 	}
 	
 	boolean isWireEquivalent() { return true; }
@@ -203,4 +203,26 @@ package com.lushprojects.circuitjs1.client;
 	
 	int getShortcut() { return 0; }
 
+	void flip() {
+	    if (dx == 0)
+		x = x2 = x - (int) (dpx1*openhs*3);
+	    if (dy == 0)
+		y = y2 = y - (int) (dpy1*openhs*3);
+	    position = 1-position;
+	}
+
+	void flipX(int c2, int count) {
+	    flip();
+	    super.flipX(c2, count);
+	}
+
+	void flipY(int c2, int count) {
+	    flip();
+	    super.flipY(c2, count);
+	}
+
+	void flipXY(int c2, int count) {
+	    flip();
+	    super.flipXY(c2, count);
+	}
     }

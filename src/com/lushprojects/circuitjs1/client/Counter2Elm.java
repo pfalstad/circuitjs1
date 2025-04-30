@@ -132,6 +132,18 @@ class Counter2Elm extends ChipElm {
 		    int i;
 		    for (i = 0; i != bits; i++)
 			writeOutput(i, pins[i+bits].value);
+
+		    int value = 0;
+
+		    // get current value
+		    int lastBit = bits-1;
+		    for (i = 0; i != bits; i++)
+			if (pins[lastBit-i].value)
+			    value |= 1<<i;
+
+		    int realmod = (modulus == 0) ? (1<<bits) : modulus;
+
+		    carry = (value == realmod-1);
 		}
 	    }
 	    if (!pins[clr].value) {

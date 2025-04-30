@@ -8,6 +8,7 @@ public class ComparatorElm extends CompositeElm {
     private static String modelString = "OpAmpElm 1 2 3\rAnalogSwitchElm 4 5 3\rGroundElm 5";
     private static int[] modelExternalNodes = {2, 1, 4};
     final int FLAG_SMALL = 2;
+    final int FLAG_SWAP = 4;
     int opsize, opheight, opwidth;
 	Point in1p[], in2p[], textp[];
 	Polygon triangle;
@@ -73,9 +74,10 @@ public class ComparatorElm extends CompositeElm {
 	    in1p = newPointArray(2);
 	    in2p = newPointArray(2);
 	    textp = newPointArray(3);
-	    interpPoint2(point1, point2, in1p[0],  in2p[0], 0, hs);
-	    interpPoint2(lead1 , lead2,  in1p[1],  in2p[1], 0, hs);
-	    interpPoint2(lead1 , lead2,  textp[0], textp[1], .2, hs);
+	    int sgn = hasFlag(FLAG_SWAP) ? -1 : 1;
+	    interpPoint2(point1, point2, in1p[0],  in2p[0], 0, hs*sgn);
+	    interpPoint2(lead1 , lead2,  in1p[1],  in2p[1], 0, hs*sgn);
+	    interpPoint2(lead1 , lead2,  textp[0], textp[1], .2, hs*sgn);
 	    interpPoint(lead1, lead2, textp[2], 0.5, 0);
 	    Point tris[] = newPointArray(2);
 	    interpPoint2(lead1,  lead2,  tris[0], tris[1],  0, hs*2);
@@ -86,11 +88,27 @@ public class ComparatorElm extends CompositeElm {
 		setPost(2,point2);
 	}
 	
-	
-    
     void getInfo(String arr[]) {
 	 arr[0] = "Comparator";
 	    arr[1] = "V+ = " + getVoltageText(volts[1]);
 	    arr[2] = "V- = " + getVoltageText(volts[0]);
     }
+
+    void flipX(int c2, int count) {
+	if (dx == 0)
+	    flags ^= FLAG_SWAP;
+	super.flipX(c2, count);
+    }
+
+    void flipY(int c2, int count) {
+	if (dy == 0)
+	    flags ^= FLAG_SWAP;
+	super.flipY(c2, count);
+    }
+
+    void flipXY(int xmy, int count) {
+	flags ^= FLAG_SWAP;
+	super.flipXY(xmy, count);
+    }
+
 }

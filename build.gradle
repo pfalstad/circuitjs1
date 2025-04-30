@@ -1,0 +1,265 @@
+//=====================================================================
+//  Author:     E:V:A
+//  Date:       2019-03-14
+//  License:    GPLv3
+//  URL:        https: https://github.com/E3V3A/circuitjs1
+//
+//  Description:
+//      A build.gradle for the circuitjs1 project that was converted 
+//      into a Gradle build from Maven and Eclipse+GWT based builds.
+//=====================================================================
+
+// tested with gradle 8.7
+
+// 1. Run Gradle build with verbose output:
+// gradle compileGwt --console verbose --info
+// 2. Create the web-site directory from the build files:
+// gradle makeSite --console verbose --info
+// 3. To cleanup and remove the target, build and site directories
+// gradle cleanUp
+
+
+// This must be before plugins!
+buildscript {
+    repositories {
+      mavenCentral()
+    }
+    dependencies {
+        classpath("org.wisepersist:gwt-gradle-plugin:1.1.19")
+    }
+}
+
+plugins {
+    //id 'com.gradle.build-scan' version '2.2.1'    // For sending build scans to https://scans.gradle.com/
+    id 'java'                                       // 
+    //id 'eclipse'                                  // 
+    //id 'war'                                      // 
+}
+
+// https://docs.gradle.org/current/userguide/repository_types.html
+repositories {
+    //flatDir { dirs "lib" }        // use a (flat) filesystem directory as a repository
+    mavenLocal()                    // use the your local Maven cache as a repository
+    //mavenCentral()                // use MC for popular OSS Java libraries
+    //jcenter()                     // use Bintray's JCenter for Maven OSS artifacts
+    //google()                      // use Android-specific artifacts including the Android SDK
+    maven {
+        url = 'https://plugins.gradle.org/m2/'
+        url = 'https://repo.maven.apache.org/maven2'
+    }
+}
+
+dependencies {
+    implementation 'com.google.gwt:gwt-user:2.8.2'
+    implementation 'com.google.gwt:gwt-dev:2.8.2'
+    //compile 'com.google.gwt:gwt-user:2.8.2'
+    //compile 'com.google.gwt:gwt-dev:2.8.2'
+    //compile 'com.google.gwt:gwt-servlet:2.8.2'
+}
+
+//apply plugin: 'war'           // Creating *.war etc
+//apply plugin: 'gwt-base'      // Compile-only plugin?
+apply plugin: 'gwt-compiler'    // Compile-only plugin
+//apply plugin: 'gwt'           // GWT + WAR
+//apply plugin: 'eclipse'       // Eclipse
+
+/*
+apply plugin: 'java'
+sourceSets {
+  main {
+    //if you truly want to override the defaults:
+    output.resourcesDir = file('out/bin')
+    // Compiled Java classes should use this directory
+    java.outputDir = file('out/bin')
+  }
+}
+*/
+
+// need this to find circuitjs1.gwt.xml
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+group = 'com.lushprojects.circuitjs1'
+version = '2.2.3'
+sourceCompatibility = 8  // Java '1.8'
+
+
+//---------------------------------------------------------------------
+// Setting File and Directory Locations
+//---------------------------------------------------------------------
+// [1] https://docs.gradle.org/current/userguide/working_with_files.html
+
+//File buildDir = file('target')
+File siteDir = file('site')
+//File targetDir = file('target')
+
+//---------------------------------------------------------------------
+// Custom Tasks (for "circuitjs1" project) 
+//---------------------------------------------------------------------
+// NOTE:  
+//    [1] These are executed immediately unless you skip "up-to-date" 
+//        check by using explicit something() method inside doLast{}.
+//        That means we don't need to write: cleanUp(type: Delete).
+//    [2] There is a bug in 'gwt-gradle-plugin' that create empty build
+//        directories already in the configuration phase. So any task
+//        that is ran, will create these. See:
+//        https://github.com/jiakuan/gwt-gradle-plugin/issues/25
+//---------------------------------------------------------------------
+task cleanUp {
+    group 'circuitjs1'
+    description 'Delete Gradle created ./build and ./site directories.'    
+    doLast {
+        delete {
+            println "\nCleaning up Gradle built directories and artifacts..."
+            println " - Deleting build directory:  $buildDir"
+            delete buildDir
+            println " - Deleting site directory:   $siteDir"
+            delete siteDir
+            //println " - Deleting target directory: $siteDir"
+            //delete targetDir
+            println "Done\n"
+        }
+    }
+}
+
+//task makeSite(type: Copy) {
+task makeSite {
+    group 'circuitjs1'
+    description 'Copy circuitjs resources from ./war ./build/gwt/out to ./site'
+    //dependsOn compileGwt
+    //@SkipWhenEmpty
+    doLast {
+        // Copying files using the copy() method without up-to-date check
+        copy {
+            println "\nCopying contents of ./war AND ./build/gwt/out into ./site ..."
+            from 'war'
+            include('**/*.html')
+            from 'build/gwt/out'
+            include('**/*')                 // to ensure recursion!
+            exclude('gwt/', 'WEB-INF/')
+            into 'site'
+
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE  // Change to INCLUDE, WARN, or FAIL as needed
+
+            println "Done\n"
+        }
+    }
+}
+
+task showRepos {
+    // ToDo:  skip "build" directory creation when running
+    group 'circuitjs1'
+    description 'Show all included repositories'
+    doLast {
+        println "\nAll repos:"
+        println repositories.collect { it.name } 
+        println "\n"
+    }
+}
+
+//---------------------------------------------------------------------
+// "system" related tasks
+//---------------------------------------------------------------------
+task sourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from(sourceSets.main.allJava)
+}
+
+tasks.withType(Test) {
+    //maxParallelForks = 4              // 4
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1     // Use: #CPUs/2 | 4
+    reports.html.required.set(true)         // Enable HTML report
+    reports.junitXml.required.set(false)    // Disable JUnit XML report
+}
+
+tasks.withType(JavaCompile) {
+    options.fork = true                 //
+    options.encoding = 'UTF-8'
+    options.compilerArgs += [
+        '-Xdoclint:none',               //
+        '-Xlint:none',                  //
+        '-nowarn',                      //
+        //'-Xlint:unchecked'            //
+    ]
+}
+
+//=====================================================================
+// Plugin Configurations
+//=====================================================================
+gwt {
+    gwtVersion = '2.8.2'
+    minHeapSize = "512M"                // -Xms512M
+    maxHeapSize = "1024M"               // -Xmx1024M
+    logLevel = 'INFO'                   // -logLevel INFO  / [ERROR,WARN,INFO,TRACE,DEBUG,SPAM,ALL]
+    modules 'com.lushprojects.circuitjs1.circuitjs1'
+    //-------------------------------------------------------------
+    // For compiler options, see:
+    //  [1] http://www.gwtproject.org/doc/latest/DevGuideCompilingAndDebugging.html#DevGuideCompilerOptions
+    //  [2] https://github.com/gwtproject/gwt/blob/master/dev/core/src/com/google/gwt/dev/jjs/JJSOptionsImpl.java#L31-L58
+    //  [3] https://github.com/jiakuan/gwt-gradle-plugin/blob/master/gwt-gradle-plugin/src/main/java/org/wisepersist/gradle/plugins/gwt/AbstractGwtCompile.java
+    // For dev options, see:
+    //  [4] https://github.com/jiakuan/gwt-gradle-plugin/blob/master/gwt-gradle-plugin/src/main/java/org/wisepersist/gradle/plugins/gwt/GwtDevOptions.java
+    //-------------------------------------------------------------
+    compiler {
+        //compileReport  = false        // default: false ??
+        disableClassMetadata = true     // default: false
+        disableCastChecking = true      // default: false
+        strict = true                   // default: false
+        //style = "PRETTY"              // default: OBFUSCATED  / [OBFUSCATED,PRETTY,DETAILED]
+    }
+    dev {
+        noserver = true
+        port = 1337
+    }
+}
+
+/*
+buildScan {
+    termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+    termsOfServiceAgree = 'yes' // Automatic acceptance of TOS
+}
+*/
+
+/*
+war {
+    from 'src/rootContent'                  // adds a file-set to the root of the archive
+    webInf { from 'src/additionalWebInf' }  // adds a file-set to the WEB-INF dir.
+    classpath fileTree('additionalLibs')    // adds a file-set to the WEB-INF/lib dir.
+    classpath configurations.moreLibs       // adds a configuration to the WEB-INF/lib dir.
+    webXml = file('src/main/java/com/lushprojects/circuitjs1/circuitjs1.gwt.xml') // copies a file to WEB-INF/web.xml
+}
+*/
+
+//---------------------------------------------------------------------
+//  Eclipse 
+//---------------------------------------------------------------------
+// For other issues see:
+// [1] https://discuss.gradle.org/t/how-to-tell-eclipse-not-use-my-custom-sourcesets/8756
+// [2] https://discuss.gradle.org/t/multi-project-build-organization-and-output-of-build-files/26641
+//-------------------------------------
+/*
+configurations {
+  //provided
+  //someBoringConfig
+}
+
+eclipse {
+    // If you want parts of paths in resulting file to be replaced by variables (files):
+    //pathVariables 'GRADLE_HOME': file('/best/software/gradle'), 'TOMCAT_HOME': file('../tomcat')
+
+    // Tweak the classpath of the Eclipse project
+    classpath {
+        //plusConfigurations += [ configurations.provided ]             // Adding extra configurations
+        //minusConfigurations += [ configurations.someBoringConfig ]    // Remove configurations from the classpath
+        //containers 'someFriendlyContainer', 'andYetAnotherContainer'  // Append extra containers
+        defaultOutputDir = file('build-eclipse')                        // Customizing the classes output directory
+        downloadSources = true
+        downloadJavadoc = false
+    }
+}
+*/

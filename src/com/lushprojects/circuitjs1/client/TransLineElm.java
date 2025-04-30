@@ -246,5 +246,8 @@ class TransLineElm extends CircuitElm {
 	    return -current2;
 	return current2;
     }
+
+    boolean canFlipX() { return dy == 0; }
+    boolean canFlipY() { return dx == 0; }
 }
 

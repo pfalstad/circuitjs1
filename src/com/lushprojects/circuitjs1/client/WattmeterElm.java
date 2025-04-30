@@ -131,7 +131,7 @@ class WattmeterElm extends CircuitElm {
 	    flip *= -1;
 	}
 	
-	g.setColor(Color.lightGray);
+        g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	drawThickPolygon(g, rectPointsX, rectPointsY, 4);
 	
 	setBbox(posts[0].x, posts[0].y, posts[3].x, posts[3].y);
@@ -178,4 +178,6 @@ class WattmeterElm extends CircuitElm {
     boolean canViewInScope() { return true; }
     double getCurrent() { return currents[1]; }
     double getVoltageDiff() { return volts[2]-volts[0]; }
+    boolean canFlipX() { return false; }
+    boolean canFlipY() { return false; }
 }

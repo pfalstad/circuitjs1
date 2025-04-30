@@ -24,6 +24,7 @@ class FFT {
     private int bits;
     private double[] cosTable;
     private double[] sinTable;
+    private double[] winTable;
 
     FFT(int n) {
       size = n;
@@ -34,6 +35,15 @@ class FFT {
       for (int i = 0; i < cosTable.length; i++) {
         cosTable[i] = Math.cos(dtheta * i);
         sinTable[i] = Math.sin(dtheta * i);
+      }
+
+      /* Scale the sine window up for unity gain. */
+      double gainCompensation = 1.5707963267961471;
+
+      winTable = new double[size];
+      for (int i = 0; i < winTable.length; i++) {
+        double weight = Math.sin(i * Math.PI / winTable.length);
+        winTable[i] = weight * gainCompensation;
       }
     }
 
@@ -46,7 +56,14 @@ class FFT {
      * January 19, 1992 
      * http://cnx.rice.edu/content/m12016/latest/
      */
-    void fft(double[] real, double[] imag) {
+    void fft(double[] real, double[] imag, boolean windowed) {
+	if (windowed) {
+	    for (int i = 0; i < real.length; i++) {
+	      real[i] *= winTable[i];
+	      imag[i] *= winTable[i];
+	    }
+	}
+
         int j = 0;
         int n2 = real.length / 2;
         for (int i=1; i < real.length - 1; i++) {

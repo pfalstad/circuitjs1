@@ -24,6 +24,8 @@ class UnijunctionElm extends CompositeElm {
 	// node 1 = B1
 	// node 2 = B2
 	
+	final int FLAG_FLIP = 2;
+
 	public UnijunctionElm(int xx, int yy) {
 	    super(xx, yy);
 	    setup();
@@ -97,9 +99,9 @@ class UnijunctionElm extends CompositeElm {
 	        void setPoints() {
 	            super.setPoints();
 
-	            // find the coordinates of the various points we need to draw
-	            // the JFET.
-	            int hs2 = hs*dsign;
+	            // find the coordinates of the various points we need to draw it
+		    int flip = hasFlag(FLAG_FLIP) ? -1 : 1;
+	            int hs2 = hs*dsign*flip;
 	            b1 = newPointArray(3);
 	            b2 = newPointArray(3);
 	            emitter = newPointArray(3);
@@ -135,4 +137,23 @@ class UnijunctionElm extends CompositeElm {
 	    arr[4] = "Vb2b1 = " + getVoltageText(volts[2]-volts[1]);
 	    arr[5] = "P = " + getUnitText(getPower(), "W");
 	}
+
+	void flipX(int c2, int count) {
+	    if (dx == 0)
+		flags ^= FLAG_FLIP;
+	    super.flipX(c2, count);
+	}
+
+	void flipY(int c2, int count) {
+	    if (dy == 0)
+		flags ^= FLAG_FLIP;
+	    super.flipY(c2, count);
+	}
+
+	void flipXY(int xmy, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipXY(xmy, count);
+	}
+
+
     }

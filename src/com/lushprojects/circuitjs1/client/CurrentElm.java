@@ -99,7 +99,8 @@ package com.lushprojects.circuitjs1.client;
 	}
 	void getInfo(String arr[]) {
 	    arr[0] = "current source";
-	    getBasicInfo(arr);
+	    int i = getBasicInfo(arr);
+            arr[i++] = "P = " + getUnitText(getPower(), "W");
 	}
 	double getVoltageDiff() {
 	    return volts[1] - volts[0];

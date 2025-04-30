@@ -25,6 +25,7 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.user.client.ui.FileUpload;
+import com.lushprojects.circuitjs1.client.util.Locale;
 
 class AudioFileEntry {
     String fileName;
@@ -88,11 +89,11 @@ class AudioInputElm extends RailElm {
 	}
 	
 	void drawRail(Graphics g) {
-	    drawRailText(g, fileName == null ? "No file" : fileName);
+	    drawRailText(g, fileName == null ? Locale.LS("No file") : fileName);
 	}
 	
 	String getRailText() {
-	    return fileName == null ? "No file" : fileName;
+	    return fileName == null ? Locale.LS("No file") : fileName;
 	}
 	
 	void setSamplingRate(int sr) {
@@ -104,12 +105,14 @@ class AudioInputElm extends RailElm {
 		return 0;
 	    if (timeOffset < startPosition)
 		timeOffset = startPosition;
-	    int ptr = (int) (timeOffset * samplingRate);
-	    if (ptr >= data.length()) {
-		ptr = 0;
-		timeOffset = 0;
-	    }
-	    return data.get(ptr) * maxVoltage;
+	    double dptr = (timeOffset * samplingRate);
+	    int iptr = (int) dptr;
+	    double frac = dptr-iptr;
+	    if (iptr >= data.length())
+		return 0;
+	    double value1 = data.get(iptr);
+	    double value2 = (iptr+1 < data.length()) ? data.get(iptr+1) : 0;
+	    return (value1*(1-frac)+value2*frac) * maxVoltage;
 	}
 	
 	void stepFinished() {

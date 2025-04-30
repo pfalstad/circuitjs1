@@ -299,7 +299,7 @@ public class AudioOutputElm extends CircuitElm {
         	intBuffer[9] = 0x0000; //
         		
         	intBuffer[10] = 0x0001; // format tag : 1 
-        	intBuffer[11] = this._channels; // channels: 2
+        	intBuffer[11] = this._channels; // channels: 1
         	
         	intBuffer[12] = this._sampleRate & 0x0000ffff; // sample per sec
         	intBuffer[13] = (this._sampleRate & 0xffff0000) >> 16; // sample per sec
@@ -307,7 +307,7 @@ public class AudioOutputElm extends CircuitElm {
         	intBuffer[14] = (2*this._channels*this._sampleRate) & 0x0000ffff; // byte per sec
         	intBuffer[15] = ((2*this._channels*this._sampleRate) & 0xffff0000) >> 16; // byte per sec
         	
-        	intBuffer[16] = 0x0004; // block align
+        	intBuffer[16] = 2*this._channels; // block align
         	intBuffer[17] = 0x0010; // bit per sample
         	intBuffer[18] = 0x0000; // cb size
         	intBuffer[19] = 0x6164; // "da"

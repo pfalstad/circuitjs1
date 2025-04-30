@@ -62,12 +62,13 @@ package com.lushprojects.circuitjs1.client;
 	String dump() { return super.dump() + " " + baseSegmentCount + " " + extraSegment + " " + diodeDirection; }
 	
 	String getChipName() { return segmentCount + "-segment display"; }
-	Color darkred;
+	Color darkred, lightgray;
 	
 	void setupPins() {
 	    if (pinCount == 0)
 		return;
 	    darkred = new Color(30, 0, 0);
+	    lightgray = new Color(255-10, 255-10, 255-10);
 	    int segmentPinsOnLeftSide = (baseSegmentCount+1)/2;
 	    sizeY = segmentPinsOnLeftSide;
 	    if (baseSegmentCount == 7) {
@@ -277,9 +278,10 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	void setColor(Graphics g, int p) {
+	    boolean whiteBkg = sim.printableCheckItem.getState();
 	    if (diodeDirection == 0) {
 		g.setColor(pins[p].value ? Color.red :
-		       sim.printableCheckItem.getState() ? Color.white : darkred);
+			whiteBkg ? lightgray : darkred);
 		return;
 	    }
 	    // 10mA current = max brightness
@@ -288,9 +290,11 @@ package com.lushprojects.circuitjs1.client;
                 w = 255*(1+.2*Math.log(w));
             if (w > 255)
                 w = 255;
-            if (w < 30)
-                w = 30;
-            Color cc = new Color((int) w, 0, 0);
+	    double minw = (whiteBkg) ? 5 : 30;
+            if (w < minw)
+                w = minw;
+	    int wi = (int) w;
+            Color cc = whiteBkg ? new Color(255, 255-wi, 255-wi) : new Color(wi, 0, 0);
             g.setColor(cc);
 	}
 	int getPostCount() { return pinCount; }

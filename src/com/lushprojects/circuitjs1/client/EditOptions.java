@@ -76,12 +76,14 @@ class EditOptions implements Editable {
 		}
 		if (n == 11)
 		    return new EditInfo("Minimum Target Frame Rate", sim.minFrameRate);
-		if (n == 12) {
+		if (n == 12)
+		    return new EditInfo("Mouse Wheel Sensitivity", sim.wheelSensitivity);
+		if (n == 13) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 13 && sim.adjustTimeStep)
+		if (n == 14 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
 		return null;
@@ -153,11 +155,17 @@ class EditOptions implements Editable {
 	            sim.developerMode = ei.checkbox.getState();
 		if (n == 11 && ei.value > 0)
 		    sim.minFrameRate = ei.value;
-		if (n == 12) {
+		if (n == 12 && ei.value > 0) {
+		    sim.wheelSensitivity = ei.value;
+		    Storage stor = Storage.getLocalStorageIfSupported();
+		    if (stor != null)
+			stor.setItem("wheelSensitivity", Double.toString(sim.wheelSensitivity));
+		}
+		if (n == 13) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 13 && ei.value > 0)
+		if (n == 14 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 	

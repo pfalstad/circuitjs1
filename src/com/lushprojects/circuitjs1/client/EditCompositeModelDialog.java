@@ -220,18 +220,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		okButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-			    if (modelNameTextBox != null) {
-				String name = modelNameTextBox.getText();
-				if (name.length() == 0) {
-				    Window.alert(Locale.LS("Please enter a model name."));
-				    return;
-				}
-				model.setName(CustomCompositeElm.lastModelName = name);
-			    }
-			    model.setSaved(saveCheck.getState());
-			    CirSim.theSim.updateModels();
-			    CirSim.theSim.needAnalyze(); // will get singular matrix if we don't do this
-			    closeDialog();
+			    enterPressed();
 			}
 		});
 		this.center();
@@ -252,6 +241,21 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    chip.setPoints();
 	}
 	
+	public void enterPressed() {
+	    if (modelNameTextBox != null) {
+		String name = modelNameTextBox.getText();
+		if (name.length() == 0) {
+		    Window.alert(Locale.LS("Please enter a model name."));
+		    return;
+		}
+		model.setName(CustomCompositeElm.lastModelName = name);
+	    }
+	    model.setSaved(saveCheck.getState());
+	    CirSim.theSim.updateModels();
+	    CirSim.theSim.needAnalyze(); // will get singular matrix if we don't do this
+	    closeDialog();
+	}
+
 	double scale;
 	
 	void drawChip() {

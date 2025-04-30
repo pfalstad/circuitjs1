@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User's Guide to Using the Delay Buffer Element in CircuitJS1</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 20px;">
+
+<h2>Purpose:</h2>
+<p>The <code>DelayBufferElm</code> in CircuitJS1 is designed to delay the signal from its input to its output by a specified amount of time. This can be useful for synchronization, timing purposes, or to mimic real-world signal propagation delays in digital circuits.</p>
+
+<h2>Features:</h2>
+<ul>
+    <li><strong>Delay:</strong> You can set how long the input signal should be delayed before it appears at the output.</li>
+    <li><strong>Threshold:</strong> Determines the voltage level at which the element considers the input as "high" or "low".</li>
+    <li><strong>High Logic Voltage:</strong> Sets the output voltage when the signal is considered "high".</li>
+</ul>
+
+<h2>Configuration:</h2>
+<ul>
+    <li><strong>Delay:</strong> Right-click on the element and select "Edit". Here, you can adjust:
+        <ul>
+            <li><strong>Delay (s):</strong> Set this to the desired delay time in seconds. For example, <tt>0.001</tt> (or <tt>1m</tt>) for a 1ms delay.</li>
+        </ul>
+    </li>
+    <li><strong>Threshold:</strong> Adjust this if your circuit uses non-standard logic levels. Default is set to 2.5V for 5V logic.</li>
+    <li><strong>High Logic Voltage:</strong> Change this if your circuit operates at different voltage levels.</li>
+</ul>
+
+<h2>Simulation:</h2>
+<p>Connect your input signal to the input node. The output will reflect the input signal after the specified delay.</p>
+
+<h2>Use Cases:</h2>
+<ul>
+    <li><strong>Synchronization:</strong> In digital circuits where signals from different parts need to arrive at the same time.</li>
+    <li><strong>Debouncing:</strong> To filter out noise or short glitches in signals.</li>
+    <li><strong>Timing Circuits:</strong> For creating time-based logic or pulse stretching.</li>
+</ul>
+
+</body>
+</html>

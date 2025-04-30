@@ -292,6 +292,21 @@ public abstract class CircuitElm implements Editable {
 	lead2 = interpPoint(point1, point2, (dn+len)/(2*dn));
     }
 
+    // adjust leads so that the point exactly between them is a grid point (so we can place a terminal there)
+    void adjustLeadsToGrid(boolean flipX, boolean flipY) {
+        int cx = (point1.x+point2.x)/2;
+        int cy = (point1.y+point2.y)/2;
+
+	// when flipping, it changes the rounding direction.  need to adjust for this
+	int roundx = (flipX) ? 1 : -1;
+	int roundy = (flipY) ? 1 : -1;
+
+        int adjx = sim.snapGrid(cx+roundx)-cx;
+        int adjy = sim.snapGrid(cy+roundy)-cy;
+        lead1.move(adjx, adjy);
+        lead2.move(adjx, adjy);
+    }
+
     // calculate point fraction f between a and b, linearly interpolated
     Point interpPoint(Point a, Point b, double f) {
 	Point p = new Point();
@@ -530,6 +545,30 @@ public abstract class CircuitElm implements Editable {
     	setPoints();
     }
     
+    void flipX(int center2, int count) {
+	x =  center2-x;
+	x2 = center2-x2;
+	initBoundingBox();
+	setPoints();
+    }
+
+    void flipY(int center2, int count) {
+	y =  center2-y;
+	y2 = center2-y2;
+	initBoundingBox();
+	setPoints();
+    }
+
+    void flipXY(int xmy, int count) {
+	int nx = y+xmy;
+	int ny = x-xmy;
+	int nx2 = y2+xmy;
+	int ny2 = x2-xmy;
+	x = nx; y = ny; x2 = nx2; y2 = ny2;
+	initBoundingBox();
+	setPoints();
+    }
+
     void drawPosts(Graphics g) {
 	// we normally do this in updateCircuit() now because the logic is more complicated.
 	// we only handle the case where we have to draw all the posts.  That happens when
@@ -1059,7 +1098,12 @@ public abstract class CircuitElm implements Editable {
     // is this a wire we can remove?
     boolean isRemovableWire() { return false; }
     
+    boolean isIdealCapacitor() { return false; }
+
     boolean canViewInScope() { return getPostCount() <= 2; }
+    boolean canFlipX() { return true; }
+    boolean canFlipY() { return true; }
+    boolean canFlipXY() { return canFlipX() || canFlipY(); }
     boolean comparePair(int x1, int x2, int y1, int y2) {
 	return ((x1 == y1 && x2 == y2) || (x1 == y2 && x2 == y1));
     }
@@ -1100,6 +1144,18 @@ public abstract class CircuitElm implements Editable {
     }
     void draggingDone() {}
     
+    int lineDistanceSq(int xa, int ya, int xb, int yb, int gx, int gy) {
+	int dtop = (yb-ya)*gx - (xb-xa)*gy + xb*ya - yb*xa;
+	int dbot = (yb-ya)*(yb-ya) + (xb-xa)*(xb-xa);
+	return dtop*dtop/dbot;
+    }
+
+    int getMouseDistance(int gx, int gy) {
+	if (getPostCount() == 0)
+	    return Graphics.distanceSq(gx, gy, (x2+x)/2, (y2+y)/2);
+	return lineDistanceSq(x, y, x2, y2, gx, gy);
+    }
+
     String dumpModel() { return null; }
     
     boolean isMouseElm() {

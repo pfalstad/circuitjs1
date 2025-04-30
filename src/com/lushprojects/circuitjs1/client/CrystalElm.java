@@ -119,7 +119,8 @@ class CrystalElm extends CompositeElm {
 	    drawPosts(g);
 	}
 	
-	void calculateCurrent() {
+	public void stepFinished() {
+	    super.stepFinished();
 	    current = getCurrentIntoNode(1);
 	}
 	

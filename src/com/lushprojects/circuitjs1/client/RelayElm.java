@@ -31,9 +31,10 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 // 3n+2 = end of coil resistor
 
 class RelayElm extends CircuitElm {
-	final int FLAG_SWAP_COIL = 1;
-	final int FLAG_SHOW_BOX = 2;
-	final int FLAG_BOTH_SIDES_COIL = 4;
+    final int FLAG_SWAP_COIL = 1;
+    final int FLAG_SHOW_BOX = 2;
+    final int FLAG_BOTH_SIDES_COIL = 4;
+    final int FLAG_FLIP = 8;
 	
     double inductance;
     Inductor ind;
@@ -55,7 +56,7 @@ class RelayElm extends CircuitElm {
     double switchingTime;
     
     int poleCount;
-    int openhs;
+    int openhs, dflip;
     boolean onState;
     final int nSwitch0 = 0;
     final int nSwitch1 = 1;
@@ -135,7 +136,7 @@ class RelayElm extends CircuitElm {
 	}
 	int x = ((flags & FLAG_SWAP_COIL) != 0) ? 1 : 0;
 	setPowerColor(g, coilCurrent * (volts[nCoil1]-volts[nCoil2]));
-	drawCoil(g, dsign*6, coilLeads[x], coilLeads[1-x],
+	drawCoil(g, dflip*6, coilLeads[x], coilLeads[1-x],
 		 volts[nCoil1+x], volts[nCoil2-x]);
 
 	// draw rectangle
@@ -153,12 +154,12 @@ class RelayElm extends CircuitElm {
 	    if (i == 0) {
 		int off = ((flags & FLAG_BOTH_SIDES_COIL) == 0) ? 0 : 4;
 		interpPoint(point1, point2, lines[i*2  ], .5,
-			    openhs*2+5*dsign-i*openhs*3+off);
+			    openhs*2+5*dflip-i*openhs*3+off);
 	    } else
 		interpPoint(point1, point2, lines[i*2], .5,
-			    (int) (openhs*(-i*3+3-.5+d_position))+5*dsign);
+			    (int) (openhs*(-i*3+3-.5+d_position))+5*dflip);
 	    interpPoint(point1, point2, lines[i*2+1], .5,
-			(int) (openhs*(-i*3-.5+d_position))-5*dsign);
+			(int) (openhs*(-i*3-.5+d_position))-5*dflip);
 	    g.setLineDash(4, 4);
 	    g.drawLine(lines[i*2].x, lines[i*2].y, lines[i*2+1].x, lines[i*2+1].y);
 	    g.setLineDash(0,  0);
@@ -218,7 +219,8 @@ class RelayElm extends CircuitElm {
 	super.setPoints();
 	setupPoles();
 	allocNodes();
-	openhs = -dsign*16;
+	dflip = hasFlag(FLAG_FLIP) ? -dsign : dsign;
+	openhs = -dflip*16;
 
 	// switch
 	calcLeads(32);
@@ -264,10 +266,10 @@ class RelayElm extends CircuitElm {
 	
 	// outline
 	double boxWScale = Math.min(0.4, 25.0 / dn);
-	interpPoint(point1, point2, outline[0], 0.5 - boxWScale, -boxSize * dsign);
-	interpPoint(point1, point2, outline[1], 0.5 + boxWScale, -boxSize * dsign);
-	interpPoint(point1, point2, outline[2], 0.5 + boxWScale, -(openhs*3*poleCount) - (24.0 * dsign));
-	interpPoint(point1, point2, outline[3], 0.5 - boxWScale, -(openhs*3*poleCount) - (24.0 * dsign));
+	interpPoint(point1, point2, outline[0], 0.5 - boxWScale, -boxSize * dflip);
+	interpPoint(point1, point2, outline[1], 0.5 + boxWScale, -boxSize * dflip);
+	interpPoint(point1, point2, outline[2], 0.5 + boxWScale, -(openhs*3*poleCount) - (24.0 * dflip));
+	interpPoint(point1, point2, outline[3], 0.5 - boxWScale, -(openhs*3*poleCount) - (24.0 * dflip));
 	
 	currentOffset1 = distance(coilPosts[0], coilLeads[0]);
 	currentOffset2 = currentOffset1 + distance(coilLeads[0], coilLeads[1]);
@@ -500,5 +502,23 @@ class RelayElm extends CircuitElm {
     }
     
     int getShortcut() { return 'R'; }
+
+    void flipX(int c2, int count) {
+	if (dx == 0)
+	    flags ^= FLAG_FLIP;
+	super.flipX(c2, count);
+    }
+
+    void flipY(int c2, int count) {
+	if (dy == 0)
+	    flags ^= FLAG_FLIP;
+	super.flipY(c2, count);
+    }
+
+    void flipXY(int xmy, int count) {
+	flags ^= FLAG_FLIP;
+	super.flipXY(xmy, count);
+    }
+
 }
     

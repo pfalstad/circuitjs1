@@ -252,11 +252,8 @@ class MotorProtectionSwitchElm extends CircuitElm {
 		return new EditInfo("I2t", i2t, 0, 0);
 	    if (n == 1)
 		return new EditInfo("On Resistance", resistance, 0, 0);
-	    if (n == 2) {
-		EditInfo ei = new EditInfo("Label (for linking)", 0);
-		ei.text = label;
-		return ei;
-	    }
+	    if (n == 2)
+		return new EditInfo("Label (for linking)", label);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -273,4 +270,7 @@ class MotorProtectionSwitchElm extends CircuitElm {
 		return currents[n/2];
 	    return -currents[n/2];
 	}
+
+	boolean canFlipX() { return false; }
+	boolean canFlipY() { return false; }
     }

@@ -12,6 +12,10 @@ SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 SDK_DIR="$SCRIPT_DIR/.."
 GWT_DIR="$SDK_DIR/gwt-$GWT_VERSION"
 
+WEB_PORT=${WEB_PORT:-8000}
+WEB_BINDADDRESS=${WEB_BINDADDRESS:-127.0.0.1}
+CODESERVER_BINDADDRESS=${CODESERVER_BINDADDRESS:-127.0.0.1}
+
 compile() {
     ant build
 }
@@ -61,6 +65,7 @@ codeserver() {
     java -classpath "src:$GWT_DIR/gwt-codeserver.jar:$GWT_DIR/gwt-dev.jar:$GWT_DIR/gwt-user.jar" \
         com.google.gwt.dev.codeserver.CodeServer \
         -launcherDir war \
+	-bindAddress ${CODESERVER_BINDADDRESS} \
         com.lushprojects.circuitjs1.circuitjs1
 }
 
@@ -69,12 +74,12 @@ webserver() {
 
     (
         cd $webroot
-        python -m http.server
+        python3 -m http.server --bind ${WEB_BINDADDRESS} ${WEB_PORT}
     )
 }
 
 start() {
-    echo "Starting web server http://127.0.0.1:8000"
+    echo "Starting web server http://${WEB_BINDADDRESS}:${WEB_PORT}"
     trap "pkill -f \"python -m http.server\"" EXIT
     webserver >"webserver.log" 2>&1 &
     sleep 0.5

@@ -31,7 +31,7 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	String getGateText() { return "&"; }
 	
 	public final native void ellipse(Context2d g, double x, double y, double rx, double ry, double ro, double sa, double ea, boolean ccw) /*-{
-	    g.ellipse(x, y, rx, ry, ro, sa, ea, ccw);
+	    if (rx >= 0 && ry >= 0) g.ellipse(x, y, rx, ry, ro, sa, ea, ccw);
 	}-*/;
 
 	void drawGatePolygon(Graphics g) {

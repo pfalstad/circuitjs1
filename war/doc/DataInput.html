@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User's Guide to Using Data Input Element in CircuitJS1</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 20px;">
+
+<p>The Data Input Element in CircuitJS1 allows you to simulate a voltage source where the voltage values change over time based on data from a file you provide. It's like connecting a circuit to real-world data or pre-calculated voltage sequences.</p>
+
+<p><strong>Loading Your Data:</strong></p>
+<ul>
+    <li><strong>Select a File:</strong>
+        <ul>
+            <li>Once placed, right-click the Data Input Element to access its settings, then select Edit, then Choose File to select a file.</li>
+            <li><em>File Type:</em> Your data file should contain values in volts, one per line, in text format. Comments (lines starting with <tt>#</tt>) or empty lines will be ignored by the system.</li>
+        </ul>
+    </li>
+    <li><strong>After Selection:</strong> The filename will appear as a label on the element in the circuit for easy identification.</li>
+</ul>
+
+<p><strong>Adjusting Settings:</strong></p>
+<ul>
+    <li><strong>Scale Factor:</strong> This allows you to multiply all voltage values from your file by a constant. Useful if your data needs adjustment to fit your circuit's scale.</li>
+    <li><strong>Sample Length (Time per Data Point):</strong> Define how much time each voltage value from your file represents. For example, if each value is meant to last for 1 millisecond, you'd set this to <tt>0.001</tt> seconds, or <tt>1m</tt>.</li>
+    <li><strong>Repeat Option:</strong> If checked, the element will start over from the beginning of the file when it reaches the end, effectively looping the data.</li>
+</ul>
+
+<p><strong>Running the Simulation:</strong></p>
+<ul>
+    <li>With your settings adjusted, start or continue your simulation.</li>
+    <li>The Data Input Element will now output voltages according to the sequence in your file.</li>
+</ul>
+
+<p><strong>Troubleshooting:</strong></p>
+<ul>
+    <li>If you see "No file" on the element, ensure you've selected a file correctly.</li>
+    <li>If voltages are not as expected, check the Scale Factor and Sample Length.</li>
+</ul>
+
+<p><strong>Tips for Effective Use:</strong></p>
+<ul>
+    <li><strong>Data Preparation:</strong> Ensure your data file is clean. Any non-numeric data should be commented out with a # at the beginning of the line.</li>
+    <li><strong>Experimentation:</strong> Play with different settings to see how they affect your circuit's behavior.</li>
+    <li><strong>File Saving:</strong> Remember, once you set up your Data Input with a file, if you save your circuit, the data isn't saved within the circuit file. You'll need to keep the original data file or reselect it when loading your circuit.</li>
+    <li><strong>Current Input:</strong> Use this element in conjunction with a VCCS to simulate a current source where the current values change over time.</li>
+</ul>
+
+<p>This element is particularly useful for simulating real-world scenarios, testing how circuits respond to custom voltage patterns, or for educational purposes where you want to demonstrate specific voltage behaviors over time.</p>
+
+</body>
+</html>

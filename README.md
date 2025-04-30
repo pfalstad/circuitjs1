@@ -47,6 +47,27 @@ Once you have successfully connected your local VS Code to the remote workspace,
 >
 > Theoretically, it would be possible to use the browser-based VS Code interface. However, both Gitpod and Codespaces map forwarded ports to different domain names instead of different ports, which confuses the GWT code loader. It is possible to fix this by live-patching the `serverUrl` variable in `circuitjs1.nocache.js` using a custom HTTP server, but it also requires setting the port visibility to "Public" to avoid CORS errors due to redirects. Using a local installation of VS Code is much simpler.
 
+### Development using Gradle
+
+To build the application using gradle, do the following:
+
+```bash
+# 1. Run Gradle build with verbose output:
+gradle compileGwt --console verbose --info
+# 2. Create the web-site directory from the build files:
+gradle makeSite --console verbose --info
+```
+
+Now, just open `site/circuitjs.html` with your browser and enjoy!
+
+You can do the same thing inside GitHub Codespaces.  Then after creating the site directory, you can create a web server using:
+
+```bash
+cd site
+python3 -m http.server
+```
+
+Then go to the Ports tab, hover over the "Forwarded Address" and click "Follow Link".  Then click `circuitjs.html` to view the application.
 
 ## Deployment of the web application
 
@@ -73,6 +94,55 @@ Just for reference the files should look like this
    +- circuits (directory, containing example circuits)
    +- setuplist.txt (index in to example circuit directory)
 ```
+
+## Docker/podman containers
+
+### Building and Running Circuitjs in docker containers
+
+*(replace the podman command with docker if you prefere docker)*
+
+- To build Docker image using podman: 
+
+```
+podman build -f circuitjs1.Containerfile -t circuitjs1:latest
+```
+
+- To then run Docker image using podman:
+
+```
+podman run --name=circuitjs1 --rm -d -p 8000:8000 circuitjs1:latest
+```
+
+CircuitJS1 should be accessable at: http://localhost:8000/circuitjs.html
+
+
+### Development using docker containers
+
+(replace the podman command with docker if you prefere docker)
+
+- To build the development Docker image using podman: 
+
+```
+podman build -f dev-start.Containerfile -t circuitjs1-dev:latest
+```
+
+- To then run the development Docker image using podman:
+
+```
+podman run --rm -it -p 127.0.0.1:8000:8000/tcp -p 127.0.0.1:9876:9876/tcp circuitjs1-dev:latest
+```
+
+CircuitJS1 should be accessable at: http://localhost:8000/circuitjs.html
+
+If you need to modify the files while the container is running (using the gwt auto-build method):
+
+```
+podman run --rm -it -v $(pwd):/src:Z  -p 127.0.0.1:8000:8000/tcp -p 127.0.0.1:9876:9876/tcp  circuitjs1-dev:latest
+```
+
+This will use the current directory inside the container.
+
+
 
 ## Embedding
 

@@ -79,13 +79,28 @@ package com.lushprojects.circuitjs1.client;
                 return;
             }
 	    
-	    if (pins[3].value && !lastClock)
-		writeOutput(1, pins[0].value);
-	    if(hasSet() && pins[5].value != invertSetReset())
-		writeOutput(1, true);
-	    if(hasReset() && pins[4].value != invertSetReset())
-		writeOutput(1, false);
-	    writeOutput(2, !pins[1].value);
+	    boolean isSet = false;
+            boolean isReset = false;
+            
+	    if (hasSet() && pins[5].value != invertSetReset())
+		isSet = true;
+	    if (hasReset() && pins[4].value != invertSetReset())
+		isReset = true;
+
+	    if (isSet || isReset) {
+	    	writeOutput(1, false);
+		writeOutput(2, false);
+                if (isSet)
+                    writeOutput(1, true);
+                if (isReset)
+                    writeOutput(2, true);
+            } else {
+                if (pins[3].value && !lastClock)
+		    writeOutput(1, pins[0].value);
+
+                writeOutput(2, !pins[1].value);
+            }
+
 	    lastClock = pins[3].value;
 	}
 	int getDumpType() { return 155; }

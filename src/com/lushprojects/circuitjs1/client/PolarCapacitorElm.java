@@ -49,12 +49,12 @@ public class PolarCapacitorElm extends CapacitorElm {
 	    arr[0] = "capacitor (polarized)";
 	}
 	public EditInfo getEditInfo(int n) {
-	    if (n == 3)
+	    if (n == 4)
 		return new EditInfo("Max Reverse Voltage", maxNegativeVoltage, 0, 0);
 	    return super.getEditInfo(n);
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 3 && ei.value >= 0)
+	    if (n == 4 && ei.value >= 0)
 		maxNegativeVoltage = ei.value;
 	    super.setEditValue(n, ei);
 	}

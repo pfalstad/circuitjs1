@@ -27,6 +27,9 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 
 class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     final int FLAG_SHOW_VALUES = 1;
+    final int FLAG_FLIP = 2;
+    final int FLAG_FLIP_OFFSET = 4;
+
 	double position, maxResistance, resistance1, resistance2;
 	double current1, current2, current3;
 	double curcount1, curcount2, curcount3;
@@ -70,7 +73,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     void createSlider() {
     	sim.addWidgetToVerticalPanel(label = new Label(sliderText));
     	label.addStyleName("topSpace");
-    	int value = (int) (position*100);
+    	int value = (int) Math.round((position-.005)/.0099);
     	sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
    // 	sim.verticalPanel.validate();
    // 	slider.addAdjustmentListener(this);
@@ -95,34 +98,21 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	super.setPoints();
 	int offset = 0;
 	int myLen =0;
-	if (abs(dx) > abs(dy)) {
-	    myLen =  2 * sim.gridSize * Integer.signum(dx) * ((((Integer)Math.abs(dx))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
+	if (abs(dx) > abs(dy) != hasFlag(FLAG_FLIP)) {
+	    myLen =  2 * sim.gridSize * Integer.signum(dx) * ((((int)Math.abs(dx))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
 	    point2.x =  point1.x + myLen;
 	    offset = (dx < 0) ? dy : -dy;
 	    point2.y = point1.y;
 	} else {
-	    myLen =  2 * sim.gridSize * Integer.signum(dy) * ((((Integer)Math.abs(dy))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
+	    myLen =  2 * sim.gridSize * Integer.signum(dy) * ((((int)Math.abs(dy))+ 2 * sim.gridSize -1) / (2 * sim.gridSize));
 	    if (dy != 0) {
 		point2.y = point1.y + myLen;
 		offset = (dy > 0) ? dx : -dx;
 		point2.x = point1.x;
 	    }
 	}
-//	if (abs(dx) > abs(dy)) {
-//	    dx = Integer.signum(dx) * sim.snapGrid(Math.abs(dx) / 2) * 2;
-//	    point2.x = x2 = point1.x + dx;
-//	    offset = (dx < 0) ? dy : -dy;
-//	    point2.y = point1.y;
-//	} else {
-//	    dy = Integer.signum(dy) * sim.snapGrid(Math.abs(dy) / 2) * 2;
-//	    if (dy != 0) {
-//		point2.y = y2 = point1.y + dy;
-//		offset = (dy > 0) ? dx : -dx;
-//		point2.x = point1.x;
-//	    }
-//	}
 	if (offset == 0)
-	    offset = sim.gridSize;
+	    offset = (hasFlag(FLAG_FLIP_OFFSET)) ? -sim.gridSize : sim.gridSize;
 	dn = distance(point1, point2);
 	int bodyLen = 32;
 	calcLeads(bodyLen);
@@ -151,6 +141,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	double v2 = volts[1];
 	double v3 = volts[2];
 	setBbox(point1, point2, hs);
+	adjustBbox(post3, post3);
 	draw2Leads(g);
 	setPowerColor(g, true);
 	double segf = 1./segments;
@@ -255,7 +246,6 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	    dpx = 0;
 	    dpy = -hs;
 	}
-	CirSim.console("dv " + dpx + " " + w);
 	if (dpx == 0)
 	    g.drawString(s, xc-w/2, yc-abs(dpy)-2);
 	else {
@@ -334,6 +324,21 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     public void onMouseWheel(MouseWheelEvent e) {
     	if (slider!=null)
     		slider.onMouseWheel(e);
+    }
+    void flipX(int c2, int count) {
+	// this is only needed / only has an effect if point1 and point2 are on same grid line
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipX(c2, count);
+    }
+    void flipY(int c2, int count) {
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipY(c2, count);
+    }
+    void flipXY(int xmy, int count) {
+	if (abs(dx) == abs(dy))
+	    flags ^= FLAG_FLIP;
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipXY(xmy, count);
     }
 }
 

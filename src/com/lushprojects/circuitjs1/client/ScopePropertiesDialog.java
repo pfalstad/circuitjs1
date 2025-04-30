@@ -56,13 +56,13 @@ RadioButton acButton, dcButton;
 CheckBox scaleBox, voltageBox, currentBox, powerBox, peakBox, negPeakBox, freqBox, spectrumBox, manualScaleBox;
 CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, ibBox, icBox, ieBox, vbeBox, vbcBox, vceBox, vceIcBox, logSpectrumBox, averageBox;
 CheckBox elmInfoBox;
-TextBox labelTextBox, manualScaleTextBox;
+TextBox labelTextBox, manualScaleTextBox, divisionsTextBox;
 Button applyButton, scaleUpButton, scaleDownButton;
 Scrollbar speedBar,positionBar;
 Scope scope;
 Grid grid, vScaleGrid, hScaleGrid;
 int nx, ny;
-Label scopeSpeedLabel, manualScaleLabel,vScaleList, manualScaleId, positionLabel;
+Label scopeSpeedLabel, manualScaleLabel,vScaleList, manualScaleId, positionLabel, divisionsLabel;
 expandingLabel vScaleLabel, hScaleLabel;
 Vector <Button> chanButtons = new Vector <Button>();
 int plotSelection = 0;
@@ -288,7 +288,7 @@ labelledGridManager gridLabels;
 		channelSettingsp.add(channelButtonsp);
 		fp.add(channelSettingsp);
 		
-		vScaleGrid = new Grid(3,5);
+		vScaleGrid = new Grid(4,5);
 		dcButton= new RadioButton("acdc", Locale.LS("DC Coupled"));
 		dcButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
@@ -344,11 +344,19 @@ labelledGridManager gridLabels;
 		manualScaleLabel = new Label("");
 		vScaleGrid.setWidget(2,2, manualScaleLabel);
 		vScaleGrid.setWidget(2,4, applyButton = new Button(Locale.LS("Apply")));
+		divisionsLabel = new Label(Locale.LS("# of Divisions"));
+		divisionsTextBox = new TextBox();
+		divisionsTextBox.addValueChangeHandler(new manualScaleTextHandler());
+		vScaleGrid.setWidget(3,0, divisionsLabel);
+		vScaleGrid.setWidget(3,1, divisionsTextBox);
 		applyButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
 				apply();
 			}
 		});
+		Button applyButtonDiv;
+		vScaleGrid.setWidget(3,4, applyButtonDiv = new Button(Locale.LS("Apply")));
+		applyButtonDiv.addClickHandler(new ClickHandler() { public void onClick(ClickEvent event) { apply(); } });
 
 		vScaleGrid.getCellFormatter().setVerticalAlignment(1, 1, HasVerticalAlignment.ALIGN_MIDDLE);
 		fp.add(vScaleGrid);
@@ -600,6 +608,7 @@ labelledGridManager gridLabels;
         	    vScaleGrid.getRowFormatter().setVisible(0, scope.isManualScale() && plotSelection<scope.visiblePlots.size() );
         	    vScaleGrid.getRowFormatter().setVisible(1, scope.isManualScale() && plotSelection<scope.visiblePlots.size() );
         	    vScaleGrid.getRowFormatter().setVisible(2, (!scope.isManualScale()) || plotSelection<scope.visiblePlots.size());
+        	    vScaleGrid.getRowFormatter().setVisible(3, scope.isManualScale());
 	    }
 	    scaleUpButton.setVisible(scope.isManualScale());
 	    scaleDownButton.setVisible(scope.isManualScale());
@@ -610,6 +619,8 @@ labelledGridManager gridLabels;
 		    manualScaleLabel.setText(Scope.getScaleUnitsText(p.units)+Locale.LS("/div"));
 		    manualScaleTextBox.setText(EditDialog.unitString(null, p.manScale));
 		    manualScaleTextBox.setEnabled(true);
+		    divisionsTextBox.setText(String.valueOf(scope.manDivisions));
+		    divisionsTextBox.setEnabled(true);
 		    positionLabel.setText("CH "+String.valueOf(plotSelection+1)+" "+Locale.LS("Position"));
 		    positionBar.setValue(p.manVPosition);
 		    dcButton.setEnabled(true);
@@ -664,6 +675,16 @@ labelledGridManager gridLabels;
 	    }
 	}
 	
+	int getDivisionsValue()
+	{
+	    try {
+		int n = Integer.parseInt(divisionsTextBox.getText());
+		return n;
+	    } catch (Exception e) {
+		return 0;
+	    }
+	}
+	
 	void apply() {
 	    String label = labelTextBox.getText();
 	    if (label.length() == 0)
@@ -674,6 +695,9 @@ labelledGridManager gridLabels;
 		double d=getManualScaleValue();
 		if (d>0)
 		    scope.setManualScaleValue(plotSelection, d);
+		int n = getDivisionsValue();
+		if (n > 0)
+		    scope.setManDivisions(n);
 	    }
 	}
 

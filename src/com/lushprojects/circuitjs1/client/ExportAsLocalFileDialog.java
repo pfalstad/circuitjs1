@@ -35,7 +35,7 @@ import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.i18n.client.DateTimeFormat;
 
-public class ExportAsLocalFileDialog extends Dialog implements ValueChangeHandler<String> {
+public class ExportAsLocalFileDialog extends Dialog {
 	
 	VerticalPanel vp;
 	
@@ -64,7 +64,7 @@ public class ExportAsLocalFileDialog extends Dialog implements ValueChangeHandle
 	public static void setLastFileName(String s) {
 	    // remember filename for use when saving a new file.
 	    // if s is null or automatically generated then just clear out old filename.
-	    if (s == null || (s.startsWith("circuit-") && s.contains(".circuitjs")))
+	    if (s == null || s.startsWith("circuitjs-"))
 		lastFileName = null;
 	    else
 		lastFileName = s;
@@ -78,7 +78,6 @@ public class ExportAsLocalFileDialog extends Dialog implements ValueChangeHandle
 		setText(Locale.LS("Export as Local File"));
 		vp.add(new Label(Locale.LS("File name:")));
 		textBox = new TextBox();
-                textBox.addValueChangeHandler(this);
 		textBox.setWidth("250px"); // "90%");
 		vp.add(textBox);
 		url=getBlobUrl(data);
@@ -87,8 +86,8 @@ public class ExportAsLocalFileDialog extends Dialog implements ValueChangeHandle
 		if (lastFileName != null)
 		    fname = lastFileName;
 		else {
-		    DateTimeFormat dtf = DateTimeFormat.getFormat("yyyyMMdd-HHmm");
-		    fname = "circuit-"+ dtf.format(date) + ".circuitjs.txt";
+		    DateTimeFormat dtf = DateTimeFormat.getFormat("yyyyMMdd-HHmmss");
+		    fname = "circuitjs-"+ dtf.format(date) + ".txt";
 		}
 		textBox.setText(fname);
 		
@@ -122,17 +121,10 @@ public class ExportAsLocalFileDialog extends Dialog implements ValueChangeHandle
 	    String fname = textBox.getText();
 	    if (!fname.contains("."))
 		fname += ".txt";
+	    setLastFileName(fname);
 	    Anchor a  = new Anchor(fname, url);
 	    a.getElement().setAttribute("Download", fname);
 	    vp.add(a);
 	    click(a.getElement());
-	}
-	
-	public void onValueChange(ValueChangeEvent<String> event) {
-	    // update filename
-	    String fname = textBox.getText();
-	    if (fname.length() == 0)
-		return;
-	    lastFileName = fname;
 	}
 }

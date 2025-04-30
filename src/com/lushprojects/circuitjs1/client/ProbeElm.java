@@ -29,6 +29,7 @@ class ProbeElm extends CircuitElm {
     int meter;
     int units;
     int scale;
+    double resistance;
     final int TP_VOL = 0;
     final int TP_RMS = 1;
     final int TP_MAX = 2;
@@ -46,20 +47,23 @@ class ProbeElm extends CircuitElm {
     	// default for new elements
     	flags = FLAG_SHOWVOLTAGE | FLAG_CIRCLE;
     	scale = SCALE_AUTO;
+	resistance = 1e7;
     }
     public ProbeElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
     	meter = TP_VOL;
     	scale = SCALE_AUTO;
+	resistance = 0;
 	try {
 	    meter = Integer.parseInt(st.nextToken()); // get meter type from saved dump
 	    scale = Integer.parseInt(st.nextToken());
+	    resistance = Double.parseDouble(st.nextToken());
 	} catch (Exception e) {}
     }
     int getDumpType() { return 'p'; }
     String dump() {
-        return super.dump() + " " + meter + " " + scale;
+        return super.dump() + " " + meter + " " + scale + " " + resistance;
     }
     String getMeter(){
         switch (meter) {
@@ -269,11 +273,20 @@ class ProbeElm extends CircuitElm {
         }
     }
 
+    void calculateCurrent() {
+	current = (resistance == 0) ? 0 : (volts[0]-volts[1])/resistance;
+    }
+
+    void stamp() {
+	if (resistance != 0)
+	    sim.stampResistor(nodes[0], nodes[1], resistance);
+    }
+
     void getInfo(String arr[]) {
 	arr[0] = "voltmeter";
 	arr[1] = "Vd = " + getVoltageText(getVoltageDiff());
     }
-    boolean getConnection(int n1, int n2) { return false; }
+    boolean getConnection(int n1, int n2) { return (resistance != 0); }
 
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
@@ -311,6 +324,8 @@ class ProbeElm extends CircuitElm {
             EditInfo ei = EditInfo.createCheckbox("Use Circle Symbol", drawAsCircle());
             return ei;
         }
+	if (n == 4)
+	    return new EditInfo("Series Resistance (0 = infinite)", resistance);
 
         return null;
     }
@@ -329,6 +344,8 @@ class ProbeElm extends CircuitElm {
             scale = ei.choice.getSelectedIndex();
         if (n == 3)
             flags = ei.changeFlag(flags, FLAG_CIRCLE);
+	if (n == 4)
+	    resistance = ei.value;
     }
 }
 

@@ -356,56 +356,30 @@ abstract class ChipElm extends CircuitElm {
 	    return pins[n].current;
 	}
 	
-	boolean isFlippedXY() { return (flags & FLAG_FLIP_XY) != 0; }
+	boolean isFlippedX () { return hasFlag(FLAG_FLIP_X ); }
+	boolean isFlippedY () { return hasFlag(FLAG_FLIP_Y ); }
+	boolean isFlippedXY() { return hasFlag(FLAG_FLIP_XY); }
 	
 	public EditInfo getEditInfo(int n) {
-	    if (n == 0) {
-		EditInfo ei = new EditInfo("", 0, -1, -1);
-		ei.checkbox = new Checkbox("Flip X", (flags & FLAG_FLIP_X) != 0);
-		return ei;
-	    }
-	    if (n == 1) {
-		EditInfo ei = new EditInfo("", 0, -1, -1);
-		ei.checkbox = new Checkbox("Flip Y", (flags & FLAG_FLIP_Y) != 0);
-		return ei;
-	    }
-	    if (n == 2) {
-		EditInfo ei = new EditInfo("", 0, -1, -1);
-		ei.checkbox = new Checkbox("Flip X/Y", (flags & FLAG_FLIP_XY) != 0);
-		return ei;
-	    }
 	    if (!isDigitalChip())
-		return getChipEditInfo(n-3);
+		return getChipEditInfo(n);
 	    
-	    if (n == 3)
+	    if (n == 0)
 		return new EditInfo("High Logic Voltage", highVoltage);
 	    
-	    return getChipEditInfo(n-4);
+	    return getChipEditInfo(n-1);
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0) {
-		flags = ei.changeFlag(flags, FLAG_FLIP_X);
-		setPoints();
-	    }
-	    if (n == 1) {
-		flags = ei.changeFlag(flags, FLAG_FLIP_Y);
-		setPoints();
-	    }
-	    if (n == 2) {
-		flags = ei.changeFlag(flags, FLAG_FLIP_XY);
-		setPoints();
-	    }
 	    if (!isDigitalChip()) {
-		if (n >= 3)
-		    setChipEditValue(n-3, ei);
+		setChipEditValue(n, ei);
 		return;
 	    }
 	    
-	    if (n == 3)
+	    if (n == 0)
 		highVoltage = ei.value;
 	    
-	    if (n >= 4)
-		setChipEditValue(n-4, ei);
+	    if (n >= 1)
+		setChipEditValue(n-1, ei);
 	}
 	
 	public EditInfo getChipEditInfo(int n) { return null; }
@@ -457,7 +431,7 @@ abstract class ChipElm extends CircuitElm {
 	static final int sideFlipXY[] = { SIDE_W, SIDE_E, SIDE_N, SIDE_S };
 
 	int flippedXSide(int s) {
-	    if ((flags & FLAG_FLIP_X) == 0)
+	    if (!isFlippedX())
 		return s;
 	    if (s == SIDE_W)
 		return SIDE_E;
@@ -466,6 +440,41 @@ abstract class ChipElm extends CircuitElm {
 	    return s;
 	}
 	
+	void flipX(int center2, int count) {
+	    flags ^= FLAG_FLIP_X;
+	    if (count != 1) {
+		int xs = (flippedSizeX+1)*cspc2;
+		x  = center2-x - xs;
+		x2 = center2-x2;
+	    }
+	    setPoints();
+	}
+
+	void flipY(int center2, int count) {
+	    flags ^= FLAG_FLIP_Y;
+	    if (count != 1) {
+		int ys = (flippedSizeY-1)*cspc2;
+		y  = center2-y - ys;
+		y2 = center2-y2;
+	    }
+	    setPoints();
+	}
+
+	void flipXY(int xmy, int count) {
+	    flags ^= FLAG_FLIP_XY;
+
+	    // FLAG_FLIP_XY is applied first.  So need to swap X and Y
+	    if (isFlippedX() != isFlippedY())
+		flags ^= FLAG_FLIP_X|FLAG_FLIP_Y;
+
+	    if (count != 1) {
+		x += cspc2;
+		super.flipXY(xmy, count);
+		x -= cspc2;
+	    }
+	    setPoints();
+	}
+
 	class Pin {
 	    Pin(int p, int s, String t) {
 		pos = p; side0 = side = s; text = t;
@@ -478,13 +487,13 @@ abstract class ChipElm extends CircuitElm {
 	    double curcount, current;
             int clockPointsX[], clockPointsY[];
 	    void setPoint(int px, int py, int dx, int dy, int dax, int day, int sx, int sy) {
-		if ((flags & FLAG_FLIP_X) != 0) {
+		if (isFlippedX()) {
 		    dx = -dx;
 		    dax = -dax;
 		    px += cspc2*(flippedSizeX-1);
 		    sx = -sx;
 		}
-		if ((flags & FLAG_FLIP_Y) != 0) {
+		if (isFlippedY()) {
 		    dy = -dy;
 		    day = -day;
 		    py += cspc2*(flippedSizeY-1);

@@ -28,16 +28,16 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	super(xa, ya, xb, yb, f, st);
     }
 
-    final int openhs = 16;
     Point swposts[], swpoles[], ctlPoint;
     void setPoints() {
 	super.setPoints();
 	calcLeads(32);
+	adjustLeadsToGrid(isFlippedX(), isFlippedY());
 	swposts = newPointArray(2);
 	swpoles = newPointArray(2);
 	interpPoint2(lead1,  lead2,  swpoles[0], swpoles[1], 1, openhs);
 	interpPoint2(point1, point2, swposts[0], swposts[1], 1, openhs);
-	ctlPoint = interpPoint(point1, point2, .5, openhs);
+	ctlPoint = interpPoint(lead1, lead2, .5, openhs);
     }
     int getPostCount() { return 4; }
 
@@ -83,25 +83,38 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	sim.stampNonLinear(nodes[0]);
 	sim.stampNonLinear(nodes[1]);
 	sim.stampNonLinear(nodes[2]);
+	if (needsPulldown()) {
+	    sim.stampResistor(nodes[1], 0, r_off);
+	    sim.stampResistor(nodes[2], 0, r_off);
+	}
     }
     void doStep() {
-	open = (volts[3] < 2.5);
-	if ((flags & FLAG_INVERT) != 0)
+	open = (volts[3] < threshold);
+	if (hasFlag(FLAG_INVERT))
 	    open = !open;
 	if (open) {
 	    sim.stampResistor(nodes[0], nodes[2], r_on);
-	    sim.stampResistor(nodes[0], nodes[1], r_off);
+	    if (!needsPulldown())
+	        sim.stampResistor(nodes[0], nodes[1], r_off);
 	} else {
 	    sim.stampResistor(nodes[0], nodes[1], r_on);
-	    sim.stampResistor(nodes[0], nodes[2], r_off);
+	    if (!needsPulldown())
+	        sim.stampResistor(nodes[0], nodes[2], r_off);
 	}
     }
 	
     boolean getConnection(int n1, int n2) {
 	if (n1 == 3 || n2 == 3)
 	    return false;
+	if (needsPulldown())
+	    return comparePair(n1, n2, 0, open ? 2 : 1);
 	return true;
     }
+
+    boolean hasGroundConnection(int n) {
+	return needsPulldown() && n != 3;
+    }
+
     void getInfo(String arr[]) {
 	arr[0] = "analog switch (SPDT)";
 	arr[1] = "I = " + getCurrentDText(getCurrent());

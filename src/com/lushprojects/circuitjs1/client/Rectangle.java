@@ -88,6 +88,10 @@ public class Rectangle {
     }
     */
     
+    public boolean contains(Rectangle r) {
+	return contains(r.x, r.y) && contains(r.x+r.width, r.y+r.height);
+    }
+
     public boolean intersects(Rectangle r) {
         int tw = this.width;
         int th = this.height;

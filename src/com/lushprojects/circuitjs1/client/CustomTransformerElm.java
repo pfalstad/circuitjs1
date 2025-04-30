@@ -24,6 +24,8 @@ import com.google.gwt.user.client.Window;
 class CustomTransformerElm extends CircuitElm {
 	double coilCurrents[], coilInductances[], coilCurCounts[], coilCurSourceValues[], coilPolarities[];
 	double nodeCurrents[], nodeCurCounts[];
+        public static final int FLAG_FLIP = 1;
+	int flip;
 	
 	// node number n of first node of each coil (second node = n+1)
 	int coilNodes[];
@@ -188,7 +190,7 @@ class CustomTransformerElm extends CircuitElm {
 		int n = coilNodes[i];
 		setVoltageColor(g, volts[n]);
 		setPowerColor(g, coilCurrents[i]*(volts[n]-volts[n+1]));
-		drawCoil(g, (i >= primaryCoils ? -6 : 6), nodeTaps[n], nodeTaps[n+1], volts[n], volts[n+1]);
+		drawCoil(g, (i >= primaryCoils ? -6*flip : 6*flip), nodeTaps[n], nodeTaps[n+1], volts[n], volts[n+1]);
 		if (dots != null) {
 		    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 		    g.fillOval(dots[i].x-2, dots[i].y-2, 5, 5);
@@ -222,6 +224,7 @@ class CustomTransformerElm extends CircuitElm {
 	void setPoints() {
 	    super.setPoints();
 	    point2.y = point1.y;
+	    flip = hasFlag(FLAG_FLIP) ? -1 : 1;
 	    int i;
 	    int primaryNodes = (primaryCoils == coilCount) ? nodeCount : coilNodes[primaryCoils];
 	    dn = Math.abs(point1.x-point2.x);
@@ -238,8 +241,8 @@ class CustomTransformerElm extends CircuitElm {
 		    if (step == 1) {
 			if (i == primaryNodes-1 || i == nodeCount-1)
 			    offset = maxWidth;
-			interpPoint(point1, point2, nodePoints[i], i < primaryNodes ? 0 : 1,     -offset);
-			interpPoint(point1, point2, nodeTaps[i]  , i < primaryNodes ? ce : 1-ce, -offset);
+			interpPoint(point1, point2, nodePoints[i], i < primaryNodes ? 0 : 1,     -offset*flip);
+			interpPoint(point1, point2, nodeTaps[i]  , i < primaryNodes ? ce : 1-ce, -offset*flip);
 		    }
 		    maxWidth = Math.max(maxWidth, offset); 
 		    int nn = c < coilCount ? coilNodes[c] : -1;
@@ -255,7 +258,7 @@ class CustomTransformerElm extends CircuitElm {
 	    }
 	    ptCore = newPointArray(4);
 	    for (i = 0; i != 4; i += 2) {
-		double h = (i == 2) ? -maxWidth : 0;
+		double h = (i == 2) ? -maxWidth*flip : 0;
 		interpPoint(point1, point2, ptCore[i],   cd, h);
 		interpPoint(point1, point2, ptCore[i+1], 1-cd, h);
 	    }
@@ -453,4 +456,16 @@ class CustomTransformerElm extends CircuitElm {
 		parseDescription();
 	    }
 	}
+	void flipX(int c2, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipX(c2, count);
+	}
+	void flipY(int c2, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipY(c2, count);
+	}
+
+	// vertical not supported
+	boolean canFlipXY() { return false; }
+
     }

@@ -197,11 +197,8 @@ class SwitchElm extends CircuitElm {
 	}
 	if (n == 1)
 	    return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
-        if (n == 2) {
-            EditInfo ei = new EditInfo("Label (for linking)", 0);
-            ei.text = label == null ? "" : label;
-            return ei;
-        }
+        if (n == 2)
+            return new EditInfo("Label (for linking)", label == null ? "" : label);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -220,5 +217,6 @@ class SwitchElm extends CircuitElm {
         	flags |= FLAG_LABEL;
         }
     }
+
     int getShortcut() { return 's'; }
 }

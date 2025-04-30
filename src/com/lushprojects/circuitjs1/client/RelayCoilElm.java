@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.ui.Button;
 import com.lushprojects.circuitjs1.client.util.Locale;
+import java.util.Vector;
 
 class RelayCoilElm extends CircuitElm {
     double inductance;
@@ -163,7 +164,8 @@ class RelayCoilElm extends CircuitElm {
 	setBbox(outline[0], outline[2], 0);
 	adjustBbox(coilPosts[0], coilPosts[1]);
 
-	setSwitchPositions();
+	// this never gets called for subcircuits
+	//setSwitchPositions();
     }
 	
     double getCurrentIntoNode(int n) {
@@ -247,6 +249,7 @@ class RelayCoilElm extends CircuitElm {
 	} else {
 	    switchingTimeOff = switchingTimeOn = switchingTime;
 	}
+	setSwitchPositions();
     }
     
     void startIteration() {
@@ -290,10 +293,13 @@ class RelayCoilElm extends CircuitElm {
 	    setSwitchPositions();
     }
     
+    Vector<CircuitElm> elmList;
+    void setParentList(Vector<CircuitElm> list) { elmList = list; }
+
     void setSwitchPositions() {
 	int i;
-	for (i = 0; i != sim.elmList.size(); i++) {
-	    Object o = sim.elmList.elementAt(i);
+	for (i = 0; i != elmList.size(); i++) {
+	    Object o = elmList.elementAt(i);
 	    if (o instanceof RelayContactElm) {
 		RelayContactElm s2 = (RelayContactElm) o;
 		if (s2.label.equals(label))
@@ -343,11 +349,8 @@ class RelayCoilElm extends CircuitElm {
 	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0);
 	if (n == 5)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
-	if (n == 6) {
-	    EditInfo ei = new EditInfo("Label (for linking)", 0);
-	    ei.text = label;
-	    return ei;
-	}
+	if (n == 6)
+	    return new EditInfo("Label (for linking)", label);
 	return null;
     }
     

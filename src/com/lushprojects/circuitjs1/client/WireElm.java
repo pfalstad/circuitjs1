@@ -90,4 +90,13 @@ package com.lushprojects.circuitjs1.client;
 	    }
 	}
         int getShortcut() { return 'w'; }
+
+	int getMouseDistance(int gx, int gy) {
+	    int thresh = 10;
+	    int d2 = lineDistanceSq(x, y, x2, y2, gx, gy);
+	    if (d2 <= thresh*thresh)
+		return d2;
+	    return -1;
+	}
+
     }

@@ -239,6 +239,30 @@
       "src": "fontawesome"
     },
     {
+      "uid": "3c961c1a8d874815856fc6637dc5a13c",
+      "css": "image",
+      "code": 61893,
+      "src": "fontawesome"
+    },
+    {
+      "uid": "d3b3f17bc3eb7cd809a07bbd4d178bee",
+      "css": "flip-y",
+      "code": 59413,
+      "src": "fontawesome"
+    },
+    {
+      "uid": "3c73d058e4589b65a8d959c0fc8f153d",
+      "css": "flip-x",
+      "code": 59414,
+      "src": "fontawesome"
+    },
+    {
+      "uid": "e594fc6e5870b4ab7e49f52571d52577",
+      "css": "flip-x-y",
+      "code": 59415,
+      "src": "fontawesome"
+    },
+    {
       "uid": "500f9108bd1bad36bbe1a4cef7828974",
       "css": "folder",
       "code": 59408,

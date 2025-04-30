@@ -31,8 +31,13 @@ class SchmittElm extends InvertingSchmittElm{
 	}
 
 	int getDumpType() { return 182; }
+
+	double lastOutputVoltage;
+
+	void startIteration() {
+	    lastOutputVoltage = volts[1];
+	}
 	void doStep() {
-	    double v0 = volts[1];
 	    double out;
 		if(state)
 		{//Output is high
@@ -60,7 +65,7 @@ class SchmittElm extends InvertingSchmittElm{
 		}
 	    
 	    double maxStep = slewRate * sim.timeStep * 1e9;
-	    out = Math.max(Math.min(v0+maxStep, out), v0-maxStep);
+	    out = Math.max(Math.min(lastOutputVoltage+maxStep, out), lastOutputVoltage-maxStep);
 	    sim.updateVoltageSource(0, nodes[1], voltSource, out);
 	}
 

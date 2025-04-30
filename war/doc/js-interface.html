@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Simulator JavaScript Interface Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        code, pre {
+            background: #f4f4f4;
+            /*border: 1px solid #ddd;
+            padding: 5px 10px;
+            border-radius: 5px;*/
+        }
+        pre {
+            overflow: auto;
+        }
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+<h1>Circuit Simulator JavaScript Interface Documentation</h1>
+
+<p>This documentation outlines how to interact with the Circuit Simulator using JavaScript when it's embedded in an HTML page, particularly focusing on the use of an iframe to host the simulator.</p>
+
+<h2>Overview</h2>
+<p>To use the JavaScript interface, the simulator and the controlling JavaScript page must be served from the same origin (domain).
+This is required by the same-origin policy enforced by browsers for security reasons.
+<p>
+To run the simulator on your website, get the <a href="https://www.falstad.com/circuit/offline/">offline windows version</a>,
+and put the contents of the <tt>circuitjs1/resources/app/war</tt> directory on your website.
+<p>
+You can run the CircuitJS1 simulation in an iframe.  The CircuitJS1 object provides methods to interact with the simulator.
+<p>
+<a href="https://www.falstad.com/circuit/jsinterface.html">See a running example here</a>.
+</p>
+
+<h2>Setup</h2>
+
+<pre><code>&lt;iframe id="circuitFrame" src="circuitjs.html?startCircuit=jsinterface.txt" width="800" height="550"&gt;&lt;/iframe&gt;
+
+...
+
+&lt;script&gt;
+
+var iframe = document.getElementById("circuitFrame");
+
+// Wait for the circuit simulator to load
+iframe.contentWindow.oncircuitjsloaded = function() {
+    // Simulator is loaded, initialize your code here
+    sim = iframe.contentWindow.CircuitJS1;
+
+    // Set up callbacks for updates, analysis, and time steps (all optional)
+    sim.onupdate = didUpdate;
+    sim.ontimestep = didStep;
+    sim.onanalyze = didAnalyze;
+};</code></pre>
+
+<h2>Available CircuitJS1 Methods</h2>
+
+<h3><code>setSimRunning(boolean run)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Starts or stops the simulation.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>run</code> (boolean): <code>true</code> to start the simulation, <code>false</code> to stop it.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setSimRunning(true);</code></li>
+</ul>
+
+<h3><code>getTime()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Retrieves the current simulation time.</li>
+    <li><strong>Returns:</strong> The simulation time in seconds as a number.</li>
+    <li><strong>Example:</strong> <code>var time = CircuitJS1.getTime();</code></li>
+</ul>
+
+<h3><code>getTimeStep()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Gets the current time step of the simulation.</li>
+    <li><strong>Returns:</strong> The time step value.</li>
+    <li><strong>Example:</strong> <code>var timeStep = CircuitJS1.getTimeStep();</code></li>
+</ul>
+
+<h3><code>setTimeStep(double ts)</code> (Deprecated)</h3>
+<ul>
+    <li><strong>Description:</strong> Sets the time step for the simulation. <strong>Note:</strong> This method is deprecated; changes to time step should be made using <code>setMaxTimeStep</code>.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>ts</code> (double): The new time step to set.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setTimeStep(1e-6);</code> // This is deprecated</li>
+</ul>
+
+<h3><code>getMaxTimeStep()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Returns the maximum time step allowed for the simulation.</li>
+    <li><strong>Returns:</strong> The maximum time step value.</li>
+    <li><strong>Example:</strong> <code>var maxTimeStep = CircuitJS1.getMaxTimeStep();</code></li>
+</ul>
+
+<h3><code>setMaxTimeStep(double ts)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Sets a new maximum time step and also sets the current time step to this value.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>ts</code> (double): The new maximum time step to set.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setMaxTimeStep(1e-3);</code></li>
+</ul>
+
+<h3><code>isRunning()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Checks if the simulation is currently running.</li>
+    <li><strong>Returns:</strong> <code>true</code> if the simulation is running, <code>false</code> otherwise.</li>
+    <li><strong>Example:</strong> <code>if (CircuitJS1.isRunning()) { ... }</code></li>
+</ul>
+
+<h3><code>getNodeVoltage(String n)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Gets the voltage at a labeled node in the circuit.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>n</code> (String): The name of the labeled node.</li>
+        </ul>
+    </li>
+    <li><strong>Returns:</strong> The voltage at the node.</li>
+    <li><strong>Example:</strong> <code>var nodeVoltage = CircuitJS1.getNodeVoltage("vsense");</code></li>
+</ul>
+
+<h3><code>setExtVoltage(String n, double v)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Sets the voltage of an external voltage element (see Inputs and Sources,
+Add External Voltage).  These are different than labeled nodes, though they look the same.  Labeled nodes are
+passive.  Their voltage is determined by the rest of the circuit.  External voltage elements are voltage sources.  Their
+voltage is determined by javascript code.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>n</code> (String): The name of the external voltage element to set the voltage for.</li>
+            <li><code>v</code> (double): The voltage value to set.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setExtVoltage("extsin", 5);</code></li>
+</ul>
+
+<h3><code>getElements()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Retrieves all elements currently in the circuit.</li>
+    <li><strong>Returns:</strong> An array of circuit elements.  See below for methods supported on these element objects.</li>
+    <li><strong>Example:</strong> <code>var elements = CircuitJS1.getElements();</code></li>
+</ul>
+
+<h3><code>getCircuitAsSVG()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Exports the current circuit as an SVG string.</li>
+    <li><strong>Returns:</strong> The SVG representation of the circuit.</li>
+    <li><strong>Example:</strong> <code>var svgData = CircuitJS1.getCircuitAsSVG();</code></li>
+</ul>
+
+<h3><code>exportCircuit()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Exports the current circuit to a string format for saving or transmission.</li>
+    <li><strong>Returns:</strong> A string representation of the circuit.</li>
+    <li><strong>Example:</strong> <code>var circuitExport = CircuitJS1.exportCircuit();</code></li>
+</ul>
+
+<h3><code>importCircuit(String circuit, boolean subcircuitsOnly)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Imports a circuit from a string, potentially only loading subcircuits.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>circuit</code> (String): The string representation of the circuit to import (as returned by <code>exportCircuit()</code>).</li>
+            <li><code>subcircuitsOnly</code> (boolean): If <code>true</code>, only subcircuits are imported.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.importCircuit(circuitString, false);</code></li>
+</ul>
+
+<h2>Circuit Element Methods</h2>
+
+<h3><code>getType()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Retrieves the type of the circuit element.</li>
+    <li><strong>Returns:</strong> A string representing the class name of the element.</li>
+    <li><strong>Example:</strong> <code>var elementType = element.getType();</code></li>
+</ul>
+
+<h3><code>getInfo()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Gets information about the circuit element, which might include voltage, current, or other relevant data points.</li>
+    <li><strong>Returns:</strong> An array or object containing information about the element.</li>
+    <li><strong>Example:</strong> <code>var elementInfo = element.getInfo();</code></li>
+</ul>
+
+<h3><code>getVoltageDiff()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Returns the voltage difference across the element. This is particularly useful for two-terminal elements like resistors.</li>
+    <li><strong>Returns:</strong> The voltage difference as a number.</li>
+    <li><strong>Example:</strong> <code>var voltageDiff = element.getVoltageDiff();</code></li>
+</ul>
+
+<h3><code>getVoltage(n)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Gets the voltage at a specific node (or post) of the element.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>n</code> (number): The index of the node to check.</li>
+        </ul>
+    </li>
+    <li><strong>Returns:</strong> The voltage at the specified node.</li>
+    <li><strong>Example:</strong> <code>var nodeVoltage = element.getVoltage(0);</code></li>
+</ul>
+
+<h3><code>getCurrent()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Retrieves the current flowing through the element.</li>
+    <li><strong>Returns:</strong> The current as a number.</li>
+    <li><strong>Example:</strong> <code>var current = element.getCurrent();</code></li>
+</ul>
+
+<h3><code>getLabelName()</code> (For LabeledNodeElm)</h3>
+<ul>
+    <li><strong>Description:</strong> Returns the name of the label for elements that are labeled nodes.</li>
+    <li><strong>Returns:</strong> The label name as a string.</li>
+    <li><strong>Example:</strong> <code>var labelName = labelElm.getLabelName();</code></li>
+</ul>
+
+<h3><code>getPostCount()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Returns the number of posts (connection points) for the element.</li>
+    <li><strong>Returns:</strong> The post count as a number.</li>
+    <li><strong>Example:</strong> <code>var postCount = element.getPostCount();</code></li>
+</ul>
+<h3>Callbacks</h3>
+<ul>
+    <li><strong>onupdate</strong>: Called when the simulator updates its display (usually 60 times per second).
+        <pre><code>sim.onupdate = didUpdate;
+...
+function didUpdate(sim) {
+    // Update UI with simulation data
+}</code></pre>
+    </li>
+    <li><strong>ontimestep</strong>: Called every time step of the simulation.
+        <pre><code>sim.ontimestep = didStep;
+...
+function didStep(sim) {
+    // Perform actions per time step
+}</code></pre>
+    </li>
+    <li><strong>onanalyze</strong>: Called when the circuit is analyzed (loaded or edited).
+        <pre><code>sim.onanalyze = didAnalyze;
+...
+function didAnalyze(sim) {
+    // React to changes in circuit
+}</code></pre>
+    </li>
+</ul>
+
+</body>
+</html>

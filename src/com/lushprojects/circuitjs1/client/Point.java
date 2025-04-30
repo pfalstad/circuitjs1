@@ -57,4 +57,9 @@ public class Point {
          @Override public int hashCode() {
              return (41 * (41 + x) + y);
          }
+
+	public void move(int dx, int dy) {
+	     x += dx;
+	     y += dy;
+	}
 }

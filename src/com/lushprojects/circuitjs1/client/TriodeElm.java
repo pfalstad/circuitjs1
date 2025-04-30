@@ -228,5 +228,7 @@ class TriodeElm extends CircuitElm {
     }
     boolean canViewInScope() { return true; }
     double getVoltageDiff() { return volts[plateN] - volts[cathN]; }    
+    boolean canFlipX() { return false; }
+    boolean canFlipY() { return false; }
 }
 

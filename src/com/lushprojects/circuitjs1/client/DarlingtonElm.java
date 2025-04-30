@@ -144,7 +144,6 @@ public class DarlingtonElm extends CompositeElm {
 
     }
 
-
-    
+    boolean canFlipY() { return false; }
 
 }
