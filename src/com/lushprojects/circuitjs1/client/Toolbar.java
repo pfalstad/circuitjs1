@@ -44,6 +44,7 @@ public class Toolbar extends HorizontalPanel {
 	} else {
 		add(createIconButton("floppy", "Save As...", new MyCommand("file", "exportaslocalfile")));
 	}
+	add(new HTML("<sup style=\"margin-left:-12px;\"><strong>+</strong></sup>")); // add symbol to "Save As" icon for the visual difference
 	add(new HTML(SEPARATOR));
 	add(createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
 	add(createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
