@@ -36,6 +36,15 @@ public class Toolbar extends HorizontalPanel {
         style.setDisplay(Style.Display.FLEX);
 	setVerticalAlignment(ALIGN_MIDDLE);
 
+	add(createIconButton("doc-new", "New Blank Circuit", new MyCommand("file", "newblankcircuit")));
+	add(createIconButton("folder",  "Open File...", new MyCommand("file", "importfromlocalfile")));
+	if (CirSim.isElectron()) {
+		add(createIconButton("floppy", "Save", new MyCommand("file", "save")));
+		add(createIconButton("floppy", "Save As...", new MyCommand("file", "saveas")));
+	} else {
+		add(createIconButton("floppy", "Save As...", new MyCommand("file", "exportaslocalfile")));
+	}
+	add(new HTML(SEPARATOR));
 	add(createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
 	add(createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
 	add(new HTML(SEPARATOR));
