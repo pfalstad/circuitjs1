@@ -130,6 +130,7 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem noEditCheckItem;
     CheckboxMenuItem mouseWheelEditCheckItem;
     CheckboxMenuItem toolbarCheckItem;
+    CheckboxMenuItem mouseModeCheckItem;
     private Label powerLabel;
     private Label titleLabel;
     private Scrollbar speedBar;
@@ -611,6 +612,12 @@ MouseOutHandler, MouseWheelHandler {
 		}
 	}));
 	toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && startCircuit == null && startCircuitText == null && startCircuitLink == null);
+	m.addItem(mouseModeCheckItem = new CheckboxMenuItem(Locale.LS("Show Mode"),
+		new Command() { public void execute(){
+			setOptionInStorage("showMouseMode", mouseModeCheckItem.getState());
+		}
+	}));
+	mouseModeCheckItem.setState(getOptionFromStorage("showMouseMode", true));
 	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Cross Hairs"),
 		new Command() { public void execute(){
 		    setOptionInStorage("crossHair", crossHairCheckItem.getState());
@@ -1715,8 +1722,10 @@ MouseOutHandler, MouseWheelHandler {
         }
 
         // Add info about mouse mode in graphics
-        if (printableCheckItem.getState()) g.setColor(Color.black);
-        g.drawString(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr), 10, 29);
+        if (mouseModeCheckItem.getState()){
+            if (printableCheckItem.getState()) g.setColor(Color.black);
+            g.drawString(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr), 10, 29);
+        }
         
         // This should always be the last 
         // thing called by updateCircuit();
