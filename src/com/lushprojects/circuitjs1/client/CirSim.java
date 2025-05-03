@@ -130,6 +130,7 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem noEditCheckItem;
     CheckboxMenuItem mouseWheelEditCheckItem;
     CheckboxMenuItem toolbarCheckItem;
+    CheckboxMenuItem mouseModeCheckItem;
     private Label powerLabel;
     private Label titleLabel;
     private Scrollbar speedBar;
@@ -611,6 +612,12 @@ MouseOutHandler, MouseWheelHandler {
 		}
 	}));
 	toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && startCircuit == null && startCircuitText == null && startCircuitLink == null);
+	m.addItem(mouseModeCheckItem = new CheckboxMenuItem(Locale.LS("Show Mode"),
+		new Command() { public void execute(){
+			setOptionInStorage("showMouseMode", mouseModeCheckItem.getState());
+		}
+	}));
+	mouseModeCheckItem.setState(getOptionFromStorage("showMouseMode", true));
 	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Cross Hairs"),
 		new Command() { public void execute(){
 		    setOptionInStorage("crossHair", crossHairCheckItem.getState());
@@ -1697,7 +1704,7 @@ MouseOutHandler, MouseWheelHandler {
         perfmon.stopContext(); // updateCircuit
         
         if (developerMode) {
-            int height = 15;
+            int height = 45;
             int increment = 15;
             g.drawString("Framerate: " + CircuitElm.showFormat.format(framerate), 10, height);
             g.drawString("Steprate: " + CircuitElm.showFormat.format(steprate), 10, height += increment);
@@ -1712,6 +1719,12 @@ MouseOutHandler, MouseWheelHandler {
             for (int x = 0; x < splits.length; x++) {
                 g.drawString(splits[x], 10, height + (increment * x));
             }
+        }
+
+        // Add info about mouse mode in graphics
+        if (mouseModeCheckItem.getState()){
+            if (printableCheckItem.getState()) g.setColor(Color.black);
+            g.drawString(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr), 10, 29);
         }
         
         // This should always be the last 
@@ -5673,7 +5686,7 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void updateToolbar() {
-	toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
+	//toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
 	toolbar.highlightButton(mouseModeStr);
     }
 
