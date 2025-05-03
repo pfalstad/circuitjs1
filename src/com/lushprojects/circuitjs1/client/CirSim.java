@@ -1697,7 +1697,7 @@ MouseOutHandler, MouseWheelHandler {
         perfmon.stopContext(); // updateCircuit
         
         if (developerMode) {
-            int height = 15;
+            int height = 45;
             int increment = 15;
             g.drawString("Framerate: " + CircuitElm.showFormat.format(framerate), 10, height);
             g.drawString("Steprate: " + CircuitElm.showFormat.format(steprate), 10, height += increment);
@@ -1713,6 +1713,10 @@ MouseOutHandler, MouseWheelHandler {
                 g.drawString(splits[x], 10, height + (increment * x));
             }
         }
+
+        // Add info about mouse mode in graphics
+        if (printableCheckItem.getState()) g.setColor(Color.black);
+        g.drawString(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr), 10, 29);
         
         // This should always be the last 
         // thing called by updateCircuit();
@@ -5673,7 +5677,7 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void updateToolbar() {
-	toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
+	//toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
 	toolbar.highlightButton(mouseModeStr);
     }
 
