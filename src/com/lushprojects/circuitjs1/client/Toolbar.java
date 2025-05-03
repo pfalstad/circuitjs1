@@ -39,7 +39,8 @@ public class Toolbar extends HorizontalPanel {
 	add(createIconButton("doc-new", "New Blank Circuit", new MyCommand("file", "newblankcircuit")));
 	add(createIconButton("folder",  "Open File...", new MyCommand("file", "importfromlocalfile")));
 	if (CirSim.isElectron()) {
-		add(createIconButton("floppy", "Save", new MyCommand("file", "save")));
+		// Additional conditions are required: "Save" should not be available always.
+		//add(createIconButton("floppy", "Save", new MyCommand("file", "save")));
 		add(createIconButton("floppy", "Save As...", new MyCommand("file", "saveas")));
 	} else {
 		add(createIconButton("floppy", "Save As...", new MyCommand("file", "exportaslocalfile")));
