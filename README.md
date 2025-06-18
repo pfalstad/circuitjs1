@@ -57,6 +57,7 @@ gradle compileGwt --console verbose --info
 # 2. Create the web-site directory from the build files:
 gradle makeSite --console verbose --info
 ```
+>In order to build with gradle wrapper (in case you dont have gradle installed on your system), replace gradle in the above coommands with gradlew(in windows) and ./gradlew(in linux,macos example : `gradlew compileGwt --console verbose --info` or `./gradlew compileGwt --console verbose --info`)
 
 Now, just open `site/circuitjs.html` with your browser and enjoy!
 
