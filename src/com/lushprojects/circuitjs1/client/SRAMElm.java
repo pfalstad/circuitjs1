@@ -230,7 +230,7 @@ import com.google.gwt.user.client.ui.TextArea;
 	    int data = (dataObj == null) ? 0 : dataObj;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.updateVoltageSource(0, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : 5);
+		sim.updateVoltageSource(0, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
 		
 		// stamp resistor from internal voltage source to data pin.
 		// if output enabled, make it a small resistor.  otherwise large.
