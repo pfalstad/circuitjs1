@@ -58,8 +58,6 @@ import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.core.client.Callback;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.ScriptInjector;
 import com.google.gwt.dom.client.Style.Unit;
@@ -636,7 +634,8 @@ MouseOutHandler, MouseWheelHandler {
 		    event.setMessage(Locale.LS("Are you sure?  There are unsaved changes."));
 	    }
 	});
-	setupJSInterface();
+	jsInterface = new JSInterface(this);
+	jsInterface.setupJSInterface();
 	
 	setSimRunning(running);
     }
@@ -979,7 +978,8 @@ MouseOutHandler, MouseWheelHandler {
     int framerate = 0, steprate = 0;
     static CirSim theApp;
     SimulationManager sim;
-    
+    public JSInterface jsInterface;
+
     public void setSimRunning(boolean s) {
     	if (s) {
     	    	if (stopMessage != null)
@@ -1243,7 +1243,7 @@ MouseOutHandler, MouseWheelHandler {
         
         // This should always be the last 
         // thing called by updateCircuit();
-        callUpdateHook();
+        jsInterface.callUpdateHook();
     }
 
     void setStopElm(CircuitElm ce, String msg) {
@@ -1353,7 +1353,7 @@ MouseOutHandler, MouseWheelHandler {
     
     void onTimeStep() {
 	scopeManager.timeStep();
-	callTimeStepHook();
+	jsInterface.callTimeStepHook();
     }
 
     String getHint() {
@@ -4028,7 +4028,7 @@ MouseOutHandler, MouseWheelHandler {
 			return;
 		}
 		String svg = getCircuitAsSVG();
-		callSVGRenderedHook(svg);
+		jsInterface.callSVGRenderedHook(svg);
 	}
 
 	static final int CAC_PRINT = 0;
@@ -4136,81 +4136,6 @@ MouseOutHandler, MouseWheelHandler {
 	    return false;
 	}
 		
-	void setExtVoltage(String name, double v) {
-	    int i;
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (ce instanceof ExtVoltageElm) {
-		    ExtVoltageElm eve = (ExtVoltageElm) ce;
-		    if (eve.getName().equals(name))
-			eve.setVoltage(v);
-		}
-	    }
-	}
-
-	native JsArray<JavaScriptObject> getJSArray() /*-{ return []; }-*/;
-	
-	JsArray<JavaScriptObject> getJSElements() {
-	    int i;
-	    JsArray<JavaScriptObject> arr = getJSArray();
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		ce.addJSMethods();
-		arr.push(ce.getJavaScriptObject());
-	    }
-	    return arr;
-	}
-	
-	double getLabeledNodeVoltage(String name) { return sim.getLabeledNodeVoltage(name); }
-	
-	native void setupJSInterface() /*-{
-	    var that = this;
-	    $wnd.CircuitJS1 = {
-	        setSimRunning: $entry(function(run) { that.@com.lushprojects.circuitjs1.client.CirSim::setSimRunning(Z)(run); } ),
-	        getTime: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::sim.t; } ),
-	        getTimeStep: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::sim.timeStep; } ),
-	        setTimeStep: $entry(function(ts) { that.@com.lushprojects.circuitjs1.client.CirSim::sim.timeStep = ts; } ), // don't use this, see #843
-	        getMaxTimeStep: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::sim.maxTimeStep; } ),
-	        setMaxTimeStep: $entry(function(ts) { that.@com.lushprojects.circuitjs1.client.CirSim::sim.maxTimeStep = 
-                                                      that.@com.lushprojects.circuitjs1.client.CirSim::sim.timeStep = ts; } ),
-	        isRunning: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::simIsRunning()(); } ),
-	        getNodeVoltage: $entry(function(n) { return that.@com.lushprojects.circuitjs1.client.CirSim::getLabeledNodeVoltage(Ljava/lang/String;)(n); } ),
-	        setExtVoltage: $entry(function(n, v) { that.@com.lushprojects.circuitjs1.client.CirSim::setExtVoltage(Ljava/lang/String;D)(n, v); } ),
-	        getElements: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::getJSElements()(); } ),
-	        getCircuitAsSVG: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::doExportAsSVGFromAPI()(); } ),
-	        exportCircuit: $entry(function() { return that.@com.lushprojects.circuitjs1.client.CirSim::dumpCircuit()(); } ),
-	        importCircuit: $entry(function(circuit, subcircuitsOnly) { return that.@com.lushprojects.circuitjs1.client.CirSim::importCircuitFromText(Ljava/lang/String;Z)(circuit, subcircuitsOnly); })
-	    };
-	    var hook = $wnd.oncircuitjsloaded;
-	    if (hook)
-	    	hook($wnd.CircuitJS1);
-	}-*/;
-	
-	native void callUpdateHook() /*-{
-	    var hook = $wnd.CircuitJS1.onupdate;
-	    if (hook)
-	    	hook($wnd.CircuitJS1);
-	}-*/;
-	
-        native void callAnalyzeHook() /*-{
-            var hook = $wnd.CircuitJS1.onanalyze;
-            if (hook)
-                hook($wnd.CircuitJS1);
-    	}-*/;
-    
-
-	native void callTimeStepHook() /*-{
-	    var hook = $wnd.CircuitJS1.ontimestep;
-	    if (hook)
-	    	hook($wnd.CircuitJS1);
-	}-*/;
-	
-	native void callSVGRenderedHook(String svgData) /*-{
-		var hook = $wnd.CircuitJS1.onsvgrendered;
-		if (hook)
-			hook($wnd.CircuitJS1, svgData);
-	}-*/;
-
 	class UndoItem {
 	    public String dump;
 	    public double scale, transform4, transform5;

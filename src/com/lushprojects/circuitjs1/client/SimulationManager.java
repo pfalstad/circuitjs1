@@ -581,7 +581,7 @@ public class SimulationManager {
 	timeStep = maxTimeStep;
 	needsStamp = true;
 	
-	app.callAnalyzeHook();
+	app.jsInterface.callAnalyzeHook();
 	return true;
     }
 
