@@ -12,6 +12,10 @@ output = []
 def checkString(bstr, str, astr, line):
   if re.search("\+ *$", bstr):
     return
+  if re.search("<svg>", str):
+    return
+  if re.search("</svg>", str):
+    return
   if re.search("^ *\+", astr):
     return
   if re.search("Elm$", str):
