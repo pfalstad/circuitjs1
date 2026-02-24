@@ -81,10 +81,9 @@ class XMLDeserializer {
 	    
 	    if (tagName.equals("o")) {
 		Scope sc = new Scope(app, app.sim);
-		sc.position = app.scopeCount;
 		currentXmlElement = elem;
 		sc.undumpXml(this);
-		app.scopes[app.scopeCount++] = sc;
+		app.scopeManager.addScope(sc);
 		continue;
 	    }
 	    if (tagName.equals("dm")) {

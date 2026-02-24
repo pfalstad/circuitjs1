@@ -953,12 +953,12 @@ class Scope {
     	for (si = 0; si != visiblePlots.size(); si++) {
     	    ScopePlot plot = visiblePlots.get(si);
     	    calcPlotScale(plot);
-    	    if (app.scopeSelected == -1 && plot.elm !=null && plot.elm.isMouseElm())
+    	    if (app.scopeManager.scopeSelected == -1 && plot.elm !=null && plot.elm.isMouseElm())
     		somethingSelected = true;
     	    reduceRange[plot.units] = true;
     	}
     	
-    	boolean sel = app.scopeMenuIsSelected(this);
+    	boolean sel = app.scopeManager.scopeMenuIsSelected(this);
     	
     	checkForSelectionElsewhere();
     	if (selectedPlot >= 0)
@@ -1087,7 +1087,7 @@ class Scope {
     	final int maxy = (rect.height-1)/2;
 
     	String color = (somethingSelected) ? "#A0A0A0" : plot.color;
-	if (allSelected || (app.scopeSelected == -1  && plot.elm.isMouseElm()))
+	if (allSelected || (app.scopeManager.scopeSelected == -1  && plot.elm.isMouseElm()))
     	    color = CircuitElm.selectColor.getHexValue();
 	else if (selected)
 	    color = plot.color;

@@ -116,9 +116,7 @@ MouseOutHandler, MouseWheelHandler {
     Scrollbar currentBar;
     Scrollbar powerBar;
     boolean hideMenu = false;
-    MenuBar selectScopeMenuBar;
-    Vector<MenuItem> selectScopeMenuItems;
-    ScopePopupMenu scopePopupMenu;
+    public ScopeManager scopeManager;
     Element sidePanelCheckboxLabel;
     Menus menus;
    
@@ -153,10 +151,6 @@ MouseOutHandler, MouseWheelHandler {
     boolean dcAnalysisFlag;
     // boolean useBufferedImage;
     int pause = 10;
-    int scopeSelected = -1;
-    int scopeMenuSelected = -1;
-    int menuScope = -1;
-    int menuPlot = -1;
     int hintType = -1, hintItem1, hintItem2;
     String stopMessage;
 
@@ -184,11 +178,8 @@ MouseOutHandler, MouseWheelHandler {
     SwitchElm heldSwitchElm;
     boolean simRunning;
     // public boolean useFrame;
-    int scopeCount;
-    Scope scopes[];
     boolean showResistanceInVoltageSources;
     boolean hideInfoBox;
-    int scopeColCount[];
     static EditDialog editDialog, customLogicEditDialog, diodeModelEditDialog;
     static ScrollValuePopup scrollValuePopup;
     static Dialog dialogShowing;
@@ -211,7 +202,6 @@ MouseOutHandler, MouseWheelHandler {
     VerticalPanel verticalPanel;
     CellPanel buttonPanel;
     private boolean mouseDragging;
-    double scopeHeightFraction = 0.2;
 
     Vector<CheckboxMenuItem> mainMenuItems = new Vector<CheckboxMenuItem>();
     Vector<String> mainMenuItemNames = new Vector<String>();
@@ -295,11 +285,11 @@ MouseOutHandler, MouseWheelHandler {
     void setCircuitArea() {
     	int height = canvasHeight;
     	int width = canvasWidth;
-    	int h = (int) ((double)height * scopeHeightFraction);
-    	/*if (h < 128 && winSize.height > 300)
-		  h = 128;*/
-    	if (scopeCount == 0)
+	int h;
+    	if (scopeManager == null || scopeManager.scopeCount == 0)
     	    h = 0;
+	else
+    	    h = (int) ((double)height * scopeManager.scopeHeightFraction);
     	circuitArea = new Rectangle(0, 0, width, height-h);
     }
     
@@ -463,8 +453,8 @@ MouseOutHandler, MouseWheelHandler {
 	menus.printableCheckItem.setCommand(
 		new Command() { public void execute(){
 		    int i;
-		    for (i=0;i<scopeCount;i++)
-			scopes[i].setRect(scopes[i].rect);
+		    for (i=0;i<scopeManager.scopeCount;i++)
+			scopeManager.scopes[i].setRect(scopeManager.scopes[i].rect);
 		    setOptionInStorage("whiteBackground", menus.printableCheckItem.getState());
 		}
 	});
@@ -588,41 +578,9 @@ MouseOutHandler, MouseWheelHandler {
 	redoStack = new Vector<UndoItem>();
 
 
-	scopes = new Scope[20];
-	scopeColCount = new int[20];
-	scopeCount = 0;
+	scopeManager = new ScopeManager(this);
 
 	random = new Random();
-	//	cv.setBackground(Color.black);
-	//	cv.setForeground(Color.lightGray);
-
-	selectScopeMenuBar = new MenuBar(true) {
-	    @Override
-	    
-	    // when mousing over scope menu item, select associated scope
-	    public void onBrowserEvent(Event event) {
-		int currentItem = -1;
-		int i;
-		for (i = 0; i != selectScopeMenuItems.size(); i++) {
-		    MenuItem item = selectScopeMenuItems.get(i);
-		    if (DOM.isOrHasChild(item.getElement(), DOM.eventGetTarget(event))) {
-			//MenuItem found here
-			currentItem = i;
-		    }
-		}
-		switch (DOM.eventGetType(event)) {
-		case Event.ONMOUSEOVER:
-		    scopeMenuSelected = currentItem; 
-		    break;              
-		case Event.ONMOUSEOUT:
-		    scopeMenuSelected = -1;
-		    break;              
-		}
-		super.onBrowserEvent(event);
-	    }
-	};
-	
-	scopePopupMenu = new ScopePopupMenu();
 
 	setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	setWheelSensitivity();
@@ -903,30 +861,6 @@ MouseOutHandler, MouseWheelHandler {
 	lastSubcircuitMenuUpdate = CustomCompositeModel.sequenceNumber;
     }
     
-    public void composeSelectScopeMenu(MenuBar sb) {
-	sb.clearItems();
-	selectScopeMenuItems = new Vector<MenuItem>();
-	for( int i = 0; i < scopeCount; i++) {
-	    String s, l;
-	    s = Locale.LS("Scope")+" "+ Integer.toString(i+1);
-	    l=scopes[i].getScopeLabelOrText();
-	    if (l!="")
-		s+=" ("+SafeHtmlUtils.htmlEscape(l)+")";
-	    selectScopeMenuItems.add(new MenuItem(s ,new MyCommand("elm", "addToScope"+Integer.toString(i))));
-	}
-	int c = countScopeElms();
-	for (int j = 0; j < c; j++) {
-	    String s,l;
-	    s = Locale.LS("Undocked Scope")+" "+ Integer.toString(j+1);
-	    l = getNthScopeElm(j).elmScope.getScopeLabelOrText();
-	    if (l!="")
-		s += " ("+SafeHtmlUtils.htmlEscape(l)+")";
-	    selectScopeMenuItems.add(new MenuItem(s, new MyCommand("elm", "addToScope"+Integer.toString(scopeCount+j))));
-	}
-	for (MenuItem mi : selectScopeMenuItems)
-	    sb.addItem(mi);
-    }
-    
     public void setiFrameHeight() {
     	if (iFrame==null)
     		return;
@@ -998,8 +932,8 @@ MouseOutHandler, MouseWheelHandler {
     	// if there's no scope, and the window isn't very wide, then don't use all of the circuit area when
     	// centering, because the info in the corner might not get in the way.  We still want circuitArea to be the full
     	// height though, to allow the user to put stuff there manually.
-    	if (scopeCount == 0 && circuitArea.width < 800) {
-    	    int h = (int) ((double)cheight * scopeHeightFraction);
+    	if (scopeManager.scopeCount == 0 && circuitArea.width < 800) {
+    	    int h = (int) ((double)cheight * scopeManager.scopeHeightFraction);
     	    cheight -= h;
     	}
     	
@@ -1115,7 +1049,7 @@ MouseOutHandler, MouseWheelHandler {
         if (stopElm != null && stopElm != mouseElm)
             stopElm.setMouseElm(true);
         
-        setupScopes();
+        scopeManager.setupScopes();
 
         Graphics g = new Graphics(cvcontext);
 
@@ -1320,9 +1254,9 @@ MouseOutHandler, MouseWheelHandler {
     void drawBottomArea(Graphics g) {
 	int leftX = 0;
 	int h = 0;
-	if (stopMessage == null && scopeCount == 0) {
+	if (stopMessage == null && scopeManager.scopeCount == 0) {
 	    leftX = max(canvasWidth-infoWidth, 0);
-	    int h0 = (int) (canvasHeight * scopeHeightFraction);
+	    int h0 = (int) (canvasHeight * scopeManager.scopeHeightFraction);
 	    h = (mouseElm == null) ? 70 : h0;
 	    if (hideInfoBox)
 		h = 0;
@@ -1332,18 +1266,18 @@ MouseOutHandler, MouseWheelHandler {
 	g.setColor(menus.printableCheckItem.getState() ? "#eee" : "#111");
 	g.fillRect(leftX, circuitArea.height-h, circuitArea.width, canvasHeight-circuitArea.height+h);
 	g.setFont(CircuitElm.unitsFont);
-	int ct = scopeCount;
+	int ct = scopeManager.scopeCount;
 	if (stopMessage != null)
 	    ct = 0;
 	int i;
 	Scope.clearCursorInfo();
 	for (i = 0; i != ct; i++)
-	    scopes[i].selectScope(mouseCursorX, mouseCursorY);
+	    scopeManager.scopes[i].selectScope(mouseCursorX, mouseCursorY);
 	if (scopeElmArr != null)
 	    for (i=0; i != scopeElmArr.length; i++)
 		scopeElmArr[i].selectScope(mouseCursorX, mouseCursorY);
 	for (i = 0; i != ct; i++)
-	    scopes[i].draw(g);
+	    scopeManager.scopes[i].draw(g);
 	if (mouseWasOverSplitter) {
 		g.setColor(CircuitElm.selectColor);
 		g.setLineWidth(4.0);
@@ -1391,7 +1325,7 @@ MouseOutHandler, MouseWheelHandler {
 	    }
 	    int x = leftX + 5;
 	    if (ct != 0)
-		x = scopes[ct-1].rightEdge() + 20;
+		x = scopeManager.scopes[ct-1].rightEdge() + 20;
 //	    x = max(x, canvasWidth*2/3);
 	  //  x=cv.getCoordinateSpaceWidth()*2/3;
 	    
@@ -1417,101 +1351,9 @@ MouseOutHandler, MouseWheelHandler {
 	return Color.black;
     }
     
-    int oldScopeCount = -1;
-    
-    boolean scopeMenuIsSelected(Scope s) {
-	if (scopeMenuSelected < 0)
-	    return false;
-	if (scopeMenuSelected < scopeCount)
-	    return scopes[scopeMenuSelected] == s;
-	return getNthScopeElm(scopeMenuSelected-scopeCount).elmScope == s; 
-    }
-    
     void onTimeStep() {
-	int i;
-	for (i = 0; i != scopeCount; i++)
-	    scopes[i].timeStep();
-	for (i=0; i != scopeElmArr.length; i++)
-	    scopeElmArr[i].stepScope();
+	scopeManager.timeStep();
 	callTimeStepHook();
-    }
-    
-    void setupScopes() {
-    	int i;
-
-    	// check scopes to make sure the elements still exist, and remove
-    	// unused scopes/columns
-    	int pos = -1;
-    	for (i = 0; i < scopeCount; i++) {
-    	    	if (scopes[i].needToRemove()) {
-    			int j;
-    			for (j = i; j != scopeCount; j++)
-    				scopes[j] = scopes[j+1];
-    			scopeCount--;
-    			i--;
-    			continue;
-    		}
-    		if (scopes[i].position > pos+1)
-    			scopes[i].position = pos+1;
-    		pos = scopes[i].position;
-    	}
-    	while (scopeCount > 0 && scopes[scopeCount-1].getElm() == null)
-    		scopeCount--;
-    	int h = canvasHeight - circuitArea.height;
-    	pos = 0;
-    	for (i = 0; i != scopeCount; i++)
-    		scopeColCount[i] = 0;
-    	for (i = 0; i != scopeCount; i++) {
-    		pos = max(scopes[i].position, pos);
-    		scopeColCount[scopes[i].position]++;
-    	}
-    	int colct = pos+1;
-    	int iw = infoWidth;
-    	if (colct <= 2)
-    		iw = iw*3/2;
-    	int w = (canvasWidth-iw) / colct;
-    	int marg = 10;
-    	if (w < marg*2)
-    		w = marg*2;
-    	pos = -1;
-    	int colh = 0;
-    	int row = 0;
-    	int speed = 0;
-    	for (i = 0; i != scopeCount; i++) {
-    		Scope s = scopes[i];
-    		if (s.position > pos) {
-    			pos = s.position;
-    			colh = h / scopeColCount[pos];
-    			row = 0;
-    			speed = s.speed;
-    		}
-    		s.stackCount = scopeColCount[pos];
-    		if (s.speed != speed) {
-    			s.speed = speed;
-    			s.resetGraph();
-    		}
-    		Rectangle r = new Rectangle(pos*w, canvasHeight-h+colh*row, w-marg, colh);
-    		row++;
-    		if (!r.equals(s.rect))
-    			s.setRect(r);
-    	}
-    	if (oldScopeCount != scopeCount) {
-    	    setCircuitArea();
-    	    oldScopeCount = scopeCount;
-    	}
-    }
-    
-    // we need to calculate wire currents for every iteration if someone is viewing a wire in the
-    // scope.  Otherwise we can do it only once per frame.
-    boolean canDelayWireProcessing() {
-	int i;
-	for (i = 0; i != scopeCount; i++)
-	    if (scopes[i].viewingWire())
-		return false;
-	for (i=0; i != elmList.size(); i++)
-	    if (getElm(i) instanceof ScopeElm && ((ScopeElm)getElm(i)).elmScope.viewingWire())
-		return false;
-	return true;
     }
 
     String getHint() {
@@ -1637,8 +1479,7 @@ MouseOutHandler, MouseWheelHandler {
     	sim.resetTime();
     	for (i = 0; i != elmList.size(); i++)
 		getElm(i).reset();
-	for (i = 0; i != scopeCount; i++)
-		scopes[i].resetGraph(true);
+	scopeManager.resetGraphs();
     	repaint();
     }
     
@@ -1825,13 +1666,13 @@ MouseOutHandler, MouseWheelHandler {
 	    flipXY();
     	}
     	if (item=="stackAll")
-    		stackAll();
+    		scopeManager.stackAll();
     	if (item=="unstackAll")
-    		unstackAll();
+    		scopeManager.unstackAll();
     	if (item=="combineAll")
-		combineAll();
+		scopeManager.combineAll();
     	if (item=="separateAll")
-		separateAll();
+		scopeManager.separateAll();
     	if (item=="zoomin")
     	    zoomCircuit(20, true);
     	if (item=="zoomout")
@@ -1851,20 +1692,20 @@ MouseOutHandler, MouseWheelHandler {
 
     	if (item=="viewInScope" && menuElm != null) {
     		int i;
-    		for (i = 0; i != scopeCount; i++)
-    			if (scopes[i].getElm() == null)
+    		for (i = 0; i != scopeManager.scopeCount; i++)
+    			if (scopeManager.scopes[i].getElm() == null)
     				break;
-    		if (i == scopeCount) {
-    			if (scopeCount == scopes.length)
+    		if (i == scopeManager.scopeCount) {
+    			if (scopeManager.scopeCount == scopeManager.scopes.length)
     				return;
-    			scopeCount++;
-    			scopes[i] = new Scope(this, sim);
-    			scopes[i].position = i;
+    			scopeManager.scopeCount++;
+    			scopeManager.scopes[i] = new Scope(this, sim);
+    			scopeManager.scopes[i].position = i;
     			//handleResize();
     		}
-    		scopes[i].setElm(menuElm);
+    		scopeManager.scopes[i].setElm(menuElm);
     		if (i > 0)
-    		    scopes[i].speed = scopes[i-1].speed;
+    		    scopeManager.scopes[i].speed = scopeManager.scopes[i-1].speed;
     	}
     	
     	if (item=="viewInFloatScope" && menuElm != null) {
@@ -1879,71 +1720,71 @@ MouseOutHandler, MouseWheelHandler {
     	if (item.startsWith("addToScope") && menuElm != null) {
     	    int n;
     	    n = Integer.parseInt(item.substring(10));
-    	    if (n < scopeCount + countScopeElms()) {
-    		if (n < scopeCount )
-    		    scopes[n].addElm(menuElm);
+    	    if (n < scopeManager.scopeCount + scopeManager.countScopeElms()) {
+    		if (n < scopeManager.scopeCount )
+    		    scopeManager.scopes[n].addElm(menuElm);
     		else
-    		    getNthScopeElm(n-scopeCount).elmScope.addElm(menuElm);
+    		    scopeManager.getNthScopeElm(n-scopeManager.scopeCount).elmScope.addElm(menuElm);
     	    }
-    	    scopeMenuSelected = -1;
+    	    scopeManager.scopeMenuSelected = -1;
     	}
     	
     	if (menu=="scopepop") {
     		pushUndo();
     		Scope s;
-		if (menuScope != -1 )
-		    	s= scopes[menuScope];
+		if (scopeManager.menuScope != -1 )
+		    	s= scopeManager.scopes[scopeManager.menuScope];
 		else
 		    	s= ((ScopeElm)mouseElm).elmScope;
 
     		if (item=="dock") {
-            		if (scopeCount == scopes.length)
+            		if (scopeManager.scopeCount == scopeManager.scopes.length)
             			return;
-            		scopes[scopeCount] = ((ScopeElm)mouseElm).elmScope;
+            		scopeManager.scopes[scopeManager.scopeCount] = ((ScopeElm)mouseElm).elmScope;
             		((ScopeElm)mouseElm).clearElmScope();
-            		scopes[scopeCount].position = scopeCount;
-            		scopeCount++;
+            		scopeManager.scopes[scopeManager.scopeCount].position = scopeManager.scopeCount;
+            		scopeManager.scopeCount++;
             		doDelete(false);
     		}
     		if (item=="undock") {
 		    CircuitElm elm = s.getElm();
     	    	    ScopeElm newScope = new ScopeElm(snapGrid(elm.x+50), snapGrid(elm.y+50));
     	    	    elmList.addElement(newScope);
-    	    	    newScope.setElmScope(scopes[menuScope]);
-    	    	    
+    	    	    newScope.setElmScope(scopeManager.scopes[scopeManager.menuScope]);
+
     	    	    int i;
     	    	    // remove scope from list.  setupScopes() will fix the positions
-    	    	    for (i = menuScope; i < scopeCount; i++)
-    	    		scopes[i] = scopes[i+1];
-    	    	    scopeCount--;
+    	    	    for (i = scopeManager.menuScope; i < scopeManager.scopeCount; i++)
+    	    		scopeManager.scopes[i] = scopeManager.scopes[i+1];
+    	    	    scopeManager.scopeCount--;
 
     	            needAnalyze();      // need to rebuild scopeElmArr
     		}
     		if (item=="remove")
     		    	s.setElm(null);  // setupScopes() will clean this up
     		if (item=="removeplot")
-			s.removePlot(menuPlot);
+			s.removePlot(scopeManager.menuPlot);
     		if (item=="speed2")
     			s.speedUp();
     		if (item=="speed1/2")
     			s.slowDown();
 //    		if (item=="scale")
-//    			scopes[menuScope].adjustScale(.5);
+//    			scopeManager.scopes[scopeManager.menuScope].adjustScale(.5);
     		if (item=="maxscale")
     			s.maxScale();
     		if (item=="stack")
-    			stackScope(menuScope);
+    			scopeManager.stackScope(scopeManager.menuScope);
     		if (item=="unstack")
-    			unstackScope(menuScope);
+    			scopeManager.unstackScope(scopeManager.menuScope);
     		if (item=="combine")
-			combineScope(menuScope);
+			scopeManager.combineScope(scopeManager.menuScope);
     		if (item=="selecty")
     			s.selectY();
     		if (item=="reset")
     			s.resetGraph(true);
     		if (item=="properties")
 			s.properties();
-    		deleteUnusedScopeElms();
+    		scopeManager.deleteUnusedScopeElms();
     	}
     	if (menu=="circuits" && item.indexOf("setup ") ==0) {
     		pushUndo();
@@ -2008,123 +1849,6 @@ MouseOutHandler, MouseWheelHandler {
 	repaint();
     }
     
-    int countScopeElms() {
-	int c = 0;
-	for (int i = 0; i != elmList.size(); i++) {
-	    if ( elmList.get(i) instanceof ScopeElm)
-		c++;
-	}
-	return c;
-    }
-    
-    ScopeElm getNthScopeElm(int n) {
-	for (int i = 0; i != elmList.size(); i++) {
-	    if ( elmList.get(i) instanceof ScopeElm) {
-		n--;
-		if (n<0)
-		    return (ScopeElm) elmList.get(i);
-	    }
-	}
-	return (ScopeElm) null;
-    }
-    
-    
-    boolean canStackScope(int s) {
-	if (scopeCount < 2) 
-	    return false;
-	if (s==0)
-	    s=1;
-    	if (scopes[s].position == scopes[s-1].position)
-    	    return false;
-	return true;
-    }
-    
-    boolean canCombineScope(int s) {
-	return scopeCount >=2;
-    }
-    
-    boolean canUnstackScope(int s) {
-	if (scopeCount < 2) 
-	    return false;
-	if (s==0)
-	    s=1;
-    	if (scopes[s].position != scopes[s-1].position) {
-        	if ( s + 1 < scopeCount && scopes[s+1].position == scopes[s].position) // Allow you to unstack by selecting the top scope in the stack
-        	    return true;
-        	else
-        	    return false;
-    	}
-	return true;
-    }
-
-    void stackScope(int s) {
-	if (! canStackScope(s) )
-	    return;
-    	if (s == 0) {
-    		s = 1;
-    	}
-    	scopes[s].position = scopes[s-1].position;
-    	for (s++; s < scopeCount; s++)
-    		scopes[s].position--;
-    }
-
-    void unstackScope(int s) {
-	if (! canUnstackScope(s) )
-	    return;
-    	if (s == 0) {
-    		s = 1;
-    	}
-    	if (scopes[s].position != scopes[s-1].position) // Allow you to unstack by selecting the top scope in the stack
-    	    s++;
-    	for (; s < scopeCount; s++)
-    		scopes[s].position++;
-    }
-
-    void combineScope(int s) {
-	if (! canCombineScope(s))
-	    return;
-    	if (s == 0) {
-    		s = 1;
-    	}
-    	scopes[s-1].combine(scopes[s]);
-    	scopes[s].setElm(null);
-    }
-    
-
-    void stackAll() {
-    	int i;
-    	for (i = 0; i != scopeCount; i++) {
-    		scopes[i].position = 0;
-    		scopes[i].showMax = scopes[i].showMin = false;
-    	}
-    }
-
-    void unstackAll() {
-    	int i;
-    	for (i = 0; i != scopeCount; i++) {
-    		scopes[i].position = i;
-    		scopes[i].showMax = true;
-    	}
-    }
-
-    void combineAll() {
-    	int i;
-    	for (i = scopeCount-2; i >= 0; i--) {
-    	    scopes[i].combine(scopes[i+1]);
-    	    scopes[i+1].setElm(null);
-    	}
-    }
-    
-    void separateAll() {
-    	int i;
-	Scope newscopes[] = new Scope[20];
-	int ct = 0;
-    	for (i = 0; i < scopeCount; i++)
-    	    ct = scopes[i].separate(newscopes, ct);
-	scopes = newscopes;
-	scopeCount = ct;
-    }
-
     void doEdit(Editable eable) {
     	clearSelection();
     	pushUndo();
@@ -2412,7 +2136,7 @@ MouseOutHandler, MouseWheelHandler {
 	currentBar.setValue(50);
 	powerBar.setValue(50);
 	CircuitElm.voltageRange = 5;
-	scopeCount = 0;
+	scopeManager.clearScopes();
 	sim.lastIterTime = 0;
     }
 
@@ -2444,9 +2168,8 @@ MouseOutHandler, MouseWheelHandler {
 			continue;
 		    if (tint == 'o') {
 			Scope sc = new Scope(this, sim);
-			sc.position = scopeCount;
 			sc.undump(st);
-			scopes[scopeCount++] = sc;
+			scopeManager.addScope(sc);
 			break;
 		    }
 		    if (tint == 'h') {
@@ -2702,11 +2425,11 @@ MouseOutHandler, MouseWheelHandler {
     	double h = (double) canvasHeight;
     	if (h<1)
     		h=1;
-    	scopeHeightFraction=1.0-(((double)y)/h);
-    	if (scopeHeightFraction<0.1)
-    		scopeHeightFraction=0.1;
-    	if (scopeHeightFraction>0.9)
-    		scopeHeightFraction=0.9;
+    	scopeManager.scopeHeightFraction=1.0-(((double)y)/h);
+    	if (scopeManager.scopeHeightFraction<0.1)
+    		scopeManager.scopeHeightFraction=0.1;
+    	if (scopeManager.scopeHeightFraction>0.9)
+    		scopeManager.scopeHeightFraction=0.9;
     	setCircuitArea();
     	repaint();
     }
@@ -2932,9 +2655,9 @@ MouseOutHandler, MouseWheelHandler {
     
     boolean mouseIsOverSplitter(int x, int y) {
     	boolean isOverSplitter;
-    	if (scopeCount == 0)
+    	if (scopeManager.scopeCount == 0)
     	    return false;
-    	isOverSplitter =((x>=0) && (x<circuitArea.width) && 
+    	isOverSplitter =((x>=0) && (x<circuitArea.width) &&
     			(y>=circuitArea.height-5) && (y<circuitArea.height));
     	if (isOverSplitter!=mouseWasOverSplitter){
     		if (isOverSplitter)
@@ -2955,7 +2678,7 @@ MouseOutHandler, MouseWheelHandler {
     		return;
     	}
     	mouseSelect(e);
-    	scopeMenuSelected = -1;
+    	scopeManager.scopeMenuSelected = -1;
     }
     
     // convert screen coordinates to grid coordinates by inverting circuit transform
@@ -3025,17 +2748,17 @@ MouseOutHandler, MouseWheelHandler {
     		} // for
     	    }
     	}
-    	scopeSelected = -1;
+    	scopeManager.scopeSelected = -1;
     	if (newMouseElm == null) {
-    	    for (i = 0; i != scopeCount; i++) {
-    		Scope s = scopes[i];
+    	    for (i = 0; i != scopeManager.scopeCount; i++) {
+    		Scope s = scopeManager.scopes[i];
     		if (s.rect.contains(sx, sy)) {
     		    newMouseElm=s.getElm();
     		    if (s.plotXY) {
     			plotXElm = s.getXElm();
     			plotYElm = s.getYElm();
     		    }
-    		    scopeSelected = i;
+    		    scopeManager.scopeSelected = i;
     		}
     	    }
     		//	    // the mouse pointer was not in any of the bounding boxes, but we
@@ -3090,17 +2813,17 @@ MouseOutHandler, MouseWheelHandler {
 	if (menus.noEditCheckItem.getState() || dialogIsShowing())
 	    return;
     	menuElm = mouseElm;
-    	menuScope=-1;
-    	menuPlot=-1;
+    	scopeManager.menuScope=-1;
+    	scopeManager.menuPlot=-1;
     	int x, y;
-    	if (scopeSelected!=-1) {
-    	    	if (scopes[scopeSelected].canMenu()) {
-    	    	    menuScope=scopeSelected;
-    	    	    menuPlot=scopes[scopeSelected].selectedPlot;
-    	    	    scopePopupMenu.doScopePopupChecks(false, canStackScope(scopeSelected), canCombineScope(scopeSelected), 
-    	    		    canUnstackScope(scopeSelected), scopes[scopeSelected]);
+    	if (scopeManager.scopeSelected!=-1) {
+    	    	if (scopeManager.scopes[scopeManager.scopeSelected].canMenu()) {
+    	    	    scopeManager.menuScope=scopeManager.scopeSelected;
+    	    	    scopeManager.menuPlot=scopeManager.scopes[scopeManager.scopeSelected].selectedPlot;
+    	    	    scopeManager.scopePopupMenu.doScopePopupChecks(false, scopeManager.canStackScope(scopeManager.scopeSelected), scopeManager.canCombineScope(scopeManager.scopeSelected),
+    	    		    scopeManager.canUnstackScope(scopeManager.scopeSelected), scopeManager.scopes[scopeManager.scopeSelected]);
     	    	    contextPanel=new PopupPanel(true);
-    	    	    contextPanel.add(scopePopupMenu.getMenuBar());
+    	    	    contextPanel.add(scopeManager.scopePopupMenu.getMenuBar());
     	    	    y=Math.max(0, Math.min(menuClientY,canvasHeight-160));
     	    	    contextPanel.setPopupPosition(menuClientX, y);
     	    	    contextPanel.show();
@@ -3109,15 +2832,15 @@ MouseOutHandler, MouseWheelHandler {
     	    	if (! (mouseElm instanceof ScopeElm)) {
     	    	    menus.elmScopeMenuItem.setEnabled(mouseElm.canViewInScope());
     	    	    menus.elmFloatScopeMenuItem.setEnabled(mouseElm.canViewInScope());
-    	    	    if ((scopeCount + countScopeElms()) <= 1) {
+    	    	    if ((scopeManager.scopeCount + scopeManager.countScopeElms()) <= 1) {
     	    		menus.elmAddScopeMenuItem.setCommand(new MyCommand("elm", "addToScope0"));
     	    		menus.elmAddScopeMenuItem.setSubMenu(null);
-    	    	    	menus.elmAddScopeMenuItem.setEnabled(mouseElm.canViewInScope() && (scopeCount + countScopeElms())> 0);
+    	    	    	menus.elmAddScopeMenuItem.setEnabled(mouseElm.canViewInScope() && (scopeManager.scopeCount + scopeManager.countScopeElms())> 0);
     	    	    }
     	    	    else {
-    	    		composeSelectScopeMenu(selectScopeMenuBar);
+    	    		scopeManager.composeSelectScopeMenu(scopeManager.selectScopeMenuBar);
     	    		menus.elmAddScopeMenuItem.setCommand(null);
-    	    		menus.elmAddScopeMenuItem.setSubMenu(selectScopeMenuBar);
+    	    		menus.elmAddScopeMenuItem.setSubMenu(scopeManager.selectScopeMenuBar);
     	    	    	menus.elmAddScopeMenuItem.setEnabled(mouseElm.canViewInScope() );
     	    	    }
     	    	    menus.elmEditMenuItem .setEnabled(mouseElm.getEditInfo(0) != null);
@@ -3147,10 +2870,10 @@ MouseOutHandler, MouseWheelHandler {
     	    	} else {
     	    	    ScopeElm s = (ScopeElm) mouseElm;
     	    	    if (s.elmScope.canMenu()) {
-    	    		menuPlot = s.elmScope.selectedPlot;
-    	    		scopePopupMenu.doScopePopupChecks(true, false, false, false, s.elmScope);
+    	    		scopeManager.menuPlot = s.elmScope.selectedPlot;
+    	    		scopeManager.scopePopupMenu.doScopePopupChecks(true, false, false, false, s.elmScope);
     			contextPanel=new PopupPanel(true);
-    			contextPanel.add(scopePopupMenu.getMenuBar());
+    			contextPanel.add(scopeManager.scopePopupMenu.getMenuBar());
     			contextPanel.setPopupPosition(menuClientX, menuClientY);
     			contextPanel.show();
     	    	    }
@@ -3231,7 +2954,7 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void clearMouseElm() {
-    	scopeSelected = -1;
+    	scopeManager.scopeSelected = -1;
     	setMouseElm(null);
     	plotXElm = plotYElm = null;
     }
@@ -3288,13 +3011,13 @@ MouseOutHandler, MouseWheelHandler {
 	if (menus.noEditCheckItem.getState())
 	    tempMouseMode = MODE_SELECT;
 	
-	if (!(dialogIsShowing()) && ((scopeSelected != -1 && scopes[scopeSelected].cursorInSettingsWheel()) ||
-		( scopeSelected == -1 && mouseElm instanceof ScopeElm && ((ScopeElm)mouseElm).elmScope.cursorInSettingsWheel()))){
+	if (!(dialogIsShowing()) && ((scopeManager.scopeSelected != -1 && scopeManager.scopes[scopeManager.scopeSelected].cursorInSettingsWheel()) ||
+		( scopeManager.scopeSelected == -1 && mouseElm instanceof ScopeElm && ((ScopeElm)mouseElm).elmScope.cursorInSettingsWheel()))){
 	    if (menus.noEditCheckItem.getState())
 		return;
 	    Scope s;
-	    if (scopeSelected != -1)
-		s=scopes[scopeSelected];
+	    if (scopeManager.scopeSelected != -1)
+		s=scopeManager.scopes[scopeManager.scopeSelected];
 	    else 
 		s=((ScopeElm)mouseElm).elmScope;
 	    s.properties();
@@ -3358,10 +3081,10 @@ MouseOutHandler, MouseWheelHandler {
     		//if (s.length() > 3 && s.substring(s.length()-3)=="Elm")
     		    //mainMenuItems.get(i).setEnabled(!menus.noEditCheckItem.getState());
     	}
-    	menus.stackAllItem.setEnabled(scopeCount > 1 && scopes[scopeCount-1].position > 0);
-    	menus.unstackAllItem.setEnabled(scopeCount > 1 && scopes[scopeCount-1].position != scopeCount -1);
-    	menus.combineAllItem.setEnabled(scopeCount > 1);
-    	menus.separateAllItem.setEnabled(scopeCount > 0);
+    	menus.stackAllItem.setEnabled(scopeManager.scopeCount > 1 && scopeManager.scopes[scopeManager.scopeCount-1].position > 0);
+    	menus.unstackAllItem.setEnabled(scopeManager.scopeCount > 1 && scopeManager.scopes[scopeManager.scopeCount-1].position != scopeManager.scopeCount -1);
+    	menus.combineAllItem.setEnabled(scopeManager.scopeCount > 1);
+    	menus.separateAllItem.setEnabled(scopeManager.scopeCount > 0);
     	
     	// also update the subcircuit menu if necessary
     	if (lastSubcircuitMenuUpdate != CustomCompositeModel.sequenceNumber)
@@ -3435,8 +3158,8 @@ MouseOutHandler, MouseWheelHandler {
     	
     	if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
     		((MouseWheelHandler) mouseElm).onMouseWheel(e);
-    	else if (scopeSelected != -1 && !zoomOnly)
-    	    scopes[scopeSelected].onMouseWheel(e);
+    	else if (scopeManager.scopeSelected != -1 && !zoomOnly)
+    	    scopeManager.scopes[scopeManager.scopeSelected].onMouseWheel(e);
     	else if (!dialogIsShowing()) {
     	    mouseCursorX=e.getX();
     	    mouseCursorY=e.getY();
@@ -3481,7 +3204,7 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void scrollValues(int x, int y, int deltay) {
-    	if (mouseElm!=null && !dialogIsShowing() && scopeSelected == -1)
+    	if (mouseElm!=null && !dialogIsShowing() && scopeManager.scopeSelected == -1)
     		if (mouseElm instanceof ResistorElm || mouseElm instanceof CapacitorElm ||  mouseElm instanceof InductorElm) {
     			scrollValuePopup = new ScrollValuePopup(x, y, deltay, mouseElm, this);
     		}
@@ -3691,21 +3414,6 @@ MouseOutHandler, MouseWheelHandler {
     }
 
 
-    void deleteUnusedScopeElms() {
-	// Remove any scopeElms for elements that no longer exist
-	for (int i = elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = getElm(i);
-    		if (ce instanceof ScopeElm && (((ScopeElm) ce).elmScope.needToRemove() )) {
-    			ce.delete();
-    			elmList.removeElementAt(i);
-    			
-    			// need to rebuild scopeElmArr
-    			needAnalyze();
-    		}
-    	}
-	
-    }
-    
     void doDelete(boolean pushUndoFlag) {
     	int i;
     	if (pushUndoFlag)
@@ -3723,7 +3431,7 @@ MouseOutHandler, MouseWheelHandler {
     		}
     	}
     	if ( hasDeleted ) {
-    	    deleteUnusedScopeElms();
+    	    scopeManager.deleteUnusedScopeElms();
     	    needAnalyze();
     	    writeRecoveryToStorage();
     	}    
@@ -3981,10 +3689,10 @@ MouseOutHandler, MouseWheelHandler {
 
     	if ((t & Event.ONKEYDOWN)!=0) {
     		if (code==KEY_BACKSPACE || code==KEY_DELETE) {
-    		    if (scopeSelected != -1) {
+    		    if (scopeManager.scopeSelected != -1) {
     			// Treat DELETE key with scope selected as "remove scope", not delete
-    			scopes[scopeSelected].setElm(null);
-    			scopeSelected = -1;
+    			scopeManager.scopes[scopeManager.scopeSelected].setElm(null);
+    			scopeManager.scopeSelected = -1;
     		    } else {
     		    	menuElm = null;
     		    	pushUndo();

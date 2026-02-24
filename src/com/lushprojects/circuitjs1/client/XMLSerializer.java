@@ -127,8 +127,8 @@ class XMLSerializer {
 	    root.appendChild(elem);
 	}
 	String dump = doc.toString();
-	for (int i = 0; i != app.scopeCount; i++)
-	    app.scopes[i].dumpXml(doc, root);
+	for (int i = 0; i != app.scopeManager.scopeCount; i++)
+	    app.scopeManager.scopes[i].dumpXml(doc, root);
 /*
 	for (i = 0; i != adjustables.size(); i++) {
 	    Adjustable adj = adjustables.get(i);

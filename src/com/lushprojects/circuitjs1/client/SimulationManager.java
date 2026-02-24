@@ -1097,7 +1097,7 @@ public class SimulationManager {
 	if (1000 >= steprate*(tm-lastIterTime) && !didAnalyze)
 	    return;
 	
-	boolean delayWireProcessing = app.canDelayWireProcessing();
+	boolean delayWireProcessing = app.scopeManager.canDelayWireProcessing();
 	
 	int timeStepCountAtFrameStart = timeStepCount;
 	
