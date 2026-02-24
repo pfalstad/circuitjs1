@@ -50,10 +50,10 @@ class ScopeElm extends CircuitElm {
     }
     
     public void setScopeRect() {
-	int i1 = app.transformX(min(x,x2));
-	int i2 = app.transformX(max(x,x2));
-	int j1 = app.transformY(min(y,y2));
-	int j2 = app.transformY(max(y,y2));
+	int i1 = app.mouse.transformX(min(x,x2));
+	int i2 = app.mouse.transformX(max(x,x2));
+	int j1 = app.mouse.transformY(min(y,y2));
+	int j2 = app.mouse.transformY(max(y,y2));
 	Rectangle r = new Rectangle(i1,j1,i2-i1, j2-j1);
 	if (!r.equals(elmScope.rect))
 	    elmScope.setRect(r);

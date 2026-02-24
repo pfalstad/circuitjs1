@@ -211,7 +211,7 @@ public class ScrollValuePopup extends PopupPanel implements MouseOutHandler, Mou
 
     public int getSelIdx() {
     	int r;
-    	r = currentidx + (int)Math.round(sim.wheelSensitivity*deltaY/scale);
+    	r = currentidx + (int)Math.round(sim.mouse.wheelSensitivity*deltaY/scale);
     	if (r<0)
     		r=0;
     	if (r>=nvalues)

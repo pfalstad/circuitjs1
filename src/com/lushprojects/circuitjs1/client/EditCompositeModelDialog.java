@@ -133,7 +133,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		canvas.setCoordinateSpaceWidth(400);
 		canvas.setCoordinateSpaceHeight(400);
 		vp.add(canvas);
-		CirSim.doTouchHandlers(null, canvas.getCanvasElement());
+		MouseManager.doTouchHandlers(null, canvas.getCanvasElement());
 		context = canvas.getContext2d();
 		
 		chip = new CustomCompositeChipElm(50, 50);

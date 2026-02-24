@@ -590,8 +590,8 @@ public abstract class CircuitElm implements Editable {
 	// this element is selected or is being created
 	if (!isCreating() && !needsHighlight())
 	    return;
-	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
-	    app.mouseMode == CirSim.MODE_DRAG_COLUMN)
+	if (app.mouse.mouseMode == MouseManager.MODE_DRAG_ROW ||
+	    app.mouse.mouseMode == MouseManager.MODE_DRAG_COLUMN)
 	    return;
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
@@ -682,8 +682,8 @@ public abstract class CircuitElm implements Editable {
 	if (!isCreating() && !needsHighlight() &&
 	    app.getCircuitNode(n).links.size() == 2)
 	    return;
-	if (app.mouseMode == CirSim.MODE_DRAG_ROW ||
-	    app.mouseMode == CirSim.MODE_DRAG_COLUMN)
+	if (app.mouse.mouseMode == MouseManager.MODE_DRAG_ROW ||
+	    app.mouse.mouseMode == MouseManager.MODE_DRAG_COLUMN)
 	    return;
 	drawPost(g, x0, y0);
     }
@@ -1125,11 +1125,11 @@ public abstract class CircuitElm implements Editable {
 	return ((x1 == y1 && x2 == y2) || (x1 == y2 && x2 == y1));
     }
     boolean needsHighlight() { 
-	return mouseElmRef==this || selected || app.plotYElm == this ||
+	return mouseElmRef==this || selected || app.mouse.plotYElm == this ||
 		// Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
 		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this); 
     }
-    boolean isCreating() { return app.dragElm == this; }
+    boolean isCreating() { return app.mouse.dragElm == this; }
     boolean isSelected() { return selected; }
     boolean canShowValueInScope(int v) { return false; }
     void setSelected(boolean x) { selected = x; }

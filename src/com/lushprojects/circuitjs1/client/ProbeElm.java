@@ -152,9 +152,9 @@ class ProbeElm extends CircuitElm {
 	drawThickLine(g, lead2, point2);
 	Font f = new Font("SansSerif", Font.BOLD, 14);
 	g.setFont(f);
-	if (this == app.plotXElm)
+	if (this == app.mouse.plotXElm)
 	    drawCenteredText(g, "X", center.x, center.y, true);
-	if (this == app.plotYElm)
+	if (this == app.mouse.plotYElm)
 	    drawCenteredText(g, "Y", center.x, center.y, true);
 	if (mustShowVoltage()) {
 	    String s = "";

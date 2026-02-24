@@ -852,7 +852,7 @@ class Scope {
     	}
     	g.context.restore();
     	drawSettingsWheel(g);
-    	if ( !app.dialogIsShowing() && rect.contains(app.mouseCursorX, app.mouseCursorY) && plots.size()>=2) {
+    	if ( !app.dialogIsShowing() && rect.contains(app.mouse.mouseCursorX, app.mouse.mouseCursorY) && plots.size()>=2) {
     	    double gridPx=calc2dGridPx(rect.width, rect.height);
     	    String info[] = new String [2];
     	    ScopePlot px = plots.get(0);
@@ -860,16 +860,16 @@ class Scope {
     	    double xValue;
     	    double yValue;
     	    if (isManualScale()) {
-    		xValue = px.manScale*((double)(app.mouseCursorX-rect.x-rect.width/2)/gridPx-manDivisions*px.manVPosition/(double)(V_POSITION_STEPS));
-    		yValue = py.manScale*((double)(-app.mouseCursorY+rect.y+rect.height/2)/gridPx-manDivisions*py.manVPosition/(double)(V_POSITION_STEPS));
+    		xValue = px.manScale*((double)(app.mouse.mouseCursorX-rect.x-rect.width/2)/gridPx-manDivisions*px.manVPosition/(double)(V_POSITION_STEPS));
+    		yValue = py.manScale*((double)(-app.mouse.mouseCursorY+rect.y+rect.height/2)/gridPx-manDivisions*py.manVPosition/(double)(V_POSITION_STEPS));
     	    } else {
-    		xValue = ((double)(app.mouseCursorX-rect.x)/(0.499*(double)(rect.width))-1.0)*scaleX;
-    		yValue = -((double)(app.mouseCursorY-rect.y)/(0.499*(double)(rect.height))-1.0)*scaleY;
+    		xValue = ((double)(app.mouse.mouseCursorX-rect.x)/(0.499*(double)(rect.width))-1.0)*scaleX;
+    		yValue = -((double)(app.mouse.mouseCursorY-rect.y)/(0.499*(double)(rect.height))-1.0)*scaleY;
     	    }
  	    info[0]=px.getUnitText(xValue);
     	    info[1]=py.getUnitText(yValue);
     	    
-    	    drawCursorInfo(g, info, 2, app.mouseCursorX, true);
+    	    drawCursorInfo(g, info, 2, app.mouse.mouseCursorX, true);
     	    
     	}
     }
@@ -882,10 +882,10 @@ class Scope {
     
     boolean cursorInSettingsWheel() {
 	return showSettingsWheel() &&
-		app.mouseCursorX >= rect.x &&
-		app.mouseCursorX <= rect.x + 36 &&
-		app.mouseCursorY >= rect.y + rect.height - 36 && 
-		app.mouseCursorY <= rect.y + rect.height;
+		app.mouse.mouseCursorX >= rect.x &&
+		app.mouse.mouseCursorX <= rect.x + 36 &&
+		app.mouse.mouseCursorY >= rect.y + rect.height - 36 && 
+		app.mouse.mouseCursorY <= rect.y + rect.height;
     }
     
     // does another scope have something selected?
@@ -1314,8 +1314,8 @@ class Scope {
         if (showFFT && cursorScope == this) {
             double maxFrequency = 1 / (sim.maxTimeStep * speed * 2);
             if (cursorX < 0)
-        	cursorX = app.mouseCursorX;
-            info[ct++] = CircuitElm.getUnitText(maxFrequency*(app.mouseCursorX-rect.x)/rect.width, "Hz");
+        	cursorX = app.mouse.mouseCursorX;
+            info[ct++] = CircuitElm.getUnitText(maxFrequency*(app.mouse.mouseCursorX-rect.x)/rect.width, "Hz");
         } else if (cursorX < rect.x)
             return;
         
@@ -1345,7 +1345,7 @@ class Scope {
 	g.setColor(CircuitElm.whiteColor);
 	g.drawLine(x, rect.y, x, rect.y+rect.height);
 	if (drawY)
-	    g.drawLine(rect.x, app.mouseCursorY, rect.x+rect.width, app.mouseCursorY);
+	    g.drawLine(rect.x, app.mouse.mouseCursorY, rect.x+rect.width, app.mouse.mouseCursorY);
 	g.setColor(app.isPrintable() ? Color.white : Color.black);
 	int bx = x;
 	if (bx < szw/2)
@@ -2209,7 +2209,7 @@ class Scope {
     }
     
     void onMouseWheel(MouseWheelEvent e) {
-        wheelDeltaY += e.getDeltaY()*app.wheelSensitivity;
+        wheelDeltaY += e.getDeltaY()*app.mouse.wheelSensitivity;
         if (wheelDeltaY > 5) {
             slowDown();
             wheelDeltaY = 0;
