@@ -57,3 +57,15 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Other stuff
+/tests
+/circuits
+/client
+/offline
+/spice
+/tmp
+/.gradle
+*.tgz
+
+/.apt_generated/
