@@ -236,6 +236,7 @@ public class CustomCompositeElm extends CompositeElm {
     
     int getDumpType() { return 410; }
 
+    String getElmType() { return "subcircuit"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
 	if (model.builtin)

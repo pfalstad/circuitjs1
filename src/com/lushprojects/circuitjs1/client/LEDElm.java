@@ -97,6 +97,7 @@ class LEDElm extends DiodeElm {
 	    drawPosts(g);
 	}
 
+	String getElmType() { return "LED"; }
 	void getInfo(String arr[]) {
 	    super.getInfo(arr);
 	    if (model.oldStyle)

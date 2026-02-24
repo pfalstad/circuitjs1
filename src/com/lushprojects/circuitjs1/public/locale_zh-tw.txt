@@ -520,6 +520,7 @@
 "OR gate"="OR閘"
 "Oscillators"="振盪器"
 "Other Options..."="其他選項…"
+"Other Options"="其他選項"
 "Other Passive Circuits"="其他被動式電路"
 "out"="out"
 "Outputs"="輸出"

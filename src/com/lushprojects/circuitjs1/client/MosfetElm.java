@@ -468,6 +468,7 @@ class MosfetElm extends CircuitElm {
 	    if (showBulk())
 		arr[7] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
 	}
+	String getElmType() { return "MOSFET"; }
 	void getInfo(String arr[]) {
 	    getFetInfo(arr, "MOSFET");
 	}

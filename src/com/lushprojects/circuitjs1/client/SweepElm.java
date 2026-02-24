@@ -176,6 +176,7 @@ class SweepElm extends CircuitElm {
     double getVoltageDiff() { return volts[0]; }
     int getVoltageSourceCount() { return 1; }
     boolean hasGroundConnection(int n1) { return true; }
+    String getElmType() { return "sweep"; }
     void getInfo(String arr[]) {
 	arr[0] = "sweep " + (((flags & FLAG_LOG) == 0) ? "(linear)" : "(log)");
 	arr[1] = "I = " + getCurrentDText(getCurrent());

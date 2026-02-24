@@ -172,6 +172,7 @@ class DiodeElm extends CircuitElm {
     void calculateCurrent() {
 	current = diode.calculateCurrent(volts[0]-volts[diodeEndNode]);
     }
+    String getElmType() { return "diode"; }
     void getInfo(String arr[]) {
 	if (model.oldStyle)
 	    arr[0] = "diode";

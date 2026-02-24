@@ -686,6 +686,7 @@
 "OTA Single Stage VCF (low pass)"="OTA Single Stage VCF (low pass)"
 "OTA Voltage Controlled Amplifier (VCA)"="OTA napěťově řízený zesilovač (VCA)"
 "Other Options..."="Jiné možnosti..."
+"Other Options"="Jiné možnosti"
 "Other Passive Circuits"="Ostatní pasivní obvody"
 "out"="OUT"
 "out vs in"="ven vs dovnitř"

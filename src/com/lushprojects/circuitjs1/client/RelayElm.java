@@ -433,6 +433,7 @@ class RelayElm extends CircuitElm {
 		    (volts[nSwitch0+p*3]-volts[nSwitch1+p*3+i_position])/r_on;
 	}
     }
+    String getElmType() { return "relay"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS("relay");
 	if (i_position == 0)

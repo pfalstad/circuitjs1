@@ -234,6 +234,7 @@ public class OpAmpRealElm extends CompositeElm {
 	return 409;
     }
 
+    String getElmType() { return "op-amp"; }
     void getInfo(String arr[]) {
 	String type = (modelType == MODEL_741) ? "LM741" : "LM324";
         arr[0] = "op-amp (" + type + ")";

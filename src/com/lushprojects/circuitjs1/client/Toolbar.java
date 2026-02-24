@@ -86,7 +86,7 @@ public class Toolbar extends HorizontalPanel {
         add(modeLabel);
     }
 
-    public void setModeLabel(String text) { modeLabel.setText(Locale.LS("Mode: ") + text); }
+    public void setModeLabel(String text) { modeLabel.setText(text); }
 
     private Label createIconButton(String icon, String cls) {
 	CirSim app = CirSim.theApp;

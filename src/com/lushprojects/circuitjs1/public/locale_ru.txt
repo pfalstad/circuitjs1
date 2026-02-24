@@ -521,6 +521,7 @@
 "OR gate"="элемент ИЛИ"
 "Oscillators"="Генераторы"
 "Other Options..."="Другие настройки..."
+"Other Options"="Другие настройки"
 "Other Passive Circuits"="Другие пассивные схемы"
 "out"="выход"
 "Outputs"="Выходы"

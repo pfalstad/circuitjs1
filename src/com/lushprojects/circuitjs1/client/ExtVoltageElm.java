@@ -61,6 +61,7 @@ class ExtVoltageElm extends RailElm {
 		name = ei.textf.getText();
 	}
 
+	String getElmType() { return "ext. voltage"; }
 	void getInfo(String arr[]) {
 	    super.getInfo(arr);
 	    arr[0] = Locale.LS("ext. voltage") + " (" + name + ")";

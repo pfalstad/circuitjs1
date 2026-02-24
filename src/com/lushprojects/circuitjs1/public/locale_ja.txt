@@ -521,6 +521,7 @@
 "OR gate"="ORゲート"
 "Oscillators"="オシレータ"
 "Other Options..."="その他のオプション…"
+"Other Options"="その他のオプション"
 "Other Passive Circuits"="その他のパッシブ電子回路"
 "out"="out"
 "Outputs"="出力"

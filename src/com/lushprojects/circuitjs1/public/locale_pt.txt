@@ -518,6 +518,7 @@
 "OR gate"="Porta OR"
 "Oscillators"="Osciladores"
 "Other Options..."="Outras Opções..."
+"Other Options"="Outras Opções"
 "Other Passive Circuits"="Outros Circuitos Passivos"
 "out"="saída"
 "Outputs"="Saídas"

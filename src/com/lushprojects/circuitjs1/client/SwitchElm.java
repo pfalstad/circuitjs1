@@ -193,6 +193,7 @@ class SwitchElm extends CircuitElm {
             }
         }
     }
+    String getElmType() { return "switch (SPST)"; }
     void getInfo(String arr[]) {
 	arr[0] = (momentary) ? "push switch (SPST)" : "switch (SPST)";
 	if (position == 1) {
@@ -217,11 +218,8 @@ class SwitchElm extends CircuitElm {
 	}
 	if (n == 1)
 	    return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
-        if (n == 2) {
-            EditInfo ei = new EditInfo("Label (for linking)", 0);
-            ei.text = label == null ? "" : label;
-            return ei;
-        }
+        if (n == 2)
+            return new EditInfo("Label (for linking)", label == null ? "" : label);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {

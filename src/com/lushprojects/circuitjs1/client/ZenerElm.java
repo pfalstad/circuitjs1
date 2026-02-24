@@ -87,6 +87,7 @@ class ZenerElm extends DiodeElm {
 	
     final double default_zvoltage = 5.6;
 
+    String getElmType() { return "Zener diode"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
 	arr[0] = "Zener diode";

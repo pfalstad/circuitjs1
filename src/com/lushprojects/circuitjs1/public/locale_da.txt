@@ -332,6 +332,7 @@
 "Options"="Indstillinger"
 "Oscillators"="Oscillatorer"
 "Other Options..."="Andre Indstillinger..."
+"Other Options"="Andre Indstillinger"
 "Other Passive Circuits"="Andre passive kredsløb"
 "P2P Voltage"="P2P-spænding"
 "PISO shift register"="PISO skifteregister"

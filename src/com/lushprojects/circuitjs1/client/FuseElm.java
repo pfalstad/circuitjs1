@@ -164,6 +164,7 @@ class FuseElm extends CircuitElm {
 	void doStep() {
 	    sim.stampResistor(nodes[0], nodes[1], blown ? blownResistance : resistance);
 	}
+	String getElmType() { return "fuse"; }
 	void getInfo(String arr[]) {
 	    arr[0] = blown ? "fuse (blown)" : "fuse";
 	    getBasicInfo(arr);

@@ -1014,7 +1014,14 @@ public abstract class CircuitElm implements Editable {
     // get component info for display in lower right
     void getInfo(String arr[]) {
     }
-    
+
+    // get element type name for edit dialog title.  override if getInfo()[0] includes dynamic state.
+    String getElmType() {
+	String info[] = new String[10];
+	getInfo(info);
+	return info[0];
+    }
+
     int getBasicInfo(String arr[]) {
 	arr[1] = "I = " + getCurrentDText(getCurrent());
 	arr[2] = "Vd = " + getVoltageDText(getVoltageDiff());

@@ -181,7 +181,10 @@ class DPDTSwitchElm extends SwitchElm {
 	}
 	
 	boolean getConnection(int n1, int n2) {
-	    return comparePair(n1, n2, 0, 1+position) || comparePair(n1, n2, 3, 4+position);
+	    for (int i = 0; i != poleCount; i++)
+		if (comparePair(n1, n2, i*3, i*3+1+position))
+		    return true;
+	    return false;
 	}
 	
 	boolean isWireEquivalent() { return true; }
@@ -189,6 +192,7 @@ class DPDTSwitchElm extends SwitchElm {
 	// optimizing out this element is too complicated to be worth it (see #646)
 	boolean isRemovableWire() { return false; }
 
+	String getElmType() { return "switch (DPDT)"; }
 	void getInfo(String arr[]) {
 	    arr[0] = (poleCount == 2) ? "switch (DPDT)" : "switch (" + poleCount + "PDT)";
 	    int i;

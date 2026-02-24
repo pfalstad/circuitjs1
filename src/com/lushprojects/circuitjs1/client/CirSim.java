@@ -1906,7 +1906,8 @@ MouseOutHandler, MouseWheelHandler {
             		doDelete(false);
     		}
     		if (item=="undock") {
-    	    	    ScopeElm newScope = new ScopeElm(snapGrid(menuElm.x+50), snapGrid(menuElm.y+50));
+		    CircuitElm elm = s.getElm();
+    	    	    ScopeElm newScope = new ScopeElm(snapGrid(elm.x+50), snapGrid(elm.y+50));
     	    	    elmList.addElement(newScope);
     	    	    newScope.setElmScope(scopes[menuScope]);
     	    	    
@@ -2300,7 +2301,7 @@ MouseOutHandler, MouseWheelHandler {
     					new MyCommand("circuits", "setup "+file+" " + title)));
     				if (file.equals(startCircuit) && startLabel == null) {
     				    startLabel = title;
-    				    titleLabel.setText(title);
+    				    setCircuitTitle(title);
     				}
     				if (first && startCircuit == null) {
     					startCircuit = file;
@@ -2322,7 +2323,7 @@ MouseOutHandler, MouseWheelHandler {
 	}
 	readCircuit(text.getBytes(), flags);
 	if ((flags & RC_KEEP_TITLE) == 0)
-	    titleLabel.setText(null);
+	    setCircuitTitle(null);
     }
 
     void readCircuit(String text) {
@@ -2332,12 +2333,17 @@ MouseOutHandler, MouseWheelHandler {
 	    return;
 	}
 	readCircuit(text.getBytes(), 0);
-	titleLabel.setText(null);
+	setCircuitTitle(null);
     }
 
+    static final String baseTitle = "Circuit Simulator";
+
     void setCircuitTitle(String s) {
-	if (s != null)
-	    titleLabel.setText(s);
+	titleLabel.setText(s);
+	if (s != null && s.length() > 0)
+	    Document.get().setTitle(s + " - " + baseTitle);
+	else
+	    Document.get().setTitle(baseTitle);
     }
     
 	void readSetupFile(String str, String title) {
@@ -2346,7 +2352,7 @@ MouseOutHandler, MouseWheelHandler {
 		String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt(); 
 		loadFileFromURL(url);
 		if (title != null)
-		    titleLabel.setText(title);
+		    setCircuitTitle(title);
 		unsavedChanges = false;
 		ExportAsLocalFileDialog.setLastFileName(null);
 	}
@@ -3332,6 +3338,8 @@ MouseOutHandler, MouseWheelHandler {
 	} catch (Exception ex) {
 	    debugger();
 	}
+
+	updateToolbar();
     }
 
     static int lastSubcircuitMenuUpdate;
@@ -3389,6 +3397,8 @@ MouseOutHandler, MouseWheelHandler {
     			dragElm.delete();
     			if (mouseMode == MODE_SELECT || mouseMode == MODE_DRAG_SELECTED)
     				clearSelection();
+			toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
+			dragElm = null;
     		}
     		else {
     			elmList.addElement(dragElm);
@@ -3396,8 +3406,9 @@ MouseOutHandler, MouseWheelHandler {
     			circuitChanged = true;
     			writeRecoveryToStorage();
     			unsavedChanges = true;
+			dragElm = null;
+			updateToolbar();
     		}
-    		dragElm = null;
     	}
     	if (circuitChanged) {
     	    needAnalyze();
@@ -4061,7 +4072,10 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void updateToolbar() {
-	toolbar.setModeLabel(classToLabelMap.get(mouseModeStr));
+	if (dragElm != null)
+	    toolbar.setModeLabel(Locale.LS("Drag Mouse"));
+	else
+	    toolbar.setModeLabel(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr));
 	toolbar.highlightButton(mouseModeStr);
     }
 

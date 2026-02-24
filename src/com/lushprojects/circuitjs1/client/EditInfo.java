@@ -43,6 +43,7 @@ class EditInfo {
 	EditInfo(String n, String txt) {
 	    name = n;
 	    text = txt;
+	    dimensionless = noSliders = true;
 	}
 
 	static EditInfo createCheckbox(String name, boolean flag) {

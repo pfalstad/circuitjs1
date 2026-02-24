@@ -168,6 +168,7 @@ import com.google.gwt.xml.client.Document;
 	// optimizing out this element is too complicated to be worth it (see #646)
 	boolean isRemovableWire() { return false; }
 	
+	String getElmType() { return "switch (SPDT)"; }
 	void getInfo(String arr[]) {
 	    arr[0] = "switch (" + (link == 0 ? "S" : "D") + "P" +
 		    ((throwCount > 2) ? throwCount+"T)" : "DT)");
@@ -180,9 +181,9 @@ import com.google.gwt.xml.client.Document;
 	    	return ei;
 	    }*/
 	    if (n == 1)
-	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless();
+	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless().disallowSliders();
 	    if (n == 2)
-	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless();
+	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless().disallowSliders();
 	    return super.getEditInfo(n);
 	}
 	public void setEditValue(int n, EditInfo ei) {

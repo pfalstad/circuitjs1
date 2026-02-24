@@ -544,6 +544,7 @@
 "OR gate"="OR"
 "Oscillators"="Generatory"
 "Other Options..."="Ustawienia..."
+"Other Options"="Ustawienia"
 "Other Passive Circuits"="Pozostałe układy bierne"
 "out"="wyjście"
 "Outputs"="Wyjścia"

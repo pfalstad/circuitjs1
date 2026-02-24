@@ -57,7 +57,15 @@ class EditDialog extends Dialog {
 	EditDialog(Editable ce, CirSim f) {
 //		super(f, "Edit Component", false);
 		super(); // Do we need this?
-		setText(Locale.LS("Edit Component"));
+		String title = "Edit Component";
+		if (ce instanceof EditOptions) {
+		    title = "Other Options";
+		} else if (ce instanceof CircuitElm) {
+		    String name = ((CircuitElm) ce).getElmType();
+		    if (name != null)
+			title = "Edit " + name.substring(0, 1).toUpperCase() + name.substring(1);
+		}
+		setText(Locale.LS(title));
 		cframe = f;
 		elm = ce;
 //		setLayout(new EditDialogLayout());

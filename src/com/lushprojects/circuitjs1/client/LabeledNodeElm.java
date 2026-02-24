@@ -142,6 +142,7 @@ class LabeledNodeElm extends CircuitElm {
     double getCurrentIntoNode(int n) { return -current; }
     void setCurrent(int x, double c) { current = c; }
     double getVoltageDiff() { return volts[0]; }
+    String getElmType() { return "Labeled Node"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS(text) + " (" + Locale.LS("Labeled Node") + ")";
 	arr[1] = "I = " + getCurrentText(getCurrent());

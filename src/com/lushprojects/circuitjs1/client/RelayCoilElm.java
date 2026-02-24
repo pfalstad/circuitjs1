@@ -316,6 +316,7 @@ class RelayCoilElm extends CircuitElm {
 	double voltdiff = volts[nCoil1]-volts[nCoil3];
 	coilCurrent = ind.calculateCurrent(voltdiff);
     }
+    String getElmType() { return "relay"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS("relay");
 	if (i_position == 0)
@@ -349,11 +350,8 @@ class RelayCoilElm extends CircuitElm {
 	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0);
 	if (n == 5)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
-	if (n == 6) {
-	    EditInfo ei = new EditInfo("Label (for linking)", 0);
-	    ei.text = label;
-	    return ei;
-	}
+	if (n == 6)
+	    return new EditInfo("Label (for linking)", label);
 	return null;
     }
     

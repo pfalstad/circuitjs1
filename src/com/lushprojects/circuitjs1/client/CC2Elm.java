@@ -41,6 +41,7 @@ package com.lushprojects.circuitjs1.client;
 	    pins[1] = new Pin(2, SIDE_W, "Y");
 	    pins[2] = new Pin(1, SIDE_E, "Z");
 	}
+	String getElmType() { return "CCII"; }
 	void getInfo(String arr[]) {
 	    arr[0] = (gain == 1) ? "CCII+~" : "CCII-~"; // ~ is for localization
 	    arr[1] = "X,Y = " + getVoltageText(volts[0]);

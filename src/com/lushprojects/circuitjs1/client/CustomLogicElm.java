@@ -270,6 +270,7 @@ public class CustomLogicElm extends ChipElm {
     int getDumpType() { return 208; }
     String getXmlDumpType() { return "cl"; }
 
+    String getElmType() { return "custom logic"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
 	arr[0] = model.infoText;

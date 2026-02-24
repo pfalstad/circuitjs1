@@ -17,6 +17,7 @@ class VaractorElm extends DiodeElm {
 	baseCapacitance = new Double(st.nextToken()).doubleValue();
     }
     int getDumpType() { return 176; }
+    String getElmType() { return "varactor"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
 	arr[0] = "varactor";

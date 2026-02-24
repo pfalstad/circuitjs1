@@ -110,6 +110,7 @@ public class DarlingtonElm extends CompositeElm {
 
 
 
+    String getElmType() { return "darlington pair"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS("darlington pair") + " (" + ((pnp == -1) ? "PNP)" : "NPN)");
 	double vbc = volts[0] - volts[1];

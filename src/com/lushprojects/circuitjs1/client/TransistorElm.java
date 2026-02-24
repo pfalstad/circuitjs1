@@ -423,6 +423,7 @@ class TransistorElm extends CircuitElm {
 	    return Locale.LS("transistor") + ", " + t;
 	}
 	
+	String getElmType() { return "transistor"; }
 	void getInfo(String arr[]) {
 	    arr[0] = Locale.LS("transistor") + " (" + ((pnp == -1) ? "PNP" : "NPN") + ", " + model.name + ", \u03b2=" + showFormat.format(beta) + ")";
 	    double vbc = volts[0]-volts[1];

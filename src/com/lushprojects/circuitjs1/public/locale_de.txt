@@ -441,6 +441,7 @@
 "Options"="Einstellungen"
 "Oscillators"="Oszillatoren"
 "Other Options..."="Weitere Einstellungen..."
+"Other Options"="Weitere Einstellungen"
 "Other Passive Circuits"="Weitere passive Schaltungen"
 "Outputs"="Ausgänge"
 "P2P Voltage"="Spitze-Tal-Spannung (peak-peak)"

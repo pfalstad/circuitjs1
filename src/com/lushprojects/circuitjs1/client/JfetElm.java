@@ -132,6 +132,7 @@ class JfetElm extends MosfetElm {
 	double getDefaultThreshold() { return -4; }
 	double getDefaultBeta() { return .00125; }
 	double getBackwardCompatibilityBeta() { return getDefaultBeta(); }
+	String getElmType() { return "JFET"; }
 	void getInfo(String arr[]) {
 	    getFetInfo(arr, "JFET");
 	}

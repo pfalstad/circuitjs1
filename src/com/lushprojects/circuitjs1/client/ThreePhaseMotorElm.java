@@ -163,11 +163,14 @@ class ThreePhaseMotorElm extends CircuitElm {
         sim.stampVoltageSource(n002, 0, voltSources[0]);
         sim.stampVoltageSource(n006, 0, voltSources[1]);
         
-        coilCurSourceValues = new double[coilCount];
-        coilCurrents = new double[coilCount];
-        
+        if (coilCurSourceValues == null || coilCurSourceValues.length != coilCount)
+            coilCurSourceValues = new double[coilCount];
+        if (coilCurrents == null || coilCurrents.length != coilCount)
+            coilCurrents = new double[coilCount];
+
         int nodeCount = getNodeCount();
-        nodeCurrents = new double[nodeCount];
+        if (nodeCurrents == null || nodeCurrents.length != nodeCount)
+            nodeCurrents = new double[nodeCount];
     }
     
     int coilNodes[] = { n001_ind, 1, n003_ind, 3, n005_ind, 5, n002_ind, n004_ind, n006_ind, n007_ind };

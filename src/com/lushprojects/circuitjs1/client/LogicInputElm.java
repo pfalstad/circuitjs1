@@ -110,6 +110,7 @@ class LogicInputElm extends SwitchElm {
 	}
 	int getVoltageSourceCount() { return 1; }
 	double getVoltageDiff() { return volts[0]; }
+	String getElmType() { return "logic input"; }
 	void getInfo(String arr[]) {
 	    arr[0] = "logic input";
 	    arr[1] = (position == 0) ? "low" : "high";

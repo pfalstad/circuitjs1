@@ -16,6 +16,8 @@ and set the voltage of external voltage nodes.
 <button onclick="sim.setSimRunning(false)">Stop</button>
 <button onclick="sim.setMaxTimeStep(sim.getMaxTimeStep()*2)">Double Timestep</button>
 <button onclick="sim.setMaxTimeStep(sim.getMaxTimeStep()/2)">Halve Timestep</button>
+<button onclick="console.log(sim.exportCircuit())">Circuit to console</button>
+<button onclick="sim.getCircuitAsSVG()">Circuit As SVG to console</button>
 <p>
 extsin frequency:
 <input id="freq" value="10" />
@@ -103,6 +105,10 @@ function didStep(sim) {
   sim.setExtVoltage("extsin", ampl*Math.sin(freq*Math.PI*2*t));
 }
 
+function svgRendered(sim, svg) {
+  console.log(svg);
+}
+
 // callback called when simulation is done initializing
 function simLoaded() {
   // get simulator object
@@ -112,6 +118,7 @@ function simLoaded() {
   sim.onupdate = didUpdate;
   sim.ontimestep = didStep;
   sim.onanalyze = didAnalyze;
+  sim.onsvgrendered = svgRendered;
 }
 
 // set up callback

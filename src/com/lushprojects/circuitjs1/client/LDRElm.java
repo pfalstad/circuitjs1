@@ -29,7 +29,7 @@ class LDRElm extends CircuitElm implements Command, MouseWheelHandler {
 
 	lux = LuxFromSliderPos();
 	resistance = calcResistance(lux); 
-	sliderText = "Light Brightness";
+	sliderText = Locale.LS("Light Brightness");
 	createSlider();
     }
 

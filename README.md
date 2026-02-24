@@ -95,6 +95,55 @@ Just for reference the files should look like this
    +- setuplist.txt (index in to example circuit directory)
 ```
 
+## Docker/podman containers
+
+### Building and Running Circuitjs in docker containers
+
+*(replace the podman command with docker if you prefere docker)*
+
+- To build Docker image using podman: 
+
+```
+podman build -f circuitjs1.Containerfile -t circuitjs1:latest
+```
+
+- To then run Docker image using podman:
+
+```
+podman run --name=circuitjs1 --rm -d -p 8000:8000 circuitjs1:latest
+```
+
+CircuitJS1 should be accessable at: http://localhost:8000/circuitjs.html
+
+
+### Development using docker containers
+
+(replace the podman command with docker if you prefere docker)
+
+- To build the development Docker image using podman: 
+
+```
+podman build -f dev-start.Containerfile -t circuitjs1-dev:latest
+```
+
+- To then run the development Docker image using podman:
+
+```
+podman run --rm -it -p 127.0.0.1:8000:8000/tcp -p 127.0.0.1:9876:9876/tcp circuitjs1-dev:latest
+```
+
+CircuitJS1 should be accessable at: http://localhost:8000/circuitjs.html
+
+If you need to modify the files while the container is running (using the gwt auto-build method):
+
+```
+podman run --rm -it -v $(pwd):/src:Z  -p 127.0.0.1:8000:8000/tcp -p 127.0.0.1:9876:9876/tcp  circuitjs1-dev:latest
+```
+
+This will use the current directory inside the container.
+
+
+
 ## Embedding
 
 You can link to the full page version of the application using the link shown above.

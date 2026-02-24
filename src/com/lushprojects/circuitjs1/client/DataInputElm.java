@@ -25,6 +25,7 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.user.client.ui.FileUpload;
+import com.lushprojects.circuitjs1.client.util.Locale;
 
 class DataFileEntry {
     String fileName;
@@ -86,11 +87,11 @@ class DataInputElm extends RailElm {
 	}
 	
 	void drawRail(Graphics g) {
-	    drawRailText(g, fileName == null ? "No file" : fileName);
+	    drawRailText(g, fileName == null ? Locale.LS("No file") : fileName);
 	}
 	
 	String getRailText() {
-	    return fileName == null ? "No file" : fileName;
+	    return fileName == null ? Locale.LS("No file") : fileName;
 	}
 	
 	boolean doesRepeat() { return (flags & FLAG_REPEAT) != 0; }

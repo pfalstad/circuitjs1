@@ -28,6 +28,8 @@ import com.google.gwt.xml.client.Document;
 class VoltageElm extends CircuitElm {
     static final int FLAG_COS = 2;
     static final int FLAG_PULSE_DUTY = 4;
+    static final int FLAG_CIRCLE_SYMBOL = 8;
+    static final int FLAG_SHOW_VOLTAGE = 16;
     int waveform;
     static final int WF_DC = 0;
     static final int WF_AC = 1;
@@ -168,12 +170,39 @@ class VoltageElm extends CircuitElm {
     final int circleSize = 17;
     void setPoints() {
 	super.setPoints();
-	calcLeads((waveform == WF_DC || waveform == WF_VAR) ? 8 : circleSize*2);
+	if (waveform == WF_DC && (flags & FLAG_CIRCLE_SYMBOL) != 0)
+	    calcLeads(circleSize*2);
+	else
+	    calcLeads((waveform == WF_DC || waveform == WF_VAR) ? 8 : circleSize*2);
     }
     void draw(Graphics g) {
 	setBbox(x, y, x2, y2);
 	draw2Leads(g);
-	if (waveform == WF_DC) {
+	if (waveform == WF_DC && (flags & FLAG_CIRCLE_SYMBOL) != 0) {
+	    setBbox(point1, point2, circleSize);
+	    interpPoint(lead1, lead2, ps1, .5);
+	    int xc = ps1.x; int yc = ps1.y;
+	    g.setColor(needsHighlight() ? selectColor : Color.gray);
+	    setPowerColor(g, false);
+	    drawThickCircle(g, xc, yc, circleSize);
+	    adjustBbox(xc-circleSize, yc-circleSize,
+		       xc+circleSize, yc+circleSize);
+	    // draw + and - signs inside the circle
+	    int signSize = 4;
+	    double plusPos = 0.74;
+	    double minusPos = 0.26;
+	    // + sign: perpendicular bar
+	    interpPoint2(lead1, lead2, ps1, ps2, plusPos, signSize);
+	    drawThickLine(g, ps1, ps2);
+	    // + sign: along-axis bar
+	    double delta = signSize / (circleSize * 2.0);
+	    Point pA = interpPoint(lead1, lead2, plusPos - delta);
+	    Point pB = interpPoint(lead1, lead2, plusPos + delta);
+	    drawThickLine(g, pA, pB);
+	    // - sign: perpendicular bar only
+	    interpPoint2(lead1, lead2, ps1, ps2, minusPos, signSize);
+	    drawThickLine(g, ps1, ps2);
+	} else if (waveform == WF_DC) {
 	    setVoltageColor(g, volts[0]);
 	    setPowerColor(g, false);
 	    interpPoint2(lead1, lead2, ps1, ps2, 0, 10);
@@ -200,9 +229,25 @@ class VoltageElm extends CircuitElm {
 	    int w = (int)g.context.measureText(inds).getWidth();;
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
+	if (dx == 0 || dy == 0) {
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0;
+	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
+	    String s = null;
+	    if (showV && showF)
+		s = getShortUnitText(maxVoltage, "V") + " " +
+		    getShortUnitText(frequency, "Hz");
+	    else if (showV)
+		s = getShortUnitText(maxVoltage, "V");
+	    else if (showF)
+		s = getShortUnitText(frequency, "Hz");
+	    if (s != null) {
+		int hs = (waveform == WF_DC && (flags & FLAG_CIRCLE_SYMBOL) == 0) ? 16 : circleSize;
+		drawValues(g, s, hs);
+	    }
+	}
 	updateDotCount();
 	if (!isCreating()) {
-	    if (waveform == WF_DC)
+	    if (waveform == WF_DC && (flags & FLAG_CIRCLE_SYMBOL) == 0)
 		drawDots(g, point1, point2, curcount);
 	    else {
 		drawDots(g, point1, lead1, curcount);
@@ -283,13 +328,13 @@ class VoltageElm extends CircuitElm {
 	    break;
 	}
 	}
-	if (showValues() && waveform != WF_NOISE) {
+	if (this instanceof RailElm && showValues() && waveform != WF_NOISE) {
 	    String s = getShortUnitText(frequency, "Hz");
 	    if (dx == 0 || dy == 0)
 		drawValues(g, s, circleSize);
 	}
     }
-	
+
     int getVoltageSourceCount() {
 	return 1;
     }
@@ -325,6 +370,9 @@ class VoltageElm extends CircuitElm {
 	    arr[i++] = "(R = " + getUnitText(maxVoltage/current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + getUnitText(getPower(), "W");
     }
+    // rails don't have Show Voltage or Circle Symbol options, so frequency starts earlier
+    int getFrequencyOffset() { return (this instanceof RailElm) ? 3 : 4; }
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo(waveform == WF_DC ? "Voltage" :
@@ -344,14 +392,25 @@ class VoltageElm extends CircuitElm {
 	}
 	if (n == 2)
 	    return new EditInfo("DC Offset (V)", bias, -20, 20);
+	if (n == 3 && !(this instanceof RailElm)) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.checkbox = new Checkbox("Show Voltage", (flags & FLAG_SHOW_VOLTAGE) != 0);
+	    return ei;
+	}
+	if (n == 4 && waveform == WF_DC && !(this instanceof RailElm)) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.checkbox = new Checkbox("Circle Symbol", (flags & FLAG_CIRCLE_SYMBOL) != 0);
+	    return ei;
+	}
+	int fo = getFrequencyOffset();
 	if (waveform == WF_DC || waveform == WF_NOISE)
 	    return null;
-	if (n == 3)
+	if (n == fo)
 	    return new EditInfo("Frequency (Hz)", frequency, 4, 500);
-	if (n == 4)
+	if (n == fo+1)
 	    return new EditInfo("Phase Offset (degrees)", phaseShift*180/pi,
 				-180, 180).setDimensionless();
-	if (n == 5 && (waveform == WF_PULSE || waveform == WF_SQUARE))
+	if (n == fo+2 && (waveform == WF_PULSE || waveform == WF_SQUARE))
 	    return new EditInfo("Duty Cycle", dutyCycle*100, 0, 100).
 		setDimensionless();
 	return null;
@@ -361,8 +420,15 @@ class VoltageElm extends CircuitElm {
 	    maxVoltage = ei.value;
 	if (n == 2)
 	    bias = ei.value;
-	if (n == 3) {
-	    // adjust time zero to maintain continuity ind the waveform
+	if (n == 3 && ei.checkbox != null && !(this instanceof RailElm))
+	    flags = ei.changeFlag(flags, FLAG_SHOW_VOLTAGE);
+	if (n == 4 && waveform == WF_DC && ei.checkbox != null && !(this instanceof RailElm)) {
+	    flags = ei.changeFlag(flags, FLAG_CIRCLE_SYMBOL);
+	    setPoints();
+	}
+	int fo = getFrequencyOffset();
+	if (n == fo && waveform != WF_DC) {
+	    // adjust time zero to maintain continuity in the waveform
 	    // even though the frequency has changed.
 	    double oldfreq = frequency;
 	    frequency = ei.value;
@@ -384,18 +450,19 @@ class VoltageElm extends CircuitElm {
 		bias = 0;
 	    } else if (waveform != ow)
 		ei.newDialog = true;
-	    
+
 	    // change duty cycle if we're changing to or from pulse
 	    if (waveform == WF_PULSE && ow != WF_PULSE)
 		dutyCycle = defaultPulseDuty;
 	    else if (ow == WF_PULSE && waveform != WF_PULSE)
 		dutyCycle = .5;
-	    
+
 	    setPoints();
 	}
-	if (n == 4)
+	if (n == fo+1)
 	    phaseShift = ei.value*pi/180;
-	if (n == 5)
+	if (n == fo+2)
 	    dutyCycle = ei.value*.01;
     }
 }
+
