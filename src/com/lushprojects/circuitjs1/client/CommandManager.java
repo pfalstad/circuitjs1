@@ -7,100 +7,100 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class CommandManager {
 
-    CirSim sim;
+    CirSim app;
     String clipboard;
 
-    CommandManager(CirSim sim) {
-	this.sim = sim;
+    CommandManager(CirSim app) {
+	this.app = app;
     }
 
     public void menuPerformed(String menu, String item) {
-	if ((menu=="edit" || menu=="main" || menu=="scopes") && sim.menus.noEditCheckItem.getState()) {
+	if ((menu=="edit" || menu=="main" || menu=="scopes") && app.menus.noEditCheckItem.getState()) {
 	    Window.alert(Locale.LS("Editing disabled.  Re-enable from the Options menu."));
 	    return;
 	}
     	if (item=="about")
-    		sim.aboutBox = new AboutBox(circuitjs1.versionString);
+    		app.aboutBox = new AboutBox(circuitjs1.versionString);
     	if (item=="importfromlocalfile") {
-    		sim.undoManager.pushUndo();
-    		if (sim.isElectron())
-    		    sim.electronOpenFile();
+    		app.undoManager.pushUndo();
+    		if (app.isElectron())
+    		    electronOpenFile();
     		else
-    		    sim.loadFileInput.click();
+    		    app.loadFileInput.click();
     	}
     	if (item=="newwindow") {
     	    Window.open(Document.get().getURL(), "_blank", "");
     	}
     	if (item=="save")
-    	    sim.electronSave(sim.dumpCircuit());
+    	    electronSave(app.dumpCircuit());
     	if (item=="saveas")
-    	    sim.electronSaveAs(sim.dumpCircuit());
+    	    electronSaveAs(app.dumpCircuit());
     	if (item=="importfromtext") {
-    		sim.dialogShowing = new ImportFromTextDialog(sim);
+    		app.dialogShowing = new ImportFromTextDialog(app);
     	}
     	if (item=="importfromdropbox") {
-    		sim.dialogShowing = new ImportFromDropboxDialog(sim);
+    		app.dialogShowing = new ImportFromDropboxDialog(app);
     	}
     	if (item=="exportasurl") {
     		doExportAsUrl();
-    		sim.unsavedChanges = false;
+    		app.unsavedChanges = false;
     	}
     	if (item=="exportaslocalfile") {
     		doExportAsLocalFile();
-    		sim.unsavedChanges = false;
+    		app.unsavedChanges = false;
     	}
     	if (item=="exportastext") {
     		doExportAsText();
-    		sim.unsavedChanges = false;
+    		app.unsavedChanges = false;
     	}
     	if (item=="exportasimage")
-		sim.imageExporter.doExportAsImage();
+		app.imageExporter.doExportAsImage();
     	if (item=="copypng") {
-		sim.imageExporter.doImageToClipboard();
-    		if (sim.contextPanel!=null)
-			sim.contextPanel.hide();
+		app.imageExporter.doImageToClipboard();
+    		if (app.contextPanel!=null)
+			app.contextPanel.hide();
     	}
     	if (item=="exportassvg")
-		sim.imageExporter.doExportAsSVG();
+		app.imageExporter.doExportAsSVG();
     	if (item=="createsubcircuit")
 		doCreateSubcircuit();
     	if (item=="dcanalysis")
     	    	doDCAnalysis();
     	if (item=="print")
-    	    	sim.imageExporter.doPrint();
+    	    	app.imageExporter.doPrint();
     	if (item=="recover")
-    	    	sim.undoManager.doRecover();
+    	    	app.undoManager.doRecover();
 
-    	if ((menu=="elm" || menu=="scopepop") && sim.contextPanel!=null)
-    		sim.contextPanel.hide();
+    	if ((menu=="elm" || menu=="scopepop") && app.contextPanel!=null)
+    		app.contextPanel.hide();
     	if (menu=="options" && item=="shortcuts") {
-    	    	sim.dialogShowing = new ShortcutsDialog(sim);
-    	    	sim.dialogShowing.show();
+    	    	app.dialogShowing = new ShortcutsDialog(app);
+    	    	app.dialogShowing.show();
     	}
     	if (menu=="options" && item=="subcircuits") {
-    	    	sim.dialogShowing = new SubcircuitDialog(sim);
-    	    	sim.dialogShowing.show();
+    	    	app.dialogShowing = new SubcircuitDialog(app);
+    	    	app.dialogShowing.show();
     	}
     	if (item=="search") {
-    	    	sim.dialogShowing = new SearchDialog(sim);
-    	    	sim.dialogShowing.show();
+    	    	app.dialogShowing = new SearchDialog(app);
+    	    	app.dialogShowing.show();
     	}
     	if (menu=="options" && item=="other")
-    		doEdit(new EditOptions(sim, sim.sim));
+    		doEdit(new EditOptions(app, app.sim));
     	if (item=="devtools")
-    	    sim.toggleDevTools();
+    	    toggleDevTools();
     	if (item=="undo")
-    		sim.undoManager.doUndo();
+    		app.undoManager.doUndo();
     	if (item=="redo")
-    		sim.undoManager.doRedo();
+    		app.undoManager.doRedo();
 
     	// if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
-    	if (menu == "key" && sim.mouse.getMouseElm() != null) {
-    	    sim.mouse.menuElm = sim.mouse.getMouseElm();
+    	if (menu == "key" && app.mouse.getMouseElm() != null) {
+    	    app.mouse.menuElm = app.mouse.getMouseElm();
     	    menu = "elm";
     	}
 	if (menu != "elm")
-		sim.mouse.menuElm = null;
+		app.mouse.menuElm = null;
 
     	if (item == "cut") {
     		doCut();
@@ -114,126 +114,126 @@ public class CommandManager {
     	    	doDuplicate();
     	}
     	if (item=="flip")
-    	    sim.mouse.doFlip();
+    	    app.mouse.doFlip();
     	if (item=="split")
-    	    sim.mouse.doSplit(sim.mouse.menuElm);
+    	    app.mouse.doSplit(app.mouse.menuElm);
     	if (item=="selectAll")
-    		sim.mouse.doSelectAll();
+    		app.mouse.doSelectAll();
 
     	if (item=="centrecircuit") {
-    		sim.undoManager.pushUndo();
-    		sim.centreCircuit();
+    		app.undoManager.pushUndo();
+    		app.centreCircuit();
     	}
     	if (item=="flipx") {
-	    sim.undoManager.pushUndo();
+	    app.undoManager.pushUndo();
 	    flipX();
     	}
     	if (item=="flipy") {
-	    sim.undoManager.pushUndo();
+	    app.undoManager.pushUndo();
 	    flipY();
     	}
     	if (item=="flipxy") {
-	    sim.undoManager.pushUndo();
+	    app.undoManager.pushUndo();
 	    flipXY();
     	}
     	if (item=="stackAll")
-    		sim.scopeManager.stackAll();
+    		app.scopeManager.stackAll();
     	if (item=="unstackAll")
-    		sim.scopeManager.unstackAll();
+    		app.scopeManager.unstackAll();
     	if (item=="combineAll")
-		sim.scopeManager.combineAll();
+		app.scopeManager.combineAll();
     	if (item=="separateAll")
-		sim.scopeManager.separateAll();
+		app.scopeManager.separateAll();
     	if (item=="zoomin")
-    	    sim.mouse.zoomCircuit(20, true);
+    	    app.mouse.zoomCircuit(20, true);
     	if (item=="zoomout")
-    	    sim.mouse.zoomCircuit(-20, true);
+    	    app.mouse.zoomCircuit(-20, true);
     	if (item=="zoom100")
-    	    sim.mouse.setCircuitScale(1, true);
+    	    app.mouse.setCircuitScale(1, true);
     	if (menu=="elm" && item=="edit")
-    		doEdit(sim.mouse.menuElm);
+    		doEdit(app.mouse.menuElm);
     	if (item=="delete") {
     		if (menu!="elm")
-    			sim.mouse.menuElm = null;
-    		sim.undoManager.pushUndo();
+    			app.mouse.menuElm = null;
+    		app.undoManager.pushUndo();
     		doDelete(true);
     	}
     	if (item=="sliders")
-    	    doSliders(sim.mouse.menuElm);
+    	    doSliders(app.mouse.menuElm);
 
-    	if (item=="viewInScope" && sim.mouse.menuElm != null) {
+    	if (item=="viewInScope" && app.mouse.menuElm != null) {
     		int i;
-    		for (i = 0; i != sim.scopeManager.scopeCount; i++)
-    			if (sim.scopeManager.scopes[i].getElm() == null)
+    		for (i = 0; i != app.scopeManager.scopeCount; i++)
+    			if (app.scopeManager.scopes[i].getElm() == null)
     				break;
-    		if (i == sim.scopeManager.scopeCount) {
-    			if (sim.scopeManager.scopeCount == sim.scopeManager.scopes.length)
+    		if (i == app.scopeManager.scopeCount) {
+    			if (app.scopeManager.scopeCount == app.scopeManager.scopes.length)
     				return;
-    			sim.scopeManager.scopeCount++;
-    			sim.scopeManager.scopes[i] = new Scope(sim, sim.sim);
-    			sim.scopeManager.scopes[i].position = i;
+    			app.scopeManager.scopeCount++;
+    			app.scopeManager.scopes[i] = new Scope(app, app.sim);
+    			app.scopeManager.scopes[i].position = i;
     		}
-    		sim.scopeManager.scopes[i].setElm(sim.mouse.menuElm);
+    		app.scopeManager.scopes[i].setElm(app.mouse.menuElm);
     		if (i > 0)
-    		    sim.scopeManager.scopes[i].speed = sim.scopeManager.scopes[i-1].speed;
+    		    app.scopeManager.scopes[i].speed = app.scopeManager.scopes[i-1].speed;
     	}
 
-    	if (item=="viewInFloatScope" && sim.mouse.menuElm != null) {
-    	    ScopeElm newScope = new ScopeElm(sim.snapGrid(sim.mouse.menuElm.x+50), sim.snapGrid(sim.mouse.menuElm.y+50));
-    	    sim.elmList.addElement(newScope);
-    	    newScope.setScopeElm(sim.mouse.menuElm);
+    	if (item=="viewInFloatScope" && app.mouse.menuElm != null) {
+    	    ScopeElm newScope = new ScopeElm(app.snapGrid(app.mouse.menuElm.x+50), app.snapGrid(app.mouse.menuElm.y+50));
+    	    app.elmList.addElement(newScope);
+    	    newScope.setScopeElm(app.mouse.menuElm);
 
     	    // need to rebuild scopeElmArr
-    	    sim.needAnalyze();
+    	    app.needAnalyze();
 	}
 
-    	if (item.startsWith("addToScope") && sim.mouse.menuElm != null) {
+    	if (item.startsWith("addToScope") && app.mouse.menuElm != null) {
     	    int n;
     	    n = Integer.parseInt(item.substring(10));
-    	    if (n < sim.scopeManager.scopeCount + sim.scopeManager.countScopeElms()) {
-    		if (n < sim.scopeManager.scopeCount )
-    		    sim.scopeManager.scopes[n].addElm(sim.mouse.menuElm);
+    	    if (n < app.scopeManager.scopeCount + app.scopeManager.countScopeElms()) {
+    		if (n < app.scopeManager.scopeCount )
+    		    app.scopeManager.scopes[n].addElm(app.mouse.menuElm);
     		else
-    		    sim.scopeManager.getNthScopeElm(n-sim.scopeManager.scopeCount).elmScope.addElm(sim.mouse.menuElm);
+    		    app.scopeManager.getNthScopeElm(n-app.scopeManager.scopeCount).elmScope.addElm(app.mouse.menuElm);
     	    }
-    	    sim.scopeManager.scopeMenuSelected = -1;
+    	    app.scopeManager.scopeMenuSelected = -1;
     	}
 
     	if (menu=="scopepop") {
-    		sim.undoManager.pushUndo();
+    		app.undoManager.pushUndo();
     		Scope s;
-		if (sim.scopeManager.menuScope != -1 )
-		    	s= sim.scopeManager.scopes[sim.scopeManager.menuScope];
+		if (app.scopeManager.menuScope != -1 )
+		    	s= app.scopeManager.scopes[app.scopeManager.menuScope];
 		else
-		    	s= ((ScopeElm)sim.mouse.getMouseElm()).elmScope;
+		    	s= ((ScopeElm)app.mouse.getMouseElm()).elmScope;
 
     		if (item=="dock") {
-            		if (sim.scopeManager.scopeCount == sim.scopeManager.scopes.length)
+            		if (app.scopeManager.scopeCount == app.scopeManager.scopes.length)
             			return;
-            		sim.scopeManager.scopes[sim.scopeManager.scopeCount] = ((ScopeElm)sim.mouse.getMouseElm()).elmScope;
-            		((ScopeElm)sim.mouse.getMouseElm()).clearElmScope();
-            		sim.scopeManager.scopes[sim.scopeManager.scopeCount].position = sim.scopeManager.scopeCount;
-            		sim.scopeManager.scopeCount++;
+            		app.scopeManager.scopes[app.scopeManager.scopeCount] = ((ScopeElm)app.mouse.getMouseElm()).elmScope;
+            		((ScopeElm)app.mouse.getMouseElm()).clearElmScope();
+            		app.scopeManager.scopes[app.scopeManager.scopeCount].position = app.scopeManager.scopeCount;
+            		app.scopeManager.scopeCount++;
             		doDelete(false);
     		}
     		if (item=="undock") {
 		    CircuitElm elm = s.getElm();
-    	    	    ScopeElm newScope = new ScopeElm(sim.snapGrid(elm.x+50), sim.snapGrid(elm.y+50));
-    	    	    sim.elmList.addElement(newScope);
-    	    	    newScope.setElmScope(sim.scopeManager.scopes[sim.scopeManager.menuScope]);
+    	    	    ScopeElm newScope = new ScopeElm(app.snapGrid(elm.x+50), app.snapGrid(elm.y+50));
+    	    	    app.elmList.addElement(newScope);
+    	    	    newScope.setElmScope(app.scopeManager.scopes[app.scopeManager.menuScope]);
 
     	    	    int i;
     	    	    // remove scope from list.  setupScopes() will fix the positions
-    	    	    for (i = sim.scopeManager.menuScope; i < sim.scopeManager.scopeCount; i++)
-    	    		sim.scopeManager.scopes[i] = sim.scopeManager.scopes[i+1];
-    	    	    sim.scopeManager.scopeCount--;
+    	    	    for (i = app.scopeManager.menuScope; i < app.scopeManager.scopeCount; i++)
+    	    		app.scopeManager.scopes[i] = app.scopeManager.scopes[i+1];
+    	    	    app.scopeManager.scopeCount--;
 
-    	            sim.needAnalyze();      // need to rebuild scopeElmArr
+    	            app.needAnalyze();      // need to rebuild scopeElmArr
     		}
     		if (item=="remove")
     		    	s.setElm(null);  // setupScopes() will clean this up
     		if (item=="removeplot")
-			s.removePlot(sim.scopeManager.menuPlot);
+			s.removePlot(app.scopeManager.menuPlot);
     		if (item=="speed2")
     			s.speedUp();
     		if (item=="speed1/2")
@@ -241,93 +241,93 @@ public class CommandManager {
     		if (item=="maxscale")
     			s.maxScale();
     		if (item=="stack")
-    			sim.scopeManager.stackScope(sim.scopeManager.menuScope);
+    			app.scopeManager.stackScope(app.scopeManager.menuScope);
     		if (item=="unstack")
-    			sim.scopeManager.unstackScope(sim.scopeManager.menuScope);
+    			app.scopeManager.unstackScope(app.scopeManager.menuScope);
     		if (item=="combine")
-			sim.scopeManager.combineScope(sim.scopeManager.menuScope);
+			app.scopeManager.combineScope(app.scopeManager.menuScope);
     		if (item=="selecty")
     			s.selectY();
     		if (item=="reset")
     			s.resetGraph(true);
     		if (item=="properties")
 			s.properties();
-    		sim.scopeManager.deleteUnusedScopeElms();
+    		app.scopeManager.deleteUnusedScopeElms();
     	}
     	if (menu=="circuits" && item.indexOf("setup ") ==0) {
-    		sim.undoManager.pushUndo();
+    		app.undoManager.pushUndo();
     		int sp = item.indexOf(' ', 6);
-    		sim.readSetupFile(item.substring(6, sp), item.substring(sp+1));
+    		app.readSetupFile(item.substring(6, sp), item.substring(sp+1));
     	}
     	if (item=="newblankcircuit") {
-    	    sim.undoManager.pushUndo();
-    	    sim.readSetupFile("blank.txt", "Blank Circuit");
+    	    app.undoManager.pushUndo();
+    	    app.readSetupFile("blank.txt", "Blank Circuit");
     	}
 
     	// IES: Moved from itemStateChanged()
     	if (menu=="main") {
-    		if (sim.contextPanel!=null)
-    			sim.contextPanel.hide();
-    		sim.setMouseMode(MouseManager.MODE_ADD_ELM);
+    		if (app.contextPanel!=null)
+    			app.contextPanel.hide();
+    		app.setMouseMode(MouseManager.MODE_ADD_ELM);
     		String s = item;
     		if (s.length() > 0)
-    			sim.mouseModeStr = s;
+    			app.mouseModeStr = s;
     		if (s.compareTo("DragAll") == 0)
-    			sim.setMouseMode(MouseManager.MODE_DRAG_ALL);
+    			app.setMouseMode(MouseManager.MODE_DRAG_ALL);
     		else if (s.compareTo("DragRow") == 0)
-    			sim.setMouseMode(MouseManager.MODE_DRAG_ROW);
+    			app.setMouseMode(MouseManager.MODE_DRAG_ROW);
     		else if (s.compareTo("DragColumn") == 0)
-    			sim.setMouseMode(MouseManager.MODE_DRAG_COLUMN);
+    			app.setMouseMode(MouseManager.MODE_DRAG_COLUMN);
     		else if (s.compareTo("DragSelected") == 0)
-    			sim.setMouseMode(MouseManager.MODE_DRAG_SELECTED);
+    			app.setMouseMode(MouseManager.MODE_DRAG_SELECTED);
     		else if (s.compareTo("DragPost") == 0)
-    			sim.setMouseMode(MouseManager.MODE_DRAG_POST);
+    			app.setMouseMode(MouseManager.MODE_DRAG_POST);
     		else if (s.compareTo("Select") == 0)
-    			sim.setMouseMode(MouseManager.MODE_SELECT);
+    			app.setMouseMode(MouseManager.MODE_SELECT);
 
-		sim.updateToolbar();
+		app.updateToolbar();
 
-    		sim.mouse.tempMouseMode = sim.mouse.mouseMode;
+    		app.mouse.tempMouseMode = app.mouse.mouseMode;
     	}
     	if (item=="fullscreen") {
     	    if (! Graphics.isFullScreen)
     		Graphics.viewFullScreen();
     	    else
     		Graphics.exitFullScreen();
-    	    sim.centreCircuit();
+    	    app.centreCircuit();
     	}
 
-	sim.repaint();
+	app.repaint();
     }
 
     void doEdit(Editable eable) {
-    	sim.mouse.clearSelection();
-    	sim.undoManager.pushUndo();
-    	if (sim.editDialog != null) {
-    		sim.editDialog.setVisible(false);
-    		sim.editDialog = null;
+    	app.mouse.clearSelection();
+    	app.undoManager.pushUndo();
+    	if (app.editDialog != null) {
+    		app.editDialog.setVisible(false);
+    		app.editDialog = null;
     	}
-    	sim.editDialog = new EditDialog(eable, sim);
-    	sim.editDialog.show();
+    	app.editDialog = new EditDialog(eable, app);
+    	app.editDialog.show();
     }
 
     void doSliders(CircuitElm ce) {
-	sim.mouse.clearSelection();
-	sim.undoManager.pushUndo();
-	sim.dialogShowing = new SliderDialog(ce, sim);
-	sim.dialogShowing.show();
+	app.mouse.clearSelection();
+	app.undoManager.pushUndo();
+	app.dialogShowing = new SliderDialog(ce, app);
+	app.dialogShowing.show();
     }
 
     void doExportAsUrl() {
-    	String dump = sim.dumpCircuit();
-	sim.dialogShowing = new ExportAsUrlDialog(dump);
-	sim.dialogShowing.show();
+    	String dump = app.dumpCircuit();
+	app.dialogShowing = new ExportAsUrlDialog(dump);
+	app.dialogShowing.show();
     }
 
     void doExportAsText() {
-    	String dump = sim.dumpCircuit();
-    	sim.dialogShowing = new ExportAsTextDialog(sim, dump);
-    	sim.dialogShowing.show();
+    	String dump = app.dumpCircuit();
+    	app.dialogShowing = new ExportAsTextDialog(app, dump);
+    	app.dialogShowing.show();
     }
 
     void doCreateSubcircuit() {
@@ -335,33 +335,33 @@ public class CommandManager {
     	if (!dlg.createModel())
     	    return;
     	dlg.createDialog();
-    	sim.dialogShowing = dlg;
-    	sim.dialogShowing.show();
+    	app.dialogShowing = dlg;
+    	app.dialogShowing.show();
     }
 
     void doExportAsLocalFile() {
-    	String dump = sim.dumpCircuit();
-    	sim.dialogShowing = new ExportAsLocalFileDialog(dump);
-    	sim.dialogShowing.show();
+    	String dump = app.dumpCircuit();
+    	app.dialogShowing = new ExportAsLocalFileDialog(dump);
+    	app.dialogShowing.show();
     }
 
     void doDCAnalysis() {
-	sim.dcAnalysisFlag = true;
-	sim.resetAction();
+	app.dcAnalysisFlag = true;
+	app.resetAction();
     }
 
     void setMenuSelection() {
-    	if (sim.mouse.menuElm != null) {
-    		if (sim.mouse.menuElm.selected)
+    	if (app.mouse.menuElm != null) {
+    		if (app.mouse.menuElm.selected)
     			return;
-    		sim.mouse.clearSelection();
-    		sim.mouse.menuElm.setSelected(true);
+    		app.mouse.clearSelection();
+    		app.mouse.menuElm.setSelected(true);
     	}
     }
 
     int countSelected() {
 	int count = 0;
-	for (CircuitElm ce: sim.elmList)
+	for (CircuitElm ce: app.elmList)
 	    if (ce.isSelected())
 		count++;
 	return count;
@@ -371,13 +371,13 @@ public class CommandManager {
 
     FlipInfo prepareFlip() {
     	int i;
-    	sim.undoManager.pushUndo();
+    	app.undoManager.pushUndo();
     	setMenuSelection();
     	int minx = 30000, maxx = -30000;
     	int miny = 30000, maxy = -30000;
 	int count = countSelected();
-    	for (i = 0; i != sim.elmList.size(); i++) {
-	    CircuitElm ce = sim.getElm(i);
+    	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.getElm(i);
 	    if (ce.isSelected() || count == 0) {
 		minx = Math.min(ce.x, Math.min(ce.x2, minx));
 		maxx = Math.max(ce.x, Math.max(ce.x2, maxx));
@@ -395,41 +395,41 @@ public class CommandManager {
     void flipX() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cx*2;
-	for (CircuitElm ce : sim.elmList) {
+	for (CircuitElm ce : app.elmList) {
 	    if (ce.isSelected() || fi.count == 0)
 		ce.flipX(center2, fi.count);
     	}
-	sim.needAnalyze();
+	app.needAnalyze();
     }
 
     void flipY() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cy*2;
-	for (CircuitElm ce : sim.elmList) {
+	for (CircuitElm ce : app.elmList) {
 	    if (ce.isSelected() || fi.count == 0)
 		ce.flipY(center2, fi.count);
     	}
-	sim.needAnalyze();
+	app.needAnalyze();
     }
 
     void flipXY() {
 	FlipInfo fi = prepareFlip();
-	int xmy = sim.snapGrid(fi.cx-fi.cy);
-	sim.console("xmy " + xmy + " grid " + sim.gridSize + " " + fi.cx + " " + fi.cy);
-	for (CircuitElm ce : sim.elmList) {
+	int xmy = app.snapGrid(fi.cx-fi.cy);
+	app.console("xmy " + xmy + " grid " + app.gridSize + " " + fi.cx + " " + fi.cy);
+	for (CircuitElm ce : app.elmList) {
 	    if (ce.isSelected() || fi.count == 0)
 		ce.flipXY(xmy, fi.count);
     	}
-	sim.needAnalyze();
+	app.needAnalyze();
     }
 
     void doCut() {
     	int i;
-    	sim.undoManager.pushUndo();
+    	app.undoManager.pushUndo();
     	setMenuSelection();
     	clipboard = "";
-    	for (i = sim.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = sim.getElm(i);
+    	for (i = app.elmList.size()-1; i >= 0; i--) {
+    		CircuitElm ce = app.getElm(i);
     		if (willDelete(ce) && !(ce instanceof ScopeElm) ) {
     			clipboard += ce.dump() + "\n";
     		}
@@ -456,23 +456,23 @@ public class CommandManager {
     void doDelete(boolean pushUndoFlag) {
     	int i;
     	if (pushUndoFlag)
-    	    sim.undoManager.pushUndo();
+    	    app.undoManager.pushUndo();
     	boolean hasDeleted = false;
 
-    	for (i = sim.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = sim.getElm(i);
+    	for (i = app.elmList.size()-1; i >= 0; i--) {
+    		CircuitElm ce = app.getElm(i);
     		if (willDelete(ce)) {
     		    	if (ce.isMouseElm())
-    		    	    sim.mouse.setMouseElm(null);
+    		    	    app.mouse.setMouseElm(null);
     			ce.delete();
-    			sim.elmList.removeElementAt(i);
+    			app.elmList.removeElementAt(i);
     			hasDeleted = true;
     		}
     	}
     	if ( hasDeleted ) {
-    	    sim.scopeManager.deleteUnusedScopeElms();
-    	    sim.needAnalyze();
-    	    sim.undoManager.writeRecoveryToStorage();
+    	    app.scopeManager.deleteUnusedScopeElms();
+    	    app.needAnalyze();
+    	    app.undoManager.writeRecoveryToStorage();
     	}
     }
 
@@ -481,13 +481,13 @@ public class CommandManager {
     }
 
     String copyOfSelectedElms() {
-	String r = sim.dumpOptions();
+	String r = app.dumpOptions();
 	CustomLogicModel.clearDumpedFlags();
 	CustomCompositeModel.clearDumpedFlags();
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
-	for (int i = sim.elmList.size()-1; i >= 0; i--) {
-	    CircuitElm ce = sim.getElm(i);
+	for (int i = app.elmList.size()-1; i >= 0; i--) {
+	    CircuitElm ce = app.getElm(i);
 	    String m = ce.dumpModel();
 	    if (m != null && !m.isEmpty())
 		r += m + "\n";
@@ -498,13 +498,13 @@ public class CommandManager {
     }
 
     void doCopy() {
-    	boolean clearSel = (sim.mouse.menuElm != null && !sim.mouse.menuElm.selected);
+    	boolean clearSel = (app.mouse.menuElm != null && !app.mouse.menuElm.selected);
 
     	setMenuSelection();
     	clipboard=copyOfSelectedElms();
 
     	if (clearSel)
-    	    sim.mouse.clearSelection();
+    	    app.mouse.clearSelection();
 
     	writeClipboardToStorage();
     	enablePaste();
@@ -513,7 +513,7 @@ public class CommandManager {
     void enablePaste() {
     	if (clipboard == null || clipboard.length() == 0)
     		readClipboardFromStorage();
-    	sim.menus.pasteItem.setEnabled(clipboard != null && clipboard.length() > 0);
+    	app.menus.pasteItem.setEnabled(clipboard != null && clipboard.length() > 0);
     }
 
     void doDuplicate() {
@@ -524,14 +524,14 @@ public class CommandManager {
     }
 
     void doPaste(String dump) {
-    	sim.undoManager.pushUndo();
-    	sim.mouse.clearSelection();
+    	app.undoManager.pushUndo();
+    	app.mouse.clearSelection();
     	int i;
     	Rectangle oldbb = null;
 
     	// get old bounding box
-    	for (i = 0; i != sim.elmList.size(); i++) {
-    		CircuitElm ce = sim.getElm(i);
+    	for (i = 0; i != app.elmList.size(); i++) {
+    		CircuitElm ce = app.getElm(i);
     		Rectangle bb = ce.getBoundingBox();
     		if (oldbb != null)
     			oldbb = oldbb.union(bb);
@@ -540,7 +540,7 @@ public class CommandManager {
     	}
 
     	// add new items
-    	int oldsz = sim.elmList.size();
+    	int oldsz = app.elmList.size();
     	int flags = CircuitLoader.RC_RETAIN;
 
     	// don't recenter circuit if we're going to paste in place because that will change the transform
@@ -550,16 +550,16 @@ public class CommandManager {
     	    flags |= CircuitLoader.RC_NO_CENTER;
 
     	if (dump != null)
-    	    sim.loader.readCircuit(dump, flags);
+    	    app.loader.readCircuit(dump, flags);
     	else {
     	    readClipboardFromStorage();
-    	    sim.loader.readCircuit(clipboard, flags);
+    	    app.loader.readCircuit(clipboard, flags);
     	}
 
     	// select new items and get their bounding box
     	Rectangle newbb = null;
-    	for (i = oldsz; i != sim.elmList.size(); i++) {
-    		CircuitElm ce = sim.getElm(i);
+    	for (i = oldsz; i != app.elmList.size(); i++) {
+    		CircuitElm ce = app.getElm(i);
     		ce.setSelected(true);
     		Rectangle bb = ce.getBoundingBox();
     		if (newbb != null)
@@ -571,45 +571,93 @@ public class CommandManager {
     	if (oldbb != null && newbb != null) {
     		// find a place on the edge for new items
     		int dx = 0, dy = 0;
-    		int spacew = sim.circuitArea.width - oldbb.width - newbb.width;
-    		int spaceh = sim.circuitArea.height - oldbb.height - newbb.height;
+    		int spacew = app.circuitArea.width - oldbb.width - newbb.width;
+    		int spaceh = app.circuitArea.height - oldbb.height - newbb.height;
 
     		if (!oldbb.intersects(newbb)) {
     		    // old coordinates may be really far away so move them to same origin as current circuit
-    		    dx = sim.snapGrid(oldbb.x - newbb.x);
-    		    dy = sim.snapGrid(oldbb.y - newbb.y);
+    		    dx = app.snapGrid(oldbb.x - newbb.x);
+    		    dy = app.snapGrid(oldbb.y - newbb.y);
     		}
 
     		if (spacew > spaceh) {
-    			dx = sim.snapGrid(oldbb.x + oldbb.width  - newbb.x + sim.gridSize);
+    			dx = app.snapGrid(oldbb.x + oldbb.width  - newbb.x + app.gridSize);
     		} else {
-    			dy = sim.snapGrid(oldbb.y + oldbb.height - newbb.y + sim.gridSize);
+    			dy = app.snapGrid(oldbb.y + oldbb.height - newbb.y + app.gridSize);
     		}
 
     		// move new items near the mouse if possible
-    		if (sim.mouse.mouseCursorX > 0 && sim.circuitArea.contains(sim.mouse.mouseCursorX, sim.mouse.mouseCursorY)) {
-    	    	    int gx = sim.mouse.inverseTransformX(sim.mouse.mouseCursorX);
-    	    	    int gy = sim.mouse.inverseTransformY(sim.mouse.mouseCursorY);
-    	    	    int mdx = sim.snapGrid(gx-(newbb.x+newbb.width/2));
-    	    	    int mdy = sim.snapGrid(gy-(newbb.y+newbb.height/2));
-    	    	    for (i = oldsz; i != sim.elmList.size(); i++) {
-    	    		if (!sim.getElm(i).allowMove(mdx, mdy))
+    		if (app.mouse.mouseCursorX > 0 && app.circuitArea.contains(app.mouse.mouseCursorX, app.mouse.mouseCursorY)) {
+    	    	    int gx = app.mouse.inverseTransformX(app.mouse.mouseCursorX);
+    	    	    int gy = app.mouse.inverseTransformY(app.mouse.mouseCursorY);
+    	    	    int mdx = app.snapGrid(gx-(newbb.x+newbb.width/2));
+    	    	    int mdy = app.snapGrid(gy-(newbb.y+newbb.height/2));
+    	    	    for (i = oldsz; i != app.elmList.size(); i++) {
+    	    		if (!app.getElm(i).allowMove(mdx, mdy))
     	    		    break;
     	    	    }
-    	    	    if (i == sim.elmList.size()) {
+    	    	    if (i == app.elmList.size()) {
     	    		dx = mdx;
     	    		dy = mdy;
     	    	    }
     		}
 
     		// move the new items
-    		for (i = oldsz; i != sim.elmList.size(); i++) {
-    			CircuitElm ce = sim.getElm(i);
+    		for (i = oldsz; i != app.elmList.size(); i++) {
+    			CircuitElm ce = app.getElm(i);
     			ce.move(dx, dy);
     		}
 
     	}
-    	sim.needAnalyze();
-    	sim.undoManager.writeRecoveryToStorage();
+    	app.needAnalyze();
+    	app.undoManager.writeRecoveryToStorage();
     }
+    
+    static void electronSaveAsCallback(String s) {
+	s = s.substring(s.lastIndexOf('/')+1);
+	s = s.substring(s.lastIndexOf('\\')+1);
+	CirSim app = CirSim.theApp;
+	app.setCircuitTitle(s);
+	app.allowSave(true);
+	app.savedFlag = true;
+	app.repaint();
+    }
+
+    static void electronSaveCallback() {
+	CirSim app = CirSim.theApp;
+	app.savedFlag = true;
+	app.repaint();
+    }
+        
+    static native void electronSaveAs(String dump) /*-{
+        $wnd.showSaveDialog().then(function (file) {
+            if (file.canceled)
+            	return;
+            $wnd.saveFile(file, dump);
+            @com.lushprojects.circuitjs1.client.CommandManager::electronSaveAsCallback(Ljava/lang/String;)(file.filePath.toString());
+        });
+    }-*/;
+
+    static native void electronSave(String dump) /*-{
+        $wnd.saveFile(null, dump);
+        @com.lushprojects.circuitjs1.client.CommandManager::electronSaveCallback()();
+    }-*/;
+    
+    static void electronOpenFileCallback(String text, String name) {
+	CirSim app = CirSim.theApp;
+	LoadFile.doLoadCallback(text, name);
+	app.allowSave(true);
+    }
+    
+    static native void electronOpenFile() /*-{
+        $wnd.openFile(function (text, name) {
+            @com.lushprojects.circuitjs1.client.CommandManager::electronOpenFileCallback(Ljava/lang/String;Ljava/lang/String;)(text, name);
+        });
+    }-*/;
+    
+    static native void toggleDevTools() /*-{
+        $wnd.toggleDevTools();
+    }-*/;
+    
+
 }

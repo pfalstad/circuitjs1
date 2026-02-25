@@ -25,10 +25,7 @@ package com.lushprojects.circuitjs1.client;
 // or https://github.com/sharpie7/circuitjs1/blob/master/INTERNALS.md
 
 import java.util.Vector;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
 import java.lang.Math;
 
@@ -41,21 +38,8 @@ import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.canvas.dom.client.Context2d.LineCap;
-import com.google.gwt.event.dom.client.MouseDownEvent;
-import com.google.gwt.event.dom.client.MouseDownHandler;
-import com.google.gwt.event.dom.client.MouseEvent;
-import com.google.gwt.event.dom.client.MouseMoveEvent;
-import com.google.gwt.event.dom.client.MouseMoveHandler;
-import com.google.gwt.event.dom.client.MouseUpHandler;
-import com.google.gwt.event.dom.client.MouseUpEvent;
-import com.google.gwt.event.dom.client.MouseOutEvent;
-import com.google.gwt.event.dom.client.MouseOutHandler;
-import com.google.gwt.event.dom.client.ContextMenuEvent;
-import com.google.gwt.event.dom.client.ContextMenuHandler;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
 import com.google.gwt.user.client.Event.NativePreviewHandler;
-import com.google.gwt.event.dom.client.MouseWheelEvent;
-import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Style.Unit;
@@ -76,14 +60,10 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
-import com.google.gwt.event.dom.client.DoubleClickHandler;
-import com.google.gwt.event.dom.client.DoubleClickEvent;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.MetaElement;
-import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.NodeList;
 import com.google.gwt.user.client.ui.MenuItem;
-import com.google.gwt.safehtml.shared.SafeHtmlUtils;
 import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.ui.PopupPanel;
 import static com.google.gwt.event.dom.client.KeyCodes.*;
@@ -92,10 +72,8 @@ import com.google.gwt.user.client.ui.Widget;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.lushprojects.circuitjs1.client.util.PerfMonitor;
 import com.google.gwt.user.client.Window.ClosingEvent;
-import com.google.gwt.user.client.Window.Navigator;
 import com.google.gwt.event.logical.shared.ResizeEvent;
 import com.google.gwt.event.logical.shared.ResizeHandler;
-import com.google.gwt.user.client.DOM;
 
 public class CirSim implements NativePreviewHandler {
 
@@ -263,12 +241,7 @@ public class CirSim implements NativePreviewHandler {
         return $wnd.LZString.decompressFromEncodedURIComponent(dump);
     }-*/;
 
-//    Circuit applet;
-
     CirSim() {
-//	super("Circuit Simulator v1.6d");
-//	applet = a;
-//	useFrame = false;
 	theApp = this;
 	sim = new SimulationManager(this);
     }
@@ -277,7 +250,6 @@ public class CirSim implements NativePreviewHandler {
     String startLabel = null;
     String startCircuitText = null;
     String startCircuitLink = null;
-//    String baseURL = "http://www.falstad.com/circuit/";
     
     public void init() {
 
@@ -795,11 +767,6 @@ public class CirSim implements NativePreviewHandler {
     		}
     		elm.delete();
     	}
-//    	else
-//    		GWT.log("Coudn't create class: "+t);
-    	//	} catch (Exception ee) {
-    	//	    ee.printStackTrace();
-    	//	}
     	if (shortcut=="")
     		mi= new CheckboxMenuItem(s);
     	else
@@ -1218,8 +1185,6 @@ public class CirSim implements NativePreviewHandler {
 	    int x = leftX + 5;
 	    if (ct != 0)
 		x = scopeManager.scopes[ct-1].rightEdge() + 20;
-//	    x = max(x, canvasWidth*2/3);
-	  //  x=cv.getCoordinateSpaceWidth()*2/3;
 	    
 	    // count lines of data
 	    for (i = 0; info[i] != null; i++)
@@ -1306,22 +1271,6 @@ public class CirSim implements NativePreviewHandler {
 	return null;
     }
 
-//    public void toggleSwitch(int n) {
-//	int i;
-//	for (i = 0; i != elmList.size(); i++) {
-//	    CircuitElm ce = getElm(i);
-//	    if (ce instanceof SwitchElm) {
-//		n--;
-//		if (n == 0) {
-//		    ((SwitchElm) ce).toggle();
-//		    analyzeFlag = true;
-//		    cv.repaint();
-//		    return;
-//		}
-//	    }
-//	}
-//    }
-    
     void needAnalyze() {
 	analyzeFlag = true;
     	repaint();
@@ -1374,50 +1323,7 @@ public class CirSim implements NativePreviewHandler {
 	scopeManager.resetGraphs();
     	repaint();
     }
-    
-    static void electronSaveAsCallback(String s) {
-	s = s.substring(s.lastIndexOf('/')+1);
-	s = s.substring(s.lastIndexOf('\\')+1);
-	theApp.setCircuitTitle(s);
-	theApp.allowSave(true);
-	theApp.savedFlag = true;
-	theApp.repaint();
-    }
 
-    static void electronSaveCallback() {
-	theApp.savedFlag = true;
-	theApp.repaint();
-    }
-        
-    static native void electronSaveAs(String dump) /*-{
-        $wnd.showSaveDialog().then(function (file) {
-            if (file.canceled)
-            	return;
-            $wnd.saveFile(file, dump);
-            @com.lushprojects.circuitjs1.client.CirSim::electronSaveAsCallback(Ljava/lang/String;)(file.filePath.toString());
-        });
-    }-*/;
-
-    static native void electronSave(String dump) /*-{
-        $wnd.saveFile(null, dump);
-        @com.lushprojects.circuitjs1.client.CirSim::electronSaveCallback()();
-    }-*/;
-    
-    static void electronOpenFileCallback(String text, String name) {
-	LoadFile.doLoadCallback(text, name);
-	theApp.allowSave(true);
-    }
-    
-    static native void electronOpenFile() /*-{
-        $wnd.openFile(function (text, name) {
-            @com.lushprojects.circuitjs1.client.CirSim::electronOpenFileCallback(Ljava/lang/String;Ljava/lang/String;)(text, name);
-        });
-    }-*/;
-    
-    static native void toggleDevTools() /*-{
-        $wnd.toggleDevTools();
-    }-*/;
-    
     static native boolean isElectron() /*-{
         return ($wnd.openFile != undefined);
     }-*/;    
@@ -1644,12 +1550,6 @@ public class CirSim implements NativePreviewHandler {
     	cv.addStyleName(s);
     	lastCursorStyle=s;
     }
-    
-
-
-
-//    public void keyPressed(KeyEvent e) {}
-//    public void keyReleased(KeyEvent e) {}
     
     boolean dialogIsShowing() {
     	if (editDialog!=null && editDialog.isShowing())
