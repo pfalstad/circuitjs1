@@ -91,6 +91,11 @@ class XMLDeserializer {
 		DiodeModel.undumpModelXml(this);
 		continue;
 	    }
+	    if (tagName.equals("tm")) {
+		currentXmlElement = elem;
+		TransistorModel.undumpModelXml(this);
+		continue;
+	    }
 	    if (tagName.equals("clm")) {
 		currentXmlElement = elem;
 		CustomLogicModel.undumpModelXml(this);

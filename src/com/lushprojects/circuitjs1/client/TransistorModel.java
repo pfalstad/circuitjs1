@@ -6,6 +6,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Vector;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class TransistorModel implements Editable, Comparable<TransistorModel> {
@@ -240,5 +242,49 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	return "32 " + CustomLogicModel.escape(name) + " " + flags + " " +
 		satCur + " " + invRollOffF + " " + BEleakCur + " " + leakBEemissionCoeff + " " + invRollOffR + " " +
 		BCleakCur + " " + leakBCemissionCoeff + " " + emissionCoeffF + " " + emissionCoeffR + " " + invEarlyVoltF + " " + invEarlyVoltR + " " + betaR;
+    }
+
+    void dumpXml(Document doc) {
+	dumped = true;
+	Element elem = doc.createElement("tm");
+	XMLSerializer.dumpAttr(elem, "nm", name);
+	XMLSerializer.dumpAttr(elem, "f", flags);
+	XMLSerializer.dumpAttr(elem, "is", satCur);
+	XMLSerializer.dumpAttr(elem, "ikf", invRollOffF);
+	XMLSerializer.dumpAttr(elem, "ise", BEleakCur);
+	XMLSerializer.dumpAttr(elem, "ne", leakBEemissionCoeff);
+	XMLSerializer.dumpAttr(elem, "ikr", invRollOffR);
+	XMLSerializer.dumpAttr(elem, "isc", BCleakCur);
+	XMLSerializer.dumpAttr(elem, "nc", leakBCemissionCoeff);
+	XMLSerializer.dumpAttr(elem, "nf", emissionCoeffF);
+	XMLSerializer.dumpAttr(elem, "nr", emissionCoeffR);
+	XMLSerializer.dumpAttr(elem, "vaf", invEarlyVoltF);
+	XMLSerializer.dumpAttr(elem, "var", invEarlyVoltR);
+	XMLSerializer.dumpAttr(elem, "br", betaR);
+	doc.getDocumentElement().appendChild(elem);
+    }
+
+    static TransistorModel undumpModelXml(XMLDeserializer xml) {
+	String name = xml.parseStringAttr("nm", null);
+	TransistorModel tm = TransistorModel.getModelWithName(name);
+	tm.undumpXml(xml);
+	return tm;
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	flags = xml.parseIntAttr("f", flags);
+	satCur = xml.parseDoubleAttr("is", satCur);
+	invRollOffF = xml.parseDoubleAttr("ikf", invRollOffF);
+	BEleakCur = xml.parseDoubleAttr("ise", BEleakCur);
+	leakBEemissionCoeff = xml.parseDoubleAttr("ne", leakBEemissionCoeff);
+	invRollOffR = xml.parseDoubleAttr("ikr", invRollOffR);
+	BCleakCur = xml.parseDoubleAttr("isc", BCleakCur);
+	leakBCemissionCoeff = xml.parseDoubleAttr("nc", leakBCemissionCoeff);
+	emissionCoeffF = xml.parseDoubleAttr("nf", emissionCoeffF);
+	emissionCoeffR = xml.parseDoubleAttr("nr", emissionCoeffR);
+	invEarlyVoltF = xml.parseDoubleAttr("vaf", invEarlyVoltF);
+	invEarlyVoltR = xml.parseDoubleAttr("var", invEarlyVoltR);
+	betaR = xml.parseDoubleAttr("br", betaR);
+	updateModel();
     }
 }

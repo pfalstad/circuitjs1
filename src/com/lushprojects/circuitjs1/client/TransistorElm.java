@@ -89,6 +89,8 @@ class TransistorElm extends CircuitElm {
 	}
 
 	void dumpXml(Document doc, Element elem) {
+	    if (!(model.builtIn || model.dumped))
+		model.dumpXml(doc);
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "pn", pnp);
 	    XMLSerializer.dumpAttr(elem, "be", beta);
