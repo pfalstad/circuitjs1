@@ -2059,6 +2059,7 @@ class Scope {
     	showMax = (flags & 4) == 0;
     	showFreq = (flags & 8) != 0;
     	manualScale = (flags & FLAG_MAN_SCALE) != 0;
+    	plot2d = (flags & 64) != 0;
     	plotXY = (flags & 128) != 0;
     	showMin = (flags & 256) != 0;
     	showScale = (flags & 512) !=0;
