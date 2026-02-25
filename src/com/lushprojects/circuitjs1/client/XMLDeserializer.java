@@ -113,6 +113,21 @@ class XMLDeserializer {
 		app.hintItem2 = parseIntAttr("i2", 0);
 		continue;
 	    }
+	    if (tagName.equals("adj")) {
+		currentXmlElement = elem;
+		int e = parseIntAttr("e", -1);
+		if (e == -1)
+		    continue;
+		Adjustable adj = new Adjustable(app.getElm(e), parseIntAttr("ei", 0));
+		adj.minValue = parseDoubleAttr("mn", 1);
+		adj.maxValue = parseDoubleAttr("mx", 1000);
+		adj.sliderText = parseStringAttr("st", "");
+		int ss = parseIntAttr("ss", -1);
+		if (ss != -1)
+		    adj.sharedSlider = app.adjustables.get(ss);
+		app.adjustables.add(adj);
+		continue;
+	    }
 	    
 	    String x = elem.getAttribute("x");
 	    String xs[] = x.split(" ");
@@ -131,6 +146,10 @@ class XMLDeserializer {
 	    elm.undumpXml(this);
 	    elm.setPosition(x1, y1, x2, y2);
 	    app.elmList.add(elm);
+	}
+	for (int j = 0; j < app.adjustables.size(); j++) {
+	    if (!app.adjustables.get(j).createSlider(app))
+		app.adjustables.remove(j--);
 	}
         app.needAnalyze();
     }
