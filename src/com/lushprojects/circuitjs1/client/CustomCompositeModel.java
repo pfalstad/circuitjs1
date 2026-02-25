@@ -287,41 +287,6 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	return arr.split(",");
     }
 
-    // reconstruct old-style dump from XML element tree (for old-format file saving)
-    String dump() {
-	if (internal)
-	    return "";
-	dumped = true;
-
-	// reconstruct elmDump from XML
-	String elmDump = "";
-	XMLDeserializer xml = new XMLDeserializer(CirSim.theApp);
-	for (Element child : getElmEntries()) {
-	    String className = CirSim.xmlDumpTypeMap.get(child.getTagName());
-	    if (className == null)
-		continue;
-	    CircuitElm ce = CirSim.constructElement(className, 0, 0);
-	    xml.currentXmlElement = child;
-	    ce.undumpXml(xml);
-	    String tstring = ce.dump();
-	    tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", "");
-	    if (elmDump.length() > 0)
-		elmDump += " ";
-	    elmDump += CustomLogicModel.escape(tstring);
-	}
-
-	String nodeList = getNodeList();
-	String str = ". " + CustomLogicModel.escape(name) + " " + flags + " " + sizeX + " " + sizeY + " " + extList.size() + " ";
-        for (int i = 0; i != extList.size(); i++) {
-            ExtListEntry ent = extList.get(i);
-            if (i > 0)
-                str += " ";
-            str += CustomLogicModel.escape(ent.name) + " " + ent.node + " " + ent.pos + " " + ent.side;
-        }
-        str += " " + CustomLogicModel.escape(nodeList) + " " + CustomLogicModel.escape(elmDump);
-        return str;
-    }
-
     // build XML attributes and children into the given element
     void buildXmlElement(Document doc, Element elem) {
 	XMLSerializer.dumpAttr(elem, "nm", name);

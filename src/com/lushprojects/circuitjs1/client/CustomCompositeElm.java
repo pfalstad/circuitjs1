@@ -48,38 +48,6 @@ public class CustomCompositeElm extends CompositeElm {
 	updateModels(st);
     }
     
-    public String dump() {
-	// insert model name before the elements
-	String s = super.dumpWithMask(0);
-	s += " " + CustomLogicModel.escape(modelName);
-	s += dumpElements();
-	return s;
-    }
-    
-    String dumpModel() {
-	String modelStr = "";
-	
-	// dump models of all children
-	for (int i = 0; i < compElmList.size(); i++) {
-	    CircuitElm ce = compElmList.get(i);
-	    String m = ce.dumpModel();
-	    if (m != null && !m.isEmpty()) {
-		if (!modelStr.isEmpty())
-		    modelStr += "\n";
-		modelStr += m;
-	    }
-	}
-	if (model.dumped)
-	    return modelStr;
-	
-	// dump our model
-	if (!modelStr.isEmpty())
-	    modelStr += "\n";
-	modelStr += model.dump();
-	
-	return modelStr;
-    }
-
     void dumpXmlModel(Document doc) {
 	// dump models of all children first
 	for (int i = 0; i < compElmList.size(); i++)
