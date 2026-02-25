@@ -50,10 +50,10 @@ public class ExportAsImageDialog extends Dialog {
 		DateTimeFormat dtf = DateTimeFormat.getFormat("yyyyMMdd-HHmm");
 		String dataURL;
 		String ext = ".png";
-		if (type == CirSim.CAC_IMAGE) {
-		    dataURL = CirSim.theApp.getCircuitAsCanvas(type).toDataUrl();
+		if (type == ImageExporter.CAC_IMAGE) {
+		    dataURL = CirSim.theApp.imageExporter.getCircuitAsCanvas(type).toDataUrl();
 		} else {
-		    String data = CirSim.theApp.getCircuitAsSVG();
+		    String data = CirSim.theApp.imageExporter.getCircuitAsSVG();
 		    dataURL = "data:text/plain;base64," + b64encode(data);
 		    ext = ".svg";
 		}

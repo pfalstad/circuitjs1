@@ -41,7 +41,7 @@ public class JSInterface {
     // Delegate methods for JSNI access
     void setSimRunning(boolean run) { sim.setSimRunning(run); }
     boolean simIsRunning() { return sim.simIsRunning(); }
-    void doExportAsSVGFromAPI() { sim.doExportAsSVGFromAPI(); }
+    void doExportAsSVGFromAPI() { sim.imageExporter.doExportAsSVGFromAPI(); }
     String dumpCircuit() { return sim.dumpCircuit(); }
     void importCircuitFromText(String t, boolean s) { sim.importCircuitFromText(t, s); }
     double getTime() { return sim.sim.t; }
