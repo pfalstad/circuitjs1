@@ -126,18 +126,15 @@ class XMLSerializer {
 	    ce.dumpXmlState(doc, elem);
 	    root.appendChild(elem);
 	}
-	String dump = doc.toString();
 	for (int i = 0; i != app.scopeManager.scopeCount; i++)
 	    app.scopeManager.scopes[i].dumpXml(doc, root);
-/*
-	for (i = 0; i != adjustables.size(); i++) {
-	    Adjustable adj = adjustables.get(i);
-	    dump += "38 " + adj.dump() + "\n";
+	if (app.hintType != -1) {
+	    Element h = doc.createElement("h");
+	    dumpAttr(h, "t", app.hintType);
+	    dumpAttr(h, "i1", app.hintItem1);
+	    dumpAttr(h, "i2", app.hintItem2);
+	    root.appendChild(h);
 	}
-	if (hintType != -1)
-	    dump += "h " + hintType + " " + hintItem1 + " " +
-		hintItem2 + "\n";
-*/
 	return prettyPrint(doc);
     }
 

@@ -106,6 +106,13 @@ class XMLDeserializer {
 		CustomCompositeModel.undumpModelXml(this);
 		continue;
 	    }
+	    if (tagName.equals("h")) {
+		currentXmlElement = elem;
+		app.hintType  = parseIntAttr("t", -1);
+		app.hintItem1 = parseIntAttr("i1", 0);
+		app.hintItem2 = parseIntAttr("i2", 0);
+		continue;
+	    }
 	    
 	    String x = elem.getAttribute("x");
 	    String xs[] = x.split(" ");
