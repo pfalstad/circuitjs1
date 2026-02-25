@@ -109,6 +109,10 @@ class XMLDeserializer {
 	    int x2 = Integer.parseInt(xs[2]);
 	    int y2 = Integer.parseInt(xs[3]);
 	    String className = CirSim.xmlDumpTypeMap.get(tagName);
+	    if (className == null) {
+		app.console("unrecognized xml element: " + tagName);
+		continue;
+	    }
 	    CircuitElm elm = app.constructElement(className, 0, 0);
 	    currentXmlElement = elem;
 	    currentElm = elm;
