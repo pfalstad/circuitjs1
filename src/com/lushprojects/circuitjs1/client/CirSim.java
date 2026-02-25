@@ -123,7 +123,6 @@ public class CirSim implements NativePreviewHandler {
     Vector<Point> postDrawList = new Vector<Point>();
     Vector<Point> badConnectionList = new Vector<Point>();
     Vector<Adjustable> adjustables;
-    // Vector setupList;
     CircuitElm stopElm;
     ScopeElm scopeElmArr[];
     boolean simRunning;
@@ -514,7 +513,6 @@ public class CirSim implements NativePreviewHandler {
 	setGrid();
 	elmList = new Vector<CircuitElm>();
 	adjustables = new Vector<Adjustable>();
-	//	setupList = new Vector();
 
 
 	scopeManager = new ScopeManager(this);
@@ -528,23 +526,23 @@ public class CirSim implements NativePreviewHandler {
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 
 	if (startCircuitText != null) {
-	    getSetupList(false);
+	    menus.getSetupList(false);
 	    loader.readCircuit(startCircuitText);
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
 		loader.readCircuit("");
-		getSetupList(false);
+		menus.getSetupList(false);
 		ImportFromDropboxDialog.setSim(this);
 		ImportFromDropboxDialog.doImportDropboxLink(startCircuitLink, false);
 	    } else {
 		loader.readCircuit("");
 		if (stopMessage == null && startCircuit != null) {
-		    getSetupList(false);
-		    readSetupFile(startCircuit, startLabel);
+		    menus.getSetupList(false);
+		    menus.readSetupFile(startCircuit, startLabel);
 		}
 		else
-		    getSetupList(true);
+		    menus.getSetupList(true);
 	    }
 	}
 
@@ -1373,91 +1371,6 @@ public class CirSim implements NativePreviewHandler {
 	return dump;
     }
 
-    void getSetupList(final boolean openDefault) {
-
-    	String url;
-    	url = GWT.getModuleBaseURL()+"setuplist.txt"; // +"?v="+random.nextInt();
-		RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
-		try {
-			requestBuilder.sendRequest(null, new RequestCallback() {
-				public void onError(Request request, Throwable exception) {
-					if (!hideMenu)
-					    Window.alert(Locale.LS("Can't load circuit list!"));
-					GWT.log("File Error Response", exception);
-				}
-
-				public void onResponseReceived(Request request, Response response) {
-					// processing goes here
-					if (response.getStatusCode()==Response.SC_OK) {
-					String text = response.getText();
-					processSetupList(text.getBytes(), openDefault);
-					// end or processing
-					}
-					else { 
-						Window.alert(Locale.LS("Can't load circuit list!"));
-						GWT.log("Bad file server response:"+response.getStatusText() );
-					}
-				}
-			});
-		} catch (RequestException e) {
-			GWT.log("failed file reading", e);
-		}
-    }
-		
-    void processSetupList(byte b[], final boolean openDefault) {
-	int len = b.length;
-    	MenuBar currentMenuBar;
-    	MenuBar stack[] = new MenuBar[6];
-    	int stackptr = 0;
-    	currentMenuBar=new MenuBar(true);
-    	currentMenuBar.setAutoOpen(true);
-    	menus.menuBar.addItem(Locale.LS("Circuits"), currentMenuBar);
-    	stack[stackptr++] = currentMenuBar;
-    	int p;
-    	for (p = 0; p < len; ) {
-    		int l;
-    		for (l = 0; l != len-p; l++)
-    			if (b[l+p] == '\n' || b[l+p] == '\r') {
-    				l++;
-    				break;
-    			}
-    		String line = new String(b, p, l-1);
-    		if (line.isEmpty() || line.charAt(0) == '#')
-    			;
-    		else if (line.charAt(0) == '+') {
-    		//	MenuBar n = new Menu(line.substring(1));
-    			MenuBar n = new MenuBar(true);
-    			n.setAutoOpen(true);
-    			currentMenuBar.addItem(Locale.LS(line.substring(1)),n);
-    			currentMenuBar = stack[stackptr++] = n;
-    		} else if (line.charAt(0) == '-') {
-    			currentMenuBar = stack[--stackptr-1];
-    		} else {
-    			int i = line.indexOf(' ');
-    			if (i > 0) {
-    				String title = Locale.LS(line.substring(i+1));
-    				boolean first = false;
-    				if (line.charAt(0) == '>')
-    					first = true;
-    				String file = line.substring(first ? 1 : 0, i);
-    				currentMenuBar.addItem(new MenuItem(title,
-    					new MyCommand("circuits", "setup "+file+" " + title)));
-    				if (file.equals(startCircuit) && startLabel == null) {
-    				    startLabel = title;
-    				    setCircuitTitle(title);
-    				}
-    				if (first && startCircuit == null) {
-    					startCircuit = file;
-    					startLabel = title;
-    					if (openDefault && stopMessage == null)
-    						readSetupFile(startCircuit, startLabel);
-    				}
-    			}
-    		}
-    		p += l;
-    	}
-}
-
     static final String baseTitle = "Circuit Simulator";
 
     void setCircuitTitle(String s) {
@@ -1468,17 +1381,6 @@ public class CirSim implements NativePreviewHandler {
 	    Document.get().setTitle(baseTitle);
     }
     
-	void readSetupFile(String str, String title) {
-		System.out.println(str);
-		// don't avoid caching here, it's unnecessary and makes offline PWA's not work
-		String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt(); 
-		loader.loadFileFromURL(url);
-		if (title != null)
-		    setCircuitTitle(title);
-		unsavedChanges = false;
-		ExportAsLocalFileDialog.setLastFileName(null);
-	}
-	
     void clearCircuit() { loader.clearCircuit(); }
     void readCircuit(String s) { loader.readCircuit(s); }
 

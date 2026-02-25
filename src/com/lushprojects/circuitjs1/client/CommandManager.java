@@ -257,11 +257,11 @@ public class CommandManager {
     	if (menu=="circuits" && item.indexOf("setup ") ==0) {
     		app.undoManager.pushUndo();
     		int sp = item.indexOf(' ', 6);
-    		app.readSetupFile(item.substring(6, sp), item.substring(sp+1));
+    		app.menus.readSetupFile(item.substring(6, sp), item.substring(sp+1));
     	}
     	if (item=="newblankcircuit") {
     	    app.undoManager.pushUndo();
-    	    app.readSetupFile("blank.txt", "Blank Circuit");
+    	    app.menus.readSetupFile("blank.txt", "Blank Circuit");
     	}
 
     	// IES: Moved from itemStateChanged()
