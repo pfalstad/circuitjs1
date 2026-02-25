@@ -463,7 +463,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	boolean canFlipX = true;
 	boolean canFlipY = true;
 	boolean canFlipXY = true;
-	int selCount = sim.countSelected();
+	int selCount = sim.commands.countSelected();
 	for (CircuitElm elm : sim.elmList)
 	    if (elm.isSelected() || selCount == 0) {
 		if (!elm.canFlipX())
@@ -785,7 +785,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	e.preventDefault();
  //   	if (!didSwitch && mouseElm != null)
     	if (mouseElm != null && !(mouseElm instanceof SwitchElm) && !sim.menus.noEditCheckItem.getState())
-    		sim.doEdit(mouseElm);
+    		sim.commands.doEdit(mouseElm);
     }
 
 //    public void mouseEntered(MouseEvent e) {
@@ -815,7 +815,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     	// maybe someone did copy in another window?  should really do this when
     	// window receives focus
-    	sim.enablePaste();
+    	sim.commands.enablePaste();
 
     	if (e.getNativeButton() != NativeEvent.BUTTON_LEFT && e.getNativeButton() != NativeEvent.BUTTON_MIDDLE)
     		return;

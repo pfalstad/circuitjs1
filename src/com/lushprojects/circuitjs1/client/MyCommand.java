@@ -31,7 +31,7 @@ public class MyCommand implements Command {
 	}
 	
 	public void execute() {
-		CirSim.theApp.menuPerformed(menuName, itemName);
+		CirSim.theApp.commands.menuPerformed(menuName, itemName);
 	}
 
 	public String getMenuName() { return menuName; }

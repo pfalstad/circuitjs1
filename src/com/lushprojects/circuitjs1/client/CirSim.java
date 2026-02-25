@@ -103,6 +103,7 @@ public class CirSim implements NativePreviewHandler {
     public MouseManager mouse;
     public UndoManager undoManager;
     public ImageExporter imageExporter;
+    public CommandManager commands;
     Button resetButton;
     Button runStopButton;
     Button dumpMatrixButton;
@@ -158,7 +159,6 @@ public class CirSim implements NativePreviewHandler {
     // Class dumpTypes[], shortcuts[];
     static ElementFactory factory;
     String shortcuts[];
-    String clipboard;
     String recovery;
     Rectangle circuitArea;
     double transform[];
@@ -302,6 +302,7 @@ public class CirSim implements NativePreviewHandler {
 	undoManager = new UndoManager(this);
 	undoManager.readRecovery();
 	imageExporter = new ImageExporter(this);
+	commands = new CommandManager(this);
 
 	QueryParameters qp = new QueryParameters();
 	String positiveColor = null;
@@ -576,10 +577,10 @@ public class CirSim implements NativePreviewHandler {
 	}
 
 	if (mouseModeReq != null)
-	    menuPerformed("main", mouseModeReq);
+	    commands.menuPerformed("main", mouseModeReq);
 
 	undoManager.enableUndoRedo();
-	enablePaste();
+	commands.enablePaste();
 	mouse.register(cv);
 	mouse.enableDisableMenuItems();
 	setiFrameHeight();
@@ -1430,366 +1431,6 @@ public class CirSim implements NativePreviewHandler {
 	    menus.saveFileItem.setEnabled(b);
     }
     
-    public void menuPerformed(String menu, String item) {
-	if ((menu=="edit" || menu=="main" || menu=="scopes") && menus.noEditCheckItem.getState()) {
-	    Window.alert(Locale.LS("Editing disabled.  Re-enable from the Options menu."));
-	    return;
-	}
-    	if (item=="about")
-    		aboutBox = new AboutBox(circuitjs1.versionString);
-    	if (item=="importfromlocalfile") {
-    		undoManager.pushUndo();
-    		if (isElectron())
-    		    electronOpenFile();
-    		else
-    		    loadFileInput.click();
-    	}
-    	if (item=="newwindow") {
-    	    Window.open(Document.get().getURL(), "_blank", "");
-    	}
-    	if (item=="save")
-    	    electronSave(dumpCircuit());
-    	if (item=="saveas")
-    	    electronSaveAs(dumpCircuit());
-    	if (item=="importfromtext") {
-    		dialogShowing = new ImportFromTextDialog(this);
-    	}
-    	if (item=="importfromdropbox") {
-    		dialogShowing = new ImportFromDropboxDialog(this);
-    	}
-    	if (item=="exportasurl") {
-    		doExportAsUrl();
-    		unsavedChanges = false;
-    	}
-    	if (item=="exportaslocalfile") {
-    		doExportAsLocalFile();
-    		unsavedChanges = false;
-    	}
-    	if (item=="exportastext") {
-    		doExportAsText();
-    		unsavedChanges = false;
-    	}
-    	if (item=="exportasimage")
-		imageExporter.doExportAsImage();
-    	if (item=="copypng") {
-		imageExporter.doImageToClipboard();
-    		if (contextPanel!=null)
-			contextPanel.hide();
-    	}
-    	if (item=="exportassvg")
-		imageExporter.doExportAsSVG();
-    	if (item=="createsubcircuit")
-		doCreateSubcircuit();
-    	if (item=="dcanalysis")
-    	    	doDCAnalysis();
-    	if (item=="print")
-    	    	imageExporter.doPrint();
-    	if (item=="recover")
-    	    	undoManager.doRecover();
-
-    	if ((menu=="elm" || menu=="scopepop") && contextPanel!=null)
-    		contextPanel.hide();
-    	if (menu=="options" && item=="shortcuts") {
-    	    	dialogShowing = new ShortcutsDialog(this);
-    	    	dialogShowing.show();
-    	}
-    	if (menu=="options" && item=="subcircuits") {
-    	    	dialogShowing = new SubcircuitDialog(this);
-    	    	dialogShowing.show();
-    	}
-    	if (item=="search") {
-    	    	dialogShowing = new SearchDialog(this);
-    	    	dialogShowing.show();
-    	}
-    	if (menu=="options" && item=="other")
-    		doEdit(new EditOptions(this, sim));
-    	if (item=="devtools")
-    	    toggleDevTools();
-    	if (item=="undo")
-    		undoManager.doUndo();
-    	if (item=="redo")
-    		undoManager.doRedo();
-    	
-    	// if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
-    	if (menu == "key" && mouse.getMouseElm() != null) {
-    	    mouse.menuElm = mouse.getMouseElm();
-    	    menu = "elm";
-    	}
-	if (menu != "elm")
-		mouse.menuElm = null;
-
-    	if (item == "cut") {
-    		doCut();
-    	}
-    	if (item == "copy") {
-    		doCopy();
-    	}
-    	if (item=="paste")
-    		doPaste(null);
-    	if (item=="duplicate") {
-    	    	doDuplicate();
-    	}
-    	if (item=="flip")
-    	    mouse.doFlip();
-    	if (item=="split")
-    	    mouse.doSplit(mouse.menuElm);
-    	if (item=="selectAll")
-    		mouse.doSelectAll();
-    	//	if (e.getSource() == exitItem) {
-    	//	    destroyFrame();
-    	//	    return;
-    	//	}
-    	
-    	if (item=="centrecircuit") {
-    		undoManager.pushUndo();
-    		centreCircuit();
-    	}
-    	if (item=="flipx") {
-	    undoManager.pushUndo();
-	    flipX();
-    	}
-    	if (item=="flipy") {
-	    undoManager.pushUndo();
-	    flipY();
-    	}
-    	if (item=="flipxy") {
-	    undoManager.pushUndo();
-	    flipXY();
-    	}
-    	if (item=="stackAll")
-    		scopeManager.stackAll();
-    	if (item=="unstackAll")
-    		scopeManager.unstackAll();
-    	if (item=="combineAll")
-		scopeManager.combineAll();
-    	if (item=="separateAll")
-		scopeManager.separateAll();
-    	if (item=="zoomin")
-    	    mouse.zoomCircuit(20, true);
-    	if (item=="zoomout")
-    	    mouse.zoomCircuit(-20, true);
-    	if (item=="zoom100")
-    	    mouse.setCircuitScale(1, true);
-    	if (menu=="elm" && item=="edit")
-    		doEdit(mouse.menuElm);
-    	if (item=="delete") {
-    		if (menu!="elm")
-    			mouse.menuElm = null;
-    		undoManager.pushUndo();
-    		doDelete(true);
-    	}
-    	if (item=="sliders")
-    	    doSliders(mouse.menuElm);
-
-    	if (item=="viewInScope" && mouse.menuElm != null) {
-    		int i;
-    		for (i = 0; i != scopeManager.scopeCount; i++)
-    			if (scopeManager.scopes[i].getElm() == null)
-    				break;
-    		if (i == scopeManager.scopeCount) {
-    			if (scopeManager.scopeCount == scopeManager.scopes.length)
-    				return;
-    			scopeManager.scopeCount++;
-    			scopeManager.scopes[i] = new Scope(this, sim);
-    			scopeManager.scopes[i].position = i;
-    			//handleResize();
-    		}
-    		scopeManager.scopes[i].setElm(mouse.menuElm);
-    		if (i > 0)
-    		    scopeManager.scopes[i].speed = scopeManager.scopes[i-1].speed;
-    	}
-    	
-    	if (item=="viewInFloatScope" && mouse.menuElm != null) {
-    	    ScopeElm newScope = new ScopeElm(snapGrid(mouse.menuElm.x+50), snapGrid(mouse.menuElm.y+50));
-    	    elmList.addElement(newScope);
-    	    newScope.setScopeElm(mouse.menuElm);
-    	    
-    	    // need to rebuild scopeElmArr
-    	    needAnalyze();
-	}
-    	
-    	if (item.startsWith("addToScope") && mouse.menuElm != null) {
-    	    int n;
-    	    n = Integer.parseInt(item.substring(10));
-    	    if (n < scopeManager.scopeCount + scopeManager.countScopeElms()) {
-    		if (n < scopeManager.scopeCount )
-    		    scopeManager.scopes[n].addElm(mouse.menuElm);
-    		else
-    		    scopeManager.getNthScopeElm(n-scopeManager.scopeCount).elmScope.addElm(mouse.menuElm);
-    	    }
-    	    scopeManager.scopeMenuSelected = -1;
-    	}
-    	
-    	if (menu=="scopepop") {
-    		undoManager.pushUndo();
-    		Scope s;
-		if (scopeManager.menuScope != -1 )
-		    	s= scopeManager.scopes[scopeManager.menuScope];
-		else
-		    	s= ((ScopeElm)mouse.getMouseElm()).elmScope;
-
-    		if (item=="dock") {
-            		if (scopeManager.scopeCount == scopeManager.scopes.length)
-            			return;
-            		scopeManager.scopes[scopeManager.scopeCount] = ((ScopeElm)mouse.getMouseElm()).elmScope;
-            		((ScopeElm)mouse.getMouseElm()).clearElmScope();
-            		scopeManager.scopes[scopeManager.scopeCount].position = scopeManager.scopeCount;
-            		scopeManager.scopeCount++;
-            		doDelete(false);
-    		}
-    		if (item=="undock") {
-		    CircuitElm elm = s.getElm();
-    	    	    ScopeElm newScope = new ScopeElm(snapGrid(elm.x+50), snapGrid(elm.y+50));
-    	    	    elmList.addElement(newScope);
-    	    	    newScope.setElmScope(scopeManager.scopes[scopeManager.menuScope]);
-
-    	    	    int i;
-    	    	    // remove scope from list.  setupScopes() will fix the positions
-    	    	    for (i = scopeManager.menuScope; i < scopeManager.scopeCount; i++)
-    	    		scopeManager.scopes[i] = scopeManager.scopes[i+1];
-    	    	    scopeManager.scopeCount--;
-
-    	            needAnalyze();      // need to rebuild scopeElmArr
-    		}
-    		if (item=="remove")
-    		    	s.setElm(null);  // setupScopes() will clean this up
-    		if (item=="removeplot")
-			s.removePlot(scopeManager.menuPlot);
-    		if (item=="speed2")
-    			s.speedUp();
-    		if (item=="speed1/2")
-    			s.slowDown();
-//    		if (item=="scale")
-//    			scopeManager.scopes[scopeManager.menuScope].adjustScale(.5);
-    		if (item=="maxscale")
-    			s.maxScale();
-    		if (item=="stack")
-    			scopeManager.stackScope(scopeManager.menuScope);
-    		if (item=="unstack")
-    			scopeManager.unstackScope(scopeManager.menuScope);
-    		if (item=="combine")
-			scopeManager.combineScope(scopeManager.menuScope);
-    		if (item=="selecty")
-    			s.selectY();
-    		if (item=="reset")
-    			s.resetGraph(true);
-    		if (item=="properties")
-			s.properties();
-    		scopeManager.deleteUnusedScopeElms();
-    	}
-    	if (menu=="circuits" && item.indexOf("setup ") ==0) {
-    		undoManager.pushUndo();
-    		int sp = item.indexOf(' ', 6);
-    		readSetupFile(item.substring(6, sp), item.substring(sp+1));
-    	}
-    	if (item=="newblankcircuit") {
-    	    undoManager.pushUndo();
-    	    readSetupFile("blank.txt", "Blank Circuit");
-    	}
-    		
-    	//	if (ac.indexOf("setup ") == 0) {
-    	//	    pushUndo();
-    	//	    readSetupFile(ac.substring(6),
-    	//			  ((MenuItem) e.getSource()).getLabel());
-    	//	}
-
-    	// IES: Moved from itemStateChanged()
-    	if (menu=="main") {
-    		if (contextPanel!=null)
-    			contextPanel.hide();
-    		//	MenuItem mmi = (MenuItem) mi;
-    		//		int prevMouseMode = mouseMode;
-    		setMouseMode(MouseManager.MODE_ADD_ELM);
-    		String s = item;
-    		if (s.length() > 0)
-    			mouseModeStr = s;
-    		if (s.compareTo("DragAll") == 0)
-    			setMouseMode(MouseManager.MODE_DRAG_ALL);
-    		else if (s.compareTo("DragRow") == 0)
-    			setMouseMode(MouseManager.MODE_DRAG_ROW);
-    		else if (s.compareTo("DragColumn") == 0)
-    			setMouseMode(MouseManager.MODE_DRAG_COLUMN);
-    		else if (s.compareTo("DragSelected") == 0)
-    			setMouseMode(MouseManager.MODE_DRAG_SELECTED);
-    		else if (s.compareTo("DragPost") == 0)
-    			setMouseMode(MouseManager.MODE_DRAG_POST);
-    		else if (s.compareTo("Select") == 0)
-    			setMouseMode(MouseManager.MODE_SELECT);
-
-		updateToolbar();
-
-    		//		else if (s.length() > 0) {
-    		//			try {
-    		//				addingClass = Class.forName(s);
-    		//			} catch (Exception ee) {
-    		//				ee.printStackTrace();
-    		//			}
-    		//		}
-    		//		else
-    		//			setMouseMode(prevMouseMode);
-    		mouse.tempMouseMode = mouse.mouseMode;
-    	}
-    	if (item=="fullscreen") {
-    	    if (! Graphics.isFullScreen)
-    		Graphics.viewFullScreen();
-    	    else
-    		Graphics.exitFullScreen();
-    	    centreCircuit();
-    	}
-    
-	repaint();
-    }
-    
-    void doEdit(Editable eable) {
-    	mouse.clearSelection();
-    	undoManager.pushUndo();
-    	if (editDialog != null) {
-    //		requestFocus();
-    		editDialog.setVisible(false);
-    		editDialog = null;
-    	}
-    	editDialog = new EditDialog(eable, this);
-    	editDialog.show();
-    }
-    
-    void doSliders(CircuitElm ce) {
-	mouse.clearSelection();
-	undoManager.pushUndo();
-	dialogShowing = new SliderDialog(ce, this);
-	dialogShowing.show();
-    }
-
-
-    void doExportAsUrl()
-    {
-    	String dump = dumpCircuit();
-	dialogShowing = new ExportAsUrlDialog(dump);
-	dialogShowing.show();
-    }
-    
-    void doExportAsText()
-    {
-    	String dump = dumpCircuit();
-    	dialogShowing = new ExportAsTextDialog(this, dump);
-    	dialogShowing.show();
-    }
-
-    void doCreateSubcircuit()
-    {
-    	EditCompositeModelDialog dlg = new EditCompositeModelDialog();
-    	if (!dlg.createModel())
-    	    return;
-    	dlg.createDialog();
-    	dialogShowing = dlg;
-    	dialogShowing.show();
-    }
-    
-    void doExportAsLocalFile() {
-    	String dump = dumpCircuit();
-    	dialogShowing = new ExportAsLocalFileDialog(dump);
-    	dialogShowing.show();
-    }
-
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
 		int flags = subcircuitsOnly ? (CircuitLoader.RC_SUBCIRCUITS | CircuitLoader.RC_RETAIN) : 0;
 		if (circuitText != null) {
@@ -2006,285 +1647,6 @@ public class CirSim implements NativePreviewHandler {
     
 
 
-    void setMenuSelection() {
-    	if (mouse.menuElm != null) {
-    		if (mouse.menuElm.selected)
-    			return;
-    		mouse.clearSelection();
-    		mouse.menuElm.setSelected(true);
-    	}
-    }
-
-    int countSelected() {
-	int count = 0;
-	for (CircuitElm ce: elmList)
-	    if (ce.isSelected())
-		count++;
-	return count;
-    }
-
-    class FlipInfo { public int cx, cy, count; }
-
-    FlipInfo prepareFlip() {
-    	int i;
-    	undoManager.pushUndo();
-    	setMenuSelection();
-    	int minx = 30000, maxx = -30000;
-    	int miny = 30000, maxy = -30000;
-	int count = countSelected();
-    	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
-	    if (ce.isSelected() || count == 0) {
-		minx = min(ce.x, min(ce.x2, minx));
-		maxx = max(ce.x, max(ce.x2, maxx));
-		miny = min(ce.y, min(ce.y2, miny));
-		maxy = max(ce.y, max(ce.y2, maxy));
-	    }
-    	}
-	FlipInfo fi = new FlipInfo();
-	fi.cx = (minx+maxx)/2;
-	fi.cy = (miny+maxy)/2;
-	fi.count = count;	
-	return fi;
-    }
-
-    void flipX() {
-	FlipInfo fi = prepareFlip();
-	int center2 = fi.cx*2;
-	for (CircuitElm ce : elmList) {
-	    if (ce.isSelected() || fi.count == 0)
-		ce.flipX(center2, fi.count);
-    	}
-	needAnalyze();
-    }
-
-    void flipY() {
-	FlipInfo fi = prepareFlip();
-	int center2 = fi.cy*2;
-	for (CircuitElm ce : elmList) {
-	    if (ce.isSelected() || fi.count == 0)
-		ce.flipY(center2, fi.count);
-    	}
-	needAnalyze();
-    }
-
-    void flipXY() {
-	FlipInfo fi = prepareFlip();
-	int xmy = snapGrid(fi.cx-fi.cy);
-	console("xmy " + xmy + " grid " + gridSize + " " + fi.cx + " " + fi.cy);
-	for (CircuitElm ce : elmList) {
-	    if (ce.isSelected() || fi.count == 0)
-		ce.flipXY(xmy, fi.count);
-    	}
-	needAnalyze();
-    }
-
-    void doCut() {
-    	int i;
-    	undoManager.pushUndo();
-    	setMenuSelection();
-    	clipboard = "";
-    	for (i = elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = getElm(i);
-    		// ScopeElms don't cut-paste well because their reference to a parent
-    		// elm by number get's messed up in the dump. For now we will just ignore them
-    		// until I can be bothered to come up with something better
-    		if (willDelete(ce) && !(ce instanceof ScopeElm) ) {
-    			clipboard += ce.dump() + "\n";
-    		}
-    	}
-    	writeClipboardToStorage();
-    	doDelete(true);
-    	enablePaste();
-    }
-
-    void writeClipboardToStorage() {
-    	Storage stor = Storage.getLocalStorageIfSupported();
-    	if (stor == null)
-    		return;
-    	stor.setItem("circuitClipboard", clipboard);
-    }
-    
-    void readClipboardFromStorage() {
-    	Storage stor = Storage.getLocalStorageIfSupported();
-    	if (stor == null)
-    		return;
-    	clipboard = stor.getItem("circuitClipboard");
-    }
-
-
-
-    void doDelete(boolean pushUndoFlag) {
-    	int i;
-    	if (pushUndoFlag)
-    	    undoManager.pushUndo();
-    	boolean hasDeleted = false;
-
-    	for (i = elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = getElm(i);
-    		if (willDelete(ce)) {
-    		    	if (ce.isMouseElm())
-    		    	    mouse.setMouseElm(null);
-    			ce.delete();
-    			elmList.removeElementAt(i);
-    			hasDeleted = true;
-    		}
-    	}
-    	if ( hasDeleted ) {
-    	    scopeManager.deleteUnusedScopeElms();
-    	    needAnalyze();
-    	    undoManager.writeRecoveryToStorage();
-    	}    
-    }
-    
-    boolean willDelete( CircuitElm ce ) {
-	// Is this element in the list to be deleted.
-	// This changes the logic from the previous version which would initially only
-	// delete selected elements (which could include the mouseElm) and then delete the 
-	// mouseElm if there were no selected elements. Not really sure this added anything useful
-	// to the user experience.
-	//
-	// BTW, the old logic could also leave mouseElm pointing to a deleted element.
-	return ce.isSelected() || ce.isMouseElm();
-    }
-    
-    String copyOfSelectedElms() {
-	String r = dumpOptions();
-	CustomLogicModel.clearDumpedFlags();
-	CustomCompositeModel.clearDumpedFlags();
-	DiodeModel.clearDumpedFlags();
-	TransistorModel.clearDumpedFlags();
-	for (int i = elmList.size()-1; i >= 0; i--) {
-	    CircuitElm ce = getElm(i);
-	    String m = ce.dumpModel();
-	    if (m != null && !m.isEmpty())
-		r += m + "\n";
-	    // See notes on do cut why we don't copy ScopeElms.
-	    if (ce.isSelected() && !(ce instanceof ScopeElm))
-		r += ce.dump() + "\n";
-	}
-	return r;
-    }
-    
-    void doCopy() {
-    	// clear selection when we're done if we're copying a single element using the context menu
-    	boolean clearSel = (mouse.menuElm != null && !mouse.menuElm.selected);
-    	
-    	setMenuSelection();
-    	clipboard=copyOfSelectedElms();
-    	
-    	if (clearSel)
-    	    mouse.clearSelection();
-    	
-    	writeClipboardToStorage();
-    	enablePaste();
-    }
-
-    void enablePaste() {
-    	if (clipboard == null || clipboard.length() == 0)
-    		readClipboardFromStorage();
-    	menus.pasteItem.setEnabled(clipboard != null && clipboard.length() > 0);
-    }
-
-    void doDuplicate() {
-    	String s;
-    	setMenuSelection();
-    	s=copyOfSelectedElms();
-    	doPaste(s);
-    }
-    
-    void doPaste(String dump) {
-    	undoManager.pushUndo();
-    	mouse.clearSelection();
-    	int i;
-    	Rectangle oldbb = null;
-    	
-    	// get old bounding box
-    	for (i = 0; i != elmList.size(); i++) {
-    		CircuitElm ce = getElm(i);
-    		Rectangle bb = ce.getBoundingBox();
-    		if (oldbb != null)
-    			oldbb = oldbb.union(bb);
-    		else
-    			oldbb = bb;
-    	}
-    	
-    	// add new items
-    	int oldsz = elmList.size();
-    	int flags = CircuitLoader.RC_RETAIN;
-    	
-    	// don't recenter circuit if we're going to paste in place because that will change the transform
-//	if (mouseCursorX > 0 && circuitArea.contains(mouseCursorX, mouseCursorY))
-    	
-    	// in fact, don't ever recenter circuit, unless old circuit was empty
-    	if (oldsz > 0)
-    	    flags |= CircuitLoader.RC_NO_CENTER;
-	
-    	if (dump != null)
-    	    loader.readCircuit(dump, flags);
-    	else {
-    	    readClipboardFromStorage();
-    	    loader.readCircuit(clipboard, flags);
-    	}
-
-    	// select new items and get their bounding box
-    	Rectangle newbb = null;
-    	for (i = oldsz; i != elmList.size(); i++) {
-    		CircuitElm ce = getElm(i);
-    		ce.setSelected(true);
-    		Rectangle bb = ce.getBoundingBox();
-    		if (newbb != null)
-    			newbb = newbb.union(bb);
-    		else
-    			newbb = bb;
-    	}
-    	
-    	if (oldbb != null && newbb != null /*&& oldbb.intersects(newbb)*/) {
-    		// find a place on the edge for new items
-    		int dx = 0, dy = 0;
-    		int spacew = circuitArea.width - oldbb.width - newbb.width;
-    		int spaceh = circuitArea.height - oldbb.height - newbb.height;
-    		
-    		if (!oldbb.intersects(newbb)) {
-    		    // old coordinates may be really far away so move them to same origin as current circuit
-    		    dx = snapGrid(oldbb.x - newbb.x);
-    		    dy = snapGrid(oldbb.y - newbb.y);
-    		}
-    		
-    		if (spacew > spaceh) {
-    			dx = snapGrid(oldbb.x + oldbb.width  - newbb.x + gridSize);
-    		} else {
-    			dy = snapGrid(oldbb.y + oldbb.height - newbb.y + gridSize);
-    		}
-    		
-    		// move new items near the mouse if possible
-    		if (mouse.mouseCursorX > 0 && circuitArea.contains(mouse.mouseCursorX, mouse.mouseCursorY)) {
-    	    	    int gx = mouse.inverseTransformX(mouse.mouseCursorX);
-    	    	    int gy = mouse.inverseTransformY(mouse.mouseCursorY);
-    	    	    int mdx = snapGrid(gx-(newbb.x+newbb.width/2));
-    	    	    int mdy = snapGrid(gy-(newbb.y+newbb.height/2));
-    	    	    for (i = oldsz; i != elmList.size(); i++) {
-    	    		if (!getElm(i).allowMove(mdx, mdy))
-    	    		    break;
-    	    	    }
-    	    	    if (i == elmList.size()) {
-    	    		dx = mdx;
-    	    		dy = mdy;
-    	    	    }
-    		}
-    		
-    		// move the new items
-    		for (i = oldsz; i != elmList.size(); i++) {
-    			CircuitElm ce = getElm(i);
-    			ce.move(dx, dy);
-    		}
-    		
-    		// center circuit
-    	//	handleResize();
-    	}
-    	needAnalyze();
-    	undoManager.writeRecoveryToStorage();
-    }
 
 //    public void keyPressed(KeyEvent e) {}
 //    public void keyReleased(KeyEvent e) {}
@@ -2341,19 +1703,19 @@ public class CirSim implements NativePreviewHandler {
     	
     	if ((t&Event.ONKEYPRESS)!=0) {
 		if (cc=='-') {
-    		    menuPerformed("key", "zoomout");
+    		    commands.menuPerformed("key", "zoomout");
     		    e.cancel();
     		}
     		if (cc=='+' || cc == '=') {
-    		    menuPerformed("key", "zoomin");
+    		    commands.menuPerformed("key", "zoomin");
     		    e.cancel();
     		}
 		if (cc=='0') {
-    		    menuPerformed("key", "zoom100");
+    		    commands.menuPerformed("key", "zoom100");
     		    e.cancel();
 		}
 		if (cc=='/' && shortcuts['/'] == null) {
-		    menuPerformed("key", "search");
+		    commands.menuPerformed("key", "search");
 		    e.cancel();
 		}
     	}
@@ -2371,7 +1733,7 @@ public class CirSim implements NativePreviewHandler {
     		    } else {
     		    	mouse.menuElm = null;
     		    	undoManager.pushUndo();
-    			doDelete(true);
+    			commands.doDelete(true);
     			e.cancel();
     		    }
     		}
@@ -2385,50 +1747,50 @@ public class CirSim implements NativePreviewHandler {
 
     		if (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey()) {
     			if (code==KEY_C) {
-    				menuPerformed("key", "copy");
+    				commands.menuPerformed("key", "copy");
     				e.cancel();
     			}
     			if (code==KEY_X) {
-    				menuPerformed("key", "cut");
+    				commands.menuPerformed("key", "cut");
     				e.cancel();
     			}
     			if (code==KEY_V) {
-    				menuPerformed("key", "paste");
+    				commands.menuPerformed("key", "paste");
     				e.cancel();
     			}
     			if (code==KEY_Z) {
-    				menuPerformed("key", "undo");
+    				commands.menuPerformed("key", "undo");
     				e.cancel();
     			}
     			if (code==KEY_Y) {
-    				menuPerformed("key", "redo");
+    				commands.menuPerformed("key", "redo");
     				e.cancel();
     			}
     			if (code==KEY_D) {
-    			    	menuPerformed("key", "duplicate");
+    			    	commands.menuPerformed("key", "duplicate");
     			    	e.cancel();
     			}
     			if (code==KEY_A) {
-    				menuPerformed("key", "selectAll");
+    				commands.menuPerformed("key", "selectAll");
     				e.cancel();
     			}
     			if (code==KEY_P) {
-				menuPerformed("key", "print");
+				commands.menuPerformed("key", "print");
 				e.cancel();
 			}
     			if (code==KEY_N && isElectron()) {
-				menuPerformed("key", "newwindow");
+				commands.menuPerformed("key", "newwindow");
 				e.cancel();
 			}
     			if (code==KEY_S) {
     			    	String cmd = "exportaslocalfile";
     			    	if (isElectron())
     			    	    cmd = menus.saveFileItem.isEnabled() ? "save" : "saveas";
-				menuPerformed("key", cmd);
+				commands.menuPerformed("key", cmd);
 				e.cancel();
 			}
     			if (code==KEY_O) {
-				menuPerformed("key", "importfromlocalfile");
+				commands.menuPerformed("key", "importfromlocalfile");
 				e.cancel();
 			}    			
     		}
@@ -2580,11 +1942,6 @@ public class CirSim implements NativePreviewHandler {
 	for (i = 0; i != elmList.size(); i++)
 	    elmList.get(i).updateModels();
     }
-
-	void doDCAnalysis() {
-	    dcAnalysisFlag = true;
-	    resetAction();
-	}
 
 	boolean isSelection() {
 	    for (int i = 0; i != elmList.size(); i++)
