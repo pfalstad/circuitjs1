@@ -101,6 +101,11 @@ class XMLDeserializer {
 		CustomLogicModel.undumpModelXml(this);
 		continue;
 	    }
+	    if (tagName.equals("ccm")) {
+		currentXmlElement = elem;
+		CustomCompositeModel.undumpModelXml(this);
+		continue;
+	    }
 	    
 	    String x = elem.getAttribute("x");
 	    String xs[] = x.split(" ");

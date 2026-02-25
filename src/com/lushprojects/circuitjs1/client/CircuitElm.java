@@ -1181,6 +1181,7 @@ public abstract class CircuitElm implements Editable {
     }
 
     String dumpModel() { return null; }
+    void dumpXmlModel(Document doc) { }
     
     boolean isMouseElm() {
 	return mouseElmRef==this; 

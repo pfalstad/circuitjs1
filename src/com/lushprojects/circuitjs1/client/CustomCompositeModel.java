@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.Vector;
 
 import com.google.gwt.storage.client.Storage;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 // model for subcircuits
 
@@ -220,6 +222,68 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
         }
         str += " " + CustomLogicModel.escape(nodeList) + " " + CustomLogicModel.escape(elmDump);
         return str;
+    }
+
+    void dumpXml(Document doc) {
+	if (internal)
+	    return;
+	dumped = true;
+	Element elem = doc.createElement("ccm");
+	XMLSerializer.dumpAttr(elem, "nm", name);
+	XMLSerializer.dumpAttr(elem, "f", flags);
+	XMLSerializer.dumpAttr(elem, "sx", sizeX);
+	XMLSerializer.dumpAttr(elem, "sy", sizeY);
+	XMLSerializer.dumpAttr(elem, "nl", CustomLogicModel.escape(nodeList));
+	XMLSerializer.dumpAttr(elem, "ed", CustomLogicModel.escape(elmDump));
+	for (int i = 0; i != extList.size(); i++) {
+	    ExtListEntry ent = extList.get(i);
+	    Element ext = doc.createElement("ext");
+	    XMLSerializer.dumpAttr(ext, "nm", ent.name);
+	    XMLSerializer.dumpAttr(ext, "nd", ent.node);
+	    XMLSerializer.dumpAttr(ext, "ps", ent.pos);
+	    XMLSerializer.dumpAttr(ext, "sd", ent.side);
+	    elem.appendChild(ext);
+	}
+	doc.getDocumentElement().appendChild(elem);
+    }
+
+    static CustomCompositeModel undumpModelXml(XMLDeserializer xml) {
+	String name = xml.parseStringAttr("nm", null);
+	CustomCompositeModel model = getModelWithName(name);
+	if (model == null) {
+	    model = new CustomCompositeModel();
+	    model.name = name;
+	    modelMap.put(name, model);
+	    sequenceNumber++;
+	} else if (model.modelCircuit != null) {
+	    CirSim.console("ignoring model " + name + ", using stored version instead");
+	    return model;
+	}
+	model.undumpXml(xml);
+	return model;
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	flags = xml.parseIntAttr("f", flags);
+	sizeX = xml.parseIntAttr("sx", sizeX);
+	sizeY = xml.parseIntAttr("sy", sizeY);
+	String nl = xml.parseStringAttr("nl", null);
+	if (nl != null)
+	    nodeList = CustomLogicModel.unescape(nl);
+	String ed = xml.parseStringAttr("ed", null);
+	if (ed != null)
+	    elmDump = CustomLogicModel.unescape(ed);
+	extList = new Vector<ExtListEntry>();
+	for (Element child : xml.getChildElements()) {
+	    if (child.getTagName().equals("ext")) {
+		xml.parseChildElement(child);
+		String s = xml.parseStringAttr("nm", "");
+		int n = xml.parseIntAttr("nd", 0);
+		int p = xml.parseIntAttr("ps", 0);
+		int sd = xml.parseIntAttr("sd", 0);
+		extList.add(new ExtListEntry(s, n, p, sd));
+	    }
+	}
     }
     
     boolean canLoadModelCircuit() {

@@ -4,6 +4,8 @@ import java.util.Vector;
 
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Button;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 // instances of subcircuits
@@ -77,7 +79,27 @@ public class CustomCompositeElm extends CompositeElm {
 	
 	return modelStr;
     }
-    
+
+    void dumpXmlModel(Document doc) {
+	// dump models of all children first
+	for (int i = 0; i < compElmList.size(); i++)
+	    compElmList.get(i).dumpXmlModel(doc);
+	if (!(model.builtin || model.dumped))
+	    model.dumpXml(doc);
+    }
+
+    void dumpXml(Document doc, Element elem) {
+	dumpXmlModel(doc);
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "mo", modelName);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	modelName = xml.parseStringAttr("mo", modelName);
+	updateModels();
+	super.undumpXml(xml);
+    }
+
     void draw(Graphics g) {
 	int i;
 	for (i = 0; i != postCount; i++) {

@@ -125,7 +125,12 @@ class TransistorElm extends CircuitElm {
 		return null;
 	    return model.dump();
 	}
-	
+
+	void dumpXmlModel(Document doc) {
+	    if (!(model.builtIn || model.dumped))
+		model.dumpXml(doc);
+	}
+
 	double ic, ie, ib, curcount_c, curcount_e, curcount_b;
 	
 	Polygon rectPoly, arrowPoly;

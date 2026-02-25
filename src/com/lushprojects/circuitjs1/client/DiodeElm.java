@@ -96,7 +96,12 @@ class DiodeElm extends CircuitElm {
 	    return null;
 	return model.dump();
     }
-    
+
+    void dumpXmlModel(Document doc) {
+	if (!(model.builtIn || model.dumped))
+	    model.dumpXml(doc);
+    }
+
     void dumpXml(Document doc, Element elem) {
 	if (!(model.builtIn || model.dumped))
 	    model.dumpXml(doc);
