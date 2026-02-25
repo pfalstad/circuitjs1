@@ -68,20 +68,36 @@ class DataInputElm extends RailElm {
 	
 	double fmphase;
 	
-	String dump() {
-	    // add a file number to the dump so we can preserve the data when doing cut and paste, or undo/redo.
-	    // we don't save the entire file in the dump because it would be huge.
+	void dumpXml(com.google.gwt.xml.client.Document doc, com.google.gwt.xml.client.Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "sl", sampleLength);
+	    XMLSerializer.dumpAttr(elem, "sf", scaleFactor);
+	}
+	void dumpXmlState(com.google.gwt.xml.client.Document doc, com.google.gwt.xml.client.Element elem) {
 	    if (data != null) {
+		// add a file number to the dump so we can preserve the data when doing cut and paste, or undo/redo.
+		// we don't save the entire file in the dump because it would be huge.
 		if (fileNum == 0)
 		    fileNum = fileNumCounter++;
 		DataFileEntry ent = new DataFileEntry();
 		ent.fileName = fileName;
 		ent.data = data;
 		dataFileMap.put(fileNum, ent);
+		XMLSerializer.dumpAttr(elem, "fn", fileNum);
 	    }
-	    return super.dump() + " " + sampleLength + " " + scaleFactor + " " + fileNum;
 	}
-	
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    sampleLength = xml.parseDoubleAttr("sl", sampleLength);
+	    scaleFactor = xml.parseDoubleAttr("sf", scaleFactor);
+	    fileNum = xml.parseIntAttr("fn", 0);
+	    DataFileEntry ent = dataFileMap.get(fileNum);
+	    if (ent != null) {
+		fileName = ent.fileName;
+		data = ent.data;
+	    }
+	}
+
 	void reset() {
 	    timeOffset = 0;
 	}

@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
 class WattmeterElm extends CircuitElm {
     int width;
     int voltSources[];
@@ -42,7 +45,15 @@ class WattmeterElm extends CircuitElm {
 	curcounts = new double[2];
     }
 
-    String dump() { return super.dump() + " " + width; }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "w", width);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	width = xml.parseIntAttr("w", width);
+	setup();
+    }
 
     int getVoltageSourceCount() { return 2; }
     int getDumpType() { return 420; }

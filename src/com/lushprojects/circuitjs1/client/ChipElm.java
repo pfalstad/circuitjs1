@@ -454,10 +454,45 @@ abstract class ChipElm extends CircuitElm {
 					bitIndex = 0;
 				} else
 					break; //Data is absent
-			
+
 			output[i] = (integer & (1 << bitIndex)) != 0;
 			bitIndex++;
 		}
+	}
+
+	static String writeBitsToString(boolean[] data) {
+	    StringBuilder sb = new StringBuilder();
+	    int integer = 0;
+	    int bitIndex = 0;
+	    for (int i = 0; i < data.length; i++) {
+		if (bitIndex >= Integer.SIZE) {
+		    if (sb.length() > 0) sb.append(' ');
+		    sb.append(integer);
+		    integer = 0;
+		    bitIndex = 0;
+		}
+		if (data[i])
+		    integer |= 1 << bitIndex;
+		bitIndex++;
+	    }
+	    if (sb.length() > 0) sb.append(' ');
+	    sb.append(integer);
+	    return sb.toString();
+	}
+	static void readBitsFromString(String s, boolean[] output) {
+	    StringTokenizer st = new StringTokenizer(s, " ");
+	    int integer = 0;
+	    int bitIndex = Integer.MAX_VALUE;
+	    for (int i = 0; i < output.length; i++) {
+		if (bitIndex >= Integer.SIZE)
+		    if (st.hasMoreTokens()) {
+			integer = Integer.parseInt(st.nextToken());
+			bitIndex = 0;
+		    } else
+			break;
+		output[i] = (integer & (1 << bitIndex)) != 0;
+		bitIndex++;
+	    }
 	}
 
 	static final int SIDE_N = 0;

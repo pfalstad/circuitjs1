@@ -21,6 +21,8 @@ package com.lushprojects.circuitjs1.client;
 
 import java.util.NoSuchElementException;
 import com.google.gwt.user.client.ui.TextArea;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 // contributed by Edward Calver
 
@@ -134,16 +136,28 @@ class SeqGenElm extends ChipElm {
 	}
 	int getDumpType() { return 188; }
 	
-	String dump(){
-		StringBuilder sb = new StringBuilder();
-		sb.append(super.dump());
-		sb.append(' ');
-		sb.append(bitCount);
-		for (int i = 0; i < data.length; i++) {
-			sb.append(' ');
-			sb.append(Integer.toString(data[i]));
-		}
-		return sb.toString();
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "bc", bitCount);
+	    String s = "";
+	    for (int i = 0; i < data.length; i++) {
+		if (i > 0) s += " ";
+		s += data[i];
+	    }
+	    XMLSerializer.dumpAttr(elem, "dt", s);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    bitCount = xml.parseIntAttr("bc", bitCount);
+	    String dt = xml.parseStringAttr("dt", null);
+	    if (dt != null) {
+		StringTokenizer st = new StringTokenizer(dt, " ");
+		data = new int[st.countTokens()];
+		for (int i = 0; i < data.length; i++)
+		    data[i] = Integer.parseInt(st.nextToken());
+	    }
+	    if (bitCount > data.length * Integer.SIZE)
+		bitCount = data.length * Integer.SIZE;
 	}
 	public EditInfo getChipEditInfo(int n) {
 		if (n == 0) {

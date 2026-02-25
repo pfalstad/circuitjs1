@@ -1,6 +1,9 @@
 package com.lushprojects.circuitjs1.client;
 
-/*    
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
+/*
     Copyright (C) Paul Falstad and Iain Sharp
     
     This file is part of CircuitJS1.
@@ -72,14 +75,19 @@ class TestPointElm extends CircuitElm {
         super.setPoints();
         lead1 = new Point();
     }
-    String dump() {
-	boolean writeLabel = (!label.equals("TP"));
-	flags = (writeLabel) ? (flags | FLAG_LABEL) : (flags & ~FLAG_LABEL);
-        String str = super.dump() + " " + meter;
-	if (writeLabel)
-	    str += " " + CustomLogicModel.escape(label);
-	return str;
+
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "me", meter);
+	if (!label.equals("TP"))
+	    XMLSerializer.dumpAttr(elem, "lb", label);
     }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	meter = xml.parseIntAttr("me", meter);
+	label = xml.parseStringAttr("lb", "TP");
+    }
+
     String getMeter(){
         switch (meter) {
         case TP_VOL:

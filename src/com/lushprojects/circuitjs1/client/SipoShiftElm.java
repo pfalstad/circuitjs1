@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 // contributed by Edward Calver
 
 class SipoShiftElm extends ChipElm {
@@ -39,12 +42,25 @@ class SipoShiftElm extends ChipElm {
 			pins[DATA_PIN_INDEX + i].value = data[i];
 	}
 	
-	String dump() {
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    super.dumpXmlState(doc, elem);
+	    boolean[] data = new boolean[bits];
+	    for (int i = 0; i < bits; i++)
+		data[i] = pins[DATA_PIN_INDEX + i].value;
+	    XMLSerializer.dumpAttr(elem, "dt", writeBitsToString(data));
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    String dt = xml.parseStringAttr("dt", null);
+	    if (dt != null) {
 		boolean[] data = new boolean[bits];
+		readBitsFromString(dt, data);
 		for (int i = 0; i < bits; i++)
-			data[i] = pins[DATA_PIN_INDEX + i].value;
-		
-		return super.dump() + writeBits(data);
+		    pins[DATA_PIN_INDEX + i].value = data[i];
+	    }
 	}
 	int getDumpType() { return 189; }
 	String getChipName() { return "SIPO shift register"; }

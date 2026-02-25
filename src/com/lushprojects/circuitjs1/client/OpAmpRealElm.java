@@ -1,5 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 public class OpAmpRealElm extends CompositeElm {
 
     // from https://commons.wikimedia.org/wiki/File:OpAmpTransistorLevel_Colored_Labeled.svg
@@ -149,12 +152,29 @@ public class OpAmpRealElm extends CompositeElm {
 	return ((CapacitorElm) compElmList.get(modelType == MODEL_741 ? 20 : 4));
     }
     
-    public String dump() {
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "slr", slewRate);
+	XMLSerializer.dumpAttr(elem, "cl", currentLimit);
+	XMLSerializer.dumpAttr(elem, "mt", modelType);
+    }
+    void dumpXmlState(Document doc, Element elem) {
 	CapacitorElm elm = getCapacitor();
 	double voltdiff = (elm == null) ? 0 : elm.voltdiff;
-	return super.dumpWithMask(0) + " " + slewRate + " " + voltdiff + " " + currentLimit + " " + modelType;
+	XMLSerializer.dumpAttr(elem, "vd", voltdiff);
     }
-    
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	slewRate = xml.parseDoubleAttr("slr", slewRate);
+	currentLimit = xml.parseDoubleAttr("cl", currentLimit);
+	modelType = xml.parseIntAttr("mt", modelType);
+	double voltdiff = xml.parseDoubleAttr("vd", 0);
+	initModel();
+	CapacitorElm cap = getCapacitor();
+	if (cap != null)
+	    cap.voltdiff = voltdiff;
+    }
+
     public boolean getConnection(int n1, int n2) {
 	return true;
     }

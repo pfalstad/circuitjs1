@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.Window;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 class CustomTransformerElm extends CircuitElm {
 	double coilCurrents[], coilInductances[], coilCurCounts[], coilCurSourceValues[], coilPolarities[];
@@ -78,15 +80,37 @@ class CustomTransformerElm extends CircuitElm {
 	    setPoints();
 	}
 	int getDumpType() { return 406; }
-	String dump() {
-	    String s = super.dump() + " " + inductance + " " + couplingCoef + " " + CustomLogicModel.escape(description) + " " + coilCount + " ";
-	    int i;
-	    for (i = 0; i != coilCount; i++) {
-		s += coilCurrents[i] + " ";
-	    }
-	    return s;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "in", inductance);
+	    XMLSerializer.dumpAttr(elem, "cc", couplingCoef);
+	    XMLSerializer.dumpAttr(elem, "ds", description);
+	    XMLSerializer.dumpAttr(elem, "nc", coilCount);
 	}
-	
+	void dumpXmlState(Document doc, Element elem) {
+	    String s = "";
+	    for (int i = 0; i != coilCount; i++) {
+		if (i > 0) s += " ";
+		s += coilCurrents[i];
+	    }
+	    XMLSerializer.dumpAttr(elem, "ci", s);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    inductance = xml.parseDoubleAttr("in", inductance);
+	    couplingCoef = xml.parseDoubleAttr("cc", couplingCoef);
+	    description = xml.parseStringAttr("ds", description);
+	    coilCount = xml.parseIntAttr("nc", coilCount);
+	    coilCurrents = new double[coilCount];
+	    String ci = xml.parseStringAttr("ci", null);
+	    if (ci != null) {
+		StringTokenizer st = new StringTokenizer(ci, " ");
+		for (int i = 0; i != coilCount && st.hasMoreTokens(); i++)
+		    coilCurrents[i] = Double.parseDouble(st.nextToken());
+	    }
+	    parseDescription(description);
+	}
+
 	void parseDescription() {
 	    parseDescription(description);
 	}

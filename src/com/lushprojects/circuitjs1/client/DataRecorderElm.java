@@ -1,5 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import java.util.Date;
 
 import com.google.gwt.i18n.client.DateTimeFormat;
@@ -21,8 +23,13 @@ public class DataRecorderElm extends CircuitElm {
 	    super(xa, ya, xb, yb, f);
 	    setDataCount(Integer.parseInt(st.nextToken()));
 	}
-	String dump() { 
-	    return super.dump() + " " + dataCount;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "dc", dataCount);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    setDataCount(xml.parseIntAttr("dc", dataCount));
 	}
 	int getDumpType() { return 210; }
 	int getPostCount() { return 1; }

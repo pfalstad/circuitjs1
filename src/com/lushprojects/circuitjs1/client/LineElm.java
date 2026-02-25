@@ -36,10 +36,6 @@ class LineElm extends GraphicElm {
 	setBbox(x, y, x2, y2);
     }
 
-    String dump() {
-	return super.dump();
-    }
-
     int getDumpType() { return 423; }
 
     void drag(int xx, int yy) {

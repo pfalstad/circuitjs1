@@ -1,6 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 // based on https://ctms.engin.umich.edu/CTMS/index.php?example=MotorPosition&section=SystemModeling
 
@@ -50,9 +52,31 @@ class DCMotorElm extends CircuitElm {
 	indInertia.setup(J, 0, Inductor.FLAG_BACK_EULER);
     }
     int getDumpType() { return 415; }
-    String dump() {
-	// dump: inductance; resistance, K, Kb, J, b, gearRatio, tau
-	return super.dump() + " " +  inductance + " " + resistance + " " + K + " " +  Kb + " " + J + " " + b + " " + gearRatio + " " + tau;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "in", inductance);
+	XMLSerializer.dumpAttr(elem, "rs", resistance);
+	XMLSerializer.dumpAttr(elem, "k", K);
+	XMLSerializer.dumpAttr(elem, "kb", Kb);
+	XMLSerializer.dumpAttr(elem, "j", J);
+	XMLSerializer.dumpAttr(elem, "b", b);
+	XMLSerializer.dumpAttr(elem, "gr", gearRatio);
+	XMLSerializer.dumpAttr(elem, "ta", tau);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	inductance = xml.parseDoubleAttr("in", inductance);
+	resistance = xml.parseDoubleAttr("rs", resistance);
+	K = xml.parseDoubleAttr("k", K);
+	Kb = xml.parseDoubleAttr("kb", Kb);
+	J = xml.parseDoubleAttr("j", J);
+	b = xml.parseDoubleAttr("b", b);
+	gearRatio = xml.parseDoubleAttr("gr", gearRatio);
+	tau = xml.parseDoubleAttr("ta", tau);
+	ind = new Inductor(sim);
+	indInertia = new Inductor(sim);
+	ind.setup(inductance, 0, Inductor.FLAG_BACK_EULER);
+	indInertia.setup(J, 0, Inductor.FLAG_BACK_EULER);
     }
     public double getAngle(){ return(angle);}
 

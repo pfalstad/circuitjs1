@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
     class CC2Elm extends ChipElm {
 	double gain;
 	public CC2Elm(int xx, int yy) { super(xx, yy); gain = 1; }
@@ -28,8 +31,13 @@ package com.lushprojects.circuitjs1.client;
 	    super(xa, ya, xb, yb, f, st);
 	    gain = new Double(st.nextToken()).doubleValue();
 	}
-	String dump() {
-	    return super.dump() + " " + gain;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ga", gain);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    gain = xml.parseDoubleAttr("ga", gain);
 	}
 	String getChipName() { return "CC2"; }
 	void setupPins() {

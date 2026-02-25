@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.event.dom.client.MouseWheelHandler;
@@ -43,9 +45,19 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 	    sliderText=sliderText.replaceAll("%2[bB]", "+");
 	    createSlider();
 	}
-	String dump() {
-	    return super.dump() + " " + sliderText.replaceAll("\\+","%2B");
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "st", sliderText);
 	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    sliderText = xml.parseStringAttr("st", sliderText);
+	    label.setText(Locale.LS(sliderText));
+	    int value = (int) ((frequency-bias)*100/(maxVoltage-bias));
+	    slider.setValue(value);
+	}
+
 	int getDumpType() { return 172; }
 	void createSlider() {
 	    waveform = WF_VAR;

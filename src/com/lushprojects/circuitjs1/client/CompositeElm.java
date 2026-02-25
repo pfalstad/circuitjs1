@@ -318,6 +318,7 @@ public abstract class CompositeElm extends CircuitElm {
 
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
+	Element state = xml.currentXmlElement;
 
         int i = 0;
         for (Element elem: xml.getChildElements()) {
@@ -328,6 +329,9 @@ public abstract class CompositeElm extends CircuitElm {
 		throw new RuntimeException("dump type mismatch for composite child: " + ix);
 	    ce.undumpXml(xml);
 	}
+
+	// restore current XML element so superclasses can finish parsing
+	xml.parseChildElement(state);
     }
 
     public boolean getConnection(int n1, int n2) {

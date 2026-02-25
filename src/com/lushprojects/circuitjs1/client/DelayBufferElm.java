@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class DelayBufferElm extends CircuitElm {
@@ -42,10 +44,19 @@ class DelayBufferElm extends CircuitElm {
 		highVoltage = Double.parseDouble(st.nextToken());
 	    } catch (Exception e) {}
 	}
-	String dump() {
-	    return super.dump() + " " + delay + " " + threshold + " " + highVoltage;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "dl", delay);
+	    XMLSerializer.dumpAttr(elem, "th", threshold);
+	    XMLSerializer.dumpAttr(elem, "hv", highVoltage);
 	}
-	
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    delay = xml.parseDoubleAttr("dl", delay);
+	    threshold = xml.parseDoubleAttr("th", threshold);
+	    highVoltage = xml.parseDoubleAttr("hv", highVoltage);
+	}
+
 	int getDumpType() { return 422; }
 	
 	Point center;

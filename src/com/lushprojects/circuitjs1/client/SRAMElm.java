@@ -23,6 +23,8 @@ import java.util.HashMap;
 
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.TextArea;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
     class SRAMElm extends ChipElm {
 	int addressNodes, dataNodes, internalNodes;
@@ -63,27 +65,25 @@ import com.google.gwt.user.client.ui.TextArea;
 	    } catch (Exception e) {}
 	}
 
-	String dump() {
-	    String s = super.dump() + " " + addressBits + " " + dataBits;
-	    
-	    // dump contents
-	    int maxI = 1<<addressBits;
-	    int i;
-	    for (i = 0; i < maxI; i++) {
-		Integer val = map.get(i);
-		if (val == null)
-		    continue;
-		s += " " + i + " " + val;
-		while (true) {
-		    val = map.get(++i);
-		    if (val == null)
-			break;
-		    s += " " + val;
-		}
-		s += " -1";
-	    }
-	    s += " -2";
-	    return s;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ab", addressBits);
+	    XMLSerializer.dumpAttr(elem, "db", dataBits);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    super.dumpXmlState(doc, elem);
+	    if (!map.isEmpty())
+		elem.appendChild(doc.createTextNode(contentsToString()));
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    addressBits = xml.parseIntAttr("ab", addressBits);
+	    dataBits = xml.parseIntAttr("db", dataBits);
+	    map = new java.util.HashMap<Integer, Integer>();
+	    try {
+		parseContentsString(xml.parseContents());
+	    } catch (Exception e) {}
+	    setupPins();
 	}
 
 	boolean nonLinear() { return true; }
@@ -123,31 +123,8 @@ import com.google.gwt.user.client.ui.TextArea;
         	EditInfo ei = new EditInfo("Contents", 0);
         	ei.textArea = new TextArea();
         	ei.textArea.setVisibleLines(5);
-        	String s = "";
-        	if (contentsOverride != null) {
-        		s = contentsOverride;
-        		contentsOverride = null;
-        	} else {
-        	int i;
-        	int maxI = 1<<addressBits;
-        	for (i = 0; i < maxI; i++) {
-        	    Integer val = map.get(i);
-        	    if (val == null)
-        		continue;
-    	    	    s += i + ": " + val;
-    	    	    int ct = 1;
-    	    	    while (true) {
-    	    		val = map.get(++i);
-    	    		if (val == null)
-    	    		    break;
-    	    		s += " " + val;
-    	    		if (++ct == 8)
-    	    		    break;
-    	    	    }
-    	    	    s += "\n";
-//    	    	    sim.console("got " + i + " " + s);
-    	    	}
-        	}
+        	String s = (contentsOverride != null) ? contentsOverride : contentsToString();
+        	contentsOverride = null;
     	    	ei.textArea.setText(s);
     	    	return ei;
             }
@@ -161,6 +138,45 @@ import com.google.gwt.user.client.ui.TextArea;
 	    return super.getChipEditInfo(n);
 	}
 	
+	String contentsToString() {
+	    String s = "";
+	    int maxI = 1<<addressBits;
+	    for (int i = 0; i < maxI; i++) {
+		Integer val = map.get(i);
+		if (val == null)
+		    continue;
+		s += i + ": " + val;
+		int ct = 1;
+		while (true) {
+		    val = map.get(++i);
+		    if (val == null)
+			break;
+		    s += " " + val;
+		    if (++ct == 8)
+			break;
+		}
+		s += "\n";
+	    }
+	    return s;
+	}
+
+	void parseContentsString(String s) {
+	    map.clear();
+	    String lines[] = s.split("\n");
+	    for (int i = 0; i != lines.length; i++) {
+		try {
+		    String line = lines[i];
+		    String args[] = line.split(": *");
+		    int addr = parseNumber(args[0]);
+		    String vals[] = args[1].split(" +");
+		    for (int j = 0; j != vals.length; j++) {
+			int val = parseNumber(vals[j]);
+			map.put(addr++, val);
+		    }
+		} catch (Exception e) {}
+	    }
+	}
+
 	int parseNumber(String str) {
 	    if (str.startsWith("0x"))
 		return Integer.parseInt(str.substring(2), 16);
@@ -180,25 +196,8 @@ import com.google.gwt.user.client.ui.TextArea;
 		setupPins();
 		setPoints();
 	    }
-	    if (n == 2) {
-		String s = ei.textArea.getText();
-		String lines[] = s.split("\n");
-		int i;
-		map.clear();
-		for (i = 0; i != lines.length; i++) {
-		    try {
-			String line = lines[i];
-			String args[] = line.split(": *");
-			int addr = parseNumber(args[0]);
-			String vals[] = args[1].split(" +");
-			int j;
-			for (j = 0; j != vals.length; j++) {
-			    int val = parseNumber(vals[j]);
-			    map.put(addr++, val);
-			}
-		    } catch (Exception e) {}
-		}
-	    }
+	    if (n == 2)
+		parseContentsString(ei.textArea.getText());
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }

@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class DiacElm extends CircuitElm {
@@ -55,11 +57,21 @@ class DiacElm extends CircuitElm {
     }
     boolean nonLinear() {return true;}
     int getDumpType() { return 203; }
-    String dump() {
-	return super.dump() + " " + onresistance + " " + offresistance + " "
-	    + breakdown + " " + holdcurrent;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ron", onresistance);
+	XMLSerializer.dumpAttr(elem, "roff", offresistance);
+	XMLSerializer.dumpAttr(elem, "bd", breakdown);
+	XMLSerializer.dumpAttr(elem, "hc", holdcurrent);
     }
-    
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	onresistance = xml.parseDoubleAttr("ron", onresistance);
+	offresistance = xml.parseDoubleAttr("roff", offresistance);
+	breakdown = xml.parseDoubleAttr("bd", breakdown);
+	holdcurrent = xml.parseDoubleAttr("hc", holdcurrent);
+    }
+
     Polygon arrows[];
     Point plate1[], plate2[];
     

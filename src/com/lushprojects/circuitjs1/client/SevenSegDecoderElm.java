@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
     class SevenSegDecoderElm extends ChipElm {
 
 	private static final boolean[][] symbols={
@@ -101,7 +104,15 @@ package com.lushprojects.circuitjs1.client;
 	    } catch (Exception e) {}
 	}
 
-	String dump() { return super.dump() + " " + segmentType; }
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "sgt", segmentType);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    segmentType = xml.parseIntAttr("sgt", segmentType);
+	    setupPins();
+	}
 
 	int getSegmentCount() {
 	    if (segmentType == 1) return 14;

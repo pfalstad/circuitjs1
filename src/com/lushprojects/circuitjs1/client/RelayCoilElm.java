@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.ui.Button;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import java.util.Vector;
 
@@ -111,11 +113,40 @@ class RelayCoilElm extends CircuitElm {
     
     int getDumpType() { return 425; }
     
-    String dump() {
-	return super.dump() + " " + CustomLogicModel.escape(label) + " " +
-	    inductance + " " + coilCurrent + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + type + " " + state + " " + switchPosition;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "lb", label);
+	XMLSerializer.dumpAttr(elem, "in", inductance);
+	XMLSerializer.dumpAttr(elem, "oc", onCurrent);
+	XMLSerializer.dumpAttr(elem, "cr", coilR);
+	XMLSerializer.dumpAttr(elem, "ofc", offCurrent);
+	XMLSerializer.dumpAttr(elem, "swt", switchingTime);
+	XMLSerializer.dumpAttr(elem, "tp", type);
     }
-    
+    void dumpXmlState(Document doc, Element elem) {
+	XMLSerializer.dumpAttr(elem, "ci", coilCurrent);
+	XMLSerializer.dumpAttr(elem, "st", state);
+	XMLSerializer.dumpAttr(elem, "sp", switchPosition);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	label = xml.parseStringAttr("lb", label);
+	inductance = xml.parseDoubleAttr("in", inductance);
+	onCurrent = xml.parseDoubleAttr("oc", onCurrent);
+	coilR = xml.parseDoubleAttr("cr", coilR);
+	offCurrent = xml.parseDoubleAttr("ofc", offCurrent);
+	switchingTime = xml.parseDoubleAttr("swt", switchingTime);
+	type = xml.parseIntAttr("tp", type);
+	coilCurrent = xml.parseDoubleAttr("ci", coilCurrent);
+	state = xml.parseIntAttr("st", state);
+	switchPosition = xml.parseIntAttr("sp", switchPosition);
+	noDiagonal = true;
+	ind = new Inductor(sim);
+	ind.setup(inductance, coilCurrent, Inductor.FLAG_BACK_EULER);
+	setupPoles();
+	allocNodes();
+    }
+
     void draw(Graphics g) {
 	int i, p;
 	for (i = 0; i != 2; i++) {

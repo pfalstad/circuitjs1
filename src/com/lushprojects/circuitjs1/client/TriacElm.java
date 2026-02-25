@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 // 3 nodes, 2 internal nodes
 // 1 = MT1, 0 = MT2, 2 = gate
 // 3 = internal node between MT1 and MT2 (mtinode)
@@ -76,8 +79,22 @@ class TriacElm extends CircuitElm {
     }
     
     int getDumpType() { return 206; }
-    String dump() {
-	return super.dump() + " " + triggerI + " " + holdingI + " " + cresistance + " " + state;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ti", triggerI);
+	XMLSerializer.dumpAttr(elem, "hi", holdingI);
+	XMLSerializer.dumpAttr(elem, "cr", cresistance);
+    }
+    void dumpXmlState(Document doc, Element elem) {
+	XMLSerializer.dumpAttr(elem, "st", state);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	triggerI = xml.parseDoubleAttr("ti", triggerI);
+	holdingI = xml.parseDoubleAttr("hi", holdingI);
+	cresistance = xml.parseDoubleAttr("cr", cresistance);
+	state = xml.parseBooleanAttr("st", state);
+	setup();
     }
     double i1, i2, ig, curcount_1, curcount_2, curcount_g;
     double cresistance, triggerI, holdingI;

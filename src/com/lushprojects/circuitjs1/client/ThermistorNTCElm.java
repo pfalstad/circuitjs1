@@ -7,6 +7,8 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.canvas.dom.client.CanvasGradient;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.event.dom.client.MouseWheelHandler;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 /*Bill Collis - June 2015
 
@@ -69,15 +71,31 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
 	createSlider(); //uses position to set the slider
     }
 
-    //void setup() {
-    //}
-
     int getPostCount() { return 2; }
     int getDumpType() { return 350; } //NTC thermistor
 
-    //data for file saving - make sure it matches order of items in file input constructor
-    String dump() { 
-	return super.dump() + " " + r25 + " " + r50 + " " + minTempr + " " + maxTempr +" " + position  + " " + CustomLogicModel.escape(sliderText); 
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "r25", r25);
+	XMLSerializer.dumpAttr(elem, "r50", r50);
+	XMLSerializer.dumpAttr(elem, "mnt", minTempr);
+	XMLSerializer.dumpAttr(elem, "mxt", maxTempr);
+	XMLSerializer.dumpAttr(elem, "ps", position);
+	XMLSerializer.dumpAttr(elem, "st", sliderText);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	r25 = xml.parseDoubleAttr("r25", r25);
+	r50 = xml.parseDoubleAttr("r50", r50);
+	minTempr = xml.parseDoubleAttr("mnt", minTempr);
+	maxTempr = xml.parseDoubleAttr("mxt", maxTempr);
+	position = xml.parseDoubleAttr("ps", position);
+	sliderText = xml.parseStringAttr("st", sliderText);
+	rneg40 = calcResistance(minTempr);
+	b25100 = calcB25100();
+	temperature = temprFromSliderPos();
+	resistance = calcResistance(temperature);
+	createSlider();
     }
 
     void createSlider() {

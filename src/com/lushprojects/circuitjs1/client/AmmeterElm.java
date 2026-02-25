@@ -22,6 +22,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class AmmeterElm extends CircuitElm {
@@ -53,8 +55,15 @@ class AmmeterElm extends CircuitElm {
             scale = Integer.parseInt(st.nextToken());
         } catch (Exception e) {}
     }
-    String dump() {
-            return super.dump() + " " + meter + " " + scale;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "me", meter);
+	XMLSerializer.dumpAttr(elem, "sc", scale);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	meter = xml.parseIntAttr("me", meter);
+	scale = xml.parseIntAttr("sc", scale);
     }
     String getMeter(){
         switch (meter) {

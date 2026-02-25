@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.ui.Button;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 // 0 = switch
@@ -76,11 +78,23 @@ class RelayContactElm extends CircuitElm {
     int getDumpType() { return 426; }
     boolean useIECSymbol() { return (flags & FLAG_IEC) != 0; }
 
-    String dump() {
-	// escape label
-	return super.dump() + " " + CustomLogicModel.escape(label) + " " + r_on + " " + r_off + " " + i_position;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "lb", label);
+	XMLSerializer.dumpAttr(elem, "ron", r_on);
+	XMLSerializer.dumpAttr(elem, "roff", r_off);
+	XMLSerializer.dumpAttr(elem, "ip", i_position);
     }
-    
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	label = xml.parseStringAttr("lb", label);
+	r_on = xml.parseDoubleAttr("ron", r_on);
+	r_off = xml.parseDoubleAttr("roff", r_off);
+	i_position = xml.parseIntAttr("ip", i_position);
+	noDiagonal = true;
+	allocNodes();
+    }
+
     void draw(Graphics g) {
 	int i;
 	for (i = 0; i != 2; i++) {

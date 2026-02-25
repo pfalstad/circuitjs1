@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class StopTriggerElm extends CircuitElm {
@@ -38,7 +40,18 @@ class StopTriggerElm extends CircuitElm {
 	    type = Integer.parseInt(st.nextToken());
 	    delay = Double.parseDouble(st.nextToken());
 	}
-	String dump() { return super.dump() + " " + triggerVoltage + " " + type + " " + delay; }
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "tv", triggerVoltage);
+	    XMLSerializer.dumpAttr(elem, "tp", type);
+	    XMLSerializer.dumpAttr(elem, "dl", delay);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    triggerVoltage = xml.parseDoubleAttr("tv", triggerVoltage);
+	    type = xml.parseIntAttr("tp", type);
+	    delay = xml.parseDoubleAttr("dl", delay);
+	}
 	void reset() {
 	    triggered = false;
 	}

@@ -3,6 +3,8 @@ package com.lushprojects.circuitjs1.client;
 import com.google.gwt.i18n.client.NumberFormat;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 // based on https://ctms.engin.umich.edu/CTMS/index.php?example=MotorPosition&section=SystemModeling
 
@@ -52,9 +54,25 @@ class ThreePhaseMotorElm extends CircuitElm {
         coilCurrents = new double[coilCount];
     }
     int getDumpType() { return 427; }
-    String dump() {
-	// dump: inductance; resistance, K, Kb, J, b, gearRatio, tau
-	return super.dump() + " " +  Rs + " " + Rr + " " + Ls + " " +  Lr + " " + Lm + " " + b + " " + J;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "rs", Rs);
+	XMLSerializer.dumpAttr(elem, "rr", Rr);
+	XMLSerializer.dumpAttr(elem, "ls", Ls);
+	XMLSerializer.dumpAttr(elem, "lr", Lr);
+	XMLSerializer.dumpAttr(elem, "lm", Lm);
+	XMLSerializer.dumpAttr(elem, "b", b);
+	XMLSerializer.dumpAttr(elem, "j", J);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	Rs = xml.parseDoubleAttr("rs", Rs);
+	Rr = xml.parseDoubleAttr("rr", Rr);
+	Ls = xml.parseDoubleAttr("ls", Ls);
+	Lr = xml.parseDoubleAttr("lr", Lr);
+	Lm = xml.parseDoubleAttr("lm", Lm);
+	b = xml.parseDoubleAttr("b", b);
+	J = xml.parseDoubleAttr("j", J);
     }
     public double getAngle(){ return(angle);}
 

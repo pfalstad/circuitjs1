@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
+
     class MonostableElm extends ChipElm {
 
 	//Used to detect rising edge
@@ -64,24 +67,32 @@ package com.lushprojects.circuitjs1.client;
 	int getVoltageSourceCount() { return 2; }
 
 	void execute() {
-
-			if(pins[0].value&&prevInputValue!=pins[0].value&&(retriggerable||!triggered)){
+		if(pins[0].value&&prevInputValue!=pins[0].value&&(retriggerable||!triggered)){
 			lastRisingEdge=sim.t;
 			pins[1].value=true;
 			pins[2].value=false;
 			triggered=true;
-			}
+		}
 
-			if(triggered&&sim.t>lastRisingEdge+delay)
-			{
+		if(triggered&&sim.t>lastRisingEdge+delay) {
 			pins[1].value=false;
 			pins[2].value=true;
 			triggered=false;
-			}
+		    }
 		prevInputValue=pins[0].value;
-	   	}
-	String dump(){
-	   return super.dump() + " " + retriggerable + " " + delay;
+	}
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "rt", retriggerable);
+	    XMLSerializer.dumpAttr(elem, "dl", delay);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    retriggerable = xml.parseBooleanAttr("rt", retriggerable);
+	    delay = xml.parseDoubleAttr("dl", delay);
+	    // should remember state
+	    reset();
 	}
 	int getDumpType() { return 194; }
 	public EditInfo getChipEditInfo(int n) {

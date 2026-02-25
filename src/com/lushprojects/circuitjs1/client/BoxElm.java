@@ -36,10 +36,6 @@ class BoxElm extends GraphicElm {
 	setBbox(x, y, x2, y2);
     }
 
-    String dump() {
-	return super.dump();
-    }
-
     int getDumpType() { return 'b'; }
 
     void drag(int xx, int yy) {

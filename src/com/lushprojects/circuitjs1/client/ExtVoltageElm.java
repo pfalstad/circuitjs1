@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 class ExtVoltageElm extends RailElm {
 	public ExtVoltageElm(int xx, int yy) { super(xx, yy, WF_AC); name = "ext"; }
@@ -33,8 +35,15 @@ class ExtVoltageElm extends RailElm {
         String name;
         double voltage;
 
-        String dump() { return super.dump() + " " + CustomLogicModel.escape(name); }
-        
+        void dumpXml(Document doc, Element elem) {
+            super.dumpXml(doc, elem);
+            XMLSerializer.dumpAttr(elem, "nm", name);
+        }
+        void undumpXml(XMLDeserializer xml) {
+            super.undumpXml(xml);
+            name = xml.parseStringAttr("nm", name);
+        }
+
 	void drawRail(Graphics g) {
 	    drawRailText(g, name);
 	}

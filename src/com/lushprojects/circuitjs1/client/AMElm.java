@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 // contributed by Edward Calver
 
 class AMElm extends CircuitElm {
@@ -43,8 +46,19 @@ class AMElm extends CircuitElm {
 	reset();
     }
     int getDumpType() { return 200; }
-    String dump() {
-	return super.dump() + " " +carrierfreq+" " + signalfreq + " " +maxVoltage;
+
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "cf", carrierfreq);
+	XMLSerializer.dumpAttr(elem, "sf", signalfreq);
+	XMLSerializer.dumpAttr(elem, "mv", maxVoltage);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	carrierfreq = xml.parseDoubleAttr("cf", carrierfreq);
+	signalfreq = xml.parseDoubleAttr("sf", signalfreq);
+	maxVoltage = xml.parseDoubleAttr("mv", maxVoltage);
+	reset();
     }
     /*void setCurrent(double c) {
       current = c;

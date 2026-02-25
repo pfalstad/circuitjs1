@@ -20,6 +20,8 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.user.client.Window;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class VCCSElm extends ChipElm {
@@ -45,10 +47,19 @@ class VCCSElm extends ChipElm {
 	    setupPins();
 	}
 	
-	String dump() {
-	    return super.dump() + " " + inputCount + " " + CustomLogicModel.escape(exprString);
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ic", inputCount);
+	    XMLSerializer.dumpAttr(elem, "ex", exprString);
 	}
-	
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    inputCount = xml.parseIntAttr("ic", inputCount);
+	    exprString = xml.parseStringAttr("ex", exprString);
+	    parseExpr();
+	    setupPins();
+	}
+
 	double lastVolts[];
 	
 	void setupPins() {

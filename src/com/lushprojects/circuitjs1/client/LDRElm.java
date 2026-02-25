@@ -6,6 +6,8 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.canvas.dom.client.CanvasGradient;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.event.dom.client.MouseWheelHandler;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Document;
 
 /*Bill Collis - June 2015 */
 
@@ -52,9 +54,20 @@ class LDRElm extends CircuitElm implements Command, MouseWheelHandler {
     int getPostCount() { return 2; }
     int getDumpType() { return 374; } //LDR
 
-    //data for file saving - make sure it matches order of items in file input constructor
-    String dump() { 
-	return super.dump() + " " + position  + " " + CustomLogicModel.escape(sliderText); 
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ps", position);
+	XMLSerializer.dumpAttr(elem, "st", sliderText);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	position = xml.parseDoubleAttr("ps", position);
+	sliderText = xml.parseStringAttr("st", sliderText);
+	lux = LuxFromSliderPos();
+	resistance = calcResistance(lux);
+	int value = (int) (position*100);
+	slider.setValue(value);
+	label.setText(sliderText);
     }
 
     void createSlider() {

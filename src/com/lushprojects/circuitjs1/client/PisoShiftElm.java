@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 // contributed by Edward Calver
 
 class PisoShiftElm extends ChipElm {
@@ -43,15 +46,23 @@ class PisoShiftElm extends ChipElm {
 		setupPins();
 	}
 	
-	String dump() {
-		//Normalize the circular array before exporting
-		boolean[] newData = new boolean[data.length];
-		for (int i = 0; i < data.length; i++)
-			newData[i] = data[(i + dataIndex) % data.length];
-		dataIndex = 0;
-		data = newData;
-		
-		return super.dump() + writeBits(data);
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    super.dumpXmlState(doc, elem);
+	    boolean[] newData = new boolean[data.length];
+	    for (int i = 0; i < data.length; i++)
+		newData[i] = data[(i + dataIndex) % data.length];
+	    XMLSerializer.dumpAttr(elem, "dt", writeBitsToString(newData));
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    data = new boolean[bits];
+	    dataIndex = 0;
+	    String dt = xml.parseStringAttr("dt", null);
+	    if (dt != null)
+		readBitsFromString(dt, data);
 	}
 	int getDumpType() { return 186; }
 	String getChipName() { return "PISO shift register"; }

@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 // contributed by Edward Calver
 
     class InvertingSchmittElm extends CircuitElm {
@@ -59,11 +62,24 @@ package com.lushprojects.circuitjs1.client;
 	    }
 	}
 
-	String dump() {
-	    return super.dump() + " " + slewRate+" "+lowerTrigger+" "+upperTrigger+" "+logicOnLevel+" "+logicOffLevel;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "slr", slewRate);
+	    XMLSerializer.dumpAttr(elem, "lt", lowerTrigger);
+	    XMLSerializer.dumpAttr(elem, "ut", upperTrigger);
+	    XMLSerializer.dumpAttr(elem, "lon", logicOnLevel);
+	    XMLSerializer.dumpAttr(elem, "loff", logicOffLevel);
 	}
-	
-	int getDumpType() { return 183; }//Trying to find unused type
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    slewRate = xml.parseDoubleAttr("slr", slewRate);
+	    lowerTrigger = xml.parseDoubleAttr("lt", lowerTrigger);
+	    upperTrigger = xml.parseDoubleAttr("ut", upperTrigger);
+	    logicOnLevel = xml.parseDoubleAttr("lon", logicOnLevel);
+	    logicOffLevel = xml.parseDoubleAttr("loff", logicOffLevel);
+	}
+
+	int getDumpType() { return 183; }
 
 	void draw(Graphics g) {
 	    drawPosts(g);

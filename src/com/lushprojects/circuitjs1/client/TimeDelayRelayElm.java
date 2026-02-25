@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
     class TimeDelayRelayElm extends ChipElm {
 	double lastTransition;
 	boolean poweredState;
@@ -47,8 +50,20 @@ package com.lushprojects.circuitjs1.client;
 	    lastTransition = 0;
 	    poweredState = onState = false;
 	}
-	String dump() {
-	    return super.dump() + " " + onDelay + " " + offDelay + " " + onResistance + " " + offResistance;
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ond", onDelay);
+	    XMLSerializer.dumpAttr(elem, "ofd", offDelay);
+	    XMLSerializer.dumpAttr(elem, "onr", onResistance);
+	    XMLSerializer.dumpAttr(elem, "ofr", offResistance);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    onDelay = xml.parseDoubleAttr("ond", onDelay);
+	    offDelay = xml.parseDoubleAttr("ofd", offDelay);
+	    onResistance = xml.parseDoubleAttr("onr", onResistance);
+	    offResistance = xml.parseDoubleAttr("ofr", offResistance);
+	    resistance = offResistance;
 	}
 	String getChipName() { return "time delay relay"; }
 	void setupPins() {
@@ -75,6 +90,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
 	void stepFinished() {
+	    // power applied, then delay, then in and out are connected
 	    boolean oldState = poweredState;
 	    poweredState = (volts[0]-volts[1] > 2.5);
 	    if (oldState != poweredState)
