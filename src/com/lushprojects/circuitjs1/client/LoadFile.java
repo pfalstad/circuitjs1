@@ -33,7 +33,7 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 		 }-*/;
 	
 	static public void doLoadCallback(String s, String t) {
-		sim.pushUndo();
+		sim.undoManager.pushUndo();
 		sim.loader.readCircuit(s);
 		sim.createNewLoadFile();
 		sim.setCircuitTitle(t);

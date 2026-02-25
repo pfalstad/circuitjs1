@@ -28,7 +28,7 @@ public class ImportFromDropbox {
  	}-*/;
 	
 	static public void doLoadCallback(String s) {
-		sim.pushUndo();
+		sim.undoManager.pushUndo();
 		sim.readCircuit(s);
 	}
 	

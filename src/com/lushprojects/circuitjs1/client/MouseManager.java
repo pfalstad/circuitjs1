@@ -271,7 +271,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    }
    	}
     	if (changed)
-    	    sim.writeRecoveryToStorage();
+    	    sim.undoManager.writeRecoveryToStorage();
     	sim.repaint();
     }
 
@@ -883,7 +883,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	if (tempMouseMode != MODE_SELECT && tempMouseMode != MODE_DRAG_SELECTED)
 	    clearSelection();
 
-	sim.pushUndo();
+	sim.undoManager.pushUndo();
 	initDragGridX = gx;
 	initDragGridY = gy;
 	dragging = true;
@@ -965,7 +965,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     			sim.elmList.addElement(dragElm);
     			dragElm.draggingDone();
     			circuitChanged = true;
-    			sim.writeRecoveryToStorage();
+    			sim.undoManager.writeRecoveryToStorage();
     			sim.unsavedChanges = true;
 			dragElm = null;
 			sim.updateToolbar();
@@ -973,7 +973,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
     	if (circuitChanged) {
     	    sim.needAnalyze();
-    	    sim.pushUndo();
+    	    sim.undoManager.pushUndo();
     	}
     	if (dragElm != null)
     		dragElm.delete();

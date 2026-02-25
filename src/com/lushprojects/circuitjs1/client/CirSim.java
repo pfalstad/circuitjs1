@@ -104,6 +104,7 @@ public class CirSim implements NativePreviewHandler {
 
     Random random;
     public MouseManager mouse;
+    public UndoManager undoManager;
     Button resetButton;
     Button runStopButton;
     Button dumpMatrixButton;
@@ -162,7 +163,6 @@ public class CirSim implements NativePreviewHandler {
     String clipboard;
     String recovery;
     Rectangle circuitArea;
-    Vector<UndoItem> undoStack, redoStack;
     double transform[];
     boolean unsavedChanges;
     HashMap<String, String> classToLabelMap;
@@ -301,7 +301,8 @@ public class CirSim implements NativePreviewHandler {
 	boolean mouseWheelEdit = false;
 
 	CircuitElm.initClass(this, sim);
-	readRecovery();
+	undoManager = new UndoManager(this);
+	undoManager.readRecovery();
 
 	QueryParameters qp = new QueryParameters();
 	String positiveColor = null;
@@ -542,8 +543,6 @@ public class CirSim implements NativePreviewHandler {
 	elmList = new Vector<CircuitElm>();
 	adjustables = new Vector<Adjustable>();
 	//	setupList = new Vector();
-	undoStack = new Vector<UndoItem>();
-	redoStack = new Vector<UndoItem>();
 
 
 	scopeManager = new ScopeManager(this);
@@ -580,7 +579,7 @@ public class CirSim implements NativePreviewHandler {
 	if (mouseModeReq != null)
 	    menuPerformed("main", mouseModeReq);
 
-	enableUndoRedo();
+	undoManager.enableUndoRedo();
 	enablePaste();
 	mouse.register(cv);
 	mouse.enableDisableMenuItems();
@@ -1440,7 +1439,7 @@ public class CirSim implements NativePreviewHandler {
     	if (item=="about")
     		aboutBox = new AboutBox(circuitjs1.versionString);
     	if (item=="importfromlocalfile") {
-    		pushUndo();
+    		undoManager.pushUndo();
     		if (isElectron())
     		    electronOpenFile();
     		else
@@ -1487,7 +1486,7 @@ public class CirSim implements NativePreviewHandler {
     	if (item=="print")
     	    	doPrint();
     	if (item=="recover")
-    	    	doRecover();
+    	    	undoManager.doRecover();
 
     	if ((menu=="elm" || menu=="scopepop") && contextPanel!=null)
     		contextPanel.hide();
@@ -1508,9 +1507,9 @@ public class CirSim implements NativePreviewHandler {
     	if (item=="devtools")
     	    toggleDevTools();
     	if (item=="undo")
-    		doUndo();
+    		undoManager.doUndo();
     	if (item=="redo")
-    		doRedo();
+    		undoManager.doRedo();
     	
     	// if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
     	if (menu == "key" && mouse.getMouseElm() != null) {
@@ -1543,19 +1542,19 @@ public class CirSim implements NativePreviewHandler {
     	//	}
     	
     	if (item=="centrecircuit") {
-    		pushUndo();
+    		undoManager.pushUndo();
     		centreCircuit();
     	}
     	if (item=="flipx") {
-	    pushUndo();
+	    undoManager.pushUndo();
 	    flipX();
     	}
     	if (item=="flipy") {
-	    pushUndo();
+	    undoManager.pushUndo();
 	    flipY();
     	}
     	if (item=="flipxy") {
-	    pushUndo();
+	    undoManager.pushUndo();
 	    flipXY();
     	}
     	if (item=="stackAll")
@@ -1577,7 +1576,7 @@ public class CirSim implements NativePreviewHandler {
     	if (item=="delete") {
     		if (menu!="elm")
     			mouse.menuElm = null;
-    		pushUndo();
+    		undoManager.pushUndo();
     		doDelete(true);
     	}
     	if (item=="sliders")
@@ -1623,7 +1622,7 @@ public class CirSim implements NativePreviewHandler {
     	}
     	
     	if (menu=="scopepop") {
-    		pushUndo();
+    		undoManager.pushUndo();
     		Scope s;
 		if (scopeManager.menuScope != -1 )
 		    	s= scopeManager.scopes[scopeManager.menuScope];
@@ -1680,12 +1679,12 @@ public class CirSim implements NativePreviewHandler {
     		scopeManager.deleteUnusedScopeElms();
     	}
     	if (menu=="circuits" && item.indexOf("setup ") ==0) {
-    		pushUndo();
+    		undoManager.pushUndo();
     		int sp = item.indexOf(' ', 6);
     		readSetupFile(item.substring(6, sp), item.substring(sp+1));
     	}
     	if (item=="newblankcircuit") {
-    	    pushUndo();
+    	    undoManager.pushUndo();
     	    readSetupFile("blank.txt", "Blank Circuit");
     	}
     		
@@ -1744,7 +1743,7 @@ public class CirSim implements NativePreviewHandler {
     
     void doEdit(Editable eable) {
     	mouse.clearSelection();
-    	pushUndo();
+    	undoManager.pushUndo();
     	if (editDialog != null) {
     //		requestFocus();
     		editDialog.setVisible(false);
@@ -1756,7 +1755,7 @@ public class CirSim implements NativePreviewHandler {
     
     void doSliders(CircuitElm ce) {
 	mouse.clearSelection();
-	pushUndo();
+	undoManager.pushUndo();
 	dialogShowing = new SliderDialog(ce, this);
 	dialogShowing.show();
     }
@@ -2007,53 +2006,6 @@ public class CirSim implements NativePreviewHandler {
 	setCanvasSize();
     }
 
-    void pushUndo() {
-    	redoStack.removeAllElements();
-    	String s = dumpCircuit();
-    	if (undoStack.size() > 0 &&
-    			s.compareTo(undoStack.lastElement().dump) == 0)
-    	    return;
-    	undoStack.add(new UndoItem(s));
-    	enableUndoRedo();
-    	savedFlag = false;
-    }
-
-    void doUndo() {
-    	if (undoStack.size() == 0)
-    		return;
-    	redoStack.add(new UndoItem(dumpCircuit()));
-    	UndoItem ui = undoStack.remove(undoStack.size()-1);
-    	loadUndoItem(ui);
-    	enableUndoRedo();
-    }
-
-    void doRedo() {
-    	if (redoStack.size() == 0)
-    		return;
-    	undoStack.add(new UndoItem(dumpCircuit()));
-    	UndoItem ui = redoStack.remove(redoStack.size()-1);
-    	loadUndoItem(ui);
-    	enableUndoRedo();
-    }
-
-    void loadUndoItem(UndoItem ui) {
-	loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER);
-	transform[0] = transform[3] = ui.scale;
-	transform[4] = ui.transform4;
-	transform[5] = ui.transform5;
-    }
-    
-    void doRecover() {
-	pushUndo();
-	loader.readCircuit(recovery);
-	allowSave(false);
-	menus.recoverItem.setEnabled(false);
-    }
-    
-    void enableUndoRedo() {
-    	menus.redoItem.setEnabled(redoStack.size() > 0);
-    	menus.undoItem.setEnabled(undoStack.size() > 0);
-    }
 
     void setMouseMode(int mode)
     {
@@ -2095,7 +2047,7 @@ public class CirSim implements NativePreviewHandler {
 
     FlipInfo prepareFlip() {
     	int i;
-    	pushUndo();
+    	undoManager.pushUndo();
     	setMenuSelection();
     	int minx = 30000, maxx = -30000;
     	int miny = 30000, maxy = -30000;
@@ -2149,7 +2101,7 @@ public class CirSim implements NativePreviewHandler {
 
     void doCut() {
     	int i;
-    	pushUndo();
+    	undoManager.pushUndo();
     	setMenuSelection();
     	clipboard = "";
     	for (i = elmList.size()-1; i >= 0; i--) {
@@ -2180,27 +2132,12 @@ public class CirSim implements NativePreviewHandler {
     	clipboard = stor.getItem("circuitClipboard");
     }
 
-    void writeRecoveryToStorage() {
-	console("write recovery");
-    	Storage stor = Storage.getLocalStorageIfSupported();
-    	if (stor == null)
-    		return;
-    	String s = dumpCircuit();
-    	stor.setItem("circuitRecovery", s);
-    }
-
-    void readRecovery() {
-	Storage stor = Storage.getLocalStorageIfSupported();
-	if (stor == null)
-		return;
-	recovery = stor.getItem("circuitRecovery");
-    }
 
 
     void doDelete(boolean pushUndoFlag) {
     	int i;
     	if (pushUndoFlag)
-    	    pushUndo();
+    	    undoManager.pushUndo();
     	boolean hasDeleted = false;
 
     	for (i = elmList.size()-1; i >= 0; i--) {
@@ -2216,7 +2153,7 @@ public class CirSim implements NativePreviewHandler {
     	if ( hasDeleted ) {
     	    scopeManager.deleteUnusedScopeElms();
     	    needAnalyze();
-    	    writeRecoveryToStorage();
+    	    undoManager.writeRecoveryToStorage();
     	}    
     }
     
@@ -2277,7 +2214,7 @@ public class CirSim implements NativePreviewHandler {
     }
     
     void doPaste(String dump) {
-    	pushUndo();
+    	undoManager.pushUndo();
     	mouse.clearSelection();
     	int i;
     	Rectangle oldbb = null;
@@ -2366,7 +2303,7 @@ public class CirSim implements NativePreviewHandler {
     	//	handleResize();
     	}
     	needAnalyze();
-    	writeRecoveryToStorage();
+    	undoManager.writeRecoveryToStorage();
     }
 
 //    public void keyPressed(KeyEvent e) {}
@@ -2453,7 +2390,7 @@ public class CirSim implements NativePreviewHandler {
     			scopeManager.scopeSelected = -1;
     		    } else {
     		    	mouse.menuElm = null;
-    		    	pushUndo();
+    		    	undoManager.pushUndo();
     			doDelete(true);
     			e.cancel();
     		    }
@@ -2894,16 +2831,5 @@ public class CirSim implements NativePreviewHandler {
 	    return false;
 	}
 		
-	class UndoItem {
-	    public String dump;
-	    public double scale, transform4, transform5;
-	    UndoItem(String d) {
-		dump = d;
-		scale = transform[0];
-		transform4 = transform[4];
-		transform5 = transform[5];
-	    }
-	}
-
 }
 
