@@ -337,6 +337,8 @@ public class CirSim implements NativePreviewHandler {
 
 	menus = new Menus(this);
 	menus.init();
+    	dumpTypeMap.put(403, "ScopeElm");
+    	xmlDumpTypeMap.put("Scope", "ScopeElm");
 
 	menus.recoverItem.setEnabled(recovery != null);
 

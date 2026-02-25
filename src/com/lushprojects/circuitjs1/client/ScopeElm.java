@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 class ScopeElm extends CircuitElm {
     
     Scope elmScope;
@@ -96,6 +99,23 @@ class ScopeElm extends CircuitElm {
 	return dumpStr + " " + sStr;
     }
     
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	elmScope.dumpXml(doc, elem);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	for (Element child : xml.getChildElements()) {
+	    if (child.getTagName().equals("o")) {
+		xml.parseChildElement(child);
+		elmScope.undumpXml(xml);
+		break;
+	    }
+	}
+	elmScope.resetGraph();
+    }
+
     void draw(Graphics g) {
 	g.setColor(needsHighlight() ? selectColor : whiteColor);
 	g.context.save();
