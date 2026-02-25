@@ -5,16 +5,16 @@ import com.google.gwt.core.client.JsArray;
 
 public class JSInterface {
 
-    CirSim sim;
+    CirSim app;
 
-    JSInterface(CirSim sim) {
-	this.sim = sim;
+    JSInterface(CirSim app) {
+	this.app = app;
     }
 
     void setExtVoltage(String name, double v) {
 	int i;
-	for (i = 0; i != sim.elmList.size(); i++) {
-	    CircuitElm ce = sim.getElm(i);
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.getElm(i);
 	    if (ce instanceof ExtVoltageElm) {
 		ExtVoltageElm eve = (ExtVoltageElm) ce;
 		if (eve.getName().equals(name))
@@ -28,27 +28,27 @@ public class JSInterface {
     JsArray<JavaScriptObject> getJSElements() {
 	int i;
 	JsArray<JavaScriptObject> arr = getJSArray();
-	for (i = 0; i != sim.elmList.size(); i++) {
-	    CircuitElm ce = sim.getElm(i);
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.getElm(i);
 	    ce.addJSMethods();
 	    arr.push(ce.getJavaScriptObject());
 	}
 	return arr;
     }
 
-    double getLabeledNodeVoltage(String name) { return sim.sim.getLabeledNodeVoltage(name); }
+    double getLabeledNodeVoltage(String name) { return app.sim.getLabeledNodeVoltage(name); }
 
     // Delegate methods for JSNI access
-    void setSimRunning(boolean run) { sim.setSimRunning(run); }
-    boolean simIsRunning() { return sim.simIsRunning(); }
-    void doExportAsSVGFromAPI() { sim.imageExporter.doExportAsSVGFromAPI(); }
-    String dumpCircuit() { return sim.dumpCircuit(); }
-    void importCircuitFromText(String t, boolean s) { sim.importCircuitFromText(t, s); }
-    double getTime() { return sim.sim.t; }
-    double getTimeStep() { return sim.sim.timeStep; }
-    void setTimeStep(double ts) { sim.sim.timeStep = ts; }
-    double getMaxTimeStep() { return sim.sim.maxTimeStep; }
-    void setMaxTimeStep(double ts) { sim.sim.maxTimeStep = sim.sim.timeStep = ts; }
+    void setSimRunning(boolean run) { app.setSimRunning(run); }
+    boolean simIsRunning() { return app.simIsRunning(); }
+    void doExportAsSVGFromAPI() { app.imageExporter.doExportAsSVGFromAPI(); }
+    String dumpCircuit() { return app.dumpCircuit(); }
+    void importCircuitFromText(String t, boolean s) { app.importCircuitFromText(t, s); }
+    double getTime() { return app.sim.t; }
+    double getTimeStep() { return app.sim.timeStep; }
+    void setTimeStep(double ts) { app.sim.timeStep = ts; }
+    double getMaxTimeStep() { return app.sim.maxTimeStep; }
+    void setMaxTimeStep(double ts) { app.sim.maxTimeStep = app.sim.timeStep = ts; }
 
     native void setupJSInterface() /*-{
 	var that = this;
