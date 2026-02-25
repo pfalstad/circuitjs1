@@ -89,6 +89,10 @@ public abstract class CompositeElm extends CircuitElm {
 		int flags = new Integer(stCe.nextToken()).intValue();
 		newce = CirSim.createCe(tint, 0, 0, 0, 0, flags, stCe);
 	    }
+	    if (newce == null) {
+		sim.console("failed to create " + ceType + " in CompositeElm");
+		continue;
+	    }
 	    if (newce instanceof GroundElm)
 		((GroundElm) newce).setOldStyle();
 	    compElmList.add(newce);
