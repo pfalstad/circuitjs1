@@ -116,6 +116,7 @@ public class CirSim implements NativePreviewHandler {
     public ScopeManager scopeManager;
     Element sidePanelCheckboxLabel;
     Menus menus;
+    CircuitLoader loader;
    
     String lastCursorStyle;
 
@@ -553,18 +554,20 @@ public class CirSim implements NativePreviewHandler {
 	setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	setWheelSensitivity();
 
+	loader = new CircuitLoader(this, sim, scopeManager, menus);
+
 	if (startCircuitText != null) {
 	    getSetupList(false);
-	    readCircuit(startCircuitText);
+	    loader.readCircuit(startCircuitText);
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
-		readCircuit("");
+		loader.readCircuit("");
 		getSetupList(false);
 		ImportFromDropboxDialog.setSim(this);
 		ImportFromDropboxDialog.doImportDropboxLink(startCircuitLink, false);
 	    } else {
-		readCircuit("");
+		loader.readCircuit("");
 		if (stopMessage == null && startCircuit != null) {
 		    getSetupList(false);
 		    readSetupFile(startCircuit, startLabel);
@@ -1809,9 +1812,9 @@ public class CirSim implements NativePreviewHandler {
     }
 
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
-		int flags = subcircuitsOnly ? (CirSim.RC_SUBCIRCUITS | CirSim.RC_RETAIN) : 0;
+		int flags = subcircuitsOnly ? (CircuitLoader.RC_SUBCIRCUITS | CircuitLoader.RC_RETAIN) : 0;
 		if (circuitText != null) {
-			readCircuit(circuitText, flags);
+			loader.readCircuit(circuitText, flags);
 			allowSave(false);
 		}
     }
@@ -1929,27 +1932,6 @@ public class CirSim implements NativePreviewHandler {
     	}
 }
 
-    void readCircuit(String text, int flags) {
-	if (text.startsWith("<")) {
-	    XMLDeserializer xml = new XMLDeserializer(this);
-	    xml.readCircuit(text, flags);
-	    return;
-	}
-	readCircuit(text.getBytes(), flags);
-	if ((flags & RC_KEEP_TITLE) == 0)
-	    setCircuitTitle(null);
-    }
-
-    void readCircuit(String text) {
-	if (text.startsWith("<")) {
-	    XMLDeserializer xml = new XMLDeserializer(this);
-	    xml.readCircuit(text, 0);
-	    return;
-	}
-	readCircuit(text.getBytes(), 0);
-	setCircuitTitle(null);
-    }
-
     static final String baseTitle = "Circuit Simulator";
 
     void setCircuitTitle(String s) {
@@ -1964,195 +1946,15 @@ public class CirSim implements NativePreviewHandler {
 		System.out.println(str);
 		// don't avoid caching here, it's unnecessary and makes offline PWA's not work
 		String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt(); 
-		loadFileFromURL(url);
+		loader.loadFileFromURL(url);
 		if (title != null)
 		    setCircuitTitle(title);
 		unsavedChanges = false;
 		ExportAsLocalFileDialog.setLastFileName(null);
 	}
 	
-	void loadFileFromURL(String url) {
-	    RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
-	    
-	    try {
-		requestBuilder.sendRequest(null, new RequestCallback() {
-		    public void onError(Request request, Throwable exception) {
-			Window.alert(Locale.LS("Can't load circuit!"));
-			GWT.log("File Error Response", exception);
-		    }
-
-		    public void onResponseReceived(Request request, Response response) {
-			if (response.getStatusCode()==Response.SC_OK) {
-			    String text = response.getText();
-			    readCircuit(text, RC_KEEP_TITLE);
-			    allowSave(false);
-			    unsavedChanges = false;
-			}
-			else { 
-			    Window.alert(Locale.LS("Can't load circuit!"));
-			    GWT.log("Bad file server response:"+response.getStatusText() );
-			}
-		    }
-		});
-	    } catch (RequestException e) {
-		GWT.log("failed file reading", e);
-	    }
-
-	}
-
-    static final int RC_RETAIN = 1;
-    static final int RC_NO_CENTER = 2;
-    static final int RC_SUBCIRCUITS = 4;
-    static final int RC_KEEP_TITLE = 8;
-
-    void clearCircuit() {
-	mouse.clearMouseElm();
-	for (int i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
-	    ce.delete();
-	}
-	sim.resetTime();
-	elmList.removeAllElements();
-	hintType = -1;
-	sim.maxTimeStep = 5e-6;
-	sim.minTimeStep = 50e-12;
-	menus.dotsCheckItem.setState(false);
-	menus.smallGridCheckItem.setState(false);
-	menus.powerCheckItem.setState(false);
-	menus.voltsCheckItem.setState(true);
-	menus.showValuesCheckItem.setState(true);
-	setGrid();
-	speedBar.setValue(117); // 57
-	currentBar.setValue(50);
-	powerBar.setValue(50);
-	CircuitElm.voltageRange = 5;
-	scopeManager.clearScopes();
-	sim.lastIterTime = 0;
-    }
-
-    void readCircuit(byte b[], int flags) {
-	int i;
-	int len = b.length;
-	if ((flags & RC_RETAIN) == 0)
-	    clearCircuit();
-	boolean subs = (flags & RC_SUBCIRCUITS) != 0;
-	//cv.repaint();
-	int p;
-	for (p = 0; p < len; ) {
-	    int l;
-	    int linelen = len-p; // IES - changed to allow the last line to not end with a delim.
-	    for (l = 0; l != len-p; l++)
-		if (b[l+p] == '\n' || b[l+p] == '\r') {
-		    linelen = l++;
-		    if (l+p < b.length && b[l+p] == '\n')
-			l++;
-		    break;
-		}
-	    String line = new String(b, p, linelen);
-	    StringTokenizer st = new StringTokenizer(line, " +\t\n\r\f");
-	    while (st.hasMoreTokens()) {
-		String type = st.nextToken();
-		int tint = type.charAt(0);
-		try {
-		    if (subs && tint != '.')
-			continue;
-		    if (tint == 'o') {
-			Scope sc = new Scope(this, sim);
-			sc.undump(st);
-			scopeManager.addScope(sc);
-			break;
-		    }
-		    if (tint == 'h') {
-			readHint(st);
-			break;
-		    }
-		    if (tint == '$') {
-			readOptions(st, flags);
-			break;
-		    }
-		    if (tint == '!') {
-			CustomLogicModel.undumpModel(st);
-			break;
-		    }
-		    if (tint == '%' || tint == '?' || tint == 'B') {
-			// ignore afilter-specific stuff
-			break;
-		    }
-		    // do not add new symbols here without testing export as link
-		    
-		    // if first character is a digit then parse the type as a number
-		    if (tint >= '0' && tint <= '9')
-			tint = new Integer(type).intValue();
-		    
-		    if (tint == 34) {
-			DiodeModel.undumpModel(st);
-			break;
-		    }
-		    if (tint == 32) {
-			TransistorModel.undumpModel(st);
-			break;
-		    }
-		    if (tint == 38) {
-			Adjustable adj = new Adjustable(st, this);
-			if (adj.elm != null)
-			    adjustables.add(adj);
-			break;
-		    }
-		    if (tint == '.') {
-			CustomCompositeModel.undumpModel(st);
-			break;
-		    }
-		    int x1 = new Integer(st.nextToken()).intValue();
-		    int y1 = new Integer(st.nextToken()).intValue();
-		    int x2 = new Integer(st.nextToken()).intValue();
-		    int y2 = new Integer(st.nextToken()).intValue();
-		    int f  = new Integer(st.nextToken()).intValue();
-		    
-		    CircuitElm newce = createCe(tint, x1, y1, x2, y2, f, st);
-		    if (newce==null) {
-			console("unrecognized dump type: " + type);
-			break;
-		    }
-		    /*
-		     * debug code to check if allocNodes() is called in constructor.  It gets called in
-		     * setPoints() but that doesn't get called for subcircuits.
-		    double vv[] = newce.volts;
-		    int vc = newce.getNodeCount();
-		    if (vv.length != vc)
-			console("allocnodes not called! " + tint);
-		     */
-		    newce.setPoints();
-		    elmList.addElement(newce);
-		} catch (Exception ee) {
-		    ee.printStackTrace();
-		    console("exception while undumping " + ee);
-		    break;
-		}
-		break;
-	    }
-	    p += l;
-	    
-	}
-	setPowerBarEnable();
-	enableItems();
-	if ((flags & RC_RETAIN) == 0) {
-	    // create sliders as needed
-	    for (i = 0; i < adjustables.size(); i++) {
-		if (!adjustables.get(i).createSlider(this))
-		    adjustables.remove(i--);
-	    }
-	}
-//	if (!retain)
-	//    handleResize(); // for scopes
-	needAnalyze();
-	if ((flags & RC_NO_CENTER) == 0)
-		centreCircuit();
-	if ((flags & RC_SUBCIRCUITS) != 0)
-	    updateModels();
-	
-	AudioInputElm.clearCache();  // to save memory
-	DataInputElm.clearCache();  // to save memory
-    }
+    void clearCircuit() { loader.clearCircuit(); }
+    void readCircuit(String s) { loader.readCircuit(s); }
 
     // delete sliders for an element
     void deleteSliders(CircuitElm elm) {
@@ -2168,48 +1970,6 @@ public class CirSim implements NativePreviewHandler {
 	}
     }
     
-    void readHint(StringTokenizer st) {
-	hintType  = new Integer(st.nextToken()).intValue();
-	hintItem1 = new Integer(st.nextToken()).intValue();
-	hintItem2 = new Integer(st.nextToken()).intValue();
-    }
-
-    void readOptions(StringTokenizer st, int importFlags) {
-	int flags = new Integer(st.nextToken()).intValue();
-	
-	if ((importFlags & RC_RETAIN) != 0) {
-            // need to set small grid if pasted circuit uses it
-	    if ((flags & 2) != 0)
-		menus.smallGridCheckItem.setState(true);
-	    return;
-	}
-	
-	readCircuitFlags(flags);
-	sim.maxTimeStep = sim.timeStep = new Double (st.nextToken()).doubleValue();
-	double sp = new Double(st.nextToken()).doubleValue();
-	int sp2 = (int) (Math.log(10*sp)*24+61.5);
-	//int sp2 = (int) (Math.log(sp)*24+1.5);
-	speedBar.setValue(sp2);
-	currentBar.setValue(new Integer(st.nextToken()).intValue());
-	CircuitElm.voltageRange = new Double (st.nextToken()).doubleValue();
-
-	try {
-	    powerBar.setValue(new Integer(st.nextToken()).intValue());
-	    sim.minTimeStep = Double.parseDouble(st.nextToken());
-	} catch (Exception e) {
-	}
-	setGrid();
-    }
-    
-    void readCircuitFlags(int flags) {
-	menus.dotsCheckItem.setState((flags & 1) != 0);
-	menus.smallGridCheckItem.setState((flags & 2) != 0);
-	menus.voltsCheckItem.setState((flags & 4) == 0);
-	menus.powerCheckItem.setState((flags & 8) == 8);
-	menus.showValuesCheckItem.setState((flags & 16) == 0);
-	sim.adjustTimeStep = (flags & 64) != 0;
-    }
-
     int snapGrid(int x) {
 	return (x+gridRound) & gridMask;
     }
@@ -2277,7 +2037,7 @@ public class CirSim implements NativePreviewHandler {
     }
 
     void loadUndoItem(UndoItem ui) {
-	readCircuit(ui.dump, RC_NO_CENTER);
+	loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER);
 	transform[0] = transform[3] = ui.scale;
 	transform[4] = ui.transform4;
 	transform[5] = ui.transform5;
@@ -2285,7 +2045,7 @@ public class CirSim implements NativePreviewHandler {
     
     void doRecover() {
 	pushUndo();
-	readCircuit(recovery);
+	loader.readCircuit(recovery);
 	allowSave(false);
 	menus.recoverItem.setEnabled(false);
     }
@@ -2534,20 +2294,20 @@ public class CirSim implements NativePreviewHandler {
     	
     	// add new items
     	int oldsz = elmList.size();
-    	int flags = RC_RETAIN;
+    	int flags = CircuitLoader.RC_RETAIN;
     	
     	// don't recenter circuit if we're going to paste in place because that will change the transform
 //	if (mouseCursorX > 0 && circuitArea.contains(mouseCursorX, mouseCursorY))
     	
     	// in fact, don't ever recenter circuit, unless old circuit was empty
     	if (oldsz > 0)
-    	    flags |= RC_NO_CENTER;
+    	    flags |= CircuitLoader.RC_NO_CENTER;
 	
     	if (dump != null)
-    	    readCircuit(dump, flags);
+    	    loader.readCircuit(dump, flags);
     	else {
     	    readClipboardFromStorage();
-    	    readCircuit(clipboard, flags);
+    	    loader.readCircuit(clipboard, flags);
     	}
 
     	// select new items and get their bounding box

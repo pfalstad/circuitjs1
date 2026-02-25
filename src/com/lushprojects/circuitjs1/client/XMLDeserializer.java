@@ -59,7 +59,7 @@ class XMLDeserializer {
 	currentXmlElement = root;
 
         int flags = parseIntAttr("f", 0);
-	app.readCircuitFlags(flags);
+	app.loader.readCircuitFlags(flags);
 	SimulationManager sim = app.sim;
         sim.maxTimeStep = sim.timeStep = parseDoubleAttr("ts", sim.maxTimeStep);
         double sp = parseDoubleAttr("ic", app.getIterCount());
