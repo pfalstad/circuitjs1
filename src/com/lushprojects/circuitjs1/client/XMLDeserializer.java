@@ -55,7 +55,8 @@ class XMLDeserializer {
 	// Get all child elements of root
         NodeList children = root.getChildNodes();
 
-	app.clearCircuit();
+	if ((readFlags & CircuitLoader.RC_RETAIN) == 0)
+	    app.clearCircuit();
 	currentXmlElement = root;
 
         int flags = parseIntAttr("f", 0);
@@ -147,11 +148,7 @@ class XMLDeserializer {
 	    elm.setPosition(x1, y1, x2, y2);
 	    app.elmList.add(elm);
 	}
-	for (int j = 0; j < app.adjustables.size(); j++) {
-	    if (!app.adjustables.get(j).createSlider(app))
-		app.adjustables.remove(j--);
-	}
-        app.needAnalyze();
+	app.loader.finishReadCircuit(readFlags);
     }
 
     public double parseDoubleAttr(String attr, double def) {

@@ -198,11 +198,14 @@ public class CircuitLoader {
             p += l;
         }
 
+	finishReadCircuit(flags);
+    }
+
+    public void finishReadCircuit(int flags) {
         app.setPowerBarEnable();
         app.enableItems();
 
         if ((flags & RC_RETAIN) == 0) {
-            // create sliders
             for (int i = 0; i < app.adjustables.size(); i++) {
                 if (!app.adjustables.get(i).createSlider(app))
                     app.adjustables.remove(i--);
