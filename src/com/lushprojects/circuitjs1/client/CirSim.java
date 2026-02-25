@@ -330,7 +330,7 @@ public class CirSim implements NativePreviewHandler {
 	    startLabel   = qp.getValue("startLabel");
 	    startCircuitLink = qp.getValue("startCircuitLink");
 	    euroRes = qp.getBooleanValue("euroResistors", false);
-	    euroGates = qp.getBooleanValue("IECGates", getOptionFromStorage("euroGates", weAreInGermany()));
+	    euroGates = qp.getBooleanValue("IECGates", getOptionFromStorage("euroGates", Locale.weAreInGermany()));
 	    usRes = qp.getBooleanValue("usResistors",  false);
 	    running = qp.getBooleanValue("running", true);
 	    hideSidebar = qp.getBooleanValue("hideSidebar", false);
@@ -355,7 +355,7 @@ public class CirSim implements NativePreviewHandler {
 	else if (usRes)
 	    euroSetting = false;
 	else
-	    euroSetting = getOptionFromStorage("euroResistors", !weAreInUS(true));
+	    euroSetting = getOptionFromStorage("euroResistors", !Locale.weAreInUS(true));
 
 	transform = new double[6];
 
@@ -2579,72 +2579,6 @@ public class CirSim implements NativePreviewHandler {
 	int i;
 	for (i = 0; i != elmList.size(); i++)
 	    elmList.get(i).updateModels();
-    }
-    
-
-    
-    
-    native boolean weAreInUS(boolean orCanada) /*-{
-    try {
-	l = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage) ;  
-    	if (l.length > 2) {
-    		l = l.slice(-2).toUpperCase();
-    		return (l == "US" || (l=="CA" && orCanada));
-    	} else {
-    		return 0;
-    	}
-
-    } catch (e) { return 0;
-    }
-    }-*/;
-
-    native boolean weAreInGermany() /*-{
-    try {
-	l = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage) ;
-	return (l.toUpperCase().startsWith("DE"));
-    } catch (e) { return 0;
-    }
-    }-*/;
-    
-    // For debugging
-    void dumpNodelist() {
-
-	CircuitNode nd;
-	CircuitElm e;
-	int i,j;
-	String s;
-	String cs;
-//
-//	for(i=0; i<nodeList.size(); i++) {
-//	    s="Node "+i;
-//	    nd=nodeList.get(i);
-//	    for(j=0; j<nd.links.size();j++) {
-//		s=s+" " + nd.links.get(j).num + " " +nd.links.get(j).elm.getDumpType();
-//	    }
-//	    console(s);
-//	}
-	console("Elm list Dump");
-	for (i=0;i<elmList.size(); i++) {
-	    e=elmList.get(i);
-	    cs = e.getDumpClass().toString();
-	    int p = cs.lastIndexOf('.');
-	    cs = cs.substring(p+1);
-	    if (cs=="WireElm") 
-		continue;
-	    if (cs=="LabeledNodeElm")
-		cs = cs+" "+((LabeledNodeElm)e).text;
-	    if (cs=="TransistorElm") {
-		if (((TransistorElm)e).pnp == -1)
-		    cs= "PTransistorElm";
-		else
-		    cs = "NTransistorElm";
-	    }
-	    s=cs;
-	    for(j=0; j<e.getPostCount(); j++) {
-		s=s+" "+e.nodes[j];
-	    }
-	    console(s);
-	}
     }
 
 	void doDCAnalysis() {

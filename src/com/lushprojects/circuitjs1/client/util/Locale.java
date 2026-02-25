@@ -62,4 +62,28 @@ public class Locale {
         return SafeHtmlUtils.fromTrustedString(LS(s));
     }
 
+
+
+    public static native boolean weAreInUS(boolean orCanada) /*-{
+	try {
+	    l = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage) ;
+	    if (l.length > 2) {
+		    l = l.slice(-2).toUpperCase();
+		    return (l == "US" || (l=="CA" && orCanada));
+	    } else {
+		    return 0;
+	    }
+
+	} catch (e) { return 0;
+	}
+    }-*/;
+
+    public static native boolean weAreInGermany() /*-{
+	try {
+	    l = navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage) ;
+	    return (l.toUpperCase().startsWith("DE"));
+	} catch (e) { return 0;
+	}
+    }-*/;
+
 }
