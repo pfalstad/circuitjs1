@@ -62,6 +62,8 @@ public class CircuitLoader {
 
     public void readCircuit(String text, int flags) {
         if (text.startsWith("<")) {
+	    if ((flags & RC_RETAIN) == 0)
+		clearCircuit();
             XMLDeserializer xml = new XMLDeserializer(app);
             xml.readCircuit(text, flags);
             return;
@@ -70,6 +72,10 @@ public class CircuitLoader {
         if ((flags & RC_KEEP_TITLE) == 0) {
             app.setCircuitTitle(null);
         }
+    }
+
+    void readCircuit(String text) {
+	readCircuit(text, 0);
     }
 
     public void loadCircuitFromUrl(String url, String title) {
@@ -258,16 +264,6 @@ public class CircuitLoader {
         menus.powerCheckItem.setState((flags & 8) == 8);
         menus.showValuesCheckItem.setState((flags & 16) == 0);
         sim.adjustTimeStep = (flags & 64) != 0;
-    }
-
-    void readCircuit(String text) {
-        if (text.startsWith("<")) {
-            XMLDeserializer xml = new XMLDeserializer(app);
-            xml.readCircuit(text, 0);
-            return;
-        }
-        readCircuit(text.getBytes(), 0);
-        app.setCircuitTitle(null);
     }
 
     void loadFileFromURL(String url) {
