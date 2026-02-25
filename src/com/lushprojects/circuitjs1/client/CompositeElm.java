@@ -173,6 +173,88 @@ public abstract class CompositeElm extends CircuitElm {
 	flags |= FLAG_ESCAPE;
     }
 
+    public void loadCompositeXml(Vector<Element> elmEntries, int externalNodes[]) {
+	HashMap<Integer, CircuitNode> compNodeHash = new HashMap<Integer, CircuitNode>();
+	CircuitNode cn;
+	CircuitNodeLink cnLink;
+	XMLDeserializer xml = new XMLDeserializer(CirSim.theApp);
+
+	compElmList = new Vector<CircuitElm>();
+	compNodeList = new Vector<CircuitNode>();
+
+	for (Element childElem : elmEntries) {
+	    String tagName = childElem.getTagName();
+	    String className = CirSim.xmlDumpTypeMap.get(tagName);
+	    if (className == null)
+		continue;
+	    CircuitElm newce = CirSim.constructElement(className, 0, 0);
+	    xml.parseChildElement(childElem);
+	    newce.undumpXml(xml);
+	    if (newce instanceof GroundElm)
+		((GroundElm) newce).setOldStyle();
+	    compElmList.add(newce);
+
+	    String nn = childElem.getAttribute("nn");
+	    if (nn == null)
+		continue;
+	    StringTokenizer stNodes = new StringTokenizer(nn, " ");
+	    int thisPost = 0;
+	    while (stNodes.hasMoreTokens()) {
+		int nodeOfThisPost = Integer.parseInt(stNodes.nextToken());
+		if (nodeOfThisPost == 0) {
+		    newce.setNode(thisPost, 0);
+		    newce.setNodeVoltage(thisPost, 0);
+		    thisPost++;
+		    continue;
+		}
+		cnLink = new CircuitNodeLink();
+		cnLink.num = thisPost;
+		cnLink.elm = newce;
+		if (!compNodeHash.containsKey(nodeOfThisPost)) {
+		    cn = new CircuitNode();
+		    cn.links.add(cnLink);
+		    compNodeHash.put(nodeOfThisPost, cn);
+		} else {
+		    cn = compNodeHash.get(nodeOfThisPost);
+		    cn.links.add(cnLink);
+		}
+		thisPost++;
+	    }
+	}
+
+	// Flatten compNodeHash in to compNodeList
+	numPosts = externalNodes.length;
+	for (int i = 0; i < externalNodes.length; i++) {
+	    if (compNodeHash.containsKey(externalNodes[i])) {
+		compNodeList.add(compNodeHash.get(externalNodes[i]));
+		compNodeHash.remove(externalNodes[i]);
+	    } else
+		throw new IllegalArgumentException();
+	}
+	for (Entry<Integer, CircuitNode> entry : compNodeHash.entrySet()) {
+	    int key = entry.getKey();
+	    compNodeList.add(compNodeHash.get(key));
+	}
+
+	// allocate more nodes for sub-elements' internal nodes
+	for (int i = 0; i != compElmList.size(); i++) {
+	    CircuitElm ce = compElmList.get(i);
+	    int inodes = ce.getInternalNodeCount();
+	    for (int j = 0; j != inodes; j++) {
+		cnLink = new CircuitNodeLink();
+		cnLink.num = j + ce.getPostCount();
+		cnLink.elm = ce;
+		cn = new CircuitNode();
+		cn.links.add(cnLink);
+		compNodeList.add(cn);
+	    }
+	}
+
+	numNodes = compNodeList.size();
+	posts = new Point[numPosts];
+	flags |= FLAG_ESCAPE;
+    }
+
 /*
     public boolean nonLinear() {
 	for (int i = 0; i < compElmList.size(); i++)

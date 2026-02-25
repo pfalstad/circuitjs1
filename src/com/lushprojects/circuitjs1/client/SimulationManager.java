@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.Vector;
 
 import com.google.gwt.user.client.Window;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.XMLParser;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class SimulationManager {
@@ -1301,9 +1304,9 @@ public class SimulationManager {
 
 	public CustomCompositeModel getCircuitAsComposite() {
 	    int i;
-	    String nodeDump = "";
-	    String dump = "";
-//	    String models = "";
+	    Document elmDoc = XMLParser.createDocument();
+	    Element elmRoot = elmDoc.createElement("elms");
+	    elmDoc.appendChild(elmRoot);
 	    CustomLogicModel.clearDumpedFlags();
 	    DiodeModel.clearDumpedFlags();
 	    TransistorModel.clearDumpedFlags();
@@ -1364,7 +1367,7 @@ public class SimulationManager {
             }
         }
 
-	    // output all the elements
+	    // output all the elements as XML
 	    for (i = 0; i != elmList.size(); i++) {
 		CircuitElm ce = getElm(i);
 		if (sel && !ce.isSelected())
@@ -1375,32 +1378,21 @@ public class SimulationManager {
 		if (ce instanceof GraphicElm || ce instanceof GroundElm)
 		    continue;
 		int j;
-		if (nodeDump.length() > 0)
-		    nodeDump += "\r";
-		nodeDump += ce.getClass().getSimpleName();
+		// build nn (node list) string
+		String nn = "";
 		for (j = 0; j != ce.getPostCount(); j++) {
 		    int n = ce.getNode(j);
 		    used[n] = true;
-		    nodeDump += " " + n;
+		    if (nn.length() > 0)
+			nn += " ";
+		    nn += n;
 		}
-		
-	        // save positions
-            int x1 = ce.x;  int y1 = ce.y;
-            int x2 = ce.x2; int y2 = ce.y2;
-            
-            // set them to 0 so they're easy to remove
-            ce.x = ce.y = ce.x2 = ce.y2 = 0;
-
-            String tstring = ce.dump();
-            tstring = tstring.replaceFirst("[A-Za-z0-9]+ 0 0 0 0 ", ""); // remove unused tint_x1 y1 x2 y2 coords for internal components
-            
-            // restore positions
-            ce.x = x1; ce.y = y1; ce.x2 = x2; ce.y2 = y2;
-            if (dump.length() > 0)
-                dump += " ";
-            dump += CustomLogicModel.escape(tstring);
+		Element child = elmDoc.createElement(ce.getXmlDumpType());
+		XMLSerializer.dumpAttr(child, "nn", nn);
+		ce.dumpXmlState(elmDoc, child);
+		elmRoot.appendChild(child);
 	    }
-	    
+
 	    for (i = 0; i != extList.size(); i++) {
 		ExtListEntry ent = extList.get(i);
 		if (!used[ent.node]) {
@@ -1408,10 +1400,9 @@ public class SimulationManager {
 		    return null;
 		}
 	    }
-	
+
 	    CustomCompositeModel ccm = new CustomCompositeModel();
-	    ccm.nodeList = nodeDump;
-	    ccm.elmDump = dump;
+	    ccm.elmDoc = elmDoc;
 	    ccm.extList = extList;
 	    return ccm;
 	}

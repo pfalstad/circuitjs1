@@ -186,9 +186,12 @@ public class CustomCompositeElm extends CompositeElm {
 	int i;
 	for (i = 0; i != postCount; i++)
 	    externalNodes[i] = model.extList.get(i).node;
-	if (st == null)
-	    st = new StringTokenizer(model.elmDump, " ");
-	loadComposite(st, model.nodeList, externalNodes);
+	if (st != null) {
+	    // old-format constructor: use loadComposite with per-instance state
+	    loadComposite(st, model.getNodeList(), externalNodes);
+	} else {
+	    loadCompositeXml(model.getElmEntries(), externalNodes);
+	}
 	allocNodes();
 	setPoints();
     }
