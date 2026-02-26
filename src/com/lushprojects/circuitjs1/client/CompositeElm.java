@@ -26,59 +26,62 @@ public abstract class CompositeElm extends CircuitElm {
 
     // need to use escape() instead of converting spaces to _'s so composite elements can be nested
     final int FLAG_ESCAPE = 1;
-    
+
     // list of elements contained in this subcircuit
     Vector<CircuitElm> compElmList;
-    
+
     // list of nodes, mapping each one to a list of elements that reference that node
     protected Vector<CircuitNode> compNodeList;
-    
+
     protected int numPosts = 0;
     protected int numNodes = 0;
     protected Point posts[];
-    //protected Vector<VoltageSourceRecord> voltageSources;
+
+    // node info strings for each element (space-separated node numbers), stored for deferred node list building
+    String[] compNodeInfo;
+
+    // external node IDs, stored for deferred node list building
+    int[] extNodeIds;
 
     CompositeElm(int xx, int yy) {
 	super(xx, yy);
     }
-    
+
     public CompositeElm(int xa, int ya, int xb, int yb, int f) {
 	super(xa, ya, xb, yb, f);
     }
-    
+
     CompositeElm(int xx, int yy, String s, int externalNodes[]) {
 	super(xx, yy);
 	loadComposite(null, s, externalNodes);
+	buildCompNodeList();
 	allocNodes();
     }
 
     public CompositeElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st, String s, int externalNodes[]) {
 	super(xa, ya, xb, yb, f);
 	loadComposite(st, s, externalNodes);
+	buildCompNodeList();
 	allocNodes();
     }
 
     Vector<CircuitElm> getChildElmList() { return compElmList; }
 
     boolean useEscape() { return (flags & FLAG_ESCAPE) != 0; }
-    
+
     public void loadComposite(StringTokenizer stIn, String model, int externalNodes[]) {
-	HashMap<Integer, CircuitNode> compNodeHash = new HashMap<Integer, CircuitNode>();
 	StringTokenizer modelLinet = new StringTokenizer(model, "\r");
-	CircuitNode cn;
-	CircuitNodeLink cnLink;
-	VoltageSourceRecord vsRecord;
 
 	compElmList = new Vector<CircuitElm>();
-	compNodeList = new Vector<CircuitNode>();
-	//voltageSources = new Vector<VoltageSourceRecord>();
+	Vector<String> nodeInfoList = new Vector<String>();
 
-	// Build compElmList and compNodeHash from input string
+	// Build compElmList from input string, storing node info for later
 
 	while (modelLinet.hasMoreTokens()) {
 	    String line = modelLinet.nextToken();
-	    StringTokenizer stModel = new StringTokenizer(line, " +\t\n\r\f");
-	    String ceType = stModel.nextToken();
+	    int sp = line.indexOf(' ');
+	    String ceType = line.substring(0, sp);
+	    String nodeStr = line.substring(sp + 1);
 	    CircuitElm newce = CirSim.constructElement(ceType, 0, 0);
 	    if (stIn!=null) {
 		int tint = newce.getDumpType();
@@ -96,95 +99,23 @@ public abstract class CompositeElm extends CircuitElm {
 	    if (newce instanceof GroundElm)
 		((GroundElm) newce).setOldStyle();
 	    compElmList.add(newce);
-
-	    int thisPost = 0;
-	    while (stModel.hasMoreTokens()) {
-		int nodeOfThisPost = new Integer(stModel.nextToken()).intValue();
-
-		// node = 0 means ground
-		if (nodeOfThisPost == 0) {
-		    newce.setNode(thisPost, 0);
-		    newce.setNodeVoltage(thisPost, 0);
-		    thisPost++;
-		    continue;
-		}
-		cnLink = new CircuitNodeLink();
-		cnLink.num = thisPost;
-		cnLink.elm = newce;
-		if (!compNodeHash.containsKey(nodeOfThisPost)) {
-		    cn = new CircuitNode();
-		    cn.links.add(cnLink);
-		    compNodeHash.put(nodeOfThisPost, cn);
-		} else {
-		    cn = compNodeHash.get(nodeOfThisPost);
-		    cn.links.add(cnLink);
-		}
-		thisPost++;
-	    }
+	    nodeInfoList.add(nodeStr);
 	}
 
-	// Flatten compNodeHash in to compNodeList
+	compNodeInfo = nodeInfoList.toArray(new String[0]);
+	extNodeIds = externalNodes;
 	numPosts = externalNodes.length;
-	for (int i = 0; i < externalNodes.length; i++) { // External Nodes First
-	    if (compNodeHash.containsKey(externalNodes[i])) {
-		compNodeList.add(compNodeHash.get(externalNodes[i]));
-		compNodeHash.remove(externalNodes[i]);
-	    } else
-		throw new IllegalArgumentException();
-	}
-	for (Entry<Integer, CircuitNode> entry : compNodeHash.entrySet()) {
-	    int key = entry.getKey();
-	    compNodeList.add(compNodeHash.get(key));
-	}
-
-	// allocate more nodes for sub-elements' internal nodes
-	for (int i = 0; i != compElmList.size(); i++) {
-	    CircuitElm ce = compElmList.get(i);
-	    int inodes = ce.getInternalNodeCount();
-	    for (int j = 0; j != inodes; j++) {
-		cnLink = new CircuitNodeLink();
-		cnLink.num = j + ce.getPostCount();
-		cnLink.elm = ce;
-		cn = new CircuitNode();
-		cn.links.add(cnLink);
-		compNodeList.add(cn);
-	    }
-	}
-
-	numNodes = compNodeList.size();
-
-//	CirSim.console("Dumping compNodeList");
-//	for (int i = 0; i < numNodes; i++) {
-//	    CirSim.console("New node" + i + " Size of links:" + compNodeList.get(i).links.size());
-//	}
-
 	posts = new Point[numPosts];
-	
-/*
-	// Enumerate voltage sources
-	for (int i = 0; i < compElmList.size(); i++) {
-	    int cnt = compElmList.get(i).getVoltageSourceCount();
-	    for (int j=0;j < cnt ; j++) {
-		vsRecord = new VoltageSourceRecord();
-		vsRecord.elm = compElmList.get(i);
-		vsRecord.vsNumForElement = j;
-		voltageSources.add(vsRecord);
-	    }
-	}
-*/
-	
+
 	// dump new circuits with escape()
 	flags |= FLAG_ESCAPE;
     }
 
     public void loadCompositeXml(Vector<Element> elmEntries, int externalNodes[]) {
-	HashMap<Integer, CircuitNode> compNodeHash = new HashMap<Integer, CircuitNode>();
-	CircuitNode cn;
-	CircuitNodeLink cnLink;
 	XMLDeserializer xml = new XMLDeserializer(CirSim.theApp);
 
 	compElmList = new Vector<CircuitElm>();
-	compNodeList = new Vector<CircuitNode>();
+	Vector<String> nodeInfoList = new Vector<String>();
 
 	for (Element childElem : elmEntries) {
 	    String tagName = childElem.getTagName();
@@ -197,23 +128,43 @@ public abstract class CompositeElm extends CircuitElm {
 	    if (newce instanceof GroundElm)
 		((GroundElm) newce).setOldStyle();
 	    compElmList.add(newce);
-
 	    String nn = childElem.getAttribute("nn");
-	    if (nn == null)
-		continue;
-	    StringTokenizer stNodes = new StringTokenizer(nn, " ");
+	    nodeInfoList.add(nn != null ? nn : "");
+	}
+
+	compNodeInfo = nodeInfoList.toArray(new String[0]);
+	extNodeIds = externalNodes;
+	numPosts = externalNodes.length;
+	posts = new Point[numPosts];
+	flags |= FLAG_ESCAPE;
+    }
+
+    // build compNodeList from stored node info.  called from preStamp() so that sub-elements
+    // have their final state (after undumpXml) when we query their internal node counts.
+    void buildCompNodeList() {
+	HashMap<Integer, CircuitNode> compNodeHash = new HashMap<Integer, CircuitNode>();
+	CircuitNode cn;
+	CircuitNodeLink cnLink;
+
+	compNodeList = new Vector<CircuitNode>();
+
+	for (int i = 0; i != compElmList.size(); i++) {
+	    CircuitElm ce = compElmList.get(i);
+	    StringTokenizer stNodes = new StringTokenizer(compNodeInfo[i], " +\t");
 	    int thisPost = 0;
 	    while (stNodes.hasMoreTokens()) {
 		int nodeOfThisPost = Integer.parseInt(stNodes.nextToken());
+
+		// node = 0 means ground
 		if (nodeOfThisPost == 0) {
-		    newce.setNode(thisPost, 0);
-		    newce.setNodeVoltage(thisPost, 0);
+		    ce.setNode(thisPost, 0);
+		    ce.setNodeVoltage(thisPost, 0);
 		    thisPost++;
 		    continue;
 		}
 		cnLink = new CircuitNodeLink();
 		cnLink.num = thisPost;
-		cnLink.elm = newce;
+		cnLink.elm = ce;
 		if (!compNodeHash.containsKey(nodeOfThisPost)) {
 		    cn = new CircuitNode();
 		    cn.links.add(cnLink);
@@ -227,11 +178,10 @@ public abstract class CompositeElm extends CircuitElm {
 	}
 
 	// Flatten compNodeHash in to compNodeList
-	numPosts = externalNodes.length;
-	for (int i = 0; i < externalNodes.length; i++) {
-	    if (compNodeHash.containsKey(externalNodes[i])) {
-		compNodeList.add(compNodeHash.get(externalNodes[i]));
-		compNodeHash.remove(externalNodes[i]);
+	for (int i = 0; i < extNodeIds.length; i++) { // External Nodes First
+	    if (compNodeHash.containsKey(extNodeIds[i])) {
+		compNodeList.add(compNodeHash.get(extNodeIds[i]));
+		compNodeHash.remove(extNodeIds[i]);
 	    } else
 		throw new IllegalArgumentException();
 	}
@@ -255,8 +205,11 @@ public abstract class CompositeElm extends CircuitElm {
 	}
 
 	numNodes = compNodeList.size();
-	posts = new Point[numPosts];
-	flags |= FLAG_ESCAPE;
+    }
+
+    void preStamp() {
+	buildCompNodeList();
+	allocNodes();
     }
 
 /*
@@ -324,7 +277,6 @@ public abstract class CompositeElm extends CircuitElm {
 	super.undumpXml(xml);
 	Element state = xml.currentXmlElement;
 
-        int i = 0;
         for (Element elem: xml.getChildElements()) {
             xml.parseChildElement(elem);
 	    int ix = xml.parseIntAttr("ix", -1);

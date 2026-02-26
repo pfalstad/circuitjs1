@@ -280,6 +280,12 @@ public class SimulationManager {
     void makeNodeList() {
 	int i, j;
 	int vscount = 0;
+
+	// call preStamp() on all elements first so CompositeElm can build
+	// its internal node list based on final child element state
+	for (i = 0; i != elmList.size(); i++)
+	    getElm(i).preStamp();
+
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    int inodes = ce.getInternalNodeCount();

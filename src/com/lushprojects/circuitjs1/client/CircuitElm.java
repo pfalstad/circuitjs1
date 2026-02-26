@@ -256,6 +256,9 @@ public abstract class CircuitElm implements Editable {
     
     Vector<CircuitElm> getChildElmList() { return null; }
 
+    // called before makeNodeList to allow elements to set up internal node counts, etc.
+    void preStamp() {}
+
     // stamp matrix values for linear elements.
     // for non-linear elements, use this to stamp values that don't change each iteration, and call stampRightSide() or stampNonLinear() as needed
     void stamp() {}
