@@ -50,6 +50,7 @@ class CapacitorElm extends CircuitElm {
 
 		// if you add more things here, check PolarCapacitorElm.  It loads more state after this
 	    } catch (Exception e) {}
+	    allocNodes();
 	}
 	boolean isTrapezoidal() { return (flags & FLAG_BACK_EULER) == 0; }
 	
@@ -88,6 +89,7 @@ class CapacitorElm extends CircuitElm {
 	    initialVoltage = xml.parseDoubleAttr("iv", initialVoltage);
 	    seriesResistance = xml.parseDoubleAttr("sr", seriesResistance);
 	    voltdiff = xml.parseDoubleAttr("vd", voltdiff);
+	    allocNodes();
 	}
 
 	// used for PolarCapacitorElm
@@ -247,8 +249,10 @@ class CapacitorElm extends CircuitElm {
 	    }
 	    if (n == 2)
 		initialVoltage = ei.value;
-	    if (n == 3)
+	    if (n == 3) {
 		seriesResistance = ei.value;
+		allocNodes();
+	    }
 	}
 	int getShortcut() { return 'c'; }
 	public double getCapacitance() { return capacitance; }
