@@ -1385,11 +1385,12 @@ public class SimulationManager {
 
 	boolean dumpAll = true;
 
-	// build list of elements to dump, separating out non-essential elements
+	// build list of elements to dump, separating out non-essential elements.
+	// use app.elmList (not elmList) to avoid including flattened composite children.
 	Vector<CircuitElm> dumpList = new Vector<CircuitElm>();
 	Vector<CircuitElm> extraList = new Vector<CircuitElm>();
-	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.elmList.get(i);
 	    if (sel && !ce.isSelected())
 		continue;
 	    if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
@@ -1417,6 +1418,9 @@ public class SimulationManager {
 	    Element child = elmDoc.createElement(ce.getXmlDumpType());
 	    XMLSerializer.dumpAttr(child, "nn", nn);
 	    ce.dumpXml(elmDoc, child);
+	    // remove child elements (state) since this is a model definition, not an instance
+	    while (child.getFirstChild() != null)
+		child.removeChild(child.getFirstChild());
 	    if (!dumpAll)
 		child.removeAttribute("x");
 	    elmRoot.appendChild(child);

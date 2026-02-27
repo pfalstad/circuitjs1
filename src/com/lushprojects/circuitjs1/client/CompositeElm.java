@@ -260,9 +260,7 @@ public abstract class CompositeElm extends CircuitElm {
 	return dumpStr;
     }
 
-    void dumpXml(Document doc, Element elem) {
-        super.dumpXml(doc, elem);
-
+    void dumpXmlState(Document doc, Element elem) {
 	int i;
 	for (i = 0; i != compElmList.size(); i++) {
 	    CircuitElm ce = compElmList.get(i);
@@ -271,7 +269,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	    // if no state dumped, skip it
 	    NamedNodeMap attrs = child.getAttributes();
-	    if (attrs == null || attrs.getLength() == 0)
+	    if ((attrs == null || attrs.getLength() == 0) && !child.hasChildNodes())
 		continue;
 	    XMLSerializer.dumpAttr(child, "ix", i);
             elem.appendChild(child);
