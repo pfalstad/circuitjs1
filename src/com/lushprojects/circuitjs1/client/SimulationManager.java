@@ -1385,14 +1385,25 @@ public class SimulationManager {
 
 	boolean dumpAll = true;
 
-	// output all the elements as XML
+	// build list of elements to dump, separating out non-essential elements
+	Vector<CircuitElm> dumpList = new Vector<CircuitElm>();
+	Vector<CircuitElm> extraList = new Vector<CircuitElm>();
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    if (sel && !ce.isSelected())
 		continue;
-	    if (!dumpAll && (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
-	    		     ce instanceof GraphicElm || ce instanceof GroundElm))
-		continue;
+	    if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
+		    ce instanceof GraphicElm || ce instanceof GroundElm) {
+		if (dumpAll)
+		    extraList.add(ce);
+	    } else
+		dumpList.add(ce);
+	}
+	dumpList.addAll(extraList);
+
+	// output all the elements as XML
+	for (i = 0; i != dumpList.size(); i++) {
+	    CircuitElm ce = dumpList.get(i);
 	    int j;
 	    // build nn (node list) string
 	    String nn = "";
