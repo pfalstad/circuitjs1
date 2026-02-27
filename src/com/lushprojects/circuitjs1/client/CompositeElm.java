@@ -208,6 +208,8 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     void preStamp() {
+	for (CircuitElm ce: compElmList)
+	    ce.preStamp();
 	buildCompNodeList();
 	allocNodes();
     }
@@ -366,6 +368,8 @@ public abstract class CompositeElm extends CircuitElm {
 
     double getCurrentIntoNode(int n) {
 	double c=0;
+	if (compNodeList == null)
+	    return 0;
 	Vector<CircuitNodeLink> cnLinks;
 	cnLinks = compNodeList.get(n).links;
 	for (int i = 0; i < cnLinks.size(); i++) {

@@ -343,7 +343,34 @@ public class SimulationManager {
 	
         voltageSources = new CircuitElm[vscount];
     }
-    
+
+    // recursively add child elements to elmList and make node links
+    void addChildElms(Vector<CircuitElm> list) {
+	for (CircuitElm ce: list) {
+	    Vector<CircuitElm> childList = ce.getChildElmList();
+	    if (childList != null) {
+		// this child is itself a composite; add its children instead
+		addChildElms(childList);
+		continue;
+	    }
+	    elmList.add(ce);
+	    int nodeCount = ce.getNodeCount();
+	    for (int i = 0; i != nodeCount; i++) {
+		int cn = ce.getNode(i);
+		CircuitNodeLink cnl = new CircuitNodeLink();
+		cnl.num = i;
+		cnl.elm = ce;
+		CircuitNode cnobj = getCircuitNode(cn);
+		cnobj.links.addElement(cnl);
+		// this is needed so findUnconnectedNodes() works
+		cnobj.internal = false;
+		// if it's the ground node, make sure the node voltage is 0
+		if (cn == 0)
+		    ce.setNodeVoltage(i, 0);
+	    }
+	}
+    }
+
     Vector<Integer> unconnectedNodes;
     Vector<CircuitElm> nodesWithGroundConnection;
     int nodesWithGroundConnectionCount;
@@ -528,25 +555,8 @@ public class SimulationManager {
 	elmList = new Vector<>(app.elmList);
 	for (CircuitElm elm: elmList) {
 	    Vector<CircuitElm> list = elm.getChildElmList();
-	    if (list != null) {
-		elmList.addAll(list);
-		for (CircuitElm ce: list) {
-		    int nodeCount = ce.getNodeCount();
-		    for (i = 0; i != nodeCount; i++) {
-			int cn = ce.getNode(i);
-			CircuitNodeLink cnl = new CircuitNodeLink();
-			cnl.num = i;
-			cnl.elm = ce;
-			CircuitNode cnobj = getCircuitNode(cn);
-			cnobj.links.addElement(cnl);
-			// this is needed so findUnconnectedNodes() works
-			cnobj.internal = false;
-			// if it's the ground node, make sure the node voltage is 0
-			if (cn == 0)
-			    ce.setNodeVoltage(i, 0);
-		    }
-		}
-	    }
+	    if (list != null)
+		addChildElms(list);
 	}
 
 	int vscount = 0;
@@ -1308,57 +1318,57 @@ public class SimulationManager {
     }
     
 
-	public CustomCompositeModel getCircuitAsComposite() {
-	    int i;
-	    Document elmDoc = XMLParser.createDocument();
-	    Element elmRoot = elmDoc.createElement("elms");
-	    elmDoc.appendChild(elmRoot);
-	    CustomLogicModel.clearDumpedFlags();
-	    DiodeModel.clearDumpedFlags();
-	    TransistorModel.clearDumpedFlags();
+    public CustomCompositeModel getCircuitAsComposite() {
+	int i;
+	Document elmDoc = XMLParser.createDocument();
+	Element elmRoot = elmDoc.createElement("elms");
+	elmDoc.appendChild(elmRoot);
+	CustomLogicModel.clearDumpedFlags();
+	DiodeModel.clearDumpedFlags();
+	TransistorModel.clearDumpedFlags();
         Vector<LabeledNodeElm> sideLabels[] = new Vector[] {
             new Vector<LabeledNodeElm>(), new Vector<LabeledNodeElm>(),
             new Vector<LabeledNodeElm>(), new Vector<LabeledNodeElm>()
         };
-	    Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
-	    boolean sel = app.isSelection();
+	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
+	boolean sel = app.isSelection();
 	    
-	    boolean used[] = new boolean[nodeList.size()];
-	    boolean extnodes[] = new boolean[nodeList.size()];
+	boolean used[] = new boolean[nodeList.size()];
+	boolean extnodes[] = new boolean[nodeList.size()];
 	    
-	    // redo node allocation to avoid auto-assigning ground
-	    if (!preStampCircuit(true))
-		return null;
+	// redo node allocation to avoid auto-assigning ground
+	if (!preStampCircuit(true))
+	    return null;
 
-	    // find all the labeled nodes, get a list of them, and create a node number map
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (sel && !ce.isSelected())
+	// find all the labeled nodes, get a list of them, and create a node number map
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (sel && !ce.isSelected())
+		continue;
+	    if (ce instanceof LabeledNodeElm) {
+		LabeledNodeElm lne = (LabeledNodeElm) ce;
+		String label = lne.text;
+		if (lne.isInternal())
 		    continue;
-		if (ce instanceof LabeledNodeElm) {
-		    LabeledNodeElm lne = (LabeledNodeElm) ce;
-		    String label = lne.text;
-		    if (lne.isInternal())
-			continue;
-		    
-		    // already added to list?
-		    if (extnodes[ce.getNode(0)])
-			continue;
-		    
-                int side = ChipElm.SIDE_W;
-                if (Math.abs(ce.dx) >= Math.abs(ce.dy) && ce.dx > 0) side = ChipElm.SIDE_E;
-                if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy < 0) side = ChipElm.SIDE_N;
-                if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy > 0) side = ChipElm.SIDE_S;
-                
-		    // create ext list entry for external nodes
-                sideLabels[side].add(lne);
-		    extnodes[ce.getNode(0)] = true;
-		    if (ce.getNode(0) == 0) {
-		        Window.alert("Node \"" + lne.text + "\" can't be connected to ground");
-			return null;
-		    }
+		
+		// already added to list?
+		if (extnodes[ce.getNode(0)])
+		    continue;
+		
+	    int side = ChipElm.SIDE_W;
+	    if (Math.abs(ce.dx) >= Math.abs(ce.dy) && ce.dx > 0) side = ChipElm.SIDE_E;
+	    if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy < 0) side = ChipElm.SIDE_N;
+	    if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy > 0) side = ChipElm.SIDE_S;
+	    
+		// create ext list entry for external nodes
+	    sideLabels[side].add(lne);
+		extnodes[ce.getNode(0)] = true;
+		if (ce.getNode(0) == 0) {
+		    Window.alert("Node \"" + lne.text + "\" can't be connected to ground");
+		    return null;
 		}
 	    }
+	}
 	    
         Collections.sort(sideLabels[ChipElm.SIDE_W], (LabeledNodeElm a, LabeledNodeElm b) -> Integer.signum(a.y - b.y));
         Collections.sort(sideLabels[ChipElm.SIDE_E], (LabeledNodeElm a, LabeledNodeElm b) -> Integer.signum(a.y - b.y));
@@ -1373,45 +1383,48 @@ public class SimulationManager {
             }
         }
 
-	    // output all the elements as XML
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (sel && !ce.isSelected())
-		    continue;
-		// don't need these elements dumped
-		if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm)
-		    continue;
-		if (ce instanceof GraphicElm || ce instanceof GroundElm)
-		    continue;
-		int j;
-		// build nn (node list) string
-		String nn = "";
-		for (j = 0; j != ce.getPostCount(); j++) {
-		    int n = ce.getNode(j);
-		    used[n] = true;
-		    if (nn.length() > 0)
-			nn += " ";
-		    nn += n;
-		}
-		Element child = elmDoc.createElement(ce.getXmlDumpType());
-		XMLSerializer.dumpAttr(child, "nn", nn);
-		ce.dumpXmlState(elmDoc, child);
-		elmRoot.appendChild(child);
+	// output all the elements as XML
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (sel && !ce.isSelected())
+		continue;
+	    // don't need these elements dumped
+	    if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm)
+		continue;
+	    if (ce instanceof GraphicElm || ce instanceof GroundElm)
+		continue;
+	    int j;
+	    // build nn (node list) string
+	    String nn = "";
+	    for (j = 0; j != ce.getPostCount(); j++) {
+		int n = ce.getNode(j);
+		used[n] = true;
+		if (nn.length() > 0)
+		    nn += " ";
+		nn += n;
 	    }
-
-	    for (i = 0; i != extList.size(); i++) {
-		ExtListEntry ent = extList.get(i);
-		if (!used[ent.node]) {
-		    Window.alert("Node \"" + ent.name + "\" is not used!");
-		    return null;
-		}
-	    }
-
-	    CustomCompositeModel ccm = new CustomCompositeModel();
-	    ccm.elmDoc = elmDoc;
-	    ccm.extList = extList;
-	    return ccm;
+	    Element child = elmDoc.createElement(ce.getXmlDumpType());
+	    XMLSerializer.dumpAttr(child, "nn", nn);
+	    ce.dumpXml(elmDoc, child);
+	    child.removeAttribute("x");
+	    elmRoot.appendChild(child);
 	}
+
+	for (i = 0; i != extList.size(); i++) {
+	    ExtListEntry ent = extList.get(i);
+	    if (!used[ent.node]) {
+		Window.alert("Node \"" + ent.name + "\" is not used!");
+		return null;
+	    }
+	}
+
+	CustomCompositeModel ccm = new CustomCompositeModel();
+	ccm.elmDoc = elmDoc;
+	ccm.extList = extList;
+
+	console("created model " + XMLSerializer.prettyPrint(elmDoc));
+	return ccm;
+    }
 	
 	static void invertMatrix(double a[][], int n) {
 	    int ipvt[] = new int[n];
