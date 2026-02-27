@@ -75,23 +75,24 @@ class XMLSerializer {
             sb.append(">");
 
             // Recursively process children
+            boolean hasElementChildren = false;
             for (int i = 0; i < children.getLength(); i++) {
                 Node child = children.item(i);
                 if (child.getNodeType() == Node.ELEMENT_NODE) {
-		    if (i == 0)
+		    if (!hasElementChildren)
 			sb.append("\n");
+		    hasElementChildren = true;
                     sb.append(prettyPrint(child, indent + 1));
                 } else if (child.getNodeType() == Node.TEXT_NODE) {
                     String text = child.getNodeValue().trim();
-                    if (!text.isEmpty()) {
-                        //sb.append(indentStr).append("  ").append(text).append("\n");
+                    if (!text.isEmpty())
                         sb.append(text);
-                    }
                 }
             }
 
-            // Closing tag
-            //sb.append(indentStr).append("</").append(node.getNodeName()).append(">\n");
+            // Closing tag - indent if we had element children
+            if (hasElementChildren)
+		sb.append(indentStr);
             sb.append("</").append(node.getNodeName()).append(">\n");
         }
 
