@@ -228,6 +228,7 @@ public class CustomCompositeElm extends CompositeElm {
     }
     
     int getDumpType() { return 410; }
+    String getXmlDumpType() { return "cc"; }
 
     String getElmType() { return "subcircuit"; }
     void getInfo(String arr[]) {
