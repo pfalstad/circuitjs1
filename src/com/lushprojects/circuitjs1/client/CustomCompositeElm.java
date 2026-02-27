@@ -222,7 +222,12 @@ public class CustomCompositeElm extends CompositeElm {
             return;
         }
         if (n == 2) {
-            app.readCircuit(model.modelCircuit);
+            if (model.modelCircuit != null)
+        	app.readCircuit(model.modelCircuit);
+            else {
+        	XMLDeserializer xml = new XMLDeserializer(app);
+        	xml.readCircuit(model.elmDoc);
+            }
             CirSim.editDialog.closeDialog();
         }
     }

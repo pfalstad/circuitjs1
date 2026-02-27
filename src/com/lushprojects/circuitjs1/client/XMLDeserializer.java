@@ -48,12 +48,9 @@ class XMLDeserializer {
     void readCircuit(String text, int readFlags) {
         // Parse the XML
         Document doc = XMLParser.parse(text);
-        
+
         // Get the root element
         Element root = doc.getDocumentElement();
-        
-	// Get all child elements of root
-        NodeList children = root.getChildNodes();
 
 	if ((readFlags & CircuitLoader.RC_RETAIN) == 0)
 	    app.clearCircuit();
@@ -71,7 +68,21 @@ class XMLDeserializer {
 	app.powerBar.setValue(parseIntAttr("pb", app.powerBar.getValue()));
         sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
         app.setGrid();
-        
+
+	readElements(root);
+	app.loader.finishReadCircuit(readFlags);
+    }
+
+    // read elements from an already-parsed XML document (e.g. from CustomCompositeModel.elmDoc)
+    void readCircuit(Document doc) {
+	app.clearCircuit();
+	readElements(doc.getDocumentElement());
+	app.loader.finishReadCircuit(0);
+    }
+
+    void readElements(Element root) {
+	NodeList children = root.getChildNodes();
+
         for (int i = 0; i < children.getLength(); i++) {
             Node node = children.item(i);
             if (node.getNodeType() != Node.ELEMENT_NODE)
@@ -79,7 +90,7 @@ class XMLDeserializer {
 
 	    Element elem = (Element) node;
 	    String tagName = elem.getTagName();
-	    
+
 	    if (tagName.equals("o")) {
 		Scope sc = new Scope(app, app.sim);
 		currentXmlElement = elem;
@@ -129,8 +140,10 @@ class XMLDeserializer {
 		app.adjustables.add(adj);
 		continue;
 	    }
-	    
+
 	    String x = elem.getAttribute("x");
+	    if (x == null)
+		continue;
 	    String xs[] = x.split(" ");
 	    int x1 = Integer.parseInt(xs[0]);
 	    int y1 = Integer.parseInt(xs[1]);
@@ -148,7 +161,6 @@ class XMLDeserializer {
 	    elm.setPosition(x1, y1, x2, y2);
 	    app.elmList.add(elm);
 	}
-	app.loader.finishReadCircuit(readFlags);
     }
 
     public double parseDoubleAttr(String attr, double def) {

@@ -1383,15 +1383,15 @@ public class SimulationManager {
             }
         }
 
+	boolean dumpAll = true;
+
 	// output all the elements as XML
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    if (sel && !ce.isSelected())
 		continue;
-	    // don't need these elements dumped
-	    if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm)
-		continue;
-	    if (ce instanceof GraphicElm || ce instanceof GroundElm)
+	    if (!dumpAll && (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
+	    		     ce instanceof GraphicElm || ce instanceof GroundElm))
 		continue;
 	    int j;
 	    // build nn (node list) string
@@ -1406,7 +1406,8 @@ public class SimulationManager {
 	    Element child = elmDoc.createElement(ce.getXmlDumpType());
 	    XMLSerializer.dumpAttr(child, "nn", nn);
 	    ce.dumpXml(elmDoc, child);
-	    child.removeAttribute("x");
+	    if (!dumpAll)
+		child.removeAttribute("x");
 	    elmRoot.appendChild(child);
 	}
 

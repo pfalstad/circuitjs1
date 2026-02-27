@@ -243,8 +243,6 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    Element root = doc.createElement("ccm");
 	    doc.appendChild(root);
 	    buildXmlElement(doc, root);
-	    if (modelCircuit != null)
-		XMLSerializer.dumpAttr(root, "mc", modelCircuit);
             stor.setItem("subcircuit:" + name, doc.toString());
         } else
             stor.removeItem("subcircuit:" + name);
@@ -258,7 +256,6 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String modelName = xml.parseStringAttr("nm", null);
 	CustomCompositeModel model = new CustomCompositeModel();
 	model.name = modelName;
-	model.modelCircuit = xml.parseStringAttr("mc", null);
 	model.parseXmlElement(xml);
 	modelMap.put(modelName, model);
 	sequenceNumber++;
@@ -399,7 +396,19 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     }
 
     boolean canLoadModelCircuit() {
-	return modelCircuit != null && modelCircuit.length() > 0;
+	if (modelCircuit != null && modelCircuit.length() > 0)
+	    return true;
+	if (elmDoc != null) {
+	    NodeList children = elmDoc.getDocumentElement().getChildNodes();
+	    for (int i = 0; i < children.getLength(); i++) {
+		Node node = children.item(i);
+		if (node.getNodeType() == Node.ELEMENT_NODE) {
+		    if (((Element) node).getAttribute("x") != null)
+			return true;
+		}
+	    }
+	}
+	return false;
     }
 
     void remove() {
