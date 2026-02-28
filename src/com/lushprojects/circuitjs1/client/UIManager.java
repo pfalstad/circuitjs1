@@ -21,6 +21,7 @@ import static com.google.gwt.event.dom.client.KeyCodes.*;
 public class UIManager {
 
     CirSim app;
+    Menus menus;
 
     // timing/frame fields
     long lastTime = 0, lastFrameTime, secTime = 0;
@@ -49,7 +50,7 @@ public class UIManager {
 
     	if (!app.isMobile(app.sidePanelCheckboxLabel))
     	    width=width-CirSim.VERTICALPANELWIDTH;
-	if (app.menus.toolbarCheckItem.getState())
+	if (menus.toolbarCheckItem.getState())
 	    height -= CirSim.TOOLBARHEIGHT;
 
     	width = Math.max(width, 0);
@@ -197,7 +198,7 @@ public class UIManager {
 
         Graphics g = new Graphics(app.cvcontext);
 
-        if (app.menus.printableCheckItem.getState()) {
+        if (menus.printableCheckItem.getState()) {
             CircuitElm.whiteColor = Color.black;
             CircuitElm.lightGrayColor = Color.black;
             g.setColor(Color.white);
@@ -233,7 +234,7 @@ public class UIManager {
                 double c = app.currentBar.getValue();
                 c = java.lang.Math.exp(c / 3.5 - 14.2);
                 CircuitElm.currentMult = 1.7 * inc * c;
-                if (!app.menus.conventionCheckItem.getState())
+                if (!menus.conventionCheckItem.getState())
                     CircuitElm.currentMult = -CircuitElm.currentMult;
             }
             lastTime = sysTime;
@@ -257,7 +258,7 @@ public class UIManager {
 
         g.context.setLineCap(LineCap.ROUND);
 
-        if (app.menus.noEditCheckItem.getState())
+        if (menus.noEditCheckItem.getState())
             g.drawLock(20, 30);
 
         g.setColor(Color.white);
@@ -267,7 +268,7 @@ public class UIManager {
 
         perfmon.startContext("elm.draw()");
         for (CircuitElm ce : app.elmList) {
-            if (app.menus.powerCheckItem.getState())
+            if (menus.powerCheckItem.getState())
                 g.setColor(Color.gray);
 
             ce.draw(g);
@@ -314,7 +315,7 @@ public class UIManager {
             g.drawRect(app.mouse.selectedArea.x, app.mouse.selectedArea.y, app.mouse.selectedArea.width, app.mouse.selectedArea.height);
         }
 
-        if (app.menus.crossHairCheckItem.getState() && app.mouse.mouseCursorX >= 0
+        if (menus.crossHairCheckItem.getState() && app.mouse.mouseCursorX >= 0
                 && app.mouse.mouseCursorX <= app.circuitArea.width && app.mouse.mouseCursorY <= app.circuitArea.height) {
             g.setColor(Color.gray);
             int x = app.snapGrid(app.mouse.inverseTransformX(app.mouse.mouseCursorX));
@@ -380,7 +381,7 @@ public class UIManager {
 	}
 	if (app.stopMessage != null && app.circuitArea.height > app.canvasHeight-30)
 	    h = 30;
-	g.setColor(app.menus.printableCheckItem.getState() ? "#eee" : "#111");
+	g.setColor(menus.printableCheckItem.getState() ? "#eee" : "#111");
 	g.fillRect(leftX, app.circuitArea.height-h, app.circuitArea.width, app.canvasHeight-app.circuitArea.height+h);
 	g.setFont(CircuitElm.unitsFont);
 	int ct = app.scopeManager.scopeCount;
@@ -453,7 +454,7 @@ public class UIManager {
     }
 
     Color getBackgroundColor() {
-	if (app.menus.printableCheckItem.getState())
+	if (menus.printableCheckItem.getState())
 	    return Color.white;
 	return Color.black;
     }
@@ -519,7 +520,7 @@ public class UIManager {
     // ---- UI Controls ----
 
     void setPowerBarEnable() {
-    	if (app.menus.powerCheckItem.getState()) {
+    	if (menus.powerCheckItem.getState()) {
     	    app.powerLabel.setStyleName("disabled", false);
     	    app.powerBar.enable();
     	} else {
@@ -532,7 +533,7 @@ public class UIManager {
     }
 
     void setToolbar() {
-	app.layoutPanel.setWidgetHidden(app.toolbar, !app.menus.toolbarCheckItem.getState());
+	app.layoutPanel.setWidgetHidden(app.toolbar, !menus.toolbarCheckItem.getState());
 	setCanvasSize();
     }
 
@@ -561,7 +562,7 @@ public class UIManager {
     }
 
     void setGrid() {
-	app.gridSize = (app.menus.smallGridCheckItem.getState()) ? 8 : 16;
+	app.gridSize = (menus.smallGridCheckItem.getState()) ? 8 : 16;
 	app.gridMask = ~(app.gridSize-1);
 	app.gridRound = app.gridSize/2-1;
     }
@@ -637,7 +638,7 @@ public class UIManager {
 		}
     	}
 
-    	if (app.menus.noEditCheckItem.getState())
+    	if (menus.noEditCheckItem.getState())
     	    return;
 
     	if ((t & Event.ONKEYDOWN)!=0) {
@@ -700,7 +701,7 @@ public class UIManager {
     			if (code==KEY_S) {
     			    	String cmd = "exportaslocalfile";
     			    	if (CirSim.isElectron())
-    			    	    cmd = app.menus.saveFileItem.isEnabled() ? "save" : "saveas";
+    			    	    cmd = menus.saveFileItem.isEnabled() ? "save" : "saveas";
 				app.commands.menuPerformed("key", cmd);
 				e.cancel();
 			}
@@ -772,8 +773,8 @@ public class UIManager {
     }
 
     void allowSave(boolean b) {
-	if (app.menus.saveFileItem != null)
-	    app.menus.saveFileItem.setEnabled(b);
+	if (menus.saveFileItem != null)
+	    menus.saveFileItem.setEnabled(b);
     }
 
     boolean isSelection() {
@@ -795,12 +796,12 @@ public class UIManager {
     }
 
     void composeSubcircuitMenu() {
-	if (app.menus.subcircuitMenuBar == null)
+	if (menus.subcircuitMenuBar == null)
 	    return;
 	int mi;
 
 	for (mi = 0; mi != 2; mi++) {
-	    com.google.gwt.user.client.ui.MenuBar menu = app.menus.subcircuitMenuBar[mi];
+	    com.google.gwt.user.client.ui.MenuBar menu = menus.subcircuitMenuBar[mi];
 	    menu.clearItems();
 	    Vector<CustomCompositeModel> list = CustomCompositeModel.getModelList();
 	    int i;
@@ -863,7 +864,7 @@ public class UIManager {
 	if (currentColor != null)
 	    CircuitElm.currentColor = new Color(URL.decodeQueryString(currentColor));
 	else
-	    CircuitElm.currentColor = app.menus.conventionCheckItem.getState() ? Color.yellow : Color.cyan;
+	    CircuitElm.currentColor = menus.conventionCheckItem.getState() ? Color.yellow : Color.cyan;
 
 	CircuitElm.setColorScale();
     }
