@@ -47,6 +47,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
  MouseOutHandler, MouseWheelHandler {
 
     CirSim sim;
+    UIManager ui;
 
     // mode constants
     public static final int MODE_ADD_ELM = 0;
@@ -84,8 +85,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public int menuClientX, menuClientY;
     public int menuX, menuY;
 
-    MouseManager(CirSim sim) {
+    MouseManager(CirSim sim, UIManager ui) {
 	this.sim = sim;
+	this.ui = ui;
     }
 
     void register(Canvas cv) {
@@ -276,7 +278,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     }
 
     void dragSplitter(int x, int y) {
-    	double h = (double) sim.canvasHeight;
+    	double h = (double) ui.canvasHeight;
     	if (h<1)
     		h=1;
     	sim.scopeManager.scopeHeightFraction=1.0-(((double)y)/h);
@@ -284,7 +286,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		sim.scopeManager.scopeHeightFraction=0.1;
     	if (sim.scopeManager.scopeHeightFraction>0.9)
     		sim.scopeManager.scopeHeightFraction=0.9;
-    	sim.setCircuitArea();
+    	ui.setCircuitArea();
     	sim.repaint();
     }
 
@@ -663,11 +665,11 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    	    sim.scopeManager.menuPlot=sim.scopeManager.scopes[sim.scopeManager.scopeSelected].selectedPlot;
     	    	    sim.scopeManager.scopePopupMenu.doScopePopupChecks(false, sim.scopeManager.canStackScope(sim.scopeManager.scopeSelected), sim.scopeManager.canCombineScope(sim.scopeManager.scopeSelected),
     	    		    sim.scopeManager.canUnstackScope(sim.scopeManager.scopeSelected), sim.scopeManager.scopes[sim.scopeManager.scopeSelected]);
-    	    	    sim.contextPanel=new PopupPanel(true);
-    	    	    sim.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
-    	    	    y=Math.max(0, Math.min(menuClientY,sim.canvasHeight-160));
-    	    	    sim.contextPanel.setPopupPosition(menuClientX, y);
-    	    	    sim.contextPanel.show();
+    	    	    ui.contextPanel=new PopupPanel(true);
+    	    	    ui.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
+    	    	    y=Math.max(0, Math.min(menuClientY,ui.canvasHeight-160));
+    	    	    ui.contextPanel.setPopupPosition(menuClientX, y);
+    	    	    ui.contextPanel.show();
     		}
     	} else if (mouseElm != null) {
     	    	if (! (mouseElm instanceof ScopeElm)) {
@@ -704,29 +706,29 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    	    sim.menus.elmFlipXMenuItem.setEnabled(canFlipX);
     	    	    sim.menus.elmFlipYMenuItem.setEnabled(canFlipY);
     	    	    sim.menus.elmFlipXYMenuItem.setEnabled(canFlipXY);
-    	    	    sim.contextPanel=new PopupPanel(true);
-    	    	    sim.contextPanel.add(sim.menus.elmMenuBar);
-    	    	    sim.contextPanel.setPopupPosition(menuClientX, menuClientY);
-    	    	    sim.contextPanel.show();
+    	    	    ui.contextPanel=new PopupPanel(true);
+    	    	    ui.contextPanel.add(sim.menus.elmMenuBar);
+    	    	    ui.contextPanel.setPopupPosition(menuClientX, menuClientY);
+    	    	    ui.contextPanel.show();
     	    	} else {
     	    	    ScopeElm s = (ScopeElm) mouseElm;
     	    	    if (s.elmScope.canMenu()) {
     	    		sim.scopeManager.menuPlot = s.elmScope.selectedPlot;
     	    		sim.scopeManager.scopePopupMenu.doScopePopupChecks(true, false, false, false, s.elmScope);
-    			sim.contextPanel=new PopupPanel(true);
-    			sim.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
-    			sim.contextPanel.setPopupPosition(menuClientX, menuClientY);
-    			sim.contextPanel.show();
+    			ui.contextPanel=new PopupPanel(true);
+    			ui.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
+    			ui.contextPanel.setPopupPosition(menuClientX, menuClientY);
+    			ui.contextPanel.show();
     	    	    }
     	    	}
     	} else {
     		doMainMenuChecks();
-    		sim.contextPanel=new PopupPanel(true);
-    		sim.contextPanel.add(sim.menus.mainMenuBar);
-    		x=Math.max(0, Math.min(menuClientX, sim.canvasWidth-400));
-    		y=Math.max(0, Math.min(menuClientY, sim.canvasHeight-450));
-    		sim.contextPanel.setPopupPosition(x,y);
-    		sim.contextPanel.show();
+    		ui.contextPanel=new PopupPanel(true);
+    		ui.contextPanel.add(sim.menus.mainMenuBar);
+    		x=Math.max(0, Math.min(menuClientX, ui.canvasWidth-400));
+    		y=Math.max(0, Math.min(menuClientY, ui.canvasHeight-450));
+    		ui.contextPanel.setPopupPosition(x,y);
+    		ui.contextPanel.show();
     	}
     }
 
@@ -795,7 +797,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	e.preventDefault();
 
     	// make sure canvas has focus, not stop button or something else, so all shortcuts work
-    	sim.cv.setFocus(true);
+    	ui.cv.setFocus(true);
 
 	sim.stopElm = null; // if stopped, allow user to select other elements to fix circuit
     	menuX = menuClientX = e.getX();
@@ -885,7 +887,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    return;
 
 	try {
-	    dragElm = sim.constructElement(sim.mouseModeStr, x0, y0);
+	    dragElm = sim.constructElement(ui.mouseModeStr, x0, y0);
 	} catch (Exception ex) {
 	    sim.debugger();
 	}
@@ -898,11 +900,11 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     // check/uncheck/enable/disable menu items as appropriate when menu bar clicked on, or when
     // right mouse menu accessed.  also displays shortcuts as a side effect
     void doMainMenuChecks() {
-    	int c = sim.mainMenuItems.size();
+    	int c = ui.mainMenuItems.size();
     	int i;
     	for (i=0; i<c ; i++) {
-    	    	String s = sim.mainMenuItemNames.get(i);
-    		sim.mainMenuItems.get(i).setState(s==sim.mouseModeStr);
+    	    	String s = ui.mainMenuItemNames.get(i);
+    		ui.mainMenuItems.get(i).setState(s==ui.mouseModeStr);
 
 	        // Code to disable draw menu items when cct is not editable, but no used in this version as it
 	        // puts up a dialog box instead (see menuPerformed).
@@ -947,7 +949,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     			dragElm.delete();
     			if (mouseMode == MODE_SELECT || mouseMode == MODE_DRAG_SELECTED)
     				clearSelection();
-			sim.toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
+			ui.toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
 			dragElm = null;
     		}
     		else {

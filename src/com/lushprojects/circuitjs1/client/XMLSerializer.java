@@ -116,8 +116,9 @@ class XMLSerializer {
 	XMLSerializer.dumpAttr(root, "f", f);
 	XMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
 	XMLSerializer.dumpAttr(root, "ic", app.getIterCount());
-	XMLSerializer.dumpAttr(root, "cb", app.currentBar.getValue());
-	XMLSerializer.dumpAttr(root, "pb", app.powerBar.getValue());
+	UIManager ui = app.ui;
+	XMLSerializer.dumpAttr(root, "cb", ui.currentBar.getValue());
+	XMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
 	XMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
 	XMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
 

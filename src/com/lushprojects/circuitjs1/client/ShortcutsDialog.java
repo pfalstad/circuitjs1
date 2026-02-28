@@ -43,10 +43,12 @@ public class ShortcutsDialog extends Dialog {
 	TextArea textArea;
 	Vector<TextBox> textBoxes;
 	Button okButton;
+	UIManager ui;
 	
 	public ShortcutsDialog(CirSim asim) {
 		super();
 		sim = asim;
+		ui = sim.ui;
 		Button cancelButton;
 		vp=new VerticalPanel();
 		setWidget(vp);
@@ -60,8 +62,8 @@ public class ShortcutsDialog extends Dialog {
 		FlexTable table = new FlexTable();
 		sp.add(table);
 		int i;
-		for (i = 0; i != asim.mainMenuItems.size(); i++) {
-		    CheckboxMenuItem item = sim.mainMenuItems.get(i);
+		for (i = 0; i != asim.ui.mainMenuItems.size(); i++) {
+		    CheckboxMenuItem item = ui.mainMenuItems.get(i);
 		    if (item.getShortcut().length() > 1)
 			break;
 		    table.setText(i, 0, item.getName());
@@ -108,10 +110,10 @@ public class ShortcutsDialog extends Dialog {
 	    // load new ones
 	    for (i = 0; i != textBoxes.size(); i++) {
 		String str = textBoxes.get(i).getText();
-		CheckboxMenuItem item = sim.mainMenuItems.get(i);
+		CheckboxMenuItem item = ui.mainMenuItems.get(i);
 		item.setShortcut(str);
 		if (str.length() > 0)
-		    sim.shortcuts[str.charAt(0)] = sim.mainMenuItemNames.get(i);
+		    sim.shortcuts[str.charAt(0)] = ui.mainMenuItemNames.get(i);
 	    }
 	    // save to local storage
 	    sim.saveShortcuts();

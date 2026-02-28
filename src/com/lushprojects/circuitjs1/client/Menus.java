@@ -481,7 +481,7 @@ public class Menus {
         return new MenuItem(SafeHtmlUtils.fromTrustedString(icoStr), cmd);
     }
 
-    CheckboxMenuItem getClassCheckItem(String s, String t) { return sim.getClassCheckItem(s, t); }
+    CheckboxMenuItem getClassCheckItem(String s, String t) { return sim.ui.getClassCheckItem(s, t); }
     
     boolean isElectron() { return CirSim.isElectron(); }
 

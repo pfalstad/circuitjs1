@@ -1,18 +1,40 @@
 package com.lushprojects.circuitjs1.client;
 
+import java.util.HashMap;
 import java.util.Vector;
 import java.lang.Math;
 
+import com.google.gwt.canvas.client.Canvas;
+import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.canvas.dom.client.Context2d.LineCap;
+import com.google.gwt.user.client.Command;
+import com.google.gwt.user.client.DOM;
+import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.Event;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
+import com.google.gwt.user.client.Window.ClosingEvent;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Document;
+import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.logical.shared.ResizeEvent;
+import com.google.gwt.event.logical.shared.ResizeHandler;
 import com.google.gwt.http.client.URL;
 import com.google.gwt.storage.client.Storage;
+import com.google.gwt.user.client.ui.Button;
+import com.google.gwt.user.client.ui.CellPanel;
+import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.Frame;
+import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.user.client.ui.MenuBar;
+import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
+import com.google.gwt.user.client.ui.RootPanel;
+import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.lushprojects.circuitjs1.client.util.PerfMonitor;
@@ -22,6 +44,20 @@ public class UIManager {
 
     CirSim app;
     Menus menus;
+    ScopeManager scopeManager;
+
+    Button resetButton;
+    Button runStopButton;
+    Button dumpMatrixButton;
+    Label powerLabel;
+    Label titleLabel;
+    Scrollbar speedBar;
+    Scrollbar currentBar;
+    Scrollbar powerBar;
+    PopupPanel contextPanel = null;
+    MouseManager mouse;
+
+    String mouseModeStr = "Select";
 
     // timing/frame fields
     long lastTime = 0, lastFrameTime, secTime = 0;
@@ -29,16 +65,302 @@ public class UIManager {
     int steps = 0;
     int framerate = 0, steprate = 0;
     boolean needsRepaint;
+    boolean hideInfoBox;
+    boolean hideMenu;
     String lastCursorStyle;
+
+    Toolbar toolbar;
+
+    DockLayoutPanel layoutPanel;
+    VerticalPanel verticalPanel;
+    CellPanel buttonPanel;
+    Vector<CheckboxMenuItem> mainMenuItems = new Vector<CheckboxMenuItem>();
+    Vector<String> mainMenuItemNames = new Vector<String>();
+    Element sidePanelCheckboxLabel;
+
+    LoadFile loadFileInput;
+    Frame iFrame;
+    Vector<CircuitElm> elmList;
+    
+    Canvas cv;
+    Context2d cvcontext;
+
+    // canvas width/height in px (before device pixel ratio scaling)
+    int canvasWidth, canvasHeight;
+
+    static final int MENUBARHEIGHT = 30;
+    static final int TOOLBARHEIGHT = 40;
+    static int VERTICALPANELWIDTH = 166; // default
 
     UIManager(CirSim app) {
 	this.app = app;
     }
 
+    void init() {
+	boolean printable = false;
+	boolean convention = true;
+	boolean euroRes = false;
+	boolean usRes = false;
+	boolean running = true;
+	boolean hideSidebar = false;
+	boolean noEditing = false;
+	boolean mouseWheelEdit = false;
+	
+	hideMenu = false;
+
+	QueryParameters qp = new QueryParameters();
+	String positiveColor = null;
+	String negativeColor = null;
+	String neutralColor = null;
+	String selectColor = null;
+	String currentColor = null;
+	String mouseModeReq = null;
+	boolean euroGates = false;
+
+	try {
+	    euroRes = qp.getBooleanValue("euroResistors", false);
+	    euroGates = qp.getBooleanValue("IECGates", getOptionFromStorage("euroGates", Locale.weAreInGermany()));
+	    usRes = qp.getBooleanValue("usResistors",  false);
+	    running = qp.getBooleanValue("running", true);
+	    hideSidebar = qp.getBooleanValue("hideSidebar", false);
+	    hideMenu = qp.getBooleanValue("hideMenu", false);
+	    printable = qp.getBooleanValue("whiteBackground", getOptionFromStorage("whiteBackground", false));
+	    convention = qp.getBooleanValue("conventionalCurrent",
+		       getOptionFromStorage("conventionalCurrent", true));
+	    noEditing = !qp.getBooleanValue("editable", true);
+	    mouseWheelEdit = qp.getBooleanValue("mouseWheelEdit", getOptionFromStorage("mouseWheelEdit", true));
+	    positiveColor = qp.getValue("positiveColor");
+	    negativeColor = qp.getValue("negativeColor");
+	    neutralColor = qp.getValue("neutralColor");
+	    selectColor = qp.getValue("selectColor");
+	    currentColor = qp.getValue("currentColor");
+	    mouseModeReq = qp.getValue("mouseMode");
+	    hideInfoBox = qp.getBooleanValue("hideInfoBox", false);
+	} catch (Exception e) { 
+	    app.console("Exception: " + e);
+	}
+
+	boolean euroSetting = false;
+	if (euroRes)
+	    euroSetting = true;
+	else if (usRes)
+	    euroSetting = false;
+	else
+	    euroSetting = getOptionFromStorage("euroResistors", !Locale.weAreInUS(true));
+
+	layoutPanel = new DockLayoutPanel(Unit.PX);
+
+	app.menus = menus = new Menus(app);
+	menus.init();
+    	app.dumpTypeMap.put(403, "ScopeElm");
+    	app.xmlDumpTypeMap.put("Scope", "ScopeElm");
+
+	menus.recoverItem.setEnabled(app.recovery != null);
+
+	int width=(int)RootLayoutPanel.get().getOffsetWidth();
+	VERTICALPANELWIDTH = width/5;
+	if (VERTICALPANELWIDTH > 166)
+	    VERTICALPANELWIDTH = 166;
+	if (VERTICALPANELWIDTH < 128)
+	    VERTICALPANELWIDTH = 128;
+
+	verticalPanel=new VerticalPanel();
+
+	verticalPanel.getElement().addClassName("verticalPanel");
+	verticalPanel.getElement().setId("painel");
+	Element sidePanelCheckbox = DOM.createInputCheck();
+	sidePanelCheckboxLabel = DOM.createLabel();
+	sidePanelCheckboxLabel.addClassName("triggerLabel");
+	sidePanelCheckbox.setId("trigger");
+	sidePanelCheckboxLabel.setAttribute("for", "trigger" );
+	sidePanelCheckbox.addClassName("trigger");
+	Element topPanelCheckbox = DOM.createInputCheck(); 
+	Element topPanelCheckboxLabel = DOM.createLabel();
+	topPanelCheckbox.setId("toptrigger");
+	topPanelCheckbox.addClassName("toptrigger");
+	topPanelCheckboxLabel.addClassName("toptriggerlabel");
+	topPanelCheckboxLabel.setAttribute("for", "toptrigger");
+
+	// make buttons side by side if there's room
+	buttonPanel=(VERTICALPANELWIDTH == 166) ? new HorizontalPanel() : new VerticalPanel();
+
+	menus.pasteItem.setEnabled(false);
+
+	menus.dotsCheckItem.setState(true);
+	menus.voltsCheckItem.setState(true);
+	menus.showValuesCheckItem.setState(true);
+	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar &&
+		app.startCircuit == null && app.startCircuitText == null && app.startCircuitLink == null);
+	menus.crossHairCheckItem.setState(getOptionFromStorage("crossHair", false));
+	menus.euroResistorCheckItem.setState(euroSetting);
+	menus.euroResistorCheckItem.setCommand(
+		new Command() { public void execute(){
+		    setOptionInStorage("euroResistors", menus.euroResistorCheckItem.getState());
+		    toolbar.setEuroResistors(menus.euroResistorCheckItem.getState());
+		}
+	});
+	menus.euroGatesCheckItem.setCommand(
+		new Command() { public void execute(){
+		    setOptionInStorage("euroGates", menus.euroGatesCheckItem.getState());
+		    for (CircuitElm ce : elmList)
+			ce.setPoints();
+		}
+	});
+	menus.euroGatesCheckItem.setState(euroGates);
+	menus.printableCheckItem.setCommand(
+		new Command() { public void execute(){
+		    int i;
+		    for (i=0;i<scopeManager.scopeCount;i++)
+			scopeManager.scopes[i].setRect(scopeManager.scopes[i].rect);
+		    setOptionInStorage("whiteBackground", menus.printableCheckItem.getState());
+		}
+	});
+	menus.printableCheckItem.setState(printable);
+
+	menus.conventionCheckItem.setCommand(
+		new Command() { public void execute(){
+		    setOptionInStorage("conventionalCurrent", menus.conventionCheckItem.getState());
+		    String cc = CircuitElm.currentColor.getHexValue();
+		    // change the current color if it hasn't changed from the default
+		    if (cc.equals("#ffff00") || cc.equals("#00ffff"))
+			CircuitElm.currentColor = menus.conventionCheckItem.getState() ? Color.yellow : Color.cyan;
+		}
+	});
+	menus.conventionCheckItem.setState(convention);
+	menus.noEditCheckItem.setState(noEditing);
+	menus.mouseWheelEditCheckItem.setState(mouseWheelEdit);
+
+	loadShortcuts();
+
+	DOM.appendChild(layoutPanel.getElement(), topPanelCheckbox);
+	DOM.appendChild(layoutPanel.getElement(), topPanelCheckboxLabel);	
+
+	toolbar = new Toolbar();
+	toolbar.setEuroResistors(euroSetting);
+	MenuBar menuBar = menus.menuBar;
+	if (!hideMenu)
+	    layoutPanel.addNorth(menuBar, MENUBARHEIGHT);
+
+	if (hideSidebar)
+	    VERTICALPANELWIDTH = 0;
+	else {
+		DOM.appendChild(layoutPanel.getElement(), sidePanelCheckbox);
+		DOM.appendChild(layoutPanel.getElement(), sidePanelCheckboxLabel);
+	    layoutPanel.addEast(verticalPanel, VERTICALPANELWIDTH);
+	}
+	layoutPanel.addNorth(toolbar, TOOLBARHEIGHT);
+	menuBar.getElement().insertFirst(menuBar.getElement().getChild(1));
+	menuBar.getElement().getFirstChildElement().setAttribute("onclick", "document.getElementsByClassName('toptrigger')[0].checked = false");
+	RootLayoutPanel.get().add(layoutPanel);
+
+	cv =Canvas.createIfSupported();
+	if (cv==null) {
+	    RootPanel.get().add(new Label("Not working. You need a browser that supports the CANVAS element."));
+	    return;
+	}
+
+	Window.addResizeHandler(new ResizeHandler() {
+	    public void onResize(ResizeEvent event) {
+		repaint();
+	    }
+	});
+
+	cvcontext=cv.getContext2d();
+	app.scopeManager = scopeManager = new ScopeManager(app);
+
+	setToolbar(); // calls setCanvasSize()
+	layoutPanel.add(cv);
+	verticalPanel.add(buttonPanel);
+	buttonPanel.add(resetButton = new Button(Locale.LS("Reset")));
+	resetButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		resetAction();
+	    }
+	});
+	resetButton.setStylePrimaryName("topButton");
+	buttonPanel.add(runStopButton = new Button(Locale.LSHTML("<Strong>RUN</Strong>&nbsp;/&nbsp;Stop")));
+	runStopButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		setSimRunning(!simIsRunning());
+	    }
+	});
+
+	
+/*
+	dumpMatrixButton = new Button("Dump Matrix");
+	dumpMatrixButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) { dumpMatrix = true; }});
+	verticalPanel.add(dumpMatrixButton);// IES for debugging
+*/
+	
+
+	if (LoadFile.isSupported())
+	    verticalPanel.add(loadFileInput = new LoadFile(app));
+
+	Label l;
+	verticalPanel.add(l = new Label(Locale.LS("Simulation Speed")));
+	l.addStyleName("topSpace");
+
+	// was max of 140
+	verticalPanel.add( speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, 0, 260));
+
+	verticalPanel.add( l = new Label(Locale.LS("Current Speed")));
+	l.addStyleName("topSpace");
+	currentBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 100);
+	verticalPanel.add(currentBar);
+	verticalPanel.add(powerLabel = new Label (Locale.LS("Power Brightness")));
+	powerLabel.addStyleName("topSpace");
+	verticalPanel.add(powerBar = new Scrollbar(Scrollbar.HORIZONTAL,
+		50, 1, 1, 100));
+	setPowerBarEnable();
+
+	//	verticalPanel.add(new Label(""));
+	//        Font f = new Font("SansSerif", 0, 10);
+	l = new Label(Locale.LS("Current Circuit:"));
+	l.addStyleName("topSpace");
+	//        l.setFont(f);
+	titleLabel = new Label("Label");
+	//        titleLabel.setFont(f);
+	verticalPanel.add(l);
+	verticalPanel.add(titleLabel);
+
+	verticalPanel.add(iFrame = new Frame("iframe.html"));
+	iFrame.setWidth(VERTICALPANELWIDTH+"px");
+	iFrame.setHeight("100 px");
+	iFrame.getElement().setAttribute("scrolling", "no");
+
+	setGrid();
+	
+	app.mouse = mouse = new MouseManager(app, this);
+	mouse.register(cv);
+	mouse.enableDisableMenuItems();
+	setiFrameHeight();
+	menuBar.addDomHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		mouse.doMainMenuChecks();
+	    }
+	}, ClickEvent.getType());
+	Event.addNativePreviewHandler(app);
+
+	Window.addWindowClosingHandler(new Window.ClosingHandler() {
+	    public void onWindowClosing(ClosingEvent event) {
+		// there is a bug in electron that makes it impossible to close the app if this warning is given
+		if (app.unsavedChanges && !app.isElectron())
+		    event.setMessage(Locale.LS("Are you sure?  There are unsaved changes."));
+	    }
+	});
+
+    }
+    
+    static native float devicePixelRatio() /*-{
+	return window.devicePixelRatio;
+	}-*/;
+
+
     // ---- Canvas/Layout ----
 
     void checkCanvasSize() {
-        if (app.cv.getCoordinateSpaceWidth() != (int) (app.canvasWidth * CirSim.devicePixelRatio()))
+        if (cv.getCoordinateSpaceWidth() != (int) (canvasWidth * devicePixelRatio()))
             setCanvasSize();
     }
 
@@ -46,24 +368,24 @@ public class UIManager {
     	int width, height;
     	width=(int)RootLayoutPanel.get().getOffsetWidth();
     	height=(int)RootLayoutPanel.get().getOffsetHeight();
-    	height=height-(app.hideMenu?0:CirSim.MENUBARHEIGHT);
+    	height=height- (hideMenu ? 0 : MENUBARHEIGHT);
 
-    	if (!app.isMobile(app.sidePanelCheckboxLabel))
-    	    width=width-CirSim.VERTICALPANELWIDTH;
+    	if (!app.isMobile(sidePanelCheckboxLabel))
+    	    width=width - VERTICALPANELWIDTH;
 	if (menus.toolbarCheckItem.getState())
-	    height -= CirSim.TOOLBARHEIGHT;
+	    height -= TOOLBARHEIGHT;
 
     	width = Math.max(width, 0);
     	height = Math.max(height, 0);
 
-	if (app.cv != null) {
-	    app.cv.setWidth(width + "PX");
-	    app.cv.setHeight(height + "PX");
-	    app.canvasWidth = width;
-	    app.canvasHeight = height;
-	    float scale = CirSim.devicePixelRatio();
-	    app.cv.setCoordinateSpaceWidth((int)(width*scale));
-	    app.cv.setCoordinateSpaceHeight((int)(height*scale));
+	if (cv != null) {
+	    cv.setWidth(width + "PX");
+	    cv.setHeight(height + "PX");
+	    canvasWidth = width;
+	    canvasHeight = height;
+	    float scale = devicePixelRatio();
+	    cv.setCoordinateSpaceWidth((int)(width*scale));
+	    cv.setCoordinateSpaceHeight((int)(height*scale));
 	}
 
     	setCircuitArea();
@@ -73,8 +395,8 @@ public class UIManager {
     }
 
     void setCircuitArea() {
-    	int height = app.canvasHeight;
-    	int width = app.canvasWidth;
+    	int height = canvasHeight;
+    	int width = canvasWidth;
 	int h;
     	if (app.scopeManager == null || app.scopeManager.scopeCount == 0)
     	    h = 0;
@@ -148,13 +470,13 @@ public class UIManager {
     	    	if (app.stopMessage != null)
     	    	    return;
     		app.simRunning = true;
-    		app.runStopButton.setHTML(Locale.LSHTML("<strong>RUN</strong>&nbsp;/&nbsp;Stop"));
-    		app.runStopButton.setStylePrimaryName("topButton");
+    		runStopButton.setHTML(Locale.LSHTML("<strong>RUN</strong>&nbsp;/&nbsp;Stop"));
+    		runStopButton.setStylePrimaryName("topButton");
     		app.timer.scheduleRepeating(app.FASTTIMER);
     	} else {
     		app.simRunning = false;
-    		app.runStopButton.setHTML(Locale.LSHTML("Run&nbsp;/&nbsp;<strong>STOP</strong>"));
-    		app.runStopButton.setStylePrimaryName("topButton-red");
+    		runStopButton.setHTML(Locale.LSHTML("Run&nbsp;/&nbsp;<strong>STOP</strong>"));
+    		runStopButton.setStylePrimaryName("topButton-red");
     		app.timer.cancel();
 		repaint();
     	}
@@ -191,26 +513,26 @@ public class UIManager {
             perfmon.stopContext();
         }
 
-        if (app.stopElm != null && app.stopElm != app.mouse.getMouseElm())
+        if (app.stopElm != null && app.stopElm != mouse.getMouseElm())
             app.stopElm.setMouseElm(true);
 
         app.scopeManager.setupScopes();
 
-        Graphics g = new Graphics(app.cvcontext);
+        Graphics g = new Graphics(cvcontext);
 
         if (menus.printableCheckItem.getState()) {
             CircuitElm.whiteColor = Color.black;
             CircuitElm.lightGrayColor = Color.black;
             g.setColor(Color.white);
-            app.cv.getElement().getStyle().setBackgroundColor("#fff");
+            cv.getElement().getStyle().setBackgroundColor("#fff");
         } else {
             CircuitElm.whiteColor = Color.white;
             CircuitElm.lightGrayColor = Color.lightGray;
             g.setColor(Color.black);
-            app.cv.getElement().getStyle().setBackgroundColor("#000");
+            cv.getElement().getStyle().setBackgroundColor("#000");
         }
 
-        g.fillRect(0, 0, app.canvasWidth, app.canvasHeight);
+        g.fillRect(0, 0, canvasWidth, canvasHeight);
 
         if (app.simRunning) {
             if (app.sim.needsStamp)
@@ -231,7 +553,7 @@ public class UIManager {
         if (app.simRunning) {
             if (lastTime != 0) {
                 int inc = (int) (sysTime - lastTime);
-                double c = app.currentBar.getValue();
+                double c = currentBar.getValue();
                 c = java.lang.Math.exp(c / 3.5 - 14.2);
                 CircuitElm.currentMult = 1.7 * inc * c;
                 if (!menus.conventionCheckItem.getState())
@@ -250,7 +572,7 @@ public class UIManager {
             secTime = sysTime;
         }
 
-        CircuitElm.powerMult = Math.exp(app.powerBar.getValue() / 4.762 - 7);
+        CircuitElm.powerMult = Math.exp(powerBar.getValue() / 4.762 - 7);
 
         perfmon.startContext("graphics");
 
@@ -263,8 +585,8 @@ public class UIManager {
 
         g.setColor(Color.white);
 
-        double scale = CirSim.devicePixelRatio();
-        app.cvcontext.setTransform(app.transform[0] * scale, 0, 0, app.transform[3] * scale, app.transform[4] * scale, app.transform[5] * scale);
+        double scale = devicePixelRatio();
+        cvcontext.setTransform(app.transform[0] * scale, 0, 0, app.transform[3] * scale, app.transform[4] * scale, app.transform[5] * scale);
 
         perfmon.startContext("elm.draw()");
         for (CircuitElm ce : app.elmList) {
@@ -275,17 +597,17 @@ public class UIManager {
         }
         perfmon.stopContext();
 
-        if (app.mouse.mouseMode != MouseManager.MODE_DRAG_ROW && app.mouse.mouseMode != MouseManager.MODE_DRAG_COLUMN) {
+        if (mouse.mouseMode != MouseManager.MODE_DRAG_ROW && mouse.mouseMode != MouseManager.MODE_DRAG_COLUMN) {
             for (int i = 0; i != app.postDrawList.size(); i++)
                 CircuitElm.drawPost(g, app.postDrawList.get(i));
         }
 
-        if (app.mouse.tempMouseMode == MouseManager.MODE_DRAG_ROW ||
-            app.mouse.tempMouseMode == MouseManager.MODE_DRAG_COLUMN ||
-            app.mouse.tempMouseMode == MouseManager.MODE_DRAG_POST ||
-            app.mouse.tempMouseMode == MouseManager.MODE_DRAG_SELECTED) {
+        if (mouse.tempMouseMode == MouseManager.MODE_DRAG_ROW ||
+            mouse.tempMouseMode == MouseManager.MODE_DRAG_COLUMN ||
+            mouse.tempMouseMode == MouseManager.MODE_DRAG_POST ||
+            mouse.tempMouseMode == MouseManager.MODE_DRAG_SELECTED) {
             for (CircuitElm ce : app.elmList) {
-                if (ce != app.mouse.getMouseElm() || app.mouse.tempMouseMode != MouseManager.MODE_DRAG_POST) {
+                if (ce != mouse.getMouseElm() || mouse.tempMouseMode != MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);
                     g.fillOval(ce.x2 - 3, ce.y2 - 3, 7, 7);
@@ -295,13 +617,13 @@ public class UIManager {
             }
         }
 
-        if (app.mouse.tempMouseMode == MouseManager.MODE_SELECT && app.mouse.getMouseElm() != null) {
-            app.mouse.getMouseElm().drawHandles(g, CircuitElm.selectColor);
+        if (mouse.tempMouseMode == MouseManager.MODE_SELECT && mouse.getMouseElm() != null) {
+            mouse.getMouseElm().drawHandles(g, CircuitElm.selectColor);
         }
 
-        if (app.mouse.dragElm != null && (app.mouse.dragElm.x != app.mouse.dragElm.x2 || app.mouse.dragElm.y != app.mouse.dragElm.y2)) {
-            app.mouse.dragElm.draw(g);
-            app.mouse.dragElm.drawHandles(g, CircuitElm.selectColor);
+        if (mouse.dragElm != null && (mouse.dragElm.x != mouse.dragElm.x2 || mouse.dragElm.y != mouse.dragElm.y2)) {
+            mouse.dragElm.draw(g);
+            mouse.dragElm.drawHandles(g, CircuitElm.selectColor);
         }
 
         for (int i = 0; i != app.badConnectionList.size(); i++) {
@@ -310,21 +632,21 @@ public class UIManager {
             g.fillOval(cn.x - 3, cn.y - 3, 7, 7);
         }
 
-        if (app.mouse.selectedArea != null) {
+        if (mouse.selectedArea != null) {
             g.setColor(CircuitElm.selectColor);
-            g.drawRect(app.mouse.selectedArea.x, app.mouse.selectedArea.y, app.mouse.selectedArea.width, app.mouse.selectedArea.height);
+            g.drawRect(mouse.selectedArea.x, mouse.selectedArea.y, mouse.selectedArea.width, mouse.selectedArea.height);
         }
 
-        if (menus.crossHairCheckItem.getState() && app.mouse.mouseCursorX >= 0
-                && app.mouse.mouseCursorX <= app.circuitArea.width && app.mouse.mouseCursorY <= app.circuitArea.height) {
+        if (menus.crossHairCheckItem.getState() && mouse.mouseCursorX >= 0
+                && mouse.mouseCursorX <= app.circuitArea.width && mouse.mouseCursorY <= app.circuitArea.height) {
             g.setColor(Color.gray);
-            int x = app.snapGrid(app.mouse.inverseTransformX(app.mouse.mouseCursorX));
-            int y = app.snapGrid(app.mouse.inverseTransformY(app.mouse.mouseCursorY));
-            g.drawLine(x, app.mouse.inverseTransformY(0), x, app.mouse.inverseTransformY(app.circuitArea.height));
-            g.drawLine(app.mouse.inverseTransformX(0), y, app.mouse.inverseTransformX(app.circuitArea.width), y);
+            int x = app.snapGrid(mouse.inverseTransformX(mouse.mouseCursorX));
+            int y = app.snapGrid(mouse.inverseTransformY(mouse.mouseCursorY));
+            g.drawLine(x, mouse.inverseTransformY(0), x, mouse.inverseTransformY(app.circuitArea.height));
+            g.drawLine(mouse.inverseTransformX(0), y, mouse.inverseTransformX(app.circuitArea.width), y);
         }
 
-        app.cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
+        cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
 
         perfmon.startContext("drawBottomArea()");
         drawBottomArea(g);
@@ -334,7 +656,7 @@ public class UIManager {
 
         perfmon.stopContext(); // graphics
 
-        if (app.stopElm != null && app.stopElm != app.mouse.getMouseElm())
+        if (app.stopElm != null && app.stopElm != mouse.getMouseElm())
             app.stopElm.setMouseElm(false);
 
         frames++;
@@ -373,16 +695,16 @@ public class UIManager {
 	int leftX = 0;
 	int h = 0;
 	if (app.stopMessage == null && app.scopeManager.scopeCount == 0) {
-	    leftX = max(app.canvasWidth-CirSim.infoWidth, 0);
-	    int h0 = (int) (app.canvasHeight * app.scopeManager.scopeHeightFraction);
-	    h = (app.mouse.getMouseElm() == null) ? 70 : h0;
-	    if (app.hideInfoBox)
+	    leftX = max(canvasWidth-CirSim.infoWidth, 0);
+	    int h0 = (int) (canvasHeight * app.scopeManager.scopeHeightFraction);
+	    h = (mouse.getMouseElm() == null) ? 70 : h0;
+	    if (hideInfoBox)
 		h = 0;
 	}
-	if (app.stopMessage != null && app.circuitArea.height > app.canvasHeight-30)
+	if (app.stopMessage != null && app.circuitArea.height > canvasHeight-30)
 	    h = 30;
 	g.setColor(menus.printableCheckItem.getState() ? "#eee" : "#111");
-	g.fillRect(leftX, app.circuitArea.height-h, app.circuitArea.width, app.canvasHeight-app.circuitArea.height+h);
+	g.fillRect(leftX, app.circuitArea.height-h, app.circuitArea.width, canvasHeight - app.circuitArea.height+h);
 	g.setFont(CircuitElm.unitsFont);
 	int ct = app.scopeManager.scopeCount;
 	if (app.stopMessage != null)
@@ -390,13 +712,13 @@ public class UIManager {
 	int i;
 	Scope.clearCursorInfo();
 	for (i = 0; i != ct; i++)
-	    app.scopeManager.scopes[i].selectScope(app.mouse.mouseCursorX, app.mouse.mouseCursorY);
+	    app.scopeManager.scopes[i].selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
 	if (app.scopeElmArr != null)
 	    for (i=0; i != app.scopeElmArr.length; i++)
-		app.scopeElmArr[i].selectScope(app.mouse.mouseCursorX, app.mouse.mouseCursorY);
+		app.scopeElmArr[i].selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
 	for (i = 0; i != ct; i++)
 	    app.scopeManager.scopes[i].draw(g);
-	if (app.mouse.mouseWasOverSplitter) {
+	if (mouse.mouseWasOverSplitter) {
 		g.setColor(CircuitElm.selectColor);
 		g.setLineWidth(4.0);
 		g.drawLine(0, app.circuitArea.height-2, app.circuitArea.width, app.circuitArea.height-2);
@@ -405,18 +727,18 @@ public class UIManager {
 	g.setColor(CircuitElm.whiteColor);
 
 	if (app.stopMessage != null) {
-	    g.drawString(app.stopMessage, 10, app.canvasHeight-10);
-	} else if (!app.hideInfoBox) {
+	    g.drawString(app.stopMessage, 10, canvasHeight-10);
+	} else if (!hideInfoBox) {
 	    String info[] = new String[10];
-	    if (app.mouse.getMouseElm() != null) {
-		if (app.mouse.mousePost == -1) {
-		    app.mouse.getMouseElm().getInfo(info);
+	    if (mouse.getMouseElm() != null) {
+		if (mouse.mousePost == -1) {
+		    mouse.getMouseElm().getInfo(info);
 		    info[0] = Locale.LS(info[0]);
 		    if (info[1] != null)
 			info[1] = Locale.LS(info[1]);
 		} else
 		    info[0] = "V = " +
-			CircuitElm.getUnitText(app.mouse.getMouseElm().getPostVoltage(app.mouse.mousePost), "V");
+			CircuitElm.getUnitText(mouse.getMouseElm().getPostVoltage(mouse.mousePost), "V");
 
 	    } else {
 	    	info[0] = "t = " + CircuitElm.getTimeText(app.sim.t);
@@ -428,7 +750,7 @@ public class UIManager {
 	    if (app.hintType != -1) {
 		for (i = 0; info[i] != null; i++)
 		    ;
-		String s = getHint();
+		String s = app.getHint();
 		if (s == null)
 		    app.hintType = -1;
 		else
@@ -459,73 +781,15 @@ public class UIManager {
 	return Color.black;
     }
 
-    String getHint() {
-	CircuitElm c1 = app.getElm(app.hintItem1);
-	CircuitElm c2 = app.getElm(app.hintItem2);
-	if (c1 == null || c2 == null)
-	    return null;
-	if (app.hintType == CirSim.HINT_LC) {
-	    if (!(c1 instanceof InductorElm))
-		return null;
-	    if (!(c2 instanceof CapacitorElm))
-		return null;
-	    InductorElm ie = (InductorElm) c1;
-	    CapacitorElm ce = (CapacitorElm) c2;
-	    return Locale.LS("res.f = ") + CircuitElm.getUnitText(1/(2*CirSim.pi*Math.sqrt(ie.inductance*
-						    ce.capacitance)), "Hz");
-	}
-	if (app.hintType == CirSim.HINT_RC) {
-	    if (!(c1 instanceof ResistorElm))
-		return null;
-	    if (!(c2 instanceof CapacitorElm))
-		return null;
-	    ResistorElm re = (ResistorElm) c1;
-	    CapacitorElm ce = (CapacitorElm) c2;
-	    return "RC = " + CircuitElm.getUnitText(re.resistance*ce.capacitance,
-					 "s");
-	}
-	if (app.hintType == CirSim.HINT_3DB_C) {
-	    if (!(c1 instanceof ResistorElm))
-		return null;
-	    if (!(c2 instanceof CapacitorElm))
-		return null;
-	    ResistorElm re = (ResistorElm) c1;
-	    CapacitorElm ce = (CapacitorElm) c2;
-	    return Locale.LS("f.3db = ") +
-		CircuitElm.getUnitText(1/(2*CirSim.pi*re.resistance*ce.capacitance), "Hz");
-	}
-	if (app.hintType == CirSim.HINT_3DB_L) {
-	    if (!(c1 instanceof ResistorElm))
-		return null;
-	    if (!(c2 instanceof InductorElm))
-		return null;
-	    ResistorElm re = (ResistorElm) c1;
-	    InductorElm ie = (InductorElm) c2;
-	    return Locale.LS("f.3db = ") +
-		CircuitElm.getUnitText(re.resistance/(2*CirSim.pi*ie.inductance), "Hz");
-	}
-	if (app.hintType == CirSim.HINT_TWINT) {
-	    if (!(c1 instanceof ResistorElm))
-		return null;
-	    if (!(c2 instanceof CapacitorElm))
-		return null;
-	    ResistorElm re = (ResistorElm) c1;
-	    CapacitorElm ce = (CapacitorElm) c2;
-	    return Locale.LS("fc = ") +
-		CircuitElm.getUnitText(1/(2*CirSim.pi*re.resistance*ce.capacitance), "Hz");
-	}
-	return null;
-    }
-
     // ---- UI Controls ----
 
     void setPowerBarEnable() {
     	if (menus.powerCheckItem.getState()) {
-    	    app.powerLabel.setStyleName("disabled", false);
-    	    app.powerBar.enable();
+    	    powerLabel.setStyleName("disabled", false);
+    	    powerBar.enable();
     	} else {
-    	    app.powerLabel.setStyleName("disabled", true);
-    	    app.powerBar.disable();
+    	    powerLabel.setStyleName("disabled", true);
+    	    powerBar.disable();
     	}
     }
 
@@ -533,20 +797,20 @@ public class UIManager {
     }
 
     void setToolbar() {
-	app.layoutPanel.setWidgetHidden(app.toolbar, !menus.toolbarCheckItem.getState());
+	layoutPanel.setWidgetHidden(toolbar, !menus.toolbarCheckItem.getState());
 	setCanvasSize();
     }
 
     void updateToolbar() {
-	if (app.mouse.dragElm != null)
-	    app.toolbar.setModeLabel(Locale.LS("Drag Mouse"));
+	if (mouse.dragElm != null)
+	    toolbar.setModeLabel(Locale.LS("Drag Mouse"));
 	else
-	    app.toolbar.setModeLabel(Locale.LS("Mode: ") + app.classToLabelMap.get(app.mouseModeStr));
-	app.toolbar.highlightButton(app.mouseModeStr);
+	    toolbar.setModeLabel(Locale.LS("Mode: ") + app.classToLabelMap.get(mouseModeStr));
+	toolbar.highlightButton(mouseModeStr);
     }
 
     void setMouseMode(int mode) {
-    	app.mouse.mouseMode = mode;
+    	mouse.mouseMode = mode;
     	if ( mode == MouseManager.MODE_ADD_ELM ) {
     		setCursorStyle("cursorCross");
     	} else {
@@ -556,8 +820,8 @@ public class UIManager {
 
     void setCursorStyle(String s) {
     	if (lastCursorStyle!=null)
-    		app.cv.removeStyleName(lastCursorStyle);
-    	app.cv.addStyleName(s);
+    		cv.removeStyleName(lastCursorStyle);
+    	cv.addStyleName(s);
     	lastCursorStyle=s;
     }
 
@@ -578,7 +842,7 @@ public class UIManager {
                 return true;
        	if (CirSim.dialogShowing != null && CirSim.dialogShowing.isShowing())
        		return true;
-    	if (app.contextPanel!=null && app.contextPanel.isShowing())
+    	if (contextPanel!=null && contextPanel.isShowing())
     		return true;
     	if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing())
     		return true;
@@ -647,7 +911,7 @@ public class UIManager {
     			app.scopeManager.scopes[app.scopeManager.scopeSelected].setElm(null);
     			app.scopeManager.scopeSelected = -1;
     		    } else {
-    		    	app.mouse.menuElm = null;
+    		    	mouse.menuElm = null;
     		    	app.undoManager.pushUndo();
     			app.commands.doDelete(true);
     			e.cancel();
@@ -655,9 +919,9 @@ public class UIManager {
     		}
     		if (code==KEY_ESCAPE){
     			setMouseMode(MouseManager.MODE_SELECT);
-    			app.mouseModeStr = "Select";
+    			mouseModeStr = "Select";
 			updateToolbar();
-    			app.mouse.tempMouseMode = app.mouse.mouseMode;
+    			mouse.tempMouseMode = mouse.mouseMode;
     			e.cancel();
     		}
 
@@ -718,15 +982,15 @@ public class UIManager {
     			if (c==null)
     				return;
     			setMouseMode(MouseManager.MODE_ADD_ELM);
-    			app.mouseModeStr=c;
+    			mouseModeStr=c;
 			updateToolbar();
-    			app.mouse.tempMouseMode = app.mouse.mouseMode;
+    			mouse.tempMouseMode = mouse.mouseMode;
     		}
     		if (cc==32) {
 		    setMouseMode(MouseManager.MODE_SELECT);
-		    app.mouseModeStr = "Select";
+		    mouseModeStr = "Select";
 		    updateToolbar();
-		    app.mouse.tempMouseMode = app.mouse.mouseMode;
+		    mouse.tempMouseMode = mouse.mouseMode;
 		    e.cancel();
     		}
     	}
@@ -735,37 +999,37 @@ public class UIManager {
     // ---- Widget management ----
 
     void createNewLoadFile() {
-    	int idx=app.verticalPanel.getWidgetIndex(app.loadFileInput);
+    	int idx=verticalPanel.getWidgetIndex(loadFileInput);
     	LoadFile newlf=new LoadFile(app);
-    	app.verticalPanel.insert(newlf, idx);
-    	app.verticalPanel.remove(idx+1);
-    	app.loadFileInput=newlf;
+    	verticalPanel.insert(newlf, idx);
+    	verticalPanel.remove(idx+1);
+    	loadFileInput=newlf;
     }
 
     void addWidgetToVerticalPanel(Widget w) {
-	if (app.verticalPanel == null)
+	if (verticalPanel == null)
 	    return;
-    	if (app.iFrame!=null) {
-    		int i=app.verticalPanel.getWidgetIndex(app.iFrame);
-    		app.verticalPanel.insert(w, i);
+    	if (iFrame!=null) {
+    		int i=verticalPanel.getWidgetIndex(iFrame);
+    		verticalPanel.insert(w, i);
     		setiFrameHeight();
     	}
     	else
-    		app.verticalPanel.add(w);
+    		verticalPanel.add(w);
     }
 
     void removeWidgetFromVerticalPanel(Widget w){
-	if (app.verticalPanel == null)
+	if (verticalPanel == null)
 	    return;
-    	app.verticalPanel.remove(w);
-    	if (app.iFrame!=null)
+    	verticalPanel.remove(w);
+    	if (iFrame!=null)
     		setiFrameHeight();
     }
 
     // ---- Other ----
 
     void setCircuitTitle(String s) {
-	app.titleLabel.setText(s);
+	titleLabel.setText(s);
 	if (s != null && s.length() > 0)
 	    Document.get().setTitle(s + " - " + CirSim.baseTitle);
 	else
@@ -807,28 +1071,66 @@ public class UIManager {
 	    int i;
 	    for (i = 0; i != list.size(); i++) {
 		String name = list.get(i).name;
-		menu.addItem(app.getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name));
+		menu.addItem(getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name));
 	    }
 	}
 	MouseManager.lastSubcircuitMenuUpdate = CustomCompositeModel.sequenceNumber;
     }
 
+    
+    CheckboxMenuItem getClassCheckItem(String s, String t) {
+	if (app.classToLabelMap == null)
+	    app.classToLabelMap = new HashMap<String, String>();
+	app.classToLabelMap.put(t, s);
+
+    	// try {
+    	//   Class c = Class.forName(t);
+    	String shortcut="";
+    	CircuitElm elm = null;
+    	try {
+    	    elm = app.constructElement(t, 0, 0);
+    	} catch (Exception e) {
+	    app.console("exception: " + e);
+	}
+    	CheckboxMenuItem mi;
+    	app.register(t, elm);
+	if (elm == null)
+	    app.console("can't create class: " + t);
+    	if ( elm!=null ) {
+    		if (elm.needsShortcut() ) {
+    			shortcut += (char)elm.getShortcut();
+    			if (app.shortcuts[elm.getShortcut()] != null && !app.shortcuts[elm.getShortcut()].equals(t))
+    			    app.console("already have shortcut for " + (char)elm.getShortcut() + " " + elm);
+    			app.shortcuts[elm.getShortcut()]=t;
+    		}
+    		elm.delete();
+    	}
+    	if (shortcut=="")
+    		mi= new CheckboxMenuItem(s);
+    	else
+    		mi = new CheckboxMenuItem(s, shortcut);
+    	mi.setScheduledCommand(new MyCommand("main", t) );
+    	mainMenuItems.add(mi);
+    	mainMenuItemNames.add(t);
+    	return mi;
+    }
+
     public void setiFrameHeight() {
-    	if (app.iFrame==null)
+    	if (iFrame==null)
     		return;
     	int i;
     	int cumheight=0;
-    	for (i=0; i < app.verticalPanel.getWidgetIndex(app.iFrame); i++) {
-    		if (app.verticalPanel.getWidget(i) !=app.loadFileInput) {
-    			cumheight=cumheight+app.verticalPanel.getWidget(i).getOffsetHeight();
-    			if (app.verticalPanel.getWidget(i).getStyleName().contains("topSpace"))
+    	for (i=0; i < verticalPanel.getWidgetIndex(iFrame); i++) {
+    		if (verticalPanel.getWidget(i) != loadFileInput) {
+    			cumheight=cumheight+verticalPanel.getWidget(i).getOffsetHeight();
+    			if (verticalPanel.getWidget(i).getStyleName().contains("topSpace"))
     					cumheight+=12;
     		}
     	}
-    	int ih=RootLayoutPanel.get().getOffsetHeight()-(app.hideMenu?0:CirSim.MENUBARHEIGHT)-cumheight;
+    	int ih=RootLayoutPanel.get().getOffsetHeight()-(hideMenu ? 0 : MENUBARHEIGHT)-cumheight;
     	if (ih<0)
     		ih=0;
-    	app.iFrame.setHeight(ih+"px");
+    	iFrame.setHeight(ih+"px");
     }
 
     void setColors(String positiveColor, String negativeColor, String neutralColor, String selectColor, String currentColor) {
@@ -870,10 +1172,10 @@ public class UIManager {
     }
 
     void setWheelSensitivity() {
-	app.mouse.wheelSensitivity = 1;
+	mouse.wheelSensitivity = 1;
 	try {
 	    Storage stor = Storage.getLocalStorageIfSupported();
-	    app.mouse.wheelSensitivity = Double.parseDouble(stor.getItem("wheelSensitivity"));
+	    mouse.wheelSensitivity = Double.parseDouble(stor.getItem("wheelSensitivity"));
 	} catch (Exception e) {}
     }
 
@@ -922,8 +1224,8 @@ public class UIManager {
         for (i = 0; i != app.shortcuts.length; i++)
             app.shortcuts[i] = null;
 
-        for (i = 0; i != app.mainMenuItems.size(); i++) {
-            CheckboxMenuItem item = app.mainMenuItems.get(i);
+        for (i = 0; i != mainMenuItems.size(); i++) {
+            CheckboxMenuItem item = mainMenuItems.get(i);
             if (item.getShortcut().length() > 1)
         		break;
             item.setShortcut("");
@@ -938,9 +1240,9 @@ public class UIManager {
             app.shortcuts[c] = className;
 
             int j;
-            for (j = 0; j != app.mainMenuItems.size(); j++) {
-        		if (app.mainMenuItemNames.get(j) == className) {
-        		    CheckboxMenuItem item = app.mainMenuItems.get(j);
+            for (j = 0; j != mainMenuItems.size(); j++) {
+        		if (mainMenuItemNames.get(j) == className) {
+        		    CheckboxMenuItem item = mainMenuItems.get(j);
         		    item.setShortcut(Character.toString((char)c));
         		    break;
         		}

@@ -144,7 +144,8 @@ public class ScopeManager {
     	}
     	while (scopeCount > 0 && scopes[scopeCount-1].getElm() == null)
     		scopeCount--;
-    	int h = sim.canvasHeight - sim.circuitArea.height;
+    	UIManager ui = sim.ui;
+    	int h = ui.canvasHeight - sim.circuitArea.height;
     	pos = 0;
     	for (i = 0; i != scopeCount; i++)
     		scopeColCount[i] = 0;
@@ -156,7 +157,7 @@ public class ScopeManager {
     	int iw = CirSim.infoWidth;
     	if (colct <= 2)
     		iw = iw*3/2;
-    	int w = (sim.canvasWidth-iw) / colct;
+    	int w = (ui.canvasWidth-iw) / colct;
     	int marg = 10;
     	if (w < marg*2)
     		w = marg*2;
@@ -177,13 +178,13 @@ public class ScopeManager {
     			s.speed = speed;
     			s.resetGraph();
     		}
-    		Rectangle r = new Rectangle(pos*w, sim.canvasHeight-h+colh*row, w-marg, colh);
+    		Rectangle r = new Rectangle(pos*w, ui.canvasHeight-h+colh*row, w-marg, colh);
     		row++;
     		if (!r.equals(s.rect))
     			s.setRect(r);
     	}
     	if (oldScopeCount != scopeCount) {
-    	    sim.setCircuitArea();
+    	    ui.setCircuitArea();
     	    oldScopeCount = scopeCount;
     	}
     }

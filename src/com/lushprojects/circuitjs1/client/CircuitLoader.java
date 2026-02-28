@@ -52,9 +52,9 @@ public class CircuitLoader {
         menus.voltsCheckItem.setState(true);
         menus.showValuesCheckItem.setState(true);
         app.setGrid();
-        app.speedBar.setValue(117);
-        app.currentBar.setValue(50);
-        app.powerBar.setValue(50);
+        app.ui.speedBar.setValue(117);
+        app.ui.currentBar.setValue(50);
+        app.ui.powerBar.setValue(50);
         CircuitElm.voltageRange = 5;
         scopes.clearScopes();
         sim.lastIterTime = 0;
@@ -247,11 +247,11 @@ public class CircuitLoader {
         sim.maxTimeStep = sim.timeStep = Double.parseDouble(st.nextToken());
         double sp = Double.parseDouble(st.nextToken());
         int sp2 = (int) (Math.log(10 * sp) * 24 + 61.5);
-        app.speedBar.setValue(sp2);
-        app.currentBar.setValue(Integer.parseInt(st.nextToken()));
+        app.ui.speedBar.setValue(sp2);
+        app.ui.currentBar.setValue(Integer.parseInt(st.nextToken()));
         CircuitElm.voltageRange = Double.parseDouble(st.nextToken());
         try {
-            app.powerBar.setValue(Integer.parseInt(st.nextToken()));
+            app.ui.powerBar.setValue(Integer.parseInt(st.nextToken()));
             sim.minTimeStep = Double.parseDouble(st.nextToken());
         } catch (Exception ignored) {}
         app.setGrid();

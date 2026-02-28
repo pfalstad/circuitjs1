@@ -2,6 +2,7 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Window;
+import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.dom.client.Document;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -15,6 +16,8 @@ public class CommandManager {
     }
 
     public void menuPerformed(String menu, String item) {
+	PopupPanel contextPanel = app.ui.contextPanel;
+	
 	if ((menu=="edit" || menu=="main" || menu=="scopes") && app.menus.noEditCheckItem.getState()) {
 	    Window.alert(Locale.LS("Editing disabled.  Re-enable from the Options menu."));
 	    return;
@@ -26,7 +29,7 @@ public class CommandManager {
     		if (app.isElectron())
     		    electronOpenFile();
     		else
-    		    app.loadFileInput.click();
+    		    app.ui.loadFileInput.click();
     	}
     	if (item=="newwindow") {
     	    Window.open(Document.get().getURL(), "_blank", "");
@@ -57,8 +60,8 @@ public class CommandManager {
 		app.imageExporter.doExportAsImage();
     	if (item=="copypng") {
 		app.imageExporter.doImageToClipboard();
-    		if (app.contextPanel!=null)
-			app.contextPanel.hide();
+    		if (app.ui.contextPanel!=null)
+			app.ui.contextPanel.hide();
     	}
     	if (item=="exportassvg")
 		app.imageExporter.doExportAsSVG();
@@ -71,8 +74,8 @@ public class CommandManager {
     	if (item=="recover")
     	    	app.undoManager.doRecover();
 
-    	if ((menu=="elm" || menu=="scopepop") && app.contextPanel!=null)
-    		app.contextPanel.hide();
+    	if ((menu=="elm" || menu=="scopepop") && contextPanel != null)
+    		contextPanel.hide();
     	if (menu=="options" && item=="shortcuts") {
     	    	app.dialogShowing = new ShortcutsDialog(app);
     	    	app.dialogShowing.show();
@@ -266,12 +269,12 @@ public class CommandManager {
 
     	// IES: Moved from itemStateChanged()
     	if (menu=="main") {
-    		if (app.contextPanel!=null)
-    			app.contextPanel.hide();
+    		if (contextPanel != null)
+    			contextPanel.hide();
     		app.setMouseMode(MouseManager.MODE_ADD_ELM);
     		String s = item;
     		if (s.length() > 0)
-    			app.mouseModeStr = s;
+    			app.ui.mouseModeStr = s;
     		if (s.compareTo("DragAll") == 0)
     			app.setMouseMode(MouseManager.MODE_DRAG_ALL);
     		else if (s.compareTo("DragRow") == 0)

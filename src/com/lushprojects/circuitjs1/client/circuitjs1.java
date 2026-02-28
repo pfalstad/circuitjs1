@@ -183,7 +183,7 @@ public class circuitjs1 implements EntryPoint {
 
         Window.addResizeHandler(new ResizeHandler() {
             public void onResize(ResizeEvent event) {
-                theApp.setCanvasSize();
+                theApp.ui.setCanvasSize();
                 theApp.setiFrameHeight();
             }
         });

@@ -29,51 +29,16 @@ import java.util.HashMap;
 import java.util.Random;
 import java.lang.Math;
 
-import com.google.gwt.canvas.client.Canvas;
-import com.google.gwt.user.client.ui.Button;
-import com.google.gwt.user.client.ui.CellPanel;
-import com.google.gwt.user.client.ui.DockLayoutPanel;
-import com.google.gwt.user.client.ui.Label;
-import com.google.gwt.user.client.ui.RootLayoutPanel;
-import com.google.gwt.user.client.ui.RootPanel;
-import com.google.gwt.canvas.dom.client.Context2d;
-import com.google.gwt.canvas.dom.client.Context2d.LineCap;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
 import com.google.gwt.user.client.Event.NativePreviewHandler;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.Scheduler;
-import com.google.gwt.dom.client.Style.Unit;
-import com.google.gwt.http.client.Request;
-import com.google.gwt.http.client.RequestException;
-import com.google.gwt.http.client.Response;
-import com.google.gwt.http.client.URL;
-import com.google.gwt.http.client.RequestBuilder;
-import com.google.gwt.http.client.RequestCallback;
-import com.google.gwt.user.client.ui.MenuBar;
-import com.google.gwt.user.client.Command;
-import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Element;
-import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Timer;
-import com.google.gwt.user.client.Window;
-import com.google.gwt.user.client.ui.VerticalPanel;
-import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.event.dom.client.ClickHandler;
-import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.MetaElement;
 import com.google.gwt.dom.client.NodeList;
-import com.google.gwt.user.client.ui.MenuItem;
-import com.google.gwt.storage.client.Storage;
-import com.google.gwt.user.client.ui.PopupPanel;
-import static com.google.gwt.event.dom.client.KeyCodes.*;
-import com.google.gwt.user.client.ui.Frame;
 import com.google.gwt.user.client.ui.Widget;
 import com.lushprojects.circuitjs1.client.util.Locale;
-import com.lushprojects.circuitjs1.client.util.PerfMonitor;
-import com.google.gwt.user.client.Window.ClosingEvent;
-import com.google.gwt.event.logical.shared.ResizeEvent;
-import com.google.gwt.event.logical.shared.ResizeHandler;
 
 public class CirSim implements NativePreviewHandler {
 
@@ -83,23 +48,11 @@ public class CirSim implements NativePreviewHandler {
     public UndoManager undoManager;
     public ImageExporter imageExporter;
     public CommandManager commands;
-    Button resetButton;
-    Button runStopButton;
-    Button dumpMatrixButton;
-    Label powerLabel;
-    Label titleLabel;
-    Scrollbar speedBar;
-    Scrollbar currentBar;
-    Scrollbar powerBar;
-    boolean hideMenu = false;
     public ScopeManager scopeManager;
-    Element sidePanelCheckboxLabel;
     Menus menus;
     CircuitLoader loader;
    
     // Class addingClass;
-    PopupPanel contextPanel = null;
-    String mouseModeStr = "Select";
     static final double pi = 3.14159265358979323846;
     static final int infoWidth = 160;
     int gridSize, gridMask, gridRound;
@@ -127,7 +80,6 @@ public class CirSim implements NativePreviewHandler {
     boolean simRunning;
     // public boolean useFrame;
     boolean showResistanceInVoltageSources;
-    boolean hideInfoBox;
     static EditDialog editDialog, customLogicEditDialog, diodeModelEditDialog;
     static ScrollValuePopup scrollValuePopup;
     static Dialog dialogShowing;
@@ -142,26 +94,6 @@ public class CirSim implements NativePreviewHandler {
     HashMap<String, String> classToLabelMap;
     static HashMap<Integer, String> dumpTypeMap;
     static HashMap<String, String> xmlDumpTypeMap;
-    Toolbar toolbar;
-
-    DockLayoutPanel layoutPanel;
-    VerticalPanel verticalPanel;
-    CellPanel buttonPanel;
-    Vector<CheckboxMenuItem> mainMenuItems = new Vector<CheckboxMenuItem>();
-    Vector<String> mainMenuItemNames = new Vector<String>();
-
-    LoadFile loadFileInput;
-    Frame iFrame;
-
-    Canvas cv;
-    Context2d cvcontext;
-
-    // canvas width/height in px (before device pixel ratio scaling)
-    int canvasWidth, canvasHeight;
-
-    static final int MENUBARHEIGHT = 30;
-    static final int TOOLBARHEIGHT = 40;
-    static int VERTICALPANELWIDTH = 166; // default
     final Timer timer = new Timer() {
         public void run() {
             updateCircuit();
@@ -176,12 +108,6 @@ public class CirSim implements NativePreviewHandler {
         return q % x;
     }
 
-    static native float devicePixelRatio() /*-{
-        return window.devicePixelRatio;
-    }-*/;
-
-    void checkCanvasSize() { ui.checkCanvasSize(); }
-
     native boolean isMobile(Element element) /*-{
 	if (!element)
 	    return false;
@@ -189,10 +115,6 @@ public class CirSim implements NativePreviewHandler {
 	return style.display != 'none';
     }-*/;
 
-    public void setCanvasSize() { ui.setCanvasSize(); }
-
-    void setCircuitArea() { ui.setCircuitArea(); }
-    
     native String decompress(String dump) /*-{
         return $wnd.LZString.decompressFromEncodedURIComponent(dump);
     }-*/;
@@ -217,14 +139,7 @@ public class CirSim implements NativePreviewHandler {
 	node.getItem(0).appendChild(meta);
 
 	
-	boolean printable = false;
-	boolean convention = true;
-	boolean euroRes = false;
-	boolean usRes = false;
 	boolean running = true;
-	boolean hideSidebar = false;
-	boolean noEditing = false;
-	boolean mouseWheelEdit = false;
 
 	CircuitElm.initClass(this, sim);
 	ui = new UIManager(this);
@@ -240,7 +155,6 @@ public class CirSim implements NativePreviewHandler {
 	String selectColor = null;
 	String currentColor = null;
 	String mouseModeReq = null;
-	boolean euroGates = false;
 
 	factory = GWT.create(ElementFactory.class);
 	
@@ -259,226 +173,25 @@ public class CirSim implements NativePreviewHandler {
 	    startCircuit = qp.getValue("startCircuit");
 	    startLabel   = qp.getValue("startLabel");
 	    startCircuitLink = qp.getValue("startCircuitLink");
-	    euroRes = qp.getBooleanValue("euroResistors", false);
-	    euroGates = qp.getBooleanValue("IECGates", ui.getOptionFromStorage("euroGates", Locale.weAreInGermany()));
-	    usRes = qp.getBooleanValue("usResistors",  false);
 	    running = qp.getBooleanValue("running", true);
-	    hideSidebar = qp.getBooleanValue("hideSidebar", false);
-	    hideMenu = qp.getBooleanValue("hideMenu", false);
-	    printable = qp.getBooleanValue("whiteBackground", ui.getOptionFromStorage("whiteBackground", false));
-	    convention = qp.getBooleanValue("conventionalCurrent",
-		    ui.getOptionFromStorage("conventionalCurrent", true));
-	    noEditing = !qp.getBooleanValue("editable", true);
-	    mouseWheelEdit = qp.getBooleanValue("mouseWheelEdit", ui.getOptionFromStorage("mouseWheelEdit", true));
 	    positiveColor = qp.getValue("positiveColor");
 	    negativeColor = qp.getValue("negativeColor");
 	    neutralColor = qp.getValue("neutralColor");
 	    selectColor = qp.getValue("selectColor");
 	    currentColor = qp.getValue("currentColor");
 	    mouseModeReq = qp.getValue("mouseMode");
-	    hideInfoBox = qp.getBooleanValue("hideInfoBox", false);
 	} catch (Exception e) { }
-
-	boolean euroSetting = false;
-	if (euroRes)
-	    euroSetting = true;
-	else if (usRes)
-	    euroSetting = false;
-	else
-	    euroSetting = ui.getOptionFromStorage("euroResistors", !Locale.weAreInUS(true));
 
 	transform = new double[6];
 
 	shortcuts = new String[127];
-
-	layoutPanel = new DockLayoutPanel(Unit.PX);
-
-	menus = new Menus(this);
-	menus.init();
-	ui.menus = menus;
-    	dumpTypeMap.put(403, "ScopeElm");
-    	xmlDumpTypeMap.put("Scope", "ScopeElm");
-
-	menus.recoverItem.setEnabled(recovery != null);
-
-	int width=(int)RootLayoutPanel.get().getOffsetWidth();
-	VERTICALPANELWIDTH = width/5;
-	if (VERTICALPANELWIDTH > 166)
-	    VERTICALPANELWIDTH = 166;
-	if (VERTICALPANELWIDTH < 128)
-	    VERTICALPANELWIDTH = 128;
-
-	verticalPanel=new VerticalPanel();
-
-	verticalPanel.getElement().addClassName("verticalPanel");
-	verticalPanel.getElement().setId("painel");
-	Element sidePanelCheckbox = DOM.createInputCheck();
-	sidePanelCheckboxLabel = DOM.createLabel();
-	sidePanelCheckboxLabel.addClassName("triggerLabel");
-	sidePanelCheckbox.setId("trigger");
-	sidePanelCheckboxLabel.setAttribute("for", "trigger" );
-	sidePanelCheckbox.addClassName("trigger");
-	Element topPanelCheckbox = DOM.createInputCheck(); 
-	Element topPanelCheckboxLabel = DOM.createLabel();
-	topPanelCheckbox.setId("toptrigger");
-	topPanelCheckbox.addClassName("toptrigger");
-	topPanelCheckboxLabel.addClassName("toptriggerlabel");
-	topPanelCheckboxLabel.setAttribute("for", "toptrigger");
-
-	// make buttons side by side if there's room
-	buttonPanel=(VERTICALPANELWIDTH == 166) ? new HorizontalPanel() : new VerticalPanel();
-
-	menus.pasteItem.setEnabled(false);
-
-	menus.dotsCheckItem.setState(true);
-	menus.voltsCheckItem.setState(true);
-	menus.showValuesCheckItem.setState(true);
-	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && startCircuit == null && startCircuitText == null && startCircuitLink == null);
-	menus.crossHairCheckItem.setState(ui.getOptionFromStorage("crossHair", false));
-	menus.euroResistorCheckItem.setState(euroSetting);
-	menus.euroResistorCheckItem.setCommand(
-		new Command() { public void execute(){
-		    ui.setOptionInStorage("euroResistors", menus.euroResistorCheckItem.getState());
-		    toolbar.setEuroResistors(menus.euroResistorCheckItem.getState());
-		}
-	});
-	menus.euroGatesCheckItem.setCommand(
-		new Command() { public void execute(){
-		    ui.setOptionInStorage("euroGates", menus.euroGatesCheckItem.getState());
-		    for (CircuitElm ce : elmList)
-			ce.setPoints();
-		}
-	});
-	menus.euroGatesCheckItem.setState(euroGates);
-	menus.printableCheckItem.setCommand(
-		new Command() { public void execute(){
-		    int i;
-		    for (i=0;i<scopeManager.scopeCount;i++)
-			scopeManager.scopes[i].setRect(scopeManager.scopes[i].rect);
-		    ui.setOptionInStorage("whiteBackground", menus.printableCheckItem.getState());
-		}
-	});
-	menus.printableCheckItem.setState(printable);
-
-	menus.conventionCheckItem.setCommand(
-		new Command() { public void execute(){
-		    ui.setOptionInStorage("conventionalCurrent", menus.conventionCheckItem.getState());
-		    String cc = CircuitElm.currentColor.getHexValue();
-		    // change the current color if it hasn't changed from the default
-		    if (cc.equals("#ffff00") || cc.equals("#00ffff"))
-			CircuitElm.currentColor = menus.conventionCheckItem.getState() ? Color.yellow : Color.cyan;
-		}
-	});
-	menus.conventionCheckItem.setState(convention);
-	menus.noEditCheckItem.setState(noEditing);
-	menus.mouseWheelEditCheckItem.setState(mouseWheelEdit);
-
-	ui.loadShortcuts();
-
-	DOM.appendChild(layoutPanel.getElement(), topPanelCheckbox);
-	DOM.appendChild(layoutPanel.getElement(), topPanelCheckboxLabel);	
-
-	toolbar = new Toolbar();
-	toolbar.setEuroResistors(euroSetting);
-	MenuBar menuBar = menus.menuBar;
-	if (!hideMenu)
-	    layoutPanel.addNorth(menuBar, MENUBARHEIGHT);
-
-	if (hideSidebar)
-	    VERTICALPANELWIDTH = 0;
-	else {
-		DOM.appendChild(layoutPanel.getElement(), sidePanelCheckbox);
-		DOM.appendChild(layoutPanel.getElement(), sidePanelCheckboxLabel);
-	    layoutPanel.addEast(verticalPanel, VERTICALPANELWIDTH);
-	}
-	layoutPanel.addNorth(toolbar, TOOLBARHEIGHT);
-	menuBar.getElement().insertFirst(menuBar.getElement().getChild(1));
-	menuBar.getElement().getFirstChildElement().setAttribute("onclick", "document.getElementsByClassName('toptrigger')[0].checked = false");
-	RootLayoutPanel.get().add(layoutPanel);
-
-	cv =Canvas.createIfSupported();
-	if (cv==null) {
-	    RootPanel.get().add(new Label("Not working. You need a browser that supports the CANVAS element."));
-	    return;
-	}
-
-	Window.addResizeHandler(new ResizeHandler() {
-	    public void onResize(ResizeEvent event) {
-		repaint();
-	    }
-	});
-
-	cvcontext=cv.getContext2d();
-	ui.setToolbar(); // calls setCanvasSize()
-	layoutPanel.add(cv);
-	verticalPanel.add(buttonPanel);
-	buttonPanel.add(resetButton = new Button(Locale.LS("Reset")));
-	resetButton.addClickHandler(new ClickHandler() {
-	    public void onClick(ClickEvent event) {
-		resetAction();
-	    }
-	});
-	resetButton.setStylePrimaryName("topButton");
-	buttonPanel.add(runStopButton = new Button(Locale.LSHTML("<Strong>RUN</Strong>&nbsp;/&nbsp;Stop")));
-	runStopButton.addClickHandler(new ClickHandler() {
-	    public void onClick(ClickEvent event) {
-		setSimRunning(!simIsRunning());
-	    }
-	});
-
-	
-/*
-	dumpMatrixButton = new Button("Dump Matrix");
-	dumpMatrixButton.addClickHandler(new ClickHandler() {
-	    public void onClick(ClickEvent event) { dumpMatrix = true; }});
-	verticalPanel.add(dumpMatrixButton);// IES for debugging
-*/
-	
-
-	if (LoadFile.isSupported())
-	    verticalPanel.add(loadFileInput = new LoadFile(this));
-
-	Label l;
-	verticalPanel.add(l = new Label(Locale.LS("Simulation Speed")));
-	l.addStyleName("topSpace");
-
-	// was max of 140
-	verticalPanel.add( speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, 0, 260));
-
-	verticalPanel.add( l = new Label(Locale.LS("Current Speed")));
-	l.addStyleName("topSpace");
-	currentBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 100);
-	verticalPanel.add(currentBar);
-	verticalPanel.add(powerLabel = new Label (Locale.LS("Power Brightness")));
-	powerLabel.addStyleName("topSpace");
-	verticalPanel.add(powerBar = new Scrollbar(Scrollbar.HORIZONTAL,
-		50, 1, 1, 100));
-	ui.setPowerBarEnable();
-
-	//	verticalPanel.add(new Label(""));
-	//        Font f = new Font("SansSerif", 0, 10);
-	l = new Label(Locale.LS("Current Circuit:"));
-	l.addStyleName("topSpace");
-	//        l.setFont(f);
-	titleLabel = new Label("Label");
-	//        titleLabel.setFont(f);
-	verticalPanel.add(l);
-	verticalPanel.add(titleLabel);
-
-	verticalPanel.add(iFrame = new Frame("iframe.html"));
-	iFrame.setWidth(VERTICALPANELWIDTH+"px");
-	iFrame.setHeight("100 px");
-	iFrame.getElement().setAttribute("scrolling", "no");
-
-	ui.setGrid();
 	elmList = new Vector<CircuitElm>();
+
+	ui.init();
+	
 	adjustables = new Vector<Adjustable>();
 
-
-	scopeManager = new ScopeManager(this);
-
 	random = new Random();
-	mouse = new MouseManager(this);
 
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
@@ -511,23 +224,6 @@ public class CirSim implements NativePreviewHandler {
 
 	undoManager.enableUndoRedo();
 	commands.enablePaste();
-	mouse.register(cv);
-	mouse.enableDisableMenuItems();
-	ui.setiFrameHeight();
-	menuBar.addDomHandler(new ClickHandler() {
-	    public void onClick(ClickEvent event) {
-		mouse.doMainMenuChecks();
-	    }
-	}, ClickEvent.getType());
-	Event.addNativePreviewHandler(this);
-
-	Window.addWindowClosingHandler(new Window.ClosingHandler() {
-	    public void onWindowClosing(ClosingEvent event) {
-		// there is a bug in electron that makes it impossible to close the app if this warning is given
-		if (unsavedChanges && !isElectron())
-		    event.setMessage(Locale.LS("Are you sure?  There are unsaved changes."));
-	    }
-	});
 	jsInterface = new JSInterface(this);
 	jsInterface.setupJSInterface();
 	
@@ -546,41 +242,6 @@ public class CirSim implements NativePreviewHandler {
     void composeSubcircuitMenu() { ui.composeSubcircuitMenu(); }
 
     public void setiFrameHeight() { ui.setiFrameHeight(); }
-    
-    CheckboxMenuItem getClassCheckItem(String s, String t) {
-	if (classToLabelMap == null)
-	    classToLabelMap = new HashMap<String, String>();
-	classToLabelMap.put(t, s);
-
-    	// try {
-    	//   Class c = Class.forName(t);
-    	String shortcut="";
-    	CircuitElm elm = null;
-    	try {
-    	    elm = constructElement(t, 0, 0);
-    	} catch (Exception e) {}
-    	CheckboxMenuItem mi;
-    	register(t, elm);
-	if (elm == null)
-		console("can't create class: " + t);
-    	if ( elm!=null ) {
-    		if (elm.needsShortcut() ) {
-    			shortcut += (char)elm.getShortcut();
-    			if (shortcuts[elm.getShortcut()] != null && !shortcuts[elm.getShortcut()].equals(t))
-    			    console("already have shortcut for " + (char)elm.getShortcut() + " " + elm);
-    			shortcuts[elm.getShortcut()]=t;
-    		}
-    		elm.delete();
-    	}
-    	if (shortcut=="")
-    		mi= new CheckboxMenuItem(s);
-    	else
-    		mi = new CheckboxMenuItem(s, shortcut);
-    	mi.setScheduledCommand(new MyCommand("main", t) );
-    	mainMenuItems.add(mi);
-    	mainMenuItemNames.add(t);
-    	return mi;
-    }
     
     void centreCircuit() { ui.centreCircuit(); }
 
@@ -611,7 +272,6 @@ public class CirSim implements NativePreviewHandler {
 	jsInterface.callTimeStepHook();
     }
 
-    String getHint() { return ui.getHint(); }
     void needAnalyze() {
 	analyzeFlag = true;
     	repaint();
@@ -626,13 +286,72 @@ public class CirSim implements NativePreviewHandler {
     
     double getIterCount() {
     	// IES - remove interaction
-	if (speedBar.getValue() == 0)
+	if (ui.speedBar.getValue() == 0)
 	   return 0;
 
-	 return .1*Math.exp((speedBar.getValue()-61)/24.);
+	 return .1*Math.exp((ui.speedBar.getValue()-61)/24.);
 
     }
     
+    String getHint() {
+	CircuitElm c1 = getElm(hintItem1);
+	CircuitElm c2 = getElm(hintItem2);
+	if (c1 == null || c2 == null)
+	    return null;
+	if (hintType == CirSim.HINT_LC) {
+	    if (!(c1 instanceof InductorElm))
+		return null;
+	    if (!(c2 instanceof CapacitorElm))
+		return null;
+	    InductorElm ie = (InductorElm) c1;
+	    CapacitorElm ce = (CapacitorElm) c2;
+	    return Locale.LS("res.f = ") + CircuitElm.getUnitText(1/(2*CirSim.pi*Math.sqrt(ie.inductance*
+						    ce.capacitance)), "Hz");
+	}
+	if (hintType == CirSim.HINT_RC) {
+	    if (!(c1 instanceof ResistorElm))
+		return null;
+	    if (!(c2 instanceof CapacitorElm))
+		return null;
+	    ResistorElm re = (ResistorElm) c1;
+	    CapacitorElm ce = (CapacitorElm) c2;
+	    return "RC = " + CircuitElm.getUnitText(re.resistance*ce.capacitance,
+					 "s");
+	}
+	if (hintType == CirSim.HINT_3DB_C) {
+	    if (!(c1 instanceof ResistorElm))
+		return null;
+	    if (!(c2 instanceof CapacitorElm))
+		return null;
+	    ResistorElm re = (ResistorElm) c1;
+	    CapacitorElm ce = (CapacitorElm) c2;
+	    return Locale.LS("f.3db = ") +
+		CircuitElm.getUnitText(1/(2*CirSim.pi*re.resistance*ce.capacitance), "Hz");
+	}
+	if (hintType == CirSim.HINT_3DB_L) {
+	    if (!(c1 instanceof ResistorElm))
+		return null;
+	    if (!(c2 instanceof InductorElm))
+		return null;
+	    ResistorElm re = (ResistorElm) c1;
+	    InductorElm ie = (InductorElm) c2;
+	    return Locale.LS("f.3db = ") +
+		CircuitElm.getUnitText(re.resistance/(2*CirSim.pi*ie.inductance), "Hz");
+	}
+	if (hintType == CirSim.HINT_TWINT) {
+	    if (!(c1 instanceof ResistorElm))
+		return null;
+	    if (!(c2 instanceof CapacitorElm))
+		return null;
+	    ResistorElm re = (ResistorElm) c1;
+	    CapacitorElm ce = (CapacitorElm) c2;
+	    return Locale.LS("fc = ") +
+		CircuitElm.getUnitText(1/(2*CirSim.pi*re.resistance*ce.capacitance), "Hz");
+	}
+	return null;
+    }
+
+
     public Adjustable findAdjustable(CircuitElm elm, int item) {
 	int i;
 	for (i = 0; i != adjustables.size(); i++) {
@@ -683,13 +402,12 @@ public class CirSim implements NativePreviewHandler {
 	f |= sim.adjustTimeStep ? 64 : 0;
 	String dump = "$ " + f + " " +
 	    sim.maxTimeStep + " " + getIterCount() + " " +
-	    currentBar.getValue() + " " + CircuitElm.voltageRange + " " +
-	    powerBar.getValue() + " " + sim.minTimeStep + "\n";
+	    ui.currentBar.getValue() + " " + CircuitElm.voltageRange + " " +
+	    ui.powerBar.getValue() + " " + sim.minTimeStep + "\n";
 	return dump;
     }
     
     String dumpCircuit() {
-	int i;
 	CustomLogicModel.clearDumpedFlags();
 	CustomCompositeModel.clearDumpedFlags();
 	DiodeModel.clearDumpedFlags();

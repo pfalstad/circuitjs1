@@ -62,10 +62,11 @@ class XMLDeserializer {
         sim.maxTimeStep = sim.timeStep = parseDoubleAttr("ts", sim.maxTimeStep);
         double sp = parseDoubleAttr("ic", app.getIterCount());
         int sp2 = (int) (Math.log(10*sp)*24+61.5);
-        app.speedBar.setValue(sp2);
-        app.currentBar.setValue(parseIntAttr("cb", app.currentBar.getValue()));
+        UIManager ui = app.ui;
+        ui.speedBar.setValue(sp2);
+        ui.currentBar.setValue(parseIntAttr("cb", ui.currentBar.getValue()));
         CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);
-	app.powerBar.setValue(parseIntAttr("pb", app.powerBar.getValue()));
+	ui.powerBar.setValue(parseIntAttr("pb", ui.powerBar.getValue()));
         sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
         app.setGrid();
 
