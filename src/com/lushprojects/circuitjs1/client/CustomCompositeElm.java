@@ -146,6 +146,8 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     public void updateModels(StringTokenizer st) {
+	if (model != null && model.name.equals(modelName))
+	    return;
 	model = CustomCompositeModel.getModelWithName(modelName);
 	if (model == null)
 	    return;
@@ -191,7 +193,12 @@ public class CustomCompositeElm extends CompositeElm {
             ei.button = new Button(Locale.LS("Edit Pin Layout"));
             return ei;
         }
-        if (n == 2 && model.canLoadModelCircuit()) {
+        if (n == 2) {
+            EditInfo ei = new EditInfo("", 0, -1, -1);
+            ei.button = new Button("Show Internal Elements");
+            return ei;
+        }
+        if (n == 3 && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Load Model Circuit"));
             return ei;
@@ -222,6 +229,32 @@ public class CustomCompositeElm extends CompositeElm {
             return;
         }
         if (n == 2) {
+            // create a new list with all elements including ones skipped by loadCompositeXml
+            Vector<CircuitElm> allElms = new Vector<CircuitElm>(compElmList);
+            Vector<Element> elmEntries = model.getElmEntries();
+            XMLDeserializer xml = new XMLDeserializer(app);
+            int compIdx = 0;
+            for (Element childElem : elmEntries) {
+        	String tagName = childElem.getTagName();
+        	String className = CirSim.xmlDumpTypeMap.get(tagName);
+        	if (className == null)
+        	    continue;
+        	CircuitElm ce;
+        	if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+        		className.equals("GraphicElm") || className.equals("GroundElm")) {
+        	    ce = CirSim.constructElement(className, 0, 0);
+        	    xml.parseChildElement(childElem);
+        	    ce.undumpXml(xml);
+        	    allElms.add(ce);
+        	} else {
+        	    ce = compElmList.get(compIdx++);
+        	}
+        	ce.setPositionFromXml(childElem);
+            }
+            app.ui.elmList = allElms;
+            CirSim.editDialog.closeDialog();
+        }
+        if (n == 3) {
             if (model.modelCircuit != null)
         	app.readCircuit(model.modelCircuit);
             else {

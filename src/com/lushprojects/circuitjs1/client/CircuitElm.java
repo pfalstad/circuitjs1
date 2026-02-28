@@ -518,6 +518,15 @@ public abstract class CircuitElm implements Editable {
 	y2 = y2_;
 	setPoints();
     }
+
+    void setPositionFromXml(Element elem) {
+	String x = elem.getAttribute("x");
+	if (x == null)
+	    return;
+	String xs[] = x.split(" ");
+	setPosition(Integer.parseInt(xs[0]), Integer.parseInt(xs[1]),
+		    Integer.parseInt(xs[2]), Integer.parseInt(xs[3]));
+    }
     
     // determine if moving this element by (dx,dy) will put it on top of another element
     boolean allowMove(int dx, int dy) {

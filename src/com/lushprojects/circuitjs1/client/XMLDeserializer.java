@@ -145,11 +145,6 @@ class XMLDeserializer {
 	    String x = elem.getAttribute("x");
 	    if (x == null)
 		continue;
-	    String xs[] = x.split(" ");
-	    int x1 = Integer.parseInt(xs[0]);
-	    int y1 = Integer.parseInt(xs[1]);
-	    int x2 = Integer.parseInt(xs[2]);
-	    int y2 = Integer.parseInt(xs[3]);
 	    String className = CirSim.xmlDumpTypeMap.get(tagName);
 	    if (className == null) {
 		app.console("unrecognized xml element: " + tagName);
@@ -159,7 +154,7 @@ class XMLDeserializer {
 	    currentXmlElement = elem;
 	    currentElm = elm;
 	    elm.undumpXml(this);
-	    elm.setPosition(x1, y1, x2, y2);
+	    elm.setPositionFromXml(elem);
 	    app.elmList.add(elm);
 	}
     }

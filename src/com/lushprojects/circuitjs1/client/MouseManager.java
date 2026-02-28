@@ -305,7 +305,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	int dy = y-dragGridY;
     	if (dy == 0)
     		return;
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     		if (ce.y  == dragGridY)
     			ce.movePoint(0, 0, dy);
     		if (ce.y2 == dragGridY)
@@ -318,7 +318,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	int dx = x-dragGridX;
     	if (dx == 0)
     		return;
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     		if (ce.x  == dragGridX)
     			ce.movePoint(0, dx, 0);
     		if (ce.x2 == dragGridX)
@@ -330,7 +330,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     boolean onlyGraphicsElmsSelected() {
 	if (mouseElm!=null && !(mouseElm instanceof GraphicElm))
 	    return false;
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     	    if ( ce.isSelected() && !(ce instanceof GraphicElm) )
     		return false;
     	}
@@ -361,7 +361,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	boolean allowed = true;
 
     	// check if moves are allowed
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     	    if (ce.isSelected() && !ce.allowMove(dx, dy))
     		allowed = false;
     	    if (!allowed)
@@ -369,7 +369,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
 
     	if (allowed) {
-    	    for (CircuitElm ce : sim.elmList) {
+    	    for (CircuitElm ce : ui.elmList) {
     		if (ce.isSelected())
     		    ce.move(dx, dy);
     	    }
@@ -397,8 +397,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	if (all) {
     	    // go through all elms
     	    int i;
-    	    for (i = 0; i != sim.elmList.size(); i++) {
-    		CircuitElm e = sim.elmList.get(i);
+    	    for (i = 0; i != ui.elmList.size(); i++) {
+    		CircuitElm e = ui.elmList.get(i);
 
     		// which post do we move?
     		int p = 0;
@@ -437,7 +437,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	WireElm newWire = new WireElm(x, y);
 	newWire.drag(ce.x2, ce.y2);
 	ce.drag(x, y);
-	sim.elmList.addElement(newWire);
+	ui.elmList.addElement(newWire);
 	sim.needAnalyze();
     }
 
@@ -447,7 +447,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	int y1 = Math.min(y, initDragGridY);
     	int y2 = Math.max(y, initDragGridY);
     	selectedArea = new Rectangle(x1, y1, x2-x1, y2-y1);
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     		ce.selectRect(selectedArea, add);
     	}
 	enableDisableMenuItems();
@@ -458,7 +458,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	boolean canFlipY = true;
 	boolean canFlipXY = true;
 	int selCount = sim.commands.countSelected();
-	for (CircuitElm elm : sim.elmList)
+	for (CircuitElm elm : ui.elmList)
 	    if (elm.isSelected() || selCount == 0) {
 		if (!elm.canFlipX())
 		    canFlipX = false;
@@ -491,10 +491,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     void removeZeroLengthElements() {
     	boolean changed = false;
-    	for (int i = sim.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = sim.elmList.get(i);
+    	for (int i = ui.elmList.size()-1; i >= 0; i--) {
+    		CircuitElm ce = ui.elmList.get(i);
     		if (ce.x == ce.x2 && ce.y == ce.y2) {
-    			sim.elmList.removeElementAt(i);
+    			ui.elmList.removeElementAt(i);
     			ce.delete();
     			changed = true;
     		}
@@ -583,7 +583,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		newMouseElm=mouseElm;
     	    } else {
     		int bestDist = 100000000;
-    		for (CircuitElm ce : sim.elmList) {
+    		for (CircuitElm ce : ui.elmList) {
 		    if (ce.boundingBox.contains(gx, gy)) {
 			int dist = ce.getMouseDistance(gx, gy);
 			if (dist >= 0 && dist < bestDist) {
@@ -609,7 +609,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    }
     		//	    // the mouse pointer was not in any of the bounding boxes, but we
     		//	    // might still be close to a post
-    		for (CircuitElm ce : sim.elmList) {
+    		for (CircuitElm ce : ui.elmList) {
     			if (mouseMode==MODE_DRAG_POST ) {
     				if (ce.getHandleGrabbedClose(gx, gy, POSTGRABSQ, 0)> 0)
     				{
@@ -694,7 +694,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 		    boolean canFlipX = mouseElm.canFlipX();
 		    boolean canFlipY = mouseElm.canFlipY();
 		    boolean canFlipXY = mouseElm.canFlipXY();
-		    for (CircuitElm elm : sim.elmList)
+		    for (CircuitElm elm : ui.elmList)
 			if (elm.isSelected()) {
 			    if (!elm.canFlipX())
 				canFlipX = false;
@@ -953,7 +953,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 			dragElm = null;
     		}
     		else {
-    			sim.elmList.addElement(dragElm);
+    			ui.elmList.addElement(dragElm);
     			dragElm.draggingDone();
     			circuitChanged = true;
     			sim.undoManager.writeRecoveryToStorage();
@@ -1034,21 +1034,21 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     }
 
     void clearSelection() {
-	for (CircuitElm ce : sim.elmList) {
+	for (CircuitElm ce : ui.elmList) {
 	    ce.setSelected(false);
 	}
 	enableDisableMenuItems();
     }
 
     void doSelectAll() {
-    	for (CircuitElm ce : sim.elmList) {
+    	for (CircuitElm ce : ui.elmList) {
     		ce.setSelected(true);
     	}
 	enableDisableMenuItems();
     }
 
     boolean anySelectedButMouse() {
-    	for (CircuitElm ce : sim.elmList)
+    	for (CircuitElm ce : ui.elmList)
     		if (ce != mouseElm && ce.selected)
     			return true;
     	return false;

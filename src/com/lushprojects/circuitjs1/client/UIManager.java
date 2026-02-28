@@ -117,6 +117,8 @@ public class UIManager {
 	String mouseModeReq = null;
 	boolean euroGates = false;
 
+	elmList = app.elmList;
+
 	try {
 	    euroRes = qp.getBooleanValue("euroResistors", false);
 	    euroGates = qp.getBooleanValue("IECGates", getOptionFromStorage("euroGates", Locale.weAreInGermany()));
@@ -406,7 +408,7 @@ public class UIManager {
     }
 
     void centreCircuit() {
-	if (app.elmList == null)
+	if (elmList == null)
 	    return;
 
 	Rectangle bounds = getCircuitBounds();
@@ -435,7 +437,7 @@ public class UIManager {
 
     Rectangle getCircuitBounds() {
     	int minx = 30000, maxx = -30000, miny = 30000, maxy = -30000;
-    	for (CircuitElm ce : app.elmList) {
+    	for (CircuitElm ce : elmList) {
     		if (!ce.isCenteredText()) {
     			minx = min(ce.x, min(ce.x2, minx));
     			maxx = max(ce.x, max(ce.x2, maxx));
@@ -589,7 +591,7 @@ public class UIManager {
         cvcontext.setTransform(app.transform[0] * scale, 0, 0, app.transform[3] * scale, app.transform[4] * scale, app.transform[5] * scale);
 
         perfmon.startContext("elm.draw()");
-        for (CircuitElm ce : app.elmList) {
+        for (CircuitElm ce : elmList) {
             if (menus.powerCheckItem.getState())
                 g.setColor(Color.gray);
 
@@ -606,7 +608,7 @@ public class UIManager {
             mouse.tempMouseMode == MouseManager.MODE_DRAG_COLUMN ||
             mouse.tempMouseMode == MouseManager.MODE_DRAG_POST ||
             mouse.tempMouseMode == MouseManager.MODE_DRAG_SELECTED) {
-            for (CircuitElm ce : app.elmList) {
+            for (CircuitElm ce : elmList) {
                 if (ce != mouse.getMouseElm() || mouse.tempMouseMode != MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);
@@ -1042,7 +1044,7 @@ public class UIManager {
     }
 
     boolean isSelection() {
-	for (CircuitElm ce : app.elmList)
+	for (CircuitElm ce : elmList)
 	    if (ce.isSelected())
 		return true;
 	return false;
@@ -1053,7 +1055,7 @@ public class UIManager {
     	if (app.sim.t == 0)
     	    setSimRunning(true);
     	app.sim.resetTime();
-    	for (CircuitElm ce : app.elmList)
+    	for (CircuitElm ce : elmList)
 		ce.reset();
 	app.scopeManager.resetGraphs();
     	repaint();
