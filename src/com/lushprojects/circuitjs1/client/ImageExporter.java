@@ -171,10 +171,10 @@ public class ImageExporter {
 		context.setLineCap(Context2d.LineCap.ROUND);
 
 		// draw elements
-		int i;
-		for (i = 0; i != sim.elmList.size(); i++) {
-		    sim.getElm(i).draw(g);
+		for (CircuitElm ce : sim.elmList) {
+		    ce.draw(g);
 		}
+		int i;
 		for (i = 0; i != sim.postDrawList.size(); i++) {
 		    CircuitElm.drawPost(g, sim.postDrawList.get(i));
 		}

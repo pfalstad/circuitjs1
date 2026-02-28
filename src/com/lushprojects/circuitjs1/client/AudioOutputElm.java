@@ -74,8 +74,7 @@ public class AudioOutputElm extends CircuitElm {
 	    int num = 1;
 	    if (sim.elmList == null)
 		return 0;
-	    for (i = 0; i != sim.elmList.size(); i++) {
-		CircuitElm ce = sim.getElm(i);
+	    for (CircuitElm ce : sim.elmList) {
 		if (!(ce instanceof AudioOutputElm))
 		    continue;
 		int ln = ((AudioOutputElm)ce).labelNum;

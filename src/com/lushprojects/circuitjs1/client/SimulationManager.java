@@ -1137,7 +1137,7 @@ public class SimulationManager {
 	    int i, j, subiter;
 	    for (i = 0; i != elmArr.length; i++)
 		elmArr[i].startIteration();
-	    app.steps++;
+	    app.ui.steps++;
 	    int subiterCount = (adjustTimeStep && timeStep/2 > minTimeStep) ? 100 : 5000;
 	    for (subiter = 0; subiter != subiterCount; subiter++) {
 		converged = true;
@@ -1239,7 +1239,7 @@ public class SimulationManager {
 	    lit = tm;
 	    // Check whether enough time has elapsed to perform an *additional* iteration after
 	    // those we have already completed.  But limit total computation time to 50ms (20fps) by default
-	    if ((timeStepCount-timeStepCountAtFrameStart)*1000 >= steprate*(tm-lastIterTime) || (tm-app.lastFrameTime > frameTimeLimit))
+	    if ((timeStepCount-timeStepCountAtFrameStart)*1000 >= steprate*(tm-lastIterTime) || (tm-app.ui.lastFrameTime > frameTimeLimit))
 		break;
 	    if (!app.simRunning)
 		break;

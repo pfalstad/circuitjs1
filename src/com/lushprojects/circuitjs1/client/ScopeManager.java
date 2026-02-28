@@ -195,8 +195,8 @@ public class ScopeManager {
 	for (i = 0; i != scopeCount; i++)
 	    if (scopes[i].viewingWire())
 		return false;
-	for (i=0; i != sim.elmList.size(); i++)
-	    if (sim.getElm(i) instanceof ScopeElm && ((ScopeElm)sim.getElm(i)).elmScope.viewingWire())
+	for (CircuitElm ce : sim.elmList)
+	    if (ce instanceof ScopeElm && ((ScopeElm)ce).elmScope.viewingWire())
 		return false;
 	return true;
     }
@@ -319,7 +319,7 @@ public class ScopeManager {
     void deleteUnusedScopeElms() {
 	// Remove any scopeElms for elements that no longer exist
 	for (int i = sim.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = sim.getElm(i);
+    		CircuitElm ce = sim.elmList.get(i);
     		if (ce instanceof ScopeElm && (((ScopeElm) ce).elmScope.needToRemove() )) {
     			ce.delete();
     			sim.elmList.removeElementAt(i);

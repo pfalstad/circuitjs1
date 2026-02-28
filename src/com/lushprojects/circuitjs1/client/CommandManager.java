@@ -376,8 +376,7 @@ public class CommandManager {
     	int minx = 30000, maxx = -30000;
     	int miny = 30000, maxy = -30000;
 	int count = countSelected();
-    	for (i = 0; i != app.elmList.size(); i++) {
-	    CircuitElm ce = app.getElm(i);
+    	for (CircuitElm ce : app.elmList) {
 	    if (ce.isSelected() || count == 0) {
 		minx = Math.min(ce.x, Math.min(ce.x2, minx));
 		maxx = Math.max(ce.x, Math.max(ce.x2, maxx));
@@ -424,12 +423,11 @@ public class CommandManager {
     }
 
     void doCut() {
-    	int i;
     	app.undoManager.pushUndo();
     	setMenuSelection();
     	clipboard = "";
-    	for (i = app.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = app.getElm(i);
+    	for (int i = app.elmList.size()-1; i >= 0; i--) {
+    		CircuitElm ce = app.elmList.get(i);
     		if (willDelete(ce) && !(ce instanceof ScopeElm) ) {
     			clipboard += ce.dump() + "\n";
     		}
@@ -454,13 +452,12 @@ public class CommandManager {
     }
 
     void doDelete(boolean pushUndoFlag) {
-    	int i;
     	if (pushUndoFlag)
     	    app.undoManager.pushUndo();
     	boolean hasDeleted = false;
 
-    	for (i = app.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = app.getElm(i);
+    	for (int i = app.elmList.size()-1; i >= 0; i--) {
+    		CircuitElm ce = app.elmList.get(i);
     		if (willDelete(ce)) {
     		    	if (ce.isMouseElm())
     		    	    app.mouse.setMouseElm(null);
@@ -487,7 +484,7 @@ public class CommandManager {
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
 	for (int i = app.elmList.size()-1; i >= 0; i--) {
-	    CircuitElm ce = app.getElm(i);
+	    CircuitElm ce = app.elmList.get(i);
 	    String m = ce.dumpModel();
 	    if (m != null && !m.isEmpty())
 		r += m + "\n";
@@ -530,8 +527,7 @@ public class CommandManager {
     	Rectangle oldbb = null;
 
     	// get old bounding box
-    	for (i = 0; i != app.elmList.size(); i++) {
-    		CircuitElm ce = app.getElm(i);
+    	for (CircuitElm ce : app.elmList) {
     		Rectangle bb = ce.getBoundingBox();
     		if (oldbb != null)
     			oldbb = oldbb.union(bb);
@@ -559,7 +555,7 @@ public class CommandManager {
     	// select new items and get their bounding box
     	Rectangle newbb = null;
     	for (i = oldsz; i != app.elmList.size(); i++) {
-    		CircuitElm ce = app.getElm(i);
+    		CircuitElm ce = app.elmList.get(i);
     		ce.setSelected(true);
     		Rectangle bb = ce.getBoundingBox();
     		if (newbb != null)
@@ -593,7 +589,7 @@ public class CommandManager {
     	    	    int mdx = app.snapGrid(gx-(newbb.x+newbb.width/2));
     	    	    int mdy = app.snapGrid(gy-(newbb.y+newbb.height/2));
     	    	    for (i = oldsz; i != app.elmList.size(); i++) {
-    	    		if (!app.getElm(i).allowMove(mdx, mdy))
+    	    		if (!app.elmList.get(i).allowMove(mdx, mdy))
     	    		    break;
     	    	    }
     	    	    if (i == app.elmList.size()) {
@@ -604,7 +600,7 @@ public class CommandManager {
 
     		// move the new items
     		for (i = oldsz; i != app.elmList.size(); i++) {
-    			CircuitElm ce = app.getElm(i);
+    			CircuitElm ce = app.elmList.get(i);
     			ce.move(dx, dy);
     		}
 

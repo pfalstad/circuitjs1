@@ -525,9 +525,7 @@ public abstract class CircuitElm implements Editable {
 	int ny = y+dy;
 	int nx2 = x2+dx;
 	int ny2 = y2+dy;
-	int i;
-	for (i = 0; i != app.elmList.size(); i++) {
-	    CircuitElm ce = app.getElm(i);
+	for (CircuitElm ce : app.elmList) {
 	    if (ce.x == nx && ce.y == ny && ce.x2 == nx2 && ce.y2 == ny2)
 		return false;
 	    if (ce.x == nx2 && ce.y == ny2 && ce.x2 == nx && ce.y2 == ny)

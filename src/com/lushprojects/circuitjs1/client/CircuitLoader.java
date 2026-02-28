@@ -38,8 +38,8 @@ public class CircuitLoader {
 
     public void clearCircuit() {
         app.mouse.clearMouseElm();
-        for (int i = 0; i != app.elmList.size(); i++) {
-            app.getElm(i).delete();
+        for (CircuitElm ce : app.elmList) {
+            ce.delete();
         }
         sim.resetTime();
         app.elmList.removeAllElements();
