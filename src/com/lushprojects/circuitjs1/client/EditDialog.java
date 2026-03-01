@@ -71,7 +71,7 @@ class EditDialog extends Dialog {
 //		setLayout(new EditDialogLayout());
 		mainPanel=new VerticalPanel();
 		setWidget(mainPanel);
-		einfos = new EditInfo[10];
+		einfos = new EditInfo[20];
 //		noCommaFormat = DecimalFormat.getInstance();
 //		noCommaFormat.setMaximumFractionDigits(10);
 //		noCommaFormat.setGroupingUsed(false);
@@ -165,7 +165,10 @@ class EditDialog extends Dialog {
 			    vp.add(ei.textf = new TextBox());
 			    if (ei.text != null) {
 				ei.textf.setText(ei.text);
-				ei.textf.setVisibleLength(50);
+				if (ei.isColor)
+				    ei.textf.getElement().setAttribute("type", "color");
+				else
+				    ei.textf.setVisibleLength(50);
 			    }
 			    if (ei.text == null) {
 				ei.textf.setText(unitString(ei));
