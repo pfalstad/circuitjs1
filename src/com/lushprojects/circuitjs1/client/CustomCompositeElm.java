@@ -104,6 +104,7 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     public void updateModels() {
+	model = null;
 	updateModels(null);
     }
     

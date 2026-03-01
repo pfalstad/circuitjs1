@@ -123,9 +123,10 @@ public class Toolbar extends FlowPanel {
 	contextSaveButton = createTextButton("Save", "#28a745", event -> {
 	    CirSim app = CirSim.theApp;
 	    String modelName = app.getEditingModelName();
-	    CustomCompositeModel model = CustomCompositeModel.getModelWithName(modelName);
 	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
-	    dlg.setModel(model);
+	    if (!dlg.createModel())
+		return;
+	    dlg.model.setName(modelName);
 	    dlg.popContext = true;
 	    dlg.createDialog();
 	    app.dialogShowing = dlg;
