@@ -228,6 +228,15 @@ class CapacitorElm extends CircuitElm {
 	    if (n == 3)
 		seriesResistance = ei.value;
 	}
+	double getScopeValue(int x) {
+	    return (x == Scope.VAL_CHARGE) ? capacitance * voltdiff : super.getScopeValue(x);
+	}
+	int getScopeUnits(int x) {
+	    return (x == Scope.VAL_CHARGE) ? Scope.UNITS_C : super.getScopeUnits(x);
+	}
+	boolean canShowValueInScope(int x) {
+	    return x == Scope.VAL_CHARGE;
+	}
 	int getShortcut() { return 'c'; }
 	public double getCapacitance() { return capacitance; }
 	public double getSeriesResistance() { return seriesResistance; }

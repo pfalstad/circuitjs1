@@ -5046,7 +5046,7 @@ MouseOutHandler, MouseWheelHandler {
     	
     	if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
     		((MouseWheelHandler) mouseElm).onMouseWheel(e);
-    	else if (scopeSelected != -1 && !zoomOnly)
+    	else if (scopeSelected != -1)
     	    scopes[scopeSelected].onMouseWheel(e);
     	else if (!dialogIsShowing()) {
     	    mouseCursorX=e.getX();
