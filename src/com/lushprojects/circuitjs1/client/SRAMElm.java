@@ -31,6 +31,8 @@ import com.google.gwt.xml.client.Element;
 	int addressNodes, dataNodes, internalNodes;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
+	HashMap<Integer, Integer> initialMap; // saved initial contents for restore on reset
+	static final int FLAG_RELOAD_ON_RESET = 2;
 	static String contentsOverride = null;
 	TextArea editTextArea;
 	boolean hexTogglePending;
@@ -66,6 +68,8 @@ import com.google.gwt.xml.client.Element;
 		    }
 		}
 	    } catch (Exception e) {}
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		initialMap = new HashMap<Integer, Integer>(map);
 	}
 
 	void dumpXml(Document doc, Element elem) {
@@ -87,6 +91,12 @@ import com.google.gwt.xml.client.Element;
 		parseContentsString(xml.parseContents());
 	    } catch (Exception e) {}
 	    setupPins();
+	}
+
+	void reset() {
+	    super.reset();
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0 && initialMap != null)
+		map = new HashMap<Integer, Integer>(initialMap);
 	}
 
 	boolean nonLinear() { return true; }
@@ -144,6 +154,13 @@ import com.google.gwt.xml.client.Element;
             	ei.newDialog = true;
             	return ei;
             }
+	    int reloadIdx = SRAMLoadFile.isSupported() ? 5 : 4;
+	    if (n == reloadIdx) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Restore Contents on Reset",
+		    (flags & FLAG_RELOAD_ON_RESET) != 0);
+		return ei;
+	    }
 	    return super.getChipEditInfo(n);
 	}
 	
@@ -218,6 +235,8 @@ import com.google.gwt.xml.client.Element;
 		// skip re-parse during apply() if hex toggle already handled it
 		if (!hexTogglePending)
 		    parseContentsString(ei.textArea.getText());
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
 	    }
 	    if (n == 3) {
 		if (hexTogglePending) {
@@ -238,6 +257,14 @@ import com.google.gwt.xml.client.Element;
 		    hexTogglePending = true;
 		    ei.newDialog = true;
 		}
+	    }
+	    int reloadIdx = SRAMLoadFile.isSupported() ? 5 : 4;
+	    if (n == reloadIdx) {
+		flags = ei.changeFlag(flags, FLAG_RELOAD_ON_RESET);
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
+		else
+		    initialMap = null;
 	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }
