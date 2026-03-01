@@ -1201,6 +1201,7 @@ MouseOutHandler, MouseWheelHandler {
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Op Amp (real)"), "OpAmpRealElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Analog Switch (SPST)"), "AnalogSwitchElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Analog Switch (SPDT)"), "AnalogSwitch2Elm"));
+    	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Analog Multiplexer"), "AnalogMuxElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Tristate Buffer"), "TriStateElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Schmitt Trigger"), "SchmittElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem(Locale.LS("Add Schmitt Trigger (Inverting)"), "InvertingSchmittElm"));
@@ -5969,6 +5970,7 @@ MouseOutHandler, MouseWheelHandler {
     	case 428: return new MotorProtectionSwitchElm(x1, y1, x2, y2, f, st);
     	case 429: return new DPDTSwitchElm(x1, y1, x2, y2, f, st);
     	case 430: return new CrossSwitchElm(x1, y1, x2, y2, f, st);
+    	case 432: return new AnalogMuxElm(x1, y1, x2, y2, f, st);
         }
     	return null;
     }
@@ -6074,6 +6076,8 @@ MouseOutHandler, MouseWheelHandler {
     		return (CircuitElm) new AnalogSwitchElm(x1, y1);
     	if (n=="AnalogSwitch2Elm")
     		return (CircuitElm) new AnalogSwitch2Elm(x1, y1);
+    	if (n=="AnalogMuxElm")
+    		return (CircuitElm) new AnalogMuxElm(x1, y1);
     	if (n=="SchmittElm")
     		return (CircuitElm) new SchmittElm(x1, y1);
     	if (n=="InvertingSchmittElm")
