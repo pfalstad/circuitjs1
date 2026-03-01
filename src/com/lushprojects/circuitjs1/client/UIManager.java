@@ -1077,7 +1077,7 @@ public class UIManager {
     // ---- Other ----
 
     void setCircuitTitle(String s) {
-	titleLabel.setText(s);
+	titleLabel.setText(s == null ? s : s.replace("_", "_\u200B"));
 	if (s != null && s.length() > 0)
 	    Document.get().setTitle(s + " - " + CirSim.baseTitle);
 	else
