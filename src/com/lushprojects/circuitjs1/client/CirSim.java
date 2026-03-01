@@ -5065,6 +5065,8 @@ MouseOutHandler, MouseWheelHandler {
     	double val = dy*.01;
     	newScale = Math.max(oldScale+val, .2);
     	newScale = Math.min(newScale, 2.5);
+    	if (newScale == oldScale)
+    	    return;
     	setCircuitScale(newScale, menu);
     }
     
@@ -5611,6 +5613,26 @@ MouseOutHandler, MouseWheelHandler {
     			e.cancel();
     		}
 
+    		if (code==KEY_LEFT || code==KEY_RIGHT || code==KEY_UP || code==KEY_DOWN) {
+    		    int dx = 0, dy = 0;
+    		    if (code == KEY_LEFT)  dx = -gridSize;
+    		    if (code == KEY_RIGHT) dx = gridSize;
+    		    if (code == KEY_UP)    dy = -gridSize;
+    		    if (code == KEY_DOWN)  dy = gridSize;
+    		    boolean hasSel = false;
+    		    for (int i = 0; i != elmList.size(); i++)
+    			if (getElm(i).isSelected()) { hasSel = true; break; }
+    		    if (hasSel) {
+    			pushUndo();
+    			for (int i = 0; i != elmList.size(); i++) {
+    			    CircuitElm ce = getElm(i);
+    			    if (ce.isSelected())
+    				ce.move(dx, dy);
+    			}
+    			needAnalyze();
+    			e.cancel();
+    		    }
+    		}
     		if (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey()) {
     			if (code==KEY_C) {
     				menuPerformed("key", "copy");
