@@ -12,7 +12,38 @@ const url = require('url')
 // be closed automatically when the JavaScript object is garbage collected.
 var windows = [];
 
-Menu.setApplicationMenu(false);
+// Build a minimal application menu so that standard keyboard shortcuts
+// (Cmd+C, Cmd+V, Cmd+X, Cmd+A) work in text fields on macOS.
+// Setting the menu to false disables these shortcuts entirely.
+var template = [
+  {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'selectAll' }
+    ]
+  }
+];
+if (process.platform === 'darwin') {
+  template.unshift({
+    label: app.getName(),
+    submenu: [
+      { role: 'about' },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit' }
+    ]
+  });
+}
+Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
 // save arguments
 global.sharedObject = {prop1: process.argv};

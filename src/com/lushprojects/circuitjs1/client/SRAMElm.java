@@ -28,6 +28,8 @@ import com.google.gwt.user.client.ui.TextArea;
 	int addressNodes, dataNodes, internalNodes;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
+	HashMap<Integer, Integer> initialMap; // saved initial contents for restore on reset
+	static final int FLAG_RELOAD_ON_RESET = 2;
 	static String contentsOverride = null;
 
 	public SRAMElm(int xx, int yy) {
@@ -61,6 +63,8 @@ import com.google.gwt.user.client.ui.TextArea;
 		    }
 		}
 	    } catch (Exception e) {}
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		initialMap = new HashMap<Integer, Integer>(map);
 	}
 
 	String dump() {
@@ -84,6 +88,12 @@ import com.google.gwt.user.client.ui.TextArea;
 	    }
 	    s += " -2";
 	    return s;
+	}
+
+	void reset() {
+	    super.reset();
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0 && initialMap != null)
+		map = new HashMap<Integer, Integer>(initialMap);
 	}
 
 	boolean nonLinear() { return true; }
@@ -158,6 +168,12 @@ import com.google.gwt.user.client.ui.TextArea;
             	ei.newDialog = true;
             	return ei;
             }
+	    if (n == 4 || (n == 3 && !SRAMLoadFile.isSupported())) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Restore Contents on Reset",
+		    (flags & FLAG_RELOAD_ON_RESET) != 0);
+		return ei;
+	    }
 	    return super.getChipEditInfo(n);
 	}
 	
@@ -198,6 +214,15 @@ import com.google.gwt.user.client.ui.TextArea;
 			}
 		    } catch (Exception e) {}
 		}
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
+	    }
+	    if (n == 4 || (n == 3 && !SRAMLoadFile.isSupported())) {
+		flags = ei.changeFlag(flags, FLAG_RELOAD_ON_RESET);
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
+		else
+		    initialMap = null;
 	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }

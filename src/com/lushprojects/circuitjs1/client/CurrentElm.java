@@ -20,7 +20,10 @@
 package com.lushprojects.circuitjs1.client;
 
     class CurrentElm extends CircuitElm {
+	static final int FLAG_VOLTAGE_LIMIT = 1;
 	double currentValue;
+	double maxVoltage = 1e8;
+	double lastVoltDiff;
 	boolean broken;
 	public CurrentElm(int xx, int yy) {
 	    super(xx, yy);
@@ -31,12 +34,19 @@ package com.lushprojects.circuitjs1.client;
 	    super(xa, ya, xb, yb, f);
 	    try {
 		currentValue = new Double(st.nextToken()).doubleValue();
-	    } catch (Exception e) {
+		maxVoltage = new Double(st.nextToken()).doubleValue();
+	    } catch (Exception e) {}
+	    if (currentValue == 0)
 		currentValue = .01;
-	    }
+	}
+	boolean isVoltageLimited() { return (flags & FLAG_VOLTAGE_LIMIT) != 0; }
+	boolean nonLinear() { return isVoltageLimited(); }
+	void reset() {
+	    super.reset();
+	    lastVoltDiff = 0;
 	}
 	String dump() {
-	    return super.dump() + " " + currentValue;
+	    return super.dump() + " " + currentValue + " " + maxVoltage;
 	}
 	int getDumpType() { return 'i'; }
 	
@@ -82,25 +92,67 @@ package com.lushprojects.circuitjs1.client;
 		// no current path; stamping a current source would cause a matrix error.
 		sim.stampResistor(nodes[0], nodes[1], 1e8);
 		current = 0;
+	    } else if (isVoltageLimited()) {
+		// voltage-limited mode: stamp as nonlinear, doStep() will handle it
+		sim.stampNonLinear(nodes[0]);
+		sim.stampNonLinear(nodes[1]);
 	    } else {
 		// ok to stamp a current source
 		sim.stampCurrentSource(nodes[0], nodes[1], currentValue);
 		current = currentValue;
 	    }
 	}
+
+	void doStep() {
+	    if (!isVoltageLimited() || broken)
+		return;
+	    double vd = volts[1] - volts[0];
+	    if (Math.abs(lastVoltDiff - vd) > .01)
+		sim.converged = false;
+	    lastVoltDiff = vd;
+
+	    double absVd = Math.abs(vd);
+	    if (absVd <= maxVoltage) {
+		// within compliance: act as ideal current source
+		sim.stampResistor(nodes[0], nodes[1], 1e8);
+		sim.stampCurrentSource(nodes[0], nodes[1], currentValue);
+		current = currentValue;
+	    } else {
+		// beyond compliance: act as high-impedance (open circuit)
+		sim.stampResistor(nodes[0], nodes[1], 1e8);
+		current = vd / 1e8;
+	    }
+	}
 	
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return new EditInfo("Current (A)", currentValue, 0, .1);
+	    if (n == 1) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Voltage Limited",
+		    isVoltageLimited());
+		return ei;
+	    }
+	    if (n == 2 && isVoltageLimited())
+		return new EditInfo("Max Voltage (V)", maxVoltage, 0, 0);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    currentValue = ei.value;
+	    if (n == 0)
+		currentValue = ei.value;
+	    if (n == 1) {
+		flags = ei.changeFlag(flags, FLAG_VOLTAGE_LIMIT);
+		ei.newDialog = true;
+	    }
+	    if (n == 2 && ei.value > 0)
+		maxVoltage = ei.value;
 	}
 	void getInfo(String arr[]) {
 	    arr[0] = "current source";
 	    int i = getBasicInfo(arr);
             arr[i++] = "P = " + getUnitText(getPower(), "W");
+	    if (isVoltageLimited())
+		arr[i++] = "Vmax = " + getVoltageText(maxVoltage);
 	}
 	double getVoltageDiff() {
 	    return volts[1] - volts[0];
