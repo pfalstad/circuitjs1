@@ -1230,6 +1230,7 @@ MouseOutHandler, MouseWheelHandler {
     	gateMenuBar.addItem(getClassCheckItem(Locale.LS("Add AND Gate"), "AndGateElm"));
     	gateMenuBar.addItem(getClassCheckItem(Locale.LS("Add OR Gate"), "OrGateElm"));
     	gateMenuBar.addItem(getClassCheckItem(Locale.LS("Add XOR Gate"), "XorGateElm"));
+    	gateMenuBar.addItem(getClassCheckItem(Locale.LS("Add XNOR Gate"), "XnorGateElm"));
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Logic Gates, Input and Output")), gateMenuBar);
 
     	MenuBar chipMenuBar = new MenuBar(true);
@@ -3958,7 +3959,11 @@ MouseOutHandler, MouseWheelHandler {
     static final String baseTitle = "Circuit Simulator";
 
     void setCircuitTitle(String s) {
-	titleLabel.setText(s);
+	if (s != null)
+	    // insert zero-width space after underscores so GWT Label can word-wrap long filenames (#190)
+	    titleLabel.setText(s.replace("_", "_\u200B"));
+	else
+	    titleLabel.setText(s);
 	if (s != null && s.length() > 0)
 	    Document.get().setTitle(s + " - " + baseTitle);
 	else
@@ -5969,6 +5974,7 @@ MouseOutHandler, MouseWheelHandler {
     	case 428: return new MotorProtectionSwitchElm(x1, y1, x2, y2, f, st);
     	case 429: return new DPDTSwitchElm(x1, y1, x2, y2, f, st);
     	case 430: return new CrossSwitchElm(x1, y1, x2, y2, f, st);
+    	case 431: return new XnorGateElm(x1, y1, x2, y2, f, st);
         }
     	return null;
     }
@@ -6108,6 +6114,8 @@ MouseOutHandler, MouseWheelHandler {
     		return (CircuitElm) new OrGateElm(x1, y1);
     	if (n=="XorGateElm")
     		return (CircuitElm) new XorGateElm(x1, y1);
+    	if (n=="XnorGateElm")
+    		return (CircuitElm) new XnorGateElm(x1, y1);
     	if (n=="DFlipFlopElm")
     		return (CircuitElm) new DFlipFlopElm(x1, y1);
     	if (n=="JKFlipFlopElm")

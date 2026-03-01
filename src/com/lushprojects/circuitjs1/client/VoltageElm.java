@@ -186,6 +186,16 @@ class VoltageElm extends CircuitElm {
 	    setBbox(point1, point2, hs);
 	    interpPoint2(lead1, lead2, ps1, ps2, 1, hs);
 	    drawThickLine(g, ps1, ps2);
+	    // draw +/- signs next to the battery symbol (#198)
+	    if (dx == 0 || dy == 0) {
+		g.setColor(whiteColor);
+		g.setFont(unitsFont);
+		int sig = (dx == 0) ? sign(dy) : sign(dx);
+		Point pp = interpPoint(lead1, lead2, 1, (hs + 6) * sig);
+		g.drawString("+", pp.x - 3, pp.y + 4);
+		pp = interpPoint(lead1, lead2, 0, (10 + 6) * sig);
+		g.drawString("\u2013", pp.x - 3, pp.y + 4);
+	    }
 	} else {
 	    setBbox(point1, point2, circleSize);
 	    interpPoint(lead1, lead2, ps1, .5);
