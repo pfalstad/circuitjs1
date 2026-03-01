@@ -80,6 +80,8 @@ public class SimulationManager {
     }
     // map points to node numbers
     HashMap<Point,NodeMapEntry> nodeMap;
+    // separate node map for UI element list (when viewing composite internals)
+    HashMap<Point,NodeMapEntry> uiNodeMap;
     
     class WireInfo {
 	CircuitElm wire;
@@ -97,58 +99,109 @@ public class SimulationManager {
     // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
     // The actual node we map to is not assigned yet.  Instead we map to the same NodeMapEntry.
     void calculateWireClosure() {
-	int i;
 	LabeledNodeElm.resetNodeList();
 	GroundElm.resetNodeList();
-	nodeMap = new HashMap<Point,NodeMapEntry>();
-//	int mergeCount = 0;
+	calculateWireClosureForList(elmList, false);
+    }
+
+    // run wire closure on a given element list.  if uiList is true, treat LabeledNodeElm.getConnectedPost()
+    // as null (since labeled nodes in subcircuits connect to composite terminals, not to each other)
+    void calculateWireClosureForList(Vector<CircuitElm> list, boolean uiList) {
+	int i;
+	HashMap<Point,NodeMapEntry> nm = new HashMap<Point,NodeMapEntry>();
 	wireInfoList = new Vector<WireInfo>();
-	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
+	for (i = 0; i != list.size(); i++) {
+	    CircuitElm ce = list.get(i);
 	    if (!ce.isRemovableWire())
 		continue;
 	    ce.hasWireInfo = false;
 	    wireInfoList.add(new WireInfo(ce));
 	    Point p0 = ce.getPost(0);
-	    NodeMapEntry cn  = nodeMap.get(p0);
-	    
+	    NodeMapEntry cn  = nm.get(p0);
+
 	    // what post are we connected to
-	    Point p1 = ce.getConnectedPost();
+	    Point p1 = (uiList && ce instanceof LabeledNodeElm) ? null : ce.getConnectedPost();
 	    if (p1 == null) {
 		// no connected post (true for labeled node the first time it's encountered, or ground)
 		if (cn == null) {
 		    cn = new NodeMapEntry();
-		    nodeMap.put(p0, cn);
+		    nm.put(p0, cn);
 		}
 		continue;
 	    }
-	    NodeMapEntry cn2 = nodeMap.get(p1);
+	    NodeMapEntry cn2 = nm.get(p1);
 	    if (cn != null && cn2 != null) {
 		// merge nodes; go through map and change all keys pointing to cn2 to point to cn
-		for (Map.Entry<Point, NodeMapEntry> entry : nodeMap.entrySet()) {
+		for (Map.Entry<Point, NodeMapEntry> entry : nm.entrySet()) {
 		    if (entry.getValue() == cn2)
 			entry.setValue(cn);
 		}
-//		mergeCount++;
 		continue;
 	    }
 	    if (cn != null) {
-		nodeMap.put(p1, cn);
+		nm.put(p1, cn);
 		continue;
 	    }
 	    if (cn2 != null) {
-		nodeMap.put(p0, cn2);
+		nm.put(p0, cn2);
 		continue;
 	    }
 	    // new entry
 	    cn = new NodeMapEntry();
-	    nodeMap.put(p0, cn);
-	    nodeMap.put(p1, cn);
+	    nm.put(p0, cn);
+	    nm.put(p1, cn);
 	}
-	
-//	console("got " + (groupCount-mergeCount) + " groups with " + nodeMap.size() + " nodes " + mergeCount);
+	if (uiList)
+	    uiNodeMap = nm;
+	else
+	    nodeMap = nm;
     }
-    
+
+    // assign nodes to UI wires (which aren't part of simulation) based on neighboring non-wire elements
+    // that already have nodes assigned by makeNodeList.  also add wire links to nodeList so calcWireInfo works.
+    void assignUiWireNodes() {
+	Vector<CircuitElm> uiList = app.ui.elmList;
+
+	// build point-to-node map from non-wire elements in UI list,
+	// and add their links to nodeList so calcWireInfo can find neighbors
+	for (int i = 0; i != uiList.size(); i++) {
+	    CircuitElm ce = uiList.get(i);
+	    if (ce.isRemovableWire())
+		continue;
+	    for (int j = 0; j != ce.getPostCount(); j++) {
+		Point pt = ce.getPost(j);
+		NodeMapEntry nme = uiNodeMap.get(pt);
+		if (nme != null) {
+		    if (nme.node == -1)
+			nme.node = ce.getNode(j);
+		    CircuitNodeLink cnl = new CircuitNodeLink();
+		    cnl.num = j;
+		    cnl.elm = ce;
+		    getCircuitNode(ce.getNode(j)).links.addElement(cnl);
+		}
+	    }
+	}
+
+	// assign nodes to wires and add their links to nodeList
+	for (int i = 0; i != uiList.size(); i++) {
+	    CircuitElm ce = uiList.get(i);
+	    if (!ce.isRemovableWire())
+		continue;
+	    for (int j = 0; j != ce.getPostCount(); j++) {
+		Point pt = ce.getPost(j);
+		NodeMapEntry nme = uiNodeMap.get(pt);
+		if (nme != null && nme.node >= 0) {
+		    ce.setNode(j, nme.node);
+		    CircuitNodeLink cnl = new CircuitNodeLink();
+		    cnl.num = j;
+		    cnl.elm = ce;
+		    getCircuitNode(nme.node).links.addElement(cnl);
+		} else
+			console("missing node for " + pt);
+	    }
+	}
+    }
+
     // generate info we need to calculate wire currents.  Most other elements calculate currents using
     // the voltage on their terminal nodes.  But wires have the same voltage at both ends, so we need
     // to use the neighbors' currents instead.  We used to treat wires as zero voltage sources to make
@@ -162,6 +215,7 @@ public class SimulationManager {
 	int i;
 	int moved = 0;
 	
+	console("nodelist size " + nodeList.size());
 	for (i = 0; i != wireInfoList.size(); i++) {
 	    WireInfo wi = wireInfoList.get(i);
 	    CircuitElm wire = wi.wire;
@@ -177,12 +231,14 @@ public class SimulationManager {
 
 	    // go through elements sharing a node with this wire (may be connected indirectly
 	    // by other wires, but at least it's faster than going through all elements)
+		console("looking at " + wire + " " + wire.getNode(0));
 	    for (j = 0; j != cn1.links.size(); j++) {
 		CircuitNodeLink cnl = cn1.links.get(j);
 		CircuitElm ce = cnl.elm;
 		if (ce == wire)
 		    continue;
 		Point pt = ce.getPost(cnl.num);
+		console("  connected to " + ce + " " + pt);
 		
 		// is this a wire that doesn't have wire info yet?  If so we can't use it yet.
 		// That would create a circular dependency.  So that side isn't ready.
@@ -190,12 +246,14 @@ public class SimulationManager {
 		
 		// which post does this element connect to, if any?
 		if (pt.x == wire.x && pt.y == wire.y) {
+		    console("  found immediate neighbor " + ce + " " + pt);
 		    neighbors0.add(ce);
 		    if (notReady) isReady0 = false;
 		} else if (wire.getPostCount() > 1) {
 		    Point p2 = wire.getConnectedPost();
 		    if (pt.x == p2.x && pt.y == p2.y) { 
 			neighbors1.add(ce);
+			console("  found immediate neighbor " + ce + " " + pt);
 			if (notReady) isReady1 = false;
 		    }
 		} else if (ce instanceof LabeledNodeElm && wire instanceof LabeledNodeElm &&
@@ -546,11 +604,38 @@ public class SimulationManager {
 
 	// allocate nodes and voltage sources
 	makeNodeList();
-	
+
+	// if UI is showing composite internals, run wire closure on UI list to assign
+	// nodes to display-only wires and build wireInfoList for current display
+	if (app.ui.elmList != app.elmList) {
+	    calculateWireClosureForList(app.ui.elmList, true);
+	    assignUiWireNodes();
+	}
+
 	if (!calcWireInfo())
 	    return false;
+	if (app.ui.elmList != app.elmList) {
+	    console("wireInfoList size: " + wireInfoList.size());
+	    for (int wi = 0; wi < wireInfoList.size(); wi++) {
+		WireInfo winfo = wireInfoList.get(wi);
+		CircuitElm wire = winfo.wire;
+		console("  wire " + wi + ": " + wire +
+			" pos=(" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")" +
+			" node=" + wire.getNode(0) +
+			" post=" + winfo.post +
+			" neighbors=" + (winfo.neighbors != null ? winfo.neighbors.size() : "null") +
+			" hasWireInfo=" + wire.hasWireInfo);
+		if (winfo.neighbors != null) {
+		    for (int ni = 0; ni < winfo.neighbors.size(); ni++) {
+			CircuitElm ne = winfo.neighbors.get(ni);
+			console("    neighbor " + ni + ": " + ne.getClass().getName());
+		    }
+		}
+	    }
+	}
 	nodeMap = null; // done with this
-	
+	uiNodeMap = null;
+
 	// add composite child elements to elmList and make node links
 	elmList = new Vector<>(app.elmList);
 	for (CircuitElm elm: elmList) {
