@@ -233,6 +233,7 @@ public class CustomCompositeElm extends CompositeElm {
             CirSim.editDialog.closeDialog();
         }
         if (n == 3) {
+            app.pushContext(model.name);
             if (model.modelCircuit != null)
         	app.readCircuit(model.modelCircuit);
             else {

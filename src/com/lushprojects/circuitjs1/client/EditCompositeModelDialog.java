@@ -59,6 +59,8 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	Context2d context;
 	CustomCompositeModel model;
 	
+	boolean popContext;
+
 	void setModel(CustomCompositeModel m) { model = m; }
 	
         boolean createModel() {
@@ -253,6 +255,8 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    model.setSaved(saveCheck.getState());
 	    CirSim.theApp.updateModels();
 	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
+	    if (popContext)
+		CirSim.theApp.popContext();
 	    closeDialog();
 	}
 

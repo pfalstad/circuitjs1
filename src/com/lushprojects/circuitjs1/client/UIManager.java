@@ -853,6 +853,10 @@ public class UIManager {
 	}
     }
 
+    void updateContextButtons() {
+	toolbar.setContextInfo(app.getEditingModelName());
+    }
+
     void setMouseMode(int mode) {
     	mouse.mouseMode = mode;
     	if ( mode == MouseManager.MODE_ADD_ELM ) {

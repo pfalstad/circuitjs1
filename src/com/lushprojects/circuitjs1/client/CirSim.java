@@ -75,6 +75,9 @@ public class CirSim implements NativePreviewHandler {
     Vector<Point> postDrawList = new Vector<Point>();
     Vector<Point> badConnectionList = new Vector<Point>();
     Vector<Adjustable> adjustables;
+
+    // saved context stack for editing subcircuit models
+    Vector<CircuitContext> contextStack = new Vector<CircuitContext>();
     CircuitElm stopElm;
     ScopeElm scopeElmArr[];
     boolean simRunning;
@@ -426,6 +429,44 @@ public class CirSim implements NativePreviewHandler {
     void clearCircuit() { loader.clearCircuit(); }
     void readCircuit(String s) { loader.readCircuit(s); }
 
+    void pushContext(String modelName) {
+	CircuitContext ctx = new CircuitContext();
+	ctx.circuitDump = dumpCircuit();
+	ctx.undoStack = undoManager.undoStack;
+	ctx.redoStack = undoManager.redoStack;
+	ctx.transform = new double[transform.length];
+	for (int i = 0; i < transform.length; i++)
+	    ctx.transform[i] = transform[i];
+	ctx.modelName = modelName;
+	contextStack.add(ctx);
+	undoManager.undoStack = new Vector<UndoManager.UndoItem>();
+	undoManager.redoStack = new Vector<UndoManager.UndoItem>();
+	undoManager.enableUndoRedo();
+	ui.updateContextButtons();
+    }
+
+    void popContext() {
+	if (contextStack.isEmpty())
+	    return;
+	CircuitContext ctx = contextStack.remove(contextStack.size() - 1);
+	loader.readCircuit(ctx.circuitDump, CircuitLoader.RC_NO_CENTER);
+	transform = ctx.transform;
+	undoManager.undoStack = ctx.undoStack;
+	undoManager.redoStack = ctx.redoStack;
+	undoManager.enableUndoRedo();
+	ui.updateContextButtons();
+    }
+
+    boolean isEditingContext() {
+	return !contextStack.isEmpty();
+    }
+
+    String getEditingModelName() {
+	if (contextStack.isEmpty())
+	    return null;
+	return contextStack.lastElement().modelName;
+    }
+
     // delete sliders for an element
     void deleteSliders(CircuitElm elm) {
 	int i;
@@ -564,6 +605,14 @@ public class CirSim implements NativePreviewHandler {
     }
 
 	boolean isSelection() { return ui.isSelection(); }
-		
+
+}
+
+class CircuitContext {
+    String circuitDump;
+    Vector<UndoManager.UndoItem> undoStack;
+    Vector<UndoManager.UndoItem> redoStack;
+    double[] transform;
+    String modelName;
 }
 

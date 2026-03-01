@@ -21,6 +21,10 @@ public class Toolbar extends FlowPanel {
     private Label modeLabel;
     private Label subcircuitLabel;
     private Label backButton;
+    private Label contextLabel;
+    private Label contextSaveButton;
+    private Label contextSaveCopyButton;
+    private Label contextBackButton;
     private HashMap<String, Label> highlightableButtons = new HashMap<>();
     private Label activeButton;  // Currently active button
 
@@ -110,9 +114,72 @@ public class Toolbar extends FlowPanel {
 	backButton.setVisible(false);
 	add(backButton);
 
+	// Context editing controls (hidden by default)
+	contextLabel = new Label("");
+	styleModeLabel(contextLabel);
+	contextLabel.setVisible(false);
+	add(contextLabel);
+
+	contextSaveButton = createTextButton("Save", "#28a745", event -> {
+	    CirSim app = CirSim.theApp;
+	    String modelName = app.getEditingModelName();
+	    CustomCompositeModel model = CustomCompositeModel.getModelWithName(modelName);
+	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
+	    dlg.setModel(model);
+	    dlg.popContext = true;
+	    dlg.createDialog();
+	    app.dialogShowing = dlg;
+	    dlg.show();
+	});
+	contextSaveButton.setVisible(false);
+	add(contextSaveButton);
+
+	contextSaveCopyButton = createTextButton("Save Copy", "#17a2b8", event -> {
+	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
+	    if (!dlg.createModel())
+		return;
+	    dlg.popContext = true;
+	    dlg.createDialog();
+	    CirSim.theApp.dialogShowing = dlg;
+	    dlg.show();
+	});
+	contextSaveCopyButton.setVisible(false);
+	add(contextSaveCopyButton);
+
+	contextBackButton = createTextButton("\u25c0 Back", "#007bff", event -> {
+	    CirSim.theApp.popContext();
+	});
+	contextBackButton.setVisible(false);
+	add(contextBackButton);
+
+    }
+
+    private Label createTextButton(String text, String color, ClickHandler handler) {
+	Label btn = new Label(Locale.LS(text));
+	Style s = btn.getElement().getStyle();
+	s.setFontSize(14, Style.Unit.PX);
+	s.setColor(color);
+	s.setPaddingRight(10, Style.Unit.PX);
+	s.setPaddingLeft(5, Style.Unit.PX);
+	s.setCursor(Style.Cursor.POINTER);
+	s.setProperty("whiteSpace", "nowrap");
+	btn.addClickHandler(handler);
+	btn.addMouseOverHandler(event -> btn.getElement().getStyle().setProperty("textDecoration", "underline"));
+	btn.addMouseOutHandler(event -> btn.getElement().getStyle().setProperty("textDecoration", "none"));
+	return btn;
     }
 
     public void setModeLabel(String text) { modeLabel.setText(text); }
+
+    public void setContextInfo(String modelName) {
+	boolean show = modelName != null;
+	contextLabel.setVisible(show);
+	contextSaveButton.setVisible(show);
+	contextSaveCopyButton.setVisible(show);
+	contextBackButton.setVisible(show);
+	if (show)
+	    contextLabel.setText(Locale.LS("Editing: ") + modelName);
+    }
 
     public void setSubcircuitPath(String path) {
 	if (path == null) {
