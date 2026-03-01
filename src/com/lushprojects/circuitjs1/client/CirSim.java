@@ -220,6 +220,7 @@ MouseOutHandler, MouseWheelHandler {
 
     double minFrameRate = 20;
     boolean adjustTimeStep;
+    boolean centreOnResize;
     boolean developerMode;
     static final int HINT_LC = 1;
     static final int HINT_RC = 2;
@@ -449,6 +450,7 @@ MouseOutHandler, MouseWheelHandler {
 	    currentColor = qp.getValue("currentColor");
 	    mouseModeReq = qp.getValue("mouseMode");
 	    hideInfoBox = qp.getBooleanValue("hideInfoBox", false);
+	    centreOnResize = getOptionFromStorage("centreOnResize", false);
 	} catch (Exception e) { }
 
 	boolean euroSetting = false;
@@ -703,6 +705,8 @@ MouseOutHandler, MouseWheelHandler {
 
 	Window.addResizeHandler(new ResizeHandler() {
 	    public void onResize(ResizeEvent event) {
+		if (centreOnResize)
+		    centreCircuit();
 		repaint();
 	    }
 	});
@@ -836,6 +840,12 @@ MouseOutHandler, MouseWheelHandler {
 	if (startCircuitText != null) {
 	    getSetupList(false);
 	    readCircuit(startCircuitText);
+	    // set title from Electron filename if available (#171)
+	    String fn = getElectronStartCircuitFileName();
+	    if (fn != null && fn.length() > 0) {
+		setCircuitTitle(fn);
+		ExportAsLocalFileDialog.setLastFileName(fn);
+	    }
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
@@ -3302,7 +3312,11 @@ MouseOutHandler, MouseWheelHandler {
 
     static native String getElectronStartCircuitText() /*-{
     	return $wnd.startCircuitText;
-    }-*/;    
+    }-*/;
+
+    static native String getElectronStartCircuitFileName() /*-{
+    	return $wnd.startCircuitFileName;
+    }-*/;
     
     void allowSave(boolean b) {
 	if (saveFileItem != null)
