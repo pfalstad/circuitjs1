@@ -237,6 +237,7 @@ class Scope {
     Canvas imageCanvas;
     Context2d imageContext;
     int alphaCounter =0;
+    int trailLen = 2; // controls XY trail fade speed (higher = longer persistence)
     // scopeTimeStep to check if sim timestep has changed from previous value when redrawing
     double scopeTimeStep;
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
@@ -800,8 +801,8 @@ class Scope {
     	g.clipRect(0, 0, rect.width, rect.height);
     	
     	alphaCounter++;
-    	
-    	if (alphaCounter>2) {
+
+    	if (trailLen < 50 && alphaCounter > trailLen) {
     		// fade out plot
     		alphaCounter=0;
     		imageContext.setGlobalAlpha(0.01);

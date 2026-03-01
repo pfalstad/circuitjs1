@@ -137,7 +137,7 @@ class JfetElm extends MosfetElm {
 	    getFetInfo(arr, "JFET");
 	}
         public EditInfo getEditInfo(int n) {
-            if (n < 2)
+            if (n < 3)
         	return super.getEditInfo(n);
             return null;
         }

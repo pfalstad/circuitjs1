@@ -36,6 +36,8 @@ class MosfetElm extends CircuitElm {
 	double vt;
 	// beta = 1/(RdsON*(Vgs-Vt))
 	double beta;
+	// channel-length modulation parameter (1/V), 0 = ideal
+	double lambda;
 	static int globalFlags;
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
@@ -64,6 +66,7 @@ class MosfetElm extends CircuitElm {
 	    try {
 		vt = new Double(st.nextToken()).doubleValue();
 		beta = new Double(st.nextToken()).doubleValue();
+		lambda = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
@@ -102,7 +105,7 @@ class MosfetElm extends CircuitElm {
 		volts[bodyTerminal] = 0;
 	}
 	String dump() {
-	    return super.dump() + " " + vt + " " + beta;
+	    return super.dump() + " " + vt + " " + beta + " " + lambda;
 	}
 	int getDumpType() { return 'f'; }
 	final int hs = 16;
@@ -396,11 +399,14 @@ class MosfetElm extends CircuitElm {
 		Gds = beta*(vgs-vds-vt);
 		mode = 1;
 	    } else {
-		// saturation; Gds = 0
-		gm  = beta*(vgs-vt);
+		// saturation; Gds from channel-length modulation
+		double vgs_vt = vgs-vt;
+		gm  = beta*vgs_vt*(1+lambda*vds);
+		ids = .5*beta*vgs_vt*vgs_vt*(1+lambda*vds);
+		Gds = .5*beta*vgs_vt*vgs_vt*lambda;
 		// use very small Gds to avoid nonconvergence
-		Gds = 1e-8;
-		ids = .5*beta*(vgs-vt)*(vgs-vt) + (vds-(vgs-vt))*Gds;
+		if (Gds < 1e-8)
+		    Gds = 1e-8;
 		mode = 2;
 	    }
 	    
@@ -438,7 +444,9 @@ class MosfetElm extends CircuitElm {
 	void getFetInfo(String arr[], String n) {
 	    arr[0] = Locale.LS(((pnp == -1) ? "p-" : "n-") + n);
 	    arr[0] += " (Vt=" + getVoltageText(pnp*vt);
-	    arr[0] += ", \u03b2=" + beta + ")";
+	    arr[0] += ", \u03b2=" + beta;
+	    if (lambda > 0) arr[0] += ", \u03bb=" + lambda;
+	    arr[0] += ")";
 	    arr[1] = ((pnp == 1) ? "Ids = " : "Isd = ") + getCurrentText(ids);
 	    arr[2] = "Vgs = " + getVoltageText(volts[0]-volts[pnp == -1 ? 2 : 1]);
 	    arr[3] = ((pnp == 1) ? "Vds = " : "Vsd = ") + getVoltageText(volts[2]-volts[1]);
@@ -466,27 +474,29 @@ class MosfetElm extends CircuitElm {
 			return new EditInfo("Threshold Voltage", pnp*vt, .01, 5);
 		if (n == 1)
 			return new EditInfo(EditInfo.makeLink("mosfet-beta.html", "Beta"), beta, .01, 5);
-		if (n == 2) {
+		if (n == 2)
+			return new EditInfo("Channel-Length Modulation (1/V)", lambda, 0, 0).setDimensionless();
+		if (n == 3) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Show Bulk", showBulk());
 			return ei;
 		}
-		if (n == 3) {
+		if (n == 4) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
 			return ei;
 		}
-		if (n == 4 && !showBulk()) {
+		if (n == 5 && !showBulk()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
 			return ei;
 		}
-		if (n == 4 && showBulk()) {
+		if (n == 5 && showBulk()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
 			return ei;
 		}
-		if (n == 5 && doBodyDiode()) {
+		if (n == 6 && doBodyDiode()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
 			return ei;
@@ -498,28 +508,30 @@ class MosfetElm extends CircuitElm {
 		if (n == 0)
 			vt = pnp*ei.value;
 		if (n == 1 && ei.value > 0)
-			beta = lastBeta = ei.value;	
-		if (n == 2) {
+			beta = lastBeta = ei.value;
+		if (n == 2 && ei.value >= 0)
+			lambda = ei.value;
+		if (n == 3) {
 		    globalFlags = (!ei.checkbox.getState()) ? (globalFlags|FLAG_HIDE_BULK) :
 				(globalFlags & ~(FLAG_HIDE_BULK|FLAG_DIGITAL));
 //		    setPoints();
 		    ei.newDialog = true;
 		}
-		if (n == 3) {
+		if (n == 4) {
 			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
 				(flags & ~FLAG_FLIP);
 //			setPoints();
 		}
-		if (n == 4 && !showBulk()) {
+		if (n == 5 && !showBulk()) {
 		    globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
 				(globalFlags & ~FLAG_DIGITAL);
 //		    setPoints();
 		}
-		if (n == 4 && showBulk()) {
+		if (n == 5 && showBulk()) {
 		    flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
 		    ei.newDialog = true;
 		}
-		if (n == 5) {
+		if (n == 6) {
 		    flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
 		}
 
