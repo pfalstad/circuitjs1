@@ -21,7 +21,8 @@ package com.lushprojects.circuitjs1.client;
 
 class DecimalDisplayElm extends ChipElm {
     int bitCount;
-    
+    int displayMode; // 0=decimal, 1=hex, 2=octal, 3=binary
+
     public DecimalDisplayElm(int xx, int yy) {
 	super(xx, yy);
 	bitCount = 4;
@@ -33,6 +34,7 @@ class DecimalDisplayElm extends ChipElm {
 	bitCount = 4;
 	try {
 	    bitCount = Integer.parseInt(st.nextToken());
+	    displayMode = Integer.parseInt(st.nextToken());
 	} catch (Exception e) {}
 	setupPins();
     }
@@ -53,13 +55,19 @@ class DecimalDisplayElm extends ChipElm {
         for (i = 0; i != bitCount; i++)
             if (pins[i].value)
         	value |= 1<<i;
-        String str = String.valueOf(value);
+        String str;
+        switch (displayMode) {
+        case 1:  str = Integer.toHexString(value).toUpperCase(); break;
+        case 2:  str = Integer.toOctalString(value); break;
+        case 3:  str = Integer.toBinaryString(value); break;
+        default: str = String.valueOf(value); break;
+        }
         int w=(int)g.context.measureText(str).getWidth();
         g.drawString(str, xl+5*csize-w/2, yl);
         g.restore();
     }
     
-    String dump() { return super.dump() + " " + bitCount; }
+    String dump() { return super.dump() + " " + bitCount + " " + displayMode; }
     
     void setupPins() {
 	sizeX = 3;
@@ -77,6 +85,16 @@ class DecimalDisplayElm extends ChipElm {
         if (n == 0)
             return new EditInfo("# of Bits", bitCount, 1, 8).
                 setDimensionless();
+        if (n == 1) {
+            EditInfo ei = new EditInfo("Display Mode", 0, -1, -1);
+            ei.choice = new Choice();
+            ei.choice.add("Decimal");
+            ei.choice.add("Hexadecimal");
+            ei.choice.add("Octal");
+            ei.choice.add("Binary");
+            ei.choice.select(displayMode);
+            return ei;
+        }
         return super.getChipEditInfo(n);
     }
     public void setChipEditValue(int n, EditInfo ei) {
@@ -86,6 +104,8 @@ class DecimalDisplayElm extends ChipElm {
             setPoints();
             return;
         }
+        if (n == 1)
+            displayMode = ei.choice.getSelectedIndex();
         super.setChipEditValue(n, ei);
     }
 

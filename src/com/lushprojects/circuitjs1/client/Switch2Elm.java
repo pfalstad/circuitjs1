@@ -25,6 +25,7 @@ package com.lushprojects.circuitjs1.client;
 	int link;
 	int throwCount;
 	static final int FLAG_CENTER_OFF = 1;
+	boolean positionFlipped; // tracks runtime flip state for sync
 	
 	public Switch2Elm(int xx, int yy) {
 	    super(xx, yy, false);
@@ -136,8 +137,13 @@ package com.lushprojects.circuitjs1.client;
 		    Object o = sim.elmList.elementAt(i);
 		    if (o instanceof Switch2Elm) {
 			Switch2Elm s2 = (Switch2Elm) o;
-			if (s2.link == link && position < s2.posCount)
-			    s2.position = position;
+			if (s2.link == link) {
+			    int pos = position;
+			    if (s2.positionFlipped != this.positionFlipped)
+				pos = posCount - 1 - pos;
+			    if (pos < s2.posCount)
+				s2.position = pos;
+			}
 		    }
 		}
 	    }
@@ -201,16 +207,19 @@ package com.lushprojects.circuitjs1.client;
 	void flipX(int c2, int count) {
 	    super.flipX(c2, count);
 	    position = posCount-1-position;
-	}   
-		 
-	void flipY(int c2, int count) { 
+	    positionFlipped = !positionFlipped;
+	}
+
+	void flipY(int c2, int count) {
 	    super.flipY(c2, count);
 	    position = posCount-1-position;
+	    positionFlipped = !positionFlipped;
 	}
 
 	void flipXY(int c2, int count) {
 	    super.flipXY(c2, count);
 	    position = posCount-1-position;
+	    positionFlipped = !positionFlipped;
 	}       
 
     }
