@@ -181,12 +181,17 @@ public abstract class CompositeElm extends CircuitElm {
 	}
 
 	// Flatten compNodeHash in to compNodeList
-	for (int i = 0; i < extNodeIds.length; i++) { // External Nodes First
-	    if (compNodeHash.containsKey(extNodeIds[i])) {
-		compNodeList.add(compNodeHash.get(extNodeIds[i]));
-		compNodeHash.remove(extNodeIds[i]);
-	    } else
-		throw new IllegalArgumentException();
+	try {
+	    for (int i = 0; i < extNodeIds.length; i++) { // External Nodes First
+		if (compNodeHash.containsKey(extNodeIds[i])) {
+		    compNodeList.add(compNodeHash.get(extNodeIds[i]));
+		    compNodeHash.remove(extNodeIds[i]);
+		} else
+		    throw new IllegalArgumentException();
+	    }
+	} catch (IllegalArgumentException e) {
+	    compNodeList = null;
+	    return;
 	}
 	for (Entry<Integer, CircuitNode> entry : compNodeHash.entrySet()) {
 	    int key = entry.getKey();
