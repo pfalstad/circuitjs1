@@ -130,6 +130,7 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem noEditCheckItem;
     CheckboxMenuItem mouseWheelEditCheckItem;
     CheckboxMenuItem toolbarCheckItem;
+    CheckboxMenuItem mouseModeCheckItem;
     private Label powerLabel;
     private Label titleLabel;
     private Scrollbar speedBar;
@@ -611,6 +612,12 @@ MouseOutHandler, MouseWheelHandler {
 		}
 	}));
 	toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && startCircuit == null && startCircuitText == null && startCircuitLink == null);
+	m.addItem(mouseModeCheckItem = new CheckboxMenuItem(Locale.LS("Show Mode"),
+		new Command() { public void execute(){
+			setOptionInStorage("showMouseMode", mouseModeCheckItem.getState());
+		}
+	}));
+	mouseModeCheckItem.setState(getOptionFromStorage("showMouseMode", true));
 	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Cross Hairs"),
 		new Command() { public void execute(){
 		    setOptionInStorage("crossHair", crossHairCheckItem.getState());
@@ -1697,7 +1704,7 @@ MouseOutHandler, MouseWheelHandler {
         perfmon.stopContext(); // updateCircuit
         
         if (developerMode) {
-            int height = 15;
+            int height = 45;
             int increment = 15;
             g.drawString("Framerate: " + CircuitElm.showFormat.format(framerate), 10, height);
             g.drawString("Steprate: " + CircuitElm.showFormat.format(steprate), 10, height += increment);
@@ -1713,8 +1720,14 @@ MouseOutHandler, MouseWheelHandler {
                 g.drawString(splits[x], 10, height + (increment * x));
             }
         }
-        
-        // This should always be the last 
+
+        // Add info about mouse mode in graphics
+        if (mouseModeCheckItem.getState()){
+            if (printableCheckItem.getState()) g.setColor(Color.black);
+            g.drawString(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr), 10, 29);
+        }
+
+        // This should always be the last
         // thing called by updateCircuit();
         callUpdateHook();
     }
@@ -5008,7 +5021,8 @@ MouseOutHandler, MouseWheelHandler {
     			dragElm.delete();
     			if (mouseMode == MODE_SELECT || mouseMode == MODE_DRAG_SELECTED)
     				clearSelection();
-			toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
+			if (!mouseModeCheckItem.getState())
+			    toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
 			dragElm = null;
     		}
     		else {
@@ -5683,10 +5697,16 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void updateToolbar() {
-	if (dragElm != null)
-	    toolbar.setModeLabel(Locale.LS("Drag Mouse"));
-	else
-	    toolbar.setModeLabel(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr));
+	if (!mouseModeCheckItem.getState()) {
+	    // Show mode info in toolbar when canvas overlay is disabled
+	    if (dragElm != null)
+		toolbar.setModeLabel(Locale.LS("Drag Mouse"));
+	    else
+		toolbar.setModeLabel(Locale.LS("Mode: ") + classToLabelMap.get(mouseModeStr));
+	} else {
+	    // Clear toolbar label when canvas overlay is showing the mode
+	    toolbar.setModeLabel("");
+	}
 	toolbar.highlightButton(mouseModeStr);
     }
 
