@@ -212,6 +212,17 @@ MouseOutHandler, MouseWheelHandler {
 
     double wheelSensitivity = 1;
 
+    // simulation temperature in Kelvin, default 27 C (300.15K) like SPICE
+    static double temperature = 300.15;
+    // electron thermal voltage = k*T/q, recalculated when temperature changes
+    static double vt = 0.025865;
+
+    static void setTemperature(double tempKelvin) {
+	temperature = tempKelvin;
+	vt = 1.380649e-23 * tempKelvin / 1.602176634e-19;
+	DiodeModel.updateAllModels();
+    }
+
     // accumulated time since we incremented timeStepCount
     double timeStepAccum;
 

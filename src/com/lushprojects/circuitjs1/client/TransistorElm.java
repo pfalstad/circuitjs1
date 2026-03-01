@@ -70,7 +70,7 @@ class TransistorElm extends CircuitElm {
 	void setup() {
 	    model = TransistorModel.getModelWithNameOrCopy(modelName, model);
 	    modelName = model.name;   // in case we couldn't find that model    
-	    vcrit = vt * Math.log(vt/(Math.sqrt(2)*model.satCur));
+	    vcrit = CirSim.vt * Math.log(CirSim.vt/(Math.sqrt(2)*model.satCur));
 	    noDiagonal = true;
 	}
 	boolean nonLinear() { return true; }
@@ -199,24 +199,22 @@ class TransistorElm extends CircuitElm {
 	}
 	
 	static final double leakage = 1e-13; // 1e-6;
-	// Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
-	static final double vt = 0.025865;
 	double vcrit;
 	double lastvbc, lastvbe;
 	double limitStep(double vnew, double vold) {
 	    double arg;
 	    double oo = vnew;
 	    
-	    if (vnew > vcrit && Math.abs(vnew - vold) > (vt + vt)) {
+	    if (vnew > vcrit && Math.abs(vnew - vold) > (CirSim.vt + CirSim.vt)) {
 		if(vold > 0) {
-		    arg = 1 + (vnew - vold) / vt;
+		    arg = 1 + (vnew - vold) / CirSim.vt;
 		    if(arg > 0) {
-			vnew = vold + vt * Math.log(arg);
+			vnew = vold + CirSim.vt * Math.log(arg);
 		    } else {
 			vnew = vcrit;
 		    }
 		} else {
-		    vnew = vt *Math.log(vnew/vt);
+		    vnew = CirSim.vt *Math.log(vnew/CirSim.vt);
 		}
 		sim.converged = false;
 		//System.out.println(vnew + " " + oo + " " + vold);
@@ -260,16 +258,16 @@ class TransistorElm extends CircuitElm {
             double csat=model.satCur;
             double oik=model.invRollOffF;
             double c2=model.BEleakCur;
-            double vte=model.leakBEemissionCoeff*vt;
+            double vte=model.leakBEemissionCoeff*CirSim.vt;
             double oikr=model.invRollOffR;
             double c4=model.BCleakCur;
-            double vtc=model.leakBCemissionCoeff*vt;
+            double vtc=model.leakBCemissionCoeff*CirSim.vt;
             
 //          double rbpr=model.minBaseResist;
 //          double rbpi=model.baseResist-rbpr;
 //          double xjrb=model.baseCurrentHalfResist;
             
-            double vtn=vt*model.emissionCoeffF;
+            double vtn=CirSim.vt*model.emissionCoeffF;
             double evbe, cbe, gbe, cben, gben, evben, evbc, cbc, gbc, cbcn, gbcn, evbcn;
             double qb, dqbdve, dqbdvc, q2, sqarg, arg;
             if(vbe > -5*vtn){
@@ -290,7 +288,7 @@ class TransistorElm extends CircuitElm {
                 gben = -c2/vbe;
                 cben=gben*vbe;
             }
-            vtn=vt*model.emissionCoeffR;
+            vtn=CirSim.vt*model.emissionCoeffR;
             if(vbc > -5*vtn) {
                 evbc=Math.exp(vbc/vtn);
                 cbc=csat*(evbc-1)+gmin*vbc;
