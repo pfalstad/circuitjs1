@@ -1,5 +1,11 @@
 # CircuitJS1
 
+<p align="center">
+  <img src="war/icon128.png" alt="CircuitJS1 logo" width="128" height="128">
+  <br>
+  <em>Electronic Circuit Simulator in the Browser</em>
+</p>
+
 ## Introduction
 
 CircuitJS1 is an electronic circuit simulator that runs in the browser. It was originally written by Paul Falstad as a Java Applet. It was adapted by Iain Sharp to run in the browser using GWT.
