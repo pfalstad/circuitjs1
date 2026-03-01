@@ -235,6 +235,7 @@ MouseOutHandler, MouseWheelHandler {
     private CircuitElm mouseElm = null;
     boolean didSwitch = false;
     int mousePost = -1;
+    int highlightedNode = -1;
     CircuitElm plotXElm, plotYElm;
     int draggingPost;
     SwitchElm heldSwitchElm;
@@ -4525,6 +4526,13 @@ MouseOutHandler, MouseWheelHandler {
     		int i;
     		for (i = 0; i < adjustables.size(); i++)
     		    adjustables.get(i).setMouseElm(ce);
+    	}
+    	// highlight all elements on the same net when hovering over a wire
+    	if (ce != null && ce.isRemovableWire() && nodeList != null) {
+    	    int n = ce.getNode(0);
+    	    highlightedNode = (n >= 0 && n < nodeList.size()) ? n : -1;
+    	} else {
+    	    highlightedNode = -1;
     	}
     }
 
