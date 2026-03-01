@@ -585,7 +585,7 @@ public class UIManager {
 
         g.context.setLineCap(LineCap.ROUND);
 
-        if (menus.noEditCheckItem.getState())
+        if (isReadOnly())
             g.drawLock(20, 30);
 
         g.setColor(Color.white);
@@ -798,6 +798,10 @@ public class UIManager {
     	}
     }
 
+    boolean isReadOnly() {
+	return menus.noEditCheckItem.getState() || !subcircuitStack.isEmpty();
+    }
+
     void enableItems() {
     }
 
@@ -942,7 +946,7 @@ public class UIManager {
 		}
     	}
 
-    	if (menus.noEditCheckItem.getState())
+    	if (isReadOnly())
     	    return;
 
     	if ((t & Event.ONKEYDOWN)!=0) {

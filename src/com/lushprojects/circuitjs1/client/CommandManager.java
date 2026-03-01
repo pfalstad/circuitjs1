@@ -18,7 +18,7 @@ public class CommandManager {
     public void menuPerformed(String menu, String item) {
 	PopupPanel contextPanel = app.ui.contextPanel;
 	
-	if ((menu=="edit" || menu=="main" || menu=="scopes") && app.menus.noEditCheckItem.getState()) {
+	if ((menu=="edit" || menu=="main" || menu=="scopes") && app.ui.isReadOnly()) {
 	    Window.alert(Locale.LS("Editing disabled.  Re-enable from the Options menu."));
 	    return;
 	}

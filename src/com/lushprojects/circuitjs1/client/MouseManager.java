@@ -245,7 +245,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	case MODE_SELECT:
     		if (mouseElm == null)
     		    selectArea(gx, gy, e.isShiftKeyDown());
-    		else if (!sim.menus.noEditCheckItem.getState()) {
+    		else if (!ui.isReadOnly()) {
     		    // wait short delay before dragging.  This is to fix problem where switches were accidentally getting
     		    // dragged when tapped on mobile devices
     		    if (System.currentTimeMillis()-mouseDownTime < 150)
@@ -653,7 +653,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     @SuppressWarnings("deprecation")
     void doPopupMenu() {
-	if (sim.menus.noEditCheckItem.getState() || sim.dialogIsShowing())
+	if (ui.isReadOnly() || sim.dialogIsShowing())
 	    return;
     	menuElm = mouseElm;
     	sim.scopeManager.menuScope=-1;
@@ -775,7 +775,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public void onDoubleClick(DoubleClickEvent e){
     	e.preventDefault();
  //   	if (!didSwitch && mouseElm != null)
-    	if (mouseElm != null && !(mouseElm instanceof SwitchElm) && !sim.menus.noEditCheckItem.getState())
+    	if (mouseElm != null && !(mouseElm instanceof SwitchElm) && !ui.isReadOnly())
     		sim.commands.doEdit(mouseElm);
     }
 
@@ -838,12 +838,12 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    tempMouseMode = MODE_DRAG_ALL;
 
 
-	if (sim.menus.noEditCheckItem.getState())
+	if (ui.isReadOnly())
 	    tempMouseMode = MODE_SELECT;
 
 	if (!(sim.dialogIsShowing()) && ((sim.scopeManager.scopeSelected != -1 && sim.scopeManager.scopes[sim.scopeManager.scopeSelected].cursorInSettingsWheel()) ||
 		( sim.scopeManager.scopeSelected == -1 && mouseElm instanceof ScopeElm && ((ScopeElm)mouseElm).elmScope.cursorInSettingsWheel()))){
-	    if (sim.menus.noEditCheckItem.getState())
+	    if (ui.isReadOnly())
 		return;
 	    Scope s;
 	    if (sim.scopeManager.scopeSelected != -1)
@@ -866,7 +866,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	}
 
 	// IES - Grab resize handles in select mode if they are far enough apart and you are on top of them
-	if (tempMouseMode == MODE_SELECT && mouseElm!=null && !sim.menus.noEditCheckItem.getState() &&
+	if (tempMouseMode == MODE_SELECT && mouseElm!=null && !ui.isReadOnly() &&
 		mouseElm.getHandleGrabbedClose(gx, gy, POSTGRABSQ, MINPOSTGRABSIZE) >=0 &&
 		!anySelectedButMouse())
 	    tempMouseMode = MODE_DRAG_POST;
@@ -979,7 +979,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	// so we don't accidentally edit a resistor value while zooming
     	boolean zoomOnly = System.currentTimeMillis() < zoomTime+1000;
 
-    	if (sim.menus.noEditCheckItem.getState() || !sim.menus.mouseWheelEditCheckItem.getState())
+    	if (ui.isReadOnly() || !sim.menus.mouseWheelEditCheckItem.getState())
     	    zoomOnly = true;
 
     	if (!zoomOnly)
