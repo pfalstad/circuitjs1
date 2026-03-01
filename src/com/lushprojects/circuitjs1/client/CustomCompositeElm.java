@@ -229,29 +229,7 @@ public class CustomCompositeElm extends CompositeElm {
             return;
         }
         if (n == 2) {
-            // create a new list with all elements including ones skipped by loadCompositeXml
-            Vector<CircuitElm> allElms = new Vector<CircuitElm>(compElmList);
-            Vector<Element> elmEntries = model.getElmEntries();
-            XMLDeserializer xml = new XMLDeserializer(app);
-            int compIdx = 0;
-            for (Element childElem : elmEntries) {
-        	String tagName = childElem.getTagName();
-        	String className = CirSim.xmlDumpTypeMap.get(tagName);
-        	if (className == null)
-        	    continue;
-        	CircuitElm ce;
-        	if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
-        		className.equals("GraphicElm") || className.equals("GroundElm")) {
-        	    ce = CirSim.constructElement(className, 0, 0);
-        	    xml.parseChildElement(childElem);
-        	    ce.undumpXml(xml);
-        	    allElms.add(ce);
-        	} else {
-        	    ce = compElmList.get(compIdx++);
-        	}
-        	ce.setPositionFromXml(childElem);
-            }
-            app.ui.elmList = allElms;
+            app.ui.pushSubcircuit(this, buildDisplayElmList());
             CirSim.editDialog.closeDialog();
         }
         if (n == 3) {
@@ -265,6 +243,32 @@ public class CustomCompositeElm extends CompositeElm {
         }
     }
     
+    // build a display list with all elements including ones skipped by loadCompositeXml
+    Vector<CircuitElm> buildDisplayElmList() {
+	Vector<CircuitElm> allElms = new Vector<CircuitElm>(compElmList);
+	Vector<Element> elmEntries = model.getElmEntries();
+	XMLDeserializer xml = new XMLDeserializer(app);
+	int compIdx = 0;
+	for (Element childElem : elmEntries) {
+	    String tagName = childElem.getTagName();
+	    String className = CirSim.xmlDumpTypeMap.get(tagName);
+	    if (className == null)
+		continue;
+	    CircuitElm ce;
+	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+		    className.equals("GraphicElm") || className.equals("GroundElm")) {
+		ce = CirSim.constructElement(className, 0, 0);
+		xml.parseChildElement(childElem);
+		ce.undumpXml(xml);
+		allElms.add(ce);
+	    } else {
+		ce = compElmList.get(compIdx++);
+	    }
+	    ce.setPositionFromXml(childElem);
+	}
+	return allElms;
+    }
+
     int getDumpType() { return 410; }
     String getXmlDumpType() { return "cc"; }
 

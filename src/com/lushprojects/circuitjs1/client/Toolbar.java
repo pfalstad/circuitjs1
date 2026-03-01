@@ -19,6 +19,8 @@ import java.util.HashMap;
 public class Toolbar extends HorizontalPanel {
 
     private Label modeLabel;
+    private Label subcircuitLabel;
+    private Label backButton;
     private HashMap<String, Label> highlightableButtons = new HashMap<>();
     private Label activeButton;  // Currently active button
 
@@ -34,6 +36,7 @@ public class Toolbar extends HorizontalPanel {
         style.setBorderColor("#ccc");
         style.setDisplay(Style.Display.FLEX);
 	setVerticalAlignment(ALIGN_MIDDLE);
+	setWidth("100%");
 
 	add(createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
 	add(createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
@@ -75,18 +78,48 @@ public class Toolbar extends HorizontalPanel {
 			      orIcon, "OrGateElm", norIcon, "NorGateElm", xorIcon, "XorGateElm" };
 	add(createButtonSet(gateInfo));
 
-        // Spacer to push the mode label to the right
-        HorizontalPanel spacer = new HorizontalPanel();
-        //spacer.style.setFlexGrow(1); // Fill remaining space
-        add(spacer);
-
         // Create and add the mode label on the right
         modeLabel = new Label("");
         styleModeLabel(modeLabel);
         add(modeLabel);
+
+	// Subcircuit path label (hidden by default)
+	subcircuitLabel = new Label("");
+	styleModeLabel(subcircuitLabel);
+	subcircuitLabel.setVisible(false);
+	add(subcircuitLabel);
+
+	// Back button (hidden by default)
+	backButton = new Label("\u25c0 Back");
+	Style backStyle = backButton.getElement().getStyle();
+	backStyle.setFontSize(14, Style.Unit.PX);
+	backStyle.setColor("#007bff");
+	backStyle.setPaddingRight(10, Style.Unit.PX);
+	backStyle.setPaddingLeft(5, Style.Unit.PX);
+	backStyle.setCursor(Style.Cursor.POINTER);
+	backStyle.setProperty("whiteSpace", "nowrap");
+	backButton.addClickHandler(event -> {
+	    CirSim.theApp.ui.popSubcircuit();
+	});
+	backButton.addMouseOverHandler(event -> backButton.getElement().getStyle().setColor("#0056b3"));
+	backButton.addMouseOutHandler(event -> backButton.getElement().getStyle().setColor("#007bff"));
+	backButton.setVisible(false);
+	add(backButton);
+
     }
 
     public void setModeLabel(String text) { modeLabel.setText(text); }
+
+    public void setSubcircuitPath(String path) {
+	if (path == null) {
+	    subcircuitLabel.setVisible(false);
+	    backButton.setVisible(false);
+	} else {
+	    subcircuitLabel.setText(path);
+	    subcircuitLabel.setVisible(true);
+	    backButton.setVisible(true);
+	}
+    }
 
     private Label createIconButton(String icon, String cls) {
 	CirSim app = CirSim.theApp;

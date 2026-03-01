@@ -81,6 +81,9 @@ public class UIManager {
     LoadFile loadFileInput;
     Frame iFrame;
     Vector<CircuitElm> elmList;
+
+    // stack of enclosing subcircuits when viewing composite internals
+    Vector<CustomCompositeElm> subcircuitStack = new Vector<CustomCompositeElm>();
     
     Canvas cv;
     Context2d cvcontext;
@@ -809,6 +812,41 @@ public class UIManager {
 	else
 	    toolbar.setModeLabel(Locale.LS("Mode: ") + app.classToLabelMap.get(mouseModeStr));
 	toolbar.highlightButton(mouseModeStr);
+    }
+
+    void pushSubcircuit(CustomCompositeElm cce, Vector<CircuitElm> allElms) {
+	subcircuitStack.add(cce);
+	elmList = allElms;
+	updateSubcircuitPath();
+	app.sim.analyzeCircuit();
+    }
+
+    void popSubcircuit() {
+	if (subcircuitStack.isEmpty())
+	    return;
+	subcircuitStack.remove(subcircuitStack.size() - 1);
+	if (subcircuitStack.isEmpty())
+	    elmList = app.elmList;
+	else {
+	    // re-enter the current top of stack
+	    CustomCompositeElm cce = subcircuitStack.lastElement();
+	    elmList = cce.buildDisplayElmList();
+	}
+	updateSubcircuitPath();
+	app.sim.analyzeCircuit();
+    }
+
+    void updateSubcircuitPath() {
+	if (subcircuitStack.isEmpty()) {
+	    toolbar.setSubcircuitPath(null);
+	} else {
+	    StringBuilder sb = new StringBuilder();
+	    for (int i = 0; i < subcircuitStack.size(); i++) {
+		if (i > 0) sb.append(" > ");
+		sb.append(subcircuitStack.get(i).modelName);
+	    }
+	    toolbar.setSubcircuitPath(sb.toString());
+	}
     }
 
     void setMouseMode(int mode) {
