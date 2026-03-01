@@ -774,9 +774,14 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     public void onDoubleClick(DoubleClickEvent e){
     	e.preventDefault();
- //   	if (!didSwitch && mouseElm != null)
-    	if (mouseElm != null && !(mouseElm instanceof SwitchElm) && !ui.isReadOnly())
-    		sim.commands.doEdit(mouseElm);
+    	if (mouseElm == null)
+    	    return;
+    	if (mouseElm instanceof CustomCompositeElm) {
+    	    ((CustomCompositeElm) mouseElm).onDoubleClick();
+    	    return;
+    	}
+    	if (!(mouseElm instanceof SwitchElm) && !ui.isReadOnly())
+    	    sim.commands.doEdit(mouseElm);
     }
 
 //    public void mouseEntered(MouseEvent e) {

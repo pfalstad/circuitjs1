@@ -269,6 +269,10 @@ public class CustomCompositeElm extends CompositeElm {
 	return allElms;
     }
 
+    void onDoubleClick() {
+	app.ui.pushSubcircuit(this, buildDisplayElmList());
+    }
+
     int getDumpType() { return 410; }
     String getXmlDumpType() { return "cc"; }
 
