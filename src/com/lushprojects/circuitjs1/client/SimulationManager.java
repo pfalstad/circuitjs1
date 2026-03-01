@@ -197,7 +197,7 @@ public class SimulationManager {
 		    cnl.elm = ce;
 		    getCircuitNode(nme.node).links.addElement(cnl);
 		} else
-			console("missing node for " + pt);
+		    console("missing node for " + pt);
 	    }
 	}
     }
@@ -215,7 +215,6 @@ public class SimulationManager {
 	int i;
 	int moved = 0;
 	
-	console("nodelist size " + nodeList.size());
 	for (i = 0; i != wireInfoList.size(); i++) {
 	    WireInfo wi = wireInfoList.get(i);
 	    CircuitElm wire = wi.wire;
@@ -231,14 +230,19 @@ public class SimulationManager {
 
 	    // go through elements sharing a node with this wire (may be connected indirectly
 	    // by other wires, but at least it's faster than going through all elements)
-		console("looking at " + wire + " " + wire.getNode(0));
+	    // console("looking at " + wire + " " + wire.getNode(0));
 	    for (j = 0; j != cn1.links.size(); j++) {
 		CircuitNodeLink cnl = cn1.links.get(j);
 		CircuitElm ce = cnl.elm;
 		if (ce == wire)
 		    continue;
+		// skip internal nodes (e.g. from enclosing CompositeElm) which have no position
+		if (cnl.num >= ce.getPostCount())
+		    continue;
 		Point pt = ce.getPost(cnl.num);
-		console("  connected to " + ce + " " + pt);
+		// console("  connected to " + ce + " " + pt + " " + cnl.num + " " + ce.getPostCount());
+		if (pt == null)
+		    continue;
 		
 		// is this a wire that doesn't have wire info yet?  If so we can't use it yet.
 		// That would create a circular dependency.  So that side isn't ready.
@@ -246,14 +250,14 @@ public class SimulationManager {
 		
 		// which post does this element connect to, if any?
 		if (pt.x == wire.x && pt.y == wire.y) {
-		    console("  found immediate neighbor " + ce + " " + pt);
+		    // console("  found immediate neighbor " + ce + " " + pt);
 		    neighbors0.add(ce);
 		    if (notReady) isReady0 = false;
 		} else if (wire.getPostCount() > 1) {
 		    Point p2 = wire.getConnectedPost();
 		    if (pt.x == p2.x && pt.y == p2.y) { 
 			neighbors1.add(ce);
-			console("  found immediate neighbor " + ce + " " + pt);
+			// console("  found immediate neighbor " + ce + " " + pt);
 			if (notReady) isReady1 = false;
 		    }
 		} else if (ce instanceof LabeledNodeElm && wire instanceof LabeledNodeElm &&
@@ -614,25 +618,7 @@ public class SimulationManager {
 
 	if (!calcWireInfo())
 	    return false;
-	if (app.ui.elmList != app.elmList) {
-	    console("wireInfoList size: " + wireInfoList.size());
-	    for (int wi = 0; wi < wireInfoList.size(); wi++) {
-		WireInfo winfo = wireInfoList.get(wi);
-		CircuitElm wire = winfo.wire;
-		console("  wire " + wi + ": " + wire +
-			" pos=(" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")" +
-			" node=" + wire.getNode(0) +
-			" post=" + winfo.post +
-			" neighbors=" + (winfo.neighbors != null ? winfo.neighbors.size() : "null") +
-			" hasWireInfo=" + wire.hasWireInfo);
-		if (winfo.neighbors != null) {
-		    for (int ni = 0; ni < winfo.neighbors.size(); ni++) {
-			CircuitElm ne = winfo.neighbors.get(ni);
-			console("    neighbor " + ni + ": " + ne.getClass().getName());
-		    }
-		}
-	    }
-	}
+
 	nodeMap = null; // done with this
 	uiNodeMap = null;
 
