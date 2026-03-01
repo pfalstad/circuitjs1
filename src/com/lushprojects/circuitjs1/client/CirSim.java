@@ -220,6 +220,7 @@ MouseOutHandler, MouseWheelHandler {
 
     double minFrameRate = 20;
     boolean adjustTimeStep;
+    boolean autoDCOnReset;
     boolean developerMode;
     static final int HINT_LC = 1;
     static final int HINT_RC = 2;
@@ -933,6 +934,10 @@ MouseOutHandler, MouseWheelHandler {
 	    Storage stor = Storage.getLocalStorageIfSupported();
 	    wheelSensitivity = Double.parseDouble(stor.getItem("wheelSensitivity"));
 	} catch (Exception e) {}
+	try {
+	    Storage stor = Storage.getLocalStorageIfSupported();
+	    autoDCOnReset = "true".equals(stor.getItem("autoDCOnReset"));
+	} catch (Exception e) {}
     }
 
     MenuItem menuItemWithShortcut(String icon, String text, String shortcut, MyCommand cmd) {
@@ -1119,6 +1124,7 @@ MouseOutHandler, MouseWheelHandler {
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Transformer"), "TransformerElm"));
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Tapped Transformer"), "TappedTransformerElm"));
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Custom Transformer"), "CustomTransformerElm"));
+    	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Gyrator"), "GyratorElm"));
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Transmission Line"), "TransLineElm"));
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Relay"), "RelayElm"));
     	passMenuBar.addItem(getClassCheckItem(Locale.LS("Add Relay Coil"), "RelayCoilElm"));
@@ -3242,6 +3248,8 @@ MouseOutHandler, MouseWheelHandler {
     public void resetAction(){
     	int i;
     	analyzeFlag = true;
+    	if (autoDCOnReset)
+    	    dcAnalysisFlag = true;
     	if (t == 0)
     	    setSimRunning(true);
     	t = timeStepAccum = 0;
@@ -5969,6 +5977,7 @@ MouseOutHandler, MouseWheelHandler {
     	case 428: return new MotorProtectionSwitchElm(x1, y1, x2, y2, f, st);
     	case 429: return new DPDTSwitchElm(x1, y1, x2, y2, f, st);
     	case 430: return new CrossSwitchElm(x1, y1, x2, y2, f, st);
+    	case 433: return new GyratorElm(x1, y1, x2, y2, f, st);
         }
     	return null;
     }
@@ -6245,6 +6254,8 @@ MouseOutHandler, MouseWheelHandler {
 		return (CircuitElm) new DPDTSwitchElm(x1, y1);
     	if (n=="CrossSwitchElm")
 		return (CircuitElm) new CrossSwitchElm(x1, y1);
+    	if (n=="GyratorElm")
+		return (CircuitElm) new GyratorElm(x1, y1);
     	
     	// handle CustomCompositeElm:modelname
     	if (n.startsWith("CustomCompositeElm:")) {

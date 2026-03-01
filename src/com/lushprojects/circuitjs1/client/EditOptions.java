@@ -86,6 +86,11 @@ class EditOptions implements Editable {
 		}
 		if (n == 14 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
+		if (n == 15) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", sim.autoDCOnReset);
+		    return ei;
+		}
 
 		return null;
 	}
@@ -169,6 +174,12 @@ class EditOptions implements Editable {
 		}
 		if (n == 14 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
+		if (n == 15) {
+		    sim.autoDCOnReset = ei.checkbox.getState();
+		    Storage stor = Storage.getLocalStorageIfSupported();
+		    if (stor != null)
+			stor.setItem("autoDCOnReset", sim.autoDCOnReset ? "true" : "false");
+		}
 	}
 	
 	Color setColor(String name, EditInfo ei, Color def) {

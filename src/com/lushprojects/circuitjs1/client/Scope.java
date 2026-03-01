@@ -1743,8 +1743,8 @@ class Scope {
     void setSpeed(int sp) {
 	if (sp < 1)
 	    sp = 1;
-	if (sp > 1024)
-	    sp = 1024;
+	if (sp > 8192)
+	    sp = 8192;
 	speed = sp;
 	resetGraph();
     }
@@ -1762,7 +1762,7 @@ class Scope {
     }
 
     void slowDown() {
-	if (speed < 1024)
+	if (speed < 8192)
 	    speed *= 2;
     	resetGraph();
     }
