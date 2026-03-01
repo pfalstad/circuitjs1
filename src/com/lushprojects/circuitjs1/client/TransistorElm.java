@@ -24,11 +24,13 @@ import com.google.gwt.xml.client.Document;
 
 import java.util.Vector;
 
+import com.google.gwt.event.dom.client.MouseWheelEvent;
+import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Button;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
-class TransistorElm extends CircuitElm {
+class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	// node 0 = base
 	// node 1 = collector
 	// node 2 = emitter
@@ -82,6 +84,13 @@ class TransistorElm extends CircuitElm {
 	    lastvbc = lastvbe = curcount_c = curcount_e = curcount_b = 0;
 	    badIters = 0;
 	}
+	public void onMouseWheel(MouseWheelEvent e) {
+	    app.undoManager.pushUndo();
+	    pnp = -pnp;
+	    setPoints();
+	    app.needAnalyze();
+	}
+
 	int getDumpType() { return 't'; }
 	String dump() {
 	    return super.dump() + " " + pnp + " " + (volts[0]-volts[1]) + " " +

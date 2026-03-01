@@ -19,12 +19,14 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.event.dom.client.MouseWheelEvent;
+import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
 
-class MosfetElm extends CircuitElm {
+class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int pnp;
 	int FLAG_PNP = 1;
 	int FLAG_SHOWVT = 2;
@@ -104,6 +106,14 @@ class MosfetElm extends CircuitElm {
 	    if (doBodyDiode())
 		volts[bodyTerminal] = 0;
 	}
+	public void onMouseWheel(MouseWheelEvent e) {
+	    app.undoManager.pushUndo();
+	    pnp = -pnp;
+	    flags ^= FLAG_PNP;
+	    setPoints();
+	    app.needAnalyze();
+	}
+
 	String dump() {
 	    return super.dump() + " " + vt + " " + beta;
 	}

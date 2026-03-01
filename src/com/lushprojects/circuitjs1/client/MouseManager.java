@@ -78,6 +78,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     private CircuitElm mouseElm = null;
     public boolean didSwitch = false;
     public int mousePost = -1;
+    public int highlightedNode = -1;
+    public boolean netHighlightKeyHeld = false;
     public CircuitElm plotXElm, plotYElm;
     public int draggingPost;
     public SwitchElm heldSwitchElm;
@@ -485,6 +487,13 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		for (i = 0; i < sim.adjustables.size(); i++)
     		    sim.adjustables.get(i).setMouseElm(ce);
     	}
+    	// highlight all elements on the same net when Shift+hovering over a wire
+    	if (ce != null && ce.isRemovableWire() && sim.sim.nodeList != null && netHighlightKeyHeld) {
+    	    int n = ce.getNode(0);
+    	    highlightedNode = (n >= 0 && n < sim.sim.nodeList.size()) ? n : -1;
+    	} else {
+    	    highlightedNode = -1;
+    	}
     }
 
     public CircuitElm getMouseElm() { return mouseElm; }
@@ -639,6 +648,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		}
     	}
     	sim.repaint();
+    	netHighlightKeyHeld = e.isShiftKeyDown();
     	setMouseElm(newMouseElm);
     }
 

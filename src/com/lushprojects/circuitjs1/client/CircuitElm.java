@@ -1134,10 +1134,19 @@ public abstract class CircuitElm implements Editable {
     boolean comparePair(int x1, int x2, int y1, int y2) {
 	return ((x1 == y1 && x2 == y2) || (x1 == y2 && x2 == y1));
     }
-    boolean needsHighlight() { 
+    boolean needsHighlight() {
 	return mouseElmRef==this || selected || app.mouse.plotYElm == this ||
 		// Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
-		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this); 
+		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this) ||
+		isOnHighlightedNet();
+    }
+    boolean isOnHighlightedNet() {
+	if (app.mouse.highlightedNode < 0)
+	    return false;
+	for (int i = 0; i != getPostCount(); i++)
+	    if (nodes[i] == app.mouse.highlightedNode)
+		return true;
+	return false;
     }
     boolean isCreating() { return app.mouse.dragElm == this; }
     boolean isSelected() { return selected; }
