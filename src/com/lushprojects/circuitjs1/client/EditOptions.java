@@ -91,7 +91,9 @@ class EditOptions implements Editable {
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 15 && sim.adjustTimeStep)
+		if (n == 15)
+		    return new EditInfo("Simulation Temperature (\u00b0C)", CirSim.temperature - 273.15, 0, 0);
+		if (n == 16 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
@@ -189,7 +191,14 @@ class EditOptions implements Editable {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 15 && ei.value > 0)
+		if (n == 15) {
+		    double tempK = ei.value + 273.15;
+		    if (tempK > 0) {
+			CirSim.setTemperature(tempK);
+			sim.updateModels();
+		    }
+		}
+		if (n == 16 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 	
