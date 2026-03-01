@@ -66,6 +66,7 @@ public class CirSim implements NativePreviewHandler {
 
     double minFrameRate = 20;
     boolean developerMode;
+    boolean centreOnResize;
     static final int HINT_LC = 1;
     static final int HINT_RC = 2;
     static final int HINT_3DB_C = 3;
@@ -184,6 +185,7 @@ public class CirSim implements NativePreviewHandler {
 	    selectColor = qp.getValue("selectColor");
 	    currentColor = qp.getValue("currentColor");
 	    mouseModeReq = qp.getValue("mouseMode");
+	    centreOnResize = getOptionFromStorage("centreOnResize", false);
 	} catch (Exception e) { }
 
 	transform = new double[6];
@@ -205,6 +207,12 @@ public class CirSim implements NativePreviewHandler {
 	if (startCircuitText != null) {
 	    menus.getSetupList(false);
 	    loader.readCircuit(startCircuitText);
+	    // set title from Electron filename if available (#171)
+	    String fn = getElectronStartCircuitFileName();
+	    if (fn != null && fn.length() > 0) {
+		setCircuitTitle(fn);
+		ExportAsLocalFileDialog.setLastFileName(fn);
+	    }
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
@@ -384,8 +392,12 @@ public class CirSim implements NativePreviewHandler {
 
     static native String getElectronStartCircuitText() /*-{
     	return $wnd.startCircuitText;
-    }-*/;    
-    
+    }-*/;
+
+    static native String getElectronStartCircuitFileName() /*-{
+    	return $wnd.startCircuitFileName;
+    }-*/;
+
     void allowSave(boolean b) { ui.allowSave(b); }
     
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
