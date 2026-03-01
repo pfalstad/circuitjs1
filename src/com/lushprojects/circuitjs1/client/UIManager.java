@@ -447,6 +447,17 @@ public class UIManager {
     		}
     		miny = min(ce.y, min(ce.y2, miny));
     		maxy = max(ce.y, max(ce.y2, maxy));
+    		// use boundingBox for elements like chips/subcircuits whose
+    		// visual extent exceeds their x/y coordinates
+    		Rectangle bb = ce.getBoundingBox();
+    		if (bb != null) {
+    		    if (!ce.isCenteredText()) {
+    			minx = min(bb.x, minx);
+    			maxx = max(bb.x + bb.width, maxx);
+    		    }
+    		    miny = min(bb.y, miny);
+    		    maxy = max(bb.y + bb.height, maxy);
+    		}
     	}
     	if (minx > maxx)
     	    return null;
