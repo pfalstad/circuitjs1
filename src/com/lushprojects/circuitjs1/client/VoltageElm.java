@@ -217,7 +217,8 @@ class VoltageElm extends CircuitElm {
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
 	if (dx == 0 || dy == 0) {
-	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0;
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0 ||
+			    (showValues() && waveform == WF_DC);
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)

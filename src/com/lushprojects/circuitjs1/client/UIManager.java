@@ -1018,6 +1018,27 @@ public class UIManager {
     			e.cancel();
     		}
 
+    		if (code==KEY_LEFT || code==KEY_RIGHT || code==KEY_UP || code==KEY_DOWN) {
+    		    int dx = 0, dy = 0;
+    		    if (code == KEY_LEFT)  dx = -app.gridSize;
+    		    if (code == KEY_RIGHT) dx = app.gridSize;
+    		    if (code == KEY_UP)    dy = -app.gridSize;
+    		    if (code == KEY_DOWN)  dy = app.gridSize;
+    		    boolean hasSel = false;
+    		    for (int i = 0; i != elmList.size(); i++)
+    			if (elmList.get(i).isSelected()) { hasSel = true; break; }
+    		    if (hasSel) {
+    			app.undoManager.pushUndo();
+    			for (int i = 0; i != elmList.size(); i++) {
+    			    CircuitElm ce = elmList.get(i);
+    			    if (ce.isSelected())
+    				ce.move(dx, dy);
+    			}
+    			app.needAnalyze();
+    			e.cancel();
+    		    }
+    		}
+
     		if (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey()) {
     			if (code==KEY_C) {
     				app.commands.menuPerformed("key", "copy");

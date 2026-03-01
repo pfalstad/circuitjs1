@@ -27,6 +27,7 @@ import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 
     class SRAMElm extends ChipElm {
+	static final int FLAG_HEX_DISPLAY = 4;
 	int addressNodes, dataNodes, internalNodes;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
@@ -128,7 +129,12 @@ import com.google.gwt.xml.client.Element;
     	    	ei.textArea.setText(s);
     	    	return ei;
             }
-            if (n == 3 && SRAMLoadFile.isSupported()) {
+            if (n == 3) {
+            	EditInfo ei = new EditInfo("", 0, -1, -1);
+            	ei.checkbox = new Checkbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY));
+            	return ei;
+            }
+            if (n == 4 && SRAMLoadFile.isSupported()) {
             	EditInfo ei = new EditInfo("", 0, -1, -1);
             	ei.loadFile = new SRAMLoadFile();
             	ei.button = new Button("Load Contents From File");
@@ -139,25 +145,32 @@ import com.google.gwt.xml.client.Element;
 	}
 	
 	String contentsToString() {
+	    boolean hex = hasFlag(FLAG_HEX_DISPLAY);
 	    String s = "";
 	    int maxI = 1<<addressBits;
 	    for (int i = 0; i < maxI; i++) {
 		Integer val = map.get(i);
 		if (val == null)
 		    continue;
-		s += i + ": " + val;
+		s += (hex ? Integer.toHexString(i).toUpperCase() : "" + i) + ": " +
+		     (hex ? toHex(val) : "" + val);
 		int ct = 1;
 		while (true) {
 		    val = map.get(++i);
 		    if (val == null)
 			break;
-		    s += " " + val;
+		    s += " " + (hex ? toHex(val) : "" + val);
 		    if (++ct == 8)
 			break;
 		}
 		s += "\n";
 	    }
 	    return s;
+	}
+
+	String toHex(int val) {
+	    String h = Integer.toHexString(val & 0xFF).toUpperCase();
+	    return h.length() < 2 ? "0" + h : h;
 	}
 
 	void parseContentsString(String s) {
@@ -182,6 +195,8 @@ import com.google.gwt.xml.client.Element;
 		return Integer.parseInt(str.substring(2), 16);
 	    if (str.startsWith("0b"))
 		return Integer.parseInt(str.substring(2), 2);
+	    if (hasFlag(FLAG_HEX_DISPLAY))
+		return Integer.parseInt(str, 16);
 	    return Integer.parseInt(str);
 	}
 
@@ -198,6 +213,8 @@ import com.google.gwt.xml.client.Element;
 	    }
 	    if (n == 2)
 		parseContentsString(ei.textArea.getText());
+	    if (n == 3)
+		flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }
