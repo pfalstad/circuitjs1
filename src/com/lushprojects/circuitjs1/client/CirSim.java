@@ -1440,6 +1440,17 @@ MouseOutHandler, MouseWheelHandler {
     		}
     		miny = min(ce.y, min(ce.y2, miny));
     		maxy = max(ce.y, max(ce.y2, maxy));
+    		// use boundingBox for elements like chips/subcircuits whose
+    		// visual extent exceeds their x/y coordinates
+    		Rectangle bb = ce.getBoundingBox();
+    		if (bb != null) {
+    		    if (!ce.isCenteredText()) {
+    			minx = min(bb.x, minx);
+    			maxx = max(bb.x + bb.width, maxx);
+    		    }
+    		    miny = min(bb.y, miny);
+    		    maxy = max(bb.y + bb.height, maxy);
+    		}
     	}
     	if (minx > maxx)
     	    return null;
@@ -4690,6 +4701,10 @@ MouseOutHandler, MouseWheelHandler {
 
     public void onContextMenu(ContextMenuEvent e) {
     	e.preventDefault();
+    	// on Mac, Ctrl+click sends a context menu event; suppress it so
+    	// Ctrl+click can be used for selection instead
+    	if (isMac && e.getNativeEvent().getCtrlKey())
+    	    return;
     	if (!dialogIsShowing()) {
         	menuClientX = e.getNativeEvent().getClientX();
         	menuClientY = e.getNativeEvent().getClientY();
@@ -6601,14 +6616,13 @@ MouseOutHandler, MouseWheelHandler {
 		}
 	    }
 	
-	    boolean first = true;
 	    for (i = 0; i != unconnectedNodes.size(); i++) {
 		int q = unconnectedNodes.get(i);
 		if (!extnodes[q] && used[q]) {
-		    if (nodesWithGroundConnectionCount == 0 && first) {
-			first = false;
+		    // when circuit has no ground, unconnected node detection is
+		    // unreliable so skip the check entirely
+		    if (nodesWithGroundConnectionCount == 0)
 			continue;
-		    }
 		    Window.alert("Some nodes are unconnected!");
 		    return null;
 		}

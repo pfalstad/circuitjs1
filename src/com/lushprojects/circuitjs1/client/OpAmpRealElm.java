@@ -155,10 +155,6 @@ public class OpAmpRealElm extends CompositeElm {
 	return super.dumpWithMask(0) + " " + slewRate + " " + voltdiff + " " + currentLimit + " " + modelType;
     }
     
-    public boolean getConnection(int n1, int n2) {
-	return true;
-    }
-
     void draw(Graphics g) {
         setBbox(point1, point2, opheight*2);
         setVoltageColor(g, volts[0]);
