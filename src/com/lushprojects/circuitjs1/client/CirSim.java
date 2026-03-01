@@ -59,6 +59,7 @@ public class CirSim implements NativePreviewHandler {
     boolean analyzeFlag, savedFlag;
     boolean dumpMatrix;
     boolean dcAnalysisFlag;
+    boolean autoDCOnReset;
     // boolean useBufferedImage;
     int pause = 10;
     int hintType = -1, hintItem1, hintItem2;
@@ -198,6 +199,7 @@ public class CirSim implements NativePreviewHandler {
 
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
+	autoDCOnReset = getOptionFromStorage("autoDCOnReset", false);
 
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 

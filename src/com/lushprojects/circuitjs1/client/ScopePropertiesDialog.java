@@ -367,7 +367,7 @@ labelledGridManager gridLabels;
 		hScaleGrid = new Grid(2,4);
 		hScaleLabel = new expandingLabel(Locale.LS("Horizontal Scale"), displayScales);
 		hScaleGrid.setWidget(0, 0, hScaleLabel.p);
-		speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 2, 1, 0, 11, new Command() {
+		speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 5, 1, 0, 14, new Command() {
 		    public void execute() {
 			scrollbarChanged();
 		    }
@@ -540,7 +540,7 @@ labelledGridManager gridLabels;
 	
 	
 	void scrollbarChanged() {
-	    int newsp = (int)Math.pow(2,  10-speedBar.getValue());
+	    int newsp = (int)Math.pow(2,  13-speedBar.getValue());
 	    CirSim.console("changed " + scope.speed + " " + newsp + " " + speedBar.getValue());
 	    if (scope.speed != newsp)
 		scope.setSpeed(newsp);
@@ -551,7 +551,7 @@ labelledGridManager gridLabels;
 	    vModep.setVisible(vScaleLabel.expanded);
 	    gridLabels.updateRowVisibility();
 	    hScaleGrid.getRowFormatter().setVisible(1, hScaleLabel.expanded);
-	    speedBar.setValue(10-(int)Math.round(Math.log(scope.speed)/Math.log(2)));
+	    speedBar.setValue(13-(int)Math.round(Math.log(scope.speed)/Math.log(2)));
 	    if (voltageBox != null) {
 		voltageBox.setValue(scope.showV && !scope.showingValue(Scope.VAL_POWER));
 		currentBox.setValue(scope.showI && !scope.showingValue(Scope.VAL_POWER));
