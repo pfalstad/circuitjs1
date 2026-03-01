@@ -54,6 +54,7 @@ class EditInfo {
 	
 	EditInfo setDimensionless() { dimensionless = true; return this; }
 	EditInfo disallowSliders() { noSliders = true; return this; }
+	EditInfo setIsColor() { isColor = true; return this; }
 	int changeFlag(int flags, int bit) {
 	    if (checkbox.getState())
 		return flags | bit;
@@ -77,6 +78,7 @@ class EditInfo {
 	boolean newDialog;
 	boolean dimensionless;
 	boolean noSliders;
+	boolean isColor;
 	double minVal, maxVal;
 	
 	// for slider dialog
