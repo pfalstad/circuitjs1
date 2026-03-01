@@ -16,7 +16,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 import java.util.HashMap;
 
-public class Toolbar extends HorizontalPanel {
+public class Toolbar extends FlowPanel {
 
     private Label modeLabel;
     private Label subcircuitLabel;
@@ -35,8 +35,7 @@ public class Toolbar extends HorizontalPanel {
         style.setBorderStyle(Style.BorderStyle.SOLID);
         style.setBorderColor("#ccc");
         style.setDisplay(Style.Display.FLEX);
-	setVerticalAlignment(ALIGN_MIDDLE);
-	setWidth("100%");
+	style.setProperty("alignItems", "center");
 
 	add(createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
 	add(createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
@@ -74,14 +73,19 @@ public class Toolbar extends HorizontalPanel {
 	add(createButtonSet(fetInfo));
 
 	add(createIconButton(inverterIcon, "InverterElm"));
-	String gateInfo[] = { andIcon, "AndGateElm", nandIcon, "NandGateElm", 
+	String gateInfo[] = { andIcon, "AndGateElm", nandIcon, "NandGateElm",
 			      orIcon, "OrGateElm", norIcon, "NorGateElm", xorIcon, "XorGateElm" };
 	add(createButtonSet(gateInfo));
 
-        // Create and add the mode label on the right
+        // Create and add the mode label
         modeLabel = new Label("");
         styleModeLabel(modeLabel);
         add(modeLabel);
+
+	// Spacer to push subcircuit info to the right
+	Label spacer = new Label("");
+	spacer.getElement().getStyle().setProperty("flexGrow", "1");
+	add(spacer);
 
 	// Subcircuit path label (hidden by default)
 	subcircuitLabel = new Label("");
