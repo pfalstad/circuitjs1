@@ -41,7 +41,7 @@ class RelayElm extends CircuitElm {
 	
     double inductance;
     Inductor ind;
-    double r_on, r_off, onCurrent, offCurrent;
+    double r_on, r_off, onCurrent, offCurrent, pulldownResistance;
     Point coilPosts[], coilLeads[], swposts[][], swpoles[][], ptSwitch[];
     Point lines[];
     Point outline[] = newPointArray(4);
@@ -100,7 +100,8 @@ class RelayElm extends CircuitElm {
 	    offCurrent = new Double(st.nextToken()).doubleValue();
 	    switchingTime = Double.parseDouble(st.nextToken());
 	    d_position = i_position = Integer.parseInt(st.nextToken());
-	} catch (Exception e) {}	
+	    pulldownResistance = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {}
 	postUndump();
     }
 
@@ -134,7 +135,7 @@ class RelayElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + poleCount + " " +
 	    inductance + " " + coilCurrent + " " +
-	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position;
+	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position + " " + pulldownResistance;
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -147,6 +148,7 @@ class RelayElm extends CircuitElm {
         XMLSerializer.dumpAttr(elem, "coR", coilR);
         XMLSerializer.dumpAttr(elem, "of", offCurrent);
         XMLSerializer.dumpAttr(elem, "sw", switchingTime);
+        XMLSerializer.dumpAttr(elem, "pd", pulldownResistance);
     }
 
     void dumpXmlState(Document doc, Element elem) {
@@ -164,6 +166,7 @@ class RelayElm extends CircuitElm {
         coilR = xml.parseDoubleAttr("coR", coilR);
         offCurrent = xml.parseDoubleAttr("of", offCurrent);
         switchingTime = xml.parseDoubleAttr("sw", switchingTime);
+        pulldownResistance = xml.parseDoubleAttr("pd", pulldownResistance);
         coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
         i_position = xml.parseIntAttr("ip", i_position);
 	postUndump();
@@ -345,6 +348,14 @@ class RelayElm extends CircuitElm {
 	int i;
 	for (i = 0; i != poleCount*3; i++)
 	    sim.stampNonLinear(nodes[nSwitch0+i]);
+
+	// stamp pulldown resistors from NC and NO contacts to ground
+	if (pulldownResistance > 0) {
+	    for (i = 0; i < poleCount; i++) {
+		sim.stampResistor(nodes[nSwitch1+i*3], 0, pulldownResistance);
+		sim.stampResistor(nodes[nSwitch2+i*3], 0, pulldownResistance);
+	    }
+	}
     }
     
     void startIteration() {
@@ -497,6 +508,8 @@ class RelayElm extends CircuitElm {
 	// show switching time only for new model, since it is meaningless for old one
 	if (n == 9 && switchingTime > 0)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
+	if (n == 10)
+	    return new EditInfo("Pulldown Resistance (ohms)", pulldownResistance, 0, 0);
 	return null;
     }
     
@@ -537,6 +550,8 @@ class RelayElm extends CircuitElm {
 	    flags = ei.changeFlag(flags, FLAG_SHOW_BOX);
 	if (n == 9 && ei.value > 0)
 	    switchingTime = ei.value;
+	if (n == 10 && ei.value >= 0)
+	    pulldownResistance = ei.value;
     }
     
     boolean getConnection(int n1, int n2) {
