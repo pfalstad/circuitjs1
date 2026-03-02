@@ -86,6 +86,7 @@ coupled3.txt LC Modes (3)
 ladder.txt LC Ladder
 -
 phaseseq.txt Phase-Sequence Network
+3phasewye.txt 3-Phase Wye-Wye Balanced Load
 lissa.txt Lissajous Figures
 -
 +Diodes
