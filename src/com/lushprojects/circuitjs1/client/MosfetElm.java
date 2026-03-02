@@ -41,6 +41,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double vt;
 	// beta = 1/(RdsON*(Vgs-Vt))
 	double beta;
+	double cgs, cgd; // parasitic gate capacitances (0 = disabled)
+	// parasitic capacitance companion model state
+	double compResGS, compResGD;
+	double curSourceGS, curSourceGD;
+	double capCurrentGS, capCurrentGD;
+	double capVoltdiffGS, capVoltdiffGD;
 	static int globalFlags;
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
@@ -101,6 +107,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
 	    curcount_body1 = curcount_body2 = 0;
+	    capVoltdiffGS = capVoltdiffGD = capCurrentGS = capCurrentGD = 0;
+	    curSourceGS = curSourceGD = 0;
 	    diodeB1.reset();
 	    diodeB2.reset();
 	    if (doBodyDiode())
@@ -120,6 +128,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "vt", vt);
 	    XMLSerializer.dumpAttr(elem, "be", beta);
+	    if (cgs != 0)
+		XMLSerializer.dumpAttr(elem, "cgs", cgs);
+	    if (cgd != 0)
+		XMLSerializer.dumpAttr(elem, "cgd", cgd);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
@@ -127,8 +139,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    super.undumpXml(xml);
 	    vt = xml.parseDoubleAttr("vt", vt);
 	    beta = xml.parseDoubleAttr("be", beta);
+	    cgs = xml.parseDoubleAttr("cgs", 0);
+	    cgd = xml.parseDoubleAttr("cgd", 0);
 	    globalFlags = flags & (FLAGS_GLOBAL);
-	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
+	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
 	}
 
 	int getDumpType() { return 'f'; }
@@ -311,7 +325,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void stamp() {
 	    sim.stampNonLinear(nodes[1]);
 	    sim.stampNonLinear(nodes[2]);
-	    
+	    if (cgs > 0 || cgd > 0)
+		sim.stampNonLinear(nodes[0]);
+
 	    if (hasBodyTerminal())
 		bodyTerminal = 3;
 	    else
@@ -327,6 +343,15 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		    diodeB1.stamp(nodes[bodyTerminal], nodes[1]);
 		    diodeB2.stamp(nodes[bodyTerminal], nodes[2]);
 		}
+	    }
+	    // parasitic capacitance companion resistors
+	    if (cgs > 0) {
+		compResGS = sim.timeStep / (2 * cgs);
+		sim.stampResistor(nodes[0], nodes[1], compResGS);
+	    }
+	    if (cgd > 0) {
+		compResGD = sim.timeStep / (2 * cgd);
+		sim.stampResistor(nodes[0], nodes[2], compResGD);
 	    }
 	}
 	
@@ -349,14 +374,31 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    return true;
 	}
 	
+	void startIteration() {
+	    if (cgs > 0)
+		curSourceGS = -capVoltdiffGS / compResGS - capCurrentGS;
+	    if (cgd > 0)
+		curSourceGD = -capVoltdiffGD / compResGD - capCurrentGD;
+	}
+
 	void stepFinished() {
 	    calculate(true);
-	    
+
 	    // fix current if body is connected to source or drain
 	    if (bodyTerminal == 1)
 		diodeCurrent1 = -diodeCurrent2;
 	    if (bodyTerminal == 2)
 		diodeCurrent2 = -diodeCurrent1;
+
+	    // update parasitic capacitance state
+	    if (cgs > 0) {
+		capVoltdiffGS = volts[0] - volts[1];
+		capCurrentGS = capVoltdiffGS / compResGS + curSourceGS;
+	    }
+	    if (cgd > 0) {
+		capVoltdiffGD = volts[0] - volts[2];
+		capCurrentGD = capVoltdiffGD / compResGD + curSourceGD;
+	    }
 	}
 
 	void doStep() {
@@ -460,6 +502,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    
 	    sim.stampRightSide(nodes[drain],  rs);
 	    sim.stampRightSide(nodes[source], -rs);
+
+	    // parasitic capacitance current sources
+	    if (cgs > 0)
+		sim.stampCurrentSource(nodes[0], nodes[1], curSourceGS);
+	    if (cgd > 0)
+		sim.stampCurrentSource(nodes[0], nodes[2], curSourceGD);
 	}
 	
 	void getFetInfo(String arr[], String n) {
@@ -486,6 +534,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean canViewInScope() { return true; }
 	double getVoltageDiff() { return volts[2] - volts[1]; }
 	boolean getConnection(int n1, int n2) {
+	    if (cgs > 0 || cgd > 0)
+		return true; // gate is capacitively coupled
 	    return !(n1 == 0 || n2 == 0);
 	}
 	public EditInfo getEditInfo(int n) {
@@ -518,7 +568,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
 			return ei;
 		}
-
+		int capOff = doBodyDiode() ? 6 : 5;
+		if (n == capOff)
+			return new EditInfo("Gate-Source Capacitance (Cgs)", cgs);
+		if (n == capOff + 1)
+			return new EditInfo("Gate-Drain Capacitance (Cgd)", cgd);
 		return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -549,6 +603,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		if (n == 5) {
 		    flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
 		}
+		int capOff = doBodyDiode() ? 6 : 5;
+		if (n == capOff)
+		    cgs = ei.value;
+		if (n == capOff + 1)
+		    cgd = ei.value;
 
 		// lots of different cases where the body terminal might have gotten removed/added so just do this all the time
 		allocNodes();

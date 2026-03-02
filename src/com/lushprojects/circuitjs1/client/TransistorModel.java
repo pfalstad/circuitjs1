@@ -18,6 +18,7 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
     String name, description;
     double satCur, invRollOffF, BEleakCur, leakBEemissionCoeff, invRollOffR, BCleakCur, leakBCemissionCoeff;
     double emissionCoeffF, emissionCoeffR, invEarlyVoltF, invEarlyVoltR, betaR;
+    double capBE, capBC; // junction capacitances (0 = disabled)
 
     boolean dumped;
     boolean readOnly;
@@ -156,6 +157,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltF = copy.invEarlyVoltF;
 	invEarlyVoltR = copy.invEarlyVoltR;
 	betaR = copy.betaR;
+	capBE = copy.capBE;
+	capBC = copy.capBC;
 	updateModel();
     }
 
@@ -187,6 +190,10 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltF = Double.parseDouble(st.nextToken());
 	invEarlyVoltR = Double.parseDouble(st.nextToken());
 	betaR = Double.parseDouble(st.nextToken());
+	try {
+	    capBE = Double.parseDouble(st.nextToken());
+	    capBC = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {}
 
 	updateModel();
     }
@@ -209,6 +216,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 10) return new EditInfo("B-E Leakage Emission Coefficient (NE)", leakBEemissionCoeff);
 	if (n == 11) return new EditInfo("B-C Leakage Saturation Current (ISC)", BCleakCur);
 	if (n == 12) return new EditInfo("B-C Leakage Emission Coefficient (NC)", leakBCemissionCoeff);
+	if (n == 13) return new EditInfo("B-E Junction Capacitance (CJE)", capBE);
+	if (n == 14) return new EditInfo("B-C Junction Capacitance (CJC)", capBC);
 	return null;
     }
 
@@ -230,6 +239,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 10) leakBEemissionCoeff = ei.value;
 	if (n == 11) BCleakCur = ei.value;
 	if (n == 12) leakBCemissionCoeff = ei.value;
+	if (n == 13) capBE = ei.value;
+	if (n == 14) capBC = ei.value;
 	updateModel();
 	CirSim.theApp.updateModels();
     }
@@ -254,6 +265,10 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	XMLSerializer.dumpAttr(elem, "vaf", invEarlyVoltF);
 	XMLSerializer.dumpAttr(elem, "var", invEarlyVoltR);
 	XMLSerializer.dumpAttr(elem, "br", betaR);
+	if (capBE != 0)
+	    XMLSerializer.dumpAttr(elem, "cje", capBE);
+	if (capBC != 0)
+	    XMLSerializer.dumpAttr(elem, "cjc", capBC);
 	doc.getDocumentElement().appendChild(elem);
     }
 
@@ -278,6 +293,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltF = xml.parseDoubleAttr("vaf", invEarlyVoltF);
 	invEarlyVoltR = xml.parseDoubleAttr("var", invEarlyVoltR);
 	betaR = xml.parseDoubleAttr("br", betaR);
+	capBE = xml.parseDoubleAttr("cje", capBE);
+	capBC = xml.parseDoubleAttr("cjc", capBC);
 	updateModel();
     }
 }

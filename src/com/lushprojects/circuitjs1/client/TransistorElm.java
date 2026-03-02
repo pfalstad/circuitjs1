@@ -82,6 +82,8 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	void reset() {
 	    volts[0] = volts[1] = volts[2] = 0;
 	    lastvbc = lastvbe = curcount_c = curcount_e = curcount_b = 0;
+	    capVoltdiffBE = capVoltdiffBC = capCurrentBE = capCurrentBC = 0;
+	    curSourceBE = curSourceBC = 0;
 	    badIters = 0;
 	}
 	public void onMouseWheel(MouseWheelEvent e) {
@@ -134,6 +136,11 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	}
 
 	double ic, ie, ib, curcount_c, curcount_e, curcount_b;
+	// parasitic capacitance companion model state
+	double compResBE, compResBC;
+	double curSourceBE, curSourceBC;
+	double capCurrentBE, capCurrentBC;
+	double capVoltdiffBE, capVoltdiffBC;
 	
 	Polygon rectPoly, arrowPoly;
 	Point circleCenter;	
@@ -264,6 +271,20 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    sim.stampNonLinear(nodes[0]);
 	    sim.stampNonLinear(nodes[1]);
 	    sim.stampNonLinear(nodes[2]);
+	    if (model.capBE > 0) {
+		compResBE = sim.timeStep / (2 * model.capBE);
+		sim.stampResistor(nodes[0], nodes[2], compResBE);
+	    }
+	    if (model.capBC > 0) {
+		compResBC = sim.timeStep / (2 * model.capBC);
+		sim.stampResistor(nodes[0], nodes[1], compResBC);
+	    }
+	}
+	void startIteration() {
+	    if (model.capBE > 0)
+		curSourceBE = -capVoltdiffBE / compResBE - capCurrentBE;
+	    if (model.capBC > 0)
+		curSourceBC = -capVoltdiffBC / compResBC - capCurrentBC;
 	}
 	void doStep() {
 	    double vbc = pnp*(volts[0]-volts[1]); // typically negative
@@ -416,6 +437,11 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    sim.stampRightSide(nodes[1], ceqbc);
 	    sim.stampRightSide(nodes[2], ceqbe);
 
+	    // parasitic capacitance current sources
+	    if (model.capBE > 0)
+		sim.stampCurrentSource(nodes[0], nodes[2], curSourceBE);
+	    if (model.capBC > 0)
+		sim.stampCurrentSource(nodes[0], nodes[1], curSourceBC);
 	}
 	
 	@Override String getScopeText(int x) {
@@ -582,6 +608,16 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		badIters++;
 	    else
 		badIters = 0;
+
+	    // update parasitic capacitance state
+	    if (model.capBE > 0) {
+		capVoltdiffBE = volts[0] - volts[2];
+		capCurrentBE = capVoltdiffBE / compResBE + curSourceBE;
+	    }
+	    if (model.capBC > 0) {
+		capVoltdiffBC = volts[0] - volts[1];
+		capCurrentBC = capVoltdiffBC / compResBC + curSourceBC;
+	    }
         }
 
 	void flipX(int c2, int count) {
