@@ -236,6 +236,7 @@ MouseOutHandler, MouseWheelHandler {
     boolean didSwitch = false;
     int mousePost = -1;
     int highlightedNode = -1;
+    boolean netHighlightKeyHeld = false;
     CircuitElm plotXElm, plotYElm;
     int draggingPost;
     SwitchElm heldSwitchElm;
@@ -4527,8 +4528,8 @@ MouseOutHandler, MouseWheelHandler {
     		for (i = 0; i < adjustables.size(); i++)
     		    adjustables.get(i).setMouseElm(ce);
     	}
-    	// highlight all elements on the same net when hovering over a wire
-    	if (ce != null && ce.isRemovableWire() && nodeList != null) {
+    	// highlight all elements on the same net when Shift+hovering over a wire
+    	if (ce != null && ce.isRemovableWire() && nodeList != null && netHighlightKeyHeld) {
     	    int n = ce.getNode(0);
     	    highlightedNode = (n >= 0 && n < nodeList.size()) ? n : -1;
     	} else {
@@ -4691,6 +4692,7 @@ MouseOutHandler, MouseWheelHandler {
     		}
     	}
     	repaint();
+    	netHighlightKeyHeld = e.isShiftKeyDown();
     	setMouseElm(newMouseElm);
     }
 
