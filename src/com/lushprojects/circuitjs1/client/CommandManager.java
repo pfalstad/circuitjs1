@@ -67,6 +67,8 @@ public class CommandManager {
 		app.imageExporter.doExportAsSVG();
     	if (item=="createsubcircuit")
 		doCreateSubcircuit();
+    	if (item=="importfromspice")
+		new ImportFromSpiceDialog();
     	if (item=="dcanalysis")
     	    	doDCAnalysis();
     	if (item=="print")

@@ -119,6 +119,49 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	TextBox modelNameTextBox = null;
 	Checkbox saveCheck = null;
 	Checkbox labelCheck = null;
+	public String defaultName;
+
+	// load an externally-built model (e.g. from SPICE import)
+	boolean loadModel(CustomCompositeModel m) {
+	    model = m;
+	    if (model.extList.size() == 0) {
+		Window.alert(Locale.LS("Device has no external inputs/outputs!"));
+		return false;
+	    }
+	    HashSet<Integer> nodeSet = new HashSet<Integer>();
+	    Collections.sort(model.extList, new Comparator<ExtListEntry>() {
+		public int compare(ExtListEntry a, ExtListEntry b) {
+		    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+		}
+	    });
+	    int i;
+	    int postCount = model.extList.size();
+	    int sideCounts[] = new int[] { 0, 0, 0, 0 };
+	    for (i = 0; i != postCount; i++) {
+		ExtListEntry pin = model.extList.get(i);
+		sideCounts[pin.side] += 1;
+		if (nodeSet.contains(pin.node)) {
+		    Window.alert(Locale.LS("Can't have two input/output nodes connected!"));
+		    return false;
+		}
+		nodeSet.add(pin.node);
+	    }
+	    int xOffsetLeft = (sideCounts[ChipElm.SIDE_W] > 0) ? 1 : 0;
+	    int xOffsetRight = (sideCounts[ChipElm.SIDE_E] > 0) ? 1 : 0;
+	    for (i = 0; i != postCount; i++) {
+		ExtListEntry pin = model.extList.get(i);
+		if (pin.side == ChipElm.SIDE_N || pin.side == ChipElm.SIDE_S) {
+		    pin.pos += xOffsetLeft;
+		}
+	    }
+	    int minHeight = (sideCounts[ChipElm.SIDE_N] > 0 && sideCounts[ChipElm.SIDE_S] > 0) ? 2 : 1;
+	    int minWidth = 2;
+	    int pinsNS = Math.max(sideCounts[ChipElm.SIDE_N], sideCounts[ChipElm.SIDE_S]);
+	    int pinsWE = Math.max(sideCounts[ChipElm.SIDE_W], sideCounts[ChipElm.SIDE_E]);
+	    model.sizeX = Math.max(minWidth, pinsNS + xOffsetLeft + xOffsetRight);
+	    model.sizeY = Math.max(minHeight, pinsWE);
+	    return true;
+	}
 
 	void createDialog() {
 		Button okButton;
@@ -148,13 +191,14 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		    vp.add(new Label(Locale.LS("Model Name")));
 		    modelNameTextBox = new TextBox();
 		    vp.add(modelNameTextBox);
+		    if (defaultName != null)
+			modelNameTextBox.setText(defaultName);
 		    modelNameTextBox.addValueChangeHandler(new ValueChangeHandler<String>() {
 			@Override
 			public void onValueChange(ValueChangeEvent<String> event) {
 			    drawChip();
 			}
 		    });
-//		    modelNameTextBox.setText(model.name);
 		}
 		
 		HorizontalPanel hp = new HorizontalPanel();
