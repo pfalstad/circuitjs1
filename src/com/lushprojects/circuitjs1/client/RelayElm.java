@@ -84,7 +84,7 @@ class RelayElm extends CircuitElm {
 	switchingTime = 5e-3;
 	coilCurrent = coilCurCount = 0;
 	poleCount = 1;
-	flags |= FLAG_SHOW_BOX | FLAG_BOTH_SIDES_COIL;
+	flags |= FLAG_SHOW_BOX | FLAG_BOTH_SIDES_COIL | FLAG_PULLDOWN;
 	setupPoles();
     }
     public RelayElm(int xa, int ya, int xb, int yb, int f,
