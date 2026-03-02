@@ -75,6 +75,22 @@ python3 -m http.server
 
 Then go to the Ports tab, hover over the "Forwarded Address" and click "Follow Link".  Then click `circuitjs.html` to view the application.
 
+### Quick local test
+
+The included `test.sh` script compiles, builds the site, and starts a local server in one step:
+
+```bash
+./test.sh          # builds and serves on port 8000
+./test.sh 9000     # use a custom port
+```
+
+This opens `http://localhost:8000/circuitjs.html` in your browser automatically (macOS). The script finds Gradle via the wrapper (`./gradlew`), the system PATH, or `/tmp/gradle-8.7/`. Requires Python 3 for the HTTP server.
+
+> **Note:** Gradle 8.7 is required (GWT plugin is incompatible with Gradle 9.x). If you don't have it installed, you can download it with:
+> ```bash
+> curl -sL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/g.zip && unzip -qo /tmp/g.zip -d /tmp
+> ```
+
 ## Deployment of the web application
 
 * "GWT Compile Project..." as explained above or run `./dev.sh compile`. This will put the outputs in to the "war" directory in the Eclipse project folder. You then need to copy everything in the "war" directory, except the "WEB-INF" directory, on to your web server.
