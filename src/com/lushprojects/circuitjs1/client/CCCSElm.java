@@ -141,6 +141,14 @@ class CCCSElm extends VCCSElm {
         	sim.stampCurrentSource(nodes[inputCount+1], nodes[inputCount], rs);
             }
 
+            // add gmin stepping to aid convergence, same as VCCSElm
+            if (sim.subIterations > 100) {
+        	double gmin = Math.exp(-9*Math.log(10)*(1-sim.subIterations/3000.));
+        	if (gmin > .1)
+        	    gmin = .1;
+        	sim.stampResistor(nodes[inputCount], nodes[inputCount+1], 1.0/gmin);
+            }
+
             for (i = 0; i != inputPairCount; i++)
                 lastCurrents[i] = pins[i*2+1].current;
         }
