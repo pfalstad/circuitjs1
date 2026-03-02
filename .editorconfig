@@ -1,0 +1,25 @@
+# EditorConfig helps maintain consistent coding styles across editors
+# https://editorconfig.org
+
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.java]
+indent_style = tab
+indent_size = 8
+
+[*.html]
+indent_style = space
+indent_size = 2
+
+[*.txt]
+trim_trailing_whitespace = false
+
+[*.{gradle,xml}]
+indent_style = space
+indent_size = 4
