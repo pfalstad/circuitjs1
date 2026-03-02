@@ -19,12 +19,14 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.event.dom.client.MouseWheelEvent;
+import com.google.gwt.event.dom.client.MouseWheelHandler;
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 import com.lushprojects.circuitjs1.client.util.Locale;
 
-class MosfetElm extends CircuitElm {
+class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int pnp;
 	int FLAG_PNP = 1;
 	int FLAG_SHOWVT = 2;
@@ -104,6 +106,16 @@ class MosfetElm extends CircuitElm {
 	    if (doBodyDiode())
 		volts[bodyTerminal] = 0;
 	}
+	public void onMouseWheel(MouseWheelEvent e) {
+	    if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+		CirSim.typeScrollPopup.doDeltaY(e.getDeltaY());
+		return;
+	    }
+	    CirSim.typeScrollPopup = new TypeScrollPopup(
+		e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(),
+		e.getDeltaY(), this, app);
+	}
+
 	String dump() {
 	    return super.dump() + " " + vt + " " + beta;
 	}

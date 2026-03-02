@@ -6,7 +6,7 @@
     <inherits name="com.google.gwt.xml.XML"/>
     <entry-point class="com.lushprojects.circuitjs1.client.circuitjs1" />
     <stylesheet src='style.css' />
-    <generate-with class="com.lushprojects.circuitjs1.client.generator.ElementFactoryGenerator">
+    <generate-with class="com.lushprojects.circuitjs1.rebind.ElementFactoryGenerator">
         <when-type-assignable class="com.lushprojects.circuitjs1.client.ElementFactory"/>
     </generate-with>
 </module>

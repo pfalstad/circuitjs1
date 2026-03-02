@@ -894,6 +894,8 @@ public class UIManager {
     		return true;
     	if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing())
     		return true;
+    	if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing())
+    		return true;
     	if (CirSim.aboutBox !=null && CirSim.aboutBox.isShowing())
     		return true;
     	return false;
@@ -905,6 +907,20 @@ public class UIManager {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
     	int code=e.getNativeEvent().getKeyCode();
+    	// Handle Shift key for net highlighting (works regardless of dialog state)
+    	if (code == 16) {
+    	    if ((t & Event.ONKEYDOWN) != 0) {
+    	    	mouse.netHighlightKeyHeld = true;
+    	    	mouse.updateNetHighlight();
+    	    	app.repaint();
+    	    }
+    	    if ((t & Event.ONKEYUP) != 0) {
+    	    	mouse.netHighlightKeyHeld = false;
+    	    	mouse.updateNetHighlight();
+    	    	app.repaint();
+    	    }
+    	}
+
     	if (dialogIsShowing()) {
     		if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing() &&
     				(t & Event.ONKEYDOWN)!=0) {
@@ -912,6 +928,13 @@ public class UIManager {
     				CirSim.scrollValuePopup.close(false);
     			if (code==KEY_ENTER)
     				CirSim.scrollValuePopup.close(true);
+    		}
+    		if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing() &&
+    				(t & Event.ONKEYDOWN)!=0) {
+    			if (code==KEY_ESCAPE || code==KEY_SPACE)
+    				CirSim.typeScrollPopup.close(false);
+    			if (code==KEY_ENTER)
+    				CirSim.typeScrollPopup.close(true);
     		}
 
     		Dialog dlg = CirSim.editDialog;
@@ -1077,7 +1100,7 @@ public class UIManager {
     // ---- Other ----
 
     void setCircuitTitle(String s) {
-	titleLabel.setText(s);
+	titleLabel.setText(s == null ? s : s.replace("_", "_\u200B"));
 	if (s != null && s.length() > 0)
 	    Document.get().setTitle(s + " - " + CirSim.baseTitle);
 	else

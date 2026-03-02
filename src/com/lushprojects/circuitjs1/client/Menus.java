@@ -401,7 +401,8 @@ public class Menus {
 		"Add NOR Gate", "NorGateElm",
 		"Add AND Gate", "AndGateElm",
 		"Add OR Gate", "OrGateElm",
-		"Add XOR Gate", "XorGateElm"
+		"Add XOR Gate", "XorGateElm",
+		"Add XNOR Gate", "XnorGateElm"
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Logic Gates, Input and Output")), gateMenuBar);
 
