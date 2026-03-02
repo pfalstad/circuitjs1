@@ -44,6 +44,7 @@ class TransistorElm extends CircuitElm {
 	final int FLAGS_GLOBAL = FLAG_CIRCLE;
 	static int globalFlags;
 	int badIters;
+	int localSubIters;
 	
 	TransistorElm(int xx, int yy, boolean pnpflag) {
 	    super(xx, yy);
@@ -81,6 +82,7 @@ class TransistorElm extends CircuitElm {
 	    volts[0] = volts[1] = volts[2] = 0;
 	    lastvbc = lastvbe = curcount_c = curcount_e = curcount_b = 0;
 	    badIters = 0;
+	    localSubIters = 0;
 	}
 	int getDumpType() { return 't'; }
 	String dump() {
@@ -266,19 +268,28 @@ class TransistorElm extends CircuitElm {
 	void doStep() {
 	    double vbc = pnp*(volts[0]-volts[1]); // typically negative
 	    double vbe = pnp*(volts[0]-volts[2]); // typically positive
-	    if (Math.abs(vbc-lastvbc) > .01 || // .01
-		Math.abs(vbe-lastvbe) > .01)
+	    boolean notConverged = Math.abs(vbc-lastvbc) > .01 || // .01
+		Math.abs(vbe-lastvbe) > .01;
+	    if (notConverged)
 		sim.converged = false;
+
+	    // track per-transistor convergence difficulty
+	    if (notConverged)
+		localSubIters++;
+	    else
+		localSubIters = 0;
 
 	    // To prevent a possible singular matrix, put a tiny conductance in parallel
 	    // with each P-N junction.
 //	    gmin = leakage * 0.01;
 	    gmin = 1e-12;
-	    
-	    if (sim.subIterations > 100 && badIters < 5) {
-		// if we have trouble converging, put a conductance in parallel with all P-N junctions.
-		// Gradually increase the conductance value for each iteration.
-		gmin = Math.exp(-9*Math.log(10)*(1-sim.subIterations/300.));
+
+	    if (localSubIters > 100 && badIters < 5) {
+		// if THIS transistor has trouble converging, put a conductance in
+		// parallel with all P-N junctions.  Use per-transistor iteration
+		// count to avoid contaminating unrelated transistors elsewhere
+		// in the circuit.
+		gmin = Math.exp(-9*Math.log(10)*(1-localSubIters/300.));
 		if (gmin > .1)
 		    gmin = .1;
 	    }
@@ -574,12 +585,13 @@ class TransistorElm extends CircuitElm {
             if (Math.abs(ic) > 1e12 || Math.abs(ib) > 1e12)
                 sim.stop("max current exceeded", this);
 
-            // if we needed to add a conductance to all junctions, this was a bad iteration.
-            // If we have 5 of those in a row, give up
-	    if (sim.subIterations > 100)
+            // if this transistor needed gmin ramping, it was a bad iteration.
+            // If we have 5 of those in a row, give up on gmin for this transistor.
+	    if (localSubIters > 100)
 		badIters++;
 	    else
 		badIters = 0;
+	    localSubIters = 0;
         }
 
 	void flipX(int c2, int count) {
