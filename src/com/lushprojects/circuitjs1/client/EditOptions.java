@@ -96,7 +96,16 @@ class EditOptions implements Editable {
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 16 && sim.adjustTimeStep)
+		if (n == 16) {
+		    EditInfo ei = new EditInfo("Matrix Solver", 0, -1, -1);
+		    ei.choice = new Choice();
+		    ei.choice.add(Locale.LS("Auto"));
+		    ei.choice.add(Locale.LS("Dense (Crout's LU)"));
+		    ei.choice.add(Locale.LS("Sparse (CSC LU)"));
+		    ei.choice.select(sim.solverType);
+		    return ei;
+		}
+		if (n == 17 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default.
@@ -197,7 +206,17 @@ class EditOptions implements Editable {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 16)
+		if (n == 16) {
+		    int newType = ei.choice.getSelectedIndex();
+		    if (newType != sim.solverType) {
+			sim.solverType = newType;
+			Storage stor = Storage.getLocalStorageIfSupported();
+			if (stor != null)
+			    stor.setItem("solverType", Integer.toString(sim.solverType));
+			app.needAnalyze();
+		    }
+		}
+		if (n == 17)
 		    sim.minTimeStep = ei.value;
 	}
 
