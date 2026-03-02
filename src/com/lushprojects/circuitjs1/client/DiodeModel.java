@@ -93,6 +93,9 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	addDefaultModel("1N5711", new DiodeModel(315e-9, 2.8, 2.03, 70, "Schottky"));
 	addDefaultModel("1N5712", new DiodeModel(680e-12, 12, 1.003, 20, "Schottky"));
 
+	// https://github.com/peteut/spice-models/blob/master/nxp/sbd/sbd.txt
+	addDefaultModel("BAT85", new DiodeModel(2.076e-7, 2.326, 1.023, 33, "Schottky"));
+
 	// model is inaccurate
 	addDefaultModel("1N34", new DiodeModel(200e-12, 84e-3, 2.19, 60, "germanium").setInternal());
 
