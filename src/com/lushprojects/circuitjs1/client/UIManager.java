@@ -676,7 +676,7 @@ public class UIManager {
         perfmon.stopContext(); // updateCircuit
 
         if (app.developerMode) {
-            int height = 15;
+            int height = 45;
             int increment = 15;
             g.drawString("Framerate: " + CircuitElm.showFormat.format(framerate), 10, height);
             g.drawString("Steprate: " + CircuitElm.showFormat.format(steprate), 10, height += increment);
@@ -691,6 +691,12 @@ public class UIManager {
             for (int x = 0; x < splits.length; x++) {
                 g.drawString(splits[x], 10, height + (increment * x));
             }
+        }
+
+        // Add info about mouse mode in graphics
+        if (menus.mouseModeCheckItem.getState()){
+            if (menus.printableCheckItem.getState()) g.setColor(Color.black);
+            g.drawString(Locale.LS("Mode: ") + app.classToLabelMap.get(mouseModeStr), 10, 29);
         }
 
         app.jsInterface.callUpdateHook();
