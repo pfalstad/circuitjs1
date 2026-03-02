@@ -64,6 +64,13 @@ Grid grid, vScaleGrid, hScaleGrid;
 int nx, ny;
 Label scopeSpeedLabel, manualScaleLabel,vScaleList, manualScaleId, positionLabel, divisionsLabel;
 expandingLabel vScaleLabel, hScaleLabel;
+// Trigger controls
+RadioButton trigFreeRunButton, trigNormalButton, trigAutoButton;
+RadioButton trigRisingButton, trigFallingButton;
+TextBox triggerLevelTextBox;
+Grid triggerGrid;
+expandingLabel triggerLabel;
+HorizontalPanel trigModep, trigEdgep;
 Vector <Button> chanButtons = new Vector <Button>();
 int plotSelection = 0;
 labelledGridManager gridLabels;
@@ -380,7 +387,86 @@ labelledGridManager gridLabels;
 
 	//	speedGrid.getColumnFormatter().setWidth(0, "40%");
 		fp.add(hScaleGrid);
-		
+
+		// *************** TRIGGER ***********************************************************
+
+		triggerGrid = new Grid(4,4);
+		triggerLabel = new expandingLabel(Locale.LS("Trigger"), false);
+		triggerGrid.setWidget(0, 0, triggerLabel.p);
+
+		trigModep = new HorizontalPanel();
+		trigFreeRunButton = new RadioButton("trigMode", Locale.LS("Free Run"));
+		trigFreeRunButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			if (e.getValue()) {
+			    scope.setTriggerMode(Scope.TRIGGER_FREERUN);
+			    updateUi();
+			}
+		    }
+		});
+		trigNormalButton = new RadioButton("trigMode", Locale.LS("Normal"));
+		trigNormalButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			if (e.getValue()) {
+			    scope.setTriggerMode(Scope.TRIGGER_NORMAL);
+			    updateUi();
+			}
+		    }
+		});
+		trigAutoButton = new RadioButton("trigMode", Locale.LS("Auto"));
+		trigAutoButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			if (e.getValue()) {
+			    scope.setTriggerMode(Scope.TRIGGER_AUTO);
+			    updateUi();
+			}
+		    }
+		});
+		trigModep.add(trigFreeRunButton);
+		trigModep.add(trigNormalButton);
+		trigModep.add(trigAutoButton);
+		triggerGrid.setWidget(1, 0, trigModep);
+
+		trigEdgep = new HorizontalPanel();
+		trigRisingButton = new RadioButton("trigEdge", Locale.LS("Rising"));
+		trigRisingButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			if (e.getValue()) {
+			    scope.triggerEdge = Scope.TRIGGER_EDGE_RISING;
+			    scope.resetGraph();
+			}
+		    }
+		});
+		trigFallingButton = new RadioButton("trigEdge", Locale.LS("Falling"));
+		trigFallingButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+		    public void onValueChange(ValueChangeEvent<Boolean> e) {
+			if (e.getValue()) {
+			    scope.triggerEdge = Scope.TRIGGER_EDGE_FALLING;
+			    scope.resetGraph();
+			}
+		    }
+		});
+		trigEdgep.add(new Label(Locale.LS("Edge") + ": "));
+		trigEdgep.add(trigRisingButton);
+		trigEdgep.add(trigFallingButton);
+		triggerGrid.setWidget(2, 0, trigEdgep);
+
+		HorizontalPanel trigLevelp = new HorizontalPanel();
+		trigLevelp.add(new Label(Locale.LS("Level") + ": "));
+		triggerLevelTextBox = new TextBox();
+		triggerLevelTextBox.addStyleName("scalebox");
+		trigLevelp.add(triggerLevelTextBox);
+		Button trigApplyButton = new Button(Locale.LS("Apply"));
+		trigApplyButton.addClickHandler(new ClickHandler() {
+		    public void onClick(ClickEvent event) {
+			applyTriggerLevel();
+		    }
+		});
+		trigLevelp.add(trigApplyButton);
+		triggerGrid.setWidget(3, 0, trigLevelp);
+
+		fp.add(triggerGrid);
+
 		// *************** PLOTS ***********************************************************
 		
 		CircuitElm elm = scope.getSingleElm();
@@ -597,6 +683,24 @@ labelledGridManager gridLabels;
 	    
 	    
 
+	    // Trigger section
+	    trigFreeRunButton.setValue(scope.triggerMode == Scope.TRIGGER_FREERUN);
+	    trigNormalButton.setValue(scope.triggerMode == Scope.TRIGGER_NORMAL);
+	    trigAutoButton.setValue(scope.triggerMode == Scope.TRIGGER_AUTO);
+	    boolean trigActive = scope.triggerMode != Scope.TRIGGER_FREERUN;
+	    trigRisingButton.setValue(scope.triggerEdge == Scope.TRIGGER_EDGE_RISING);
+	    trigFallingButton.setValue(scope.triggerEdge == Scope.TRIGGER_EDGE_FALLING);
+	    trigRisingButton.setEnabled(trigActive);
+	    trigFallingButton.setEnabled(trigActive);
+	    triggerLevelTextBox.setText(EditDialog.unitString(null, scope.triggerLevel));
+	    triggerLevelTextBox.setEnabled(trigActive);
+	    // Show/hide trigger details based on section expansion
+	    trigModep.setVisible(triggerLabel.expanded);
+	    trigEdgep.setVisible(triggerLabel.expanded && trigActive);
+	    triggerGrid.getRowFormatter().setVisible(1, triggerLabel.expanded);
+	    triggerGrid.getRowFormatter().setVisible(2, triggerLabel.expanded && trigActive);
+	    triggerGrid.getRowFormatter().setVisible(3, triggerLabel.expanded && trigActive);
+
 	    // if you add more here, make sure it still works with transistor scopes
 	}
 	
@@ -698,6 +802,15 @@ labelledGridManager gridLabels;
 		int n = getDivisionsValue();
 		if (n > 0)
 		    scope.setManDivisions(n);
+	    }
+	}
+
+	void applyTriggerLevel() {
+	    try {
+		double d = EditDialog.parseUnits(triggerLevelTextBox.getText());
+		scope.triggerLevel = d;
+		scope.resetGraph();
+	    } catch (Exception e) {
 	    }
 	}
 
