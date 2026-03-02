@@ -79,7 +79,7 @@ abstract class GateElm extends CircuitElm {
 	    super.dumpXml(doc, elem);
 	    if (highVoltage != 5)
 		XMLSerializer.dumpAttr(elem, "hi", highVoltage);
-	    if (inputCount > 2)
+	    if (inputCount != 2)
 		XMLSerializer.dumpAttr(elem, "in", inputCount);
 	}
 
