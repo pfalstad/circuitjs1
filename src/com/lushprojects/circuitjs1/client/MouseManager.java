@@ -644,10 +644,6 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     public void onContextMenu(ContextMenuEvent e) {
     	e.preventDefault();
-    	// on Mac, Ctrl+click sends a context menu event; suppress it so
-    	// Ctrl+click can be used for selection instead
-    	if (CirSim.isMac && e.getNativeEvent().getCtrlKey())
-    	    return;
     	if (!sim.dialogIsShowing()) {
         	menuClientX = e.getNativeEvent().getClientX();
         	menuClientY = e.getNativeEvent().getClientY();
