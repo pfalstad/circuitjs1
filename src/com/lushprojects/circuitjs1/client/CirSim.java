@@ -85,6 +85,7 @@ public class CirSim implements NativePreviewHandler {
     boolean showResistanceInVoltageSources;
     static EditDialog editDialog, customLogicEditDialog, diodeModelEditDialog;
     static ScrollValuePopup scrollValuePopup;
+    static TypeScrollPopup typeScrollPopup;
     static Dialog dialogShowing;
     static AboutBox aboutBox;
     // Class dumpTypes[], shortcuts[];
