@@ -73,7 +73,7 @@ class Expr {
 	case E_T: return es.t;
 	case E_SIN: return Math.sin(left.eval(es));
 	case E_COS: return Math.cos(left.eval(es));
-	case E_ABS: return Math.abs(left.eval(es));
+	case E_ABS: { double x = left.eval(es); return Math.sqrt(x*x + 1e-18); }
 	case E_EXP: return Math.exp(left.eval(es));
 	case E_LOG: return Math.log(left.eval(es));
 	case E_SQRT: return Math.sqrt(left.eval(es));
