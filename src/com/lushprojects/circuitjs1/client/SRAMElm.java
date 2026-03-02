@@ -32,10 +32,12 @@ import com.google.gwt.xml.client.Element;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
 	HashMap<Integer, Integer> initialMap; // saved initial contents for restore on reset
+	String loadedFileName; // remembers the last file loaded via "Load Contents From File"
 	static final int FLAG_RELOAD_ON_RESET = 2;
 	static String contentsOverride = null;
 	TextArea editTextArea;
 	boolean hexTogglePending;
+	static String fileNameOverride = null;
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -139,6 +141,9 @@ import com.google.gwt.xml.client.Element;
         	ei.textArea.setVisibleLines(5);
         	String s = (contentsOverride != null) ? contentsOverride : contentsToString();
         	contentsOverride = null;
+		if (fileNameOverride != null)
+		    loadedFileName = fileNameOverride;
+		fileNameOverride = null;
     	    	ei.textArea.setText(s);
     	    	return ei;
             }
@@ -148,7 +153,9 @@ import com.google.gwt.xml.client.Element;
             	return ei;
             }
             if (n == 4 && SRAMLoadFile.isSupported()) {
-            	EditInfo ei = new EditInfo("", 0, -1, -1);
+            	EditInfo ei = new EditInfo(
+		    loadedFileName != null ? "Loaded: " + loadedFileName : "",
+		    0, -1, -1);
             	ei.loadFile = new SRAMLoadFile();
             	ei.button = new Button("Load Contents From File");
             	ei.newDialog = true;

@@ -30,23 +30,26 @@ public class SRAMLoadFile extends EditDialogLoadFile {
 				@com.lushprojects.circuitjs1.client.EditDialogLoadFile::doErrorCallback(Ljava/lang/String;)("Cannot load: That file is too large!");
 				return;
 			}
-			
+
+			var fileName = oFiles[0].name;
 			var reader = new FileReader();
 			reader.onload = function(e) {
 				var arr = new Uint8Array(reader.result);
 				var str = "0:";
 				for (var i = 0; i < arr.length; i++)
 					str += " " + arr[i];
-				@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;)(str);
+				@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;Ljava/lang/String;)(str, fileName);
 			};
-	
+
 			reader.readAsArrayBuffer(oFiles[0]);
 		}
 	}-*/;
-	
-	static public void doLoadCallback(String data) {
+
+	static public void doLoadCallback(String data, String fileName) {
 		SRAMElm.contentsOverride = data;
+		SRAMElm.fileNameOverride = fileName;
 		CirSim.editDialog.resetDialog();
 		SRAMElm.contentsOverride = null;
+		SRAMElm.fileNameOverride = null;
 	}
 }
