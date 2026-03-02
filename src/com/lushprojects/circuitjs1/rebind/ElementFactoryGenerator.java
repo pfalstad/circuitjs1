@@ -1,4 +1,4 @@
-package com.lushprojects.circuitjs1.client.generator;
+package com.lushprojects.circuitjs1.rebind;
 
 import com.google.gwt.core.ext.Generator;
 import com.google.gwt.core.ext.GeneratorContext;
@@ -21,7 +21,7 @@ public class ElementFactoryGenerator extends Generator {
 	// Iterate over all constructors
 	for (JConstructor constructor : constructors) {
 	    JParameter[] params = constructor.getParameters();
-	    
+
 	    // Check if the constructor has exactly two parameters
 	    if (params.length == 2) {
 		// Check if both parameters are of type int
@@ -41,7 +41,7 @@ public class ElementFactoryGenerator extends Generator {
 	// Iterate over all constructors
 	for (JConstructor constructor : constructors) {
 	    JParameter[] params = constructor.getParameters();
-	    
+
 	    if (params.length == 6) {
 		int i;
 		for (i = 0; i != 5; i++)
