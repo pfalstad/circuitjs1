@@ -5,10 +5,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
 
+import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.XMLParser;
+import com.lushprojects.circuitjs1.client.matrix.DMatrixSparseCSC;
+import com.lushprojects.circuitjs1.client.matrix.SparseLU;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class SimulationManager {
@@ -33,6 +36,15 @@ public class SimulationManager {
     CircuitElm elmArr[];
     double t;
 
+    // Solver type: 0=Auto, 1=Dense, 2=Sparse
+    static final int SOLVER_AUTO = 0;
+    static final int SOLVER_DENSE = 1;
+    static final int SOLVER_SPARSE = 2;
+    int solverType = SOLVER_AUTO;
+    static final int SPARSE_THRESHOLD = 150;
+    boolean usingSparse;
+    SparseLU sparseLU;
+
     // current timestep (time between iterations)
     double timeStep;
 
@@ -54,7 +66,17 @@ public class SimulationManager {
     public static native void console(String text) /*-{ console.log(text) }-*/;
     public static native void debugger() /*-{ debugger; }-*/;
 
-    SimulationManager(CirSim app_) { theSim = this; app = app_; }
+    SimulationManager(CirSim app_) {
+	theSim = this; app = app_;
+	// load solver preference from localStorage
+	try {
+	    Storage stor = Storage.getLocalStorageIfSupported();
+	    if (stor != null) {
+		String s = stor.getItem("solverType");
+		if (s != null) solverType = Integer.parseInt(s);
+	    }
+	} catch (Exception e) {}
+    }
     
     void resetTime() {
     	t = timeStepAccum = 0;
@@ -728,7 +750,16 @@ public class SimulationManager {
 	// check if we called stop()
 	if (circuitMatrix == null)
 	    return;
-	
+
+	// determine which solver to use
+	if (solverType == SOLVER_SPARSE)
+	    usingSparse = true;
+	else if (solverType == SOLVER_DENSE)
+	    usingSparse = false;
+	else // SOLVER_AUTO
+	    usingSparse = (circuitMatrixSize >= SPARSE_THRESHOLD);
+	sparseLU = null; // reset on re-stamp
+
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
 	if (!circuitNonLinear) {
@@ -1515,31 +1546,42 @@ public class SimulationManager {
 	
 	static void invertMatrix(double a[][], int n) {
 	    int ipvt[] = new int[n];
-	    lu_factor(a, n, ipvt);
+	    lu_factor_dense(a, n, ipvt);
 	    int i, j;
 	    double b[] = new double[n];
 	    double inva[][] = new double[n][n];
-	    
+
 	    // solve for each column of identity matrix
 	    for (i = 0; i != n; i++) {
 		for (j = 0; j != n; j++)
 		    b[j] = 0;
 		b[i] = 1;
-		lu_solve(a, n, ipvt, b);
+		lu_solve_dense(a, n, ipvt, b);
 		for (j = 0; j != n; j++)
 		    inva[j][i] = b[j];
 	    }
-	    
+
 	    // return in original matrix
 	    for (i = 0; i != n; i++)
 		for (j = 0; j != n; j++)
 		    a[i][j] = inva[i][j];
 	}
+    // Dispatching lu_factor: uses sparse or dense solver based on solverType setting
+    static boolean lu_factor(double a[][], int n, int ipvt[]) {
+	SimulationManager sm = theSim;
+	if (sm != null && sm.usingSparse) {
+	    DMatrixSparseCSC csc = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
+	    if (sm.sparseLU == null) sm.sparseLU = new SparseLU();
+	    return sm.sparseLU.setA(csc);
+	}
+	return lu_factor_dense(a, n, ipvt);
+    }
+
     // factors a matrix into upper and lower triangular matrices by
     // gaussian elimination.  On entry, a[0..n-1][0..n-1] is the
     // matrix to be factored.  ipvt[] returns an integer vector of pivot
     // indices, used in the lu_solve() routine.
-    static boolean lu_factor(double a[][], int n, int ipvt[]) {
+    static boolean lu_factor_dense(double a[][], int n, int ipvt[]) {
 	int i,j,k;
 	
 	// check for a possible singular matrix by scanning for rows that
@@ -1619,10 +1661,20 @@ public class SimulationManager {
 	return true;
     }
 
+    // Dispatching lu_solve: uses sparse or dense solver based on solverType setting
+    static void lu_solve(double a[][], int n, int ipvt[], double b[]) {
+	SimulationManager sm = theSim;
+	if (sm != null && sm.usingSparse) {
+	    sm.sparseLU.solve(b, b);
+	    return;
+	}
+	lu_solve_dense(a, n, ipvt, b);
+    }
+
     // Solves the set of n linear equations using a LU factorization
     // previously performed by lu_factor.  On input, b[0..n-1] is the right
     // hand side of the equations, and on output, contains the solution.
-    static void lu_solve(double a[][], int n, int ipvt[], double b[]) {
+    static void lu_solve_dense(double a[][], int n, int ipvt[], double b[]) {
 	int i;
 
 	// find first nonzero b element
