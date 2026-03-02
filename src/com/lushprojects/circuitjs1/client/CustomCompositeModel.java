@@ -105,9 +105,14 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	if (globalModelMap == null)
 	    initModelMap();
 	CustomCompositeModel lm = localModelMap.get(name);
-	if (lm != null)
+	if (lm != null) {
+	    CirSim.console("getModelWithName: " + name + " found in local");
 	    return lm;
-	return globalModelMap.get(name);
+	}
+	lm = globalModelMap.get(name);
+	if (lm != null)
+	    CirSim.console("getModelWithName: " + name + " found in global");
+	return lm;
     }
 
     // create model from old-style nodeList/elmDump format, converting to XML immediately
@@ -174,14 +179,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = CustomLogicModel.unescape(st.nextToken());
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
+	    CirSim.console("undumpModel: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
-	} else if (model.modelCircuit != null) {
-	    // if model has an associated model circuit, don't overwrite it.  keep the old one.
-	    CirSim.console("ignoring model " + name + ", using stored version instead");
-	    return model;
+	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
+	    // model exists in global map; create a local shadow instead of modifying global
+	    CirSim.console("undumpModel: creating local shadow for global model " + name);
+	    model = new CustomCompositeModel();
+	    model.name = name;
+	    localModelMap.put(name, model);
+	    sequenceNumber++;
+	} else {
+	    CirSim.console("undumpModel: updating existing local model " + name);
 	}
 	model.undump(st);
 	return model;
@@ -344,13 +355,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = xml.parseStringAttr("nm", null);
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
+	    CirSim.console("undumpModelXml: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
-	} else if (model.modelCircuit != null) {
-	    CirSim.console("ignoring model " + name + ", using stored version instead");
-	    return model;
+	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
+	    // model exists in global map; create a local shadow instead of modifying global
+	    CirSim.console("undumpModelXml: creating local shadow for global model " + name);
+	    model = new CustomCompositeModel();
+	    model.name = name;
+	    localModelMap.put(name, model);
+	    sequenceNumber++;
+	} else {
+	    CirSim.console("undumpModelXml: updating existing local model " + name);
 	}
 	model.undumpXml(xml);
 	return model;
@@ -440,6 +458,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     }
 
     static void clearLocalModels() {
+	CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
 	localModelMap.clear();
 	sequenceNumber++;
     }
