@@ -61,6 +61,9 @@ class RelayElm extends CircuitElm {
     int poleCount;
     int openhs, dflip;
     boolean onState;
+
+    // track time current has been above/below threshold to filter transients
+    double onThresholdTime, offThresholdTime;
     final int nSwitch0 = 0;
     final int nSwitch1 = 1;
     final int nSwitch2 = 2;
@@ -331,6 +334,7 @@ class RelayElm extends CircuitElm {
 	for (i = 0; i != poleCount; i++)
 	    switchCurrent[i] = switchCurCount[i] = 0;
 	d_position = i_position = 0;
+	onThresholdTime = offThresholdTime = 0;
 
 	// preserve onState because if we don't, Relay Flip-Flop gets left in a weird state on reset.
 	// onState = false;
@@ -355,14 +359,23 @@ class RelayElm extends CircuitElm {
 	}
 	ind.startIteration(volts[nCoil1]-volts[nCoil3]);
 	double absCurrent = Math.abs(coilCurrent);
-	
+
+	// require current to be sustained above/below threshold for a minimum
+	// time before switching, to filter brief transients like back-EMF spikes
+	double minHoldTime = switchingTime * 0.5;
+
 	if (onState) {
 	    // on or turning on.  check if we need to turn off
 	    if (absCurrent < offCurrent) {
-		// turning off, set switch to intermediate position
-		onState = false;
-		i_position = 2;
+		offThresholdTime += sim.timeStep;
+		onThresholdTime = 0;
+		if (offThresholdTime >= minHoldTime) {
+		    // turning off, set switch to intermediate position
+		    onState = false;
+		    i_position = 2;
+		}
 	    } else {
+		offThresholdTime = 0;
 		d_position += sim.timeStep/switchingTime;
 		if (d_position >= 1)
 		    d_position = i_position = 1;
@@ -370,15 +383,20 @@ class RelayElm extends CircuitElm {
 	} else {
 	    // off or turning off.  check if we need to turn on
 	    if (absCurrent > onCurrent) {
-		// turning on, set switch to intermediate position
-		onState = true;
-		i_position = 2;
+		onThresholdTime += sim.timeStep;
+		offThresholdTime = 0;
+		if (onThresholdTime >= minHoldTime) {
+		    // turning on, set switch to intermediate position
+		    onState = true;
+		    i_position = 2;
+		}
 	    } else {
+		onThresholdTime = 0;
 		d_position -= sim.timeStep/switchingTime;
 		if (d_position <= 0)
 		    d_position = i_position = 0;
 	    }
-	    
+
 	}
     }
     
