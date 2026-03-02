@@ -2,6 +2,7 @@ package com.lushprojects.circuitjs1.client;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Vector;
 
@@ -1403,9 +1404,10 @@ public class SimulationManager {
         };
 	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	boolean sel = app.isSelection();
-	    
+
 	boolean used[] = new boolean[nodeList.size()];
 	boolean extnodes[] = new boolean[nodeList.size()];
+	HashSet<String> seenLabels = new HashSet<String>();
 	    
 	// redo node allocation to avoid auto-assigning ground
 	if (!preStampCircuit(true))
@@ -1422,9 +1424,11 @@ public class SimulationManager {
 		if (lne.isInternal())
 		    continue;
 		
-		// already added to list?
-		if (extnodes[ce.getNode(0)])
+		// already added to list? (deduplicate by label text, not node number,
+		// so that different labels on the same node each get their own pin)
+		if (seenLabels.contains(label))
 		    continue;
+		seenLabels.add(label);
 		
 	    int side = ChipElm.SIDE_W;
 	    if (Math.abs(ce.dx) >= Math.abs(ce.dy) && ce.dx > 0) side = ChipElm.SIDE_E;

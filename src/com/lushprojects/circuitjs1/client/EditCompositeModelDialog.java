@@ -84,10 +84,6 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
         	ExtListEntry pin = model.extList.get(i);
                 sideCounts[pin.side] += 1;
 
-        	if (nodeSet.contains(pin.node)) {
-        	    Window.alert(Locale.LS("Can't have two input/output nodes connected!"));
-        	    return false;
-        	}
         	nodeSet.add(pin.node);
             }
 
