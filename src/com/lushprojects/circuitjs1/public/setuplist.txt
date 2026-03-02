@@ -436,6 +436,9 @@ ccdiff.txt Current Differentiator
 ccint.txt Current Integrator
 ccitov.txt Current-Controlled Voltage Source
 -
++Loss-Free Resistor
+lfr.txt Loss-Free Resistor
+-
 +Spark Gap
 spark-sawtooth.txt Sawtooth Generator
 tesla.txt Tesla Coil
