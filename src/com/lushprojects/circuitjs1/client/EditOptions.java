@@ -88,6 +88,8 @@ class EditOptions implements Editable {
 		if (n == 14 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
+		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
+
 		return null;
 	}
 	
