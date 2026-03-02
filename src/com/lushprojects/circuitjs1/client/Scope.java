@@ -70,7 +70,7 @@ class ScopePlot {
 	manScale = manS;
 	// ohms can only be positive, so move the v position to the bottom.
 	// power can be negative for caps and inductors, but still move to the bottom (for backward compatibility)
-	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W)
+	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W || units == Scope.UNITS_C)
 	    manVPosition = -Scope.V_POSITION_STEPS/2;
     }
 
@@ -139,6 +139,8 @@ class ScopePlot {
 	    return CircuitElm.getUnitText(v, Locale.ohmString);
 	case Scope.UNITS_W:
 	    return CircuitElm.getUnitText(v, "W");
+	case Scope.UNITS_C:
+	    return CircuitElm.getUnitText(v, "C");
 	}
 	return null;
     }
@@ -210,11 +212,13 @@ class Scope {
     static final int VAL_VBC = 5;
     static final int VAL_VCE = 6;
     static final int VAL_R = 2;
+    static final int VAL_CHARGE = 8;
     static final int UNITS_V = 0;
     static final int UNITS_A = 1;
     static final int UNITS_W = 2;
     static final int UNITS_OHMS = 3;
-    static final int UNITS_COUNT = 4;
+    static final int UNITS_C = 4;
+    static final int UNITS_COUNT = 5;
     static final double multa[] = {2.0, 2.5, 2.0};
     static final int V_POSITION_STEPS=200;
     static final double MIN_MAN_SCALE = 1e-9;
@@ -355,6 +359,7 @@ class Scope {
 	case UNITS_A: return "A";
 	case UNITS_OHMS: return Locale.ohmString;
 	case UNITS_W: return "W";
+	case UNITS_C: return "C";
 	default: return "V";
 	}
     }
@@ -367,7 +372,7 @@ class Scope {
     
     void initialize() {
     	resetGraph();
-    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = 5;
+    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = scale[UNITS_C] = 5;
     	scale[UNITS_A] = .1;
     	scaleX = 5;
     	scaleY = .1;
@@ -681,6 +686,7 @@ class Scope {
 	    scale[UNITS_A] *= x;
 	    scale[UNITS_OHMS] *= x;
 	    scale[UNITS_W] *= x;
+	    scale[UNITS_C] *= x;
 	    scaleX *= x; // For XY plots
 	    scaleY *= x;
 	    return;
@@ -1968,7 +1974,7 @@ class Scope {
     	    scale[UNITS_A] = 1;
     	scaleX = scale[UNITS_V];
     	scaleY = scale[UNITS_A];
-    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_V];
+    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_C] = scale[UNITS_V];
     	text = null;
     	boolean plot2dFlag = (flags & 64) != 0;
     	boolean hasPlotFlags = (flags & FLAG_PERPLOTFLAGS) != 0;
@@ -2173,6 +2179,8 @@ class Scope {
     	}
     	if (mi == "showresistance")
     		setValue(VAL_R);
+    	if (mi == "showcharge")
+    		setValue(VAL_CHARGE);
     }
 
 //    void select() {
