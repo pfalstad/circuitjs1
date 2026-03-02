@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -22,6 +22,10 @@ package com.lushprojects.circuitjs1.client;
 class LatchElm extends ChipElm {
     final int FLAG_STATE = 2;
     final int FLAG_NO_EDGE = 4;
+    final int FLAG_RESET = 8;
+    final int FLAG_SET = 16;
+    boolean hasReset() { return (flags & FLAG_RESET) != 0; }
+    boolean hasSet() { return (flags & FLAG_SET) != 0; }
     public LatchElm(int xx, int yy) {
 	super(xx, yy);
 	flags |= FLAG_STATE;
@@ -40,10 +44,11 @@ class LatchElm extends ChipElm {
     String getChipName() { return "Latch"; }
     boolean needsBits() { return true; }
     boolean isEdgeTriggered() { return (flags & FLAG_NO_EDGE) == 0; }
-    int loadPin;
+    int loadPin, resetPin, setPin;
     void setupPins() {
 	sizeX = 2;
-	sizeY = bits+1;
+	int extraPins = (hasReset() ? 1 : 0) + (hasSet() ? 1 : 0);
+	sizeY = bits+1+extraPins;
 	pins = new Pin[getPostCount()];
 	int i;
 	for (i = 0; i != bits; i++)
@@ -53,25 +58,48 @@ class LatchElm extends ChipElm {
 	    pins[i+bits].output = true;
 	    pins[i+bits].state = (flags & FLAG_STATE) != 0;
 	}
-	pins[loadPin = bits*2] = new Pin(bits, SIDE_W, "Ld");
+	int pinIndex = bits*2;
+	pins[loadPin = pinIndex++] = new Pin(bits, SIDE_W, "Ld");
+	if (hasReset())
+	    pins[resetPin = pinIndex++] = new Pin(bits+1, SIDE_W, "R");
+	if (hasSet())
+	    pins[setPin = pinIndex++] = new Pin(bits + 1 + (hasReset() ? 1 : 0), SIDE_W, "S");
 	allocNodes();
     }
     boolean lastLoad = false;
     void execute() {
 	int i;
+	if (hasSet() && pins[setPin].value) {
+	    for (i = 0; i != bits; i++)
+		pins[i+bits].value = true;
+	    lastLoad = pins[loadPin].value;
+	    return;
+	}
+	if (hasReset() && pins[resetPin].value) {
+	    for (i = 0; i != bits; i++)
+		pins[i+bits].value = false;
+	    lastLoad = pins[loadPin].value;
+	    return;
+	}
 	if (pins[loadPin].value && (!isEdgeTriggered() || !lastLoad))
 	    for (i = 0; i != bits; i++)
 		pins[i+bits].value = pins[i].value;
 	lastLoad = pins[loadPin].value;
     }
     int getVoltageSourceCount() { return bits; }
-    int getPostCount() { return bits*2+1; }
+    int getPostCount() {
+	return bits*2+1 + (hasReset() ? 1 : 0) + (hasSet() ? 1 : 0);
+    }
     int getDumpType() { return 168; }
     public EditInfo getChipEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo("# of Bits", bits, 1, 1).setDimensionless();
 	if (n == 1)
 	    return EditInfo.createCheckbox("Edge Triggered", isEdgeTriggered());
+	if (n == 2)
+	    return EditInfo.createCheckbox("Reset Pin", hasReset());
+	if (n == 3)
+	    return EditInfo.createCheckbox("Set Pin", hasSet());
 	return null;
     }
     public void setChipEditValue(int n, EditInfo ei) {
@@ -82,7 +110,19 @@ class LatchElm extends ChipElm {
 	}
 	if (n == 1)
 	    flags = ei.changeFlagInverted(flags, FLAG_NO_EDGE);
+	if (n == 2) {
+	    flags = ei.changeFlag(flags, FLAG_RESET);
+	    setupPins();
+	    allocNodes();
+	    setPoints();
+	}
+	if (n == 3) {
+	    flags = ei.changeFlag(flags, FLAG_SET);
+	    setupPins();
+	    allocNodes();
+	    setPoints();
+	}
     }
-    
+
 }
-    
+
