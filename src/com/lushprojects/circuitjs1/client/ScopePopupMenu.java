@@ -48,6 +48,7 @@ public class ScopePopupMenu {
 	 m.addItem(combineItem = new CheckboxAlignedMenuItem(Locale.LS("Combine"), new MyCommand("scopepop", "combine")));
 	 m.addItem(removePlotItem = new CheckboxAlignedMenuItem(Locale.LS("Remove Plot"),new MyCommand("scopepop", "removeplot")));
 	 m.addItem(resetItem = new CheckboxAlignedMenuItem(Locale.LS("Reset"), new MyCommand("scopepop", "reset")));
+	 m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Export CSV..."), new MyCommand("scopepop", "exportcsv")));
 	 m.addItem(propertiesItem = new CheckboxAlignedMenuItem(Locale.LS("Properties..."), new MyCommand("scopepop", "properties")));
     }
     
