@@ -38,10 +38,13 @@ class RelayElm extends CircuitElm {
     final int FLAG_SHOW_BOX = 2;
     final int FLAG_BOTH_SIDES_COIL = 4;
     final int FLAG_FLIP = 8;
-	
+    final int FLAG_PULLDOWN = 16;
+
+    boolean needsPulldown() { return hasFlag(FLAG_PULLDOWN); }
+
     double inductance;
     Inductor ind;
-    double r_on, r_off, onCurrent, offCurrent, pulldownResistance;
+    double r_on, r_off, onCurrent, offCurrent;
     Point coilPosts[], coilLeads[], swposts[][], swpoles[][], ptSwitch[];
     Point lines[];
     Point outline[] = newPointArray(4);
@@ -100,7 +103,6 @@ class RelayElm extends CircuitElm {
 	    offCurrent = new Double(st.nextToken()).doubleValue();
 	    switchingTime = Double.parseDouble(st.nextToken());
 	    d_position = i_position = Integer.parseInt(st.nextToken());
-	    pulldownResistance = Double.parseDouble(st.nextToken());
 	} catch (Exception e) {}
 	postUndump();
     }
@@ -135,7 +137,7 @@ class RelayElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + poleCount + " " +
 	    inductance + " " + coilCurrent + " " +
-	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position + " " + pulldownResistance;
+	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position;
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -148,7 +150,6 @@ class RelayElm extends CircuitElm {
         XMLSerializer.dumpAttr(elem, "coR", coilR);
         XMLSerializer.dumpAttr(elem, "of", offCurrent);
         XMLSerializer.dumpAttr(elem, "sw", switchingTime);
-        XMLSerializer.dumpAttr(elem, "pd", pulldownResistance);
     }
 
     void dumpXmlState(Document doc, Element elem) {
@@ -166,7 +167,6 @@ class RelayElm extends CircuitElm {
         coilR = xml.parseDoubleAttr("coR", coilR);
         offCurrent = xml.parseDoubleAttr("of", offCurrent);
         switchingTime = xml.parseDoubleAttr("sw", switchingTime);
-        pulldownResistance = xml.parseDoubleAttr("pd", pulldownResistance);
         coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
         i_position = xml.parseIntAttr("ip", i_position);
 	postUndump();
@@ -349,11 +349,12 @@ class RelayElm extends CircuitElm {
 	for (i = 0; i != poleCount*3; i++)
 	    sim.stampNonLinear(nodes[nSwitch0+i]);
 
-	// stamp pulldown resistors from NC and NO contacts to ground
-	if (pulldownResistance > 0) {
+	// stamp pulldown resistors from switch contacts to ground using r_off,
+	// matching the analog switch approach
+	if (needsPulldown()) {
 	    for (i = 0; i < poleCount; i++) {
-		sim.stampResistor(nodes[nSwitch1+i*3], 0, pulldownResistance);
-		sim.stampResistor(nodes[nSwitch2+i*3], 0, pulldownResistance);
+		sim.stampResistor(nodes[nSwitch1+i*3], 0, r_off);
+		sim.stampResistor(nodes[nSwitch2+i*3], 0, r_off);
 	    }
 	}
     }
@@ -423,10 +424,20 @@ class RelayElm extends CircuitElm {
 	ind.doStep(voltdiff);
 	int p;
 	for (p = 0; p != poleCount*3; p += 3) {
-	    sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch1+p],
-			      i_position == 0 ? r_on : r_off);
-	    sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch2+p],
-			      i_position == 1 ? r_on : r_off);
+	    if (i_position == 0) {
+		sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch1+p], r_on);
+		if (!needsPulldown())
+		    sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch2+p], r_off);
+	    } else if (i_position == 1) {
+		sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch2+p], r_on);
+		if (!needsPulldown())
+		    sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch1+p], r_off);
+	    } else {
+		// intermediate position: both contacts open, need r_off
+		// to avoid floating pole node
+		sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch1+p], r_off);
+		sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch2+p], r_off);
+	    }
 	}
     }
     void calculateCurrent() {
@@ -509,7 +520,7 @@ class RelayElm extends CircuitElm {
 	if (n == 9 && switchingTime > 0)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
 	if (n == 10)
-	    return new EditInfo("Pulldown Resistance (ohms)", pulldownResistance, 0, 0);
+	    return EditInfo.createCheckbox("Pulldown Resistor", needsPulldown());
 	return null;
     }
     
@@ -550,12 +561,30 @@ class RelayElm extends CircuitElm {
 	    flags = ei.changeFlag(flags, FLAG_SHOW_BOX);
 	if (n == 9 && ei.value > 0)
 	    switchingTime = ei.value;
-	if (n == 10 && ei.value >= 0)
-	    pulldownResistance = ei.value;
+	if (n == 10)
+	    flags = ei.changeFlag(flags, FLAG_PULLDOWN);
     }
     
     boolean getConnection(int n1, int n2) {
-	return (n1 / 3 == n2 / 3);
+	if (n1 / 3 != n2 / 3)
+	    return false;
+	// coil nodes are always connected to each other
+	if (n1 >= nCoil1)
+	    return true;
+	if (!needsPulldown())
+	    return true;
+	// with pulldown, only the active contact is connected to pole
+	int k1 = n1 % 3, k2 = n2 % 3;
+	if (i_position == 0)
+	    return comparePair(k1, k2, 0, 1);
+	if (i_position == 1)
+	    return comparePair(k1, k2, 0, 2);
+	return false; // intermediate: nothing connected
+    }
+
+    boolean hasGroundConnection(int n) {
+	// switch contact nodes have ground connection via pulldown
+	return needsPulldown() && n < nCoil1;
     }
     
     int getShortcut() { return 'R'; }
