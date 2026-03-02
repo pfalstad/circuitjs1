@@ -122,12 +122,19 @@ public abstract class CompositeElm extends CircuitElm {
 	    String className = CirSim.xmlDumpTypeMap.get(tagName);
 	    if (className == null)
 		continue;
+	    // skip non-essential elements that are only needed for display.
+	    // GroundElm is only skipped if it has coordinates, meaning it came from a
+	    // newer dump where it's purely visual.  Old-style dumps have no coordinates
+	    // and need GroundElm for simulation.
 	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
-		    className.equals("GraphicElm") || className.equals("GroundElm")) {
+		    className.equals("GraphicElm") ||
+		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
 		sim.console("skipping " + className + " in loadCompositeXml");
 		continue;
 	    }
 	    CircuitElm newce = CirSim.constructElement(className, 0, 0);
+	    if (newce instanceof GroundElm)
+		((GroundElm) newce).setOldStyle();
 	    xml.parseChildElement(childElem);
 	    newce.undumpXml(xml);
 	    compElmList.add(newce);
