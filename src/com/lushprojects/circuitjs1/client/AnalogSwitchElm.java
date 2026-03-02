@@ -148,9 +148,12 @@ class AnalogSwitchElm extends CircuitElm {
 	}
     }
     void doStep() {
+	boolean wasOpen = open;
 	open = (volts[2] < threshold);
 	if (hasFlag(FLAG_INVERT))
 	    open = !open;
+	if (open != wasOpen)
+	    sim.converged = false;
 
 	// if pulldown flag is set, resistance is r_on.  Otherwise, no connection.
 	// if pulldown flag is unset, resistance is r_on for on, r_off for off.
