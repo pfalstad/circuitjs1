@@ -24,7 +24,8 @@ class ExtListEntry {
 
 public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 
-    static HashMap<String, CustomCompositeModel> modelMap;
+    static HashMap<String, CustomCompositeModel> globalModelMap;
+    static HashMap<String, CustomCompositeModel> localModelMap;
 
     int flags, sizeX, sizeY;
     String name;
@@ -40,14 +41,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     static final int FLAG_SHOW_LABEL = 1;
 
     void setName(String n) {
-	modelMap.remove(name);
-	name = n;
-	modelMap.put(name, this);
+	if (localModelMap.remove(name) != null) {
+	    name = n;
+	    localModelMap.put(name, this);
+	} else {
+	    globalModelMap.remove(name);
+	    name = n;
+	    globalModelMap.put(name, this);
+	}
 	sequenceNumber++;
     }
 
     static void initModelMap() {
-	modelMap = new HashMap<String,CustomCompositeModel>();
+	globalModelMap = new HashMap<String,CustomCompositeModel>();
+	localModelMap = new HashMap<String,CustomCompositeModel>();
 
 	// create default stub model
 	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
@@ -55,7 +62,8 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	CustomCompositeModel d = createModelFromOldFormat("default", "0 0", "GroundElm 1", extList);
 	d.sizeX = d.sizeY = 1;
 	d.builtin = true;
-	modelMap.put(d.name, d);
+	localModelMap.remove(d.name);
+	globalModelMap.put(d.name, d);
 	sequenceNumber = 1;
 
 	// get models from local storage
@@ -82,6 +90,9 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
         		CustomCompositeModel model = undumpModel(st);
         		if (lineLen != -1)
         		    model.modelCircuit = data.substring(lineLen+1);
+        		// move from local to global since this is from storage
+        		localModelMap.remove(model.name);
+        		globalModelMap.put(model.name, model);
         	    }
         	}
             }
@@ -91,10 +102,12 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     }
 
     static CustomCompositeModel getModelWithName(String name) {
-	if (modelMap == null)
+	if (globalModelMap == null)
 	    initModelMap();
-	CustomCompositeModel lm = modelMap.get(name);
-	return lm;
+	CustomCompositeModel lm = localModelMap.get(name);
+	if (lm != null)
+	    return lm;
+	return globalModelMap.get(name);
     }
 
     // create model from old-style nodeList/elmDump format, converting to XML immediately
@@ -103,7 +116,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	lm.name = name;
 	lm.extList = extList;
 	lm.convertOldFormatToXml(nodeList, elmDump);
-        modelMap.put(name, lm);
+        localModelMap.put(name, lm);
         sequenceNumber++;
         return lm;
     }
@@ -114,15 +127,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	lm.name = name;
 	lm.elmDoc = elmDoc;
 	lm.extList = extList;
-        modelMap.put(name, lm);
+        localModelMap.put(name, lm);
         sequenceNumber++;
         return lm;
     }
 
     static void clearDumpedFlags() {
-	if (modelMap == null)
+	if (globalModelMap == null)
 	    return;
-	Iterator it = modelMap.entrySet().iterator();
+	Iterator it = globalModelMap.entrySet().iterator();
+	while (it.hasNext()) {
+	    Map.Entry<String,CustomCompositeModel> pair = (Map.Entry)it.next();
+	    pair.getValue().dumped = false;
+	}
+	it = localModelMap.entrySet().iterator();
 	while (it.hasNext()) {
 	    Map.Entry<String,CustomCompositeModel> pair = (Map.Entry)it.next();
 	    pair.getValue().dumped = false;
@@ -130,8 +148,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     }
 
     static Vector<CustomCompositeModel> getModelList() {
+        HashMap<String,CustomCompositeModel> merged = new HashMap<String,CustomCompositeModel>(globalModelMap);
+        merged.putAll(localModelMap); // local entries win on name collision
         Vector<CustomCompositeModel> vector = new Vector<CustomCompositeModel>();
-        Iterator it = modelMap.entrySet().iterator();
+        Iterator it = merged.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String,CustomCompositeModel> pair = (Map.Entry)it.next();
             CustomCompositeModel dm = pair.getValue();
@@ -156,7 +176,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	if (model == null) {
 	    model = new CustomCompositeModel();
 	    model.name = name;
-	    modelMap.put(name, model);
+	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (model.modelCircuit != null) {
 	    // if model has an associated model circuit, don't overwrite it.  keep the old one.
@@ -244,6 +264,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    doc.appendChild(root);
 	    buildXmlElement(doc, root);
             stor.setItem("subcircuit:" + name, doc.toString());
+            globalModelMap.put(name, this);
         } else
             stor.removeItem("subcircuit:" + name);
     }
@@ -257,7 +278,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	CustomCompositeModel model = new CustomCompositeModel();
 	model.name = modelName;
 	model.parseXmlElement(xml);
-	modelMap.put(modelName, model);
+	globalModelMap.put(modelName, model);
 	sequenceNumber++;
     }
 
@@ -325,7 +346,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	if (model == null) {
 	    model = new CustomCompositeModel();
 	    model.name = name;
-	    modelMap.put(name, model);
+	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (model.modelCircuit != null) {
 	    CirSim.console("ignoring model " + name + ", using stored version instead");
@@ -413,7 +434,13 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 
     void remove() {
 	setSaved(false);
-	modelMap.remove(name);
+	localModelMap.remove(name);
+	globalModelMap.remove(name);
+	sequenceNumber++;
+    }
+
+    static void clearLocalModels() {
+	localModelMap.clear();
 	sequenceNumber++;
     }
 
@@ -429,6 +456,9 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    st.nextToken();
 	    CustomCompositeModel model = undumpModel(st);
 	    model.internal = model.builtin = true;
+	    // move from local to global since these are builtins
+	    localModelMap.remove(model.name);
+	    globalModelMap.put(model.name, model);
 	}
     }
 }
