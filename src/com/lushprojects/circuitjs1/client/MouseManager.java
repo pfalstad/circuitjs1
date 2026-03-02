@@ -498,6 +498,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     public CircuitElm getMouseElm() { return mouseElm; }
 
+    void updateNetHighlight() {
+    	CircuitElm ce = mouseElm;
+    	if (ce != null && ce.isRemovableWire() && sim.sim.nodeList != null && netHighlightKeyHeld) {
+    	    int n = ce.getNode(0);
+    	    highlightedNode = (n >= 0 && n < sim.sim.nodeList.size()) ? n : -1;
+    	} else {
+    	    highlightedNode = -1;
+    	}
+    }
+
     void removeZeroLengthElements() {
     	boolean changed = false;
     	for (int i = ui.elmList.size()-1; i >= 0; i--) {

@@ -107,11 +107,13 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		volts[bodyTerminal] = 0;
 	}
 	public void onMouseWheel(MouseWheelEvent e) {
-	    app.undoManager.pushUndo();
-	    pnp = -pnp;
-	    flags ^= FLAG_PNP;
-	    setPoints();
-	    app.needAnalyze();
+	    if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+		CirSim.typeScrollPopup.doDeltaY(e.getDeltaY());
+		return;
+	    }
+	    CirSim.typeScrollPopup = new TypeScrollPopup(
+		e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(),
+		e.getDeltaY(), this, app);
 	}
 
 	String dump() {
