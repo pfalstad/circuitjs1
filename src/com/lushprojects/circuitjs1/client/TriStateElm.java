@@ -86,6 +86,7 @@ class TriStateElm extends CircuitElm {
 
     int getDumpType() { return 180; }
     String getXmlDumpType() { return "ts"; }
+    void setHighVoltage(double hv) { highVoltage = hv; }
 
     boolean open;
 

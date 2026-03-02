@@ -16,6 +16,7 @@ public class CustomCompositeElm extends CompositeElm {
     int postCount;
     int inputCount, outputCount;
     CustomCompositeModel model;
+    double highVoltage;
     static String lastModelName = "default";
     static final int FLAG_SMALL = 2;
     
@@ -60,10 +61,13 @@ public class CustomCompositeElm extends CompositeElm {
 	dumpXmlModel(doc);
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "mo", modelName);
+	if (highVoltage != 0)
+	    XMLSerializer.dumpAttr(elem, "hv", highVoltage);
     }
 
     void undumpXml(XMLDeserializer xml) {
 	modelName = xml.parseStringAttr("mo", modelName);
+	highVoltage = xml.parseDoubleAttr("hv", 0);
 	updateModels();
 	super.undumpXml(xml);
     }
@@ -163,10 +167,22 @@ public class CustomCompositeElm extends CompositeElm {
 	} else {
 	    loadCompositeXml(model.getElmEntries(), externalNodes);
 	}
+	propagateHighVoltage();
 	allocNodes();
 	setPoints();
     }
     
+    void propagateHighVoltage() {
+	if (highVoltage == 0)
+	    return;
+	for (int i = 0; i != compElmList.size(); i++) {
+	    CircuitElm ce = compElmList.get(i);
+	    ce.setHighVoltage(highVoltage);
+	    if (ce instanceof CustomCompositeElm)
+		((CustomCompositeElm) ce).propagateHighVoltage();
+	}
+    }
+
     int getPostCount() { return postCount; }
     
     Vector<CustomCompositeModel> models;
@@ -199,8 +215,10 @@ public class CustomCompositeElm extends CompositeElm {
             ei.button = new Button(Locale.LS("View Components"));
             return ei;
         }
-	int loadModelCircuit = (canViewComponents()) ? 3 : 2;
-        if (n == loadModelCircuit && model.canLoadModelCircuit()) {
+	int hvIdx = (canViewComponents()) ? 3 : 2;
+        if (n == hvIdx)
+            return new EditInfo("High Logic Voltage (0=default)", highVoltage, 0, 10);
+        if (n == hvIdx+1 && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Edit Model"));
             return ei;
@@ -234,8 +252,12 @@ public class CustomCompositeElm extends CompositeElm {
             app.ui.pushSubcircuit(this, buildDisplayElmList());
             CirSim.editDialog.closeDialog();
         }
-	int loadModelCircuit = (canViewComponents()) ? 3 : 2;
-        if (n == loadModelCircuit) {
+	int hvIdx = (canViewComponents()) ? 3 : 2;
+        if (n == hvIdx) {
+            highVoltage = ei.value;
+            propagateHighVoltage();
+        }
+        if (n == hvIdx+1) {
             app.pushContext(model.name);
             if (model.modelCircuit != null)
         	app.readCircuit(model.modelCircuit);

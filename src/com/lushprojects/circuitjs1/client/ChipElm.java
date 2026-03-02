@@ -260,6 +260,8 @@ abstract class ChipElm extends CircuitElm {
 	    }
 	    System.out.println("setVoltageSource failed for " + this);
 	}
+	void setHighVoltage(double hv) { highVoltage = hv; }
+
 	void stamp() {
 	    int i;
 	    int vsc = 0;

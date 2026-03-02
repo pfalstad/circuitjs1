@@ -245,8 +245,11 @@ public abstract class CircuitElm implements Editable {
 	curcount = 0;
     }
     void draw(Graphics g) {}
-    
-    // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn) 
+
+    // override this in elements that use highVoltage (gates, chips, inverters, etc.)
+    void setHighVoltage(double hv) {}
+
+    // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn)
     void setCurrent(int vn, double c) { current = c; }
     
     // get current for one- or two-terminal elements

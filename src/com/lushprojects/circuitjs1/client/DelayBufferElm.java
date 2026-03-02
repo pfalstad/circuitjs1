@@ -58,7 +58,8 @@ class DelayBufferElm extends CircuitElm {
 	}
 
 	int getDumpType() { return 422; }
-	
+	void setHighVoltage(double hv) { highVoltage = hv; }
+
 	Point center;
 	
 	void draw(Graphics g) {

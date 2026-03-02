@@ -211,6 +211,8 @@ abstract class GateElm extends CircuitElm {
 	    arr[1] = "Vout = " + getVoltageText(volts[inputCount]);
 	    arr[2] = "Iout = " + getCurrentText(getCurrent());
 	}
+	void setHighVoltage(double hv) { highVoltage = hv; }
+
 	void stamp() {
 	    sim.stampVoltageSource(0, nodes[inputCount], voltSource);
 	}

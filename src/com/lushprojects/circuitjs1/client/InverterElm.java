@@ -104,6 +104,7 @@ class InverterElm extends CircuitElm {
 	    setBbox(point1, point2, hs);
 	}
 	int getVoltageSourceCount() { return 1; }
+	void setHighVoltage(double hv) { highVoltage = hv; }
 	void stamp() {
 	    sim.stampVoltageSource(0, nodes[1], voltSource);
 	}
