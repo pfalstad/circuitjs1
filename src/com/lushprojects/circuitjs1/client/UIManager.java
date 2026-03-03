@@ -236,6 +236,8 @@ public class UIManager {
 	menus.noEditCheckItem.setState(noEditing);
 	menus.mouseWheelEditCheckItem.setState(mouseWheelEdit);
 
+	CircuitElm.showOperatingRegion = getOptionFromStorage("showOperatingRegion", false);
+
 	loadShortcuts();
 
 	DOM.appendChild(layoutPanel.getElement(), topPanelCheckbox);
