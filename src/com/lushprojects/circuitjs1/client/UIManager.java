@@ -13,6 +13,7 @@ import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
+import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.user.client.Window.ClosingEvent;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
@@ -925,6 +926,10 @@ public class UIManager {
 
     // ---- Keyboard ----
 
+    private native boolean isRepeatEvent(NativeEvent evt) /*-{
+	return !!evt.repeat;
+    }-*/;
+
     public void onPreviewNativeEvent(NativePreviewEvent e) {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
@@ -1094,18 +1099,20 @@ public class UIManager {
     		if (cc>32 && cc<127) {
     		    String keyStr = String.valueOf((char)cc).toLowerCase();
     		    boolean toggled = false;
-    		    for (int i = 0; i != elmList.size(); i++) {
-    			CircuitElm ce = elmList.get(i);
-    			if (ce instanceof SwitchElm) {
-    			    SwitchElm se = (SwitchElm) ce;
-    			    if (se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
-    				se.toggle();
-    				if (!(se instanceof LogicInputElm))
-    				    app.needAnalyze();
-    				toggled = true;
-    			    }
-    			}
-    		    }
+		    if (!isRepeatEvent(e.getNativeEvent())) {
+			for (int i = 0; i != elmList.size(); i++) {
+			    CircuitElm ce = elmList.get(i);
+			    if (ce instanceof SwitchElm) {
+				SwitchElm se = (SwitchElm) ce;
+				if (se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
+				    se.toggle();
+				    if (!(se instanceof LogicInputElm))
+					app.needAnalyze();
+				    toggled = true;
+				}
+			    }
+			}
+		    }
     		    if (toggled) {
     			e.cancel();
     			app.repaint();
