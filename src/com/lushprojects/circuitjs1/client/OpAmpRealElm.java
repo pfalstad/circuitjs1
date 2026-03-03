@@ -191,6 +191,22 @@ public class OpAmpRealElm extends CompositeElm {
         drawThickLine(g, rail1p[0], rail1p[1]);
         setVoltageColor(g, volts[4]);
         drawThickLine(g, rail2p[0], rail2p[1]);
+        // draw operating region indicator (saturation coloring)
+        if (showOperatingRegion()) {
+            double vPlus = volts[3];
+            double vMinus = volts[4];
+            double range = vPlus - vMinus;
+            double saturationMargin = range * 0.02;
+            if (saturationMargin < 0.05)
+                saturationMargin = 0.05;
+            if (volts[2] >= vPlus - saturationMargin) {
+                g.setColor(new Color(180, 60, 60));  // positive saturation - red tint
+                g.fillPolygon(triangle);
+            } else if (volts[2] <= vMinus + saturationMargin) {
+                g.setColor(new Color(60, 60, 180));  // negative saturation - blue tint
+                g.fillPolygon(triangle);
+            }
+        }
         g.setColor(needsHighlight() ? selectColor : lightGrayColor);
         setPowerColor(g, true);
         drawThickPolygon(g, triangle);

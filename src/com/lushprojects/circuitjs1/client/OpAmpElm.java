@@ -96,6 +96,19 @@ import com.google.gwt.xml.client.Document;
 	    drawThickLine(g, in2p[0], in2p[1]);
 	    setVoltageColor(g, volts[2]);
 	    drawThickLine(g, lead2, point2);
+	    // draw operating region indicator (saturation coloring)
+	    if (showOperatingRegion()) {
+		double saturationMargin = (maxOut - minOut) * 0.01;
+		if (saturationMargin < 0.01)
+		    saturationMargin = 0.01;
+		if (volts[2] >= maxOut - saturationMargin) {
+		    g.setColor(new Color(180, 60, 60));  // positive saturation - red tint
+		    g.fillPolygon(triangle);
+		} else if (volts[2] <= minOut + saturationMargin) {
+		    g.setColor(new Color(60, 60, 180));  // negative saturation - blue tint
+		    g.fillPolygon(triangle);
+		}
+	    }
 	    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	    setPowerColor(g, true);
 	    drawThickPolygon(g, triangle);

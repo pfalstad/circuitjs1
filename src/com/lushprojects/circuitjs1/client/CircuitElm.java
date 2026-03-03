@@ -60,7 +60,9 @@ public abstract class CircuitElm implements Editable {
     static final int SCALE_MU = 3;
     
     static int decimalDigits, shortDecimalDigits;
- 
+
+    static boolean showOperatingRegion;
+
     // initial point where user created element.  For simple two-terminal elements, this is the first node/post.
     int x, y;
     
@@ -1231,6 +1233,7 @@ public abstract class CircuitElm implements Editable {
     int getShortcut() { return 0; }
     boolean showValues() { return app.menus.showValuesCheckItem.getState(); }
     boolean showPower() { return app.menus.powerCheckItem.getState(); }
+    boolean showOperatingRegion() { return showOperatingRegion; }
     boolean showEuroResistors() { return app.menus.euroResistorCheckItem.getState(); }
     boolean useSmallGrid() { return app.menus.smallGridCheckItem.getState(); }
     boolean doDcAnalysis() { return app.dcAnalysisFlag; }
