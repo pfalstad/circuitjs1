@@ -227,7 +227,7 @@ class Scope {
     String text;
     Rectangle rect;
     private boolean manualScale;
-    boolean showI, showV, showScale, showMax, showMin, showFreq;
+    boolean showI, showV, showScale, showMax, showMin, showP2P, showFreq;
     boolean plot2d;
     boolean plotXY;
     boolean maxScale;
@@ -291,6 +291,7 @@ class Scope {
     void showMax    (boolean b) { showMax = b; }
     void showScale    (boolean b) { showScale = b; }
     void showMin    (boolean b) { showMin = b; }
+    void showP2P    (boolean b) { showP2P = b; }
     void showFreq   (boolean b) { showFreq = b; }
     void showFFT(boolean b) {
       showFFT = b;
@@ -374,7 +375,7 @@ class Scope {
     	speed = 64;
     	showMax = true;
     	showV = showI = false;
-    	showScale = showFreq = manualScale = showMin = showElmInfo = false;
+    	showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     	showFFT = false;
     	plot2d = false;
     	if (!loadDefaults()) {
@@ -971,7 +972,7 @@ class Scope {
     		allPlotsSameUnits = false; // Don't draw horizontal grid lines unless all plots are in same units
     	}
     	
-    	if ((allPlotsSameUnits || showMax || showMin) && visiblePlots.size() > 0)
+    	if ((allPlotsSameUnits || showMax || showMin || showP2P) && visiblePlots.size() > 0)
     	    calcMaxAndMin(visiblePlots.firstElement().units);
     	
     	// draw volt plots on top (last), then current plots underneath, then everything else
@@ -1688,6 +1689,8 @@ class Scope {
     	    int ym=rect.height-5;
     	    g.drawString("Min="+plot.getUnitText(minValue), 0, ym);
     	}
+    	if (showP2P)
+    	    drawInfoText(g, "P-P="+plot.getUnitText(maxValue-minValue));
     	if (showRMS)
     	    drawRMS(g);
     	if (showAverage)
@@ -1859,7 +1862,8 @@ class Scope {
 			(plotXY ? 128 : 0) | (showMin ? 256 : 0) | (showScale? 512:0) |
 			(showFFT ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
 			(showDutyCycle ? 32768 : 0) | (logSpectrum ? 65536 : 0) |
-			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0);
+			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
+			(showP2P ? (1<<22) : 0);
 	flags |= FLAG_PLOTS; // 4096
 	int allPlotFlags = 0;
 	for (ScopePlot p : plots) {
@@ -2119,6 +2123,7 @@ class Scope {
     	logSpectrum = (flags & 65536) != 0;
     	showAverage = (flags & (1<<17)) != 0;
     	showElmInfo = (flags & (1<<20)) != 0;
+    	showP2P = (flags & (1<<22)) != 0;
     }
     
     void saveAsDefault() {
@@ -2170,6 +2175,8 @@ class Scope {
     		showMax(state);
     	if (mi == "shownegpeak")
     		showMin(state);
+    	if (mi == "showp2p")
+    		showP2P(state);
     	if (mi == "showfreq")
     		showFreq(state);
     	if (mi == "showfft")
