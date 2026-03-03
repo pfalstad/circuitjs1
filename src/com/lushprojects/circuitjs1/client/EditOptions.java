@@ -168,7 +168,7 @@ class EditOptions implements Editable {
 			stor.removeItem("selectColor");
 			stor.removeItem("currentColor");
 		    }
-		    app.uimanager.setColors(null, null, null, null, null);
+		    app.ui.setColors(null, null, null, null, null);
 		    ei.newDialog = true;
 		}
 		if (n == 9)
