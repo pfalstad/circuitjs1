@@ -154,9 +154,9 @@ class LEDArrayElm extends ChipElm {
             if (w < 20)
                 w = 20;
             
-            // when diode turns off, made it fade gradually to simulate persistence of vision
+            // when diode turns off, fade gradually to simulate persistence of vision
             w = Math.max(w, brightness[p]);
-            brightness[p] = w*.99;
+            brightness[p] = w*.55;
             
             Color cc = new Color((int) w, 0, 0);
             g.setColor(cc);
