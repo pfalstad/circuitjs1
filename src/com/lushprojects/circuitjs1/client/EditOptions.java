@@ -166,12 +166,7 @@ class EditOptions implements Editable {
 			stor.removeItem("selectColor");
 			stor.removeItem("currentColor");
 		    }
-		    CircuitElm.positiveColor = Color.green;
-		    CircuitElm.negativeColor = Color.red;
-		    CircuitElm.neutralColor = Color.gray;
-		    CircuitElm.selectColor = Color.cyan;
-		    CircuitElm.currentColor = Color.yellow;
-		    CircuitElm.setColorScale();
+		    app.uimanager.setColors(null, null, null, null, null);
 		    ei.newDialog = true;
 		}
 		if (n == 9)
