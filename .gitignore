@@ -58,6 +58,10 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Gradle build output
+/build
+/site
+
 # Other stuff
 /tests
 /circuits
