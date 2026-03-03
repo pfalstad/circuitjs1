@@ -35,14 +35,6 @@ public class CustomLogicElm extends ChipElm {
 	}
     }
     
-/*
-    String dumpModel() {
-	if (model.dumped)
-	    return "";
-	return model.dump();
-    }
-*/
-    
     void dumpXml(Document doc, Element elem) {
 	if (!model.dumped)
 	    model.dumpXml(doc);
