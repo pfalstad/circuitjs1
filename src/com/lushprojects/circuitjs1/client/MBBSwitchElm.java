@@ -194,12 +194,16 @@ class MBBSwitchElm extends SwitchElm {
 	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless();
 	    if (n == 0)
 		return super.getEditInfo(n);
+	    if (n == 2)
+		return getKeyShortcutEditInfo();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 1) {
 	    	link = (int) ei.value;
-	    } else
+	    } else if (n == 2)
+	    	setKeyShortcutEditValue(ei);
+	    else
 	    	super.setEditValue(n, ei);
 	}
 	int getShortcut() { return 0; }

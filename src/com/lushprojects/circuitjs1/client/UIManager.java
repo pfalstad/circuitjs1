@@ -998,6 +998,27 @@ public class UIManager {
     	if (isReadOnly())
     	    return;
 
+    	// handle key-up for momentary switches with keyboard shortcuts
+    	if ((t & Event.ONKEYUP) != 0) {
+    	    String keyStr = String.valueOf((char)code).toLowerCase();
+    	    boolean released = false;
+    	    for (int i = 0; i != elmList.size(); i++) {
+    		CircuitElm ce = elmList.get(i);
+    		if (ce instanceof SwitchElm) {
+    		    SwitchElm se = (SwitchElm) ce;
+    		    if (se.momentary && se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
+    			se.mouseUp();
+    			released = true;
+    		    }
+    		}
+    	    }
+    	    if (released) {
+    		mouse.heldSwitchElm = null;
+    		app.needAnalyze();
+    		app.repaint();
+    	    }
+    	}
+
     	if ((t & Event.ONKEYDOWN)!=0) {
     		if (code==KEY_BACKSPACE || code==KEY_DELETE) {
     		    if (app.scopeManager.scopeSelected != -1) {
@@ -1069,7 +1090,26 @@ public class UIManager {
     		}
     	}
     	if ((t&Event.ONKEYPRESS)!=0) {
-    		if (cc>32 && cc<127){
+    		// check if any switches have a keyboard shortcut matching this key
+    		if (cc>32 && cc<127) {
+    		    String keyStr = String.valueOf((char)cc).toLowerCase();
+    		    boolean toggled = false;
+    		    for (int i = 0; i != elmList.size(); i++) {
+    			CircuitElm ce = elmList.get(i);
+    			if (ce instanceof SwitchElm) {
+    			    SwitchElm se = (SwitchElm) ce;
+    			    if (se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
+    				se.toggle();
+    				if (!(se instanceof LogicInputElm))
+    				    app.needAnalyze();
+    				toggled = true;
+    			    }
+    			}
+    		    }
+    		    if (toggled) {
+    			e.cancel();
+    			app.repaint();
+    		    } else {
     			String c=app.shortcuts[cc];
     			e.cancel();
     			if (c==null)
@@ -1078,6 +1118,7 @@ public class UIManager {
     			mouseModeStr=c;
 			updateToolbar();
     			mouse.tempMouseMode = mouse.mouseMode;
+    		    }
     		}
     		if (cc==32) {
 		    setMouseMode(MouseManager.MODE_SELECT);
