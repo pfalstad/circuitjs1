@@ -13,17 +13,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK 8
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: '8'
         distribution: 'temurin'
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
 
     - name: Build with Gradle
-      run: gradle compileGwt --console verbose
+      run: ./gradlew compileGwt --console verbose
 
     - name: Build site
-      run: gradle makeSite --console verbose
+      run: ./gradlew makeSite --console verbose
+      
