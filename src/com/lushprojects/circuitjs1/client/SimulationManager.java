@@ -280,7 +280,7 @@ public class SimulationManager {
 		wi.post = 0;
 		wire.hasWireInfo = true;
 		moved = 0;
-	    } else if (isReady1) {
+	    } else if (isReady1 && !neighbors1.isEmpty()) {
 		wi.neighbors = neighbors1;
 		wi.post = 1;
 		wire.hasWireInfo = true;
