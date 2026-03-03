@@ -1758,7 +1758,56 @@ class Scope {
 	properties = new ScopePropertiesDialog(app, this);
 	CirSim.dialogShowing = properties;
     }
-    
+
+    void exportCSV() {
+	if (visiblePlots.size() == 0)
+	    return;
+	StringBuilder sb = new StringBuilder();
+	sb.append("time");
+	int i;
+	for (i = 0; i != visiblePlots.size(); i++) {
+	    ScopePlot plot = visiblePlots.get(i);
+	    String name = plot.elm.getClass().getSimpleName().replace("Elm", "");
+	    String unit = getScaleUnitsText(plot.units);
+	    sb.append(",\"" + name + " " + unit + " min\"");
+	    sb.append(",\"" + name + " " + unit + " max\"");
+	}
+	sb.append("\n");
+	// all visible plots share the same scopePointCount and speed
+	ScopePlot plot0 = visiblePlots.get(0);
+	int w = rect.width;
+	double ts = sim.maxTimeStep * speed;
+	double tStart = sim.t - ts * w;
+	int ipa = plot0.startIndex(w);
+	for (i = 0; i != w; i++) {
+	    double t = tStart + ts * i;
+	    if (t < 0)
+		continue;
+	    sb.append(t);
+	    int j;
+	    for (j = 0; j != visiblePlots.size(); j++) {
+		ScopePlot plot = visiblePlots.get(j);
+		int ip = (i + plot.startIndex(w)) & (plot.scopePointCount - 1);
+		sb.append("," + plot.minValues[ip]);
+		sb.append("," + plot.maxValues[ip]);
+	    }
+	    sb.append("\n");
+	}
+	downloadCSV(sb.toString(), "scope-data.csv");
+    }
+
+    static native void downloadCSV(String data, String filename) /*-{
+	var blob = new Blob([data], {type: 'text/csv'});
+	var url = URL.createObjectURL(blob);
+	var a = $doc.createElement('a');
+	a.href = url;
+	a.download = filename;
+	$doc.body.appendChild(a);
+	a.click();
+	$doc.body.removeChild(a);
+	URL.revokeObjectURL(url);
+    }-*/;
+
     void speedUp() {
 	if (speed > 1) {
 	    speed /= 2;
