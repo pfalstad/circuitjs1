@@ -36,7 +36,8 @@ class RelayCoilElm extends CircuitElm {
     double coilCurrent, coilCurCount;
     double avgCurrent;
     
-    // fractional position, between 0 and 1 inclusive
+    // binary position: 0 = de-energized, 1 = energized
+    // changes as hard step after switching delay expires
     double d_position;
     
     // integer position, can be 0 (off), 1 (on), 2 (in between)
@@ -320,37 +321,15 @@ class RelayCoilElm extends CircuitElm {
 	    }
 	}
 
-	// compute fractional position (0=deenergized, 1=energized) for
-	// smooth contact transition.  for latching relays, the direction
-	// depends on the current switchPosition and contacts hold
-	// position during de-energize.
-	double elapsed = sim.t - lastTransition;
-	if (type == TYPE_LATCHING) {
-	    if (state == 1 && switchingTimeOn > 0) {
-		// latching relay energizing: transition from switchPosition
-		// toward (1-switchPosition)
-		double frac = Math.min(elapsed / switchingTimeOn, 1);
-		if (switchPosition == 1)
-		    d_position = 1 - frac;
-		else
-		    d_position = frac;
-	    } else {
-		// latching relay holds position in all other states
-		d_position = switchPosition;
-	    }
-	} else {
-	    if (state == 1 && switchingTimeOn > 0) {
-		d_position = Math.min(elapsed / switchingTimeOn, 1);
-	    } else if (state == 3 && switchingTimeOff > 0) {
-		d_position = Math.max(1 - elapsed / switchingTimeOff, 0);
-	    } else if (state == 2) {
-		d_position = 1;
-	    } else {
-		d_position = 0;
-	    }
-	}
+	// d_position tracks the binary contact state as a hard step.
+	// During the switching delay (states 1 and 3), d_position stays
+	// at its old value.  It snaps to the new value only when the
+	// delay expires and switchPosition actually changes.  This
+	// produces realistic inductive voltage spikes when relay contacts
+	// open, rather than suppressing them with smooth interpolation.
+	d_position = switchPosition;
 
-	if (oldSwitchPosition != switchPosition || state == 1 || state == 3)
+	if (oldSwitchPosition != switchPosition)
 	    setSwitchPositions();
     }
     
