@@ -135,6 +135,7 @@ class XMLDeserializer {
 		adj.minValue = parseDoubleAttr("mn", 1);
 		adj.maxValue = parseDoubleAttr("mx", 1000);
 		adj.sliderText = parseStringAttr("st", "");
+		adj.sliderStep = parseDoubleAttr("stp", 0);
 		int ss = parseIntAttr("ss", -1);
 		if (ss != -1)
 		    adj.sharedSlider = app.adjustables.get(ss);

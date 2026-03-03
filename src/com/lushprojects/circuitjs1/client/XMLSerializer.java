@@ -138,6 +138,8 @@ class XMLSerializer {
 	    dumpAttr(ae, "mn", adj.minValue);
 	    dumpAttr(ae, "mx", adj.maxValue);
 	    dumpAttr(ae, "st", adj.sliderText);
+	    if (adj.sliderStep > 0)
+		dumpAttr(ae, "stp", adj.sliderStep);
 	    if (adj.sharedSlider != null)
 		dumpAttr(ae, "ss", app.adjustables.indexOf(adj.sharedSlider));
 	    root.appendChild(ae);

@@ -10,6 +10,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 public class Adjustable implements Command {
     CircuitElm elm;
     double minValue, maxValue;
+    double sliderStep; // step increment; 0 = continuous (no stepping)
     int flags;
     String sliderText;
     
@@ -60,6 +61,9 @@ public class Adjustable implements Command {
 		sharedSlider = ano == -1 ? null : sim.adjustables.get(ano);
 	    }
 	    sliderText = CustomLogicModel.unescape(st.nextToken());
+	} catch (Exception ex) {}
+	try {
+	    sliderStep = Double.parseDouble(st.nextToken());
 	} catch (Exception ex) {}
 	try {
 	    elm = sim.getElm(e);
@@ -121,7 +125,11 @@ public class Adjustable implements Command {
     
     double getSliderValue() {
 	double val = sharedSlider == null ? slider.getValue() : sharedSlider.slider.getValue();
-	return minValue + (maxValue-minValue)*val/100;
+	double result = minValue + (maxValue-minValue)*val/100;
+	double step = sharedSlider != null ? sharedSlider.sliderStep : sliderStep;
+	if (step > 0)
+	    result = Math.round(result / step) * step;
+	return result;
     }
     
     void deleteSlider(CirSim sim) {
@@ -152,7 +160,7 @@ public class Adjustable implements Command {
 	    ano = CirSim.theApp.adjustables.indexOf(sharedSlider);
 	
 	return CirSim.theApp.locateElm(elm) + " F1 " + editItem + " " + minValue + " " + maxValue + " " + ano + " " +
-			CustomLogicModel.escape(sliderText);
+			CustomLogicModel.escape(sliderText) + " " + sliderStep;
     }
     
     // reorder adjustables so that items with sliders come first in the list, followed by items that reference them.
