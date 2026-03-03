@@ -70,6 +70,7 @@ public class UIManager {
     String lastCursorStyle;
 
     Toolbar toolbar;
+    SubcircuitBar subcircuitBar;
 
     DockLayoutPanel layoutPanel;
     VerticalPanel verticalPanel;
@@ -273,6 +274,9 @@ public class UIManager {
 	cvcontext=cv.getContext2d();
 	app.scopeManager = scopeManager = new ScopeManager(app);
 
+	subcircuitBar = new SubcircuitBar();
+	RootPanel.get().add(subcircuitBar);
+
 	setToolbar(); // calls setCanvasSize()
 	layoutPanel.add(cv);
 	verticalPanel.add(buttonPanel);
@@ -394,6 +398,13 @@ public class UIManager {
 	}
 
     	setCircuitArea();
+
+	if (subcircuitBar != null) {
+	    int barTop = (hideMenu ? 0 : MENUBARHEIGHT);
+	    if (menus.toolbarCheckItem.getState())
+		barTop += TOOLBARHEIGHT;
+	    subcircuitBar.updatePosition(0, barTop, width);
+	}
 
 	if (app.transform[0] == 0)
 	    centreCircuit();
@@ -585,7 +596,7 @@ public class UIManager {
 
         g.context.setLineCap(LineCap.ROUND);
 
-        if (isReadOnly())
+        if (menus.noEditCheckItem.getState())
             g.drawLock(20, 30);
 
         g.setColor(Color.white);
@@ -842,19 +853,19 @@ public class UIManager {
 
     void updateSubcircuitPath() {
 	if (subcircuitStack.isEmpty()) {
-	    toolbar.setSubcircuitPath(null);
+	    subcircuitBar.setSubcircuitPath(null);
 	} else {
-	    StringBuilder sb = new StringBuilder();
+	    StringBuilder sb = new StringBuilder(Locale.LS("Viewing: "));
 	    for (int i = 0; i < subcircuitStack.size(); i++) {
 		if (i > 0) sb.append(" > ");
 		sb.append(subcircuitStack.get(i).modelName);
 	    }
-	    toolbar.setSubcircuitPath(sb.toString());
+	    subcircuitBar.setSubcircuitPath(sb.toString());
 	}
     }
 
     void updateContextButtons() {
-	toolbar.setContextInfo(app.getEditingModelName());
+	subcircuitBar.setContextInfo(app.getEditingModelName());
     }
 
     void setMouseMode(int mode) {
