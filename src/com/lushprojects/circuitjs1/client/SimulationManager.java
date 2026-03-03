@@ -880,9 +880,10 @@ public class SimulationManager {
     // have the same node number at both ends.
     void makePostDrawList() {
         HashMap<Point,Integer> postCountMap = new HashMap<Point,Integer>();
+	Vector<CircuitElm> drawList = app.ui.elmList;
 	int i, j;
-	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
+	for (i = 0; i != drawList.size(); i++) {
+	    CircuitElm ce = drawList.get(i);
 	    int posts = ce.getPostCount();
 	    for (j = 0; j != posts; j++) {
 		Point pt = ce.getPost(j);
@@ -902,8 +903,8 @@ public class SimulationManager {
 	    if (entry.getValue() == 1) {
 		boolean bad = false;
 		Point cn = entry.getKey();
-		for (j = 0; j != elmList.size() && !bad; j++) {
-		    CircuitElm ce = getElm(j);
+		for (j = 0; j != drawList.size() && !bad; j++) {
+		    CircuitElm ce = drawList.get(j);
 		    if ( ce instanceof GraphicElm )
 			continue;
 		    // does this post intersect elm's bounding box?
