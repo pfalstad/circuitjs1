@@ -24,7 +24,7 @@ import com.google.gwt.xml.client.Document;
 
 class DecimalDisplayElm extends ChipElm {
     int bitCount;
-    int displayMode; // 0=decimal, 1=hex, 2=octal, 3=binary
+    int displayMode; // 0=decimal, 1=hex, 2=octal
 
     public DecimalDisplayElm(int xx, int yy) {
 	super(xx, yy);
@@ -41,7 +41,13 @@ class DecimalDisplayElm extends ChipElm {
 	} catch (Exception e) {}
 	setupPins();
     }
-    String getChipName() { return "decimal display"; }
+    String getChipName() {
+	switch (displayMode) {
+	case 1:  return "hex display";
+	case 2:  return "octal display";
+	default: return "decimal display";
+	}
+    }
     
     void draw(Graphics g) {
         drawChip(g);
@@ -62,7 +68,6 @@ class DecimalDisplayElm extends ChipElm {
         switch (displayMode) {
         case 1:  str = Integer.toHexString(value).toUpperCase(); break;
         case 2:  str = Integer.toOctalString(value); break;
-        case 3:  str = Integer.toBinaryString(value); break;
         default: str = String.valueOf(value); break;
         }
         int w=(int)g.context.measureText(str).getWidth();
@@ -109,7 +114,6 @@ class DecimalDisplayElm extends ChipElm {
             ei.choice.add("Decimal");
             ei.choice.add("Hexadecimal");
             ei.choice.add("Octal");
-            ei.choice.add("Binary");
             ei.choice.select(displayMode);
             return ei;
         }
