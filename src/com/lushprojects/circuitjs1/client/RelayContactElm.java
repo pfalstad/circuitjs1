@@ -41,8 +41,8 @@ class RelayContactElm extends CircuitElm {
     final int FLAG_IEC = 4;
     int type;
 
-    // fractional position of contact, between 0 and 1 inclusive
-    // 0 = fully closed (r_on), 1 = fully open (r_off)
+    // binary contact position: 0 = closed (r_on), 1 = open (r_off)
+    // changes as a hard step after the relay's switching delay expires
     double d_position;
 
     // integer position, can be 0 (off), 1 (on), 2 (in between)
@@ -189,9 +189,10 @@ class RelayContactElm extends CircuitElm {
     public void setPosition(int i_position_, double coil_d_position, int type_) {
 	i_position = (isNormallyClosed()) ? (1-i_position_) : i_position_;
 	type = type_;
-	// compute contact fractional position (0 = closed/r_on, 1 = open/r_off)
-	// NO contact closes as coil energizes (d goes 0->1), so contact_d = 1 - coil_d
-	// NC contact opens as coil energizes (d goes 0->1), so contact_d = coil_d
+	// compute binary contact position (0 = closed/r_on, 1 = open/r_off)
+	// coil_d_position is binary (0 or 1), snaps after switching delay.
+	// NO contact: closed when energized (coil_d=1 -> contact_d=0)
+	// NC contact: open when energized (coil_d=1 -> contact_d=1)
 	if (isNormallyClosed())
 	    d_position = coil_d_position;
 	else
@@ -224,24 +225,22 @@ class RelayContactElm extends CircuitElm {
     boolean nonLinear() { return true; }
 
     void doStep() {
-	// smoothly interpolate resistance based on fractional contact position
-	// d_position=0 means fully closed (r_on), d_position=1 means fully open (r_off)
-	double resistance = r_on + (r_off - r_on) * d_position;
+	// d_position is binary: 0 = closed (r_on), 1 = open (r_off).
+	// Hard step produces realistic inductive voltage spikes.
+	double resistance = d_position > .5 ? r_off : r_on;
 	sim.stampResistor(nodes[nSwitch0], nodes[nSwitch1], resistance);
     }
     void calculateCurrent() {
-	double resistance = r_on + (r_off - r_on) * d_position;
+	double resistance = d_position > .5 ? r_off : r_on;
 	switchCurrent = (volts[nSwitch0]-volts[nSwitch1]) / resistance;
     }
     String getElmType() { return "relay"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS("relay contact");
-	if (d_position < .1)
+	if (d_position < .5)
 	    arr[0] += " (" + Locale.LS("closed") + ")";
-	else if (d_position > .9)
-	    arr[0] += " (" + Locale.LS("open") + ")";
 	else
-	    arr[0] += " (" + Locale.LS("transitioning") + ")";
+	    arr[0] += " (" + Locale.LS("open") + ")";
 	int ln = 1;
 	arr[ln++] = "I = " + getCurrentDText(switchCurrent);
     }
