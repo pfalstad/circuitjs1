@@ -267,8 +267,7 @@ public class UIManager {
 
 	Window.addResizeHandler(new ResizeHandler() {
 	    public void onResize(ResizeEvent event) {
-		if (app.centreOnResize)
-		    centreCircuit();
+		centreCircuit();
 		repaint();
 	    }
 	});
