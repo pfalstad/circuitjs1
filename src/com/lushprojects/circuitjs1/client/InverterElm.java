@@ -67,7 +67,11 @@ class InverterElm extends CircuitElm {
 	
 	void draw(Graphics g) {
 	    drawPosts(g);
-	    draw2Leads(g);
+	    double threshold = highVoltage * .5;
+	    setLogicPinColor(g, volts[0], threshold);
+	    drawThickLine(g, point1, lead1);
+	    setLogicPinColor(g, volts[1], threshold);
+	    drawThickLine(g, lead2, point2);
 	    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	    drawThickPolygon(g, gatePoly);
 	    if (GateElm.useEuroGates())

@@ -135,6 +135,7 @@ public class UIManager {
 		       getOptionFromStorage("conventionalCurrent", true));
 	    noEditing = !qp.getBooleanValue("editable", true);
 	    mouseWheelEdit = qp.getBooleanValue("mouseWheelEdit", getOptionFromStorage("mouseWheelEdit", true));
+	    CircuitElm.colorLogicPins = getOptionFromStorage("colorLogicPins", false);
 	    positiveColor = qp.getValue("positiveColor");
 	    negativeColor = qp.getValue("negativeColor");
 	    neutralColor = qp.getValue("neutralColor");

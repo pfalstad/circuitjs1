@@ -119,11 +119,15 @@ class TriStateElm extends CircuitElm {
 	int hs = 16;
 	setBbox(point1, point2, hs);
 
-	draw2Leads(g);
+	double threshold = highVoltage * .5;
+	setLogicPinColor(g, volts[0], threshold);
+	drawThickLine(g, point1, lead1);
+	setLogicPinColor(g, volts[1], threshold);
+	drawThickLine(g, lead2, point2);
 
 	g.setColor(lightGrayColor);
 	drawThickPolygon(g, gatePoly);
-	setVoltageColor(g, volts[2]);
+	setLogicPinColor(g, volts[2], threshold);
 	drawThickLine(g, point3, lead3);
 	curcount = updateDotCount(current, curcount);
 	drawDots(g, lead2, point2, curcount);
