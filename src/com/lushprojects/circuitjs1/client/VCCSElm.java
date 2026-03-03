@@ -25,6 +25,7 @@ import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class VCCSElm extends ChipElm {
+	static final int FLAG_DIAMOND = 4;
 	double gain;
 	int inputCount;
 	Expr expr;
@@ -78,6 +79,22 @@ class VCCSElm extends ChipElm {
 	String getChipName() { return "VCCS~"; } // ~ is for localization 
 	boolean nonLinear() { return true; }
 	@Override boolean isDigitalChip() { return false; }
+	boolean useDiamondSymbol() { return (flags & FLAG_DIAMOND) != 0; }
+
+	void setPoints() {
+	    super.setPoints();
+	    if (useDiamondSymbol()) {
+		// replace the rectangle with a diamond (rotated square)
+		int xr = rectPointsX[0];
+		int yr = rectPointsY[0];
+		int xs = rectPointsX[1] - xr;
+		int ys = rectPointsY[2] - yr;
+		int cx = xr + xs/2;
+		int cy = yr + ys/2;
+		rectPointsX = new int[] { cx, xr+xs, cx, xr };
+		rectPointsY = new int[] { yr, cy, yr+ys, cy };
+	    }
+	}
 
 	void stamp() {
             sim.stampNonLinear(nodes[inputCount]);
@@ -190,6 +207,8 @@ class VCCSElm extends ChipElm {
             if (n == 1)
                 return new EditInfo("# of Inputs", inputCount, 1, 8).
                     setDimensionless();
+            if (n == 2)
+                return EditInfo.createCheckbox("IEC Diamond Symbol", useDiamondSymbol());
             return null;
         }
         public void setChipEditValue(int n, EditInfo ei) {
@@ -204,6 +223,10 @@ class VCCSElm extends ChipElm {
                 inputCount = (int) ei.value;
                 setupPins();
                 allocNodes();
+                setPoints();
+            }
+            if (n == 2) {
+                flags = ei.changeFlag(flags, FLAG_DIAMOND);
                 setPoints();
             }
         }
