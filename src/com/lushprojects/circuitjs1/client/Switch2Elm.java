@@ -50,9 +50,6 @@ import com.google.gwt.xml.client.Document;
 	    noDiagonal = true;
 	}
 	int getDumpType() { return 'S'; }
-	String dump() {
-	    return super.dump() + " " + link + " " + throwCount;
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);

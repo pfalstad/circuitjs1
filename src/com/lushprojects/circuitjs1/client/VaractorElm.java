@@ -42,9 +42,6 @@ class VaractorElm extends DiodeElm {
 	super.reset();
 	capvoltdiff = 0;
     }
-    String dump() {
-	return super.dump() + " " + capvoltdiff + " " + baseCapacitance;
-    }
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

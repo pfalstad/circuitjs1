@@ -1875,45 +1875,6 @@ class Scope {
 	return flags;
     }
     
-
-    
-    String dump() {
-	ScopePlot vPlot = plots.get(0);
-	
-	CircuitElm elm = vPlot.elm;
-    	if (elm == null)
-    		return null;
-    	int flags = getFlags();
-    	int eno = app.locateElm(elm);
-    	if (eno < 0)
-    		return null;
-    	String x = "o " + eno + " " +
-    			vPlot.scopePlotSpeed + " " + vPlot.value + " " 
-    			+ exportAsDecOrHex(flags, FLAG_PERPLOTFLAGS) + " " +
-    			scale[UNITS_V] + " " + scale[UNITS_A] + " " + position + " " +
-    			plots.size();
-	if ((flags & FLAG_DIVISIONS) != 0)
-	    x += " " + manDivisions;
-    	int i;
-    	for (i = 0; i < plots.size(); i++) {
-    	    ScopePlot p = plots.get(i);
-    	    if ((flags & FLAG_PERPLOTFLAGS) !=0)
-    		x += " " + Integer.toHexString(p.getPlotFlags()); // NB always export in Hex (no prefix)
-    	    if (i > 0)
-    		x += " " + app.locateElm(p.elm) + " " + p.value;
-    	    // dump scale if units are not V or A
-    	    if (p.units > UNITS_A)
-    		x += " " + scale[p.units];
-    	    if (isManualScale()) {// In this version we always dump manual settings using the PERPLOT format
-    	        x += " " + p.manScale + " "  
-    		+ p.manVPosition;
-    	    }
-    	}
-    	if (text != null)
-    	    	x += " " + CustomLogicModel.escape(text);
-    	return x;
-    }
-    
     void dumpXml(Document doc, Element root) {
 	ScopePlot vPlot = plots.get(0);
 	

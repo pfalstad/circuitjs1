@@ -48,7 +48,6 @@ import com.google.gwt.xml.client.Document;
 	    setupPins();
 	}
 	String getChipName() { return "Multiplexer"; }
-	String dump() { return super.dump() + " " + selectBitCount; }
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);

@@ -95,10 +95,6 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	}
 
 	int getDumpType() { return 't'; }
-	String dump() {
-	    return super.dump() + " " + pnp + " " + (volts[0]-volts[1]) + " " +
-		(volts[0]-volts[2]) + " " + beta + " " + CustomLogicModel.escape(modelName);
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    if (!(model.builtIn || model.dumped))
@@ -130,12 +126,6 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	
 	public void updateModels() {
 	    setup();
-	}
-
-	String dumpModel() {
-	    if (model.builtIn || model.dumped)
-		return null;
-	    return model.dump();
 	}
 
 	void dumpXmlModel(Document doc) {

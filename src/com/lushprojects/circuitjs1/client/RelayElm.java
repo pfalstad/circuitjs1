@@ -134,12 +134,6 @@ class RelayElm extends CircuitElm {
     int getDumpType() { return 178; }
     String getXmlDumpType() { return "rl"; }
     
-    String dump() {
-	return super.dump() + " " + poleCount + " " +
-	    inductance + " " + coilCurrent + " " +
-	    r_on + " " + r_off + " " + onCurrent + " " + coilR + " " + offCurrent + " " + switchingTime + " " + i_position;
-    }
-
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "po", poleCount);

@@ -47,9 +47,6 @@ class TriodeElm extends CircuitElm {
 	volts[0] = volts[1] = volts[2] = 0;
 	curcount = 0;
     }
-    String dump() {
-	return super.dump() + " " + mu + " " + kg1;
-    }
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

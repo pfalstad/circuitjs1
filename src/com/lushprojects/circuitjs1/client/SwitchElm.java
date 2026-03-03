@@ -62,12 +62,6 @@ class SwitchElm extends CircuitElm {
 	    label = CustomLogicModel.unescape(st.nextToken());
     }
     int getDumpType() { return 's'; }
-    String dump() {
-	String s = super.dump() + " " + position + " " + momentary;
-	if ((flags & FLAG_LABEL) != 0)
-	    s += " " + CustomLogicModel.escape(label);
-	return s;
-    }
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

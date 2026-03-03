@@ -48,11 +48,6 @@ class SweepElm extends CircuitElm {
     int getPostCount() { return 1; }
     final int circleSize = 17;
 
-    String dump() {
-	return super.dump() + " " + minF + " " + maxF + " " + maxV + " " +
-	    sweepTime;
-    }
-
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "mi", minF);

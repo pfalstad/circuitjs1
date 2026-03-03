@@ -49,9 +49,6 @@ class MBBSwitchElm extends SwitchElm {
 	}
 	
 	int getDumpType() { return 416; }
-	String dump() {
-	    return super.dump() + " " + link;
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
