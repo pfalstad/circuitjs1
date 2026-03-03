@@ -605,6 +605,20 @@ public class CirSim implements NativePreviewHandler {
 	    ce.updateModels();
     }
 
+    // force all CustomCompositeElm with a given model name to re-fetch their model
+    public void refreshModels(String modelName) {
+	for (CircuitElm ce : elmList) {
+	    if (ce instanceof CustomCompositeElm) {
+		CustomCompositeElm cce = (CustomCompositeElm) ce;
+		if (cce.modelName.equals(modelName)) {
+		    cce.model = null;
+		    cce.updateModels();
+		}
+	    }
+	}
+	needAnalyze();
+    }
+
 	boolean isSelection() { return ui.isSelection(); }
 
 }

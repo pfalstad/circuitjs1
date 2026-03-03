@@ -295,6 +295,10 @@ public abstract class CompositeElm extends CircuitElm {
         for (Element elem: xml.getChildElements()) {
             xml.parseChildElement(elem);
 	    int ix = xml.parseIntAttr("ix", -1);
+		if (ix >= compElmList.size()) {
+		    CirSim.console("ix " + ix);
+		    for (CircuitElm ce: compElmList) CirSim.console("cel " + ce);
+		}
 	    CircuitElm ce = compElmList.get(ix);
 	    if (!elem.getTagName().equals(ce.getXmlDumpType()))
 		throw new RuntimeException("dump type mismatch for composite child: " + ix);
