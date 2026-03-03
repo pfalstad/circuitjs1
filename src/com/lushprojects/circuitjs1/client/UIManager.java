@@ -1234,11 +1234,17 @@ public class UIManager {
 	    CircuitElm.positiveColor = new Color(URL.decodeQueryString(positiveColor));
 	else if (getOptionFromStorage("alternativeColor", false))
 	    CircuitElm.positiveColor = Color.blue;
+	else
+	    CircuitElm.positiveColor = Color.green;
 
 	if (negativeColor != null)
 	    CircuitElm.negativeColor = new Color(URL.decodeQueryString(negativeColor));
+	else
+	    CircuitElm.negativeColor = Color.red;
 	if (neutralColor != null)
 	    CircuitElm.neutralColor = new Color(URL.decodeQueryString(neutralColor));
+	else
+	    CircuitElm.neutralColor = Color.gray;
 
 	if (selectColor != null)
 	    CircuitElm.selectColor = new Color(URL.decodeQueryString(selectColor));

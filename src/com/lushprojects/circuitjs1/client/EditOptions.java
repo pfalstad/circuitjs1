@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Window;
+import com.google.gwt.user.client.ui.Button;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class EditOptions implements Editable {
@@ -58,34 +59,39 @@ class EditOptions implements Editable {
 		}
 		
 		if (n == 3)
-		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue());
+		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor();
 		if (n == 4)
-		    return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue());
+		    return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue()).setIsColor();
 		if (n == 5)
-		    return new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue());
+		    return new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue()).setIsColor();
 		if (n == 6)
-		    return new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue());
+		    return new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue()).setIsColor();
 		if (n == 7)
-		    return new EditInfo("Current Color", CircuitElm.currentColor.getHexValue());
-		if (n == 8)
-		    return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
+		    return new EditInfo("Current Color", CircuitElm.currentColor.getHexValue()).setIsColor();
+		if (n == 8) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.button = new Button(Locale.LS("Reset Colors to Default"));
+		    return ei;
+		}
 		if (n == 9)
+		    return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
+		if (n == 10)
 		    return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits);
-		if (n == 10) {
+		if (n == 11) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Developer Mode", app.developerMode);
 		    return ei;
 		}
-		if (n == 11)
-		    return new EditInfo("Minimum Target Frame Rate", app.minFrameRate);
 		if (n == 12)
+		    return new EditInfo("Minimum Target Frame Rate", app.minFrameRate);
+		if (n == 13)
 		    return new EditInfo("Mouse Wheel Sensitivity", app.mouse.wheelSensitivity);
-		if (n == 13) {
+		if (n == 14) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 14 && sim.adjustTimeStep)
+		if (n == 15 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
@@ -152,25 +158,38 @@ class EditOptions implements Editable {
 		    CircuitElm.selectColor = setColor("selectColor", ei, Color.cyan);
 		if (n == 7)
 		    CircuitElm.currentColor = setColor("currentColor", ei, Color.yellow);
-		if (n == 8)
-		    CircuitElm.setDecimalDigits((int)ei.value, true, true);
+		if (n == 8) {
+		    // Reset all colors to defaults
+		    Storage stor = Storage.getLocalStorageIfSupported();
+		    if (stor != null) {
+			stor.removeItem("positiveColor");
+			stor.removeItem("negativeColor");
+			stor.removeItem("neutralColor");
+			stor.removeItem("selectColor");
+			stor.removeItem("currentColor");
+		    }
+		    app.uimanager.setColors(null, null, null, null, null);
+		    ei.newDialog = true;
+		}
 		if (n == 9)
-		    CircuitElm.setDecimalDigits((int)ei.value, false, true);
+		    CircuitElm.setDecimalDigits((int)ei.value, true, true);
 		if (n == 10)
+		    CircuitElm.setDecimalDigits((int)ei.value, false, true);
+		if (n == 11)
 	            app.developerMode = ei.checkbox.getState();
-		if (n == 11 && ei.value > 0)
+		if (n == 12 && ei.value > 0)
 		    app.minFrameRate = ei.value;
-		if (n == 12 && ei.value > 0) {
+		if (n == 13 && ei.value > 0) {
 		    app.mouse.wheelSensitivity = ei.value;
 		    Storage stor = Storage.getLocalStorageIfSupported();
 		    if (stor != null)
 			stor.setItem("wheelSensitivity", Double.toString(app.mouse.wheelSensitivity));
 		}
-		if (n == 13) {
+		if (n == 14) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 14 && ei.value > 0)
+		if (n == 15 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 	
