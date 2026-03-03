@@ -216,12 +216,21 @@ class CapacitorElm extends CircuitElm {
 	    getBasicInfo(arr);
 	    arr[3] = "C = " + getUnitText(capacitance, "F");
 	    arr[4] = "P = " + getUnitText(getPower(), "W");
-	    //double v = getVoltageDiff();
-	    //arr[4] = "U = " + getUnitText(.5*capacitance*v*v, "J");
+	    arr[5] = "Q = " + getUnitText(capacitance * voltdiff, "C");
 	}
 	@Override
 	String getScopeText(int v) {
 	    return Locale.LS("capacitor") + ", " + getUnitText(capacitance, "F");
+	}
+	double getScopeValue(int x) {
+	    if (x == Scope.VAL_CHARGE)
+		return capacitance * voltdiff;
+	    return super.getScopeValue(x);
+	}
+	int getScopeUnits(int x) {
+	    if (x == Scope.VAL_CHARGE)
+		return Scope.UNITS_C;
+	    return super.getScopeUnits(x);
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
