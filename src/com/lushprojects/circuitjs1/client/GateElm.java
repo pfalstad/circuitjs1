@@ -29,6 +29,8 @@ abstract class GateElm extends CircuitElm {
 	int inputCount = 2;
 	boolean lastOutput;
 	double highVoltage;
+	double propagationDelay; // seconds; 0 = instant (default)
+	double delayEndTime;     // time at which pending output change takes effect
 	public static double lastHighVoltage = 5;
 	static boolean lastSchmitt = false;
 	
@@ -55,6 +57,7 @@ abstract class GateElm extends CircuitElm {
 	    highVoltage = 5;
 	    try {
 		highVoltage = new Double(st.nextToken()).doubleValue();
+		propagationDelay = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) { }
 	    lastOutput = lastOutputVoltage > highVoltage*.5;
 	    setSize((f & FLAG_SMALL) != 0 ? 1 : 2);
@@ -72,7 +75,7 @@ abstract class GateElm extends CircuitElm {
 	    flags |= (s == 1) ? FLAG_SMALL : 0;
 	}
 	String dump() {
-	    return super.dump() + " " + inputCount + " " + volts[inputCount] + " " + highVoltage;
+	    return super.dump() + " " + inputCount + " " + volts[inputCount] + " " + highVoltage + " " + propagationDelay;
 	}
 
 	void dumpXml(Document doc, Element elem) {
@@ -81,6 +84,8 @@ abstract class GateElm extends CircuitElm {
 		XMLSerializer.dumpAttr(elem, "hi", highVoltage);
 	    if (inputCount != 2)
 		XMLSerializer.dumpAttr(elem, "in", inputCount);
+	    if (propagationDelay != 0)
+		XMLSerializer.dumpAttr(elem, "pd", propagationDelay);
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
@@ -93,6 +98,7 @@ abstract class GateElm extends CircuitElm {
 	    super.undumpXml(xml);
 	    highVoltage = xml.parseDoubleAttr("hi", highVoltage);
 	    inputCount = xml.parseIntAttr("in", inputCount);
+	    propagationDelay = xml.parseDoubleAttr("pd", 0);
 	    double lastOutputVoltage = xml.parseDoubleAttr("o", 0);
 	    lastOutput = lastOutputVoltage > highVoltage*.5;
 	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
@@ -210,6 +216,8 @@ abstract class GateElm extends CircuitElm {
 	    arr[0] = getGateName();
 	    arr[1] = "Vout = " + getVoltageText(volts[inputCount]);
 	    arr[2] = "Iout = " + getCurrentText(getCurrent());
+	    if (propagationDelay > 0)
+		arr[3] = "delay = " + getUnitText(propagationDelay, "s");
 	}
 	void stamp() {
 	    sim.stampVoltageSource(0, nodes[inputCount], voltSource);
@@ -232,7 +240,7 @@ abstract class GateElm extends CircuitElm {
 	    boolean f = calcFunction();
 	    if (isInverting())
 		f = !f;
-	    
+
 	    if (lastTime != sim.t) {
 		// detect oscillation (using same strategy as Atanua)
 		if (lastOutput == !f) {
@@ -244,12 +252,25 @@ abstract class GateElm extends CircuitElm {
 		    }
 		} else
 		    oscillationCount = 0;
-	    
-		lastOutput = f;
+
 		lastTime = sim.t;
 	    }
-	    
-	    double res = f ? highVoltage : 0;
+
+	    // apply propagation delay if configured
+	    if (propagationDelay > 0) {
+		if (f != lastOutput) {
+		    // desired output differs from current output; wait for delay
+		    if (sim.t >= delayEndTime)
+			lastOutput = f;
+		} else {
+		    // output matches desired; reset the delay timer
+		    delayEndTime = sim.t + propagationDelay;
+		}
+	    } else {
+		lastOutput = f;
+	    }
+
+	    double res = lastOutput ? highVoltage : 0;
 	    sim.updateVoltageSource(0, nodes[inputCount], voltSource, res);
 	}
 	public EditInfo getEditInfo(int n) {
@@ -262,6 +283,8 @@ abstract class GateElm extends CircuitElm {
 		return EditInfo.createCheckbox("Schmitt Inputs", hasSchmittInputs());
 	    if (n == 3)
 		return EditInfo.createCheckbox("Invert Inputs", hasFlag(FLAG_INVERT_INPUTS));
+	    if (n == 4)
+		return new EditInfo("Propagation Delay (s)", propagationDelay, 0, 0);
 	    return null;
 	}
 
@@ -286,6 +309,8 @@ abstract class GateElm extends CircuitElm {
 		flags = ei.changeFlag(flags, FLAG_INVERT_INPUTS);
 		setPoints();
 	    }
+	    if (n == 4)
+		propagationDelay = ei.value;
 	}
 	// there is no current path through the gate inputs, but there
 	// is an indirect path through the output to ground.

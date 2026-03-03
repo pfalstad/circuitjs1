@@ -36,10 +36,16 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
 	public EditInfo getEditInfo(int n) {
-	    // no invert inputs option
-	    if (n == 3)
-		return null;
+	    // skip "Invert Inputs" (index 3 in GateElm); shift higher indices down
+	    if (n >= 3)
+		return super.getEditInfo(n + 1);
 	    return super.getEditInfo(n);
+	}
+	public void setEditValue(int n, EditInfo ei) {
+	    if (n >= 3)
+		super.setEditValue(n + 1, ei);
+	    else
+		super.setEditValue(n, ei);
 	}
 	
 	int getDumpType() { return 154; }
