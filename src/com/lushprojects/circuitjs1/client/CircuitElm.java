@@ -526,6 +526,7 @@ public abstract class CircuitElm implements Editable {
 	String xs[] = x.split(" ");
 	setPosition(Integer.parseInt(xs[0]), Integer.parseInt(xs[1]),
 		    Integer.parseInt(xs[2]), Integer.parseInt(xs[3]));
+	initBoundingBox();
     }
     
     // determine if moving this element by (dx,dy) will put it on top of another element
