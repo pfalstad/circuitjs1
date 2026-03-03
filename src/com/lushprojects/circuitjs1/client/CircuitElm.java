@@ -802,22 +802,50 @@ public abstract class CircuitElm implements Editable {
         g.save();
         g.context.setTextBaseline("middle");
         int x = pt2.x, y = pt2.y;
-        if (pt1.y != pt2.y) {
+        if (pt1.x == pt2.x) {
+            // vertical element: rotate text 90 degrees
+            int dir = sign(pt2.y-pt1.y);
+            int tx = pt2.x;
+            int ty = pt2.y + dir*h;
+            g.context.translate(tx, ty);
+            g.context.rotate(-Math.PI/2);
+            // draw text centered at origin after rotation
+            g.context.setTextAlign("center");
+            g.drawString(str, 0, 0);
+            // adjust bbox for the rotated text (width and height swap)
+            adjustBbox(tx-h/2, ty-w/2, tx+h/2, ty+w/2);
+            g.restore();
+            if (lineOver) {
+        	int xa = -h/2-1;
+        	g.save();
+        	g.context.translate(tx, ty);
+        	g.context.rotate(-Math.PI/2);
+        	g.drawLine(-w/2, xa, w/2, xa);
+        	g.restore();
+            }
+        } else if (pt1.y != pt2.y) {
             x -= w/2;
             y += sign(pt2.y-pt1.y)*h;
+            g.drawString(str, x, y);
+            adjustBbox(x, y-h/2, x+w, y+h/2);
+            g.restore();
+            if (lineOver) {
+        	int ya = y-h/2-1;
+        	g.drawLine(x, ya, x+w, ya);
+            }
         } else {
             if (pt2.x > pt1.x)
         	x += 4;
             else
         	x -= 4+w;
+            g.drawString(str, x, y);
+            adjustBbox(x, y-h/2, x+w, y+h/2);
+            g.restore();
+            if (lineOver) {
+        	int ya = y-h/2-1;
+        	g.drawLine(x, ya, x+w, ya);
+            }
         }
-        g.drawString(str, x, y);
-        adjustBbox(x, y-h/2, x+w, y+h/2);
-        g.restore();
-	if (lineOver) {
-	    int ya = y-h/2-1;
-	    g.drawLine(x, ya, x+w, ya);
-	}	
     }    
     
     void drawCoil(Graphics g, int hs, Point p1, Point p2,
