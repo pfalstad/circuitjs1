@@ -1781,6 +1781,8 @@ class Scope {
 	int ipa = plot0.startIndex(w);
 	for (i = 0; i != w; i++) {
 	    double t = tStart + ts * i;
+	    if (t < 0)
+		continue;
 	    sb.append(t);
 	    int j;
 	    for (j = 0; j != visiblePlots.size(); j++) {
