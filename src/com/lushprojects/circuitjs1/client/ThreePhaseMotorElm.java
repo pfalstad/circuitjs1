@@ -87,8 +87,8 @@ class ThreePhaseMotorElm extends CircuitElm {
 	for (i = 0; i != 3; i++) {
 	    interpPoint(point1, point2, posts[i*2], 0, -q*32*(i-1));
 	    interpPoint(point1, point2, leads[i*2], .45, -q*32*(i-1));
-	    interpPoint(point1, point2, posts[i*2+1], 1, q*32*(i-1));
-	    interpPoint(point1, point2, leads[i*2+1], .55, q*32*(i-1));
+	    interpPoint(point1, point2, posts[i*2+1], 1, -q*32*(i-1));
+	    interpPoint(point1, point2, leads[i*2+1], .55, -q*32*(i-1));
 	}
 	motorCenter = interpPoint(point1, point2, .5);
 	allocNodes();
