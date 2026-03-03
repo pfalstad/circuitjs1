@@ -371,6 +371,7 @@ public class Menus {
 		"Add Op Amp (real)", "OpAmpRealElm",
 		"Add Analog Switch (SPST)", "AnalogSwitchElm",
 		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
+		"Add Analog Multiplexer", "AnalogMuxElm",
 		"Add Tristate Buffer", "TriStateElm",
 		"Add Schmitt Trigger", "SchmittElm",
 		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",

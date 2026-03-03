@@ -413,7 +413,7 @@ labelledGridManager gridLabels;
 		addItemToGrid(grid, powerBox = new ScopeCheckBox(Locale.LS("Show Power Consumed"), "showpower"));
 		powerBox.addValueChangeHandler(this); 
 		addItemToGrid(grid, resistanceBox = new ScopeCheckBox(Locale.LS("Show Resistance"), "showresistance"));
-		resistanceBox.addValueChangeHandler(this); 
+		resistanceBox.addValueChangeHandler(this);
 		addItemToGrid(grid, spectrumBox = new ScopeCheckBox(Locale.LS("Show Spectrum"), "showfft"));
 		spectrumBox.addValueChangeHandler(this);
 		addItemToGrid(grid, logSpectrumBox = new ScopeCheckBox(Locale.LS("Log Spectrum"), "logspectrum"));
