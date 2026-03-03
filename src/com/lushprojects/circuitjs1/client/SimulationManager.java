@@ -164,6 +164,7 @@ public class SimulationManager {
 
 	// build point-to-node map from non-wire elements in UI list,
 	// and add their links to nodeList so calcWireInfo can find neighbors
+	// and so setNodeVoltages() updates their volts[] for display
 	for (int i = 0; i != uiList.size(); i++) {
 	    CircuitElm ce = uiList.get(i);
 	    if (ce.isRemovableWire())
@@ -171,13 +172,18 @@ public class SimulationManager {
 	    for (int j = 0; j != ce.getPostCount(); j++) {
 		Point pt = ce.getPost(j);
 		NodeMapEntry nme = uiNodeMap.get(pt);
-		if (nme != null) {
-		    if (nme.node == -1)
-			nme.node = ce.getNode(j);
+		if (nme != null && nme.node == -1)
+		    nme.node = ce.getNode(j);
+		// always link non-wire elements to nodeList so their volts[]
+		// get updated, even if the post isn't at a wire endpoint
+		// (e.g. composite elements whose posts connect directly)
+		int node = ce.getNode(j);
+		CircuitNode cn = (node >= 0) ? getCircuitNode(node) : null;
+		if (cn != null) {
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;
-		    getCircuitNode(ce.getNode(j)).links.addElement(cnl);
+		    cn.links.addElement(cnl);
 		}
 	    }
 	}
