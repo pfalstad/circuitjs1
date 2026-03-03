@@ -436,7 +436,6 @@ ccdiff.txt Current Differentiator
 ccint.txt Current Integrator
 ccitov.txt Current-Controlled Voltage Source
 -
-lfr.txt Loss-Free Resistor
 +Spark Gap
 spark-sawtooth.txt Sawtooth Generator
 tesla.txt Tesla Coil
@@ -461,5 +460,6 @@ triacdimmer.txt DIAC/TRIAC Dimmer
 ujtosc.txt Unijunction Oscillator
 3motor.txt 3-Phase Motor
 latchingrelay.txt Latching Relay
+lfr.txt Loss-Free Resistor
 -
 blank.txt Blank Circuit
