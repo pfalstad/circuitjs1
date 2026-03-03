@@ -175,6 +175,10 @@ public class OpAmpRealElm extends CompositeElm {
 	    cap.voltdiff = voltdiff;
     }
 
+    public boolean getConnection(int n1, int n2) {
+	return true;
+    }
+
     void draw(Graphics g) {
         setBbox(point1, point2, opheight*2);
         setVoltageColor(g, volts[0]);
