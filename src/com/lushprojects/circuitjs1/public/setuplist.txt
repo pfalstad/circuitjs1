@@ -70,6 +70,7 @@ relayctr.txt Relay Counter
 4way.txt 3- and 4-Way Light Switches
 diff.txt Differentiator
 wheatstone.txt Wheatstone Bridge
+stardelta.txt Star-Delta Transformation
 lrc-critical.txt Critically Damped LRC
 currentsrcelm.txt Current Source
 inductkick.txt Inductive Kickback
@@ -221,6 +222,7 @@ voltinvert.txt Voltage Inverter
 invertamp.txt Inverter Amplifier
 inv-osc.txt Inverter Oscillator
 crystalosc.txt CMOS Crystal Oscillator
+mosfetsuperdiode.txt MOSFET Super-Diode
 -
 +555 Timer Chip
 555square.txt Square Wave Generator
@@ -248,6 +250,7 @@ actbutterband.txt Butterworth Band-Pass
 rtlinverter.txt RTL Inverter
 rtlnor.txt RTL NOR
 rtlnand.txt RTL NAND
+rtlgates.txt RTL Gates (All)
 -
 +DTL
 dtlinverter.txt DTL Inverter
@@ -345,6 +348,7 @@ conv-buck.txt Buck Converter
 conv-buckboost.txt Buck-Boost Converter
 conv-cuk.txt Ćuk Converter
 conv-sepic.txt SEPIC Converter
+switchreg.txt Switching Regulator
 -
 +Phase-Locked Loops
 xorphasedet.txt XOR Phase Detector
