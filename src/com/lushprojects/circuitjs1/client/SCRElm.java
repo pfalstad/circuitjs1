@@ -97,6 +97,7 @@ class SCRElm extends CircuitElm {
     double ia, ic, ig, curcount_a, curcount_c, curcount_g;
     double lastvac, lastvag;
     double gresistance, triggerI, holdingI;
+    boolean state;
 
     final int hs = 8;
     Polygon poly;
@@ -217,6 +218,19 @@ class SCRElm extends CircuitElm {
 	diode.stamp(nodes[inode], nodes[cnode]);
     }
 
+    // Evaluate the on/off state once per timestep, not during Newton-Raphson
+    // iterations.  Previously the state switching was inside doStep(), causing
+    // the anode resistance to flip-flop between on (0.0105) and off (10e5) on
+    // every sub-iteration when an external series resistance was present,
+    // preventing convergence (issue #851).  This matches the pattern used by
+    // TriacElm and DiacElm.
+    void startIteration() {
+	double icmult = 1/triggerI;
+	double iamult = 1/holdingI - icmult;
+	state = (-icmult*ic + ia*iamult > 1);
+	aresistance = state ? .0105 : 10e5;
+    }
+
     void doStep() {
 	double vac = volts[anode]-volts[cnode]; // typically negative
 	double vag = volts[anode]-volts[gnode]; // typically positive
@@ -226,11 +240,6 @@ class SCRElm extends CircuitElm {
 	lastvac = vac;
 	lastvag = vag;
 	diode.doStep(volts[inode]-volts[cnode]);
-	double icmult = 1/triggerI;
-	double iamult = 1/holdingI - icmult;
-	//System.out.println(icmult + " " + iamult);
-	aresistance = (-icmult*ic + ia*iamult > 1) ? .0105 : 10e5;
-	//System.out.println(vac + " " + vag + " " + sim.converged + " " + ic + " " + ia + " " + aresistance + " " + volts[inode] + " " + volts[gnode] + " " + volts[anode]);
 	sim.stampResistor(nodes[anode], nodes[inode], aresistance);
     }
     void getInfo(String arr[]) {
