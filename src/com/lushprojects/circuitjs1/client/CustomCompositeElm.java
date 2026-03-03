@@ -196,12 +196,12 @@ public class CustomCompositeElm extends CompositeElm {
         }
         if (n == 2) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button("Show Internal Elements");
+            ei.button = new Button(Locale.LS("View Components"));
             return ei;
         }
         if (n == 3 && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.button = new Button(Locale.LS("Load Model Circuit"));
+            ei.button = new Button(Locale.LS("Edit Model"));
             return ei;
         }
 	return null;
