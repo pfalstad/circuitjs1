@@ -21,18 +21,11 @@ echo "=== Using: $GRADLE ==="
 
 echo "=== Compiling GWT ==="
 cd "$DIR"
-$GRADLE compileGwt --console verbose
-
-# Link the compiled GWT module into war/ so circuitjs.html can find it.
-# circuitjs.html loads "circuitjs1/circuitjs1.nocache.js" via a relative path,
-# and the GWT module expects its public resources (circuits/, setuplist.txt,
-# locale files) under the same circuitjs1/ directory.
-# war/circuitjs1/ is already in .gitignore.
-ln -sfn "$DIR/build/gwt/out/circuitjs1" "$DIR/war/circuitjs1"
+$GRADLE compileGwt makeSite --console verbose
 
 echo ""
 echo "=== Starting server on http://localhost:$PORT/circuitjs.html ==="
-cd "$DIR/war"
+cd "$DIR/site"
 open "http://localhost:$PORT/circuitjs.html" 2>/dev/null \
   || xdg-open "http://localhost:$PORT/circuitjs.html" 2>/dev/null \
   || echo "Open http://localhost:$PORT/circuitjs.html in your browser"

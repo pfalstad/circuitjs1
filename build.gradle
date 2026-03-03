@@ -127,26 +127,38 @@ task cleanUp {
     }
 }
 
-//task makeSite(type: Copy) {
-task makeSite {
+tasks.register('makeSite', Copy) {
     group 'circuitjs1'
-    description 'Copy circuitjs resources from ./war ./build/gwt/out to ./site'
-    //dependsOn compileGwt
-    //@SkipWhenEmpty
+    description 'Copy circuitjs resources to ./site, using fresh GWT output'
+
+    dependsOn compileGwt  // Ensures fresh compile first
+
+    into 'site'
+
+    // Copy static files from war/ (HTML entry point, any other assets, but exclude stale GWT dir)
+    from('war') {
+        include '**/*.html'
+        include '**/*.css'
+        include '**/*.png', '**/*.jpg', '**/*.gif', '**/*.svg'
+        include '**/*.txt', '**/*.xml'  // e.g. setuplist.txt if here
+        include 'font/**'
+        // Importantly: exclude the old GWT module dir to avoid overwriting with stub
+        exclude 'circuitjs1/**'
+        // exclude 'WEB-INF/**' if needed
+    }
+
+    // Copy the PRODUCTION GWT output (this is the key part)
+    from('build/gwt/out/circuitjs1') {
+        into 'circuitjs1'  // Places contents directly into site/circuitjs1/
+        // Or if you want to preserve subdirs (unlikely needed): omit the 'into'
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // Prefer first source if any overlap
+
     doLast {
-        // Copying files using the copy() method without up-to-date check
-        copy {
-            println "\nCopying contents of ./war AND ./build/gwt/out into ./site ..."
-            from 'war'
-            include('**/*.html')
-            from 'build/gwt/out'
-            include('**/*')                 // to ensure recursion!
-            exclude('gwt/', 'WEB-INF/')
-            into 'site'
-
-            duplicatesStrategy = DuplicatesStrategy.INCLUDE  // Change to INCLUDE, WARN, or FAIL as needed
-
-            println "Done\n"
+        println "makeSite done. Checking site/circuitjs1:"
+        exec {
+            commandLine 'ls', '-la', 'site/circuitjs1'
         }
     }
 }
@@ -207,10 +219,10 @@ gwt {
     //-------------------------------------------------------------
     compiler {
         //compileReport  = false        // default: false ??
-        disableClassMetadata = true     // default: false
+        disableClassMetadata = false     // default: false
         disableCastChecking = true      // default: false
         strict = true                   // default: false
-        //style = "PRETTY"              // default: OBFUSCATED  / [OBFUSCATED,PRETTY,DETAILED]
+        style = "PRETTY"              // default: OBFUSCATED  / [OBFUSCATED,PRETTY,DETAILED]
     }
     dev {
         noserver = true
