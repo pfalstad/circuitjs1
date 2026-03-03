@@ -27,6 +27,7 @@ class CapacitorElm extends CircuitElm {
 	double capacitance;
 	double compResistance, voltdiff, seriesResistance;
 	double initialVoltage;
+	double prevCapacitance;
 	int capNode2;
 	Point plate1[], plate2[];
 	public static final int FLAG_BACK_EULER = 2;
@@ -34,13 +35,13 @@ class CapacitorElm extends CircuitElm {
 
 	public CapacitorElm(int xx, int yy) {
 	    super(xx, yy);
-	    capacitance = 1e-5;
+	    capacitance = prevCapacitance = 1e-5;
 	    initialVoltage = 1e-3;
 	}
 	public CapacitorElm(int xa, int ya, int xb, int yb, int f,
 			    StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
-	    capacitance = new Double(st.nextToken()).doubleValue();
+	    capacitance = prevCapacitance = new Double(st.nextToken()).doubleValue();
 	    voltdiff = new Double(st.nextToken()).doubleValue();
 	    initialVoltage = 1e-3;
 	    try {
@@ -59,6 +60,7 @@ class CapacitorElm extends CircuitElm {
 	    current = curcount = curSourceValue = 0;
 	    // put small charge on caps when reset to start oscillators
 	    voltdiff = initialVoltage;
+	    prevCapacitance = capacitance;
 	}
 	void shorted() {
 	    super.reset();
@@ -85,7 +87,7 @@ class CapacitorElm extends CircuitElm {
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
-	    capacitance = xml.parseDoubleAttr("c", capacitance);
+	    capacitance = prevCapacitance = xml.parseDoubleAttr("c", capacitance);
 	    initialVoltage = xml.parseDoubleAttr("iv", initialVoltage);
 	    seriesResistance = xml.parseDoubleAttr("sr", seriesResistance);
 	    voltdiff = xml.parseDoubleAttr("vd", voltdiff);
@@ -174,6 +176,12 @@ class CapacitorElm extends CircuitElm {
 		sim.stampResistor(nodes[1], nodes[2], seriesResistance);
 	}
 	void startIteration() {
+	    // conserve charge when capacitance changes (e.g. via slider).
+	    // Q = C*V, so V_new = C_old * V_old / C_new.
+	    if (prevCapacitance > 0 && prevCapacitance != capacitance) {
+		voltdiff *= prevCapacitance / capacitance;
+		prevCapacitance = capacitance;
+	    }
 	    if (isTrapezoidal())
 		curSourceValue = -voltdiff/compResistance-current;
 	    else
@@ -239,8 +247,10 @@ class CapacitorElm extends CircuitElm {
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0)
+	    if (n == 0) {
+		prevCapacitance = capacitance;
 		capacitance = (ei.value > 0) ? ei.value : 1e-12;
+	    }
 	    if (n == 1) {
 		if (ei.checkbox.getState())
 		    flags &= ~FLAG_BACK_EULER;
@@ -257,7 +267,7 @@ class CapacitorElm extends CircuitElm {
 	int getShortcut() { return 'c'; }
 	public double getCapacitance() { return capacitance; }
 	public double getSeriesResistance() { return seriesResistance; }
-	public void setCapacitance(double c) { capacitance = c; }
+	public void setCapacitance(double c) { prevCapacitance = capacitance; capacitance = c; }
 	public void setSeriesResistance(double c) { seriesResistance = c; }
 	public boolean isIdealCapacitor() { return (seriesResistance == 0); }
     }
