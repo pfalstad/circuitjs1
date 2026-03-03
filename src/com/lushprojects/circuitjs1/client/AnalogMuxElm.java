@@ -103,6 +103,24 @@ class AnalogMuxElm extends ChipElm {
 	}
     }
 
+    void calculateCurrent() {
+	int selectedInput = 0;
+	for (int i = 0; i != selectBitCount; i++)
+	    if (volts[inputCount + i] > threshold)
+		selectedInput |= 1 << i;
+	double outputCurrent = 0;
+	for (int i = 0; i != inputCount; i++) {
+	    double r = (i == selectedInput) ? r_on : r_off;
+	    double c = (volts[i] - volts[outputPin]) / r;
+	    pins[i].current = -c;
+	    outputCurrent += c;
+	}
+	pins[outputPin].current = outputCurrent;
+	// select pins carry no current
+	for (int i = 0; i != selectBitCount; i++)
+	    pins[inputCount + i].current = 0;
+    }
+
     boolean getConnection(int n1, int n2) {
 	// select pins are not connected to anything
 	if (n1 >= inputCount && n1 < outputPin)
