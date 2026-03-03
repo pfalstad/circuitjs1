@@ -54,7 +54,7 @@ TextArea textArea;
 RadioButton autoButton, maxButton, manualButton;
 RadioButton acButton, dcButton;
 CheckBox scaleBox, voltageBox, currentBox, powerBox, peakBox, negPeakBox, freqBox, spectrumBox, manualScaleBox;
-CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, ibBox, icBox, ieBox, vbeBox, vbcBox, vceBox, vceIcBox, logSpectrumBox, averageBox;
+CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, chargeBox, ibBox, icBox, ieBox, vbeBox, vbcBox, vceBox, vceIcBox, logSpectrumBox, averageBox;
 CheckBox elmInfoBox;
 TextBox labelTextBox, manualScaleTextBox, divisionsTextBox;
 Button applyButton, scaleUpButton, scaleDownButton;
@@ -171,6 +171,9 @@ labelledGridManager gridLabels;
 	    	    break;
 	    	case Scope.UNITS_W:
 	    	    l += " (P)";
+	    	    break;
+	    	case Scope.UNITS_C:
+	    	    l += " (Q)";
 	    	    break;
 	    }
 	    return l;
@@ -385,8 +388,9 @@ labelledGridManager gridLabels;
 		
 		CircuitElm elm = scope.getSingleElm();
 		boolean transistor = elm != null && elm instanceof TransistorElm;
+		boolean capacitor = elm != null && elm instanceof CapacitorElm;
 		if (!transistor) {
-		    grid = new Grid(11, 3);
+		    grid = new Grid(capacitor ? 12 : 11, 3);
 		    gridLabels = new labelledGridManager(grid);
 		    gridLabels.addLabel(Locale.LS("Plots"), displayAll);
 		    addItemToGrid(grid, voltageBox = new ScopeCheckBox(Locale.LS("Show Voltage"), "showvoltage"));
@@ -411,7 +415,11 @@ labelledGridManager gridLabels;
 		    vceBox.addValueChangeHandler(this);
 		}
 		addItemToGrid(grid, powerBox = new ScopeCheckBox(Locale.LS("Show Power Consumed"), "showpower"));
-		powerBox.addValueChangeHandler(this); 
+		powerBox.addValueChangeHandler(this);
+		if (capacitor) {
+		    addItemToGrid(grid, chargeBox = new ScopeCheckBox(Locale.LS("Show Charge"), "showcharge"));
+		    chargeBox.addValueChangeHandler(this);
+		}
 		addItemToGrid(grid, resistanceBox = new ScopeCheckBox(Locale.LS("Show Resistance"), "showresistance"));
 		resistanceBox.addValueChangeHandler(this);
 		addItemToGrid(grid, spectrumBox = new ScopeCheckBox(Locale.LS("Show Spectrum"), "showfft"));
@@ -572,6 +580,8 @@ labelledGridManager gridLabels;
 	    xyBox.setValue(scope.plotXY);
 	    resistanceBox.setValue(scope.showingValue(Scope.VAL_R));
 	    resistanceBox.setEnabled(scope.canShowResistance());
+	    if (chargeBox != null)
+		chargeBox.setValue(scope.hasPlotValue(Scope.VAL_CHARGE));
 	    if (vbeBox != null) {
                 ibBox.setValue(scope.showingValue(Scope.VAL_IB));
                 icBox.setValue(scope.showingValue(Scope.VAL_IC));

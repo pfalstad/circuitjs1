@@ -70,7 +70,7 @@ class ScopePlot {
 	manScale = manS;
 	// ohms can only be positive, so move the v position to the bottom.
 	// power can be negative for caps and inductors, but still move to the bottom (for backward compatibility)
-	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W)
+	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W || units == Scope.UNITS_C)
 	    manVPosition = -Scope.V_POSITION_STEPS/2;
     }
 
@@ -139,6 +139,8 @@ class ScopePlot {
 	    return CircuitElm.getUnitText(v, Locale.ohmString);
 	case Scope.UNITS_W:
 	    return CircuitElm.getUnitText(v, "W");
+	case Scope.UNITS_C:
+	    return CircuitElm.getUnitText(v, "C");
 	}
 	return null;
     }
@@ -210,11 +212,13 @@ class Scope {
     static final int VAL_VBC = 5;
     static final int VAL_VCE = 6;
     static final int VAL_R = 2;
+    static final int VAL_CHARGE = 8;
     static final int UNITS_V = 0;
     static final int UNITS_A = 1;
     static final int UNITS_W = 2;
     static final int UNITS_OHMS = 3;
-    static final int UNITS_COUNT = 4;
+    static final int UNITS_C = 4;
+    static final int UNITS_COUNT = 5;
     static final double multa[] = {2.0, 2.5, 2.0};
     static final int V_POSITION_STEPS=200;
     static final double MIN_MAN_SCALE = 1e-9;
@@ -289,6 +293,36 @@ class Scope {
 	calcVisiblePlots();
     }
 
+    // check if any plot has the given value (unlike showingValue which checks ALL plots)
+    boolean hasPlotValue(int v) {
+	for (int i = 0; i != plots.size(); i++) {
+	    if (plots.get(i).value == v)
+		return true;
+	}
+	return false;
+    }
+
+    void showCharge(boolean b) {
+	if (b) {
+	    // add a charge plot if not already present
+	    if (!hasPlotValue(VAL_CHARGE)) {
+		CircuitElm ce = getElm();
+		if (ce != null) {
+		    int u = ce.getScopeUnits(VAL_CHARGE);
+		    plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
+		}
+	    }
+	} else {
+	    // remove any charge plots
+	    for (int i = plots.size() - 1; i >= 0; i--) {
+		if (plots.get(i).value == VAL_CHARGE)
+		    plots.remove(i);
+	    }
+	}
+	calcVisiblePlots();
+	resetGraph();
+    }
+
     void showMax    (boolean b) { showMax = b; }
     void showScale    (boolean b) { showScale = b; }
     void showMin    (boolean b) { showMin = b; }
@@ -356,6 +390,7 @@ class Scope {
 	case UNITS_A: return "A";
 	case UNITS_OHMS: return Locale.ohmString;
 	case UNITS_W: return "W";
+	case UNITS_C: return "C";
 	default: return "V";
 	}
     }
@@ -368,7 +403,7 @@ class Scope {
     
     void initialize() {
     	resetGraph();
-    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = 5;
+    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = scale[UNITS_C] = 5;
     	scale[UNITS_A] = .1;
     	scaleX = 5;
     	scaleY = .1;
@@ -521,8 +556,9 @@ class Scope {
 	return true;
     }
 
-    // returns true if we have a plot of voltage and nothing else (except current).
-    // The default case is a plot of voltage and current, so we're basically checking if that case is true. 
+    // returns true if we have a plot of voltage and nothing else (except current or charge).
+    // The default case is a plot of voltage and current, so we're basically checking if that case is true.
+    // Charge is also allowed since it coexists additively with voltage and current.
     boolean showingVoltageAndMaybeCurrent() {
 	int i;
 	boolean gotv = false;
@@ -530,7 +566,7 @@ class Scope {
 	    ScopePlot sp = plots.get(i);
 	    if (sp.value == VAL_VOLTAGE)
 		gotv = true;
-	    else if (sp.value != VAL_CURRENT)
+	    else if (sp.value != VAL_CURRENT && sp.value != VAL_CHARGE)
 		return false;
 	}
 	return gotv;
@@ -682,6 +718,7 @@ class Scope {
 	    scale[UNITS_A] *= x;
 	    scale[UNITS_OHMS] *= x;
 	    scale[UNITS_W] *= x;
+	    scale[UNITS_C] *= x;
 	    scaleX *= x; // For XY plots
 	    scaleY *= x;
 	    return;
@@ -1979,7 +2016,7 @@ class Scope {
     	    scale[UNITS_A] = 1;
     	scaleX = scale[UNITS_V];
     	scaleY = scale[UNITS_A];
-    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_V];
+    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_C] = scale[UNITS_V];
     	text = null;
     	boolean plot2dFlag = (flags & 64) != 0;
     	boolean hasPlotFlags = (flags & FLAG_PERPLOTFLAGS) != 0;
@@ -2184,6 +2221,8 @@ class Scope {
     	}
     	if (mi == "showresistance")
     		setValue(VAL_R);
+    	if (mi == "showcharge")
+    		showCharge(state);
     }
 
 //    void select() {
