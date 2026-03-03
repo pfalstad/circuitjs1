@@ -264,10 +264,11 @@ class Scope {
     Scope(CirSim app_, SimulationManager sim_) {
     	sim = sim_;
     	app = app_;
+    	position = -1;
     	scale = new double[UNITS_COUNT];
     	reduceRange = new boolean[UNITS_COUNT];
 	manDivisions = lastManDivisions;
-    	
+
     	rect = new Rectangle(0, 0, 1, 1);
    	imageCanvas=Canvas.createIfSupported();
    	imageContext=imageCanvas.getContext2d();

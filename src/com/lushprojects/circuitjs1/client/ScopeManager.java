@@ -332,7 +332,8 @@ public class ScopeManager {
     }
 
     void addScope(Scope sc) {
-	sc.position = scopeCount;
+	if (sc.position < 0)
+	    sc.position = scopeCount;
 	scopes[scopeCount++] = sc;
     }
 
