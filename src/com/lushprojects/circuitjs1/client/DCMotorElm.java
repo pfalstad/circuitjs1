@@ -9,11 +9,15 @@ import com.google.gwt.xml.client.Document;
 
 class DCMotorElm extends CircuitElm {
 
+    // When set, K (torque constant) and Kb (back-EMF constant) can be edited independently.
+    // When not set, Kb is kept equal to K to enforce energy conservation (K = Kb in SI units).
+    static final int FLAG_SEPARATE_KB = 4;
+
     Inductor ind, indInertia;
     // Electrical parameters
     double resistance, inductance;
     // Electro-mechanical parameters
-    double K, Kb, J, b, gearRatio, tau; //tau reserved for static friction parameterization  
+    double K, Kb, J, b, gearRatio, tau; //tau reserved for static friction parameterization
     public double angle;
     public double speed;
 
@@ -220,6 +224,8 @@ class DCMotorElm extends CircuitElm {
 	arr[5] = "R = " + getUnitText(resistance, Locale.ohmString);
 	arr[6] = "P = " + getUnitText(getPower(), "W");
     }
+    boolean hasSeparateKb() { return (flags & FLAG_SEPARATE_KB) != 0; }
+
     public EditInfo getEditInfo(int n) {
 
 	if (n == 0)
@@ -228,35 +234,63 @@ class DCMotorElm extends CircuitElm {
 	    return new EditInfo("Armature Resistance (ohms)", resistance, 0, 0);
 	if (n == 2)
 	    return new EditInfo("Torque constant (Nm/A)", K, 0, 0);
-	if (n == 3)
-	    return new EditInfo("Back emf constant (Vs/rad)", Kb, 0, 0);
-	if (n == 4)
+	if (n == 3) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.checkbox = new Checkbox("Separate back-EMF constant", hasSeparateKb());
+	    return ei;
+	}
+	if (n == 4 && hasSeparateKb())
+	    return new EditInfo("Back-EMF constant (Vs/rad)", Kb, 0, 0);
+	if (n == 4 && !hasSeparateKb())
 	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
-	if (n == 5)
+	if (n == 5 && hasSeparateKb())
+	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
+	if (n == 5 && !hasSeparateKb())
 	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
-	if (n == 6)
+	if (n == 6 && hasSeparateKb())
+	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
+	if (n == 6 && !hasSeparateKb())
+	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
+	if (n == 7 && hasSeparateKb())
 	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
 
-	if (ei.value > 0 & n==0) {
+	if (n == 0 && ei.value > 0) {
             inductance = ei.value;
             ind.setup(inductance, current, Inductor.FLAG_BACK_EULER);
         }
-	if (ei.value > 0 & n==1)
+	if (n == 1 && ei.value > 0)
 	    resistance = ei.value;
-	if (ei.value > 0 & n==2)
+	if (n == 2 && ei.value > 0) {
 	    K = ei.value;
-	if (ei.value > 0 & n==3)
+	    if (!hasSeparateKb())
+		Kb = K;
+	}
+	if (n == 3) {
+	    flags = ei.changeFlag(flags, FLAG_SEPARATE_KB);
+	    if (!hasSeparateKb())
+		Kb = K;
+	    ei.newDialog = true;
+	}
+	if (n == 4 && hasSeparateKb() && ei.value > 0)
 	    Kb = ei.value;
-	if (ei.value > 0 & n==4) {
+	if (n == 4 && !hasSeparateKb() && ei.value > 0) {
             J = ei.value;
             indInertia.setup(J, inertiaCurrent, Inductor.FLAG_BACK_EULER);
         }
-	if (ei.value > 0 & n==5)
+	if (n == 5 && hasSeparateKb() && ei.value > 0) {
+            J = ei.value;
+            indInertia.setup(J, inertiaCurrent, Inductor.FLAG_BACK_EULER);
+        }
+	if (n == 5 && !hasSeparateKb() && ei.value > 0)
 	    b = ei.value;
-	if (ei.value > 0 & n==6)
+	if (n == 6 && hasSeparateKb() && ei.value > 0)
+	    b = ei.value;
+	if (n == 6 && !hasSeparateKb() && ei.value > 0)
+	    gearRatio = ei.value;
+	if (n == 7 && hasSeparateKb() && ei.value > 0)
 	    gearRatio = ei.value;
     }
 }
