@@ -172,6 +172,9 @@ labelledGridManager gridLabels;
 	    	case Scope.UNITS_W:
 	    	    l += " (P)";
 	    	    break;
+	    	case Scope.UNITS_C:
+	    	    l += " (Q)";
+	    	    break;
 	    }
 	    return l;
 	
@@ -577,6 +580,8 @@ labelledGridManager gridLabels;
 	    xyBox.setValue(scope.plotXY);
 	    resistanceBox.setValue(scope.showingValue(Scope.VAL_R));
 	    resistanceBox.setEnabled(scope.canShowResistance());
+	    if (chargeBox != null)
+		chargeBox.setValue(scope.hasPlotValue(Scope.VAL_CHARGE));
 	    if (vbeBox != null) {
                 ibBox.setValue(scope.showingValue(Scope.VAL_IB));
                 icBox.setValue(scope.showingValue(Scope.VAL_IC));

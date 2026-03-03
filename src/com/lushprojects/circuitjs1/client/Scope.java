@@ -292,6 +292,36 @@ class Scope {
 	calcVisiblePlots();
     }
 
+    // check if any plot has the given value (unlike showingValue which checks ALL plots)
+    boolean hasPlotValue(int v) {
+	for (int i = 0; i != plots.size(); i++) {
+	    if (plots.get(i).value == v)
+		return true;
+	}
+	return false;
+    }
+
+    void showCharge(boolean b) {
+	if (b) {
+	    // add a charge plot if not already present
+	    if (!hasPlotValue(VAL_CHARGE)) {
+		CircuitElm ce = getElm();
+		if (ce != null) {
+		    int u = ce.getScopeUnits(VAL_CHARGE);
+		    plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
+		}
+	    }
+	} else {
+	    // remove any charge plots
+	    for (int i = plots.size() - 1; i >= 0; i--) {
+		if (plots.get(i).value == VAL_CHARGE)
+		    plots.remove(i);
+	    }
+	}
+	calcVisiblePlots();
+	resetGraph();
+    }
+
     void showMax    (boolean b) { showMax = b; }
     void showScale    (boolean b) { showScale = b; }
     void showMin    (boolean b) { showMin = b; }
@@ -525,8 +555,9 @@ class Scope {
 	return true;
     }
 
-    // returns true if we have a plot of voltage and nothing else (except current).
-    // The default case is a plot of voltage and current, so we're basically checking if that case is true. 
+    // returns true if we have a plot of voltage and nothing else (except current or charge).
+    // The default case is a plot of voltage and current, so we're basically checking if that case is true.
+    // Charge is also allowed since it coexists additively with voltage and current.
     boolean showingVoltageAndMaybeCurrent() {
 	int i;
 	boolean gotv = false;
@@ -534,7 +565,7 @@ class Scope {
 	    ScopePlot sp = plots.get(i);
 	    if (sp.value == VAL_VOLTAGE)
 		gotv = true;
-	    else if (sp.value != VAL_CURRENT)
+	    else if (sp.value != VAL_CURRENT && sp.value != VAL_CHARGE)
 		return false;
 	}
 	return gotv;
@@ -2180,7 +2211,7 @@ class Scope {
     	if (mi == "showresistance")
     		setValue(VAL_R);
     	if (mi == "showcharge")
-    		setValue(VAL_CHARGE);
+    		showCharge(state);
     }
 
 //    void select() {
