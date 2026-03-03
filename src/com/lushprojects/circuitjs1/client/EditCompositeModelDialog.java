@@ -22,6 +22,7 @@ package com.lushprojects.circuitjs1.client;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.Vector;
 import java.util.HashSet;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
@@ -257,11 +258,19 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
 	    if (popContext) {
 		// Save the new model, pop context (which reloads old circuit with old models),
-		// then swap the new model back in
+		// then swap the new model back in.  Also carry forward any models changed at
+		// deeper levels so they aren't lost when the parent context pops.
+		CirSim app = CirSim.theApp;
 		CustomCompositeModel savedModel = model;
-		CirSim.theApp.popContext();
-		CustomCompositeModel.replaceModel(savedModel);
-		CirSim.theApp.refreshModels(savedModel.name);
+		Vector<CustomCompositeModel> changedModels = app.popContextAndGetChangedModels();
+		changedModels.add(savedModel);
+		for (CustomCompositeModel m : changedModels) {
+		    CustomCompositeModel.replaceModel(m);
+		    app.refreshModels(m.name);
+		}
+		// if still in a context, carry forward all changed models to the parent
+		if (!app.contextStack.isEmpty())
+		    app.contextStack.lastElement().changedModels.addAll(changedModels);
 	    }
 	    closeDialog();
 	}

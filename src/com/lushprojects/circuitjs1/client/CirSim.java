@@ -447,8 +447,13 @@ public class CirSim implements NativePreviewHandler {
     }
 
     void popContext() {
+	popContextAndGetChangedModels();
+    }
+
+    // pop context and return the list of models changed at deeper levels
+    Vector<CustomCompositeModel> popContextAndGetChangedModels() {
 	if (contextStack.isEmpty())
-	    return;
+	    return new Vector<CustomCompositeModel>();
 	CircuitContext ctx = contextStack.remove(contextStack.size() - 1);
 	loader.readCircuit(ctx.circuitDump, CircuitLoader.RC_NO_CENTER);
 	transform = ctx.transform;
@@ -456,6 +461,7 @@ public class CirSim implements NativePreviewHandler {
 	undoManager.redoStack = ctx.redoStack;
 	undoManager.enableUndoRedo();
 	ui.updateContextButtons();
+	return ctx.changedModels;
     }
 
     boolean isEditingContext() {
@@ -629,5 +635,6 @@ class CircuitContext {
     Vector<UndoManager.UndoItem> redoStack;
     double[] transform;
     String modelName;
+    Vector<CustomCompositeModel> changedModels = new Vector<CustomCompositeModel>();
 }
 
