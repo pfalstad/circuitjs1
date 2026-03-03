@@ -234,6 +234,8 @@ class Scope {
 
     boolean logSpectrum;
     boolean showFFT, showNegative, showRMS, showAverage, showDutyCycle, showElmInfo;
+    double fftMaxMagnitude; // peak FFT magnitude, saved for cursor dB readout
+    double[] fftReal, fftImag; // saved FFT results for cursor readout
     Vector<ScopePlot> plots, visiblePlots;
     int draw_ox, draw_oy;
     CirSim app;
@@ -737,6 +739,10 @@ class Scope {
     	  if (m > maxM)
     		  maxM = m;
       }
+      // save for cursor readout
+      fftMaxMagnitude = maxM;
+      fftReal = real;
+      fftImag = imag;
       int prevX = 0;
       g.setColor("#FF0000");
       if (!logSpectrum) {
@@ -754,16 +760,35 @@ class Scope {
 	      prevX = x;
 	  }
       } else {
-	  int y0 = 5;
+	  // log spectrum mode: display in dB relative to peak magnitude
+	  double dbRange = 80; // show 80 dB of dynamic range
+	  int topMargin = 5;
+	  int bottomMargin = 12;
+	  int plotHeight = rect.height - topMargin - bottomMargin;
+	  double pixelsPerDb = plotHeight / dbRange;
 	  int prevY = 0;
-	  double ymult = rect.height/10;
-	  double val0 = Math.log(scale[plot.units])*ymult;
+
+	  // draw horizontal dB grid lines and labels
+	  for (int db = 0; db >= -80; db -= 20) {
+	      int y = topMargin + (int) (-db * pixelsPerDb);
+	      if (y < 0 || y >= rect.height)
+		  continue;
+	      g.setColor("#880000");
+	      g.drawLine(0, y, rect.width, y);
+	      g.setColor("#FF0000");
+	      g.drawString(db + " dB", 2, y - 2);
+	  }
+
+	  g.setColor("#FF0000");
 	  for (int i = 0; i < scopePointCount / 2; i++) {
 	      int x = 2 * i * rect.width / scopePointCount;
 	      // rect.width may be greater than or less than scopePointCount/2,
 	      // so x may be greater than or equal to prevX.
-	      double val = Math.log(fft.magnitude(real[i], imag[i]));
-	      int y = y0-(int) (val*ymult-val0);
+	      double magnitude = fft.magnitude(real[i], imag[i]);
+	      double db = 20 * Math.log(magnitude / maxM) / Math.log(10);
+	      if (db < -dbRange)
+		  db = -dbRange;
+	      int y = topMargin + (int) (-db * pixelsPerDb);
 	      if (x != prevX)
 		  g.drawLine(prevX, prevY, x, y);
 	      prevY = y;
@@ -1290,7 +1315,7 @@ class Scope {
 	    return;
 	if (cursorScope == null)
 	    return;
-	String info[] = new String[4];
+	String info[] = new String[5];
 	int cursorX = -1;
 	int ct = 0;
 	if (cursorTime >= 0) {
@@ -1316,6 +1341,15 @@ class Scope {
             if (cursorX < 0)
         	cursorX = app.mouse.mouseCursorX;
             info[ct++] = CircuitElm.getUnitText(maxFrequency*(app.mouse.mouseCursorX-rect.x)/rect.width, "Hz");
+            // show dB magnitude at cursor position
+            if (fft != null && fftReal != null && fftMaxMagnitude > 0) {
+                int fftIndex = (app.mouse.mouseCursorX - rect.x) * scopePointCount / (2 * rect.width);
+                if (fftIndex >= 0 && fftIndex < scopePointCount / 2) {
+                    double mag = fft.magnitude(fftReal[fftIndex], fftImag[fftIndex]);
+                    double db = 20 * Math.log(mag / fftMaxMagnitude) / Math.log(10);
+                    info[ct++] = Math.round(db) + " dB";
+                }
+            }
         } else if (cursorX < rect.x)
             return;
         
