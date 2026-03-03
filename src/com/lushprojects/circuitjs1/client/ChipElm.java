@@ -97,12 +97,16 @@ abstract class ChipElm extends CircuitElm {
 		    hasVertical = true;
 		    break;
 		}
+	    double threshold = getThreshold();
 	    for (i = 0; i != getPostCount(); i++) {
 		g.setFont(f);
 		Pin p = pins[i];
 		if (p.busZ > 0)
 		    continue;
-		setVoltageColor(g, volts[i]);
+		if (isDigitalChip())
+		    setLogicPinColor(g, volts[i], threshold);
+		else
+		    setVoltageColor(g, volts[i]);
 		Point a = p.post;
 		Point b = p.stub;
 		drawThickLine(g, a, b, p.busWidth > 1 ? 5 : 3);
