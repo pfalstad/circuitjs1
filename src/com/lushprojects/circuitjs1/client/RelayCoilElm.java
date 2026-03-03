@@ -289,7 +289,7 @@ class RelayCoilElm extends CircuitElm {
 	double a = Math.exp(-sim.timeStep*1e3);
 	avgCurrent = a*avgCurrent + (1-a)*absCurrent;
 	int oldSwitchPosition = switchPosition;
-	
+
 	if (state == 0) {
 	    if (avgCurrent > onCurrent) {
 		lastTransition = sim.t;
@@ -311,7 +311,7 @@ class RelayCoilElm extends CircuitElm {
 		state = 3;
 	    }
 	} else if (state == 3) {
-	    if (avgCurrent > onCurrent) 
+	    if (avgCurrent > onCurrent)
 		state = 2;
 	    else if (sim.t-lastTransition > switchingTimeOff) {
 		state = 0;
@@ -319,8 +319,38 @@ class RelayCoilElm extends CircuitElm {
 		    switchPosition = 0;
 	    }
 	}
-	
-	if (oldSwitchPosition != switchPosition)
+
+	// compute fractional position (0=deenergized, 1=energized) for
+	// smooth contact transition.  for latching relays, the direction
+	// depends on the current switchPosition and contacts hold
+	// position during de-energize.
+	double elapsed = sim.t - lastTransition;
+	if (type == TYPE_LATCHING) {
+	    if (state == 1 && switchingTimeOn > 0) {
+		// latching relay energizing: transition from switchPosition
+		// toward (1-switchPosition)
+		double frac = Math.min(elapsed / switchingTimeOn, 1);
+		if (switchPosition == 1)
+		    d_position = 1 - frac;
+		else
+		    d_position = frac;
+	    } else {
+		// latching relay holds position in all other states
+		d_position = switchPosition;
+	    }
+	} else {
+	    if (state == 1 && switchingTimeOn > 0) {
+		d_position = Math.min(elapsed / switchingTimeOn, 1);
+	    } else if (state == 3 && switchingTimeOff > 0) {
+		d_position = Math.max(1 - elapsed / switchingTimeOff, 0);
+	    } else if (state == 2) {
+		d_position = 1;
+	    } else {
+		d_position = 0;
+	    }
+	}
+
+	if (oldSwitchPosition != switchPosition || state == 1 || state == 3)
 	    setSwitchPositions();
     }
     
@@ -334,7 +364,7 @@ class RelayCoilElm extends CircuitElm {
 	    if (o instanceof RelayContactElm) {
 		RelayContactElm s2 = (RelayContactElm) o;
 		if (s2.label.equals(label))
-		    s2.setPosition(1-switchPosition, type);
+		    s2.setPosition(1-switchPosition, d_position, type);
 	    }
 	}
     }
