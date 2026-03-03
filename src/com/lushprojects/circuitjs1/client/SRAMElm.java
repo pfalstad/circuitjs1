@@ -32,6 +32,8 @@ import com.google.gwt.xml.client.Element;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
 	static String contentsOverride = null;
+	TextArea editTextArea;
+	boolean hexTogglePending;
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -123,6 +125,7 @@ import com.google.gwt.xml.client.Element;
             if (n == 2) {
         	EditInfo ei = new EditInfo("Contents", 0);
         	ei.textArea = new TextArea();
+        	editTextArea = ei.textArea;
         	ei.textArea.setVisibleLines(5);
         	String s = (contentsOverride != null) ? contentsOverride : contentsToString();
         	contentsOverride = null;
@@ -211,10 +214,31 @@ import com.google.gwt.xml.client.Element;
 		setupPins();
 		setPoints();
 	    }
-	    if (n == 2)
-		parseContentsString(ei.textArea.getText());
-	    if (n == 3)
+	    if (n == 2) {
+		// skip re-parse during apply() if hex toggle already handled it
+		if (!hexTogglePending)
+		    parseContentsString(ei.textArea.getText());
+	    }
+	    if (n == 3) {
+		if (hexTogglePending) {
+		    // already handled by the checkbox click; skip the
+		    // redundant apply() call so we don't re-parse with wrong radix
+		    hexTogglePending = false;
+		    return;
+		}
+		int oldFlags = flags;
+		// parse text area contents with old flag before toggling,
+		// so values are not reinterpreted in the wrong radix
+		if (editTextArea != null)
+		    parseContentsString(editTextArea.getText());
 		flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
+		if (flags != oldFlags) {
+		    // regenerate display with new format
+		    contentsOverride = contentsToString();
+		    hexTogglePending = true;
+		    ei.newDialog = true;
+		}
+	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }

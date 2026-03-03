@@ -130,10 +130,10 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		Date date = new Date();
 
 		Canvas canvas = Canvas.createIfSupported();
-		canvas.setWidth("600 px");
-		canvas.setHeight("600 px");
-		canvas.setCoordinateSpaceWidth(600);
-		canvas.setCoordinateSpaceHeight(600);
+		canvas.setWidth("400 px");
+		canvas.setHeight("400 px");
+		canvas.setCoordinateSpaceWidth(400);
+		canvas.setCoordinateSpaceHeight(400);
 		vp.add(canvas);
 		MouseManager.doTouchHandlers(null, canvas.getCanvasElement());
 		context = canvas.getContext2d();

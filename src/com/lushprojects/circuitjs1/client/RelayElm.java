@@ -224,19 +224,8 @@ class RelayElm extends CircuitElm {
 			 switchCurCount[p]);
 	}
 	
-	// draw NC/NO labels near switch throw contacts
-	g.setColor(whiteColor);
-	g.setFont(unitsFont);
-	for (p = 0; p != poleCount; p++) {
-	    int labelOffset = 8 * dflip;
-	    Point ncPost = swposts[p][1];
-	    Point noPost = swposts[p][2];
-	    g.drawString("NC", ncPost.x + 4, ncPost.y + 4);
-	    g.drawString("NO", noPost.x + 4, noPost.y + 4);
-	}
-
 	coilCurCount = updateDotCount(coilCurrent, coilCurCount);
-
+	
 	if (coilCurCount != 0) {
 	    drawDots(g, coilPosts[0], coilLeads[0], coilCurCount);
 	    drawDots(g, coilLeads[0], coilLeads[1], addCurCount(coilCurCount, currentOffset1));
