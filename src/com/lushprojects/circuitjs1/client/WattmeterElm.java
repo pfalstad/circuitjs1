@@ -27,6 +27,13 @@ class WattmeterElm extends CircuitElm {
     int voltSources[];
     double currents[];
     double curcounts[];
+    int meter; // 0=instantaneous, 1=average
+    final int PM_INST = 0;
+    final int PM_AVG = 1;
+    double avgPower, totalPower, count;
+    int zerocount;
+    double maxP, lastMaxP, minP, lastMinP;
+    boolean increasingP = true, decreasingP = true;
 
     public WattmeterElm(int xx, int yy) {
 	super(xx, yy);
@@ -36,6 +43,9 @@ class WattmeterElm extends CircuitElm {
 	    StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
 	width = Integer.parseInt(st.nextToken());
+	try {
+	    meter = Integer.parseInt(st.nextToken());
+	} catch (Exception e) {}
 	setup();
     }
 
@@ -45,13 +55,17 @@ class WattmeterElm extends CircuitElm {
 	curcounts = new double[2];
     }
 
+    String dump() { return super.dump() + " " + width + " " + meter; }
+
     void dumpXml(Document doc, Element elem) {
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "w", width);
+	XMLSerializer.dumpAttr(elem, "meter", meter);
     }
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
 	width = xml.parseIntAttr("w", width);
+	meter = xml.parseIntAttr("meter", meter);
 	setup();
     }
 
@@ -130,6 +144,55 @@ class WattmeterElm extends CircuitElm {
 	voltSources[j] = vs;
     }
 
+    void stepFinished() {
+	double p = getPower();
+	count++;
+	totalPower += p;
+	if (p > maxP && increasingP) {
+	    maxP = p;
+	    increasingP = true;
+	    decreasingP = false;
+	}
+	if (p < maxP && increasingP) {
+	    lastMaxP = maxP;
+	    minP = p;
+	    increasingP = false;
+	    decreasingP = true;
+	    avgPower = totalPower / count;
+	    if (Double.isNaN(avgPower))
+		avgPower = 0;
+	    count = 0;
+	    totalPower = 0;
+	}
+	if (p < minP && decreasingP) {
+	    minP = p;
+	    increasingP = false;
+	    decreasingP = true;
+	}
+	if (p > minP && decreasingP) {
+	    lastMinP = minP;
+	    maxP = p;
+	    increasingP = true;
+	    decreasingP = false;
+	    avgPower = totalPower / count;
+	    if (Double.isNaN(avgPower))
+		avgPower = 0;
+	    count = 0;
+	    totalPower = 0;
+	}
+	if (p == 0) {
+	    zerocount++;
+	    if (zerocount > 5) {
+		totalPower = 0;
+		avgPower = 0;
+		maxP = 0;
+		minP = 0;
+	    }
+	} else {
+	    zerocount = 0;
+	}
+    }
+
     void draw(Graphics g) {
 	int i;
 	for (i = 0; i != 2; i++)
@@ -141,14 +204,18 @@ class WattmeterElm extends CircuitElm {
 	    drawDots(g, posts[i], inner[i], curcounts[i/2]*flip);
 	    flip *= -1;
 	}
-	
+
         g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	drawThickPolygon(g, rectPointsX, rectPointsY, 4);
-	
+
 	setBbox(posts[0].x, posts[0].y, posts[3].x, posts[3].y);
 	drawPosts(g);
 
-	String str = getUnitText(getPower(), "W");
+	String str;
+	switch (meter) {
+	case PM_AVG:  str = getUnitText(avgPower, "W(avg)"); break;
+	default:      str = getUnitText(getPower(), "W"); break;
+	}
 	g.save();
 	int fsize = 15;
 	int w;
@@ -185,10 +252,29 @@ class WattmeterElm extends CircuitElm {
 	arr[0] = "wattmeter";
 	getBasicInfo(arr);
 	arr[3] = "P = " + getUnitText(getPower(), "W");
+	if (meter == PM_AVG)
+	    arr[4] = "Pavg = " + getUnitText(avgPower, "W");
     }
     boolean canViewInScope() { return true; }
     double getCurrent() { return currents[1]; }
     double getVoltageDiff() { return volts[2]-volts[0]; }
     boolean canFlipX() { return false; }
     boolean canFlipY() { return false; }
+
+    public EditInfo getEditInfo(int n) {
+	if (n == 0) {
+	    EditInfo ei = new EditInfo("Value", 0, -1, -1);
+	    ei.choice = new Choice();
+	    ei.choice.add("Instantaneous");
+	    ei.choice.add("Average");
+	    ei.choice.select(meter);
+	    return ei;
+	}
+	return null;
+    }
+
+    public void setEditValue(int n, EditInfo ei) {
+	if (n == 0)
+	    meter = ei.choice.getSelectedIndex();
+    }
 }
