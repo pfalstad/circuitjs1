@@ -142,6 +142,8 @@ class XMLSerializer {
 		dumpAttr(ae, "stp", adj.sliderStep);
 	    if (adj.sharedSlider != null)
 		dumpAttr(ae, "ss", app.adjustables.indexOf(adj.sharedSlider));
+	    if (adj.logarithmic)
+		dumpAttr(ae, "log", 1);
 	    root.appendChild(ae);
 	}
 	if (app.hintType != -1) {
