@@ -1845,7 +1845,7 @@ class Scope {
     	CircuitElm elm = getSingleElm();
     	return elm != null && elm.canShowValueInScope(VAL_R);
     }
-    
+
     boolean isShowingVceAndIc() {
 	return plot2d && plots.size() == 2 && plots.get(0).value == VAL_VCE && plots.get(1).value == VAL_IC;
     }
