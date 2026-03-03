@@ -1031,6 +1031,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	double val = dy*.01;
     	newScale = Math.max(oldScale+val, .2);
     	newScale = Math.min(newScale, 2.5);
+    	if (newScale == oldScale)
+    	    return;
     	setCircuitScale(newScale, menu);
     }
 
