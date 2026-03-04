@@ -1233,8 +1233,8 @@ public abstract class CircuitElm implements Editable {
     
     void dumpXml(Document doc, Element elem) {
 	XMLSerializer.dumpAttr(elem, "x", x + " " + y + " " + x2 + " " + y2);
-	if (flags != 0)
-	    XMLSerializer.dumpAttr(elem, "f", flags);
+	//if (flags != 0)   // can't do this because some elements set flags to a nonzero value in constructor
+	XMLSerializer.dumpAttr(elem, "f", flags);
     }
 
     void undumpXml(XMLDeserializer xml) {
