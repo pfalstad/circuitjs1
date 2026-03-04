@@ -43,6 +43,8 @@ import static com.google.gwt.event.dom.client.KeyCodes.*;
 
 public class UIManager {
 
+    static UIManager theUI;
+
     CirSim app;
     Menus menus;
     ScopeManager scopeManager;
@@ -99,6 +101,7 @@ public class UIManager {
 
     UIManager(CirSim app) {
 	this.app = app;
+	theUI = this;
     }
 
     void init() {
