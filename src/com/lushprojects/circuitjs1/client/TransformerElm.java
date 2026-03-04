@@ -79,10 +79,6 @@ class TransformerElm extends CircuitElm {
 	    setPoints();
 	}
 	int getDumpType() { return 'T'; }
-	String dump() {
-	    return super.dump() + " " + inductance + " " + ratio + " " +
-		current[0] + " " + current[1] + " " + couplingCoef;
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);

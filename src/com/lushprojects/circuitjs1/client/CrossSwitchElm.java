@@ -222,14 +222,18 @@ package com.lushprojects.circuitjs1.client;
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
+	    if (n == 1)
+		return getKeyShortcutEditInfo();
 	    return null;
 	}
-	
+
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 0) {
 		flags = ei.changeFlag(flags, FLAG_IEC);
 		setPoints();
 	    }
+	    if (n == 1)
+		setKeyShortcutEditValue(ei);
 	}
 
     }

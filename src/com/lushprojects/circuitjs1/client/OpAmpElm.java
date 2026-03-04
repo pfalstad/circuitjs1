@@ -68,10 +68,6 @@ import com.google.gwt.xml.client.Document;
 	    // gain was 1000, but it broke amp-schmitt.txt
 	    gain = ((flags & FLAG_LOWGAIN) != 0) ? 1000 : 100000;
 	}
-	String dump() {
-	    flags |= FLAG_GAIN;
-	    return super.dump() + " " + maxOut + " " + minOut + " " + gbw + " " + volts[0] + " " + volts[1] + " " + gain;
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);

@@ -205,6 +205,8 @@ class DPDTSwitchElm extends SwitchElm {
 	    	return new EditInfo("# of Poles", poleCount, 2, 10).setDimensionless();
 	    if (n == 1)
 		return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
+	    if (n == 2)
+		return getKeyShortcutEditInfo();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -217,6 +219,8 @@ class DPDTSwitchElm extends SwitchElm {
 		flags = ei.changeFlag(flags, FLAG_IEC);
 		setPoints();
 	    }
+	    if (n == 2)
+		setKeyShortcutEditValue(ei);
 	}
 	
 	int getShortcut() { return 0; }

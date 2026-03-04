@@ -71,10 +71,10 @@ public class Scrollbar extends  Composite implements
 	boolean enabled=true;
 	Command command=null;
 	CircuitElm attachedElm=null;
-	
-	static int VERTICALPANELWIDTH = UIManager.VERTICALPANELWIDTH;
-	
+	int VERTICALPANELWIDTH;
+
 	public Scrollbar(int orientation, int value, int visible, int minimum, int maximum) {
+		VERTICALPANELWIDTH = UIManager.VERTICALPANELWIDTH;
 		min=minimum;
 		max=maximum-1;
 		val=value;

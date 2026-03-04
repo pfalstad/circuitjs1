@@ -390,6 +390,8 @@ public class CirSim implements NativePreviewHandler {
     
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
 		int flags = subcircuitsOnly ? (CircuitLoader.RC_SUBCIRCUITS | CircuitLoader.RC_RETAIN) : 0;
+		if (!subcircuitsOnly)
+		    resetEditingContext();
 		if (circuitText != null) {
 			loader.readCircuit(circuitText, flags);
 			allowSave(false);
@@ -447,14 +449,25 @@ public class CirSim implements NativePreviewHandler {
     }
 
     void popContext() {
+	popContextAndGetChangedModels();
+    }
+
+    // pop context and return the list of models changed at deeper levels
+    Vector<CustomCompositeModel> popContextAndGetChangedModels() {
 	if (contextStack.isEmpty())
-	    return;
+	    return new Vector<CustomCompositeModel>();
 	CircuitContext ctx = contextStack.remove(contextStack.size() - 1);
 	loader.readCircuit(ctx.circuitDump, CircuitLoader.RC_NO_CENTER);
 	transform = ctx.transform;
 	undoManager.undoStack = ctx.undoStack;
 	undoManager.redoStack = ctx.redoStack;
 	undoManager.enableUndoRedo();
+	ui.updateContextButtons();
+	return ctx.changedModels;
+    }
+
+    void resetEditingContext() {
+	contextStack.clear();
 	ui.updateContextButtons();
     }
 
@@ -605,6 +618,20 @@ public class CirSim implements NativePreviewHandler {
 	    ce.updateModels();
     }
 
+    // force all CustomCompositeElm with a given model name to re-fetch their model
+    public void refreshModels(String modelName) {
+	for (CircuitElm ce : elmList) {
+	    if (ce instanceof CustomCompositeElm) {
+		CustomCompositeElm cce = (CustomCompositeElm) ce;
+		if (cce.modelName.equals(modelName)) {
+		    cce.model = null;
+		    cce.updateModels();
+		}
+	    }
+	}
+	needAnalyze();
+    }
+
 	boolean isSelection() { return ui.isSelection(); }
 
 }
@@ -615,5 +642,6 @@ class CircuitContext {
     Vector<UndoManager.UndoItem> redoStack;
     double[] transform;
     String modelName;
+    Vector<CustomCompositeModel> changedModels = new Vector<CustomCompositeModel>();
 }
 

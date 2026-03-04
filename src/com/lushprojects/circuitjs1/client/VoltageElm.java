@@ -82,19 +82,6 @@ class VoltageElm extends CircuitElm {
     }
     int getDumpType() { return 'v'; }
     
-    String dump() {
-	// set flag so we know if duty cycle is correct for pulse waveforms
-	if (waveform == WF_PULSE)
-	    flags |= FLAG_PULSE_DUTY;
-	else
-	    flags &= ~FLAG_PULSE_DUTY;
-	
-	return super.dump() + " " + waveform + " " + frequency + " " +
-	    maxVoltage + " " + bias + " " + phaseShift + " " +
-	    dutyCycle;
-	// VarRailElm adds text at the end
-    }
-
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "wf", waveform);
@@ -230,7 +217,8 @@ class VoltageElm extends CircuitElm {
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
 	if (dx == 0 || dy == 0) {
-	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0;
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0 ||
+			    (showValues() && waveform == WF_DC);
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)

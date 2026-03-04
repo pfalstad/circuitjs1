@@ -237,13 +237,6 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
     void updateModel() {
     }
 
-    String dump() {
-	dumped = true;
-	return "32 " + CustomLogicModel.escape(name) + " " + flags + " " +
-		satCur + " " + invRollOffF + " " + BEleakCur + " " + leakBEemissionCoeff + " " + invRollOffR + " " +
-		BCleakCur + " " + leakBCemissionCoeff + " " + emissionCoeffF + " " + emissionCoeffR + " " + invEarlyVoltF + " " + invEarlyVoltR + " " + betaR;
-    }
-
     void dumpXml(Document doc) {
 	dumped = true;
 	Element elem = doc.createElement("tm");

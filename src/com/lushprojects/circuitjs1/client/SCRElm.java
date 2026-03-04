@@ -78,11 +78,6 @@ class SCRElm extends CircuitElm {
 	lastvag = lastvac = curcount_a = curcount_c = curcount_g = 0;
     }
     int getDumpType() { return 177; }
-    String dump() {
-	return super.dump() + " " + (volts[anode]-volts[cnode]) + " " +
-	    (volts[anode]-volts[gnode]) + " " + triggerI + " "+  holdingI + " " +
-	    gresistance;
-    }
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

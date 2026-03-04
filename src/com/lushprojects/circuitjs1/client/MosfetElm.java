@@ -116,10 +116,6 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		e.getDeltaY(), this, app);
 	}
 
-	String dump() {
-	    return super.dump() + " " + vt + " " + beta;
-	}
-
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "vt", vt);

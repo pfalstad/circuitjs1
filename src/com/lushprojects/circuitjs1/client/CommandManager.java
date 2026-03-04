@@ -4,6 +4,7 @@ import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.dom.client.Document;
+import com.google.gwt.xml.client.XMLParser;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class CommandManager {
@@ -430,13 +431,7 @@ public class CommandManager {
     void doCut() {
     	app.undoManager.pushUndo();
     	setMenuSelection();
-    	clipboard = "";
-    	for (int i = app.elmList.size()-1; i >= 0; i--) {
-    		CircuitElm ce = app.elmList.get(i);
-    		if (willDelete(ce) && !(ce instanceof ScopeElm) ) {
-    			clipboard += ce.dump() + "\n";
-    		}
-    	}
+    	clipboard = copyOfSelectedElms();
     	writeClipboardToStorage();
     	doDelete(true);
     	enablePaste();
@@ -483,20 +478,25 @@ public class CommandManager {
     }
 
     String copyOfSelectedElms() {
-	String r = app.dumpOptions();
+	com.google.gwt.xml.client.Document doc = XMLParser.createDocument();
+	com.google.gwt.xml.client.Element root = doc.createElement("cir");
+	doc.appendChild(root);
+
 	CustomLogicModel.clearDumpedFlags();
 	CustomCompositeModel.clearDumpedFlags();
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
 	for (int i = app.elmList.size()-1; i >= 0; i--) {
 	    CircuitElm ce = app.elmList.get(i);
-	    String m = ce.dumpModel();
-	    if (m != null && !m.isEmpty())
-		r += m + "\n";
-	    if (ce.isSelected() && !(ce instanceof ScopeElm))
-		r += ce.dump() + "\n";
+	    ce.dumpXmlModel(doc);
+	    if (ce.isSelected() && !(ce instanceof ScopeElm)) {
+		com.google.gwt.xml.client.Element elem = doc.createElement(ce.getXmlDumpType());
+		ce.dumpXml(doc, elem);
+		ce.dumpXmlState(doc, elem);
+		root.appendChild(elem);
+	    }
 	}
-	return r;
+	return doc.toString();
     }
 
     void doCopy() {

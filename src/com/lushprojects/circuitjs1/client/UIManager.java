@@ -13,6 +13,7 @@ import com.google.gwt.user.client.Element;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
+import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.user.client.Window.ClosingEvent;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
@@ -70,6 +71,7 @@ public class UIManager {
     String lastCursorStyle;
 
     Toolbar toolbar;
+    SubcircuitBar subcircuitBar;
 
     DockLayoutPanel layoutPanel;
     VerticalPanel verticalPanel;
@@ -273,6 +275,9 @@ public class UIManager {
 	cvcontext=cv.getContext2d();
 	app.scopeManager = scopeManager = new ScopeManager(app);
 
+	subcircuitBar = new SubcircuitBar();
+	RootPanel.get().add(subcircuitBar);
+
 	setToolbar(); // calls setCanvasSize()
 	layoutPanel.add(cv);
 	verticalPanel.add(buttonPanel);
@@ -395,6 +400,13 @@ public class UIManager {
 
     	setCircuitArea();
 
+	if (subcircuitBar != null) {
+	    int barTop = (hideMenu ? 0 : MENUBARHEIGHT);
+	    if (menus.toolbarCheckItem.getState())
+		barTop += TOOLBARHEIGHT;
+	    subcircuitBar.updatePosition(0, barTop, width);
+	}
+
 	if (app.transform[0] == 0)
 	    centreCircuit();
     }
@@ -447,6 +459,17 @@ public class UIManager {
     		}
     		miny = min(ce.y, min(ce.y2, miny));
     		maxy = max(ce.y, max(ce.y2, maxy));
+    		// use boundingBox for elements like chips/subcircuits whose
+    		// visual extent exceeds their x/y coordinates
+    		Rectangle bb = ce.getBoundingBox();
+    		if (bb != null) {
+    		    if (!ce.isCenteredText()) {
+    			minx = min(bb.x, minx);
+    			maxx = max(bb.x + bb.width, maxx);
+    		    }
+    		    miny = min(bb.y, miny);
+    		    maxy = max(bb.y + bb.height, maxy);
+    		}
     	}
     	if (minx > maxx)
     	    return null;
@@ -585,7 +608,7 @@ public class UIManager {
 
         g.context.setLineCap(LineCap.ROUND);
 
-        if (isReadOnly())
+        if (menus.noEditCheckItem.getState())
             g.drawLock(20, 30);
 
         g.setColor(Color.white);
@@ -842,19 +865,19 @@ public class UIManager {
 
     void updateSubcircuitPath() {
 	if (subcircuitStack.isEmpty()) {
-	    toolbar.setSubcircuitPath(null);
+	    subcircuitBar.setSubcircuitPath(null);
 	} else {
-	    StringBuilder sb = new StringBuilder();
+	    StringBuilder sb = new StringBuilder(Locale.LS("Viewing: "));
 	    for (int i = 0; i < subcircuitStack.size(); i++) {
 		if (i > 0) sb.append(" > ");
 		sb.append(subcircuitStack.get(i).modelName);
 	    }
-	    toolbar.setSubcircuitPath(sb.toString());
+	    subcircuitBar.setSubcircuitPath(sb.toString());
 	}
     }
 
     void updateContextButtons() {
-	toolbar.setContextInfo(app.getEditingModelName());
+	subcircuitBar.setContextInfo(app.getEditingModelName());
     }
 
     void setMouseMode(int mode) {
@@ -902,6 +925,10 @@ public class UIManager {
     }
 
     // ---- Keyboard ----
+
+    private native boolean isRepeatEvent(NativeEvent evt) /*-{
+	return !!evt.repeat;
+    }-*/;
 
     public void onPreviewNativeEvent(NativePreviewEvent e) {
     	int cc=e.getNativeEvent().getCharCode();
@@ -976,6 +1003,27 @@ public class UIManager {
     	if (isReadOnly())
     	    return;
 
+    	// handle key-up for momentary switches with keyboard shortcuts
+    	if ((t & Event.ONKEYUP) != 0) {
+    	    String keyStr = String.valueOf((char)code).toLowerCase();
+    	    boolean released = false;
+    	    for (int i = 0; i != elmList.size(); i++) {
+    		CircuitElm ce = elmList.get(i);
+    		if (ce instanceof SwitchElm) {
+    		    SwitchElm se = (SwitchElm) ce;
+    		    if (se.momentary && se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
+    			se.mouseUp();
+    			released = true;
+    		    }
+    		}
+    	    }
+    	    if (released) {
+    		mouse.heldSwitchElm = null;
+    		app.needAnalyze();
+    		app.repaint();
+    	    }
+    	}
+
     	if ((t & Event.ONKEYDOWN)!=0) {
     		if (code==KEY_BACKSPACE || code==KEY_DELETE) {
     		    if (app.scopeManager.scopeSelected != -1) {
@@ -994,6 +1042,27 @@ public class UIManager {
 			updateToolbar();
     			mouse.tempMouseMode = mouse.mouseMode;
     			e.cancel();
+    		}
+
+    		if (code==KEY_LEFT || code==KEY_RIGHT || code==KEY_UP || code==KEY_DOWN) {
+    		    int dx = 0, dy = 0;
+    		    if (code == KEY_LEFT)  dx = -app.gridSize;
+    		    if (code == KEY_RIGHT) dx = app.gridSize;
+    		    if (code == KEY_UP)    dy = -app.gridSize;
+    		    if (code == KEY_DOWN)  dy = app.gridSize;
+    		    boolean hasSel = false;
+    		    for (int i = 0; i != elmList.size(); i++)
+    			if (elmList.get(i).isSelected()) { hasSel = true; break; }
+    		    if (hasSel) {
+    			app.undoManager.pushUndo();
+    			for (int i = 0; i != elmList.size(); i++) {
+    			    CircuitElm ce = elmList.get(i);
+    			    if (ce.isSelected())
+    				ce.move(dx, dy);
+    			}
+    			app.needAnalyze();
+    			e.cancel();
+    		    }
     		}
 
     		if (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey()) {
@@ -1047,7 +1116,28 @@ public class UIManager {
     		}
     	}
     	if ((t&Event.ONKEYPRESS)!=0) {
-    		if (cc>32 && cc<127){
+    		// check if any switches have a keyboard shortcut matching this key
+    		if (cc>32 && cc<127) {
+    		    String keyStr = String.valueOf((char)cc).toLowerCase();
+    		    boolean toggled = false;
+		    if (!isRepeatEvent(e.getNativeEvent())) {
+			for (int i = 0; i != elmList.size(); i++) {
+			    CircuitElm ce = elmList.get(i);
+			    if (ce instanceof SwitchElm) {
+				SwitchElm se = (SwitchElm) ce;
+				if (se.keyShortcut != null && se.keyShortcut.equals(keyStr)) {
+				    se.toggle();
+				    if (!(se instanceof LogicInputElm))
+					app.needAnalyze();
+				    toggled = true;
+				}
+			    }
+			}
+		    }
+    		    if (toggled) {
+    			e.cancel();
+    			app.repaint();
+    		    } else {
     			String c=app.shortcuts[cc];
     			e.cancel();
     			if (c==null)
@@ -1056,6 +1146,7 @@ public class UIManager {
     			mouseModeStr=c;
 			updateToolbar();
     			mouse.tempMouseMode = mouse.mouseMode;
+    		    }
     		}
     		if (cc==32) {
 		    setMouseMode(MouseManager.MODE_SELECT);
@@ -1223,11 +1314,17 @@ public class UIManager {
 	    CircuitElm.positiveColor = new Color(URL.decodeQueryString(positiveColor));
 	else if (getOptionFromStorage("alternativeColor", false))
 	    CircuitElm.positiveColor = Color.blue;
+	else
+	    CircuitElm.positiveColor = Color.green;
 
 	if (negativeColor != null)
 	    CircuitElm.negativeColor = new Color(URL.decodeQueryString(negativeColor));
+	else
+	    CircuitElm.negativeColor = Color.red;
 	if (neutralColor != null)
 	    CircuitElm.neutralColor = new Color(URL.decodeQueryString(neutralColor));
+	else
+	    CircuitElm.neutralColor = Color.gray;
 
 	if (selectColor != null)
 	    CircuitElm.selectColor = new Color(URL.decodeQueryString(selectColor));

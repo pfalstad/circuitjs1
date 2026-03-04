@@ -140,6 +140,8 @@ class LogicInputElm extends SwitchElm {
 		ei.checkbox = new Checkbox("Ternary", isTernary());
 		return ei;
 	    }
+	    if (n == 5)
+		return getKeyShortcutEditInfo();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -162,6 +164,8 @@ class LogicInputElm extends SwitchElm {
 		    flags &= ~FLAG_TERNARY;
 		posCount = (isTernary()) ? 3 : 2;
 	    }
+	    if (n == 5)
+		setKeyShortcutEditValue(ei);
 	}
 	int getShortcut() { return 'i'; }
 	

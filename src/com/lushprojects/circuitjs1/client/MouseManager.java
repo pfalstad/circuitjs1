@@ -1012,7 +1012,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     	if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
     		((MouseWheelHandler) mouseElm).onMouseWheel(e);
-    	else if (sim.scopeManager.scopeSelected != -1 && !zoomOnly)
+    	else if (sim.scopeManager.scopeSelected != -1)
     	    sim.scopeManager.scopes[sim.scopeManager.scopeSelected].onMouseWheel(e);
     	else if (!sim.dialogIsShowing()) {
     	    mouseCursorX=e.getX();
@@ -1031,6 +1031,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	double val = dy*.01;
     	newScale = Math.max(oldScale+val, .2);
     	newScale = Math.min(newScale, 2.5);
+    	if (newScale == oldScale)
+    	    return;
     	setCircuitScale(newScale, menu);
     }
 

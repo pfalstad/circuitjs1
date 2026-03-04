@@ -371,6 +371,7 @@ public class Menus {
 		"Add Op Amp (real)", "OpAmpRealElm",
 		"Add Analog Switch (SPST)", "AnalogSwitchElm",
 		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
+		"Add Analog Multiplexer", "AnalogMuxElm",
 		"Add Tristate Buffer", "TriStateElm",
 		"Add Schmitt Trigger", "SchmittElm",
 		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",
@@ -575,8 +576,9 @@ public class Menus {
 
     void readSetupFile(String str, String title) {
 	System.out.println(str);
+	sim.resetEditingContext();
 	// don't avoid caching here, it's unnecessary and makes offline PWA's not work
-	String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt(); 
+	String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt();
 	sim.loader.loadFileFromURL(url);
 	if (title != null)
 	    sim.setCircuitTitle(title);

@@ -56,19 +56,21 @@ class XMLDeserializer {
 	    app.clearCircuit();
 	currentXmlElement = root;
 
-        int flags = parseIntAttr("f", 0);
-	app.loader.readCircuitFlags(flags);
-	SimulationManager sim = app.sim;
-        sim.maxTimeStep = sim.timeStep = parseDoubleAttr("ts", sim.maxTimeStep);
-        double sp = parseDoubleAttr("ic", app.getIterCount());
-        int sp2 = (int) (Math.log(10*sp)*24+61.5);
-        UIManager ui = app.ui;
-        ui.speedBar.setValue(sp2);
-        ui.currentBar.setValue(parseIntAttr("cb", ui.currentBar.getValue()));
-        CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);
-	ui.powerBar.setValue(parseIntAttr("pb", ui.powerBar.getValue()));
-        sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
-        app.setGrid();
+	if ((readFlags & CircuitLoader.RC_RETAIN) == 0) {
+	    int flags = parseIntAttr("f", 0);
+	    app.loader.readCircuitFlags(flags);
+	    SimulationManager sim = app.sim;
+	    sim.maxTimeStep = sim.timeStep = parseDoubleAttr("ts", sim.maxTimeStep);
+	    double sp = parseDoubleAttr("ic", app.getIterCount());
+	    int sp2 = (int) (Math.log(10*sp)*24+61.5);
+	    UIManager ui = app.ui;
+	    ui.speedBar.setValue(sp2);
+	    ui.currentBar.setValue(parseIntAttr("cb", ui.currentBar.getValue()));
+	    CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);
+	    ui.powerBar.setValue(parseIntAttr("pb", ui.powerBar.getValue()));
+	    sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
+	    app.setGrid();
+	}
 
 	readElements(root);
 	app.loader.finishReadCircuit(readFlags);

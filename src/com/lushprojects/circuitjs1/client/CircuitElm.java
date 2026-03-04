@@ -516,6 +516,7 @@ public abstract class CircuitElm implements Editable {
 	y = y_;
 	x2 = x2_;
 	y2 = y2_;
+	initBoundingBox();
 	setPoints();
     }
 

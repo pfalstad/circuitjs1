@@ -164,6 +164,7 @@ public class SimulationManager {
 
 	// build point-to-node map from non-wire elements in UI list,
 	// and add their links to nodeList so calcWireInfo can find neighbors
+	// and so setNodeVoltages() updates their volts[] for display
 	for (int i = 0; i != uiList.size(); i++) {
 	    CircuitElm ce = uiList.get(i);
 	    if (ce.isRemovableWire())
@@ -171,13 +172,18 @@ public class SimulationManager {
 	    for (int j = 0; j != ce.getPostCount(); j++) {
 		Point pt = ce.getPost(j);
 		NodeMapEntry nme = uiNodeMap.get(pt);
-		if (nme != null) {
-		    if (nme.node == -1)
-			nme.node = ce.getNode(j);
+		if (nme != null && nme.node == -1)
+		    nme.node = ce.getNode(j);
+		// always link non-wire elements to nodeList so their volts[]
+		// get updated, even if the post isn't at a wire endpoint
+		// (e.g. composite elements whose posts connect directly)
+		int node = ce.getNode(j);
+		CircuitNode cn = (node >= 0) ? getCircuitNode(node) : null;
+		if (cn != null) {
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;
-		    getCircuitNode(ce.getNode(j)).links.addElement(cnl);
+		    cn.links.addElement(cnl);
 		}
 	    }
 	}
@@ -274,7 +280,7 @@ public class SimulationManager {
 		wi.post = 0;
 		wire.hasWireInfo = true;
 		moved = 0;
-	    } else if (isReady1) {
+	    } else if (isReady1 && !neighbors1.isEmpty()) {
 		wi.neighbors = neighbors1;
 		wi.post = 1;
 		wire.hasWireInfo = true;
@@ -880,9 +886,10 @@ public class SimulationManager {
     // have the same node number at both ends.
     void makePostDrawList() {
         HashMap<Point,Integer> postCountMap = new HashMap<Point,Integer>();
+	Vector<CircuitElm> drawList = app.ui.elmList;
 	int i, j;
-	for (i = 0; i != elmList.size(); i++) {
-	    CircuitElm ce = getElm(i);
+	for (i = 0; i != drawList.size(); i++) {
+	    CircuitElm ce = drawList.get(i);
 	    int posts = ce.getPostCount();
 	    for (j = 0; j != posts; j++) {
 		Point pt = ce.getPost(j);
@@ -902,8 +909,8 @@ public class SimulationManager {
 	    if (entry.getValue() == 1) {
 		boolean bad = false;
 		Point cn = entry.getKey();
-		for (j = 0; j != elmList.size() && !bad; j++) {
-		    CircuitElm ce = getElm(j);
+		for (j = 0; j != drawList.size() && !bad; j++) {
+		    CircuitElm ce = drawList.get(j);
 		    if ( ce instanceof GraphicElm )
 			continue;
 		    // does this post intersect elm's bounding box?

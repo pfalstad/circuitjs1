@@ -70,7 +70,7 @@ class ScopePlot {
 	manScale = manS;
 	// ohms can only be positive, so move the v position to the bottom.
 	// power can be negative for caps and inductors, but still move to the bottom (for backward compatibility)
-	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W)
+	if (units == Scope.UNITS_OHMS || units == Scope.UNITS_W || units == Scope.UNITS_C)
 	    manVPosition = -Scope.V_POSITION_STEPS/2;
     }
 
@@ -139,6 +139,8 @@ class ScopePlot {
 	    return CircuitElm.getUnitText(v, Locale.ohmString);
 	case Scope.UNITS_W:
 	    return CircuitElm.getUnitText(v, "W");
+	case Scope.UNITS_C:
+	    return CircuitElm.getUnitText(v, "C");
 	}
 	return null;
     }
@@ -210,11 +212,13 @@ class Scope {
     static final int VAL_VBC = 5;
     static final int VAL_VCE = 6;
     static final int VAL_R = 2;
+    static final int VAL_CHARGE = 8;
     static final int UNITS_V = 0;
     static final int UNITS_A = 1;
     static final int UNITS_W = 2;
     static final int UNITS_OHMS = 3;
-    static final int UNITS_COUNT = 4;
+    static final int UNITS_C = 4;
+    static final int UNITS_COUNT = 5;
     static final double multa[] = {2.0, 2.5, 2.0};
     static final int V_POSITION_STEPS=200;
     static final double MIN_MAN_SCALE = 1e-9;
@@ -234,6 +238,8 @@ class Scope {
 
     boolean logSpectrum;
     boolean showFFT, showNegative, showRMS, showAverage, showDutyCycle, showElmInfo;
+    double fftMaxMagnitude; // peak FFT magnitude, saved for cursor dB readout
+    double[] fftReal, fftImag; // saved FFT results for cursor readout
     Vector<ScopePlot> plots, visiblePlots;
     int draw_ox, draw_oy;
     CirSim app;
@@ -264,10 +270,11 @@ class Scope {
     Scope(CirSim app_, SimulationManager sim_) {
     	sim = sim_;
     	app = app_;
+    	position = -1;
     	scale = new double[UNITS_COUNT];
     	reduceRange = new boolean[UNITS_COUNT];
 	manDivisions = lastManDivisions;
-    	
+
     	rect = new Rectangle(0, 0, 1, 1);
    	imageCanvas=Canvas.createIfSupported();
    	imageContext=imageCanvas.getContext2d();
@@ -286,6 +293,36 @@ class Scope {
 	if (b && !showingVoltageAndMaybeCurrent())
 	    setValue(0);
 	calcVisiblePlots();
+    }
+
+    // check if any plot has the given value (unlike showingValue which checks ALL plots)
+    boolean hasPlotValue(int v) {
+	for (int i = 0; i != plots.size(); i++) {
+	    if (plots.get(i).value == v)
+		return true;
+	}
+	return false;
+    }
+
+    void showCharge(boolean b) {
+	if (b) {
+	    // add a charge plot if not already present
+	    if (!hasPlotValue(VAL_CHARGE)) {
+		CircuitElm ce = getElm();
+		if (ce != null) {
+		    int u = ce.getScopeUnits(VAL_CHARGE);
+		    plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
+		}
+	    }
+	} else {
+	    // remove any charge plots
+	    for (int i = plots.size() - 1; i >= 0; i--) {
+		if (plots.get(i).value == VAL_CHARGE)
+		    plots.remove(i);
+	    }
+	}
+	calcVisiblePlots();
+	resetGraph();
     }
 
     void showMax    (boolean b) { showMax = b; }
@@ -356,6 +393,7 @@ class Scope {
 	case UNITS_A: return "A";
 	case UNITS_OHMS: return Locale.ohmString;
 	case UNITS_W: return "W";
+	case UNITS_C: return "C";
 	default: return "V";
 	}
     }
@@ -368,7 +406,7 @@ class Scope {
     
     void initialize() {
     	resetGraph();
-    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = 5;
+    	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = scale[UNITS_C] = 5;
     	scale[UNITS_A] = .1;
     	scaleX = 5;
     	scaleY = .1;
@@ -521,8 +559,9 @@ class Scope {
 	return true;
     }
 
-    // returns true if we have a plot of voltage and nothing else (except current).
-    // The default case is a plot of voltage and current, so we're basically checking if that case is true. 
+    // returns true if we have a plot of voltage and nothing else (except current or charge).
+    // The default case is a plot of voltage and current, so we're basically checking if that case is true.
+    // Charge is also allowed since it coexists additively with voltage and current.
     boolean showingVoltageAndMaybeCurrent() {
 	int i;
 	boolean gotv = false;
@@ -530,7 +569,7 @@ class Scope {
 	    ScopePlot sp = plots.get(i);
 	    if (sp.value == VAL_VOLTAGE)
 		gotv = true;
-	    else if (sp.value != VAL_CURRENT)
+	    else if (sp.value != VAL_CURRENT && sp.value != VAL_CHARGE)
 		return false;
 	}
 	return gotv;
@@ -682,6 +721,7 @@ class Scope {
 	    scale[UNITS_A] *= x;
 	    scale[UNITS_OHMS] *= x;
 	    scale[UNITS_W] *= x;
+	    scale[UNITS_C] *= x;
 	    scaleX *= x; // For XY plots
 	    scaleY *= x;
 	    return;
@@ -738,6 +778,10 @@ class Scope {
     	  if (m > maxM)
     		  maxM = m;
       }
+      // save for cursor readout
+      fftMaxMagnitude = maxM;
+      fftReal = real;
+      fftImag = imag;
       int prevX = 0;
       g.setColor("#FF0000");
       if (!logSpectrum) {
@@ -755,16 +799,35 @@ class Scope {
 	      prevX = x;
 	  }
       } else {
-	  int y0 = 5;
+	  // log spectrum mode: display in dB relative to peak magnitude
+	  double dbRange = 80; // show 80 dB of dynamic range
+	  int topMargin = 5;
+	  int bottomMargin = 12;
+	  int plotHeight = rect.height - topMargin - bottomMargin;
+	  double pixelsPerDb = plotHeight / dbRange;
 	  int prevY = 0;
-	  double ymult = rect.height/10;
-	  double val0 = Math.log(scale[plot.units])*ymult;
+
+	  // draw horizontal dB grid lines and labels
+	  for (int db = -20; db >= -80; db -= 20) {
+	      int y = topMargin + (int) (-db * pixelsPerDb);
+	      if (y < 0 || y >= rect.height)
+		  continue;
+	      g.setColor("#880000");
+	      g.drawLine(0, y, rect.width, y);
+	      g.setColor("#FF0000");
+	      g.drawString(db + " dB", 2, y - 2);
+	  }
+
+	  g.setColor("#FF0000");
 	  for (int i = 0; i < scopePointCount / 2; i++) {
 	      int x = 2 * i * rect.width / scopePointCount;
 	      // rect.width may be greater than or less than scopePointCount/2,
 	      // so x may be greater than or equal to prevX.
-	      double val = Math.log(fft.magnitude(real[i], imag[i]));
-	      int y = y0-(int) (val*ymult-val0);
+	      double magnitude = fft.magnitude(real[i], imag[i]);
+	      double db = 20 * Math.log(magnitude / maxM) / Math.log(10);
+	      if (db < -dbRange)
+		  db = -dbRange;
+	      int y = topMargin + (int) (-db * pixelsPerDb);
 	      if (x != prevX)
 		  g.drawLine(prevX, prevY, x, y);
 	      prevY = y;
@@ -1291,7 +1354,7 @@ class Scope {
 	    return;
 	if (cursorScope == null)
 	    return;
-	String info[] = new String[4];
+	String info[] = new String[5];
 	int cursorX = -1;
 	int ct = 0;
 	if (cursorTime >= 0) {
@@ -1317,6 +1380,15 @@ class Scope {
             if (cursorX < 0)
         	cursorX = app.mouse.mouseCursorX;
             info[ct++] = CircuitElm.getUnitText(maxFrequency*(app.mouse.mouseCursorX-rect.x)/rect.width, "Hz");
+            // show dB magnitude at cursor position
+            if (fft != null && fftReal != null && fftMaxMagnitude > 0) {
+                int fftIndex = (app.mouse.mouseCursorX - rect.x) * scopePointCount / (2 * rect.width);
+                if (fftIndex >= 0 && fftIndex < scopePointCount / 2) {
+                    double mag = fft.magnitude(fftReal[fftIndex], fftImag[fftIndex]);
+                    double db = 20 * Math.log(mag / fftMaxMagnitude) / Math.log(10);
+                    info[ct++] = Math.round(db) + " dB";
+                }
+            }
         } else if (cursorX < rect.x)
             return;
         
@@ -1847,7 +1919,7 @@ class Scope {
     	CircuitElm elm = getSingleElm();
     	return elm != null && elm.canShowValueInScope(VAL_R);
     }
-    
+
     boolean isShowingVceAndIc() {
 	return plot2d && plots.size() == 2 && plots.get(0).value == VAL_VCE && plots.get(1).value == VAL_IC;
     }
@@ -1877,45 +1949,6 @@ class Scope {
 	if (isManualScale())
 	    flags |= FLAG_DIVISIONS;
 	return flags;
-    }
-    
-
-    
-    String dump() {
-	ScopePlot vPlot = plots.get(0);
-	
-	CircuitElm elm = vPlot.elm;
-    	if (elm == null)
-    		return null;
-    	int flags = getFlags();
-    	int eno = app.locateElm(elm);
-    	if (eno < 0)
-    		return null;
-    	String x = "o " + eno + " " +
-    			vPlot.scopePlotSpeed + " " + vPlot.value + " " 
-    			+ exportAsDecOrHex(flags, FLAG_PERPLOTFLAGS) + " " +
-    			scale[UNITS_V] + " " + scale[UNITS_A] + " " + position + " " +
-    			plots.size();
-	if ((flags & FLAG_DIVISIONS) != 0)
-	    x += " " + manDivisions;
-    	int i;
-    	for (i = 0; i < plots.size(); i++) {
-    	    ScopePlot p = plots.get(i);
-    	    if ((flags & FLAG_PERPLOTFLAGS) !=0)
-    		x += " " + Integer.toHexString(p.getPlotFlags()); // NB always export in Hex (no prefix)
-    	    if (i > 0)
-    		x += " " + app.locateElm(p.elm) + " " + p.value;
-    	    // dump scale if units are not V or A
-    	    if (p.units > UNITS_A)
-    		x += " " + scale[p.units];
-    	    if (isManualScale()) {// In this version we always dump manual settings using the PERPLOT format
-    	        x += " " + p.manScale + " "  
-    		+ p.manVPosition;
-    	    }
-    	}
-    	if (text != null)
-    	    	x += " " + CustomLogicModel.escape(text);
-    	return x;
     }
     
     void dumpXml(Document doc, Element root) {
@@ -2021,7 +2054,7 @@ class Scope {
     	    scale[UNITS_A] = 1;
     	scaleX = scale[UNITS_V];
     	scaleY = scale[UNITS_A];
-    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_V];
+    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_C] = scale[UNITS_V];
     	text = null;
     	boolean plot2dFlag = (flags & 64) != 0;
     	boolean hasPlotFlags = (flags & FLAG_PERPLOTFLAGS) != 0;
@@ -2229,6 +2262,8 @@ class Scope {
     	}
     	if (mi == "showresistance")
     		setValue(VAL_R);
+    	if (mi == "showcharge")
+    		showCharge(state);
     }
 
 //    void select() {

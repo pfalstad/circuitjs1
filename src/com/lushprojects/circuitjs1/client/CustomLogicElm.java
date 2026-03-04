@@ -35,27 +35,6 @@ public class CustomLogicElm extends ChipElm {
 	}
     }
     
-    String dump() {
-	String s = super.dump();
-	s += " " + CustomLogicModel.escape(modelName);
-
-	// the code to do this in ChipElm doesn't work here because we don't know
-	// how many pins to read until we read the model name!  So we have to
-	// duplicate it here.
-        int i;
-        for (i = 0; i != getPostCount(); i++) {
-            if (pins[i].output)
-                s += " " + volts[i];
-        }
-	return s;
-    }
-    
-    String dumpModel() {
-	if (model.dumped)
-	    return "";
-	return model.dump();
-    }
-    
     void dumpXml(Document doc, Element elem) {
 	if (!model.dumped)
 	    model.dumpXml(doc);

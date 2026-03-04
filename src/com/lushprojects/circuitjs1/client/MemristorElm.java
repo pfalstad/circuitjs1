@@ -49,10 +49,6 @@ class MemristorElm extends CircuitElm {
 	resistance = 100;
     }
     int getDumpType() { return 'm'; }
-    String dump() {
-	return super.dump() + " " + r_on + " " + r_off + " " + dopeWidth + " " +
-	    totalWidth + " " + mobility + " " + current;
-    }
 
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

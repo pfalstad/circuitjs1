@@ -58,7 +58,13 @@ public class CircuitLoader {
         CircuitElm.voltageRange = 5;
         scopes.clearScopes();
         sim.lastIterTime = 0;
-        CustomCompositeModel.clearLocalModels();
+        if (app.contextStack.isEmpty())
+            CustomCompositeModel.clearLocalModels();
+        if (!app.ui.subcircuitStack.isEmpty()) {
+            app.ui.subcircuitStack.clear();
+            app.ui.elmList = app.elmList;
+            app.ui.updateSubcircuitPath();
+        }
     }
 
     public void readCircuit(String text, int flags) {

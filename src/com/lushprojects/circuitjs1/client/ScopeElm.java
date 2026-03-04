@@ -89,16 +89,6 @@ class ScopeElm extends CircuitElm {
     
     int getDumpType() { return 403; }
 
-    public String dump() {
-	String dumpStr = super.dump();
-	String elmDump = elmScope.dump();
-	if (elmDump == null)
-	    return null;
-	String sStr = elmDump.replace(' ', '_');
-	sStr = sStr.replaceFirst("o_", ""); // remove unused prefix for embedded Scope
-	return dumpStr + " " + sStr;
-    }
-    
     void dumpXml(Document doc, Element elem) {
 	super.dumpXml(doc, elem);
 	elmScope.dumpXml(doc, elem);

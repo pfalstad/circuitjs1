@@ -41,10 +41,6 @@ class OutputElm extends CircuitElm {
 	    } catch (Exception e) {}
 	}
 	
-	String dump() {
-	    return super.dump() + " " + scale;
-	}
-
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "sc", scale);

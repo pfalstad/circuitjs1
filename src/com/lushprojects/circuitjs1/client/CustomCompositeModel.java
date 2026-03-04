@@ -457,6 +457,12 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	sequenceNumber++;
     }
 
+    // replace a model in whichever map it lives in (used after popContext to swap in the newly saved model)
+    static void replaceModel(CustomCompositeModel model) {
+	localModelMap.put(model.name, model);
+	sequenceNumber++;
+    }
+
     static void clearLocalModels() {
 	CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
 	localModelMap.clear();
