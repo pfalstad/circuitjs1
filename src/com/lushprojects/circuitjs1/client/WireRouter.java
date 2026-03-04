@@ -71,136 +71,166 @@ public class WireRouter {
 	grid[wire.y2/gridSize][wire.x2/gridSize] = 0;
     }
 
+
     /**
      * Try to route a wire from (x1,y1) to (x2,y2)
-     * Returns list of points [ {r,c}, ... ] or empty list if no path
+     * Returns list of points [row, col] with only necessary corners
+     * or empty list if no path
      */
     public List<int[]> routeWire(int x1, int y1, int x2, int y2) {
-        // In this version: x = column, y = row  (as in canvas)
-	//CirSim.console("routeWire " + x1 + " " + y1 + " " + x2 + " " + y2);
-        int startR = y1;
-        int startC = x1;
-        int goalR = y2;
-        int goalC = x2;
+	int startR = y1;
+	int startC = x1;
+	int goalR = y2;
+	int goalC = x2;
 
-        if (!isValid(startR, startC) || !isValid(goalR, goalC)) {
-            return Collections.emptyList();
-        }
-
-        Map<String, String> cameFrom = new HashMap<>();
-        Map<String, Double> gScore = new HashMap<>();
-        Map<String, Double> fScore = new HashMap<>();
-        Set<String> openSet = new HashSet<>();
-
-        // Enqueue start with all four possible first directions
-        for (int d : new int[]{UP, DOWN, LEFT, RIGHT}) {
-            String key = key(startR, startC, d);
-            openSet.add(key);
-            gScore.put(key, 0.0);
-            fScore.put(key, (double) manhattan(startR, startC, goalR, goalC));
-        }
-
-        String bestGoalKey = null;
-        double bestGoalCost = Double.POSITIVE_INFINITY;
-
-        while (!openSet.isEmpty()) {
-            // Find lowest f-score
-            String currentKey = null;
-            double lowestF = Double.POSITIVE_INFINITY;
-            for (String k : openSet) {
-                double f = fScore.getOrDefault(k, Double.POSITIVE_INFINITY);
-                if (f < lowestF) {
-                    lowestF = f;
-                    currentKey = k;
-                }
-            }
-            if (currentKey == null) break;
-
-            int[] curr = parseKey(currentKey);
-            int cr = curr[0], cc = curr[1], cDir = curr[2];
-
-            if (cr == goalR && cc == goalC) {
-                if (gScore.get(currentKey) < bestGoalCost) {
-                    bestGoalCost = gScore.get(currentKey);
-                    bestGoalKey = currentKey;
-                }
-                // We continue searching — there might be better (lower cost) paths
-            }
-
-            openSet.remove(currentKey);
-
-            for (int[] neigh : neighbors(cr, cc)) {
-                int nr = neigh[0], nc = neigh[1], moveDir = neigh[2];
-
-                if (!canMoveTo(nr, nc, moveDir)) continue;
-
-                double moveCost = 1.0;
-                if (cDir != NONE) {
-                    if (moveDir != cDir && moveDir != opposite(cDir)) {
-                        moveCost += turnPenalty;
-                    }
-                }
-
-                String nKey = key(nr, nc, moveDir);
-                double tentG = gScore.getOrDefault(currentKey, Double.POSITIVE_INFINITY) + moveCost;
-
-                if (tentG < gScore.getOrDefault(nKey, Double.POSITIVE_INFINITY)) {
-                    cameFrom.put(nKey, currentKey);
-                    gScore.put(nKey, tentG);
-                    fScore.put(nKey, tentG + manhattan(nr, nc, goalR, goalC));
-                    openSet.add(nKey);
-                }
-            }
-        }
-
-        if (bestGoalKey == null) {
-            return Collections.emptyList();
-        }
-
-	// Step 1: reconstruct full (dense) path
-	List<int[]> fullPath = new ArrayList<>();
-	String current = bestGoalKey;
-	while (current != null) {
-	    int[] pos = parseKey(current);
-	    fullPath.add(0, new int[]{pos[0], pos[1]});  // [row, col]
-	    current = cameFrom.get(current);
+	if (!isValid(startR, startC) || !isValid(goalR, goalC)) {
+	    return Collections.emptyList();
 	}
 
-	// Step 2: compress path — keep only start, bends, and end
-	List<int[]> minimalPath = new ArrayList<>();
-	if (fullPath.isEmpty()) return minimalPath;
+	// Priority queue: smallest f-score first
+	PriorityQueue<Node> openSet = new PriorityQueue<>(
+	    Comparator.comparingDouble(n -> n.fScore)
+	);
 
-	minimalPath.add(fullPath.get(0));  // always keep start
+	// Best known g-score for each (r,c,dir) state
+	Map<String, Double> gScore = new HashMap<>();
 
-	for (int i = 1; i < fullPath.size() - 1; i++) {
-	    int[] prev = fullPath.get(i - 1);
-	    int[] curr = fullPath.get(i);
-	    int[] next = fullPath.get(i + 1);
+	// cameFrom: predecessor for path reconstruction
+	Map<String, String> cameFrom = new HashMap<>();
 
-	    int dx1 = curr[1] - prev[1];  // col diff incoming
-	    int dy1 = curr[0] - prev[0];  // row diff incoming
-	    int dx2 = next[1] - curr[1];  // col diff outgoing
-	    int dy2 = next[0] - curr[0];  // row diff outgoing
+	// We'll track visited states loosely via gScore
 
-	    // If incoming and outgoing directions are not collinear → it's a bend
-	    boolean collinear = (dx1 * dy2 == dy1 * dx2) && (dx1 * dx2 + dy1 * dy2 > 0);
-	    if (!collinear) {
-		minimalPath.add(curr);
+	// Enqueue start with all four possible first directions
+	for (int d : new int[]{UP, DOWN, LEFT, RIGHT}) {
+	    String key = key(startR, startC, d);
+	    double h = manhattan(startR, startC, goalR, goalC);
+	    Node startNode = new Node(startR, startC, d, 0.0, h);
+	    openSet.offer(startNode);
+	    gScore.put(key, 0.0);
+	}
+
+	Node bestGoalNode = null;
+
+	while (!openSet.isEmpty()) {
+	    Node current = openSet.poll();
+
+	    String currKey = key(current.r, current.c, current.dir);
+
+	    // Skip if we already found a better way to this exact state
+	    if (current.gScore > gScore.getOrDefault(currKey, Double.POSITIVE_INFINITY)) {
+		continue;
+	    }
+
+	    if (current.r == goalR && current.c == goalC) {
+		// We can return immediately if we want any path,
+		// but to get the lowest-cost path we continue until queue is empty
+		if (bestGoalNode == null || current.gScore < bestGoalNode.gScore) {
+		    bestGoalNode = current;
+		}
+		// Optional: early exit if you accept first-found goal
+		// if (turnPenalty == 0) return reconstruct(...); // when no turns, first is optimal
+	    }
+
+	    for (int[] neigh : neighbors(current.r, current.c)) {
+		int nr = neigh[0], nc = neigh[1], moveDir = neigh[2];
+
+		if (!canMoveTo(nr, nc, moveDir)) continue;
+
+		double moveCost = 1.0;
+		if (current.dir != NONE) {
+		    if (moveDir != current.dir && moveDir != opposite(current.dir)) {
+			moveCost += turnPenalty;
+		    }
+		}
+
+		String nKey = key(nr, nc, moveDir);
+		double tentG = current.gScore + moveCost;
+
+		double bestKnownG = gScore.getOrDefault(nKey, Double.POSITIVE_INFINITY);
+		if (tentG < bestKnownG) {
+		    cameFrom.put(nKey, currKey);
+		    gScore.put(nKey, tentG);
+		    double h = manhattan(nr, nc, goalR, goalC);
+		    double f = tentG + h;
+
+		    // Push new (better) entry into queue
+		    // (old worse entries will be ignored when dequeued)
+		    openSet.offer(new Node(nr, nc, moveDir, tentG, f));
+		}
 	    }
 	}
 
-	// Always add goal (unless it's already the start)
-	int[] last = fullPath.get(fullPath.size() - 1);
-	if (minimalPath.size() == 1 || 
-	    minimalPath.get(minimalPath.size() - 1)[0] != last[0] ||
-	    minimalPath.get(minimalPath.size() - 1)[1] != last[1]) {
-	    minimalPath.add(last);
+	if (bestGoalNode == null) {
+	    return Collections.emptyList();
 	}
 
-	CirSim.console("minimal " + minimalPath.size());
-	return minimalPath;
+	// Reconstruct full path using best goal state
+	List<int[]> fullPath = new ArrayList<>();
+	String currentKey = key(bestGoalNode.r, bestGoalNode.c, bestGoalNode.dir);
+	while (currentKey != null) {
+	    int[] pos = parseKey(currentKey);
+	    fullPath.add(0, new int[]{pos[0], pos[1]});
+	    currentKey = cameFrom.get(currentKey);
+	}
 
+	// Compress to minimal corners (same as before)
+	return compressPath(fullPath);
     }
+
+    /**
+     * Small helper class for priority queue entries
+     */
+    private static class Node {
+	final int r, c, dir;
+	final double gScore;
+	final double fScore;
+
+	Node(int r, int c, int dir, double g, double f) {
+	    this.r = r;
+	    this.c = c;
+	    this.dir = dir;
+	    this.gScore = g;
+	    this.fScore = f;
+	}
+    }
+
+    /**
+     * Extract only the bend points + start + end
+     */
+    private List<int[]> compressPath(List<int[]> fullPath) {
+	if (fullPath.size() <= 2) return new ArrayList<>(fullPath);
+
+	List<int[]> minimal = new ArrayList<>();
+	minimal.add(fullPath.get(0));
+
+	for (int i = 1; i < fullPath.size() - 1; i++) {
+	    int[] a = fullPath.get(i - 1);
+	    int[] b = fullPath.get(i);
+	    int[] c = fullPath.get(i + 1);
+
+	    int dx1 = b[1] - a[1];
+	    int dy1 = b[0] - a[0];
+	    int dx2 = c[1] - b[1];
+	    int dy2 = c[0] - b[0];
+
+	    // Not collinear if cross product != 0 or opposite direction
+	    boolean collinear = (dx1 * dy2 - dy1 * dx2 == 0) &&
+				(dx1 * dx2 + dy1 * dy2 > 0);
+
+	    if (!collinear) {
+		minimal.add(b);
+	    }
+	}
+
+	int[] last = fullPath.get(fullPath.size() - 1);
+	int[] prev = minimal.get(minimal.size() - 1);
+	if (prev[0] != last[0] || prev[1] != last[1]) {
+	    minimal.add(last);
+	}
+
+	return minimal;
+    }
+
 
     /**
      * Place the wire on the grid after finding a path
