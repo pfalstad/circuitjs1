@@ -169,6 +169,8 @@ public class Menus {
 	m.addItem(flipXItem = iconMenuItem("flip-x", "Flip X", new MyCommand("edit", "flipx")));
 	m.addItem(flipYItem = iconMenuItem("flip-y", "Flip Y", new MyCommand("edit", "flipy")));
 	m.addItem(flipXYItem = iconMenuItem("flip-x-y", "Flip XY", new MyCommand("edit", "flipxy")));
+	m.addSeparator();
+	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("edit", "convertWires")));
 	menuBar.addItem(Locale.LS("Edit"),m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
