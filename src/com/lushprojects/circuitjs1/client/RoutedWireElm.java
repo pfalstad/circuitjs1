@@ -68,7 +68,15 @@ import java.util.ArrayList;
 	    doDots(g);
 
 	    final int m = 5;
-	    setBbox(min(point1.x, point2.x)-m, min(point1.y, point2.y)-m, max(point1.x, point2.x)+m, max(point1.y, point2.y)+m);
+	    int minX = point1.x, minY = point1.y, maxX = point1.x, maxY = point1.y;
+	    for (int i = 1; i < routePoints.size(); i++) {
+		Point p = routePoints.get(i);
+		minX = min(minX, p.x);
+		minY = min(minY, p.y);
+		maxX = max(maxX, p.x);
+		maxY = max(maxY, p.y);
+	    }
+	    setBbox(minX - m, minY - m, maxX + m, maxY + m);
 	    String s = "";
 	    if (mustShowCurrent()) {
 		s = getShortUnitText(Math.abs(getCurrent()), "A");

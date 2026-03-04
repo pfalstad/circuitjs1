@@ -388,6 +388,12 @@ public class WireRouter {
 	    return new ArrayList<Point>();
 	}
 
+	// check if endpoint is unreachable (blocked from all directions)
+	if (!canMoveTo(goalR, goalC, UP) && !canMoveTo(goalR, goalC, DOWN) &&
+	    !canMoveTo(goalR, goalC, LEFT) && !canMoveTo(goalR, goalC, RIGHT)) {
+	    return new ArrayList<Point>();
+	}
+
 	// try simple algorithm first
 	ArrayList<Point> patternPath = tryPatternRouting(startR, startC, goalR, goalC);
 	if (!patternPath.isEmpty()) {
