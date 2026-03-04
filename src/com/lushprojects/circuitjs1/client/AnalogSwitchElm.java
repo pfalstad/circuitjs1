@@ -127,6 +127,8 @@ class AnalogSwitchElm extends CircuitElm {
 	drawPosts(g);
     }
     void calculateCurrent() {
+	if (resistance == 0)
+	    return;
 	if (needsPulldown() && open)
 	    current = 0;
 	else
