@@ -20,11 +20,10 @@ public class WireRouter {
     private static final int RIGHT = 4;
 
     private double turnPenalty = 4.0;
+    private int gridSize;
+    private int originX, originY;  // pixel origin snapped to grid
 
-    public WireRouter(int rows, int cols) {
-        this.rows = rows;
-        this.cols = cols;
-        this.grid = new int[rows][cols];
+    public WireRouter() {
     }
 
     public void setTurnPenalty(double penalty) {
@@ -32,20 +31,17 @@ public class WireRouter {
     }
 
     /**
-     * Mark a rectangular area as obstacle
+     * Mark a line segment as obstacle (pixel coordinates, snapped to grid internally)
      */
-    public void addObstacle(int r1, int c1, int r2, int c2) {
+    public void addObstacle(int px1, int py1, int px2, int py2) {
+	int r1 = (py1 - originY) / gridSize;
+	int c1 = (px1 - originX) / gridSize;
+	int r2 = (py2 - originY) / gridSize;
+	int c2 = (px2 - originX) / gridSize;
         int minR = Math.min(r1, r2);
         int maxR = Math.max(r1, r2);
         int minC = Math.min(c1, c2);
         int maxC = Math.max(c1, c2);
-        /*for (int r = minR; r <= maxR; r++) {
-            for (int c = minC; c <= maxC; c++) {
-                if (isValid(r, c)) {
-                    grid[r][c] = OBSTACLE;
-                }
-            }
-        }*/
 	if (r1 == r2) {
 	    for (int c = minC; c <= maxC; c++)
 		if (isValid(r1, c))
@@ -57,34 +53,55 @@ public class WireRouter {
 	}
     }
 
-    public void initGrid(int rows, int cols, CircuitElm wire) {
-        this.rows = rows;
-        this.cols = cols;
-        this.grid = new int[rows][cols];
-	int gridSize = CirSim.theApp.gridSize;
-	for (CircuitElm ce: UIManager.theUI.elmList) {
+    public void initGrid(CircuitElm wire) {
+	gridSize = CirSim.theApp.gridSize;
+	Rectangle bounds = UIManager.theUI.getCircuitBounds();
+
+	// enlarge bounds to include wire endpoints
+	int minX = Math.min(wire.x, wire.x2);
+	int minY = Math.min(wire.y, wire.y2);
+	int maxX = Math.max(wire.x, wire.x2);
+	int maxY = Math.max(wire.y, wire.y2);
+	if (bounds != null) {
+	    minX = Math.min(minX, bounds.x);
+	    minY = Math.min(minY, bounds.y);
+	    maxX = Math.max(maxX, bounds.x + bounds.width);
+	    maxY = Math.max(maxY, bounds.y + bounds.height);
+	}
+
+	// snap origin to grid
+	originX = (minX / gridSize) * gridSize;
+	originY = (minY / gridSize) * gridSize;
+
+	// compute rows/cols from origin-relative extents
+	rows = (maxY - originY) / gridSize + 2;
+	cols = (maxX - originX) / gridSize + 2;
+	grid = new int[rows][cols];
+
+	for (CircuitElm ce : UIManager.theUI.elmList) {
 	    if (wire == ce)
 		continue;
-	    addObstacle(ce.y/gridSize, ce.x/gridSize, ce.y2/gridSize, ce.x2/gridSize);
+	    ce.addRoutingObstacle(this);
 	}
-	grid[wire.y /gridSize][wire.x /gridSize] = 0;
-	grid[wire.y2/gridSize][wire.x2/gridSize] = 0;
+	// clear start and end cells so routing can reach them
+	grid[(wire.y  - originY) / gridSize][(wire.x  - originX) / gridSize] = 0;
+	grid[(wire.y2 - originY) / gridSize][(wire.x2 - originX) / gridSize] = 0;
     }
 
 
     /**
-     * Try to route a wire from (x1,y1) to (x2,y2)
-     * Returns list of points [row, col] with only necessary corners
-     * or empty list if no path
+     * Try to route a wire from (px1,py1) to (px2,py2) in pixel coordinates.
+     * Returns list of Points in pixel coordinates (corners only),
+     * or empty list if no path.
      */
-    public List<int[]> routeWire(int x1, int y1, int x2, int y2) {
-	int startR = y1;
-	int startC = x1;
-	int goalR = y2;
-	int goalC = x2;
+    public ArrayList<Point> routeWire(int px1, int py1, int px2, int py2) {
+	int startR = (py1 - originY) / gridSize;
+	int startC = (px1 - originX) / gridSize;
+	int goalR  = (py2 - originY) / gridSize;
+	int goalC  = (px2 - originX) / gridSize;
 
 	if (!isValid(startR, startC) || !isValid(goalR, goalC)) {
-	    return Collections.emptyList();
+	    return new ArrayList<Point>();
 	}
 
 	// Priority queue: smallest f-score first
@@ -161,10 +178,10 @@ public class WireRouter {
 	}
 
 	if (bestGoalNode == null) {
-	    return Collections.emptyList();
+	    return new ArrayList<Point>();
 	}
 
-	// Reconstruct full path using best goal state
+	// Reconstruct full path in grid coords
 	List<int[]> fullPath = new ArrayList<>();
 	String currentKey = key(bestGoalNode.r, bestGoalNode.c, bestGoalNode.dir);
 	while (currentKey != null) {
@@ -173,8 +190,12 @@ public class WireRouter {
 	    currentKey = cameFrom.get(currentKey);
 	}
 
-	// Compress to minimal corners (same as before)
-	return compressPath(fullPath);
+	// Compress to minimal corners, then convert to pixel Points
+	List<int[]> compressed = compressPath(fullPath);
+	ArrayList<Point> result = new ArrayList<Point>();
+	for (int[] pt : compressed)
+	    result.add(new Point(pt[1] * gridSize + originX, pt[0] * gridSize + originY));
+	return result;
     }
 
     /**

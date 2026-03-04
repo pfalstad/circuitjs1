@@ -20,7 +20,6 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.ArrayList;
-import java.util.List;
 
     class RoutedWireElm extends WireElm {
 	ArrayList<Point> routePoints;
@@ -35,38 +34,31 @@ import java.util.List;
 
 	void setPoints() {
 	    super.setPoints();
-	    routePoints = new ArrayList<Point>();
-	    routePoints.add(point1);
 
-	    int gridSize = app.gridSize;
-	    Rectangle bounds = UIManager.theUI.getCircuitBounds();
-	    if (bounds == null) {
-		routePoints.add(point2);
-		return;
-	    }
+	    WireRouter router = new WireRouter();
+	    router.initGrid(this);
 
-	    // grid coordinates: row = y/gridSize, col = x/gridSize
-	    int maxRow = (bounds.y + bounds.height) / gridSize + 1;
-	    int maxCol = (bounds.x + bounds.width) / gridSize + 1;
-	    WireRouter router = new WireRouter(maxRow + 1, maxCol + 1);
-	    router.initGrid(maxRow + 1, maxCol + 1, this);
-
-	    List<int[]> path = router.routeWire(x / gridSize, y / gridSize, x2 / gridSize, y2 / gridSize);
-	    if (path.size() < 2) {
+	    routePoints = router.routeWire(x, y, x2, y2);
+	    if (routePoints.size() < 2) {
 		sim.console("routing failed");
 		// fallback: simple L-shape
+		routePoints = new ArrayList<Point>();
+		routePoints.add(point1);
 		routePoints.add(new Point(x2, y));
 		routePoints.add(point2);
 		return;
 	    }
 	    sim.console("route success");
+	}
 
-	    // convert grid coords back to pixels, skip first and last (they're point1/point2)
-	    for (int i = 1; i < path.size() - 1; i++) {
-		int[] pt = path.get(i);
-		routePoints.add(new Point(pt[1] * gridSize, pt[0] * gridSize));
+	void addRoutingObstacle(WireRouter router) {
+	    if (routePoints == null)
+		return;
+	    for (int i = 0; i < routePoints.size() - 1; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		router.addObstacle(a.x, a.y, b.x, b.y);
 	    }
-	    routePoints.add(point2);
 	}
 
 	void draw(Graphics g) {
@@ -74,7 +66,9 @@ import java.util.List;
 	    for (int i = 0; i < routePoints.size() - 1; i++)
 		drawThickLine(g, routePoints.get(i), routePoints.get(i + 1));
 	    doDots(g);
-	    setBbox(point1.x, point1.y, point2.x, point2.y);
+
+	    final int m = 5;
+	    setBbox(min(point1.x, point2.x)-m, min(point1.y, point2.y)-m, max(point1.x, point2.x)+m, max(point1.y, point2.y)+m);
 	    String s = "";
 	    if (mustShowCurrent()) {
 		s = getShortUnitText(Math.abs(getCurrent()), "A");
