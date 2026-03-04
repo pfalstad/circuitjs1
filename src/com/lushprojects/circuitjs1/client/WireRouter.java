@@ -103,6 +103,46 @@ public class WireRouter {
 	grid[(wire.y2 - originY) / gridSize][(wire.x2 - originX) / gridSize] = 0;
     }
 
+    private static final double ESCAPE_BONUS = -0.4;   // negative = reward. Tune: -0.2 to -0.8
+
+    private int dr(int dir) {
+	switch (dir) {
+	    case UP:    return -1;  // up decreases row
+	    case DOWN:  return +1;  // down increases row
+	    case LEFT:  return  0;
+	    case RIGHT: return  0;
+	    default:    return  0;  // safety
+	}
+    }
+
+    private int dc(int dir) {
+	switch (dir) {
+	    case UP:    return  0;
+	    case DOWN:  return  0;
+	    case LEFT:  return -1;  // left decreases column
+	    case RIGHT: return +1;  // right increases column
+	    default:    return  0;
+	}
+    }
+
+    // Returns array of preferred initial directions from (r,c)
+    // 0 = none blocked → all allowed,  >0 = prefer these to escape
+    private int[] getPreferredEscapeDirections(int r, int c) {
+	List<Integer> prefs = new ArrayList<>();
+	// Check four immediate neighbors
+	if (!canMoveTo(r - 1, c, UP))    prefs.add(DOWN);    // blocked above → prefer down
+	if (!canMoveTo(r + 1, c, DOWN))  prefs.add(UP);
+	if (!canMoveTo(r, c - 1, LEFT))  prefs.add(RIGHT);
+	if (!canMoveTo(r, c + 1, RIGHT)) prefs.add(LEFT);
+
+	if (prefs.isEmpty()) {
+	    // Nothing blocked → no strong preference (or you could bias toward goal direction)
+	    return new int[0];
+	}
+	int[] arr = new int[prefs.size()];
+	for (int i = 0; i < prefs.size(); i++) arr[i] = prefs.get(i);
+	return arr;
+    }
 
     /**
      * Try to route a wire from (px1,py1) to (px2,py2) in pixel coordinates.
@@ -133,13 +173,36 @@ public class WireRouter {
 	// We'll track visited states loosely via gScore
 
 	// Enqueue start with all four possible first directions
+
+	int[] startPrefs = getPreferredEscapeDirections(startR, startC);
+	// Optional: int[] goalPrefs  = getPreferredEscapeDirections(goalR, goalC); // if you want goal bias too
+
 	for (int d : new int[]{UP, DOWN, LEFT, RIGHT}) {
+	    if (!canMoveTo(startR + dr(d), startC + dc(d), d)) continue;
+
 	    String key = key(startR, startC, d);
+	    
+	    double initG = 0.0;
+	    
+	    // Reward if this is a preferred escape direction
+	    boolean isPreferred = false;
+	    for (int pref : startPrefs) {
+		if (pref == d) {
+		    isPreferred = true;
+		    break;
+		}
+	    }
+	    if (isPreferred) {
+		initG += ESCAPE_BONUS;   // negative → looks cheaper
+	    }
+
 	    double h = manhattan(startR, startC, goalR, goalC);
-	    Node startNode = new Node(startR, startC, d, 0.0, h);
+	    Node startNode = new Node(startR, startC, d, initG, initG + h);
+	    
 	    openSet.offer(startNode);
-	    gScore.put(key, 0.0);
+	    gScore.put(key, initG);
 	}
+
 
 	Node bestGoalNode = null;
 
