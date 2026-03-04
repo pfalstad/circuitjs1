@@ -769,7 +769,7 @@ class Scope {
 	  int prevY = 0;
 
 	  // draw horizontal dB grid lines and labels
-	  for (int db = 0; db >= -80; db -= 20) {
+	  for (int db = -20; db >= -80; db -= 20) {
 	      int y = topMargin + (int) (-db * pixelsPerDb);
 	      if (y < 0 || y >= rect.height)
 		  continue;
