@@ -60,6 +60,11 @@ public class CircuitLoader {
         sim.lastIterTime = 0;
         if (app.contextStack.isEmpty())
             CustomCompositeModel.clearLocalModels();
+        if (!app.ui.subcircuitStack.isEmpty()) {
+            app.ui.subcircuitStack.clear();
+            app.ui.elmList = app.elmList;
+            app.ui.updateSubcircuitPath();
+        }
     }
 
     public void readCircuit(String text, int flags) {

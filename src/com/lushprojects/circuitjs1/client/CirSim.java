@@ -390,6 +390,8 @@ public class CirSim implements NativePreviewHandler {
     
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
 		int flags = subcircuitsOnly ? (CircuitLoader.RC_SUBCIRCUITS | CircuitLoader.RC_RETAIN) : 0;
+		if (!subcircuitsOnly)
+		    resetEditingContext();
 		if (circuitText != null) {
 			loader.readCircuit(circuitText, flags);
 			allowSave(false);
@@ -462,6 +464,11 @@ public class CirSim implements NativePreviewHandler {
 	undoManager.enableUndoRedo();
 	ui.updateContextButtons();
 	return ctx.changedModels;
+    }
+
+    void resetEditingContext() {
+	contextStack.clear();
+	ui.updateContextButtons();
     }
 
     boolean isEditingContext() {

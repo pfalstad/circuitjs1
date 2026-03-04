@@ -22,7 +22,7 @@ public class SubcircuitBar extends FlowPanel {
 	Style style = getElement().getStyle();
 	style.setProperty("background", "rgba(248,248,248,0.85)");
 	style.setPosition(Style.Position.ABSOLUTE);
-	style.setZIndex(50);
+	// no z-index so menu popups (added later in DOM) stack above us
 	style.setPadding(4, Style.Unit.PX);
 	style.setPaddingLeft(8, Style.Unit.PX);
 	style.setPaddingRight(8, Style.Unit.PX);
