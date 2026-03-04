@@ -1,7 +1,6 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.*;
-import java.util.function.BiConsumer;
 
 public class WireRouter {
 
@@ -151,161 +150,217 @@ public class WireRouter {
      */
     private ArrayList<Point> tryPatternRouting(int startR, int startC, int goalR, int goalC) {
 	if (startR == goalR && startC == goalC) {
-	    // trivial case
-	    return pixelsFromGridPoints(List.of(new int[]{startR, startC}));
+	    ArrayList<Point> result = new ArrayList<Point>();
+	    result.add(new Point(startC * gridSize + originX, startR * gridSize + originY));
+	    return result;
 	}
 
 	int[] startPrefs = getPreferredEscapeDirections(startR, startC);
-
-	// We'll collect valid patterns with their scores
-	// Each entry: [cost, List<int[]> gridCorners]
-	List<Object[]> candidates = new ArrayList<>();
-
-	// Helper to check a full path and compute its cost
-	BiConsumer<List<int[]>, Integer> tryPath = (corners, initialDir) -> {
-	    if (corners.size() < 2) return;
-
-	    boolean valid = true;
-	    double cost = 0.0;
-	    int prevDir = NONE;
-	    int[] prev = corners.get(0);
-
-	    for (int i = 1; i < corners.size(); i++) {
-		int[] curr = corners.get(i);
-		int dr = curr[0] - prev[0];
-		int dc = curr[1] - prev[1];
-		int steps = Math.max(Math.abs(dr), Math.abs(dc));
-		int moveDir;
-
-		if (dr == 0 && dc > 0)      moveDir = RIGHT;
-		else if (dr == 0 && dc < 0) moveDir = LEFT;
-		else if (dc == 0 && dr > 0) moveDir = DOWN;
-		else if (dc == 0 && dr < 0) moveDir = UP;
-		else { valid = false; break; } // diagonal or invalid
-
-		// Check every cell along the segment
-		int r = prev[0], c = prev[1];
-		for (int s = 0; s < steps; s++) {
-		    r += Integer.signum(dr);
-		    c += Integer.signum(dc);
-		    if (!isValid(r, c) || !canMoveTo(r, c, moveDir)) {
-			valid = false;
-			break;
-		    }
-		}
-		if (!valid) break;
-
-		// Cost: steps + turn penalty
-		cost += steps;
-		if (prevDir != NONE && moveDir != prevDir && moveDir != opposite(prevDir)) {
-		    cost += turnPenalty;
-		}
-		prevDir = moveDir;
-		prev = curr;
-	    }
-
-	    if (valid) {
-		// Add escape bonus if first move matches preference
-		int firstDir = initialDir;
-		boolean preferred = false;
-		for (int p : startPrefs) {
-		    if (p == firstDir) {
-			preferred = true;
-			break;
-		    }
-		}
-		if (preferred) {
-		    cost += ESCAPE_BONUS; // negative
-		}
-
-		candidates.add(new Object[]{cost, corners});
-	    }
-	};
+	double bestCost = Double.POSITIVE_INFINITY;
+	List<int[]> bestCorners = null;
 
 	// ─────────────────────────────────────────────
-	// 1. L-shapes (0 or 1 bend)
+	// 1. L-shapes (1 bend)
 	// ─────────────────────────────────────────────
 
-	// Longer segment first — two classic orders
-	// A → horizontal then vertical
-	List<int[]> path1 = List.of(
-	    new int[]{startR, startC},
-	    new int[]{startR, goalC},
-	    new int[]{goalR, goalC}
-	);
-	int dir1 = (goalC > startC) ? RIGHT : LEFT;
-	tryPath.accept(path1, dir1);
+	if (startR != goalR && startC != goalC) {
+	    // A: horizontal then vertical
+	    List<int[]> path1 = new ArrayList<int[]>();
+	    path1.add(new int[]{startR, startC});
+	    path1.add(new int[]{startR, goalC});
+	    path1.add(new int[]{goalR, goalC});
+	    int dir1 = (goalC > startC) ? RIGHT : LEFT;
+	    double cost1 = evaluatePath(path1, dir1, startPrefs);
+	    if (cost1 >= 0 && cost1 < bestCost) {
+		bestCost = cost1;
+		bestCorners = path1;
+	    }
 
-	// B → vertical then horizontal
-	List<int[]> path2 = List.of(
-	    new int[]{startR, startC},
-	    new int[]{goalR, startC},
-	    new int[]{goalR, goalC}
-	);
-	int dir2 = (goalR > startR) ? DOWN : UP;
-	tryPath.accept(path2, dir2);
+	    // B: vertical then horizontal
+	    List<int[]> path2 = new ArrayList<int[]>();
+	    path2.add(new int[]{startR, startC});
+	    path2.add(new int[]{goalR, startC});
+	    path2.add(new int[]{goalR, goalC});
+	    int dir2 = (goalR > startR) ? DOWN : UP;
+	    double cost2 = evaluatePath(path2, dir2, startPrefs);
+	    if (cost2 >= 0 && cost2 < bestCost) {
+		bestCost = cost2;
+		bestCorners = path2;
+	    }
+	} else if (startR == goalR) {
+	    // straight horizontal
+	    List<int[]> path = new ArrayList<int[]>();
+	    path.add(new int[]{startR, startC});
+	    path.add(new int[]{goalR, goalC});
+	    int dir = (goalC > startC) ? RIGHT : LEFT;
+	    double cost = evaluatePath(path, dir, startPrefs);
+	    if (cost >= 0 && cost < bestCost) {
+		bestCost = cost;
+		bestCorners = path;
+	    }
+	} else {
+	    // straight vertical
+	    List<int[]> path = new ArrayList<int[]>();
+	    path.add(new int[]{startR, startC});
+	    path.add(new int[]{goalR, goalC});
+	    int dir = (goalR > startR) ? DOWN : UP;
+	    double cost = evaluatePath(path, dir, startPrefs);
+	    if (cost >= 0 && cost < bestCost) {
+		bestCost = cost;
+		bestCorners = path;
+	    }
+	}
 
 	// ─────────────────────────────────────────────
 	// 2. Z-shapes (2 bends) — try detour on both sides
 	// ─────────────────────────────────────────────
 
-	// Variant 1: horizontal – vertical – horizontal
-	// We try two detour rows: one "above" start side, one "below"
-	int detourMargin = 3; // or 2–3 if you want more space to try
+	int detourMargin = 3;
 
-	for (int side : new int[]{-1, +1}) {
-	    int detourRow = startR + side * detourMargin;
-	    if (!isValid(detourRow, 0)) continue;
+	// Variant 1: vertical – horizontal – vertical (detour column)
+	if (startR != goalR) {
+	    int midR = (startR + goalR) / 2;
+	    for (int side : new int[]{-1, +1}) {
+		int detourCol = startC + side * detourMargin;
+		if (!isValid(0, detourCol)) continue;
 
-	    List<int[]> z1 = List.of(
-		new int[]{startR, startC},
-		new int[]{detourRow, startC},      // vertical first
-		new int[]{detourRow, goalC},       // long horizontal
-		new int[]{goalR, goalC}
-	    );
-	    tryPath.accept(z1, (detourRow < startR) ? UP : DOWN);
+		List<int[]> z = new ArrayList<int[]>();
+		z.add(new int[]{startR, startC});
+		if (startC != detourCol)
+		    z.add(new int[]{startR, detourCol});
+		if (startR != goalR)
+		    z.add(new int[]{goalR, detourCol});
+		if (detourCol != goalC)
+		    z.add(new int[]{goalR, goalC});
+		if (z.size() >= 2) {
+		    int dir = (detourCol > startC) ? RIGHT : LEFT;
+		    double cost = evaluatePath(z, dir, startPrefs);
+		    if (cost >= 0 && cost < bestCost) {
+			bestCost = cost;
+			bestCorners = z;
+		    }
+		}
 
-	    List<int[]> z2 = List.of(
-		new int[]{startR, startC},
-		new int[]{startR, goalC},          // long horizontal first
-		new int[]{detourRow, goalC},
-		new int[]{goalR, goalC}
-	    );
-	    tryPath.accept(z2, (goalC > startC) ? RIGHT : LEFT);
+		// also try going to midpoint row first
+		detourCol = goalC + side * detourMargin;
+		if (!isValid(0, detourCol)) continue;
+		z = new ArrayList<int[]>();
+		z.add(new int[]{startR, startC});
+		if (startC != detourCol)
+		    z.add(new int[]{startR, detourCol});
+		if (startR != goalR)
+		    z.add(new int[]{goalR, detourCol});
+		if (detourCol != goalC)
+		    z.add(new int[]{goalR, goalC});
+		if (z.size() >= 2) {
+		    int dir = (detourCol > startC) ? RIGHT : LEFT;
+		    double cost = evaluatePath(z, dir, startPrefs);
+		    if (cost >= 0 && cost < bestCost) {
+			bestCost = cost;
+			bestCorners = z;
+		    }
+		}
+	    }
 	}
 
-	// Variant 2: vertical – horizontal – vertical (symmetric)
-	for (int side : new int[]{-1, +1}) {
-	    int detourCol = startC + side * detourMargin;
-	    if (!isValid(0, detourCol)) continue;
+	// Variant 2: horizontal – vertical – horizontal (detour row)
+	if (startC != goalC) {
+	    for (int side : new int[]{-1, +1}) {
+		int detourRow = startR + side * detourMargin;
+		if (!isValid(detourRow, 0)) continue;
 
-	    List<int[]> z3 = List.of(
-		new int[]{startR, startC},
-		new int[]{startR, detourCol},
-		new int[]{goalR, detourCol},
-		new int[]{goalR, goalC}
-	    );
-	    tryPath.accept(z3, (detourCol < startC) ? LEFT : RIGHT);
+		List<int[]> z = new ArrayList<int[]>();
+		z.add(new int[]{startR, startC});
+		if (startR != detourRow)
+		    z.add(new int[]{detourRow, startC});
+		if (startC != goalC)
+		    z.add(new int[]{detourRow, goalC});
+		if (detourRow != goalR)
+		    z.add(new int[]{goalR, goalC});
+		if (z.size() >= 2) {
+		    int dir = (detourRow > startR) ? DOWN : UP;
+		    double cost = evaluatePath(z, dir, startPrefs);
+		    if (cost >= 0 && cost < bestCost) {
+			bestCost = cost;
+			bestCorners = z;
+		    }
+		}
 
-	    List<int[]> z4 = List.of(
-		new int[]{startR, startC},
-		new int[]{goalR, startC},
-		new int[]{goalR, detourCol},
-		new int[]{goalR, goalC}
-	    );
-	    tryPath.accept(z4, (goalR > startR) ? DOWN : UP);
+		detourRow = goalR + side * detourMargin;
+		if (!isValid(detourRow, 0)) continue;
+		z = new ArrayList<int[]>();
+		z.add(new int[]{startR, startC});
+		if (startR != detourRow)
+		    z.add(new int[]{detourRow, startC});
+		if (startC != goalC)
+		    z.add(new int[]{detourRow, goalC});
+		if (detourRow != goalR)
+		    z.add(new int[]{goalR, goalC});
+		if (z.size() >= 2) {
+		    int dir = (detourRow > startR) ? DOWN : UP;
+		    double cost = evaluatePath(z, dir, startPrefs);
+		    if (cost >= 0 && cost < bestCost) {
+			bestCost = cost;
+			bestCorners = z;
+		    }
+		}
+	    }
 	}
 
-	if (candidates.isEmpty()) {
-	    return new ArrayList<>();
+	if (bestCorners == null) {
+	    return new ArrayList<Point>();
 	}
 
-	// Pick best (lowest cost)
-	candidates.sort(Comparator.comparingDouble(a -> (Double) a[0]));
-	List<int[]> bestCorners = (List<int[]>) candidates.get(0)[1];
-
-	// Convert to pixel points
 	return pixelsFromGridPoints(bestCorners);
+    }
+
+    // Evaluate a candidate path. Returns cost if valid, -1 if invalid.
+    private double evaluatePath(List<int[]> corners, int initialDir, int[] startPrefs) {
+	if (corners.size() < 2) return -1;
+
+	double cost = 0.0;
+	int prevDir = NONE;
+	int[] prev = corners.get(0);
+
+	for (int i = 1; i < corners.size(); i++) {
+	    int[] curr = corners.get(i);
+	    int dr = curr[0] - prev[0];
+	    int dc = curr[1] - prev[1];
+	    int steps = Math.max(Math.abs(dr), Math.abs(dc));
+	    if (steps == 0) continue; // skip zero-length segments
+	    int moveDir;
+
+	    if (dr == 0 && dc > 0)      moveDir = RIGHT;
+	    else if (dr == 0 && dc < 0) moveDir = LEFT;
+	    else if (dc == 0 && dr > 0) moveDir = DOWN;
+	    else if (dc == 0 && dr < 0) moveDir = UP;
+	    else return -1; // diagonal
+
+	    // Check every cell along the segment
+	    int r = prev[0], c = prev[1];
+	    for (int s = 0; s < steps; s++) {
+		r += Integer.signum(dr);
+		c += Integer.signum(dc);
+		if (!isValid(r, c) || !canMoveTo(r, c, moveDir))
+		    return -1;
+	    }
+
+	    cost += steps;
+	    if (prevDir != NONE && moveDir != prevDir && moveDir != opposite(prevDir))
+		cost += turnPenalty;
+	    prevDir = moveDir;
+	    prev = curr;
+	}
+
+	// Escape bonus
+	for (int p : startPrefs) {
+	    if (p == initialDir) {
+		cost += ESCAPE_BONUS;
+		break;
+	    }
+	}
+
+	return cost;
     }
 
     private ArrayList<Point> pixelsFromGridPoints(List<int[]> gridPoints) {
