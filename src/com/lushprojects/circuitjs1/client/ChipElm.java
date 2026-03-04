@@ -204,6 +204,10 @@ abstract class ChipElm extends CircuitElm {
 	    labelY = yr+ys/2;
 	}
 	
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
+	}
+
 	// see if we can move pin to position xp, yp, and return the new position
 	boolean getPinPos(int xp, int yp, int pin, int pos[]) {
 	    int x0 = x+cspc2; int y0 = y;

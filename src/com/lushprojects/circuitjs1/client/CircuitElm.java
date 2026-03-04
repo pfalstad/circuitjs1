@@ -265,7 +265,8 @@ public abstract class CircuitElm implements Editable {
 
     // add this element as an obstacle to the wire router grid
     void addRoutingObstacle(WireRouter router) {
-	router.addObstacle(x, y, x2, y2);
+	if (x == x2 || y == y2)
+	    router.addWire(x, y, x2, y2);
     }
     
     // stamp matrix values for non-linear elements

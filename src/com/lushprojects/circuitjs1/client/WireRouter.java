@@ -42,6 +42,21 @@ public class WireRouter {
         int maxR = Math.max(r1, r2);
         int minC = Math.min(c1, c2);
         int maxC = Math.max(c1, c2);
+	for (int c = minC; c <= maxC; c++)
+	    for (int r = minR; r <= maxR; r++)
+		if (isValid(r, c))
+			grid[r][c] |= OBSTACLE;
+    }
+
+    public void addWire(int px1, int py1, int px2, int py2) {
+	int r1 = (py1 - originY) / gridSize;
+	int c1 = (px1 - originX) / gridSize;
+	int r2 = (py2 - originY) / gridSize;
+	int c2 = (px2 - originX) / gridSize;
+        int minR = Math.min(r1, r2);
+        int maxR = Math.max(r1, r2);
+        int minC = Math.min(c1, c2);
+        int maxC = Math.max(c1, c2);
 	if (r1 == r2) {
 	    for (int c = minC; c <= maxC; c++)
 		if (isValid(r1, c))

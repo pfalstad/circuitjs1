@@ -57,7 +57,7 @@ import java.util.ArrayList;
 	    for (int i = 0; i < routePoints.size() - 1; i++) {
 		Point a = routePoints.get(i);
 		Point b = routePoints.get(i + 1);
-		router.addObstacle(a.x, a.y, b.x, b.y);
+		router.addWire(a.x, a.y, b.x, b.y);
 	    }
 	}
 
