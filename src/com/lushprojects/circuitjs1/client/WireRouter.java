@@ -39,14 +39,22 @@ public class WireRouter {
         int maxR = Math.max(r1, r2);
         int minC = Math.min(c1, c2);
         int maxC = Math.max(c1, c2);
-		CirSim.console("add obstacle " + c1 + " " + r1 + " " + c2 + " " + r2);
-        for (int r = minR; r <= maxR; r++) {
+        /*for (int r = minR; r <= maxR; r++) {
             for (int c = minC; c <= maxC; c++) {
                 if (isValid(r, c)) {
                     grid[r][c] = OBSTACLE;
                 }
             }
-        }
+        }*/
+	if (r1 == r2) {
+	    for (int c = minC; c <= maxC; c++)
+		if (isValid(r1, c))
+		    grid[r1][c] |= HORIZONTAL;
+	} else {
+	    for (int r = minR; r <= maxR; r++)
+		if (isValid(r, c1))
+		    grid[r][c1] |= VERTICAL;
+	}
     }
 
     public void initGrid(int rows, int cols, CircuitElm wire) {
@@ -69,7 +77,7 @@ public class WireRouter {
      */
     public List<int[]> routeWire(int x1, int y1, int x2, int y2) {
         // In this version: x = column, y = row  (as in canvas)
-	CirSim.console("routeWire " + x1 + " " + y1 + " " + x2 + " " + y2);
+	//CirSim.console("routeWire " + x1 + " " + y1 + " " + x2 + " " + y2);
         int startR = y1;
         int startC = x1;
         int goalR = y2;
@@ -149,16 +157,49 @@ public class WireRouter {
             return Collections.emptyList();
         }
 
-        // Reconstruct path
-        List<int[]> path = new ArrayList<>();
-        String current = bestGoalKey;
-        while (current != null) {
-            int[] pos = parseKey(current);
-            path.add(0, new int[]{pos[0], pos[1]});  // [row, col]
-            current = cameFrom.get(current);
-        }
+	// Step 1: reconstruct full (dense) path
+	List<int[]> fullPath = new ArrayList<>();
+	String current = bestGoalKey;
+	while (current != null) {
+	    int[] pos = parseKey(current);
+	    fullPath.add(0, new int[]{pos[0], pos[1]});  // [row, col]
+	    current = cameFrom.get(current);
+	}
 
-        return path;
+	// Step 2: compress path — keep only start, bends, and end
+	List<int[]> minimalPath = new ArrayList<>();
+	if (fullPath.isEmpty()) return minimalPath;
+
+	minimalPath.add(fullPath.get(0));  // always keep start
+
+	for (int i = 1; i < fullPath.size() - 1; i++) {
+	    int[] prev = fullPath.get(i - 1);
+	    int[] curr = fullPath.get(i);
+	    int[] next = fullPath.get(i + 1);
+
+	    int dx1 = curr[1] - prev[1];  // col diff incoming
+	    int dy1 = curr[0] - prev[0];  // row diff incoming
+	    int dx2 = next[1] - curr[1];  // col diff outgoing
+	    int dy2 = next[0] - curr[0];  // row diff outgoing
+
+	    // If incoming and outgoing directions are not collinear → it's a bend
+	    boolean collinear = (dx1 * dy2 == dy1 * dx2) && (dx1 * dx2 + dy1 * dy2 > 0);
+	    if (!collinear) {
+		minimalPath.add(curr);
+	    }
+	}
+
+	// Always add goal (unless it's already the start)
+	int[] last = fullPath.get(fullPath.size() - 1);
+	if (minimalPath.size() == 1 || 
+	    minimalPath.get(minimalPath.size() - 1)[0] != last[0] ||
+	    minimalPath.get(minimalPath.size() - 1)[1] != last[1]) {
+	    minimalPath.add(last);
+	}
+
+	CirSim.console("minimal " + minimalPath.size());
+	return minimalPath;
+
     }
 
     /**
