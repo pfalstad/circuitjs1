@@ -1,6 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 
 public class WireRouter {
 
@@ -145,6 +146,179 @@ public class WireRouter {
     }
 
     /**
+     * Tries fast pattern routes (L and Z shapes).
+     * Returns compressed pixel path if successful, else empty list.
+     */
+    private ArrayList<Point> tryPatternRouting(int startR, int startC, int goalR, int goalC) {
+	if (startR == goalR && startC == goalC) {
+	    // trivial case
+	    return pixelsFromGridPoints(List.of(new int[]{startR, startC}));
+	}
+
+	int[] startPrefs = getPreferredEscapeDirections(startR, startC);
+
+	// We'll collect valid patterns with their scores
+	// Each entry: [cost, List<int[]> gridCorners]
+	List<Object[]> candidates = new ArrayList<>();
+
+	// Helper to check a full path and compute its cost
+	BiConsumer<List<int[]>, Integer> tryPath = (corners, initialDir) -> {
+	    if (corners.size() < 2) return;
+
+	    boolean valid = true;
+	    double cost = 0.0;
+	    int prevDir = NONE;
+	    int[] prev = corners.get(0);
+
+	    for (int i = 1; i < corners.size(); i++) {
+		int[] curr = corners.get(i);
+		int dr = curr[0] - prev[0];
+		int dc = curr[1] - prev[1];
+		int steps = Math.max(Math.abs(dr), Math.abs(dc));
+		int moveDir;
+
+		if (dr == 0 && dc > 0)      moveDir = RIGHT;
+		else if (dr == 0 && dc < 0) moveDir = LEFT;
+		else if (dc == 0 && dr > 0) moveDir = DOWN;
+		else if (dc == 0 && dr < 0) moveDir = UP;
+		else { valid = false; break; } // diagonal or invalid
+
+		// Check every cell along the segment
+		int r = prev[0], c = prev[1];
+		for (int s = 0; s < steps; s++) {
+		    r += Integer.signum(dr);
+		    c += Integer.signum(dc);
+		    if (!isValid(r, c) || !canMoveTo(r, c, moveDir)) {
+			valid = false;
+			break;
+		    }
+		}
+		if (!valid) break;
+
+		// Cost: steps + turn penalty
+		cost += steps;
+		if (prevDir != NONE && moveDir != prevDir && moveDir != opposite(prevDir)) {
+		    cost += turnPenalty;
+		}
+		prevDir = moveDir;
+		prev = curr;
+	    }
+
+	    if (valid) {
+		// Add escape bonus if first move matches preference
+		int firstDir = initialDir;
+		boolean preferred = false;
+		for (int p : startPrefs) {
+		    if (p == firstDir) {
+			preferred = true;
+			break;
+		    }
+		}
+		if (preferred) {
+		    cost += ESCAPE_BONUS; // negative
+		}
+
+		candidates.add(new Object[]{cost, corners});
+	    }
+	};
+
+	// ─────────────────────────────────────────────
+	// 1. L-shapes (0 or 1 bend)
+	// ─────────────────────────────────────────────
+
+	// Longer segment first — two classic orders
+	// A → horizontal then vertical
+	List<int[]> path1 = List.of(
+	    new int[]{startR, startC},
+	    new int[]{startR, goalC},
+	    new int[]{goalR, goalC}
+	);
+	int dir1 = (goalC > startC) ? RIGHT : LEFT;
+	tryPath.accept(path1, dir1);
+
+	// B → vertical then horizontal
+	List<int[]> path2 = List.of(
+	    new int[]{startR, startC},
+	    new int[]{goalR, startC},
+	    new int[]{goalR, goalC}
+	);
+	int dir2 = (goalR > startR) ? DOWN : UP;
+	tryPath.accept(path2, dir2);
+
+	// ─────────────────────────────────────────────
+	// 2. Z-shapes (2 bends) — try detour on both sides
+	// ─────────────────────────────────────────────
+
+	// Variant 1: horizontal – vertical – horizontal
+	// We try two detour rows: one "above" start side, one "below"
+	int detourMargin = 3; // or 2–3 if you want more space to try
+
+	for (int side : new int[]{-1, +1}) {
+	    int detourRow = startR + side * detourMargin;
+	    if (!isValid(detourRow, 0)) continue;
+
+	    List<int[]> z1 = List.of(
+		new int[]{startR, startC},
+		new int[]{detourRow, startC},      // vertical first
+		new int[]{detourRow, goalC},       // long horizontal
+		new int[]{goalR, goalC}
+	    );
+	    tryPath.accept(z1, (detourRow < startR) ? UP : DOWN);
+
+	    List<int[]> z2 = List.of(
+		new int[]{startR, startC},
+		new int[]{startR, goalC},          // long horizontal first
+		new int[]{detourRow, goalC},
+		new int[]{goalR, goalC}
+	    );
+	    tryPath.accept(z2, (goalC > startC) ? RIGHT : LEFT);
+	}
+
+	// Variant 2: vertical – horizontal – vertical (symmetric)
+	for (int side : new int[]{-1, +1}) {
+	    int detourCol = startC + side * detourMargin;
+	    if (!isValid(0, detourCol)) continue;
+
+	    List<int[]> z3 = List.of(
+		new int[]{startR, startC},
+		new int[]{startR, detourCol},
+		new int[]{goalR, detourCol},
+		new int[]{goalR, goalC}
+	    );
+	    tryPath.accept(z3, (detourCol < startC) ? LEFT : RIGHT);
+
+	    List<int[]> z4 = List.of(
+		new int[]{startR, startC},
+		new int[]{goalR, startC},
+		new int[]{goalR, detourCol},
+		new int[]{goalR, goalC}
+	    );
+	    tryPath.accept(z4, (goalR > startR) ? DOWN : UP);
+	}
+
+	if (candidates.isEmpty()) {
+	    return new ArrayList<>();
+	}
+
+	// Pick best (lowest cost)
+	candidates.sort(Comparator.comparingDouble(a -> (Double) a[0]));
+	List<int[]> bestCorners = (List<int[]>) candidates.get(0)[1];
+
+	// Convert to pixel points
+	return pixelsFromGridPoints(bestCorners);
+    }
+
+    private ArrayList<Point> pixelsFromGridPoints(List<int[]> gridPoints) {
+	ArrayList<Point> result = new ArrayList<>();
+	for (int[] g : gridPoints) {
+	    int px = g[1] * gridSize + originX;
+	    int py = g[0] * gridSize + originY;
+	    result.add(new Point(px, py));
+	}
+	return result;
+    }
+
+    /**
      * Try to route a wire from (px1,py1) to (px2,py2) in pixel coordinates.
      * Returns list of Points in pixel coordinates (corners only),
      * or empty list if no path.
@@ -158,6 +332,16 @@ public class WireRouter {
 	if (!isValid(startR, startC) || !isValid(goalR, goalC)) {
 	    return new ArrayList<Point>();
 	}
+
+	// try simple algorithm first
+	ArrayList<Point> patternPath = tryPatternRouting(startR, startC, goalR, goalC);
+	if (!patternPath.isEmpty()) {
+	    CirSim.console("pattern");
+	    return patternPath;
+	}
+
+	CirSim.console("A*");
+	// now try A*
 
 	// Priority queue: smallest f-score first
 	PriorityQueue<Node> openSet = new PriorityQueue<>(
