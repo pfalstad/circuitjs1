@@ -211,7 +211,7 @@ public class ImportFromSchematicDialog extends Dialog {
             }
             @com.lushprojects.circuitjs1.client.ImportFromSchematicDialog::onAnalysisComplete(Ljava/lang/String;)(text);
         })
-        .catch(function(err) {
+        ["catch"](function(err) {
             @com.lushprojects.circuitjs1.client.ImportFromSchematicDialog::onAnalysisError(Ljava/lang/String;)(err.message || "Network error. Check connection and retry.");
         });
     }-*/;
