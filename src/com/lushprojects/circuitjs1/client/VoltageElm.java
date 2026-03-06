@@ -40,7 +40,7 @@ class VoltageElm extends CircuitElm {
     static final int WF_NOISE = 6;
     static final int WF_VAR = 7;
     double frequency, maxVoltage, freqTimeZero, bias,
-	phaseShift, dutyCycle, noiseValue;
+	phaseShift, dutyCycle, noiseValue, riseTime;
     
     static final double defaultPulseDuty = 1/(2*Math.PI);
     
@@ -66,6 +66,7 @@ class VoltageElm extends CircuitElm {
 	    bias = new Double(st.nextToken()).doubleValue();
 	    phaseShift = new Double(st.nextToken()).doubleValue();
 	    dutyCycle = new Double(st.nextToken()).doubleValue();
+	    riseTime = new Double(st.nextToken()).doubleValue();
 	} catch (Exception e) {
 	}
 	if ((flags & FLAG_COS) != 0) {
@@ -94,6 +95,8 @@ class VoltageElm extends CircuitElm {
             XMLSerializer.dumpAttr(elem, "phaseShift", phaseShift);
 	if (dutyCycle != .5)
             XMLSerializer.dumpAttr(elem, "dutyCycle", dutyCycle);
+	if (riseTime != 0)
+            XMLSerializer.dumpAttr(elem, "riseTime", riseTime);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -104,6 +107,7 @@ class VoltageElm extends CircuitElm {
 	bias = xml.parseDoubleAttr("bias", bias);
 	phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);
 	dutyCycle = xml.parseDoubleAttr("dutyCycle", dutyCycle);
+	riseTime = xml.parseDoubleAttr("riseTime", riseTime);
     }
 
     void reset() {
@@ -141,14 +145,71 @@ class VoltageElm extends CircuitElm {
 	case WF_DC: return maxVoltage+bias;
 	case WF_AC: return Math.sin(w)*maxVoltage+bias;
 	case WF_SQUARE:
-	    return bias+((w % (2*pi) > (2*pi*dutyCycle)) ?
-			 -maxVoltage : maxVoltage);
+	{
+	    double wm = w % (2*pi);
+	    double dutyPhase = 2*pi*dutyCycle;
+	    if (riseTime > 0) {
+		double risePhase = riseTime * frequency * 2 * pi;
+		double halfRise = risePhase/2;
+		// rising edge centered at phase 0 (wraps around cycle boundary)
+		if (wm < halfRise) {
+		    double t = (wm + halfRise) / risePhase;
+		    return bias + maxVoltage * (2*t - 1);
+		}
+		// high plateau
+		else if (wm < dutyPhase - halfRise)
+		    return bias + maxVoltage;
+		// falling edge centered at dutyPhase
+		else if (wm < dutyPhase + halfRise) {
+		    double t = (wm - dutyPhase + halfRise) / risePhase;
+		    return bias + maxVoltage * (1 - 2*t);
+		}
+		// low plateau
+		else if (wm < 2*pi - halfRise)
+		    return bias - maxVoltage;
+		// rising edge wrapping around end of cycle
+		else {
+		    double t = (wm - (2*pi - halfRise)) / risePhase;
+		    return bias + maxVoltage * (2*t - 1);
+		}
+	    }
+	    return bias+((wm > dutyPhase) ? -maxVoltage : maxVoltage);
+	}
 	case WF_TRIANGLE:
 	    return bias+triangleFunc(w % (2*pi))*maxVoltage;
 	case WF_SAWTOOTH:
 	    return bias+(w % (2*pi))*(maxVoltage/pi)-maxVoltage;
 	case WF_PULSE:
-	    return ((w % (2*pi)) < (2*pi*dutyCycle)) ? maxVoltage+bias : bias;
+	{
+	    double wm = w % (2*pi);
+	    double dutyPhase = 2*pi*dutyCycle;
+	    if (riseTime > 0) {
+		double risePhase = riseTime * frequency * 2 * pi;
+		double halfRise = risePhase/2;
+		// rising edge centered at phase 0 (wraps around cycle boundary)
+		if (wm < halfRise) {
+		    double t = (wm + halfRise) / risePhase;
+		    return bias + maxVoltage * t;
+		}
+		// high plateau
+		else if (wm < dutyPhase - halfRise)
+		    return bias + maxVoltage;
+		// falling edge centered at dutyPhase
+		else if (wm < dutyPhase + halfRise) {
+		    double t = (wm - dutyPhase + halfRise) / risePhase;
+		    return bias + maxVoltage * (1 - t);
+		}
+		// low for the rest of the cycle
+		else if (wm < 2*pi - halfRise)
+		    return bias;
+		// rising edge wrapping around end of cycle
+		else {
+		    double t = (wm - (2*pi - halfRise)) / risePhase;
+		    return bias + maxVoltage * t;
+		}
+	    }
+	    return (wm < dutyPhase) ? maxVoltage+bias : bias;
+	}
 	case WF_NOISE:
 	    return noiseValue;
 	default: return 0;
@@ -401,6 +462,8 @@ class VoltageElm extends CircuitElm {
 	if (n == fo+2 && (waveform == WF_PULSE || waveform == WF_SQUARE))
 	    return new EditInfo("Duty Cycle", dutyCycle*100, 0, 100).
 		setDimensionless();
+	if (n == fo+3 && (waveform == WF_PULSE || waveform == WF_SQUARE))
+	    return new EditInfo("Rise/Fall Time (s)", riseTime, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -451,6 +514,8 @@ class VoltageElm extends CircuitElm {
 	    phaseShift = ei.value*pi/180;
 	if (n == fo+2)
 	    dutyCycle = ei.value*.01;
+	if (n == fo+3)
+	    riseTime = ei.value;
     }
 }
 
