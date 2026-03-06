@@ -584,7 +584,7 @@ labelledGridManager gridLabels;
 	    resistanceBox.setValue(scope.showingValue(Scope.VAL_R));
 	    resistanceBox.setEnabled(scope.canShowResistance());
 	    if (chargeBox != null)
-		chargeBox.setValue(scope.hasPlotValue(Scope.VAL_CHARGE));
+		chargeBox.setValue(scope.showC);
 	    if (vbeBox != null) {
                 ibBox.setValue(scope.showingValue(Scope.VAL_IB));
                 icBox.setValue(scope.showingValue(Scope.VAL_IC));
