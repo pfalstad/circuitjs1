@@ -9,10 +9,6 @@ import com.google.gwt.xml.client.Document;
 
 class DCMotorElm extends CircuitElm {
 
-    // When set, K (torque constant) and Kb (back-EMF constant) can be edited independently.
-    // When not set, Kb is kept equal to K to enforce energy conservation (K = Kb in SI units).
-    static final int FLAG_SEPARATE_KB = 4;
-
     Inductor ind, indInertia;
     // Electrical parameters
     double resistance, inductance;
@@ -224,39 +220,22 @@ class DCMotorElm extends CircuitElm {
 	arr[5] = "R = " + getUnitText(resistance, Locale.ohmString);
 	arr[6] = "P = " + getUnitText(getPower(), "W");
     }
-    boolean hasSeparateKb() { return (flags & FLAG_SEPARATE_KB) != 0; }
-
     public EditInfo getEditInfo(int n) {
-
 	if (n == 0)
 	    return new EditInfo("Armature inductance (H)", inductance, 0, 0);
 	if (n == 1)
 	    return new EditInfo("Armature Resistance (ohms)", resistance, 0, 0);
 	if (n == 2)
 	    return new EditInfo("Torque constant (Nm/A)", K, 0, 0);
-	if (n == 3) {
-	    EditInfo ei = new EditInfo("", 0, -1, -1);
-	    ei.checkbox = new Checkbox("Separate back-EMF constant", hasSeparateKb());
-	    return ei;
-	}
-	if (n == 4 && hasSeparateKb())
-	    return new EditInfo("Back-EMF constant (Vs/rad)", Kb, 0, 0);
-	if (n == 4 && !hasSeparateKb())
+	if (n == 3)
 	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
-	if (n == 5 && hasSeparateKb())
-	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
-	if (n == 5 && !hasSeparateKb())
+	if (n == 4)
 	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
-	if (n == 6 && hasSeparateKb())
-	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
-	if (n == 6 && !hasSeparateKb())
-	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
-	if (n == 7 && hasSeparateKb())
+	if (n == 5)
 	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
-
 	if (n == 0 && ei.value > 0) {
             inductance = ei.value;
             ind.setup(inductance, current, Inductor.FLAG_BACK_EULER);
@@ -265,32 +244,15 @@ class DCMotorElm extends CircuitElm {
 	    resistance = ei.value;
 	if (n == 2 && ei.value > 0) {
 	    K = ei.value;
-	    if (!hasSeparateKb())
-		Kb = K;
+	    Kb = K;
 	}
-	if (n == 3) {
-	    flags = ei.changeFlag(flags, FLAG_SEPARATE_KB);
-	    if (!hasSeparateKb())
-		Kb = K;
-	    ei.newDialog = true;
-	}
-	if (n == 4 && hasSeparateKb() && ei.value > 0)
-	    Kb = ei.value;
-	if (n == 4 && !hasSeparateKb() && ei.value > 0) {
+	if (n == 3 && ei.value > 0) {
             J = ei.value;
             indInertia.setup(J, inertiaCurrent, Inductor.FLAG_BACK_EULER);
         }
-	if (n == 5 && hasSeparateKb() && ei.value > 0) {
-            J = ei.value;
-            indInertia.setup(J, inertiaCurrent, Inductor.FLAG_BACK_EULER);
-        }
-	if (n == 5 && !hasSeparateKb() && ei.value > 0)
+	if (n == 4 && ei.value > 0)
 	    b = ei.value;
-	if (n == 6 && hasSeparateKb() && ei.value > 0)
-	    b = ei.value;
-	if (n == 6 && !hasSeparateKb() && ei.value > 0)
-	    gearRatio = ei.value;
-	if (n == 7 && hasSeparateKb() && ei.value > 0)
+	if (n == 5 && ei.value > 0)
 	    gearRatio = ei.value;
     }
 }
