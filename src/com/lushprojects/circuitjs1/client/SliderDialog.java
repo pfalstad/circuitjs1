@@ -141,6 +141,9 @@ class SliderDialog extends Dialog  {
 			    vp.insert(new Label(Locale.LS("Max Value")), idx++);
 			    ei.maxBox = new TextBox();
 			    vp.insert(ei.maxBox, idx++);
+			    vp.insert(new Label(Locale.LS("Step (0=continuous)")), idx++);
+			    ei.stepBox = new TextBox();
+			    vp.insert(ei.stepBox, idx++);
 			    if (adj.sharedSlider == null) {
 				// select label if this is a new slider
 				vp.insert(new Label(Locale.LS("Label")), idx++);
@@ -150,6 +153,7 @@ class SliderDialog extends Dialog  {
 			    }
 			    ei.minBox.setText(EditDialog.unitString(ei, adj.minValue));
 			    ei.maxBox.setText(EditDialog.unitString(ei, adj.maxValue));
+			    ei.stepBox.setText(EditDialog.unitString(ei, adj.sliderStep));
 			}
 			    
 		}
@@ -178,6 +182,10 @@ class SliderDialog extends Dialog  {
 			adj.minValue = d;
 			d = EditDialog.parseUnits(ei.maxBox.getText());
 			adj.maxValue = d;
+			d = EditDialog.parseUnits(ei.stepBox.getText());
+			adj.sliderStep = d;
+			if (adj.slider != null && adj.maxValue != adj.minValue)
+			    adj.slider.setStepSize(d * 100 / (adj.maxValue - adj.minValue));
 			adj.setSliderValue(ei.value);
 		    } catch (Exception e) { CirSim.console(e.toString()); }
 		}

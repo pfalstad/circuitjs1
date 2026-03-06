@@ -10,6 +10,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 public class Adjustable implements Command {
     CircuitElm elm;
     double minValue, maxValue;
+    double sliderStep; // step increment; 0 = continuous (no stepping)
     int flags;
     String sliderText;
     
@@ -62,6 +63,9 @@ public class Adjustable implements Command {
 	    sliderText = CustomLogicModel.unescape(st.nextToken());
 	} catch (Exception ex) {}
 	try {
+	    sliderStep = Double.parseDouble(st.nextToken());
+	} catch (Exception ex) {}
+	try {
 	    elm = sim.getElm(e);
 	} catch (Exception ex) {}
     }
@@ -86,6 +90,7 @@ public class Adjustable implements Command {
         label.addStyleName("topSpace");
         int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
         sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 101, this, elm));
+        slider.setStepSize(sliderStep * 100 / (maxValue - minValue));
     }
 
     void setSliderValue(double value) {
@@ -121,7 +126,11 @@ public class Adjustable implements Command {
     
     double getSliderValue() {
 	double val = sharedSlider == null ? slider.getValue() : sharedSlider.slider.getValue();
-	return minValue + (maxValue-minValue)*val/100;
+	double result = minValue + (maxValue-minValue)*val/100;
+	double step = sharedSlider != null ? sharedSlider.sliderStep : sliderStep;
+	if (step > 0)
+	    result = minValue + Math.round((result - minValue) / step) * step;
+	return result;
     }
     
     void deleteSlider(CirSim sim) {
@@ -152,7 +161,7 @@ public class Adjustable implements Command {
 	    ano = CirSim.theApp.adjustables.indexOf(sharedSlider);
 	
 	return CirSim.theApp.locateElm(elm) + " F1 " + editItem + " " + minValue + " " + maxValue + " " + ano + " " +
-			CustomLogicModel.escape(sliderText);
+			CustomLogicModel.escape(sliderText) + " " + sliderStep;
     }
     
     // reorder adjustables so that items with sliders come first in the list, followed by items that reference them.
