@@ -90,6 +90,7 @@ public class Adjustable implements Command {
         label.addStyleName("topSpace");
         int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
         sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 101, this, elm));
+        slider.setStepSize(sliderStep * 100 / (maxValue - minValue));
     }
 
     void setSliderValue(double value) {
