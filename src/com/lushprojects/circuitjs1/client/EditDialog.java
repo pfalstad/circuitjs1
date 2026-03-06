@@ -241,6 +241,13 @@ class EditDialog extends Dialog {
 		s=s.replaceAll("([0-9]+)([pPnNuUmMkKgG])([0-9]+)", "$1.$3$2");
 		// rewrite meg to M
 		s=s.replaceAll("[mM][eE][gG]$", "M");
+
+		// handle scientific notation (e.g. "4.416e-8", "1.2E+3", "5e9")
+		// before checking for unit suffixes, so that "e" is not
+		// misinterpreted and the value is not silently rejected
+		if (s.matches("^-?[0-9]*\\.?[0-9]+[eE][+-]?[0-9]+$"))
+		    return Double.parseDouble(s) * rmsMult;
+
 		int len = s.length();
 		char uc = s.charAt(len-1);
 		double mult = 1;
