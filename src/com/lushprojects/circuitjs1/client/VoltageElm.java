@@ -174,21 +174,6 @@ class VoltageElm extends CircuitElm {
 	    drawThickCircle(g, xc, yc, circleSize);
 	    adjustBbox(xc-circleSize, yc-circleSize,
 		       xc+circleSize, yc+circleSize);
-	    // draw + and - signs inside the circle
-	    int signSize = 4;
-	    double plusPos = 0.74;
-	    double minusPos = 0.26;
-	    // + sign: perpendicular bar
-	    interpPoint2(lead1, lead2, ps1, ps2, plusPos, signSize);
-	    drawThickLine(g, ps1, ps2);
-	    // + sign: along-axis bar
-	    double delta = signSize / (circleSize * 2.0);
-	    Point pA = interpPoint(lead1, lead2, plusPos - delta);
-	    Point pB = interpPoint(lead1, lead2, plusPos + delta);
-	    drawThickLine(g, pA, pB);
-	    // - sign: perpendicular bar only
-	    interpPoint2(lead1, lead2, ps1, ps2, minusPos, signSize);
-	    drawThickLine(g, ps1, ps2);
 	} else if (waveform == WF_DC) {
 	    setVoltageColor(g, volts[0]);
 	    setPowerColor(g, false);
