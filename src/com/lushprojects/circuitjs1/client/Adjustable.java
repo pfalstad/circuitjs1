@@ -129,7 +129,7 @@ public class Adjustable implements Command {
 	double result = minValue + (maxValue-minValue)*val/100;
 	double step = sharedSlider != null ? sharedSlider.sliderStep : sliderStep;
 	if (step > 0)
-	    result = Math.round(result / step) * step;
+	    result = minValue + Math.round((result - minValue) / step) * step;
 	return result;
     }
     

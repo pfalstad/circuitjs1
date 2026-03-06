@@ -184,6 +184,8 @@ class SliderDialog extends Dialog  {
 			adj.maxValue = d;
 			d = EditDialog.parseUnits(ei.stepBox.getText());
 			adj.sliderStep = d;
+			if (adj.slider != null && adj.maxValue != adj.minValue)
+			    adj.slider.setStepSize(d * 100 / (adj.maxValue - adj.minValue));
 			adj.setSliderValue(ei.value);
 		    } catch (Exception e) { CirSim.console(e.toString()); }
 		}
