@@ -71,6 +71,10 @@ class LEDArrayElm extends ChipElm {
 	Diode diodes[];
 	double currents[];
 	double brightness[];
+	double lastDrawTime;
+	double decayMultiplier = 1;
+	// time constant for exponential brightness decay (30ms persistence of vision)
+	static final double brightnessTau = .03;
 	
 	void stamp() {
 	    super.stamp();
@@ -98,6 +102,9 @@ class LEDArrayElm extends ChipElm {
         @Override boolean isDigitalChip() { return false; }
 
 	void draw(Graphics g) {
+	    double elapsed = sim.t - lastDrawTime;
+	    lastDrawTime = sim.t;
+	    decayMultiplier = (elapsed > 0) ? Math.exp(-elapsed / brightnessTau) : 1;
 	    drawChip(g);
 	    int ix, iy;
 	    for (ix = 0; ix != sizeX; ix++)
@@ -154,9 +161,9 @@ class LEDArrayElm extends ChipElm {
             if (w < 20)
                 w = 20;
             
-            // when diode turns off, made it fade gradually to simulate persistence of vision
+            // when diode turns off, fade gradually to simulate persistence of vision
             w = Math.max(w, brightness[p]);
-            brightness[p] = w*.99;
+            brightness[p] = w * decayMultiplier;
             
             Color cc = new Color((int) w, 0, 0);
             g.setColor(cc);

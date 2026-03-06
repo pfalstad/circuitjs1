@@ -67,6 +67,7 @@ public class Scrollbar extends  Composite implements
 	int min;
 	int max;
 	int val;
+	double stepSize; // step size in scrollbar units (0 = continuous)
 	boolean dragging=false;
 	boolean enabled=true;
 	Command command=null;
@@ -170,7 +171,20 @@ public class Scrollbar extends  Composite implements
 			v=min;
 		if (v>max)
 			v=max;
+		return snapToStep(v);
+	}
+
+	int snapToStep(int v) {
+		if (stepSize > 0) {
+			v = (int) (Math.round((v - min) / stepSize) * stepSize) + min;
+			if (v < min) v = min;
+			if (v > max) v = max;
+		}
 		return v;
+	}
+
+	void setStepSize(double step) {
+		stepSize = step;
 	}
 	
 	public void onMouseDown(MouseDownEvent e){
@@ -182,14 +196,13 @@ public class Scrollbar extends  Composite implements
 	
 	void doMouseDown(int x, boolean mouse) {
 	    if (enabled){
+		int step = (stepSize > 0) ? Math.max(1, (int) Math.round(stepSize)) : 1;
 		if (x < HMARGIN+SCROLLHEIGHT ) {
-		    if (val>min)
-			val--;
+		    val = snapToStep(Math.max(min, val - step));
 		}
 		else {
 		    if (x > VERTICALPANELWIDTH-HMARGIN-SCROLLHEIGHT ) {
-			if (val<max)
-			    val++;
+			val = snapToStep(Math.min(max, val + step));
 		    }
 		    else {
 			val=calcValueFromPos(x);	
