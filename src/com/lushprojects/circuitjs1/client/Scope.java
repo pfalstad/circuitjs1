@@ -259,7 +259,7 @@ class Scope {
     double gridStepX, gridStepY;
     double maxValue, minValue;
     int manDivisions; // Number of vertical divisions when in manual mode
-    static int lastManDivisions;
+    static int lastManDivisions = 8;
     boolean drawGridLines;
     boolean somethingSelected;
     
