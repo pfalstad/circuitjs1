@@ -150,22 +150,18 @@ class VoltageElm extends CircuitElm {
 	    return bias;
 	
 	double w = 2*pi*(sim.t-freqTimeZero)*frequency + phaseShift;
-	// Normalize phase to [0, 2pi) for waveforms that use modulo.
-	// Java's % on negative numbers returns negative results, which
-	// causes wrong output when phase shift is negative.
-	double wn = ((w % (2*pi)) + 2*pi) % (2*pi);
 	switch (waveform) {
 	case WF_DC: return maxVoltage+bias;
 	case WF_AC: return Math.sin(w)*maxVoltage+bias;
 	case WF_SQUARE:
-	    return bias+((wn > (2*pi*dutyCycle)) ?
+	    return bias+((w % (2*pi) > (2*pi*dutyCycle)) ?
 			 -maxVoltage : maxVoltage);
 	case WF_TRIANGLE:
-	    return bias+triangleFunc(wn)*maxVoltage;
+	    return bias+triangleFunc(w % (2*pi))*maxVoltage;
 	case WF_SAWTOOTH:
-	    return bias+wn*(maxVoltage/pi)-maxVoltage;
+	    return bias+(w % (2*pi))*(maxVoltage/pi)-maxVoltage;
 	case WF_PULSE:
-	    return (wn < (2*pi*dutyCycle)) ? maxVoltage+bias : bias;
+	    return ((w % (2*pi)) < (2*pi*dutyCycle)) ? maxVoltage+bias : bias;
 	case WF_NOISE:
 	    return noiseValue;
 	default: return 0;
@@ -463,8 +459,11 @@ class VoltageElm extends CircuitElm {
 
 	    setPoints();
 	}
-	if (n == fo+1)
+	if (n == fo+1) {
 	    phaseShift = ei.value*pi/180;
+	    // normalize to [0, 2*pi)
+	    phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
+	}
 	if (n == fo+2)
 	    dutyCycle = ei.value*.01;
     }
