@@ -280,7 +280,7 @@ public class SimulationManager {
 		wi.post = 0;
 		wire.hasWireInfo = true;
 		moved = 0;
-	    } else if (isReady1 && !neighbors1.isEmpty()) {
+	    } else if (isReady1 && (!neighbors1.isEmpty() || !(wire instanceof LabeledNodeElm))) {
 		wi.neighbors = neighbors1;
 		wi.post = 1;
 		wire.hasWireInfo = true;
@@ -290,6 +290,16 @@ public class SimulationManager {
 		wireInfoList.add(wireInfoList.remove(i--));
 		moved++;
 		if (moved > wireInfoList.size() * 2) {
+		    console("wire loop detected for " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")");
+		    console("  isReady0=" + isReady0 + " neighbors0=" + neighbors0.size() + " isReady1=" + isReady1 + " neighbors1=" + neighbors1.size());
+		    for (int k = 0; k < neighbors0.size(); k++) {
+			CircuitElm ne = neighbors0.get(k);
+			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo);
+		    }
+		    for (int k = 0; k < neighbors1.size(); k++) {
+			CircuitElm ne = neighbors1.get(k);
+			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo);
+		    }
 		    stop("wire loop detected", wire);
 		    return false;
 		}
