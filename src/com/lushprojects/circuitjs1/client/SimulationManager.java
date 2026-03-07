@@ -2,6 +2,7 @@ package com.lushprojects.circuitjs1.client;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Vector;
 
@@ -94,6 +95,8 @@ public class SimulationManager {
     
     // info about each wire and its neighbors, used to calculate wire currents
     Vector<WireInfo> wireInfoList;
+    // the element list that wireInfoList was built from
+    HashSet<CircuitElm> wireInfoElmSet;
     
     // find groups of nodes connected by wire equivalents and map them to the same node.  this speeds things
     // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
@@ -110,6 +113,7 @@ public class SimulationManager {
 	int i;
 	HashMap<Point,NodeMapEntry> nm = new HashMap<Point,NodeMapEntry>();
 	wireInfoList = new Vector<WireInfo>();
+	wireInfoElmSet = new HashSet<CircuitElm>(list);
 	for (i = 0; i != list.size(); i++) {
 	    CircuitElm ce = list.get(i);
 	    if (!ce.isRemovableWire())
@@ -242,6 +246,9 @@ public class SimulationManager {
 		CircuitElm ce = cnl.elm;
 		if (ce == wire)
 		    continue;
+		// skip elements not in the list we're processing
+		if (!wireInfoElmSet.contains(ce))
+		    continue;
 		// skip internal nodes (e.g. from enclosing CompositeElm) which have no position
 		if (cnl.num >= ce.getPostCount())
 		    continue;
@@ -290,15 +297,27 @@ public class SimulationManager {
 		wireInfoList.add(wireInfoList.remove(i--));
 		moved++;
 		if (moved > wireInfoList.size() * 2) {
-		    console("wire loop detected for " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")");
+		    Vector<CircuitElm> uiList = app.ui.elmList;
+		    Vector<CircuitElm> mainList = app.elmList;
+		    console("wire loop detected, " + wireInfoList.size() + " wires total, unresolved:");
+		    for (int k = i; k < wireInfoList.size(); k++) {
+			WireInfo wk = wireInfoList.get(k);
+			CircuitElm ww = wk.wire;
+			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") hasWireInfo=" + ww.hasWireInfo
+			    + " inUI=" + uiList.contains(ww) + " inMain=" + mainList.contains(ww));
+		    }
+		    console("current wire: " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")"
+			+ " inUI=" + uiList.contains(wire) + " inMain=" + mainList.contains(wire));
 		    console("  isReady0=" + isReady0 + " neighbors0=" + neighbors0.size() + " isReady1=" + isReady1 + " neighbors1=" + neighbors1.size());
 		    for (int k = 0; k < neighbors0.size(); k++) {
 			CircuitElm ne = neighbors0.get(k);
-			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo);
+			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo
+			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    for (int k = 0; k < neighbors1.size(); k++) {
 			CircuitElm ne = neighbors1.get(k);
-			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo);
+			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo
+			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    stop("wire loop detected", wire);
 		    return false;
