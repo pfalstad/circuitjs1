@@ -248,6 +248,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		ce = CirSim.createCe(ce.getDumpType(), 0, 0, 0, 0, ceFlags, stCe);
 	    }
 
+	    // needed for very old dumps which still have GroundElm
+	    if (ce instanceof GroundElm)
+		((GroundElm) ce).setOldStyle();
+
 	    Element child = elmDoc.createElement(ce.getXmlDumpType());
 	    XMLSerializer.dumpAttr(child, "nn", nn);
 	    ce.dumpXml(elmDoc, child);
