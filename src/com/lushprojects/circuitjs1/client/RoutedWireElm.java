@@ -211,7 +211,7 @@ import com.google.gwt.xml.client.Element;
 
 	void doDots(Graphics g) {
 	    updateDotCount();
-	    if (isCreating())
+	    if (isCreating() || curcount == 0)
 		return;
 	    double cc = curcount;
 	    for (int i = 0; i < routePoints.size() - 1; i++) {
