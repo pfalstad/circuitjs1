@@ -194,12 +194,13 @@ public class CustomCompositeElm extends CompositeElm {
             ei.button = new Button(Locale.LS("Edit Pin Layout"));
             return ei;
         }
-        if (n == 2) {
+        if (n == 2 && canViewComponents()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("View Components"));
             return ei;
         }
-        if (n == 3 && model.canLoadModelCircuit()) {
+	int loadModelCircuit = (canViewComponents()) ? 3 : 2;
+        if (n == loadModelCircuit && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Edit Model"));
             return ei;
@@ -233,7 +234,8 @@ public class CustomCompositeElm extends CompositeElm {
             app.ui.pushSubcircuit(this, buildDisplayElmList());
             CirSim.editDialog.closeDialog();
         }
-        if (n == 3) {
+	int loadModelCircuit = (canViewComponents()) ? 3 : 2;
+        if (n == loadModelCircuit) {
             app.pushContext(model.name);
             if (model.modelCircuit != null)
         	app.readCircuit(model.modelCircuit);
@@ -272,8 +274,22 @@ public class CustomCompositeElm extends CompositeElm {
 	return allElms;
     }
 
+    boolean canViewComponents() {
+	Vector<Element> elmEntries = model.getElmEntries();
+	XMLDeserializer xml = new XMLDeserializer(app);
+	int compIdx = 0;
+	for (Element childElem : elmEntries) {
+	    if (childElem.getAttribute("x") != null)
+		return true;
+        }
+	return false;
+    }
+
     void onDoubleClick() {
-	app.ui.pushSubcircuit(this, buildDisplayElmList());
+	if (canViewComponents())
+	    app.ui.pushSubcircuit(this, buildDisplayElmList());
+	else if (!app.ui.isReadOnly())
+            app.commands.doEdit(this);
     }
 
     int getDumpType() { return 410; }
