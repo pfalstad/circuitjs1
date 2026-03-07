@@ -66,6 +66,7 @@ public class CirSim implements NativePreviewHandler {
 
     double minFrameRate = 20;
     boolean developerMode;
+
     static final int HINT_LC = 1;
     static final int HINT_RC = 2;
     static final int HINT_3DB_C = 3;
@@ -184,6 +185,7 @@ public class CirSim implements NativePreviewHandler {
 	    selectColor = qp.getValue("selectColor");
 	    currentColor = qp.getValue("currentColor");
 	    mouseModeReq = qp.getValue("mouseMode");
+
 	} catch (Exception e) { }
 
 	transform = new double[6];
@@ -384,8 +386,9 @@ public class CirSim implements NativePreviewHandler {
 
     static native String getElectronStartCircuitText() /*-{
     	return $wnd.startCircuitText;
-    }-*/;    
-    
+    }-*/;
+
+
     void allowSave(boolean b) { ui.allowSave(b); }
     
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
