@@ -49,7 +49,7 @@ class ScopePlot {
    // the data we have
     boolean manScaleSet = false; 
     double manScale = 1.0; // Units per division
-    int manVPosition = 0; // 0 is center of screen. +V_POSITION_STEPS/2 is top of screen
+    int manVPosition = 0; // 0 is center of screen. Range is -V_POSITION_STEPS/2 to +V_POSITION_STEPS/2
     double gridMult;
     double plotOffset;
     boolean acCoupled = false;
@@ -221,6 +221,10 @@ class Scope {
     static final int UNITS_COUNT = 5;
     static final double multa[] = {2.0, 2.5, 2.0};
     static final int V_POSITION_STEPS=200;
+    // Multiplier for the position slider range.  The slider can offset the view
+    // by up to V_POSITION_RANGE times the visible half-height in each direction,
+    // allowing users to scroll to signals far from zero even at high zoom levels.
+    static final int V_POSITION_RANGE=10;
     static final double MIN_MAN_SCALE = 1e-9;
     int scopePointCount = 128;
     FFT fft;
@@ -651,8 +655,8 @@ class Scope {
         	    y = (int) (rect.height*(1-ya)*.499);
     	    } else {
     		double gridPx = calc2dGridPx(rect.width, rect.height);
-    		x=(int)(rect.width*.499+(v/plots.get(0).manScale)*gridPx+gridPx*manDivisions*(double)(plots.get(0).manVPosition)/(double)(V_POSITION_STEPS));
-    		y=(int)(rect.height*.499-(yval/plots.get(1).manScale)*gridPx-gridPx*manDivisions*(double)(plots.get(1).manVPosition)/(double)(V_POSITION_STEPS));
+    		x=(int)(rect.width*.499+(v/plots.get(0).manScale)*gridPx+gridPx*manDivisions*V_POSITION_RANGE*(double)(plots.get(0).manVPosition)/(double)(V_POSITION_STEPS));
+    		y=(int)(rect.height*.499-(yval/plots.get(1).manScale)*gridPx-gridPx*manDivisions*V_POSITION_RANGE*(double)(plots.get(1).manVPosition)/(double)(V_POSITION_STEPS));
 
     	    }
     	    drawTo(x, y);
@@ -924,8 +928,8 @@ class Scope {
     	    double xValue;
     	    double yValue;
     	    if (isManualScale()) {
-    		xValue = px.manScale*((double)(app.mouse.mouseCursorX-rect.x-rect.width/2)/gridPx-manDivisions*px.manVPosition/(double)(V_POSITION_STEPS));
-    		yValue = py.manScale*((double)(-app.mouse.mouseCursorY+rect.y+rect.height/2)/gridPx-manDivisions*py.manVPosition/(double)(V_POSITION_STEPS));
+    		xValue = px.manScale*((double)(app.mouse.mouseCursorX-rect.x-rect.width/2)/gridPx-manDivisions*V_POSITION_RANGE*px.manVPosition/(double)(V_POSITION_STEPS));
+    		yValue = py.manScale*((double)(-app.mouse.mouseCursorY+rect.y+rect.height/2)/gridPx-manDivisions*V_POSITION_RANGE*py.manVPosition/(double)(V_POSITION_STEPS));
     	    } else {
     		xValue = ((double)(app.mouse.mouseCursorX-rect.x)/(0.499*(double)(rect.width))-1.0)*scaleX;
     		yValue = -((double)(app.mouse.mouseCursorY-rect.y)/(0.499*(double)(rect.height))-1.0)*scaleY;
@@ -1185,7 +1189,7 @@ class Scope {
     	} else {
     	    gridMid =0;
     	    gridMax = getGridMaxFromManScale(plot);
-    	    positionOffset = gridMax*2.0*(double)(plot.manVPosition)/(double)(V_POSITION_STEPS);
+    	    positionOffset = gridMax*2.0*V_POSITION_RANGE*(double)(plot.manVPosition)/(double)(V_POSITION_STEPS);
     	}
     	plot.plotOffset = -gridMid+positionOffset;
     	
