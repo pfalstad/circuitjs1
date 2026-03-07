@@ -187,7 +187,19 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		}
 		if (power)
 		    g.setColor(Color.gray);
-		
+
+		// draw body diode symbol on hover when body diode is enabled
+		if (needsHighlight() && doBodyDiode() && bodyDiodePoly != null) {
+		    g.setColor(Color.lightGray);
+		    // anode-side lead
+		    drawThickLine(g, bodyDiodeLead1a, bodyDiodeLead1b);
+		    // cathode-side lead
+		    drawThickLine(g, bodyDiodeLead2a, bodyDiodeLead2b);
+		    // diode symbol (triangle + cathode bar)
+		    DiodeElm.drawDiodeSymbol(g, bodyDiodePoly,
+			bodyDiodeCathode[0], bodyDiodeCathode[1]);
+		}
+
 		// draw gate
 		setVoltageColor(g, volts[0]);
 		drawThickLine(g, point1, gate[1]);
@@ -254,7 +266,13 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	// points for gate, body, and the little circle on PNP mosfets
 	Point gate[], body[], pcircle;
 	Polygon arrowPoly;
-	
+
+	// body diode hover overlay: triangle + cathode bar + leads
+	Polygon bodyDiodePoly;
+	Point bodyDiodeCathode[];
+	Point bodyDiodeLead1a, bodyDiodeLead1b; // anode-side lead
+	Point bodyDiodeLead2a, bodyDiodeLead2b; // cathode-side lead
+
 	void setPoints() {
 	    super.setPoints();
 
@@ -282,7 +300,81 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		interpPoint(src[0], drn[0], body[0], .5);
 		interpPoint(src[1], drn[1], body[1], .5);
 	    }
-	    
+
+	    // compute body diode symbol geometry (shown on hover only)
+	    if (doBodyDiode()) {
+		// unit vector along S->D axis
+		int sdx = drn[0].x - src[0].x;
+		int sdy = drn[0].y - src[0].y;
+		double sdLen = Math.sqrt(sdx*sdx + sdy*sdy);
+		double ax = sdx / sdLen;
+		double ay = sdy / sdLen;
+		// unit vector outward from channel (body[1] -> body[0] direction)
+		int ox = body[0].x - body[1].x;
+		int oy = body[0].y - body[1].y;
+		double oLen = Math.sqrt(ox*ox + oy*oy);
+		double bx = ox / oLen;
+		double by = oy / oLen;
+
+		// diode center: at midpoint of S-D, offset outside the body line
+		double offsetDist = 10;
+		double cx = body[0].x + bx * offsetDist;
+		double cy = body[0].y + by * offsetDist;
+
+		// diode symbol dimensions (matching DiodeElm proportions)
+		double diodeLen = 6;
+		double diodeWid = 5;
+
+		// NPN (pnp==1): anode at src side, cathode at drn side
+		// PNP (pnp==-1): anode at drn side, cathode at src side
+		double dirx = ax * pnp;  // anode-to-cathode direction
+		double diry = ay * pnp;
+		double px = -diry;  // perpendicular (for triangle width)
+		double py = dirx;
+
+		// triangle: tip at cathode side, base at anode side
+		Point triTip = new Point(
+		    (int)(cx + dirx * diodeLen),
+		    (int)(cy + diry * diodeLen));
+		Point triBase1 = new Point(
+		    (int)(cx - dirx * diodeLen + px * diodeWid),
+		    (int)(cy - diry * diodeLen + py * diodeWid));
+		Point triBase2 = new Point(
+		    (int)(cx - dirx * diodeLen - px * diodeWid),
+		    (int)(cy - diry * diodeLen - py * diodeWid));
+		bodyDiodePoly = createPolygon(triBase1, triBase2, triTip);
+
+		// cathode bar across the triangle tip
+		bodyDiodeCathode = newPointArray(2);
+		bodyDiodeCathode[0] = new Point(
+		    (int)(triTip.x + px * diodeWid),
+		    (int)(triTip.y + py * diodeWid));
+		bodyDiodeCathode[1] = new Point(
+		    (int)(triTip.x - px * diodeWid),
+		    (int)(triTip.y - py * diodeWid));
+
+		// leads connecting source/drain posts to diode symbol
+		Point anodePost  = (pnp == 1) ? src[0] : drn[0];
+		Point cathodePost = (pnp == 1) ? drn[0] : src[0];
+		double totalOff = offsetDist + oLen;
+		// anode lead: from post outward to diode level, then to anode
+		bodyDiodeLead1a = new Point(
+		    (int)(anodePost.x + bx * totalOff),
+		    (int)(anodePost.y + by * totalOff));
+		bodyDiodeLead1b = new Point(
+		    (int)(cx - dirx * diodeLen),
+		    (int)(cy - diry * diodeLen));
+		// cathode lead: from cathode to post outward level
+		bodyDiodeLead2a = new Point(
+		    (int)(cx + dirx * diodeLen),
+		    (int)(cy + diry * diodeLen));
+		bodyDiodeLead2b = new Point(
+		    (int)(cathodePost.x + bx * totalOff),
+		    (int)(cathodePost.y + by * totalOff));
+	    } else {
+		bodyDiodePoly = null;
+	    }
+
 	    if (!drawDigital()) {
 		if (pnp == 1) {
 		    if (!showBulk())

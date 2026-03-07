@@ -160,7 +160,15 @@ class DiodeElm extends CircuitElm {
 	setPowerColor(g, true);
 	drawThickLine(g, cathode[0], cathode[1]);
     }
-	
+
+    // Draw just the diode symbol (triangle + cathode bar) at given points,
+    // without leads or bounding box.  Called by MosfetElm for body diode.
+    static void drawDiodeSymbol(Graphics g, Polygon triangle,
+				Point cathode0, Point cathode1) {
+	g.fillPolygon(triangle);
+	drawThickLine(g, cathode0, cathode1);
+    }
+
     void stamp() {
 	if (hasResistance) {
 	    // create diode from node 0 to internal node
