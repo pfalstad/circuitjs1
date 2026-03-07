@@ -1,0 +1,18 @@
+<cir f="4" ts="5.0E-6" ic="4.7619476E-13" cb="50" pb="50" vr="5.0" mts="5.0E-11">
+  <ccm nm="hv-buf-inner" f="0" sx="1" sy="1">
+    <ext nm="in" nd="1" ps="0" sd="0"/>
+    <ext nm="out" nd="3" ps="0" sd="2"/>
+    <I nn="1 2" sl="0.5" hi="5.0"/>
+    <I nn="2 3" sl="0.5" hi="5.0"/>
+  </ccm>
+  <ccm nm="hv-buf-outer" f="0" sx="1" sy="1">
+    <ext nm="in" nd="1" ps="0" sd="0"/>
+    <ext nm="out" nd="2" ps="0" sd="2"/>
+    <cc nn="1 2" mo="hv-buf-inner"/>
+  </ccm>
+  <L x="208 192 272 192" hi="3.3"/>
+  <cc x="336 192 400 192" mo="hv-buf-outer" hv="3.3"/>
+  <M x="464 192 528 192" th="1.65"/>
+  <w x="272 192 336 192"/>
+  <w x="400 192 464 192"/>
+</cir>
