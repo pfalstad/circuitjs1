@@ -863,7 +863,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    tempMouseMode = MODE_DRAG_ALL;
 
 
-	if (ui.isReadOnly())
+	if (ui.isReadOnly() && tempMouseMode != MODE_DRAG_ALL)
 	    tempMouseMode = MODE_SELECT;
 
 	if (!(sim.dialogIsShowing()) && ((sim.scopeManager.scopeSelected != -1 && sim.scopeManager.scopes[sim.scopeManager.scopeSelected].cursorInSettingsWheel()) ||
