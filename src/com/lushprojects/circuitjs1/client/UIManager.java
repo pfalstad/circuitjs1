@@ -847,6 +847,7 @@ public class UIManager {
 	elmList = allElms;
 	updateSubcircuitPath();
 	app.sim.analyzeCircuit();
+	centreCircuit();
     }
 
     void popSubcircuit() {
