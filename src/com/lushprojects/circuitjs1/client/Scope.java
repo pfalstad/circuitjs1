@@ -464,6 +464,16 @@ class Scope {
 	return triggerPtr + scopePointCount - w/2;
     }
 
+    // Returns the number of valid data points to display, clamped to width w.
+    // In triggered mode, data beyond plot.ptr is stale (old circular buffer
+    // contents) and must not be drawn or used for measurements.
+    int validDataCount(ScopePlot plot, int ipa, int w) {
+	if (!isTriggered())
+	    return w;
+	int count = ((plot.ptr - ipa) & (scopePointCount-1)) + 1;
+	return Math.min(count, w);
+    }
+
     // Trigger edge detection and state machine, called every time the plot ptr advances.
     void checkTrigger() {
 	if (triggerMode == TRIGGER_FREERUN || visiblePlots.size() == 0 || plot2d)
@@ -1265,9 +1275,10 @@ class Scope {
     	    if (plot.units != units)
     		continue;
     	    int ipa = displayStartIndex(plot, rect.width);
+    	    int validCount = validDataCount(plot, ipa, rect.width);
     	    double maxV[] = plot.maxValues;
     	    double minV[] = plot.minValues;
-    	    for (i = 0; i != rect.width; i++) {
+    	    for (i = 0; i != validCount; i++) {
     		int ip = (i+ipa) & (scopePointCount-1);
     		if (maxV[ip] > maxValue)
     		    maxValue = maxV[ip];
@@ -1283,11 +1294,12 @@ class Scope {
 	    return;
     	int i;
     	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double max = 0;
     	double gridMax = scale[plot.units];
-    	for (i = 0; i != rect.width; i++) {
+    	for (i = 0; i != validCount; i++) {
     	    int ip = (i+ipa) & (scopePointCount-1);
     	    if (maxV[ip] > max)
     		max = maxV[ip];
@@ -1451,8 +1463,12 @@ class Scope {
             g.drawString("0", 0, y0-2);
         }
         
+        // In triggered mode, only draw up to the current write pointer.
+        // Data beyond that is stale (old circular buffer contents).
+        int drawWidth = validDataCount(plot, ipa, rect.width);
+
         int ox = -1, oy = -1;
-        for (i = 0; i != rect.width; i++) {
+        for (i = 0; i != drawWidth; i++) {
             int ip = (i+ipa) & (scopePointCount-1);
             int minvy = (int) (plot.gridMult*(minV[ip]+plot.plotOffset));
             int maxvy = (int) (plot.gridMult*(maxV[ip]+plot.plotOffset));
@@ -1639,13 +1655,14 @@ class Scope {
 	int i;
 	double avg = 0;
     	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
 
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1658,7 +1675,7 @@ class Scope {
 	int end = 0;
 	int waveCount = 0;
 	double endAvg = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
 
@@ -1741,13 +1758,14 @@ class Scope {
 	int i;
 	double avg = 0;
     	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
 	
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1760,7 +1778,7 @@ class Scope {
 	int end = 0;
 	int waveCount = 0;
 	double endAvg = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
 	    
@@ -1801,13 +1819,14 @@ class Scope {
 	ScopePlot plot = visiblePlots.firstElement();
 	int i;
     	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
 	
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1821,7 +1840,7 @@ class Scope {
 	int waveCount = 0;
 	int dutyLen = 0;
 	int middle = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
 	    
@@ -1863,9 +1882,10 @@ class Scope {
 	int i;
 	ScopePlot plot = visiblePlots.firstElement();
     	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double minV[] = plot.minValues;
     	double maxV[] = plot.maxValues;
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    avg += minV[ip]+maxV[ip];
 	}
@@ -1877,7 +1897,7 @@ class Scope {
 	int periodct = -1;
 	double avperiod2 = 0;
 	// count period lengths
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    double q = maxV[ip]-avg;
 	    int os = state;
