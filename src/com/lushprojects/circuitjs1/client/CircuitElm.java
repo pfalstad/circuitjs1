@@ -267,7 +267,7 @@ public abstract class CircuitElm implements Editable {
     void addRoutingObstacle(WireRouter router) {
 	if (x == x2 || y == y2) {
 	    router.addWire(x, y, x2, y2);
-	    if (lead1 != null)
+	    if (lead1 != null && lead2 != null)
 		router.addObstacle(lead1.x, lead1.y, lead2.x, lead2.y);
 	}
     }
