@@ -65,28 +65,29 @@ class WireConverter {
 	    // try to start a chain from this wire
 	    ArrayList<WireElm> chain = new ArrayList<WireElm>();
 	    buildChain(w, chain, visited, pointCount, pointToWires);
-	    if (chain.size() >= 2)
-		chains.add(chain);
+	    chains.add(chain);
 	}
 
 	// convert each chain to a RoutedWireElm
 	for (ArrayList<WireElm> chain : chains) {
+	    if (chain.size() == 1) {
+		// single wire, convert directly
+		WireElm w = chain.get(0);
+		ArrayList<Point> pts = new ArrayList<Point>();
+		pts.add(new Point(w.x, w.y));
+		pts.add(new Point(w.x2, w.y2));
+		RoutedWireElm rw = new RoutedWireElm(pts);
+		elmList.remove(w);
+		elmList.add(rw);
+		continue;
+	    }
+
 	    // order the chain and find the two endpoints
 	    ArrayList<Point> orderedPoints = orderChain(chain, pointCount);
 	    if (orderedPoints == null || orderedPoints.size() < 3)
 		continue;
 
-	    Point first = orderedPoints.get(0);
-	    Point last = orderedPoints.get(orderedPoints.size() - 1);
-
-	    // create RoutedWireElm with the chain endpoints
-	    RoutedWireElm rw = new RoutedWireElm(first.x, first.y);
-	    rw.x2 = last.x;
-	    rw.y2 = last.y;
-	    rw.routePoints = orderedPoints;
-	    rw.setPoints();
-	    // keep the routed points we built, not the auto-routed ones
-	    rw.routePoints = orderedPoints;
+	    RoutedWireElm rw = new RoutedWireElm(orderedPoints);
 
 	    // remove old wires, add new routed wire
 	    for (WireElm w : chain)

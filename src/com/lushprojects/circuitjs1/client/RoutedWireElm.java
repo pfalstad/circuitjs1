@@ -21,6 +21,9 @@ package com.lushprojects.circuitjs1.client;
 
 import java.util.ArrayList;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
     class RoutedWireElm extends WireElm {
 	ArrayList<Point> routePoints;
 
@@ -30,10 +33,60 @@ import java.util.ArrayList;
 	    super(xa, ya, xb, yb, f, st);
 	}
 
+	public RoutedWireElm(ArrayList<Point> points) {
+	    super(points.get(0).x, points.get(0).y);
+	    setPoints(points);
+	}
+
 	int getDumpType() { return 0; }
+	String getXmlDumpType() { return "rw"; }
+
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    if (routePoints != null && routePoints.size() > 0) {
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < routePoints.size(); i++) {
+		    if (i > 0)
+			sb.append(';');
+		    Point p = routePoints.get(i);
+		    sb.append(p.x).append(',').append(p.y);
+		}
+		elem.appendChild(doc.createTextNode(sb.toString()));
+	    }
+	}
+
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    try {
+		String contents = xml.parseContents();
+		if (contents != null && contents.length() > 0) {
+		    ArrayList<Point> points = new ArrayList<Point>();
+		    String[] pairs = contents.split(";");
+		    for (String pair : pairs) {
+			String[] xy = pair.split(",");
+			points.add(new Point(Integer.parseInt(xy[0]), Integer.parseInt(xy[1])));
+		    }
+		    if (points.size() >= 2)
+			routePoints = points;
+		}
+	    } catch (Exception e) {}
+	}
+
+	int getShortcut() { return 'W'; }
 
 	void setPoints() {
-	    super.setPoints();
+	    setPoints(true);
+	}
+
+	void setPoints(boolean routing) {
+	    if (!routing) {
+		// just set up a straight line, no routing
+		routePoints = new ArrayList<Point>();
+		routePoints.add(point1);
+		routePoints.add(point2);
+		super.setPoints();
+		return;
+	    }
 
 	    WireRouter router = new WireRouter();
 	    router.initGrid(this);
@@ -46,9 +99,76 @@ import java.util.ArrayList;
 		routePoints.add(point1);
 		routePoints.add(new Point(x2, y));
 		routePoints.add(point2);
+		super.setPoints();
 		return;
-	    }
+	    } else
+		super.setPoints();
 	    sim.console("route success");
+	}
+
+	void setPoints(ArrayList<Point> points) {
+	    Point first = points.get(0);
+	    Point last = points.get(points.size() - 1);
+	    x = first.x; y = first.y;
+	    x2 = last.x; y2 = last.y;
+	    setPoints(false);
+	    routePoints = points;
+	}
+
+	// split this routed wire at the point nearest (mx, my).
+	// returns the new second-half wire, or null if split is not possible.
+	RoutedWireElm split(int mx, int my) {
+	    if (routePoints == null || routePoints.size() < 2)
+		return null;
+
+	    // find the nearest segment
+	    int bestSeg = -1;
+	    int bestDist = Integer.MAX_VALUE;
+	    for (int i = 0; i < routePoints.size() - 1; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		int d = lineDistanceSq(a.x, a.y, b.x, b.y, mx, my);
+		if (d < bestDist) {
+		    bestDist = d;
+		    bestSeg = i;
+		}
+	    }
+
+	    Point a = routePoints.get(bestSeg);
+	    Point b = routePoints.get(bestSeg + 1);
+
+	    // snap the click point onto the segment (horizontal or vertical)
+	    int sx, sy;
+	    if (a.x == b.x) {
+		sx = a.x;
+		sy = snapGrid(my);
+		sy = Math.max(Math.min(a.y, b.y), Math.min(sy, Math.max(a.y, b.y)));
+	    } else {
+		sy = a.y;
+		sx = snapGrid(mx);
+		sx = Math.max(Math.min(a.x, b.x), Math.min(sx, Math.max(a.x, b.x)));
+	    }
+
+	    // don't split at an existing endpoint
+	    if ((sx == x && sy == y) || (sx == x2 && sy == y2))
+		return null;
+
+	    // build route points for the two halves
+	    ArrayList<Point> rp1 = new ArrayList<Point>();
+	    for (int i = 0; i <= bestSeg; i++)
+		rp1.add(routePoints.get(i));
+	    rp1.add(new Point(sx, sy));
+
+	    ArrayList<Point> rp2 = new ArrayList<Point>();
+	    rp2.add(new Point(sx, sy));
+	    for (int i = bestSeg + 1; i < routePoints.size(); i++)
+		rp2.add(routePoints.get(i));
+
+	    // update this wire to be the first half
+	    setPoints(rp1);
+
+	    // create and return the second half
+	    return new RoutedWireElm(rp2);
 	}
 
 	void addRoutingObstacle(WireRouter router) {

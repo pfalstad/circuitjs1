@@ -42,6 +42,8 @@ import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
+import java.util.ArrayList;
+
 public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUpHandler,
  ClickHandler, DoubleClickHandler, ContextMenuHandler,
  MouseOutHandler, MouseWheelHandler {
@@ -375,6 +377,20 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		if (ce.isSelected())
     		    ce.move(dx, dy);
     	    }
+    	    // move connected routed wires' shared posts
+    	    if (sim.sim.routedWireMap != null) {
+    		for (CircuitElm ce : ui.elmList) {
+    		    if (!ce.isSelected())
+    			continue;
+    		    ArrayList<SimulationManager.RoutedWireConnection> conns = sim.sim.routedWireMap.get(ce);
+    		    if (conns == null)
+    			continue;
+    		    for (SimulationManager.RoutedWireConnection conn : conns) {
+    			if (!conn.wire.isSelected())
+    			    conn.wire.movePoint(conn.wirePost, dx, dy);
+    		    }
+    		}
+    	    }
     	    sim.needAnalyze();
     	}
 
@@ -412,8 +428,19 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		    continue;
     		e.movePoint(p, dx, dy);
     	    }
-    	} else
+    	} else {
     	    mouseElm.movePoint(draggingPost, dx, dy);
+    	    // move connected routed wires' shared posts
+    	    if (sim.sim.routedWireMap != null) {
+    		ArrayList<SimulationManager.RoutedWireConnection> conns = sim.sim.routedWireMap.get(mouseElm);
+    		if (conns != null) {
+    		    for (SimulationManager.RoutedWireConnection conn : conns) {
+    			if (conn.elmPost == draggingPost)
+    			    conn.wire.movePoint(conn.wirePost, dx, dy);
+    		    }
+    		}
+    	    }
+    	}
     	sim.needAnalyze();
     }
 
@@ -427,6 +454,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	int y = snapGrid(inverseTransformY(menuY));
 	if (ce == null || !(ce instanceof WireElm))
 	    return;
+
+	if (ce instanceof RoutedWireElm) {
+	    RoutedWireElm rw2 = ((RoutedWireElm) ce).split(x, y);
+	    if (rw2 != null) {
+		ui.elmList.addElement(rw2);
+		sim.needAnalyze();
+	    }
+	    return;
+	}
+
 	if (ce.x == ce.x2)
 	    x = ce.x;
 	else
