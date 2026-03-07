@@ -199,7 +199,6 @@ public class CirSim implements NativePreviewHandler {
 
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
-	autoDCOnReset = getOptionFromStorage("autoDCOnReset", false);
 
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 
@@ -405,6 +404,7 @@ public class CirSim implements NativePreviewHandler {
 	f |= (menus.showValuesCheckItem.getState()) ? 0 : 16;
 	// 32 = linear scale in afilter
 	f |= sim.adjustTimeStep ? 64 : 0;
+	f |= autoDCOnReset ? 128 : 0;
 	String dump = "$ " + f + " " +
 	    sim.maxTimeStep + " " + getIterCount() + " " +
 	    ui.currentBar.getValue() + " " + CircuitElm.voltageRange + " " +

@@ -175,12 +175,8 @@ class EditOptions implements Editable {
 		}
 		if (n == 14 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
-		if (n == 15) {
+		if (n == 15)
 		    app.autoDCOnReset = ei.checkbox.getState();
-		    Storage stor = Storage.getLocalStorageIfSupported();
-		    if (stor != null)
-			stor.setItem("autoDCOnReset", app.autoDCOnReset ? "true" : "false");
-		}
 	}
 	
 	Color setColor(String name, EditInfo ei, Color def) {

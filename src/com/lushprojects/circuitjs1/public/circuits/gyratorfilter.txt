@@ -1,0 +1,17 @@
+$ 1 5.0E-6 10.634267539816555 50 5.0 50
+r 192 160 304 160 0 1000.0
+433 304 160 416 160 0 1000.0 0.0 0.0
+c 304 192 416 192 0 1.0E-6 0.0
+w 304 192 304 240 0
+w 416 192 416 240 0
+w 304 240 416 240 0
+g 416 240 416 272 0
+c 416 160 528 160 0 1.0E-6 0.0
+w 528 160 528 240 0
+w 528 240 416 240 0
+R 192 160 128 160 0 2 200.0 5.0 0.0 0.0 0.5
+p 528 160 528 240 0 2 0
+x 128 128 562 131 4 16 Gyrator Low-Pass Filter (R-L-C using simulated inductor)
+x 128 280 604 283 4 12 The gyrator + capacitor on port 2 simulates an inductor.
+x 128 300 567 303 4 12 Combined with the series R and shunt C, this forms a 2nd-order low-pass filter.
+o 12 64 12 4099 5.0 0.05 0 2 12 3

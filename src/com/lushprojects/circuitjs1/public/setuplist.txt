@@ -55,6 +55,11 @@ transformerup.txt Step-Up Transformer
 transformerdown.txt Step-Down Transformer
 longdist.txt Long-Distance Power Transmission
 -
++Gyrators
+gyrator.txt Gyrator (Impedance Inverter)
+gyratorfilter.txt Gyrator Low-Pass Filter
+gyratorbandpass.txt Gyrator Bandpass Filter
+-
 +Relays
 relay.txt Relay
 relayand.txt Relay AND

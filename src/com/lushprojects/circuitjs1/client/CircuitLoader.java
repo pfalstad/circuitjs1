@@ -51,6 +51,7 @@ public class CircuitLoader {
         menus.powerCheckItem.setState(false);
         menus.voltsCheckItem.setState(true);
         menus.showValuesCheckItem.setState(true);
+        app.autoDCOnReset = false;
         app.setGrid();
         app.ui.speedBar.setValue(117);
         app.ui.currentBar.setValue(50);
@@ -264,6 +265,7 @@ public class CircuitLoader {
         menus.powerCheckItem.setState((flags & 8) == 8);
         menus.showValuesCheckItem.setState((flags & 16) == 0);
         sim.adjustTimeStep = (flags & 64) != 0;
+        app.autoDCOnReset = (flags & 128) != 0;
     }
 
     void loadFileFromURL(String url) {
