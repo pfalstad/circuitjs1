@@ -1,6 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.*;
+import com.google.gwt.canvas.dom.client.Context2d;
 
 public class WireRouter {
 
@@ -23,7 +24,10 @@ public class WireRouter {
     private int gridSize;
     private int originX, originY;  // pixel origin snapped to grid
 
+    public static WireRouter lastRouter;
+
     public WireRouter() {
+	lastRouter = this;
     }
 
     public void setTurnPenalty(double penalty) {
@@ -684,5 +688,103 @@ public class WireRouter {
             }
             System.out.println();
         }
+    }
+
+    /**
+     * Draws the routing grid visualization onto the canvas context.
+     * - Obstacles → red squares
+     * - Horizontal wire segments → light blue horizontal lines
+     * - Vertical wire segments → light blue vertical lines
+     * - Junctions (both directions) → small cyan cross or dot
+     * Grid lines are faint gray for reference.
+     *
+     * @param ctx       the Canvas 2D context to draw on
+     * @param showGridLines whether to draw faint background grid (useful for debugging)
+     */
+    public void drawGrid(Context2d ctx, boolean showGridLines) {
+	if (grid == null || rows == 0 || cols == 0) {
+	    return;
+	}
+
+	ctx.save();
+	ctx.translate(-gridSize/2, -gridSize/2);
+
+	// Optional: faint full grid lines (helps see alignment)
+	if (showGridLines) {
+	    ctx.setStrokeStyle("#222244");  // very dark blue-gray
+	    ctx.setLineWidth(0.5);
+	    for (int r = 0; r < rows; r++) {
+		int y = originY + r * gridSize;
+		ctx.beginPath();
+		ctx.moveTo(originX, y);
+		ctx.lineTo(originX + cols * gridSize, y);
+		ctx.stroke();
+	    }
+	    for (int c = 0; c < cols; c++) {
+		int x = originX + c * gridSize;
+		ctx.beginPath();
+		ctx.moveTo(x, originY);
+		ctx.lineTo(x, originY + rows * gridSize);
+		ctx.stroke();
+	    }
+	}
+
+	// Main content: obstacles & wires
+	for (int r = 0; r < rows; r++) {
+	    for (int c = 0; c < cols; c++) {
+		int cell = grid[r][c];
+		int x = originX + c * gridSize;
+		int y = originY + r * gridSize;
+		int size = gridSize;
+
+		// 1. Obstacles (usually drawn first / underneath)
+		if ((cell & OBSTACLE) != 0) {
+		    ctx.setFillStyle("#88ccff");   // light cyan-blue
+		    //ctx.setFillStyle("rgba(180, 40, 40, 0.65)");  // semi-transparent red
+		    ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+		    continue;
+		}
+
+		// 2. Wires
+		boolean hasHoriz = (cell & HORIZONTAL) != 0;
+		boolean hasVert  = (cell & VERTICAL)  != 0;
+
+		if (hasHoriz || hasVert) {
+		    ctx.setStrokeStyle("#88ccff");   // light cyan-blue
+		    ctx.setLineWidth(2.2);
+
+		    double midX = x + size / 2.0;
+		    double midY = y + size / 2.0;
+
+		    if (hasHoriz) {
+			ctx.beginPath();
+			ctx.moveTo(x + 2, midY);
+			ctx.lineTo(x + size - 2, midY);
+			ctx.stroke();
+		    }
+
+		    if (hasVert) {
+			ctx.beginPath();
+			ctx.moveTo(midX, y + 2);
+			ctx.lineTo(midX, y + size - 2);
+			ctx.stroke();
+		    }
+
+		    // Junction / cross (both directions)
+		    if (hasHoriz && hasVert) {
+			ctx.setFillStyle("#44aaff");
+			ctx.beginPath();
+			ctx.arc(midX, midY, 3.5, 0, 2 * Math.PI);
+			ctx.fill();
+		    }
+		}
+	    }
+	}
+
+	// Optional: highlight origin for debugging
+	ctx.setFillStyle("rgba(255, 180, 60, 0.4)");
+	ctx.fillRect(originX - 4, originY - 4, 8, 8);
+
+	ctx.restore();
     }
 }

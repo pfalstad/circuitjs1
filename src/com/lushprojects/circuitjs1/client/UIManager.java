@@ -677,6 +677,9 @@ public class UIManager {
             g.drawLine(mouse.inverseTransformX(0), y, mouse.inverseTransformX(app.circuitArea.width), y);
         }
 
+	if (WireRouter.lastRouter != null)
+	    WireRouter.lastRouter.drawGrid(g.context, true);
+
         cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
 
         perfmon.startContext("drawBottomArea()");
