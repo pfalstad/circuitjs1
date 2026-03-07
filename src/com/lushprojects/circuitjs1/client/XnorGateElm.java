@@ -28,4 +28,5 @@ package com.lushprojects.circuitjs1.client;
 	String getGateName() { return "XNOR gate"; }
 	boolean isInverting() { return true; }
 	int getDumpType() { return 431; }
+	int getShortcut() { return '$'; }
     }
