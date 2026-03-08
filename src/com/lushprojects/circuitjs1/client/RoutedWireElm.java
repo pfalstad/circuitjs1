@@ -79,12 +79,21 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	void setPoints(boolean routing) {
+	    super.setPoints();
+
+	    // if endpoints haven't changed, keep existing route
+	    if (routePoints != null && routePoints.size() >= 2) {
+		Point first = routePoints.get(0);
+		Point last = routePoints.get(routePoints.size() - 1);
+		if (first.x == x && first.y == y && last.x == x2 && last.y == y2)
+		    return;
+	    }
+
 	    if (!routing) {
 		// just set up a straight line, no routing
 		routePoints = new ArrayList<Point>();
 		routePoints.add(point1);
 		routePoints.add(point2);
-		super.setPoints();
 		return;
 	    }
 
@@ -99,10 +108,8 @@ import com.google.gwt.xml.client.Element;
 		routePoints.add(point1);
 		routePoints.add(new Point(x2, y));
 		routePoints.add(point2);
-		super.setPoints();
 		return;
-	    } else
-		super.setPoints();
+	    }
 	    sim.console("route success");
 	}
 

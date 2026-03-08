@@ -197,7 +197,11 @@ class XMLDeserializer {
     }
 
     public String parseContents() {
-	return currentXmlElement.getFirstChild().getNodeValue();
+	try {
+	    return currentXmlElement.getFirstChild().getNodeValue();
+	} catch (Exception e) {
+	    return null;
+	}
     }
 
     public List<Element> getChildElements() {

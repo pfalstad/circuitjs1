@@ -103,13 +103,15 @@ public class WireRouter {
 	    maxY = Math.max(maxY, bounds.y + bounds.height);
 	}
 
+	int margin = 2;
+
 	// snap origin to grid
-	originX = (minX / gridSize) * gridSize;
-	originY = (minY / gridSize) * gridSize;
+	originX = (minX / gridSize) * gridSize - margin*gridSize;
+	originY = (minY / gridSize) * gridSize - margin*gridSize;
 
 	// compute rows/cols from origin-relative extents
-	rows = (maxY - originY) / gridSize + 2;
-	cols = (maxX - originX) / gridSize + 2;
+	rows = (maxY - originY) / gridSize + 1 + margin*2;
+	cols = (maxX - originX) / gridSize + 1 + margin*2;
 	grid = new int[rows][cols];
 
 	for (CircuitElm ce : UIManager.theUI.elmList) {

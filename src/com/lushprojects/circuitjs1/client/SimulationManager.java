@@ -10,6 +10,7 @@ import java.util.Vector;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Node;
 import com.google.gwt.xml.client.XMLParser;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -1533,7 +1534,7 @@ public class SimulationManager {
 	    CircuitElm ce = app.elmList.get(i);
 	    if (sel && !ce.isSelected())
 		continue;
-	    if (ce instanceof WireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
+	    if (ce instanceof WireElm || ce instanceof RoutedWireElm || ce instanceof LabeledNodeElm || ce instanceof ScopeElm ||
 		    ce instanceof GraphicElm || ce instanceof GroundElm) {
 		if (dumpAll)
 		    extraList.add(ce);
@@ -1558,9 +1559,14 @@ public class SimulationManager {
 	    Element child = elmDoc.createElement(ce.getXmlDumpType());
 	    XMLSerializer.dumpAttr(child, "nn", nn);
 	    ce.dumpXml(elmDoc, child);
-	    // remove child elements (state) since this is a model definition, not an instance
-	    while (child.getFirstChild() != null)
-		child.removeChild(child.getFirstChild());
+	    // remove child elements (state) since this is a model definition, not an instance.
+	    // preserve text nodes (used by RoutedWireElm for route points).
+	    for (Node cn = child.getFirstChild(); cn != null; ) {
+		Node next = cn.getNextSibling();
+		if (cn.getNodeType() == Node.ELEMENT_NODE)
+		    child.removeChild(cn);
+		cn = next;
+	    }
 	    if (!dumpAll)
 		child.removeAttribute("x");
 	    elmRoot.appendChild(child);

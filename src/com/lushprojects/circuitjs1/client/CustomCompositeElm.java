@@ -79,6 +79,10 @@ public class CustomCompositeElm extends CompositeElm {
 	boundingBox = chip.boundingBox;
     }
 
+    void addRoutingObstacle(WireRouter router) {
+	chip.addRoutingObstacle(router);
+    }
+
     void setPoints() {
 	chip = new CustomCompositeChipElm(x, y);
 	chip.x2 = x2;
