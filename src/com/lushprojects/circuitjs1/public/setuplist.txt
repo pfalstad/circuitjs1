@@ -368,6 +368,20 @@ tlfreq.txt Stub Frequency Response
 tllopass.txt Low-Pass Filter
 tllight.txt Light Switch
 -
++Controlled Sources
+cs-resistor.txt VCCS Resistor
+cs-varyresistor.txt VCCS Varying Resistor
+cs-opamp.txt VCVS Op-Amp
+cs-opamprail.txt VCVS Op-Amp With Rails
+cs-multiplier.txt VCVS Multiplier
+cs-fullrectifier.txt VCVS Full Rectifier
+cs-ramp.txt VCVS Voltage Ramp
+cs-currentadder.txt Current Adder
+cs-integrator.txt VCVS Integrator
+cs-diff.txt VCVS Differentiator
+cs-varinduct.txt CCVS Variable Inductor
+cs-varicap.txt VCCS Variable Capacitor
+-
 +Misc Devices
 +JFETs
 jfetcurrentsrc.txt JFET Current Source
