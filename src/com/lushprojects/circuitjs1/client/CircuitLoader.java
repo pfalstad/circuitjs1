@@ -228,7 +228,7 @@ public class CircuitLoader {
 
         app.needAnalyze();
         if ((flags & RC_NO_CENTER) == 0)
-            app.centreCircuit();
+            app.centerCircuit();
 
         if ((flags & RC_SUBCIRCUITS) != 0)
             app.updateModels();

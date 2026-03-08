@@ -249,7 +249,7 @@ public class CirSim implements NativePreviewHandler {
 
     public void setiFrameHeight() { ui.setiFrameHeight(); }
     
-    void centreCircuit() { ui.centreCircuit(); }
+    void centerCircuit() { ui.centerCircuit(); }
 
     Rectangle getCircuitBounds() { return ui.getCircuitBounds(); }
     static CirSim theApp;

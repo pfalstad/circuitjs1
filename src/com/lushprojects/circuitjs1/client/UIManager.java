@@ -271,7 +271,7 @@ public class UIManager {
 
 	Window.addResizeHandler(new ResizeHandler() {
 	    public void onResize(ResizeEvent event) {
-		centreCircuit();
+		centerCircuit();
 		repaint();
 	    }
 	});
@@ -412,7 +412,7 @@ public class UIManager {
 	}
 
 	if (app.transform[0] == 0)
-	    centreCircuit();
+	    centerCircuit();
     }
 
     void setCircuitArea() {
@@ -426,7 +426,7 @@ public class UIManager {
     	app.circuitArea = new Rectangle(0, 0, width, height-h);
     }
 
-    void centreCircuit() {
+    void centerCircuit() {
 	if (elmList == null)
 	    return;
 
@@ -863,7 +863,7 @@ public class UIManager {
 	elmList = allElms;
 	updateSubcircuitPath();
 	app.sim.analyzeCircuit();
-	centreCircuit();
+	centerCircuit();
     }
 
     void popSubcircuit() {
@@ -879,6 +879,7 @@ public class UIManager {
 	}
 	updateSubcircuitPath();
 	app.sim.analyzeCircuit();
+	centerCircuit();
     }
 
     void updateSubcircuitPath() {
