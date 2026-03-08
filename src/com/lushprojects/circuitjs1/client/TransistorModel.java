@@ -49,6 +49,19 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
     double junctionExpBE = 0.33;            // MJE: BE junction grading coefficient
     double junctionExpBC = 0.33;            // MJC: BC junction grading coefficient
 
+    // Transit time parameters (SPICE Gummel-Poon diffusion charge storage)
+    // These model the minority carrier charge stored in the base region during
+    // active operation.  The diffusion capacitance Cd = TT * gm adds to the
+    // depletion capacitance above, and is the dominant contributor at high
+    // forward bias (where gm is large).
+    //
+    // Typical values (from SPICE .model cards):
+    //   2N2222A:  TF=0.411ns  TR=46.91ns
+    //   2N3904:   TF=0.301ns  TR=239ns
+    //   2N3906:   TF=0.579ns  TR=94.36ns
+    double transitTimeF;                    // TF: forward transit time (s), 0=disabled
+    double transitTimeR;                    // TR: reverse transit time (s), 0=disabled
+
     boolean dumped;
     boolean readOnly;
     boolean builtIn;
@@ -67,6 +80,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	junctionPotBC = 0.75;
 	junctionExpBE = 0.33;
 	junctionExpBC = 0.33;
+	transitTimeF = 0;
+	transitTimeR = 0;
 	updateModel();
     }
 
@@ -198,6 +213,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	junctionCapBC = copy.junctionCapBC;
 	junctionPotBC = copy.junctionPotBC;
 	junctionExpBC = copy.junctionExpBC;
+	transitTimeF = copy.transitTimeF;
+	transitTimeR = copy.transitTimeR;
 	updateModel();
     }
 
@@ -240,6 +257,11 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	    junctionExpBC = Double.parseDouble(st.nextToken());
 	} catch (Exception e) {
 	}
+	try {
+	    transitTimeF = Double.parseDouble(st.nextToken());
+	    transitTimeR = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {
+	}
 
 	updateModel();
     }
@@ -268,6 +290,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 16) return new EditInfo("B-C Zero-Bias Junction Capacitance (CJC)", junctionCapBC);
 	if (n == 17) return new EditInfo("B-C Junction Potential (VJC)", junctionPotBC);
 	if (n == 18) return new EditInfo("B-C Junction Grading Coefficient (MJC)", junctionExpBC);
+	if (n == 19) return new EditInfo("Forward Transit Time TF (s)", transitTimeF);
+	if (n == 20) return new EditInfo("Reverse Transit Time TR (s)", transitTimeR);
 	return null;
     }
 
@@ -295,6 +319,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 16) junctionCapBC = ei.value;
 	if (n == 17 && ei.value > 0) junctionPotBC = ei.value;
 	if (n == 18 && ei.value > 0) junctionExpBC = ei.value;
+	if (n == 19 && ei.value >= 0) transitTimeF = ei.value;
+	if (n == 20 && ei.value >= 0) transitTimeR = ei.value;
 	updateModel();
 	CirSim.theApp.updateModels();
     }
@@ -329,6 +355,10 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	    XMLSerializer.dumpAttr(elem, "vjc", junctionPotBC);
 	    XMLSerializer.dumpAttr(elem, "mjc", junctionExpBC);
 	}
+	if (transitTimeF != 0)
+	    XMLSerializer.dumpAttr(elem, "tf", transitTimeF);
+	if (transitTimeR != 0)
+	    XMLSerializer.dumpAttr(elem, "tr", transitTimeR);
 	doc.getDocumentElement().appendChild(elem);
     }
 
@@ -359,6 +389,8 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	junctionCapBC = xml.parseDoubleAttr("cjc", junctionCapBC);
 	junctionPotBC = xml.parseDoubleAttr("vjc", junctionPotBC);
 	junctionExpBC = xml.parseDoubleAttr("mjc", junctionExpBC);
+	transitTimeF = xml.parseDoubleAttr("tf", transitTimeF);
+	transitTimeR = xml.parseDoubleAttr("tr", transitTimeR);
 	updateModel();
     }
 }
