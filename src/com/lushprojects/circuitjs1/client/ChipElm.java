@@ -551,6 +551,8 @@ abstract class ChipElm extends CircuitElm {
 	    setPoints();
 	}
 
+	int getNumHandles() { return 0; }
+
 	class Pin {
 	    Pin(int p, int s, String t) {
 		pos = p; side0 = side = s; text = t;

@@ -634,6 +634,8 @@ public abstract class CircuitElm implements Editable {
     }
     
     void drawHandles(Graphics g, Color c) {
+    	if (getNumHandles() == 0)
+	    return;
     	g.setColor(c);
     	if (lastHandleGrabbed==-1)
     		g.fillRect(x-3, y-3, 7, 7);
