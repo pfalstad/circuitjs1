@@ -28,6 +28,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 class LabeledNodeElm extends CircuitElm {
     final int FLAG_ESCAPE = 4;
     final int FLAG_INTERNAL = 1;
+    final int FLAG_ROTATE_TEXT = 8;
     
     public LabeledNodeElm(int xx, int yy) {
 	super(xx, yy);
@@ -70,6 +71,7 @@ class LabeledNodeElm extends CircuitElm {
     
     static HashMap<String,LabelEntry> labelList;
     boolean isInternal() { return (flags & FLAG_INTERNAL) != 0; }
+    boolean isRotateText() { return (flags & FLAG_ROTATE_TEXT) != 0; }
 
     public static native void console(String text)
     /*-{
@@ -126,6 +128,46 @@ class LabeledNodeElm extends CircuitElm {
 	return le.node;
     }
     
+    void drawLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
+	if (isRotateText() && pt1.x == pt2.x) {
+	    drawRotatedLabeledNode(g, str, pt1, pt2);
+	    return;
+	}
+	super.drawLabeledNode(g, str, pt1, pt2);
+    }
+
+    void drawRotatedLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
+	boolean lineOver = false;
+	if (str.startsWith("/")) {
+	    lineOver = true;
+	    str = str.substring(1);
+	}
+	int w = (int) g.context.measureText(str).getWidth();
+	int h = (int) g.currentFontSize;
+	g.save();
+	g.context.setTextBaseline("middle");
+	int dir = sign(pt2.y - pt1.y);
+	// offset text further from the wire to avoid overlap with long names
+	int offset = h + Math.max(0, w / 2 - h);
+	int tx = pt2.x;
+	int ty = pt2.y + dir * offset;
+	g.context.translate(tx, ty);
+	g.context.rotate(-Math.PI / 2);
+	g.context.setTextAlign("center");
+	g.drawString(str, 0, 0);
+	// bbox for rotated text: width becomes height and vice versa
+	adjustBbox(tx - h / 2, ty - w / 2, tx + h / 2, ty + w / 2);
+	g.restore();
+	if (lineOver) {
+	    int xa = -h / 2 - 1;
+	    g.save();
+	    g.context.translate(tx, ty);
+	    g.context.rotate(-Math.PI / 2);
+	    g.drawLine(-w / 2, xa, w / 2, xa);
+	    g.restore();
+	}
+    }
+
     void draw(Graphics g) {
 	setVoltageColor(g, volts[0]);
 	drawThickLine(g, point1, lead1);
@@ -161,6 +203,11 @@ class LabeledNodeElm extends CircuitElm {
             ei.checkbox = new Checkbox("Internal Node", isInternal());
             return ei;
         }
+	if (n == 2) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.checkbox = new Checkbox("Rotate Text When Vertical", isRotateText());
+	    return ei;
+	}
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -168,6 +215,8 @@ class LabeledNodeElm extends CircuitElm {
 	    text = ei.textf.getText();
 	if (n == 1)
 	    flags = ei.changeFlag(flags, FLAG_INTERNAL);
+	if (n == 2)
+	    flags = ei.changeFlag(flags, FLAG_ROTATE_TEXT);
     }
     @Override String getScopeText(int v) {
 	return text;
