@@ -141,6 +141,7 @@ class LabeledNodeElm extends CircuitElm {
     }
     double getCurrentIntoNode(int n) { return -current; }
     void setCurrent(int x, double c) { current = c; }
+    int getShortcut() { return 'b'; }
     double getVoltageDiff() { return volts[0]; }
     String getElmType() { return "Labeled Node"; }
     void getInfo(String arr[]) {
