@@ -38,6 +38,10 @@ public class WireRouter {
      * Mark a line segment as obstacle (pixel coordinates, snapped to grid internally)
      */
     public void addObstacle(int px1, int py1, int px2, int py2) {
+	px1 += gridSize/2;
+	px2 += gridSize/2;
+	py1 += gridSize/2;
+	py2 += gridSize/2;
 	int r1 = (py1 - originY) / gridSize;
 	int c1 = (px1 - originX) / gridSize;
 	int r2 = (py2 - originY) / gridSize;
@@ -50,6 +54,17 @@ public class WireRouter {
 	    for (int r = minR; r <= maxR; r++)
 		if (isValid(r, c))
 			grid[r][c] |= OBSTACLE;
+    }
+
+    public void addObstacle(Point pts[]) {
+	int minX = pts[0].x, minY = pts[0].y, maxX = pts[0].x, maxY = pts[0].y;
+	for (int i = 1; i < pts.length; i++) {
+	    if (pts[i].x < minX) minX = pts[i].x;
+	    if (pts[i].y < minY) minY = pts[i].y;
+	    if (pts[i].x > maxX) maxX = pts[i].x;
+	    if (pts[i].y > maxY) maxY = pts[i].y;
+	}
+	addObstacle(minX, minY, maxX, maxY);
     }
 
     public void addWire(int px1, int py1, int px2, int py2) {

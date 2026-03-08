@@ -247,4 +247,5 @@ import com.google.gwt.xml.client.Document;
 	    super.flipXY(xmy, count);
 	}
 
+	void addRoutingObstacle(WireRouter router) { addRoutingObstacleWithLeads(router, opwidth); }
     }

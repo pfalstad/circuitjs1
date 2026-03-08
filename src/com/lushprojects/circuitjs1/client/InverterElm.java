@@ -76,6 +76,11 @@ class InverterElm extends CircuitElm {
 	    curcount = updateDotCount(current, curcount);
 	    drawDots(g, lead2, point2, curcount);
 	}
+
+        void addRoutingObstacle(WireRouter router) {
+            addRoutingObstacleWithLeads(router, 16);
+        }
+
 	Polygon gatePoly;
 	Point pcircle;
 	void setPoints() {

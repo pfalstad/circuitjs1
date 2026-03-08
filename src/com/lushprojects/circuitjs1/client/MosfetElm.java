@@ -246,6 +246,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    }
 	int getPostCount() { return hasBodyTerminal() ? 4 : 3; }
 
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(new Point[] { gate[0], gate[2], src[0], drn[0], src[2], drn[2] });
+	    router.addWire(point1.x, point1.y, gate[1].x, gate[1].y);
+	}
+
 	int pcircler;
 	
 	// points for source and drain (these are swapped on PNP mosfets)

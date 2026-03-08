@@ -129,6 +129,8 @@ class DiodeElm extends CircuitElm {
 	poly = createPolygon(pa[0], pa[1], lead2);
     }
 	
+    void addRoutingObstacle(WireRouter router) { addRoutingObstacleWithLeads(router, hs); }
+
     void draw(Graphics g) {
 	drawDiode(g);
 	doDots(g);

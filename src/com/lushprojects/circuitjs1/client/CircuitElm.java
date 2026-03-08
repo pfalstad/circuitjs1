@@ -272,6 +272,15 @@ public abstract class CircuitElm implements Editable {
 	}
     }
     
+    void addRoutingObstacleWithLeads(WireRouter router, int width) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    Point pa = interpPoint(lead1, lead2, 0, width);
+	    Point pb = interpPoint(lead1, lead2, 1, -width);
+	    router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+	}
+    }
+
     // stamp matrix values for non-linear elements
     void doStep() {}
     
