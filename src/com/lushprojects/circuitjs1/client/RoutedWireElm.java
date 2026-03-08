@@ -171,6 +171,32 @@ import com.google.gwt.xml.client.Element;
 	    return new RoutedWireElm(rp2);
 	}
 
+	// reroute this wire through an intermediate point
+	void rerouteVia(int vx, int vy) {
+	    WireRouter router = new WireRouter();
+	    router.initGrid(this);
+	    ArrayList<Point> rp1 = router.routeWire(x, y, vx, vy);
+	    if (rp1.size() < 2)
+		return;
+
+	    // write the first route into the grid so the second avoids it
+	    for (int i = 0; i < rp1.size() - 1; i++) {
+		Point a = rp1.get(i);
+		Point b = rp1.get(i + 1);
+		router.addWire(a.x, a.y, b.x, b.y);
+	    }
+
+	    ArrayList<Point> rp2 = router.routeWire(vx, vy, x2, y2);
+	    if (rp2.size() < 2)
+		return;
+
+	    // combine the two routes, removing the duplicate via point
+	    ArrayList<Point> combined = new ArrayList<Point>(rp1);
+	    for (int i = 1; i < rp2.size(); i++)
+		combined.add(rp2.get(i));
+	    routePoints = combined;
+	}
+
 	void addRoutingObstacle(WireRouter router) {
 	    if (routePoints == null)
 		return;
@@ -239,6 +265,40 @@ import com.google.gwt.xml.client.Element;
 	    if (best <= thresh * thresh)
 		return best;
 	    return -1;
+	}
+
+	// return the snapped point on the wire nearest to (mx, my), or null
+	Point getSnapPointOnWire(int mx, int my) {
+	    if (routePoints == null || routePoints.size() < 2)
+		return null;
+
+	    int bestSeg = -1;
+	    int bestDist = Integer.MAX_VALUE;
+	    for (int i = 0; i < routePoints.size() - 1; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		int d = lineDistanceSq(a.x, a.y, b.x, b.y, mx, my);
+		if (d < bestDist) {
+		    bestDist = d;
+		    bestSeg = i;
+		}
+	    }
+
+	    Point a = routePoints.get(bestSeg);
+	    Point b = routePoints.get(bestSeg + 1);
+
+	    int sx, sy;
+	    if (a.x == b.x) {
+		sx = a.x;
+		sy = snapGrid(my);
+		//sy = Math.max(Math.min(a.y, b.y), Math.min(sy, Math.max(a.y, b.y)));
+	    } else {
+		sy = a.y;
+		sx = snapGrid(mx);
+		//sx = Math.max(Math.min(a.x, b.x), Math.min(sx, Math.max(a.x, b.x)));
+	    }
+
+	    return new Point(sx, sy);
 	}
 
 	void getInfo(String arr[]) {

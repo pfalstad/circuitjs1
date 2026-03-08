@@ -60,6 +60,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public static final int MODE_DRAG_POST = 5;
     public static final int MODE_SELECT = 6;
     public static final int MODE_DRAG_SPLITTER = 7;
+    public static final int MODE_DRAG_REROUTE = 8;
 
     public static final int POSTGRABSQ = 25;
     public static final int MINPOSTGRABSIZE = 256;
@@ -255,12 +256,24 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		    if (System.currentTimeMillis()-mouseDownTime < 150)
     			return;
 
-    		    tempMouseMode = MODE_DRAG_SELECTED;
-    		    changed = success = dragSelected(gx, gy);
+    		    if (mouseElm instanceof RoutedWireElm) {
+    			tempMouseMode = MODE_DRAG_REROUTE;
+    			((RoutedWireElm) mouseElm).rerouteVia(snapGrid(gx), snapGrid(gy));
+    			changed = true;
+    		    } else {
+    			tempMouseMode = MODE_DRAG_SELECTED;
+    			changed = success = dragSelected(gx, gy);
+    		    }
     		}
     		break;
     	case MODE_DRAG_SELECTED:
     		changed = success = dragSelected(gx, gy);
+    		break;
+    	case MODE_DRAG_REROUTE:
+    		if (mouseElm instanceof RoutedWireElm) {
+    		    ((RoutedWireElm) mouseElm).rerouteVia(snapGrid(gx), snapGrid(gy));
+    		    changed = true;
+    		}
     		break;
 
     	}
