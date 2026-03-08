@@ -510,8 +510,11 @@ class VoltageElm extends CircuitElm {
 
 	    setPoints();
 	}
-	if (n == fo+1)
+	if (n == fo+1) {
 	    phaseShift = ei.value*pi/180;
+	    // normalize to [0, 2*pi)
+	    phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
+	}
 	if (n == fo+2)
 	    dutyCycle = ei.value*.01;
 	if (n == fo+3)
