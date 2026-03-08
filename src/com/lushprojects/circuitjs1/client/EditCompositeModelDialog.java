@@ -108,7 +108,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
             model.sizeX = Math.max(minWidth, pinsNS + xOffsetLeft + xOffsetRight);
             model.sizeY = Math.max(minHeight, pinsWE);
 
-            model.modelCircuit = CirSim.theApp.dumpCircuit();
+            //model.modelCircuit = CirSim.theApp.dumpCircuit();
             return true;
         }
         
