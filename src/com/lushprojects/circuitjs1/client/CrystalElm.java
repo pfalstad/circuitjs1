@@ -70,7 +70,7 @@ class CrystalElm extends CompositeElm {
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
             XMLSerializer.dumpAttr(elem, "pc", parallelCapacitance);
-            XMLSerializer.dumpAttr(elem, "sc", parallelCapacitance);
+            XMLSerializer.dumpAttr(elem, "sc", seriesCapacitance);
             XMLSerializer.dumpAttr(elem, "in", inductance);
             XMLSerializer.dumpAttr(elem, "r", resistance);
         }
@@ -137,6 +137,11 @@ class CrystalElm extends CompositeElm {
 		drawDots(g, point2, lead2, -curcount);
 	    }
 	    drawPosts(g);
+	    if (showValues()) {
+		double fs = 1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2);
+		String s = getShortUnitText(fs, "Hz");
+		drawValues(g, s, hs);
+	    }
 	}
 	
 	public void stepFinished() {
@@ -147,11 +152,14 @@ class CrystalElm extends CompositeElm {
 	void getInfo(String arr[]) {
 	    arr[0] = "crystal";
 	    getBasicInfo(arr);
-	    arr[3] = "fs = " + getUnitText(1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2), "Hz");
-//	    arr[3] = "C = " + getUnitText(capacitance, "F");
-//	    arr[4] = "P = " + getUnitText(getPower(), "W");
-	    //double v = getVoltageDiff();
-	    //arr[4] = "U = " + getUnitText(.5*capacitance*v*v, "J");
+	    double fs = 1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2);
+	    double cSer = (parallelCapacitance*seriesCapacitance)/(parallelCapacitance+seriesCapacitance);
+	    double fp = 1/(Math.sqrt(inductance*cSer)*Math.PI*2);
+	    double q = 2*Math.PI*fs*inductance/resistance;
+	    arr[3] = "fs = " + getUnitText(fs, "Hz");
+	    arr[4] = "fp = " + getUnitText(fp, "Hz");
+	    arr[5] = "Q = " + getUnitText(q, "");
+	    arr[6] = "P = " + getUnitText(getPower(), "W");
 	}
 	
 	public boolean canViewInScope() { return true; }
