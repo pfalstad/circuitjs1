@@ -26,6 +26,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 class TransLineElm extends CircuitElm {
     double delay, imped;
+    double resistance; // total series resistance (losses), 0 = lossless
     double voltageL[], voltageR[];
     int lenSteps, ptr, width;
     int lastStepCount;
@@ -42,8 +43,9 @@ class TransLineElm extends CircuitElm {
 	delay = new Double(st.nextToken()).doubleValue();
 	imped = new Double(st.nextToken()).doubleValue();
 	width = new Integer(st.nextToken()).intValue();
-	// next slot is for resistance (losses), which is not implemented
-	st.nextToken();
+	try {
+	    resistance = new Double(st.nextToken()).doubleValue();
+	} catch (Exception e) {}
 	noDiagonal = true;
 	reset();
     }
@@ -52,7 +54,7 @@ class TransLineElm extends CircuitElm {
     int getInternalNodeCount() { return 2; }
     String getXmlDumpType() { return "tl"; }
     String dump() {
-	return super.dump() + " " + delay + " " + imped + " " + width + " " + 0.;
+	return super.dump() + " " + delay + " " + imped + " " + width + " " + resistance;
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -60,6 +62,8 @@ class TransLineElm extends CircuitElm {
         XMLSerializer.dumpAttr(elem, "de", delay);
         XMLSerializer.dumpAttr(elem, "im", imped);
         XMLSerializer.dumpAttr(elem, "wi", width);
+	if (resistance != 0)
+	    XMLSerializer.dumpAttr(elem, "rs", resistance);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -67,6 +71,7 @@ class TransLineElm extends CircuitElm {
         delay = xml.parseDoubleAttr("de", delay);
         imped = xml.parseDoubleAttr("im", imped);
         width = xml.parseIntAttr("wi", width);
+	resistance = xml.parseDoubleAttr("rs", resistance);
 	reset();
     }
 
@@ -179,8 +184,10 @@ class TransLineElm extends CircuitElm {
     void stamp() {
 	sim.stampVoltageSource(nodes[4], nodes[0], voltSource1);
 	sim.stampVoltageSource(nodes[5], nodes[1], voltSource2);
-	sim.stampResistor(nodes[2], nodes[4], imped);
-	sim.stampResistor(nodes[3], nodes[5], imped);
+	// add half the loss resistance at each port
+	double portImpedance = imped + resistance/2;
+	sim.stampResistor(nodes[2], nodes[4], portImpedance);
+	sim.stampResistor(nodes[3], nodes[5], portImpedance);
     }
 
     void startIteration() {
@@ -189,8 +196,10 @@ class TransLineElm extends CircuitElm {
 	    sim.stop("Transmission line delay too large!", this);
 	    return;
 	}
-	voltageL[ptr] = volts[2]-volts[0] + volts[2]-volts[4];
-	voltageR[ptr] = volts[3]-volts[1] + volts[3]-volts[5];
+	// attenuation factor for distributed losses: exp(-R/(2*Z0))
+	double alpha = (resistance > 0) ? Math.exp(-resistance / (2 * imped)) : 1;
+	voltageL[ptr] = (volts[2]-volts[0] + volts[2]-volts[4]) * alpha;
+	voltageR[ptr] = (volts[3]-volts[1] + volts[3]-volts[5]) * alpha;
 	//System.out.println(volts[2] + " " + volts[0] + " " + (volts[2]-volts[0]) + " " + (imped*current1) + " " + voltageL[ptr]);
 	/*System.out.println("sending fwd  " + currentL[ptr] + " " + current1);
 	  System.out.println("sending back " + currentR[ptr] + " " + current2);*/
@@ -238,12 +247,16 @@ class TransLineElm extends CircuitElm {
 	// use velocity factor for RG-58 cable (65%)
 	arr[2] = "length = " + getUnitText(.65*2.9979e8*delay, "m");
 	arr[3] = "delay = " + getUnitText(delay, "s");
+	if (resistance > 0)
+	    arr[4] = "R = " + getUnitText(resistance, Locale.ohmString);
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo("Delay (s)", delay, 0, 0);
 	if (n == 1)
 	    return new EditInfo("Impedance (ohms)", imped, 0, 0);
+	if (n == 2)
+	    return new EditInfo("Resistance (ohms)", resistance, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -253,6 +266,10 @@ class TransLineElm extends CircuitElm {
 	}
 	if (n == 1 && ei.value > 0) {
 	    imped = ei.value;
+	    reset();
+	}
+	if (n == 2 && ei.value >= 0) {
+	    resistance = ei.value;
 	    reset();
 	}
     }
