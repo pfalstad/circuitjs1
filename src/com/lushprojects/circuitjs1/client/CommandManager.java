@@ -491,6 +491,7 @@ public class CommandManager {
 	CustomCompositeModel.clearDumpedFlags();
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
+	MosfetModel.clearDumpedFlags();
 	for (int i = app.elmList.size()-1; i >= 0; i--) {
 	    CircuitElm ce = app.elmList.get(i);
 	    ce.dumpXmlModel(doc);
