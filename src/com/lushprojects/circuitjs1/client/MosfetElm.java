@@ -41,6 +41,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double vt;
 	// beta = 1/(RdsON*(Vgs-Vt))
 	double beta;
+	double capGS, capGD; // gate-source and gate-drain capacitance (F), 0=disabled
+	// junction capacitance state (trapezoidal companion model)
+	double capVoltGS, capVoltGD;
+	double capCurGS, capCurGD;
+	double geqGS, geqGD;
+	double ceqGS, ceqGD;
 	static int globalFlags;
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
@@ -69,6 +75,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    try {
 		vt = new Double(st.nextToken()).doubleValue();
 		beta = new Double(st.nextToken()).doubleValue();
+	    } catch (Exception e) {}
+	    try {
+		capGS = new Double(st.nextToken()).doubleValue();
+		capGD = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
@@ -101,6 +111,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
 	    curcount_body1 = curcount_body2 = 0;
+	    capVoltGS = capVoltGD = capCurGS = capCurGD = 0;
+	    geqGS = geqGD = ceqGS = ceqGD = 0;
 	    diodeB1.reset();
 	    diodeB2.reset();
 	    if (doBodyDiode())
@@ -116,10 +128,20 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		e.getDeltaY(), this, app);
 	}
 
+	String dump() {
+	    String s = super.dump() + " " + vt + " " + beta;
+	    if (capGS != 0 || capGD != 0)
+		s += " " + capGS + " " + capGD;
+	    return s;
+	}
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "vt", vt);
 	    XMLSerializer.dumpAttr(elem, "be", beta);
+	    if (capGS != 0)
+		XMLSerializer.dumpAttr(elem, "cgs", capGS);
+	    if (capGD != 0)
+		XMLSerializer.dumpAttr(elem, "cgd", capGD);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
@@ -127,6 +149,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    super.undumpXml(xml);
 	    vt = xml.parseDoubleAttr("vt", vt);
 	    beta = xml.parseDoubleAttr("be", beta);
+	    capGS = xml.parseDoubleAttr("cgs", capGS);
+	    capGD = xml.parseDoubleAttr("cgd", capGD);
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
 	}
@@ -313,10 +337,22 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int mode = 0;
 	double gm = 0;
 	
+	void startIteration() {
+	    if (capGS > 0 && sim.timeStep > 0) {
+		geqGS = 2 * capGS / sim.timeStep;
+		ceqGS = -geqGS * capVoltGS - capCurGS;
+	    }
+	    if (capGD > 0 && sim.timeStep > 0) {
+		geqGD = 2 * capGD / sim.timeStep;
+		ceqGD = -geqGD * capVoltGD - capCurGD;
+	    }
+	}
 	void stamp() {
 	    sim.stampNonLinear(nodes[1]);
 	    sim.stampNonLinear(nodes[2]);
-	    
+	    if (capGS > 0 || capGD > 0)
+		sim.stampNonLinear(nodes[0]);
+
 	    if (hasBodyTerminal())
 		bodyTerminal = 3;
 	    else
@@ -356,12 +392,22 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	
 	void stepFinished() {
 	    calculate(true);
-	    
+
 	    // fix current if body is connected to source or drain
 	    if (bodyTerminal == 1)
 		diodeCurrent1 = -diodeCurrent2;
 	    if (bodyTerminal == 2)
 		diodeCurrent2 = -diodeCurrent1;
+
+	    // save gate cap state for next time step
+	    if (capGS > 0 && geqGS > 0) {
+		capVoltGS = volts[0] - volts[1];
+		capCurGS = geqGS * capVoltGS + ceqGS;
+	    }
+	    if (capGD > 0 && geqGD > 0) {
+		capVoltGD = volts[0] - volts[2];
+		capCurGD = geqGD * capVoltGD + ceqGD;
+	    }
 	}
 
 	void doStep() {
@@ -465,6 +511,26 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    
 	    sim.stampRightSide(nodes[drain],  rs);
 	    sim.stampRightSide(nodes[source], -rs);
+
+	    // gate capacitance companion model stamps
+	    // Cgs between gate (node 0) and node 1
+	    if (capGS > 0 && geqGS > 0) {
+		sim.stampMatrix(nodes[0], nodes[0],  geqGS);
+		sim.stampMatrix(nodes[1], nodes[1],  geqGS);
+		sim.stampMatrix(nodes[0], nodes[1], -geqGS);
+		sim.stampMatrix(nodes[1], nodes[0], -geqGS);
+		sim.stampRightSide(nodes[0], -ceqGS);
+		sim.stampRightSide(nodes[1],  ceqGS);
+	    }
+	    // Cgd between gate (node 0) and node 2
+	    if (capGD > 0 && geqGD > 0) {
+		sim.stampMatrix(nodes[0], nodes[0],  geqGD);
+		sim.stampMatrix(nodes[2], nodes[2],  geqGD);
+		sim.stampMatrix(nodes[0], nodes[2], -geqGD);
+		sim.stampMatrix(nodes[2], nodes[0], -geqGD);
+		sim.stampRightSide(nodes[0], -ceqGD);
+		sim.stampRightSide(nodes[2],  ceqGD);
+	    }
 	}
 	
 	void getFetInfo(String arr[], String n) {
@@ -480,6 +546,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    arr[6] = "P = " + getUnitText(getPower(), "W");
 	    if (showBulk())
 		arr[7] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
+	    int idx = (showBulk() && arr[7] != null) ? 8 : 7;
+	    if (capGS > 0)
+		arr[idx++] = "Cgs = " + getUnitText(capGS, "F");
+	    if (capGD > 0)
+		arr[idx] = "Cgd = " + getUnitText(capGD, "F");
 	}
 	String getElmType() { return "MOSFET"; }
 	void getInfo(String arr[]) {
@@ -498,27 +569,31 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			return new EditInfo("Threshold Voltage", pnp*vt, .01, 5);
 		if (n == 1)
 			return new EditInfo(EditInfo.makeLink("mosfet-beta.html", "Beta"), beta, .01, 5);
-		if (n == 2) {
+		if (n == 2)
+			return new EditInfo("Gate-Source Capacitance (Cgs)", capGS);
+		if (n == 3)
+			return new EditInfo("Gate-Drain Capacitance (Cgd)", capGD);
+		if (n == 4) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Show Bulk", showBulk());
 			return ei;
 		}
-		if (n == 3) {
+		if (n == 5) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
 			return ei;
 		}
-		if (n == 4 && !showBulk()) {
+		if (n == 6 && !showBulk()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
 			return ei;
 		}
-		if (n == 4 && showBulk()) {
+		if (n == 6 && showBulk()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
 			return ei;
 		}
-		if (n == 5 && doBodyDiode()) {
+		if (n == 7 && doBodyDiode()) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
 			return ei;
@@ -530,28 +605,29 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		if (n == 0)
 			vt = pnp*ei.value;
 		if (n == 1 && ei.value > 0)
-			beta = lastBeta = ei.value;	
-		if (n == 2) {
+			beta = lastBeta = ei.value;
+		if (n == 2 && ei.value >= 0)
+			capGS = ei.value;
+		if (n == 3 && ei.value >= 0)
+			capGD = ei.value;
+		if (n == 4) {
 		    globalFlags = (!ei.checkbox.getState()) ? (globalFlags|FLAG_HIDE_BULK) :
 				(globalFlags & ~(FLAG_HIDE_BULK|FLAG_DIGITAL));
-//		    setPoints();
-		    ei.newDialog = true;
-		}
-		if (n == 3) {
-			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
-				(flags & ~FLAG_FLIP);
-//			setPoints();
-		}
-		if (n == 4 && !showBulk()) {
-		    globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
-				(globalFlags & ~FLAG_DIGITAL);
-//		    setPoints();
-		}
-		if (n == 4 && showBulk()) {
-		    flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
 		    ei.newDialog = true;
 		}
 		if (n == 5) {
+			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
+				(flags & ~FLAG_FLIP);
+		}
+		if (n == 6 && !showBulk()) {
+		    globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
+				(globalFlags & ~FLAG_DIGITAL);
+		}
+		if (n == 6 && showBulk()) {
+		    flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
+		    ei.newDialog = true;
+		}
+		if (n == 7) {
 		    flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
 		}
 
