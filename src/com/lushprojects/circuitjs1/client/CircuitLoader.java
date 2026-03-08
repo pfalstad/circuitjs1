@@ -37,6 +37,7 @@ public class CircuitLoader {
     }
 
     public void clearCircuit() {
+	WireRouter.lastRouter = null;
         app.mouse.clearMouseElm();
         for (CircuitElm ce : app.elmList) {
             ce.delete();

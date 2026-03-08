@@ -1,5 +1,6 @@
 package com.lushprojects.circuitjs1.client;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +32,9 @@ public class SimulationManager {
     int circuitMatrixSize, circuitMatrixFullSize;
     boolean circuitNeedsMap;
     boolean needsStamp;
+
+    // mapping from elements to connected routed wires
+    HashMap<CircuitElm, ArrayList<RoutedWireConnection>> routedWireMap;
     CircuitElm elmArr[];
     double t;
 
@@ -958,6 +962,35 @@ public class SimulationManager {
 		    badConnectionList.add(cn);
 	    }
 	}
+
+	// build mapping from elements to connected routed wires
+	routedWireMap = new HashMap<CircuitElm, ArrayList<RoutedWireConnection>>();
+	for (i = 0; i != drawList.size(); i++) {
+	    CircuitElm ce = drawList.get(i);
+	    if (!(ce instanceof RoutedWireElm))
+		continue;
+	    RoutedWireElm rw = (RoutedWireElm) ce;
+	    int rwPosts = rw.getPostCount();
+	    for (int rp = 0; rp < rwPosts; rp++) {
+		Point rwPt = rw.getPost(rp);
+		for (j = 0; j != drawList.size(); j++) {
+		    CircuitElm other = drawList.get(j);
+		    if (other == rw || other instanceof RoutedWireElm)
+			continue;
+		    int otherPosts = other.getPostCount();
+		    for (int op = 0; op < otherPosts; op++) {
+			if (other.getPost(op).equals(rwPt)) {
+			    ArrayList<RoutedWireConnection> list = routedWireMap.get(other);
+			    if (list == null) {
+				list = new ArrayList<RoutedWireConnection>();
+				routedWireMap.put(other, list);
+			    }
+			    list.add(new RoutedWireConnection(rw, rp, op));
+			}
+		    }
+		}
+	    }
+	}
     }
 
     class FindPathInfo {
@@ -1701,6 +1734,18 @@ public class SimulationManager {
 	    return 0;
 	// subtract one because ground is not included in nodeVoltages[]
 	return nodeVoltages[node.intValue()-1];
-    }	
+    }
+
+    static class RoutedWireConnection {
+	RoutedWireElm wire;
+	int wirePost;   // which post of the RoutedWireElm (0 or 1)
+	int elmPost;    // which post of the non-routed element
+
+	RoutedWireConnection(RoutedWireElm wire, int wirePost, int elmPost) {
+	    this.wire = wire;
+	    this.wirePost = wirePost;
+	    this.elmPost = elmPost;
+	}
+    }
 
 }

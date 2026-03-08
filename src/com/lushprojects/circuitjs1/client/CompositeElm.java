@@ -126,7 +126,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    // GroundElm is only skipped if it has coordinates, meaning it came from a
 	    // newer dump where it's purely visual.  Old-style dumps have no coordinates
 	    // and need GroundElm for simulation.
-	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+	    if (className.equals("WireElm") || className.equals("RoutedWireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
 		    className.equals("GraphicElm") ||
 		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
 		sim.console("skipping " + className + " in loadCompositeXml");

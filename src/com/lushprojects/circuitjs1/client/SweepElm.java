@@ -70,6 +70,12 @@ class SweepElm extends CircuitElm {
 	lead1 = interpPoint(point1, point2, 1-circleSize/dn);
     }
 
+    void addRoutingObstacle(WireRouter router) {
+	router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	router.addObstacle(point2.x - circleSize, point2.y - circleSize,
+			   point2.x + circleSize, point2.y + circleSize);
+    }
+
     void draw(Graphics g) {
 	setBbox(point1, point2, circleSize);
 	setVoltageColor(g, volts[0]);

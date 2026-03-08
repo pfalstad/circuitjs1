@@ -140,6 +140,11 @@ public class CommandManager {
 	    app.undoManager.pushUndo();
 	    flipXY();
     	}
+    	if (item=="convertWires") {
+	    app.undoManager.pushUndo();
+	    WireConverter.convertWires(app);
+	    app.needAnalyze();
+    	}
     	if (item=="stackAll")
     		app.scopeManager.stackAll();
     	if (item=="unstackAll")

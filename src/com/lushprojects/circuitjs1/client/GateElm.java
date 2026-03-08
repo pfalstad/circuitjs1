@@ -100,6 +100,10 @@ abstract class GateElm extends CircuitElm {
 	    setupVolts();
 	}
 
+	void addRoutingObstacle(WireRouter router) {
+	    addRoutingObstacleWithLeads(router, gwidth2);
+        }
+
 	String getXmlDumpType() { return getClassName().replace("GateElm", ""); }
 
 	Point inPosts[], inGates[];

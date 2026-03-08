@@ -547,10 +547,10 @@ public class CirSim implements NativePreviewHandler {
 	if (elm == null)
 	    return;
 	int t = elm.getDumpType();
-	if (t == 0) {
+	/*if (t == 0) {
 	    console("got dump type 0 for " + className);
 	    return;
-	}
+	}*/
 	String s = dumpTypeMap.get(t);
 	Class cs = elm.getDumpClass();
 	className = cs.getName();

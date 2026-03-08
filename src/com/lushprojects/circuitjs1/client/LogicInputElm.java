@@ -167,6 +167,11 @@ class LogicInputElm extends SwitchElm {
 	    if (n == 5)
 		setKeyShortcutEditValue(ei);
 	}
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	    router.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
+	}
+
 	int getShortcut() { return 'i'; }
 	
 	double getCurrentIntoNode(int n) {

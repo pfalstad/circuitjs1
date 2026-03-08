@@ -234,7 +234,12 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    
 	    circleCenter = interpPoint(base, point2, .5);
 	}
-	
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(new Point[] { rect[0], rect[1], rect[2], rect[3], coll[0], emit[0] });
+	    router.addWire(point1.x, point1.y, base.x, base.y);
+	}
+
 	static final double leakage = 1e-13; // 1e-6;
 	// Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
 	static final double vt = 0.025865;

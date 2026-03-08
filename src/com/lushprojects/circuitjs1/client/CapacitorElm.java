@@ -269,4 +269,6 @@ class CapacitorElm extends CircuitElm {
 	public void setCapacitance(double c) { capacitance = c; }
 	public void setSeriesResistance(double c) { seriesResistance = c; }
 	public boolean isIdealCapacitor() { return (seriesResistance == 0); }
+
+	public void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 12); }
     }

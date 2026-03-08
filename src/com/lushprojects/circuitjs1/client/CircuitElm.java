@@ -262,7 +262,25 @@ public abstract class CircuitElm implements Editable {
     // stamp matrix values for linear elements.
     // for non-linear elements, use this to stamp values that don't change each iteration, and call stampRightSide() or stampNonLinear() as needed
     void stamp() {}
+
+    // add this element as an obstacle to the wire router grid
+    void addRoutingObstacle(WireRouter router) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    if (lead1 != null && lead2 != null)
+		router.addObstacle(lead1.x, lead1.y, lead2.x, lead2.y);
+	}
+    }
     
+    void addRoutingObstacleWithLeads(WireRouter router, int width) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    Point pa = interpPoint(lead1, lead2, 0, width);
+	    Point pb = interpPoint(lead1, lead2, 1, -width);
+	    router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+	}
+    }
+
     // stamp matrix values for non-linear elements
     void doStep() {}
     
@@ -616,6 +634,8 @@ public abstract class CircuitElm implements Editable {
     }
     
     void drawHandles(Graphics g, Color c) {
+    	if (getNumHandles() == 0)
+	    return;
     	g.setColor(c);
     	if (lastHandleGrabbed==-1)
     		g.fillRect(x-3, y-3, 7, 7);

@@ -43,6 +43,8 @@ import static com.google.gwt.event.dom.client.KeyCodes.*;
 
 public class UIManager {
 
+    static UIManager theUI;
+
     CirSim app;
     Menus menus;
     ScopeManager scopeManager;
@@ -99,6 +101,7 @@ public class UIManager {
 
     UIManager(CirSim app) {
 	this.app = app;
+	theUI = this;
     }
 
     void init() {
@@ -648,6 +651,16 @@ public class UIManager {
 
         if (mouse.tempMouseMode == MouseManager.MODE_SELECT && mouse.getMouseElm() != null) {
             mouse.getMouseElm().drawHandles(g, CircuitElm.selectColor);
+            if (mouse.getMouseElm() instanceof RoutedWireElm && mouse.mouseCursorX >= 0) {
+                RoutedWireElm rw = (RoutedWireElm) mouse.getMouseElm();
+                int gx = mouse.inverseTransformX(mouse.mouseCursorX);
+                int gy = mouse.inverseTransformY(mouse.mouseCursorY);
+                Point sp = rw.getSnapPointOnWire(gx, gy);
+                if (sp != null) {
+                    g.setColor(CircuitElm.selectColor);
+                    g.fillOval(sp.x - 4, sp.y - 4, 9, 9);
+                }
+            }
         }
 
         if (mouse.dragElm != null && (mouse.dragElm.x != mouse.dragElm.x2 || mouse.dragElm.y != mouse.dragElm.y2)) {
@@ -674,6 +687,9 @@ public class UIManager {
             g.drawLine(x, mouse.inverseTransformY(0), x, mouse.inverseTransformY(app.circuitArea.height));
             g.drawLine(mouse.inverseTransformX(0), y, mouse.inverseTransformX(app.circuitArea.width), y);
         }
+
+	/*if (WireRouter.lastRouter != null)
+	    WireRouter.lastRouter.drawGrid(g.context, true);*/
 
         cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
 

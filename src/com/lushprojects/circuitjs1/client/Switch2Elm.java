@@ -214,6 +214,17 @@ import com.google.gwt.xml.client.Document;
 	// this is for backwards compatibility only.  we only support it if throwCount = 2
 	boolean hasCenterOff() { return (flags & FLAG_CENTER_OFF) != 0 && throwCount == 2; }
 	
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	    for (int i = 0; i != throwCount; i++)
+		router.addWire(swposts[i].x, swposts[i].y, swpoles[i].x, swpoles[i].y);
+	    Point[] pts = new Point[throwCount + 1];
+	    pts[0] = lead1;
+	    for (int i = 0; i != throwCount; i++)
+		pts[i + 1] = swpoles[i];
+	    router.addObstacle(pts);
+	}
+
 	int getShortcut() { return 'S'; }
 
 	void flipX(int c2, int count) {

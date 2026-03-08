@@ -384,6 +384,8 @@ class VoltageElm extends CircuitElm {
 	}
     }
 
+    void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 16); }
+
     int getVoltageSourceCount() {
 	return 1;
     }

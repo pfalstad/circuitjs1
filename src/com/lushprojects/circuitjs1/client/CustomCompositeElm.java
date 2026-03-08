@@ -259,7 +259,7 @@ public class CustomCompositeElm extends CompositeElm {
 	    if (className == null)
 		continue;
 	    CircuitElm ce;
-	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+	    if (className.equals("WireElm") || className.equals("RoutedWireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
 		    className.equals("GraphicElm") ||
 		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
 		ce = CirSim.constructElement(className, 0, 0);

@@ -101,6 +101,12 @@ class RailElm extends VoltageElm {
 	    sim.updateVoltageSource(0, nodes[0], voltSource, getVoltage());
     }
     boolean hasGroundConnection(int n1) { return true; }
+    void addRoutingObstacle(WireRouter router) {
+	router.addWire(point1.x, point1.y, point2.x, point2.y);
+	router.addObstacle(point2.x - circleSize, point2.y - circleSize,
+			   point2.x + circleSize, point2.y + circleSize);
+    }
+
     int getShortcut() { return 'V'; }
     
 //    void drawHandles(Graphics g, Color c) {

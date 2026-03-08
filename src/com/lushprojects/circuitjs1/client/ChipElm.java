@@ -204,6 +204,10 @@ abstract class ChipElm extends CircuitElm {
 	    labelY = yr+ys/2;
 	}
 	
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(rectPointsX[0]-cspc, rectPointsY[0]-cspc, rectPointsX[2]+cspc, rectPointsY[2]+cspc);
+	}
+
 	// see if we can move pin to position xp, yp, and return the new position
 	boolean getPinPos(int xp, int yp, int pin, int pos[]) {
 	    int x0 = x+cspc2; int y0 = y;
@@ -546,6 +550,8 @@ abstract class ChipElm extends CircuitElm {
 	    }
 	    setPoints();
 	}
+
+	int getNumHandles() { return 0; }
 
 	class Pin {
 	    Pin(int p, int s, String t) {

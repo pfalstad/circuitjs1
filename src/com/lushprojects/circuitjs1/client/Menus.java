@@ -169,6 +169,8 @@ public class Menus {
 	m.addItem(flipXItem = iconMenuItem("flip-x", "Flip X", new MyCommand("edit", "flipx")));
 	m.addItem(flipYItem = iconMenuItem("flip-y", "Flip Y", new MyCommand("edit", "flipy")));
 	m.addItem(flipXYItem = iconMenuItem("flip-x-y", "Flip XY", new MyCommand("edit", "flipxy")));
+	m.addSeparator();
+	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("edit", "convertWires")));
 	menuBar.addItem(Locale.LS("Edit"),m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
@@ -265,7 +267,7 @@ public class Menus {
 
     // this is called twice, once for the Draw menu, once for the right mouse popup menu
     public void composeMainMenu(MenuBar mainMenuBar, int num) {
-	makeClassCheckItems(mainMenuBar, new String[] { "Add Wire", "WireElm", "Add Resistor", "ResistorElm" });
+	makeClassCheckItems(mainMenuBar, new String[] { "Add Wire", "WireElm", "Add Routed Wire", "RoutedWireElm", "Add Resistor", "ResistorElm" });
 
     	MenuBar passMenuBar = new MenuBar(true);
 	makeClassCheckItems(passMenuBar, new String[] {
