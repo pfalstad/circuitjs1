@@ -13,11 +13,13 @@ public class Adjustable implements Command {
     double sliderStep; // step increment; 0 = continuous (no stepping)
     int flags;
     String sliderText;
-    
+    boolean logarithmic;
+
     // null if this Adjustable has its own slider, non-null if it's sharing another one.
     Adjustable sharedSlider;
-    
+
     final int FLAG_SHARED = 1;
+    final int FLAG_LOG = 2;
     
     // index of value in getEditInfo() list that this slider controls
     int editItem;
@@ -62,6 +64,7 @@ public class Adjustable implements Command {
 	    }
 	    sliderText = CustomLogicModel.unescape(st.nextToken());
 	} catch (Exception ex) {}
+	logarithmic = (flags & FLAG_LOG) != 0;
 	try {
 	    sliderStep = Double.parseDouble(st.nextToken());
 	} catch (Exception ex) {}
@@ -88,7 +91,7 @@ public class Adjustable implements Command {
     void createSlider(CirSim sim, double value) {
         sim.addWidgetToVerticalPanel(label = new Label(Locale.LS(sliderText)));
         label.addStyleName("topSpace");
-        int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
+        int intValue = valueToSliderPosition(value);
         sim.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 101, this, elm));
         slider.setStepSize(sliderStep * 100 / (maxValue - minValue));
     }
@@ -98,7 +101,7 @@ public class Adjustable implements Command {
 	    sharedSlider.setSliderValue(value);
 	    return;
 	}
-        int intValue = (int) ((value-minValue)*100/(maxValue-minValue));
+        int intValue = valueToSliderPosition(value);
         settingValue = true; // don't recursively set value again in execute()
         slider.setValue(intValue);
         settingValue = false;
@@ -126,11 +129,31 @@ public class Adjustable implements Command {
     
     double getSliderValue() {
 	double val = sharedSlider == null ? slider.getValue() : sharedSlider.slider.getValue();
-	double result = minValue + (maxValue-minValue)*val/100;
+	double result = sliderPositionToValue(val);
 	double step = sharedSlider != null ? sharedSlider.sliderStep : sliderStep;
 	if (step > 0)
 	    result = minValue + Math.round((result - minValue) / step) * step;
 	return result;
+    }
+
+    // convert a value to a slider position (0-100)
+    int valueToSliderPosition(double value) {
+	if (logarithmic && minValue > 0) {
+	    double logMin = Math.log(minValue);
+	    double logMax = Math.log(maxValue);
+	    return (int) ((Math.log(value) - logMin) / (logMax - logMin) * 100);
+	}
+	return (int) ((value - minValue) * 100 / (maxValue - minValue));
+    }
+
+    // convert a slider position (0-100) to a value
+    double sliderPositionToValue(double pos) {
+	if (logarithmic && minValue > 0) {
+	    double logMin = Math.log(minValue);
+	    double logMax = Math.log(maxValue);
+	    return Math.exp(logMin + (logMax - logMin) * pos / 100);
+	}
+	return minValue + (maxValue - minValue) * pos / 100;
     }
     
     void deleteSlider(CirSim sim) {
@@ -159,8 +182,14 @@ public class Adjustable implements Command {
 	int ano = -1;
 	if (sharedSlider != null)
 	    ano = CirSim.theApp.adjustables.indexOf(sharedSlider);
-	
-	return CirSim.theApp.locateElm(elm) + " F1 " + editItem + " " + minValue + " " + maxValue + " " + ano + " " +
+
+	int dumpFlags = 0;
+	if (sharedSlider != null)
+	    dumpFlags |= FLAG_SHARED;
+	if (logarithmic)
+	    dumpFlags |= FLAG_LOG;
+
+	return CirSim.theApp.locateElm(elm) + " F" + dumpFlags + " " + editItem + " " + minValue + " " + maxValue + " " + ano + " " +
 			CustomLogicModel.escape(sliderText) + " " + sliderStep;
     }
     

@@ -141,6 +141,7 @@ class XMLDeserializer {
 		int ss = parseIntAttr("ss", -1);
 		if (ss != -1)
 		    adj.sharedSlider = app.adjustables.get(ss);
+		adj.logarithmic = parseIntAttr("log", 0) != 0;
 		app.adjustables.add(adj);
 		continue;
 	    }
