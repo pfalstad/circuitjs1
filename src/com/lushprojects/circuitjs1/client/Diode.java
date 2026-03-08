@@ -29,6 +29,7 @@ class Diode {
 	nodes = new CircuitNode[2];
     }
     void setup(DiodeModel model) {
+	this.model = model;
 	leakage = model.saturationCurrent;
 	zvoltage = model.breakdownVoltage;
 	vscale = model.vscale;
@@ -57,6 +58,7 @@ class Diode {
     
     void reset() {
 	lastvoltdiff = 0;
+	capVolt = capCur = geqCap = ceqCap = 0;
     }
 	
     // Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
@@ -79,7 +81,49 @@ class Diode {
     // Critical voltages for limiting the normal diode and Zener breakdown exponentials.
     double vcrit, vzcrit;
     double lastvoltdiff;
+
+    // Junction capacitance state (trapezoidal companion model)
+    double capVolt;     // junction voltage from end of previous time step
+    double capCur;      // junction cap current from end of previous time step
+    double geqCap;      // companion conductance
+    double ceqCap;      // companion current source
+    DiodeModel model;   // reference to model for cap params
     
+    // Calculate voltage-dependent junction depletion capacitance (SPICE formula).
+    static double calcJunctionCap(double vj, double cj0, double vj0, double mj) {
+	if (cj0 <= 0)
+	    return 0;
+	double fc = 0.5;
+	if (vj < fc * vj0) {
+	    return cj0 / Math.pow(1 - vj/vj0, mj);
+	} else {
+	    // linear extrapolation above fc*Vj to avoid singularity
+	    return cj0 / Math.pow(1 - fc, 1 + mj) * (1 - fc*(1+mj) + mj*vj/vj0);
+	}
+    }
+
+    void startIteration(double voltdiff) {
+	if (model == null || sim.timeStep <= 0)
+	    return;
+	if (model.junctionCap > 0 || model.transitTime > 0) {
+	    double cj = calcJunctionCap(voltdiff, model.junctionCap, model.junctionPot, model.junctionExp);
+	    // add diffusion capacitance from transit time: Cd = TT * gd
+	    if (model.transitTime > 0) {
+		double gd = leakage * vdcoef * Math.exp(voltdiff * vdcoef);
+		cj += model.transitTime * gd;
+	    }
+	    geqCap = 2 * cj / sim.timeStep;
+	    ceqCap = -geqCap * capVolt - capCur;
+	}
+    }
+
+    void stepFinished(double voltdiff) {
+	if (model != null && (model.junctionCap > 0 || model.transitTime > 0) && geqCap > 0) {
+	    capVolt = voltdiff;
+	    capCur = geqCap * capVolt + ceqCap;
+	}
+    }
+
     double limitStep(double vnew, double vold) {
 	double arg;
 	double oo = vnew;
@@ -162,6 +206,11 @@ class Diode {
 	    double nc = (eval-1)*leakage - geq*voltdiff;
 	    sim.stampConductance(nodes[0], nodes[1], geq);
 	    sim.stampCurrentSource(nodes[0], nodes[1], nc);
+	    // junction capacitance companion model
+	    if (geqCap > 0) {
+		sim.stampConductance(nodes[0], nodes[1], geqCap);
+		sim.stampCurrentSource(nodes[0], nodes[1], ceqCap);
+	    }
 	} else {
 	    // Zener diode
 	    
@@ -188,6 +237,11 @@ class Diode {
 
 	    sim.stampConductance(nodes[0], nodes[1], geq);
 	    sim.stampCurrentSource(nodes[0], nodes[1],  nc);
+	    // junction capacitance companion model
+	    if (geqCap > 0) {
+		sim.stampConductance(nodes[0], nodes[1], geqCap);
+		sim.stampCurrentSource(nodes[0], nodes[1], ceqCap);
+	    }
 	}
     }
     
