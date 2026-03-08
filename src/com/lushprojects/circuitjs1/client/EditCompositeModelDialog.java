@@ -256,6 +256,10 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    model.setSaved(saveCheck.getState());
 	    CirSim.theApp.updateModels();
 	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
+	    if (!popContext && !CirSim.theApp.contextStack.isEmpty()) {
+		// record this model change so it survives when the parent context pops
+		CirSim.theApp.contextStack.lastElement().changedModels.add(model);
+	    }
 	    if (popContext) {
 		// Save the new model, pop context (which reloads old circuit with old models),
 		// then swap the new model back in.  Also carry forward any models changed at
