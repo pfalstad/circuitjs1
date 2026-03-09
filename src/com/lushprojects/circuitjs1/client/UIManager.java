@@ -98,6 +98,7 @@ public class UIManager {
     static final int MENUBARHEIGHT = 30;
     static final int TOOLBARHEIGHT = 40;
     static int VERTICALPANELWIDTH = 166; // default
+    long lastResizeTime;
 
     UIManager(CirSim app) {
 	this.app = app;
@@ -271,7 +272,8 @@ public class UIManager {
 
 	Window.addResizeHandler(new ResizeHandler() {
 	    public void onResize(ResizeEvent event) {
-		centerCircuit();
+		// canvas hasn't been laid out yet, so we can't recenter here
+		lastResizeTime = System.currentTimeMillis();
 		repaint();
 	    }
 	});
@@ -411,7 +413,9 @@ public class UIManager {
 	    subcircuitBar.updatePosition(0, barTop, width);
 	}
 
-	if (app.transform[0] == 0)
+	// center circuit if we have no transform, or if a resize happened in the last second.
+	// should we always center the circuit here?  maybe, but I thought I tried that and it caused problems...
+	if (app.transform[0] == 0 || (System.currentTimeMillis()-lastResizeTime < 1000))
 	    centerCircuit();
     }
 
