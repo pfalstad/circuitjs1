@@ -46,6 +46,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double vt;
 	// beta = 1/(RdsON*(Vgs-Vt))
 	double beta;
+	// junction capacitance state (trapezoidal companion model)
+	double capVoltGS, capVoltGD;
+	double capCurGS, capCurGD;
+	double geqGS, geqGD;
+	double ceqGS, ceqGD;
 	static int globalFlags;
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
@@ -88,6 +93,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		    vt = new Double(st.nextToken()).doubleValue();
 		    beta = new Double(st.nextToken()).doubleValue();
 		} catch (Exception e) {}
+		if (needsModel())
+		    modelName = "default";
 	    }
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    if (modelName != null)
@@ -100,6 +107,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    modelName = model.name;
 	    vt = model.threshold;
 	    beta = model.beta;
+	}
+
+	boolean hasGateCaps() {
+	    return model != null && (model.capGS > 0 || model.capGD > 0);
 	}
 
 	public void updateModels() {
@@ -134,6 +145,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
 	    curcount_body1 = curcount_body2 = 0;
+	    capVoltGS = capVoltGD = capCurGS = capCurGD = 0;
+	    geqGS = geqGD = ceqGS = ceqGD = 0;
 	    diodeB1.reset();
 	    diodeB2.reset();
 	    if (doBodyDiode())
@@ -377,10 +390,25 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int mode = 0;
 	double gm = 0;
 	
+	void startIteration() {
+	    if (model == null || sim.timeStep <= 0)
+		return;
+	    if (model.capGS > 0) {
+		geqGS = 2 * model.capGS / sim.timeStep;
+		ceqGS = -geqGS * capVoltGS - capCurGS;
+	    }
+	    if (model.capGD > 0) {
+		geqGD = 2 * model.capGD / sim.timeStep;
+		ceqGD = -geqGD * capVoltGD - capCurGD;
+	    }
+	}
+
 	void stamp() {
 	    sim.stampNonLinear(nodes[1]);
 	    sim.stampNonLinear(nodes[2]);
-	    
+	    if (hasGateCaps())
+		sim.stampNonLinear(nodes[0]);
+
 	    if (hasBodyTerminal())
 		bodyTerminal = 3;
 	    else
@@ -420,12 +448,22 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	
 	void stepFinished() {
 	    calculate(true);
-	    
+
 	    // fix current if body is connected to source or drain
 	    if (bodyTerminal == 1)
 		diodeCurrent1 = -diodeCurrent2;
 	    if (bodyTerminal == 2)
 		diodeCurrent2 = -diodeCurrent1;
+
+	    // save gate cap state for next time step
+	    if (model != null && model.capGS > 0 && geqGS > 0) {
+		capVoltGS = volts[0] - volts[1];
+		capCurGS = geqGS * capVoltGS + ceqGS;
+	    }
+	    if (model != null && model.capGD > 0 && geqGD > 0) {
+		capVoltGD = volts[0] - volts[2];
+		capCurGD = geqGD * capVoltGD + ceqGD;
+	    }
 	}
 
 	void doStep() {
@@ -531,6 +569,26 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    
 	    sim.stampRightSide(nodes[drain],  rs);
 	    sim.stampRightSide(nodes[source], -rs);
+
+	    // gate capacitance companion model stamps
+	    // Cgs between gate (node 0) and node 1
+	    if (model != null && model.capGS > 0 && geqGS > 0) {
+		sim.stampMatrix(nodes[0], nodes[0],  geqGS);
+		sim.stampMatrix(nodes[1], nodes[1],  geqGS);
+		sim.stampMatrix(nodes[0], nodes[1], -geqGS);
+		sim.stampMatrix(nodes[1], nodes[0], -geqGS);
+		sim.stampRightSide(nodes[0], -ceqGS);
+		sim.stampRightSide(nodes[1],  ceqGS);
+	    }
+	    // Cgd between gate (node 0) and node 2
+	    if (model != null && model.capGD > 0 && geqGD > 0) {
+		sim.stampMatrix(nodes[0], nodes[0],  geqGD);
+		sim.stampMatrix(nodes[2], nodes[2],  geqGD);
+		sim.stampMatrix(nodes[0], nodes[2], -geqGD);
+		sim.stampMatrix(nodes[2], nodes[0], -geqGD);
+		sim.stampRightSide(nodes[0], -ceqGD);
+		sim.stampRightSide(nodes[2],  ceqGD);
+	    }
 	}
 	
 	void getFetInfo(String arr[], String n) {
@@ -550,6 +608,13 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    arr[6] = "P = " + getUnitText(getPower(), "W");
 	    if (showBulk())
 		arr[7] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
+	    if (model != null) {
+		int idx = (showBulk() && arr[7] != null) ? 8 : 7;
+		if (model.capGS > 0)
+		    arr[idx++] = "Cgs = " + getUnitText(model.capGS, "F");
+		if (model.capGD > 0)
+		    arr[idx] = "Cgd = " + getUnitText(model.capGD, "F");
+	    }
 	}
 	String getElmType() { return "MOSFET"; }
 	void getInfo(String arr[]) {
@@ -561,6 +626,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean canViewInScope() { return true; }
 	double getVoltageDiff() { return volts[2] - volts[1]; }
 	boolean getConnection(int n1, int n2) {
+	    if (hasGateCaps())
+		return true;
 	    return !(n1 == 0 || n2 == 0);
 	}
 	Vector<MosfetModel> models;
