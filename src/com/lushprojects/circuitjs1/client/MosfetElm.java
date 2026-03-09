@@ -816,13 +816,25 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		setPoints();
 	}
 	double getCurrentIntoNode(int n) {
-	    if (n == 0)
-		return 0;
+	    if (n == 0) {
+		// gate current from cap currents (cap current flows out of gate)
+		double gateCur = 0;
+		if (model != null && model.capGS > 0 && geqGS > 0)
+		    gateCur -= geqGS * (volts[0] - volts[1]) + ceqGS;
+		if (model != null && model.capGD > 0 && geqGD > 0)
+		    gateCur -= geqGD * (volts[0] - volts[2]) + ceqGD;
+		return gateCur;
+	    }
 	    if (n == 3)
 		return -diodeCurrent1 - diodeCurrent2;
-	    if (n == 1)
-		return ids + diodeCurrent1;
-	    return -ids + diodeCurrent2;
+	    if (n == 1) {
+		double capCur = (model != null && model.capGS > 0 && geqGS > 0)
+		    ? geqGS * (volts[0] - volts[1]) + ceqGS : 0;
+		return ids + diodeCurrent1 + capCur;
+	    }
+	    double capCur = (model != null && model.capGD > 0 && geqGD > 0)
+		? geqGD * (volts[0] - volts[2]) + ceqGD : 0;
+	    return -ids + diodeCurrent2 + capCur;
 	}
 
         void flipX(int c2, int count) {
