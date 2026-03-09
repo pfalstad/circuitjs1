@@ -66,9 +66,10 @@ class VoltageElm extends CircuitElm {
 	    bias = new Double(st.nextToken()).doubleValue();
 	    phaseShift = new Double(st.nextToken()).doubleValue();
 	    dutyCycle = new Double(st.nextToken()).doubleValue();
-	    riseTime = new Double(st.nextToken()).doubleValue();
+	    // don't change this, we don't generate this format anymore, plus VarRailElm adds more stuff here
 	} catch (Exception e) {
 	}
+
 	if ((flags & FLAG_COS) != 0) {
 	    flags &= ~FLAG_COS;
 	    phaseShift = pi/2;
