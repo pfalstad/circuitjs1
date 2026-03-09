@@ -246,12 +246,18 @@ class Diode {
     }
     
     double calculateCurrent(double voltdiff) {
+	double current;
 	if (voltdiff >= 0 || zvoltage == 0)
-	    return leakage*(Math.exp(voltdiff*vdcoef)-1);
-	return leakage* (
-	    Math.exp(voltdiff*vdcoef)  
-	    - Math.exp((-voltdiff-zoffset)*vzcoef)  
-	    - 1
-	    );
+	    current = leakage*(Math.exp(voltdiff*vdcoef)-1);
+	else
+	    current = leakage*(
+		Math.exp(voltdiff*vdcoef)
+		- Math.exp((-voltdiff-zoffset)*vzcoef)
+		- 1
+		);
+	// add junction capacitance current from companion model
+	if (geqCap > 0)
+	    current += geqCap * voltdiff + ceqCap;
+	return current;
     }
 }
