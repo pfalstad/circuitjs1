@@ -710,6 +710,19 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		capVoltBC = volts[0] - volts[1];
 		capCurBC = geqBC * capVoltBC + ceqBC;
 	    }
+
+	    // Add junction cap currents to terminal currents for display.
+	    // BE cap current flows base to emitter; BC cap current flows base to collector.
+	    if (geqBE > 0) {
+		double icapBE = geqBE * (volts[0] - volts[2]) + ceqBE;
+		ib += icapBE;
+		ie -= icapBE;
+	    }
+	    if (geqBC > 0) {
+		double icapBC = geqBC * (volts[0] - volts[1]) + ceqBC;
+		ib += icapBC;
+		ic -= icapBC;
+	    }
         }
 
 	void flipX(int c2, int count) {
