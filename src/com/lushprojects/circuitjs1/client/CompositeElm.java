@@ -104,7 +104,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	compNodeInfo = nodeInfoList.toArray(new String[0]);
 	extNodeIds = externalNodes;
-	numPosts = externalNodes.length;
+	numPosts = numNodes = externalNodes.length;
 	posts = new Point[numPosts];
 
 	// dump new circuits with escape()
@@ -144,7 +144,9 @@ public abstract class CompositeElm extends CircuitElm {
 
 	compNodeInfo = nodeInfoList.toArray(new String[0]);
 	extNodeIds = externalNodes;
-	numPosts = externalNodes.length;
+
+	// we set numNodes here to allocNodes will work when creating.  but we will fill in the real node count later during prestamp
+	numPosts = numNodes = externalNodes.length;
 	posts = new Point[numPosts];
 	flags |= FLAG_ESCAPE;
     }
