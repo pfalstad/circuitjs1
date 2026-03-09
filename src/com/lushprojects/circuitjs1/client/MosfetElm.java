@@ -128,6 +128,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    vt = xml.parseDoubleAttr("vt", vt);
 	    beta = xml.parseDoubleAttr("be", beta);
 	    globalFlags = flags & (FLAGS_GLOBAL);
+            pnp = ((flags & FLAG_PNP) != 0) ? -1 : 1;
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
 	}
 
