@@ -812,6 +812,7 @@ public abstract class CircuitElm implements Editable {
     }
     
     void drawLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
+	g.setFont(unitsFont);
 	boolean lineOver = false;
 	if (str.startsWith("/")) {
 	    lineOver = true;
