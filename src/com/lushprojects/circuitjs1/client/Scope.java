@@ -231,7 +231,7 @@ class Scope {
     String text;
     Rectangle rect;
     private boolean manualScale;
-    boolean showI, showV, showScale, showMax, showMin, showP2P, showFreq;
+    boolean showI, showV, showC, showScale, showMax, showMin, showP2P, showFreq;
     boolean plot2d;
     boolean plotXY;
     boolean maxScale;
@@ -305,24 +305,16 @@ class Scope {
     }
 
     void showCharge(boolean b) {
-	if (b) {
+	showC = b;
+	if (b && !hasPlotValue(VAL_CHARGE)) {
 	    // add a charge plot if not already present
-	    if (!hasPlotValue(VAL_CHARGE)) {
-		CircuitElm ce = getElm();
-		if (ce != null) {
-		    int u = ce.getScopeUnits(VAL_CHARGE);
-		    plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
-		}
-	    }
-	} else {
-	    // remove any charge plots
-	    for (int i = plots.size() - 1; i >= 0; i--) {
-		if (plots.get(i).value == VAL_CHARGE)
-		    plots.remove(i);
+	    CircuitElm ce = getElm();
+	    if (ce != null) {
+		int u = ce.getScopeUnits(VAL_CHARGE);
+		plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
 	    }
 	}
 	calcVisiblePlots();
-	resetGraph();
     }
 
     void showMax    (boolean b) { showMax = b; }
@@ -412,7 +404,7 @@ class Scope {
     	scaleY = .1;
     	speed = 64;
     	showMax = true;
-    	showV = showI = false;
+    	showV = showI = showC = false;
     	showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     	showFFT = false;
     	plot2d = false;
@@ -425,6 +417,8 @@ class Scope {
     		    showV = true;
     		if (plot.units == UNITS_A)
     		    showI = true;
+    		if (plot.units == UNITS_C)
+    		    showC = true;
     	    }
     	}
     }
@@ -445,6 +439,11 @@ class Scope {
         		if (showI) {
         		    visiblePlots.add(plot);
         		    plot.assignColor(ac++);
+        		}
+        	    } else if (plot.units == UNITS_C) {
+        		if (showC) {
+        		    visiblePlots.add(plot);
+        		    plot.assignColor(oc++);
         		}
         	    } else {
         		visiblePlots.add(plot);
@@ -514,6 +513,14 @@ class Scope {
 		showV = true;
 	    if (u == UNITS_A)
 		showI = true;
+	    if (u == UNITS_C)
+		showC = true;
+	}
+	// re-add charge plot if showC is set and not already present
+	if (showC && ce != null && !hasPlotValue(VAL_CHARGE)) {
+	    int u = ce.getScopeUnits(VAL_CHARGE);
+	    if (u == UNITS_C)
+		plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
 	}
 	calcVisiblePlots();
 	resetGraph();
@@ -1935,7 +1942,7 @@ class Scope {
 			(showFFT ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
 			(showDutyCycle ? 32768 : 0) | (logSpectrum ? 65536 : 0) |
 			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
-			(showP2P ? (1<<22) : 0);
+			(showP2P ? (1<<22) : 0) | (showC ? (1<<23) : 0);
 	flags |= FLAG_PLOTS; // 4096
 	int allPlotFlags = 0;
 	for (ScopePlot p : plots) {
@@ -2157,6 +2164,7 @@ class Scope {
     	showAverage = (flags & (1<<17)) != 0;
     	showElmInfo = (flags & (1<<20)) != 0;
     	showP2P = (flags & (1<<22)) != 0;
+    	showC = (flags & (1<<23)) != 0;
     }
     
     void saveAsDefault() {
