@@ -236,49 +236,52 @@ public class WireRouter {
 	// 2. Z-shapes (2 bends) — try detour on both sides
 	// ─────────────────────────────────────────────
 
-	int detourMargin = 3;
+	int maxDetour = 5;
 
 	// Variant 1: vertical – horizontal – vertical (detour column)
 	if (startR != goalR) {
-	    int midR = (startR + goalR) / 2;
-	    for (int side : new int[]{-1, +1}) {
-		int detourCol = startC + side * detourMargin;
-		if (!isValid(0, detourCol)) continue;
-
-		List<int[]> z = new ArrayList<int[]>();
-		z.add(new int[]{startR, startC});
-		if (startC != detourCol)
-		    z.add(new int[]{startR, detourCol});
-		if (startR != goalR)
-		    z.add(new int[]{goalR, detourCol});
-		if (detourCol != goalC)
-		    z.add(new int[]{goalR, goalC});
-		if (z.size() >= 2) {
-		    int dir = (detourCol > startC) ? RIGHT : LEFT;
-		    double cost = evaluatePath(z, dir, startPrefs);
-		    if (cost >= 0 && cost < bestCost) {
-			bestCost = cost;
-			bestCorners = z;
+	    for (int margin = 1; margin <= maxDetour; margin++) {
+		for (int side : new int[]{-1, +1}) {
+		    // detour from start column
+		    int detourCol = startC + side * margin;
+		    if (isValid(0, detourCol)) {
+			List<int[]> z = new ArrayList<int[]>();
+			z.add(new int[]{startR, startC});
+			if (startC != detourCol)
+			    z.add(new int[]{startR, detourCol});
+			if (startR != goalR)
+			    z.add(new int[]{goalR, detourCol});
+			if (detourCol != goalC)
+			    z.add(new int[]{goalR, goalC});
+			if (z.size() >= 2) {
+			    int dir = (detourCol > startC) ? RIGHT : LEFT;
+			    double cost = evaluatePath(z, dir, startPrefs);
+			    if (cost >= 0 && cost < bestCost) {
+				bestCost = cost;
+				bestCorners = z;
+			    }
+			}
 		    }
-		}
 
-		// also try going to midpoint row first
-		detourCol = goalC + side * detourMargin;
-		if (!isValid(0, detourCol)) continue;
-		z = new ArrayList<int[]>();
-		z.add(new int[]{startR, startC});
-		if (startC != detourCol)
-		    z.add(new int[]{startR, detourCol});
-		if (startR != goalR)
-		    z.add(new int[]{goalR, detourCol});
-		if (detourCol != goalC)
-		    z.add(new int[]{goalR, goalC});
-		if (z.size() >= 2) {
-		    int dir = (detourCol > startC) ? RIGHT : LEFT;
-		    double cost = evaluatePath(z, dir, startPrefs);
-		    if (cost >= 0 && cost < bestCost) {
-			bestCost = cost;
-			bestCorners = z;
+		    // detour from goal column
+		    detourCol = goalC + side * margin;
+		    if (isValid(0, detourCol)) {
+			List<int[]> z = new ArrayList<int[]>();
+			z.add(new int[]{startR, startC});
+			if (startC != detourCol)
+			    z.add(new int[]{startR, detourCol});
+			if (startR != goalR)
+			    z.add(new int[]{goalR, detourCol});
+			if (detourCol != goalC)
+			    z.add(new int[]{goalR, goalC});
+			if (z.size() >= 2) {
+			    int dir = (detourCol > startC) ? RIGHT : LEFT;
+			    double cost = evaluatePath(z, dir, startPrefs);
+			    if (cost >= 0 && cost < bestCost) {
+				bestCost = cost;
+				bestCorners = z;
+			    }
+			}
 		    }
 		}
 	    }
@@ -286,43 +289,48 @@ public class WireRouter {
 
 	// Variant 2: horizontal – vertical – horizontal (detour row)
 	if (startC != goalC) {
-	    for (int side : new int[]{-1, +1}) {
-		int detourRow = startR + side * detourMargin;
-		if (!isValid(detourRow, 0)) continue;
-
-		List<int[]> z = new ArrayList<int[]>();
-		z.add(new int[]{startR, startC});
-		if (startR != detourRow)
-		    z.add(new int[]{detourRow, startC});
-		if (startC != goalC)
-		    z.add(new int[]{detourRow, goalC});
-		if (detourRow != goalR)
-		    z.add(new int[]{goalR, goalC});
-		if (z.size() >= 2) {
-		    int dir = (detourRow > startR) ? DOWN : UP;
-		    double cost = evaluatePath(z, dir, startPrefs);
-		    if (cost >= 0 && cost < bestCost) {
-			bestCost = cost;
-			bestCorners = z;
+	    for (int margin = 1; margin <= maxDetour; margin++) {
+		for (int side : new int[]{-1, +1}) {
+		    // detour from start row
+		    int detourRow = startR + side * margin;
+		    if (isValid(detourRow, 0)) {
+			List<int[]> z = new ArrayList<int[]>();
+			z.add(new int[]{startR, startC});
+			if (startR != detourRow)
+			    z.add(new int[]{detourRow, startC});
+			if (startC != goalC)
+			    z.add(new int[]{detourRow, goalC});
+			if (detourRow != goalR)
+			    z.add(new int[]{goalR, goalC});
+			if (z.size() >= 2) {
+			    int dir = (detourRow > startR) ? DOWN : UP;
+			    double cost = evaluatePath(z, dir, startPrefs);
+			    if (cost >= 0 && cost < bestCost) {
+				bestCost = cost;
+				bestCorners = z;
+			    }
+			}
 		    }
-		}
 
-		detourRow = goalR + side * detourMargin;
-		if (!isValid(detourRow, 0)) continue;
-		z = new ArrayList<int[]>();
-		z.add(new int[]{startR, startC});
-		if (startR != detourRow)
-		    z.add(new int[]{detourRow, startC});
-		if (startC != goalC)
-		    z.add(new int[]{detourRow, goalC});
-		if (detourRow != goalR)
-		    z.add(new int[]{goalR, goalC});
-		if (z.size() >= 2) {
-		    int dir = (detourRow > startR) ? DOWN : UP;
-		    double cost = evaluatePath(z, dir, startPrefs);
-		    if (cost >= 0 && cost < bestCost) {
-			bestCost = cost;
-			bestCorners = z;
+		    // detour from goal row
+		    detourRow = goalR + side * margin;
+		    if (isValid(detourRow, 0)) {
+			List<int[]> z = new ArrayList<int[]>();
+			z.add(new int[]{startR, startC});
+			if (startR != detourRow)
+			    z.add(new int[]{detourRow, startC});
+			if (startC != goalC)
+			    z.add(new int[]{detourRow, goalC});
+			if (detourRow != goalR)
+			    z.add(new int[]{goalR, goalC});
+			if (z.size() >= 2) {
+			    int dir = (detourRow > startR) ? DOWN : UP;
+			    double cost = evaluatePath(z, dir, startPrefs);
+			    if (cost >= 0 && cost < bestCost) {
+				bestCost = cost;
+				bestCorners = z;
+			    }
+			}
 		    }
 		}
 	    }
