@@ -1953,10 +1953,15 @@ class Scope {
     
     void dumpXml(Document doc, Element root) {
 	ScopePlot vPlot = plots.get(0);
-	
+
 	CircuitElm elm = vPlot.elm;
     	if (elm == null)
     	    return;
+    	// sync scale[] from scaleX/scaleY for 2d plots so they get saved correctly
+    	if (plot2d && plots.size() >= 2) {
+    	    scale[plots.get(0).units] = scaleX;
+    	    scale[plots.get(1).units] = scaleY;
+    	}
     	int flags = getFlags();
     	int eno = app.locateElm(elm);
     	if (eno < 0)
@@ -2029,6 +2034,11 @@ class Scope {
 	    }
 	}
     	setFlags(flags);
+    	// restore scaleX/scaleY for 2d plots
+    	if (plot2d && plots.size() >= 2) {
+    	    scaleX = scale[plots.get(0).units];
+    	    scaleY = scale[plots.get(1).units];
+    	}
     }
 
     void undump(StringTokenizer st) {
