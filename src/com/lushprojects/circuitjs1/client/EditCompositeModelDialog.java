@@ -118,8 +118,12 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	}
 	
 	TextBox modelNameTextBox = null;
-	Checkbox saveCheck = null;
+	Choice scopeChoice = null;
 	Checkbox labelCheck = null;
+
+	static final int SCOPE_THIS_CIRCUIT = 0;
+	static final int SCOPE_THIS_SESSION = 1;
+	static final int SCOPE_SAVE_ACROSS_SESSIONS = 2;
 
 	void createDialog() {
 		Button okButton;
@@ -159,7 +163,10 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		
 		HorizontalPanel hp = new HorizontalPanel();
-		hp.add(new Label(Locale.LS("Width")));
+		hp.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		Label widthLabel = new Label(Locale.LS("Width"));
+		widthLabel.getElement().getStyle().setMarginRight(6, com.google.gwt.dom.client.Style.Unit.PX);
+		hp.add(widthLabel);
 		Button b;
 		hp.add(b = new Button("+"));
 		b.addClickHandler(new ClickHandler() {
@@ -168,12 +175,15 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
                     }
                 });
 		hp.add(b = new Button("-"));
+		b.getElement().getStyle().setMarginRight(10, com.google.gwt.dom.client.Style.Unit.PX);
 		b.addClickHandler(new ClickHandler() {
                     public void onClick(ClickEvent event) {
                 	adjustChipSize(-1, 0);
                     }
                 });
-		hp.add(new Label(Locale.LS("Height")));
+		Label heightLabel = new Label(Locale.LS("Height"));
+		heightLabel.getElement().getStyle().setMarginRight(6, com.google.gwt.dom.client.Style.Unit.PX);
+		hp.add(heightLabel);
 		hp.add(b = new Button("+"));
 		b.addClickHandler(new ClickHandler() {
                     public void onClick(ClickEvent event) {
@@ -196,8 +206,24 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 			drawChip();
 		    }
 		});
-		vp.add(saveCheck = new Checkbox(Locale.LS("Save Across Sessions")));
-		saveCheck.setState(model.isSaved());
+		HorizontalPanel scopePanel = new HorizontalPanel();
+		scopePanel.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		scopePanel.addStyleName("topSpace");
+		Label scopeLabel = new Label(Locale.LS("Scope:"));
+		scopeLabel.getElement().getStyle().setMarginRight(8, com.google.gwt.dom.client.Style.Unit.PX);
+		scopePanel.add(scopeLabel);
+		scopeChoice = new Choice();
+		scopeChoice.add(Locale.LS("This Circuit"));
+		scopeChoice.add(Locale.LS("This Session"));
+		scopeChoice.add(Locale.LS("Save Across Sessions"));
+		if (model.isSaved())
+		    scopeChoice.select(SCOPE_SAVE_ACROSS_SESSIONS);
+		else if (model.name != null && CustomCompositeModel.globalModelMap.containsKey(model.name))
+		    scopeChoice.select(SCOPE_THIS_SESSION);
+		else
+		    scopeChoice.select(SCOPE_THIS_CIRCUIT);
+		scopePanel.add(scopeChoice);
+		vp.add(scopePanel);
 	
                 canvas.addMouseDownHandler(this);
                 canvas.addMouseUpHandler(this);
@@ -253,7 +279,18 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		model.setName(CustomCompositeElm.lastModelName = name);
 	    }
-	    model.setSaved(saveCheck.getState());
+	    int scope = scopeChoice.getSelectedIndex();
+	    // remove from old locations first
+	    CustomCompositeModel.localModelMap.remove(model.name);
+	    CustomCompositeModel.globalModelMap.remove(model.name);
+	    model.setSaved(false); // remove from storage
+	    if (scope == SCOPE_THIS_CIRCUIT) {
+		CustomCompositeModel.localModelMap.put(model.name, model);
+	    } else if (scope == SCOPE_THIS_SESSION) {
+		CustomCompositeModel.globalModelMap.put(model.name, model);
+	    } else {
+		model.setSaved(true); // puts in global map + storage
+	    }
 	    CirSim.theApp.updateModels();
 	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
 	    if (!popContext && !CirSim.theApp.contextStack.isEmpty()) {
