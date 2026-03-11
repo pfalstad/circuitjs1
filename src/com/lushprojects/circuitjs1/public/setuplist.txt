@@ -382,6 +382,10 @@ cs-diff.txt VCVS Differentiator
 cs-varinduct.txt CCVS Variable Inductor
 cs-varicap.txt VCCS Variable Capacitor
 -
++Subcircuits
+fullrect-sc.txt Full Rectifier
+adder4-sc.txt Full Adder
+-
 +Misc Devices
 +JFETs
 jfetcurrentsrc.txt JFET Current Source
