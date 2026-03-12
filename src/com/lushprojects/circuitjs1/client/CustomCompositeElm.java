@@ -313,4 +313,6 @@ public class CustomCompositeElm extends CompositeElm {
 	    arr[i+1] = model.extList.get(i).name + " = " + getVoltageText(volts[i]);
 	}
     }
+
+    int getNumHandles() { return 0; }
 }
