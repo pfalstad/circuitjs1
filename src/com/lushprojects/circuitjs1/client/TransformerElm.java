@@ -85,6 +85,7 @@ class TransformerElm extends CircuitElm {
 	    XMLSerializer.dumpAttr(elem, "in", inductance);
 	    XMLSerializer.dumpAttr(elem, "ra", ratio);
 	    XMLSerializer.dumpAttr(elem, "co", couplingCoef);
+	    XMLSerializer.dumpAttr(elem, "wi", width);
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
@@ -103,9 +104,10 @@ class TransformerElm extends CircuitElm {
 	    inductance = xml.parseDoubleAttr("in", inductance);
 	    ratio = xml.parseDoubleAttr("ra", ratio);
 	    couplingCoef = xml.parseDoubleAttr("co", couplingCoef);
+	    width = xml.parseIntAttr("wi", width);
 	    current[0] = xml.parseDoubleAttr("c0", 0);
 	    current[1] = xml.parseDoubleAttr("c1", 0);
-	    polarity = (hasFlag(FLAG_REVERSE)) ? -1 : 1; 
+	    polarity = (hasFlag(FLAG_REVERSE)) ? -1 : 1;
 	}
 
 	boolean isTrapezoidal() { return (flags & Inductor.FLAG_BACK_EULER) == 0; }
