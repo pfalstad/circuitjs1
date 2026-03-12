@@ -2225,6 +2225,11 @@ class Scope {
 	position = xml.parseIntAttr("p", 0);
 	manDivisions = xml.parseIntAttr("md", 8);
 	text = xml.parseStringAttr("x", (String)null);
+	// Read trigger settings from parent <o> element before iterating children,
+	// because parseChildElement() changes the XML context to child <p> elements
+	int xmlTriggerMode = xml.parseIntAttr("triggerMode", TRIGGER_FREERUN);
+	int xmlTriggerEdge = xml.parseIntAttr("triggerEdge", TRIGGER_EDGE_RISING);
+	double xmlTriggerLevel = xml.parseDoubleAttr("triggerLevel", 0);
 	int i = 0;
 	for (Element elem: xml.getChildElements()) {
 	    xml.parseChildElement(elem);
@@ -2246,10 +2251,10 @@ class Scope {
 	    }
 	}
     	setFlags(flags);
-	// Parse trigger settings from explicit XML attributes (after setFlags to avoid being overwritten)
-	triggerMode = xml.parseIntAttr("triggerMode", TRIGGER_FREERUN);
-	triggerEdge = xml.parseIntAttr("triggerEdge", TRIGGER_EDGE_RISING);
-	triggerLevel = xml.parseDoubleAttr("triggerLevel", 0);
+	// Apply trigger settings from explicit XML attributes (override flag-based values)
+	triggerMode = xmlTriggerMode;
+	triggerEdge = xmlTriggerEdge;
+	triggerLevel = xmlTriggerLevel;
     }
 
     void undump(StringTokenizer st) {
