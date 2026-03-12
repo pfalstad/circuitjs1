@@ -247,6 +247,8 @@ class Scope {
     Canvas imageCanvas;
     Context2d imageContext;
     int alphaCounter =0;
+    double trailAlpha = 0.05; // alpha for XY trail fade (lower = longer persistence)
+    long lastTrailTime;
     // scopeTimeStep to check if sim timestep has changed from previous value when redrawing
     double scopeTimeStep;
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
@@ -868,12 +870,16 @@ class Scope {
     	g.context.translate(rect.x, rect.y);
     	g.clipRect(0, 0, rect.width, rect.height);
     	
-    	alphaCounter++;
-    	
-    	if (alphaCounter>2) {
-    		// fade out plot
-    		alphaCounter=0;
-    		imageContext.setGlobalAlpha(0.01);
+    	// Fade out trail using alpha; higher trailAlpha = faster fade
+    	if (trailAlpha > 0) {
+    		// Scale alpha by elapsed real time to be speed-independent.
+    		// Target: ~60fps baseline; if frames are slower, fade more per frame.
+    		long now = System.currentTimeMillis();
+    		double elapsed = (lastTrailTime == 0) ? 16 : (now - lastTrailTime);
+    		lastTrailTime = now;
+    		double scaledAlpha = trailAlpha * elapsed / 16.0;
+    		if (scaledAlpha > 1) scaledAlpha = 1;
+    		imageContext.setGlobalAlpha(scaledAlpha);
     		if (app.isPrintable()) {
     			imageContext.setFillStyle("#ffffff");
     		} else {
@@ -1993,6 +1999,8 @@ class Scope {
 	
     	if (text != null)
 	    xmlElm.setAttribute("x", text);
+	if (trailAlpha != 0.05)
+	    XMLSerializer.dumpAttr(xmlElm, "ta", trailAlpha);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -2008,6 +2016,7 @@ class Scope {
 	position = xml.parseIntAttr("p", 0);
 	manDivisions = xml.parseIntAttr("md", 8);
 	text = xml.parseStringAttr("x", (String)null);
+	trailAlpha = xml.parseDoubleAttr("ta", 0.05);
 	int i = 0;
 	for (Element elem: xml.getChildElements()) {
 	    xml.parseChildElement(elem);

@@ -58,11 +58,11 @@ CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, chargeBox, ibBox, icBox, 
 CheckBox elmInfoBox;
 TextBox labelTextBox, manualScaleTextBox, divisionsTextBox;
 Button applyButton, scaleUpButton, scaleDownButton;
-Scrollbar speedBar,positionBar;
+Scrollbar speedBar, positionBar, trailBar;
 Scope scope;
 Grid grid, vScaleGrid, hScaleGrid;
 int nx, ny;
-Label scopeSpeedLabel, manualScaleLabel,vScaleList, manualScaleId, positionLabel, divisionsLabel;
+Label scopeSpeedLabel, manualScaleLabel,vScaleList, manualScaleId, positionLabel, divisionsLabel, trailLabel;
 expandingLabel vScaleLabel, hScaleLabel;
 Vector <Button> chanButtons = new Vector <Button>();
 int plotSelection = 0;
@@ -432,6 +432,19 @@ labelledGridManager gridLabels;
 		viBox.addValueChangeHandler(this); 
 		addItemToGrid(grid, xyBox = new ScopeCheckBox(Locale.LS("Plot X/Y"), "plotxy"));
 		xyBox.addValueChangeHandler(this);
+		Grid trailGrid = new Grid(1, 3);
+		trailGrid.setWidget(0, 0, new Label(Locale.LS("Trail Persistence")));
+		trailBar = new Scrollbar(Scrollbar.HORIZONTAL, (int)(scope.trailAlpha * 1000), 1, 0, 101, new Command() {
+		    public void execute() {
+			scope.trailAlpha = trailBar.getValue() / 1000.0;
+			setTrailLabel();
+		    }
+		});
+		trailGrid.setWidget(0, 1, trailBar);
+		trailLabel = new Label("");
+		trailGrid.setWidget(0, 2, trailLabel);
+		fp.add(trailGrid);
+		setTrailLabel();
 		if (transistor) {
 		    addItemToGrid(grid, vceIcBox = new ScopeCheckBox(Locale.LS("Show Vce vs Ic"), "showvcevsic"));
 		    vceIcBox.addValueChangeHandler(this);
@@ -538,6 +551,13 @@ labelledGridManager gridLabels;
 	
 	void setScopeSpeedLabel() {
 	    scopeSpeedLabel.setText(CircuitElm.getUnitText(scope.calcGridStepX(), "s")+"/div");
+	}
+
+	void setTrailLabel() {
+	    if (scope.trailAlpha == 0)
+		trailLabel.setText("max");
+	    else
+		trailLabel.setText(String.valueOf((int)(scope.trailAlpha * 1000)));
 	}
 	
 	void addItemToGrid(Grid g, FocusWidget scb) {
