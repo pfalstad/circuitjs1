@@ -608,9 +608,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		mode = 0;
 	    } else if (vds < vgs-vt) {
 		// linear
-		ids = beta*((vgs-vt)*vds - vds*vds*.5);
-		gm  = beta*vds;
-		Gds = beta*(vgs-vds-vt);
+		double lambda = (model != null) ? model.lambda : 0;
+		ids = beta*((vgs-vt)*vds - vds*vds*.5)*(1 + lambda*vds);
+		gm  = beta*vds*(1 + lambda*vds);
+		Gds = beta*((vgs-vds-vt)*(1 + lambda*vds) + lambda*((vgs-vt)*vds - vds*vds*.5));
 		mode = 1;
 	    } else {
 		// saturation; Gds = 0 without lambda

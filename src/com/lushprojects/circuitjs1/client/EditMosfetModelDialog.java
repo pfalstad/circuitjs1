@@ -12,12 +12,13 @@ public class EditMosfetModelDialog extends EditDialog {
 	applyButton.removeFromParent();
     }
 
-    void apply() {
-	super.apply();
+    boolean apply() {
+	boolean ok = super.apply();
 	if (model.name == null || model.name.length() == 0)
 	    model.pickName();
 	if (mosfetElm != null)
 	    mosfetElm.newModelCreated(model);
+	return ok;
     }
 
     public void closeDialog() {
