@@ -199,7 +199,22 @@ class Scope {
     final int FLAG_PERPLOT_MAN_SCALE = 1<<19; // new-new style dump with manual included in each plot
     final int FLAG_MAN_SCALE = 16;
     final int FLAG_DIVISIONS = 1<<21; // dump manDivisions
+    final int FLAG_TRIGGER = 1<<24; // trigger mode settings present
     // other flags go here too, see getFlags()
+
+    // Trigger mode constants
+    static final int TRIGGER_FREERUN = 0;
+    static final int TRIGGER_NORMAL = 1;
+    static final int TRIGGER_AUTO = 2;
+
+    // Trigger edge constants
+    static final int TRIGGER_EDGE_RISING = 0;
+    static final int TRIGGER_EDGE_FALLING = 1;
+
+    // Trigger state machine states
+    static final int TRIG_STATE_ARMED = 0;
+    static final int TRIG_STATE_TRIGGERED = 1;
+    static final int TRIG_STATE_AUTO_RUN = 2;
     
     static final int VAL_POWER = 7;
     static final int VAL_POWER_OLD = 1;
@@ -262,7 +277,23 @@ class Scope {
     static int lastManDivisions = 8;
     boolean drawGridLines;
     boolean somethingSelected;
-    
+
+    // Trigger configuration
+    int triggerMode = TRIGGER_FREERUN;
+    int triggerEdge = TRIGGER_EDGE_RISING;
+    double triggerLevel = 0;
+
+    // Trigger state machine
+    int triggerState = TRIG_STATE_ARMED;
+    int triggerPtr = 0;
+    double prevTriggerValue = 0;
+    int triggerHoldoff = 0;
+    int triggerAutoTimeout = 0;
+    boolean triggerWaiting = false;
+    double triggerTime = 0;
+    boolean hasTriggerFired = false;
+    int lastTriggerCheckPtr = -1;
+
     static double cursorTime;
     static int cursorUnits;
     static Scope cursorScope;
@@ -355,6 +386,9 @@ class Scope {
     	scopePointCount = 1;
     	while (scopePointCount <= rect.width)
     		scopePointCount *= 2;
+    	// Double buffer for trigger mode to prevent overwriting displayed data
+    	if (triggerMode != TRIGGER_FREERUN)
+    	    scopePointCount *= 2;
     	if (plots == null)
     	    plots = new Vector<ScopePlot>();
     	showNegative = false;
@@ -364,6 +398,13 @@ class Scope {
 	calcVisiblePlots();
     	scopeTimeStep = sim.maxTimeStep;
     	allocImage();
+    	// Reset trigger state
+    	triggerState = TRIG_STATE_ARMED;
+    	triggerHoldoff = 0;
+    	triggerWaiting = false;
+    	hasTriggerFired = false;
+    	lastTriggerCheckPtr = -1;
+    	triggerAutoTimeout = 2 * scopePointCount;
     }
     
     void setManualScaleValue(int plotId, double d) {
@@ -403,7 +444,150 @@ class Scope {
     }
 
     boolean active() { return plots.size() > 0 && plots.get(0).elm != null; }
-    
+
+    // Returns true if the display is anchored to a trigger point (not free-running)
+    boolean isTriggered() {
+	return triggerMode != TRIGGER_FREERUN && hasTriggerFired && triggerState != TRIG_STATE_AUTO_RUN;
+    }
+
+    // Returns the start index for display, accounting for trigger mode.
+    // In free-run or auto-run mode, delegates to the plot's live start index.
+    // In triggered mode, anchors the display to the trigger point (at center).
+    int displayStartIndex(ScopePlot plot, int w) {
+	if (triggerMode == TRIGGER_FREERUN || !hasTriggerFired || triggerState == TRIG_STATE_AUTO_RUN)
+	    return plot.startIndex(w);
+	// Trigger point at center of display
+	return triggerPtr + scopePointCount - w/2;
+    }
+
+    // Returns the number of valid data points to display, clamped to width w.
+    // In triggered mode, data beyond plot.ptr is stale (old circular buffer
+    // contents) and must not be drawn or used for measurements.
+    int validDataCount(ScopePlot plot, int ipa, int w) {
+	if (!isTriggered())
+	    return w;
+	int count = ((plot.ptr - ipa) & (scopePointCount-1)) + 1;
+	return Math.min(count, w);
+    }
+
+    // Trigger edge detection and state machine, called every time the plot ptr advances.
+    void checkTrigger() {
+	if (triggerMode == TRIGGER_FREERUN || visiblePlots.size() == 0 || plot2d)
+	    return;
+
+	ScopePlot plot = visiblePlots.firstElement();
+	int currentPtr = plot.ptr;
+
+	// Only check when ptr advances (new sample point)
+	if (currentPtr == lastTriggerCheckPtr)
+	    return;
+	lastTriggerCheckPtr = currentPtr;
+
+	double val = (plot.maxValues[currentPtr] + plot.minValues[currentPtr]) * .5;
+
+	boolean edgeCrossing = false;
+	if (triggerEdge == TRIGGER_EDGE_RISING)
+	    edgeCrossing = prevTriggerValue < triggerLevel && val >= triggerLevel;
+	else
+	    edgeCrossing = prevTriggerValue > triggerLevel && val <= triggerLevel;
+
+	switch (triggerState) {
+	case TRIG_STATE_ARMED:
+	    if (edgeCrossing) {
+		triggerState = TRIG_STATE_TRIGGERED;
+		triggerPtr = currentPtr;
+		triggerTime = sim.t;
+		triggerHoldoff = 0;
+		triggerWaiting = false;
+		hasTriggerFired = true;
+	    } else {
+		triggerWaiting = true;
+		if (triggerMode == TRIGGER_AUTO) {
+		    triggerHoldoff++;
+		    if (triggerHoldoff >= triggerAutoTimeout) {
+			triggerState = TRIG_STATE_AUTO_RUN;
+			triggerWaiting = false;
+		    }
+		}
+	    }
+	    break;
+
+	case TRIG_STATE_TRIGGERED:
+	    triggerHoldoff++;
+	    if (triggerHoldoff >= rect.width) {
+		triggerState = TRIG_STATE_ARMED;
+		triggerHoldoff = 0;
+	    }
+	    break;
+
+	case TRIG_STATE_AUTO_RUN:
+	    if (edgeCrossing) {
+		triggerState = TRIG_STATE_TRIGGERED;
+		triggerPtr = currentPtr;
+		triggerTime = sim.t;
+		triggerHoldoff = 0;
+		hasTriggerFired = true;
+	    }
+	    break;
+	}
+
+	prevTriggerValue = val;
+    }
+
+    void setTriggerMode(int mode) {
+	triggerMode = mode;
+	triggerState = TRIG_STATE_ARMED;
+	triggerHoldoff = 0;
+	triggerWaiting = false;
+	hasTriggerFired = false;
+	lastTriggerCheckPtr = -1;
+	resetGraph();
+    }
+
+    // Draw trigger indicator: dashed level line, edge arrow, and status text
+    void drawTriggerIndicator(Graphics g) {
+	if (triggerMode == TRIGGER_FREERUN || visiblePlots.size() == 0)
+	    return;
+
+	ScopePlot plot = visiblePlots.firstElement();
+	int maxy = (rect.height-1)/2;
+
+	// Calculate y position of trigger level line
+	int trigY = maxy - (int)((triggerLevel + plot.plotOffset) * plot.gridMult);
+
+	// Draw trigger level line (dashed, orange)
+	if (trigY >= 0 && trigY < rect.height) {
+	    g.setColor("#FF8000");
+	    for (int x = 0; x < rect.width; x += 8) {
+		int x2 = Math.min(x + 4, rect.width - 1);
+		g.drawLine(x, trigY, x2, trigY);
+	    }
+
+	    // Draw edge indicator
+	    String edgeText = triggerEdge == TRIGGER_EDGE_RISING ? "T\u2191" : "T\u2193";
+	    g.drawString(edgeText, rect.width - 25, trigY - 3);
+	}
+
+	// Draw trigger status text
+	String statusText;
+	switch (triggerState) {
+	case TRIG_STATE_ARMED:
+	    statusText = triggerWaiting ? "WAIT" : "ARMED";
+	    break;
+	case TRIG_STATE_TRIGGERED:
+	    statusText = "TRIG";
+	    break;
+	case TRIG_STATE_AUTO_RUN:
+	    statusText = "AUTO";
+	    break;
+	default:
+	    statusText = "";
+	}
+	g.setColor("#FF8000");
+	int sw = (int)g.context.measureText(statusText).getWidth();
+	g.drawString(statusText, rect.width - sw - 5, rect.height - 5);
+    }
+
     void initialize() {
     	resetGraph();
     	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = scale[UNITS_C] = 5;
@@ -625,6 +809,8 @@ class Scope {
 	int i;
 	for (i = 0; i != plots.size(); i++)
 	    plots.get(i).timeStep();
+
+	checkTrigger();
 
 	int x=0;
 	int y=0;
@@ -1054,7 +1240,8 @@ class Scope {
     	// draw selection on top.  only works if selection chosen from scope
     	if (selectedPlot >= 0 && selectedPlot < visiblePlots.size())
     	    drawPlot(g, visiblePlots.get(selectedPlot), allPlotsSameUnits, true, sel);
-    	
+
+    	drawTriggerIndicator(g);
         drawInfoTexts(g);
     	
     	g.restore();
@@ -1083,10 +1270,11 @@ class Scope {
     	    ScopePlot plot = visiblePlots.get(si);
     	    if (plot.units != units)
     		continue;
-    	    int ipa = plot.startIndex(rect.width);
+    	    int ipa = displayStartIndex(plot, rect.width);
+    	    int validCount = validDataCount(plot, ipa, rect.width);
     	    double maxV[] = plot.maxValues;
     	    double minV[] = plot.minValues;
-    	    for (i = 0; i != rect.width; i++) {
+    	    for (i = 0; i != validCount; i++) {
     		int ip = (i+ipa) & (scopePointCount-1);
     		if (maxV[ip] > maxValue)
     		    maxValue = maxV[ip];
@@ -1101,12 +1289,13 @@ class Scope {
 	if (manualScale)
 	    return;
     	int i;
-    	int ipa = plot.startIndex(rect.width);
+    	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double max = 0;
     	double gridMax = scale[plot.units];
-    	for (i = 0; i != rect.width; i++) {
+    	for (i = 0; i != validCount; i++) {
     	    int ip = (i+ipa) & (scopePointCount-1);
     	    if (maxV[ip] > max)
     		max = maxV[ip];
@@ -1155,7 +1344,7 @@ class Scope {
     	    color = CircuitElm.selectColor.getHexValue();
 	else if (selected)
 	    color = plot.color;
-    	int ipa = plot.startIndex(rect.width);
+    	int ipa = displayStartIndex(plot, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double gridMax;
@@ -1235,8 +1424,9 @@ class Scope {
     	    }
     	    
     	    // vertical gridlines
-    	    double tstart = sim.t-sim.maxTimeStep*speed*rect.width;
-    	    double tx = sim.t-(sim.t % gridStepX);
+    	    double tRight = isTriggered() ? triggerTime + sim.maxTimeStep*speed*rect.width/2 : sim.t;
+    	    double tstart = tRight-sim.maxTimeStep*speed*rect.width;
+    	    double tx = tRight-(tRight % gridStepX);
 
     	    for (int ll = 0; ; ll++) {
     		double tl = tx-gridStepX*ll;
@@ -1269,8 +1459,12 @@ class Scope {
             g.drawString("0", 0, y0-2);
         }
         
+        // In triggered mode, only draw up to the current write pointer.
+        // Data beyond that is stale (old circular buffer contents).
+        int drawWidth = validDataCount(plot, ipa, rect.width);
+
         int ox = -1, oy = -1;
-        for (i = 0; i != rect.width; i++) {
+        for (i = 0; i != drawWidth; i++) {
             int ip = (i+ipa) & (scopePointCount-1);
             int minvy = (int) (plot.gridMult*(minV[ip]+plot.plotOffset));
             int maxvy = (int) (plot.gridMult*(maxV[ip]+plot.plotOffset));
@@ -1310,6 +1504,8 @@ class Scope {
 	    return;
 	if (plot2d || visiblePlots.size() == 0)
 	    cursorTime = -1;
+	else if (isTriggered())
+	    cursorTime = triggerTime + sim.maxTimeStep*speed*(mouseX - rect.x - rect.width/2);
 	else
 	    cursorTime = sim.t-sim.maxTimeStep*speed*(rect.x+rect.width-mouseX);
     	checkForSelection(mouseX, mouseY);
@@ -1328,7 +1524,7 @@ class Scope {
 	    selectedPlot = -1;
 	    return;
 	}
-	int ipa = plots.get(0).startIndex(rect.width);
+	int ipa = displayStartIndex(plots.get(0), rect.width);
 	int ip = (mouseX-rect.x+ipa) & (scopePointCount-1);
     	int maxy = (rect.height-1)/2;
     	int y = maxy;
@@ -1358,9 +1554,12 @@ class Scope {
 	int cursorX = -1;
 	int ct = 0;
 	if (cursorTime >= 0) {
-	    cursorX = -(int) ((sim.t-cursorTime)/(sim.maxTimeStep*speed) - rect.x - rect.width);
+	    if (isTriggered())
+		cursorX = (int)(rect.x + rect.width/2 + (cursorTime - triggerTime) / (sim.maxTimeStep*speed));
+	    else
+		cursorX = -(int) ((sim.t-cursorTime)/(sim.maxTimeStep*speed) - rect.x - rect.width);
 	    if (cursorX >= rect.x) {
-		int ipa = plots.get(0).startIndex(rect.width);
+		int ipa = displayStartIndex(plots.get(0), rect.width);
 		int ip = (cursorX-rect.x+ipa) & (scopePointCount-1);
 		int maxy = (rect.height-1)/2;
 		int y = maxy;
@@ -1451,14 +1650,15 @@ class Scope {
 	ScopePlot plot = visiblePlots.firstElement();
 	int i;
 	double avg = 0;
-    	int ipa = plot.ptr+scopePointCount-rect.width;
+    	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
-	
+
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1471,20 +1671,20 @@ class Scope {
 	int end = 0;
 	int waveCount = 0;
 	double endAvg = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
-	    
+
 	    // switching polarity?
 	    if (state == 1) {
 		if (maxV[ip] < mid)
 		    sw = true;
 	    } else if (minV[ip] > mid)
 		sw = true;
-	    
+
 	    if (sw) {
 		state = -state;
-		
+
 		// completed a full cycle?
 		if (firstState == state) {
 		    if (waveCount == 0) {
@@ -1508,7 +1708,7 @@ class Scope {
 	    drawInfoText(g, plot.getUnitText(rms) + "rms");
 	}
     }
-    
+
     void drawScale(ScopePlot plot, Graphics g) {
     	    if (!isManualScale()) {
         	    if ( gridStepY!=0 && (!(showV && showI))) {
@@ -1553,14 +1753,15 @@ class Scope {
 	ScopePlot plot = visiblePlots.firstElement();
 	int i;
 	double avg = 0;
-    	int ipa = plot.ptr+scopePointCount-rect.width;
+    	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
 	
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1573,7 +1774,7 @@ class Scope {
 	int end = 0;
 	int waveCount = 0;
 	double endAvg = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
 	    
@@ -1613,14 +1814,15 @@ class Scope {
     void drawDutyCycle(Graphics g) {
 	ScopePlot plot = visiblePlots.firstElement();
 	int i;
-    	int ipa = plot.ptr+scopePointCount-rect.width;
+    	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double maxV[] = plot.maxValues;
     	double minV[] = plot.minValues;
     	double mid = (maxValue+minValue)/2;
 	int state = -1;
 	
 	// skip zeroes
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    if (maxV[ip] != 0) {
 		if (maxV[ip] > mid)
@@ -1634,7 +1836,7 @@ class Scope {
 	int waveCount = 0;
 	int dutyLen = 0;
 	int middle = 0;
-	for (; i != rect.width; i++) {
+	for (; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    boolean sw = false;
 	    
@@ -1675,10 +1877,11 @@ class Scope {
 	double avg = 0;
 	int i;
 	ScopePlot plot = visiblePlots.firstElement();
-    	int ipa = plot.ptr+scopePointCount-rect.width;
+    	int ipa = displayStartIndex(plot, rect.width);
+    	int validCount = validDataCount(plot, ipa, rect.width);
     	double minV[] = plot.minValues;
     	double maxV[] = plot.maxValues;
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    avg += minV[ip]+maxV[ip];
 	}
@@ -1690,7 +1893,7 @@ class Scope {
 	int periodct = -1;
 	double avperiod2 = 0;
 	// count period lengths
-	for (i = 0; i != rect.width; i++) {
+	for (i = 0; i != validCount; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
 	    double q = maxV[ip]-avg;
 	    int os = state;
@@ -1948,6 +2151,11 @@ class Scope {
 
 	if (isManualScale())
 	    flags |= FLAG_DIVISIONS;
+	if (triggerMode != TRIGGER_FREERUN) {
+	    flags |= FLAG_TRIGGER;
+	    flags |= (triggerMode << 25);
+	    flags |= (triggerEdge << 27);
+	}
 	return flags;
     }
     
@@ -1977,6 +2185,11 @@ class Scope {
 	XMLSerializer.dumpAttr(xmlElm, "p", position);
 	if (manDivisions != 8)
 	    XMLSerializer.dumpAttr(xmlElm, "md", manDivisions);
+	if (triggerMode != TRIGGER_FREERUN) {
+	    XMLSerializer.dumpAttr(xmlElm, "triggerMode", triggerMode);
+	    XMLSerializer.dumpAttr(xmlElm, "triggerEdge", triggerEdge);
+	    XMLSerializer.dumpAttr(xmlElm, "triggerLevel", triggerLevel);
+	}
 	root.appendChild(xmlElm);
 	
     	int i;
@@ -2013,6 +2226,11 @@ class Scope {
 	position = xml.parseIntAttr("p", 0);
 	manDivisions = xml.parseIntAttr("md", 8);
 	text = xml.parseStringAttr("x", (String)null);
+	// Read trigger settings from parent <o> element before iterating children,
+	// because parseChildElement() changes the XML context to child <p> elements
+	int xmlTriggerMode = xml.parseIntAttr("triggerMode", TRIGGER_FREERUN);
+	int xmlTriggerEdge = xml.parseIntAttr("triggerEdge", TRIGGER_EDGE_RISING);
+	double xmlTriggerLevel = xml.parseDoubleAttr("triggerLevel", 0);
 	int i = 0;
 	for (Element elem: xml.getChildElements()) {
 	    xml.parseChildElement(elem);
@@ -2034,11 +2252,17 @@ class Scope {
 	    }
 	}
     	setFlags(flags);
+
     	// restore scaleX/scaleY for 2d plots
     	if (plot2d && plots.size() >= 2) {
     	    scaleX = scale[plots.get(0).units];
     	    scaleY = scale[plots.get(1).units];
     	}
+
+	// Apply trigger settings from explicit XML attributes (override flag-based values)
+	triggerMode = xmlTriggerMode;
+	triggerEdge = xmlTriggerEdge;
+	triggerLevel = xmlTriggerLevel;
     }
 
     void undump(StringTokenizer st) {
@@ -2076,6 +2300,8 @@ class Scope {
 		manDivisions = 8;
 		if ((flags & FLAG_DIVISIONS) != 0)
 		    manDivisions = lastManDivisions = Integer.parseInt(st.nextToken());
+		if ((flags & FLAG_TRIGGER) != 0)
+		    triggerLevel = Double.parseDouble(st.nextToken());
     		int i;
     		int u = ce.getScopeUnits(value);
 		if (u > UNITS_A)
@@ -2167,6 +2393,13 @@ class Scope {
     	showAverage = (flags & (1<<17)) != 0;
     	showElmInfo = (flags & (1<<20)) != 0;
     	showP2P = (flags & (1<<22)) != 0;
+    	if ((flags & FLAG_TRIGGER) != 0) {
+    	    triggerMode = (flags >> 25) & 3;
+    	    triggerEdge = (flags >> 27) & 1;
+    	} else {
+    	    triggerMode = TRIGGER_FREERUN;
+    	    triggerEdge = TRIGGER_EDGE_RISING;
+    	}
     }
     
     void saveAsDefault() {
@@ -2175,9 +2408,12 @@ class Scope {
             return;
 	ScopePlot vPlot = plots.get(0);
     	int flags = getFlags();
-    	
+
     	// store current scope settings as default.  1 is a version code
-    	stor.setItem("scopeDefaults", "1 " + flags + " " + vPlot.scopePlotSpeed);
+    	String s = "1 " + flags + " " + vPlot.scopePlotSpeed;
+    	if ((flags & FLAG_TRIGGER) != 0)
+    	    s += " " + triggerLevel;
+    	stor.setItem("scopeDefaults", s);
     	CirSim.console("saved defaults " + flags);
     }
 
@@ -2192,6 +2428,8 @@ class Scope {
         int flags = Integer.parseInt(arr[1]);
         setFlags(flags);
         speed = Integer.parseInt(arr[2]);
+        if (arr.length > 3 && (flags & FLAG_TRIGGER) != 0)
+            triggerLevel = Double.parseDouble(arr[3]);
         return true;
     }
     

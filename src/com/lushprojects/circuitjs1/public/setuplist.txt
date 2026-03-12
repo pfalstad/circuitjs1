@@ -54,6 +54,11 @@ transformerdc.txt Transformer w/ DC
 transformerup.txt Step-Up Transformer
 transformerdown.txt Step-Down Transformer
 longdist.txt Long-Distance Power Transmission
++Saturable Core
+satcore-inductor.txt Saturable vs Linear Inductor (DC)
+satcore-comparison.txt Low vs High Drive (AC Saturation)
+satcore-transformer.txt Transformer with Saturable Core
+-
 -
 +Relays
 relay.txt Relay
