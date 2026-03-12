@@ -311,14 +311,16 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	}
 	if (n == 4)
 	    return new EditInfo("Breakdown Voltage", breakdownVoltage, -1, -1);
-	if (n == 5)
-	    return new EditInfo("Zero-Bias Junction Capacitance (CJ0)", junctionCap);
-	if (n == 6)
-	    return new EditInfo("Junction Potential (VJ)", junctionPot);
-	if (n == 7)
-	    return new EditInfo("Junction Grading Coefficient (M)", junctionExp);
-	if (n == 8)
-	    return new EditInfo("Transit Time (TT)", transitTime);
+	if (!isSimple()) {
+	    if (n == 5)
+		return new EditInfo("Zero-Bias Junction Capacitance (CJ0)", junctionCap);
+	    if (n == 6)
+		return new EditInfo("Junction Potential (VJ)", junctionPot);
+	    if (n == 7)
+		return new EditInfo("Junction Grading Coefficient (M)", junctionExp);
+	    if (n == 8)
+		return new EditInfo("Transit Time (TT)", transitTime);
+	}
 	return null;
     }
 
@@ -344,10 +346,12 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	}
 	if (n == 4)
 	    breakdownVoltage = Math.abs(ei.value);
-	if (n == 5) junctionCap = ei.value;
-	if (n == 6 && ei.value > 0) junctionPot = ei.value;
-	if (n == 7 && ei.value > 0) junctionExp = ei.value;
-	if (n == 8 && ei.value >= 0) transitTime = ei.value;
+	if (!isSimple()) {
+	    if (n == 5) junctionCap = ei.value;
+	    if (n == 6 && ei.value > 0) junctionPot = ei.value;
+	    if (n == 7 && ei.value > 0) junctionExp = ei.value;
+	    if (n == 8 && ei.value >= 0) transitTime = ei.value;
+	}
 	updateModel();
 	CirSim.theApp.updateModels();
     }
@@ -407,6 +411,13 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     
     void setSimple(boolean s) {
 	flags = (s) ? FLAGS_SIMPLE : 0;
+	if (s) {
+	    // clear capacitance parameters for simple models
+	    junctionCap = 0;
+	    junctionPot = 0.75;
+	    junctionExp = 0.33;
+	    transitTime = 0;
+	}
     }
     
     void pickName() {
