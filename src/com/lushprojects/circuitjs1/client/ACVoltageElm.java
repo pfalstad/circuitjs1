@@ -20,6 +20,9 @@
 package com.lushprojects.circuitjs1.client;
 
 class ACVoltageElm extends VoltageElm {
-	public ACVoltageElm(int xx, int yy) { super(xx, yy, WF_AC); }
+	public ACVoltageElm(int xx, int yy) {
+	    super(xx, yy, WF_AC);
+	    maxVoltage = 120*Math.sqrt(2);
+	}
 	Class getDumpClass() { return VoltageElm.class; }
     }

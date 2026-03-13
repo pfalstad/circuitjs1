@@ -48,7 +48,7 @@ class VoltageElm extends CircuitElm {
 	super(xx, yy);
 	waveform = wf;
 	maxVoltage = 5;
-	frequency = 40;
+	frequency = 60;
 	dutyCycle = .5;
 	reset();
     }
@@ -481,7 +481,7 @@ class VoltageElm extends CircuitElm {
 	    setPoints();
 	}
 	int fo = getFrequencyOffset();
-	if (n == fo && waveform != WF_DC) {
+	if (n == fo && waveform != WF_DC && ei.value != 0) {
 	    // adjust time zero to maintain continuity in the waveform
 	    // even though the frequency has changed.
 	    double oldfreq = frequency;
