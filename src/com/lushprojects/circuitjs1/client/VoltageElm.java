@@ -284,10 +284,10 @@ class VoltageElm extends CircuitElm {
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)
-		s = getShortUnitText(maxVoltage, "V") + " " +
+		s = getShortVoltageText() + " " +
 		    getShortUnitText(frequency, "Hz");
 	    else if (showV)
-		s = getShortUnitText(maxVoltage, "V");
+		s = getShortVoltageText();
 	    else if (showF)
 		s = getShortUnitText(frequency, "Hz");
 	    if (s != null) {
@@ -386,6 +386,25 @@ class VoltageElm extends CircuitElm {
     }
 
     void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 16); }
+
+    static double diffFromInteger(double x) {
+	return Math.abs(x-Math.round(x));
+    }
+
+    // check if RMS would be a rounder number to display than peak
+    boolean useRmsDisplay(double peakValue) {
+	double rmsMult = getRmsMultiplier();
+	double rmsVal = peakValue * rmsMult;
+	return rmsMult != 1 && Math.abs(peakValue) > 1e-4 &&
+	    diffFromInteger(rmsVal*1e4) < diffFromInteger(peakValue*1e4);
+    }
+
+    // return a short voltage string, using RMS if that's a rounder number
+    String getShortVoltageText() {
+	if (useRmsDisplay(maxVoltage))
+	    return getShortUnitText(maxVoltage * getRmsMultiplier(), "V") + "rms";
+	return getShortUnitText(maxVoltage, "V");
+    }
 
     // return the RMS-to-peak multiplier for the current waveform.
     // RMS = amplitude * getRmsMultiplier(), so multiplier = 1/sqrt(2) for sine, etc.

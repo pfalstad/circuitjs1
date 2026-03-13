@@ -185,19 +185,13 @@ class EditDialog extends Dialog {
 	}
 
 	static final double ROOT2 = 1.41421356237309504880;
-	
-	double diffFromInteger(double x) {
-	    return Math.abs(x-Math.round(x));
-	}
-	
+
 	String unitString(EditInfo ei) {
 	    // for voltage elements, express values in rms if that would be shorter
 	    if (elm != null && elm instanceof VoltageElm) {
-		double rmsMult = ((VoltageElm)elm).getRmsMultiplier();
-		double rmsVal = ei.value * rmsMult;
-		if (rmsMult != 1 && Math.abs(ei.value) > 1e-4 &&
-		    diffFromInteger(rmsVal*1e4) < diffFromInteger(ei.value*1e4))
-		    return unitString(ei, rmsVal) + "rms";
+		VoltageElm ve = (VoltageElm) elm;
+		if (ve.useRmsDisplay(ei.value))
+		    return unitString(ei, ei.value * ve.getRmsMultiplier()) + "rms";
 	    }
 	    return unitString(ei, ei.value);
 	}
