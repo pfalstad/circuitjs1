@@ -387,6 +387,20 @@ class VoltageElm extends CircuitElm {
 
     void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 16); }
 
+    // return the RMS-to-peak multiplier for the current waveform.
+    // RMS = amplitude * getRmsMultiplier(), so multiplier = 1/sqrt(2) for sine, etc.
+    double getRmsMultiplier() {
+	switch (waveform) {
+	case WF_DC:       return 1;
+	case WF_AC:       return 1/Math.sqrt(2);       // sine: Vpk/sqrt(2)
+	case WF_SQUARE:   return 1;                     // square swings +A/-A, RMS=A
+	case WF_TRIANGLE: return 1/Math.sqrt(3);        // triangle: Vpk/sqrt(3)
+	case WF_SAWTOOTH: return 1/Math.sqrt(3);        // sawtooth: Vpk/sqrt(3)
+	case WF_PULSE:    return Math.sqrt(dutyCycle);   // pulse: Vpk*sqrt(d)
+	default:          return 1;
+	}
+    }
+
     int getVoltageSourceCount() {
 	return 1;
     }
@@ -410,8 +424,8 @@ class VoltageElm extends CircuitElm {
 	if (waveform != WF_DC && waveform != WF_VAR && waveform != WF_NOISE) {
 	    arr[i++] = "f = " + getUnitText(frequency, "Hz");
 	    arr[i++] = "Vmax = " + getVoltageText(maxVoltage);
-	    if (waveform == WF_AC && bias == 0)
-		arr[i++] = "V(rms) = " + getVoltageText(maxVoltage/1.41421356);
+	    if (bias == 0)
+		arr[i++] = "V(rms) = " + getVoltageText(maxVoltage*getRmsMultiplier());
 	    if (bias != 0)
 		arr[i++] = "Voff = " + getVoltageText(bias);
 	    else if (frequency > 500)

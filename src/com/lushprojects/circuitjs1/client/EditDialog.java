@@ -192,10 +192,13 @@ class EditDialog extends Dialog {
 	
 	String unitString(EditInfo ei) {
 	    // for voltage elements, express values in rms if that would be shorter
-	    if (elm != null && elm instanceof VoltageElm &&
-		Math.abs(ei.value) > 1e-4 &&
-		diffFromInteger(ei.value*1e4) > diffFromInteger(ei.value*1e4/ROOT2))
-		return unitString(ei, ei.value/ROOT2) + "rms";
+	    if (elm != null && elm instanceof VoltageElm) {
+		double rmsMult = ((VoltageElm)elm).getRmsMultiplier();
+		double rmsVal = ei.value * rmsMult;
+		if (rmsMult != 1 && Math.abs(ei.value) > 1e-4 &&
+		    diffFromInteger(rmsVal*1e4) < diffFromInteger(ei.value*1e4))
+		    return unitString(ei, rmsVal) + "rms";
+	    }
 	    return unitString(ei, ei.value);
 	}
 
@@ -226,7 +229,16 @@ class EditDialog extends Dialog {
 	}
 
 	double parseUnits(EditInfo ei) throws java.text.ParseException {
-		String s = ei.textf.getText();
+		String s = ei.textf.getText().trim();
+		// for voltage elements, convert rms input using waveform-specific multiplier
+		if (elm != null && elm instanceof VoltageElm && s.endsWith("rms")) {
+		    s = s.substring(0, s.length()-3).trim();
+		    double rmsMult = ((VoltageElm)elm).getRmsMultiplier();
+		    if (rmsMult > 0) {
+			// parseUnits will not see "rms" suffix, so no double-conversion
+			return parseUnits(s) / rmsMult;
+		    }
+		}
 		return parseUnits(s);
 	}
 	
