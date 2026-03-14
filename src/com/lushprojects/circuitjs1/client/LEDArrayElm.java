@@ -68,6 +68,10 @@ class LEDArrayElm extends ChipElm {
 	    brightness = new double[sizeX*sizeY];
 	}
 	
+	void reset() {
+	    brightness = new double[sizeX*sizeY];
+	}
+
 	Diode diodes[];
 	double currents[];
 	double brightness[];
