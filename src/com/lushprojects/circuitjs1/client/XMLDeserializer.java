@@ -130,19 +130,7 @@ class XMLDeserializer {
 	    }
 	    if (tagName.equals("adj")) {
 		currentXmlElement = elem;
-		int e = parseIntAttr("e", -1);
-		if (e == -1)
-		    continue;
-		Adjustable adj = new Adjustable(app.getElm(e), parseIntAttr("ei", 0));
-		adj.minValue = parseDoubleAttr("mn", 1);
-		adj.maxValue = parseDoubleAttr("mx", 1000);
-		adj.sliderText = parseStringAttr("st", "");
-		adj.sliderStep = parseDoubleAttr("stp", 0);
-		int ss = parseIntAttr("ss", -1);
-		if (ss != -1)
-		    adj.sharedSlider = app.adjustables.get(ss);
-		adj.logarithmic = parseIntAttr("log", 0) != 0;
-		app.adjustables.add(adj);
+		Adjustable.undumpXml(this, app);
 		continue;
 	    }
 

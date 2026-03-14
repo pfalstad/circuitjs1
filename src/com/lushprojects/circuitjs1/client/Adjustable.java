@@ -4,6 +4,8 @@ import java.util.Vector;
 
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 // values with sliders
@@ -193,6 +195,63 @@ public class Adjustable implements Command {
 			CustomLogicModel.escape(sliderText) + " " + sliderStep;
     }
     
+    // get the unlocalized name of the edit item this adjustable controls
+    String getEditItemName() {
+	EditInfo ei = elm.getEditInfo(editItem);
+	return ei != null ? ei.name : "";
+    }
+
+    // find the edit item index by name, falling back to the given index
+    static int findEditItemByName(CircuitElm elm, String name, int fallbackIndex) {
+	if (name != null && name.length() > 0) {
+	    for (int i = 0; ; i++) {
+		EditInfo ei = elm.getEditInfo(i);
+		if (ei == null)
+		    break;
+		if (name.equals(ei.name))
+		    return i;
+	    }
+	}
+	return fallbackIndex;
+    }
+
+    void dumpXml(Document doc, Element root, CirSim app) {
+	Element ae = doc.createElement("adj");
+	XMLSerializer.dumpAttr(ae, "e", app.locateElm(elm));
+	XMLSerializer.dumpAttr(ae, "ei", editItem);
+	XMLSerializer.dumpAttr(ae, "en", getEditItemName());
+	XMLSerializer.dumpAttr(ae, "mn", minValue);
+	XMLSerializer.dumpAttr(ae, "mx", maxValue);
+	XMLSerializer.dumpAttr(ae, "st", sliderText);
+	if (sliderStep > 0)
+	    XMLSerializer.dumpAttr(ae, "stp", sliderStep);
+	if (sharedSlider != null)
+	    XMLSerializer.dumpAttr(ae, "ss", app.adjustables.indexOf(sharedSlider));
+	if (logarithmic)
+	    XMLSerializer.dumpAttr(ae, "log", 1);
+	root.appendChild(ae);
+    }
+
+    static void undumpXml(XMLDeserializer xml, CirSim app) {
+	int e = xml.parseIntAttr("e", -1);
+	if (e == -1)
+	    return;
+	int ei = xml.parseIntAttr("ei", 0);
+	String en = xml.parseStringAttr("en", null);
+	CircuitElm elm = app.getElm(e);
+	int item = findEditItemByName(elm, en, ei);
+	Adjustable adj = new Adjustable(elm, item);
+	adj.minValue = xml.parseDoubleAttr("mn", 1);
+	adj.maxValue = xml.parseDoubleAttr("mx", 1000);
+	adj.sliderText = xml.parseStringAttr("st", "");
+	adj.sliderStep = xml.parseDoubleAttr("stp", 0);
+	int ss = xml.parseIntAttr("ss", -1);
+	if (ss != -1)
+	    adj.sharedSlider = app.adjustables.get(ss);
+	adj.logarithmic = xml.parseIntAttr("log", 0) != 0;
+	app.adjustables.add(adj);
+    }
+
     // reorder adjustables so that items with sliders come first in the list, followed by items that reference them.
     // this simplifies the UI code, and also makes it much easier to dump/undump the adjustables list, since we will
     // always be undumping the adjustables with sliders first, then the adjustables that reference them.
