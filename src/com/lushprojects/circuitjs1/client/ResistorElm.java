@@ -96,7 +96,7 @@ import com.google.gwt.xml.client.Document;
 	    }
 	    g.context.restore();
 	    if (showValues()) {
-		String s = getShortUnitText(resistance, "");
+		String s = getShortUnitText(resistance, "Ω");
 		drawValues(g, s, hs+2);
 	    }
 	    doDots(g);
