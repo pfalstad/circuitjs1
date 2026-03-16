@@ -176,8 +176,8 @@ public class CustomCompositeElm extends CompositeElm {
     Vector<CustomCompositeModel> models;
     
     public EditInfo getEditInfo(int n) {
-	// if model is built in, don't allow it to be changed
-	if (model.builtin)
+	// if model is internal, don't allow it to be changed
+	if (model.internal)
 	    n += 2;
 	
 	if (n == 0) {
@@ -213,7 +213,7 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     public void setEditValue(int n, EditInfo ei) {
-	if (model.builtin)
+	if (model.internal)
 	    n += 2;
 	if (n == 0) {
             model = models.get(ei.choice.getSelectedIndex());
