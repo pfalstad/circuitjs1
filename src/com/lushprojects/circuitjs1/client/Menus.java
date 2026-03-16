@@ -241,7 +241,7 @@ public class Menus {
 
 	m = new MenuBar(true);
 	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("tools", "convertWires")));
-	m.addItem(new MenuItem(Locale.LS("Subcircuits..."), new MyCommand("tools", "subcircuits")));
+	m.addItem(new MenuItem(Locale.LS("Subcircuit Manager"), new MyCommand("tools", "subcircuits")));
 	menuBar.addItem(Locale.LS("Tools"), m);
 
 	mainMenuBar = new MenuBar(true);
