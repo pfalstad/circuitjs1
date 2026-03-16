@@ -330,6 +330,18 @@ public class UIManager {
 		50, 1, 1, 100));
 	setPowerBarEnable();
 
+/*
+	// for debugging
+	Button exportImportButton = new Button("Export/Import");
+	exportImportButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		String dump = app.dumpCircuit();
+		app.importCircuitFromText(dump, false);
+	    }
+	});
+	verticalPanel.add(exportImportButton);
+*/
+
 	//	verticalPanel.add(new Label(""));
 	//        Font f = new Font("SansSerif", 0, 10);
 	l = new Label(Locale.LS("Current Circuit:"));
