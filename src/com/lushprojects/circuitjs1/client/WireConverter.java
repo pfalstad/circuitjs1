@@ -9,14 +9,23 @@ import java.util.*;
 class WireConverter {
 
     static void convertWires(CirSim sim) {
-	Vector<CircuitElm> elmList = sim.elmList;
+	Vector<CircuitElm> elmList = sim.ui.elmList;
 
-	// collect all WireElms (but not RoutedWireElms)
+	// check if any wires are selected; if so, only convert those
+	boolean hasSelection = false;
+	for (CircuitElm ce : elmList) {
+	    if (ce instanceof WireElm && !(ce instanceof RoutedWireElm) && ce.isSelected()) {
+		hasSelection = true;
+		break;
+	    }
+	}
+
+	// collect WireElms (but not RoutedWireElms)
 	ArrayList<WireElm> wires = new ArrayList<WireElm>();
 	for (CircuitElm ce : elmList) {
 	    if (ce instanceof RoutedWireElm)
 		continue;
-	    if (ce instanceof WireElm)
+	    if (ce instanceof WireElm && (!hasSelection || ce.isSelected()))
 		wires.add((WireElm) ce);
 	}
 
