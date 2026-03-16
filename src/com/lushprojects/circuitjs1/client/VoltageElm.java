@@ -50,6 +50,7 @@ class VoltageElm extends CircuitElm {
 	maxVoltage = 5;
 	frequency = 60;
 	dutyCycle = .5;
+	flags |= FLAG_SHOW_VOLTAGE;
 	reset();
     }
     public VoltageElm(int xa, int ya, int xb, int yb, int f,
@@ -279,8 +280,7 @@ class VoltageElm extends CircuitElm {
 	    g.drawString(inds, plusPoint.x-w/2, plusPoint.y);
 	}
 	if (dx == 0 || dy == 0) {
-	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0 ||
-			    (showValues() && waveform == WF_DC);
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE) != 0;
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)
