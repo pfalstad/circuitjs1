@@ -121,7 +121,12 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	String getChipName() {
-	    return getSegmentCount() + "-Segment Decoder";
+	    // makes automated localization easier to do it this way
+	    if (getSegmentCount() == 7)
+		return "7-Segment Decoder";
+	    if (getSegmentCount() == 14)
+		return "14-Segment Decoder";
+	    return "16-Segment Decoder";
 	}
 
 	void setupPins() {

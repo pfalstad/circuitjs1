@@ -12,7 +12,7 @@ output = []
 def checkString(bstr, str, astr, line):
   if re.search("\+ *$", bstr):
     return
-  if re.search("<svg>", str):
+  if re.search("<svg", str):
     return
   if re.search("</svg>", str):
     return
@@ -20,17 +20,21 @@ def checkString(bstr, str, astr, line):
     return
   if re.search("Elm$", str):
     return
+  if re.search("ClassName", str):
+    return
   if re.search("iconMenuItem.$", bstr):
     return
   if re.search("com.lushprojects", str):
     return
   if re.search("perfmon.startContext", bstr):
     return
-  if re.search("menuItemWithShortcut.$", bstr):
-    return
   if re.search("^#[0-9a-fA-F][0-9a-fA-F]", str):
     return
   if re.search("^###", str):
+    return
+  if re.search("CustomCompositeElm", str):
+    return
+  if re.search("circuitjs-", str):
     return
   if ".html" in str:
     return
@@ -50,17 +54,23 @@ def checkString(bstr, str, astr, line):
     return
   output.append(str)
 
-breaklist = ["MyCommand", "qp.get", "EventListener", "MouseEvent", "DependentName", "//", "new Pin",
-        "replaceAll", "setStrokeStyle", "setFillStyle", "setWidth", "setHeight", "StyleName", "getUnitText",
-        "setAttribute", "menuPerformed", 'skip(', "console", "createElement", "langString", "versionString",
-        "getOptionFromStorage", "setOptionInStorage", "SuppressWarnings", "System.out.println",
-        "setTextBaseline", "setColor", "setTextAlign"]
+breaklist = ["MyCommand", "qp.get", "EventListener", "MouseEvent", "DependentName", "//", "new Pin", "replace",
+        "replaceAll", "setStrokeStyle", "setFillStyle", "setWidth", "setHeight", "StyleName", "getUnitText", "parseDoubleAttr", "parseIntAttr",
+        "setAttribute", "menuPerformed", 'skip(', "console", "createElement", "langString", "versionString", "setFont", "getXmlDumpType", "addDefaultModel",
+        "getOptionFromStorage", "setOptionInStorage", "SuppressWarnings", "System.out.println", "DateTimeFormat", "meta.setContent", "downloadCSV", "tagName", "createElement",
+        "setTextBaseline", "setColor", "setTextAlign", "ClassName", "xml", "XML", "stor.getItem", "stor.setItem", "setProperty", "setId", "setAttribute"]
 
 for fn in files:
   with open(dir + "/" + fn) as stream:
     content = stream.read().splitlines()
     for line in content:
       start = 0
+
+      # remove ids
+      line = re.sub(r'RadioButton\s*\(\s*"[^"]*"\s*,\s*', ' ', line)
+      line = re.sub(r'menuItemWithShortcut\s*\(\s*"[^"]*"\s*,\s*', ' ', line)
+      line = re.sub(r'createIconButton\s*\(\s*"[^"]*"\s*,\s*', ' ', line)
+
       while True:
         a = line.find('"', start)
         if a < 0:
@@ -73,6 +83,7 @@ for fn in files:
         str = line[a+1:b]
         if "\\" in str:
           break
+
         if any(ele in bstr for ele in breaklist):
           break
         checkString(bstr, str, astr, line)
