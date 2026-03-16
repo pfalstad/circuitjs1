@@ -162,7 +162,7 @@ class RelayElm extends CircuitElm {
         offCurrent = xml.parseDoubleAttr("of", offCurrent);
         switchingTime = xml.parseDoubleAttr("sw", switchingTime);
         coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
-        i_position = xml.parseIntAttr("ip", i_position);
+        d_position = i_position = xml.parseIntAttr("ip", i_position);
 	postUndump();
     }
     
