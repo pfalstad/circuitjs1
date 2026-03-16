@@ -81,7 +81,7 @@ public class CommandManager {
     	    	app.dialogShowing = new ShortcutsDialog(app);
     	    	app.dialogShowing.show();
     	}
-    	if (menu=="options" && item=="subcircuits") {
+    	if (item=="subcircuits") {
     	    	app.dialogShowing = new SubcircuitDialog(app);
     	    	app.dialogShowing.show();
     	}

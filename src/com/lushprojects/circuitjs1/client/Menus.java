@@ -169,8 +169,6 @@ public class Menus {
 	m.addItem(flipXItem = iconMenuItem("flip-x", "Flip X", new MyCommand("edit", "flipx")));
 	m.addItem(flipYItem = iconMenuItem("flip-y", "Flip Y", new MyCommand("edit", "flipy")));
 	m.addItem(flipXYItem = iconMenuItem("flip-x-y", "Flip XY", new MyCommand("edit", "flipxy")));
-	m.addSeparator();
-	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("edit", "convertWires")));
 	menuBar.addItem(Locale.LS("Edit"),m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
@@ -237,10 +235,14 @@ public class Menus {
 	}));
 
 	m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Shortcuts..."), new MyCommand("options", "shortcuts")));
-	m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Subcircuits..."), new MyCommand("options", "subcircuits")));
 	m.addItem(optionsItem = new CheckboxAlignedMenuItem(Locale.LS("Other Options..."), new MyCommand("options","other")));
 	if (isElectron())
 	    m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Toggle Dev Tools"), new MyCommand("options","devtools")));
+
+	m = new MenuBar(true);
+	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("tools", "convertWires")));
+	m.addItem(new MenuItem(Locale.LS("Subcircuits..."), new MyCommand("tools", "subcircuits")));
+	menuBar.addItem(Locale.LS("Tools"), m);
 
 	mainMenuBar = new MenuBar(true);
 	mainMenuBar.setAutoOpen(true);
