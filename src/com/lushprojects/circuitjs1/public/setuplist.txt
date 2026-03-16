@@ -389,7 +389,7 @@ cs-varicap.txt VCCS Variable Capacitor
 -
 +Subcircuits
 fullrect-sc.txt Full Rectifier
-adder4-sc.txt Full Adder
+adder4-sc.txt Full Adder (nested)
 -
 +Misc Devices
 +JFETs
