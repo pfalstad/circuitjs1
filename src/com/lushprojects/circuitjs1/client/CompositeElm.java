@@ -129,7 +129,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    if (className.equals("WireElm") || className.equals("RoutedWireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
 		    className.equals("GraphicElm") ||
 		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
-		sim.console("skipping " + className + " in loadCompositeXml");
+		//sim.console("skipping " + className + " in loadCompositeXml");
 		continue;
 	    }
 	    CircuitElm newce = CirSim.constructElement(className, 0, 0);

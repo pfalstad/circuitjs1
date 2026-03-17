@@ -1291,7 +1291,7 @@ public class UIManager {
 	}
     	CheckboxMenuItem mi;
     	app.register(t, elm);
-	if (elm == null)
+	if (elm == null && t.indexOf("Elm") >= 0)
 	    app.console("can't create class: " + t);
     	if ( elm!=null ) {
     		if (elm.needsShortcut() ) {
