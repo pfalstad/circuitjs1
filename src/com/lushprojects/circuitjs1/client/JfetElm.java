@@ -126,6 +126,7 @@ class JfetElm extends MosfetElm {
 	}
 
 	boolean showBulk() { return false; }
+	boolean needsModel() { return false; }
 
 	int getDumpType() { return 'j'; }
 	// these values are taken from Hayes+Horowitz p155
