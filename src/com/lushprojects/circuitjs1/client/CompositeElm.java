@@ -380,8 +380,9 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     public void delete() {
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).delete();
+	if (compElmList != null)
+	    for (int i = 0; i < compElmList.size(); i++)
+		compElmList.get(i).delete();
         super.delete();
     }
 

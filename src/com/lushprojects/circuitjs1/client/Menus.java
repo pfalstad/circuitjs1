@@ -369,32 +369,6 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Components")), activeMenuBar);
 
     	MenuBar activeBlocMenuBar = new MenuBar(true);
-	makeClassCheckItems(activeBlocMenuBar, new String[] {
-		"Add Op Amp (ideal, - on top)", "OpAmpElm",
-		"Add Op Amp (ideal, + on top)", "OpAmpSwapElm",
-		"Add Op Amp (real)", "OpAmpRealElm",
-		"Add Analog Switch (SPST)", "AnalogSwitchElm",
-		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
-		"Add Analog Multiplexer", "AnalogMuxElm",
-		"Add Tristate Buffer", "TriStateElm",
-		"Add Schmitt Trigger", "SchmittElm",
-		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",
-		"Add Delay Buffer", "DelayBufferElm",
-		"Add CCII+", "CC2Elm",
-		"Add CCII-", "CC2NegElm",
-		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
-		"Add OTA (LM13700 style)", "OTAElm",
-		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
-		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
-		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
-		"Add Current-Controlled Current Source (CCCS)", "CCCSElm",
-		"Add Optocoupler", "OptocouplerElm",
-		"Add Time Delay Relay", "TimeDelayRelayElm",
-		"Add LM317", "CustomCompositeElm:~LM317-v2",
-		"Add TL431", "CustomCompositeElm:~TL431",
-		"Add Motor Protection Switch", "MotorProtectionSwitchElm",
-		"Add Subcircuit Instance", "CustomCompositeElm",
-	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Building Blocks")), activeBlocMenuBar);
     	
     	MenuBar gateMenuBar = new MenuBar(true);
@@ -445,6 +419,34 @@ public class Menus {
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Analog and Hybrid Chips")), achipMenuBar);
     	
+	// do these later so all the other elements are added to the map first
+	makeClassCheckItems(activeBlocMenuBar, new String[] {
+		"Add Op Amp (ideal, - on top)", "OpAmpElm",
+		"Add Op Amp (ideal, + on top)", "OpAmpSwapElm",
+		"Add Op Amp (real)", "OpAmpRealElm",
+		"Add Analog Switch (SPST)", "AnalogSwitchElm",
+		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
+		"Add Analog Multiplexer", "AnalogMuxElm",
+		"Add Tristate Buffer", "TriStateElm",
+		"Add Schmitt Trigger", "SchmittElm",
+		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",
+		"Add Delay Buffer", "DelayBufferElm",
+		"Add CCII+", "CC2Elm",
+		"Add CCII-", "CC2NegElm",
+		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
+		"Add OTA (LM13700 style)", "OTAElm",
+		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
+		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
+		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
+		"Add Current-Controlled Current Source (CCCS)", "CCCSElm",
+		"Add Optocoupler", "OptocouplerElm",
+		"Add Time Delay Relay", "TimeDelayRelayElm",
+		"Add LM317", "CustomCompositeElm:~LM317-v2",
+		"Add TL431", "CustomCompositeElm:~TL431",
+		"Add Motor Protection Switch", "MotorProtectionSwitchElm",
+		"Add Subcircuit Instance", "CustomCompositeElm",
+	});
+
     	if (subcircuitMenuBar == null)
     	    subcircuitMenuBar = new MenuBar[2];
     	subcircuitMenuBar[num] = new MenuBar(true);
