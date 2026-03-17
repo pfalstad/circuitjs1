@@ -93,6 +93,15 @@ class EditOptions implements Editable {
 		}
 		if (n == 15 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
+		if (n == 15) {
+		    EditInfo ei = new EditInfo("Matrix Solver", 0, -1, -1);
+		    ei.choice = new Choice();
+		    ei.choice.add(Locale.LS("Auto"));
+		    ei.choice.add(Locale.LS("Dense (Crout's LU)"));
+		    ei.choice.add(Locale.LS("Sparse (CSC LU)"));
+		    ei.choice.select(sim.solverType);
+		    return ei;
+		}
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
 
@@ -191,6 +200,16 @@ class EditOptions implements Editable {
 		}
 		if (n == 15 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
+		if (n == 15) {
+		    int newType = ei.choice.getSelectedIndex();
+		    if (newType != sim.solverType) {
+			sim.solverType = newType;
+			Storage stor = Storage.getLocalStorageIfSupported();
+			if (stor != null)
+			    stor.setItem("solverType", Integer.toString(sim.solverType));
+			app.needAnalyze();
+		    }
+		}
 	}
 	
 	Color setColor(String name, EditInfo ei, Color def) {
