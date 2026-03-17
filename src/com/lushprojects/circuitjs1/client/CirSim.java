@@ -202,6 +202,8 @@ public class CirSim implements NativePreviewHandler {
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
 
+	CustomCompositeModel.loadModelsFromStorage();
+
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 
 	if (startCircuitText != null) {

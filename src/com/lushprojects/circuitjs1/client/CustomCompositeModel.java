@@ -66,6 +66,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	globalModelMap.put(d.name, d);
 	sequenceNumber = 1;
 
+        loadInternalModels();
+    }
+
+    public static void loadModelsFromStorage() {
 	// get models from local storage
         Storage stor = Storage.getLocalStorageIfSupported();
         if (stor != null) {
@@ -97,8 +101,6 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
         	}
             }
         }
-
-        loadInternalModels();
     }
 
     static CustomCompositeModel getModelWithName(String name) {
@@ -106,12 +108,11 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    initModelMap();
 	CustomCompositeModel lm = localModelMap.get(name);
 	if (lm != null) {
-	    CirSim.console("getModelWithName: " + name + " found in local");
+	    //CirSim.console("getModelWithName: " + name + " found in local");
 	    return lm;
 	}
 	lm = globalModelMap.get(name);
-	if (lm != null)
-	    CirSim.console("getModelWithName: " + name + " found in global");
+	//if (lm != null) CirSim.console("getModelWithName: " + name + " found in global");
 	return lm;
     }
 
@@ -179,20 +180,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = CustomLogicModel.unescape(st.nextToken());
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
-	    CirSim.console("undumpModel: creating new local model " + name);
+	    //CirSim.console("undumpModel: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
 	    // model exists in global map; create a local shadow instead of modifying global
-	    CirSim.console("undumpModel: creating local shadow for global model " + name);
+	    //CirSim.console("undumpModel: creating local shadow for global model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else {
-	    CirSim.console("undumpModel: updating existing local model " + name);
+	    //CirSim.console("undumpModel: updating existing local model " + name);
 	}
 	model.undump(st);
 	return model;
@@ -359,20 +360,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = xml.parseStringAttr("nm", null);
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
-	    CirSim.console("undumpModelXml: creating new local model " + name);
+	    //CirSim.console("undumpModelXml: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
 	    // model exists in global map; create a local shadow instead of modifying global
-	    CirSim.console("undumpModelXml: creating local shadow for global model " + name);
+	    //CirSim.console("undumpModelXml: creating local shadow for global model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else {
-	    CirSim.console("undumpModelXml: updating existing local model " + name);
+	    //CirSim.console("undumpModelXml: updating existing local model " + name);
 	}
 	model.undumpXml(xml);
 	return model;
@@ -468,7 +469,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     }
 
     static void clearLocalModels() {
-	CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
+	//CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
 	localModelMap.clear();
 	sequenceNumber++;
     }
