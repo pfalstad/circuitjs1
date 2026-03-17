@@ -40,7 +40,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	double gmin;
 	String modelName;
 	TransistorModel model;
-	static String lastModelName = "default";
+	static String lastModelName = "default"; // never changes??
 	final int FLAG_FLIP = 1;
 	final int FLAG_CIRCLE = 2;
 	final int FLAGS_GLOBAL = FLAG_CIRCLE;
