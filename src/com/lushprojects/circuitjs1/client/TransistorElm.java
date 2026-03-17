@@ -114,7 +114,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    super.undumpXml(xml);
 	    pnp = xml.parseIntAttr("pn", pnp);
 	    beta = xml.parseDoubleAttr("be", beta);
-	    modelName = xml.parseStringAttr("mo", "default");
+	    modelName = xml.parseStringAttr("mo", modelName);
 	    lastvbe = xml.parseDoubleAttr("vbe", 0);
 	    lastvbc = xml.parseDoubleAttr("vbc", 0);
 	    volts[0] = 0;
