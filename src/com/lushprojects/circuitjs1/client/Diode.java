@@ -33,7 +33,8 @@ class Diode {
 	zvoltage = model.breakdownVoltage;
 	vscale = model.vscale;
 	vdcoef = model.vdcoef;
-	
+	vzcoef = 1 / CirSim.vt;
+
 //	sim.console("setup " + leakage + " " + zvoltage + " " + model.emissionCoefficient + " " +  vdcoef);
 
 	// critical voltage for limiting; current is vscale/sqrt(2) at
@@ -41,7 +42,7 @@ class Diode {
 	vcrit = vscale * Math.log(vscale/(Math.sqrt(2)*leakage));
 	// translated, *positive* critical voltage for limiting in Zener breakdown region;
 	// limitstep() uses this with translated voltages in an analogous fashion to vcrit.
-	vzcrit = vt * Math.log(vt/(Math.sqrt(2)*leakage));
+	vzcrit = CirSim.vt * Math.log(CirSim.vt/(Math.sqrt(2)*leakage));
 	if (zvoltage == 0)
 	    zoffset = 0;
 	else {
@@ -59,8 +60,6 @@ class Diode {
 	lastvoltdiff = 0;
     }
 	
-    // Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
-    static final double vt = 0.025865;
     // The diode's "scale voltage", the voltage increase which will raise current by a factor of e.
     double vscale;
     // The multiplicative equivalent of dividing by vscale (for speed).
@@ -69,7 +68,7 @@ class Diode {
     // Shockley curve, but flipped and translated. This curve removes the moderating influence
     // of emcoef, replacing vscale and vdcoef with vt and vzcoef.
     // vzcoef is the multiplicative equivalent of dividing by vt (for speed).
-    static final double vzcoef = 1 / vt;
+    double vzcoef;
     // User-specified diode parameters for forward voltage drop and Zener voltage.
     double fwdrop, zvoltage;
     // The diode current's scale factor, calculated from the user-specified forward voltage drop.
@@ -111,17 +110,17 @@ class Diode {
 	    vnew = -vnew - zoffset;
 	    vold = -vold - zoffset;
 	    
-	    if (vnew > vzcrit && Math.abs(vnew - vold) > (vt + vt)) {
+	    if (vnew > vzcrit && Math.abs(vnew - vold) > (CirSim.vt + CirSim.vt)) {
 		if(vold > 0) {
-		    arg = 1 + (vnew - vold) / vt;
+		    arg = 1 + (vnew - vold) / CirSim.vt;
 		    if(arg > 0) {
-			vnew = vold + vt * Math.log(arg);
+			vnew = vold + CirSim.vt * Math.log(arg);
 			//System.out.println(oo + " " + vnew);
 		    } else {
 			vnew = vzcrit;
 		    }
 		} else {
-		    vnew = vt *Math.log(vnew/vt);
+		    vnew = CirSim.vt *Math.log(vnew/CirSim.vt);
 		}
 		sim.converged = false;
 	    }

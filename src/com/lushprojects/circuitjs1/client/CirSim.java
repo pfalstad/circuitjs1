@@ -64,6 +64,17 @@ public class CirSim implements NativePreviewHandler {
     int hintType = -1, hintItem1, hintItem2;
     String stopMessage;
 
+    // simulation temperature in Kelvin, default 27 C (300.15K) like SPICE
+    static double temperature = 300.15;
+    // electron thermal voltage = k*T/q, recalculated when temperature changes
+    static double vt = 0.025865;
+
+    static void setTemperature(double tempKelvin) {
+	temperature = tempKelvin;
+	vt = 1.380649e-23 * tempKelvin / 1.602176634e-19;
+	DiodeModel.updateAllModels();
+    }
+
     double minFrameRate = 20;
     boolean developerMode;
 
