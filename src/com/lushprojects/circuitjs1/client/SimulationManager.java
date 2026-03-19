@@ -536,6 +536,55 @@ public class SimulationManager {
 	}
     }
     
+    void calculateClosures() {
+	int nodeCount = nodeList.size();
+	int closureIndex[] = new int[nodeCount];
+	int i;
+	for (i = 1; i != nodeCount; i++)
+	    closureIndex[i] = -1;
+
+	int closureCount = 0;
+	for (i = 1; i != nodeCount; i++) {
+	    if (closureIndex[i] >= 0)
+		continue;
+	    if (getCircuitNode(i).internal)
+		continue;
+
+	    // flood-fill from node i
+	    Vector<Integer> stack = new Vector<Integer>();
+	    stack.add(i);
+	    closureIndex[i] = closureCount;
+	    int size = 0;
+
+	    while (!stack.isEmpty()) {
+		int n = stack.remove(stack.size() - 1);
+		size++;
+		CircuitNode cn = getCircuitNode(n);
+		int j;
+		for (j = 0; j != cn.links.size(); j++) {
+		    CircuitNodeLink cnl = cn.links.get(j);
+		    CircuitElm ce = cnl.elm;
+		    int post1 = cnl.num;
+		    int k;
+		    for (k = 0; k != ce.getPostCount(); k++) {
+			if (k == post1)
+			    continue;
+			if (!ce.getConnection(post1, k))
+			    continue;
+			int kn = ce.getNode(k);
+			if (closureIndex[kn] < 0) {
+			    //console("node " + n + " connected to node " + kn + " via " + ce.getClassName());
+			    closureIndex[kn] = closureCount;
+			    stack.add(kn);
+			}
+		    }
+		}
+	    }
+	    console("closure " + closureCount + ": " + size + " nodes");
+	    closureCount++;
+	}
+    }
+
     // take list of unconnected nodes, which we identified earlier, and connect them to ground
     // with a big resistor.  otherwise we will get matrix errors.  The resistor has to be big,
     // otherwise circuits like 555 Square Wave will break
@@ -701,6 +750,7 @@ public class SimulationManager {
 	}
 
 	findUnconnectedNodes();
+	calculateClosures();
 	if (!validateCircuit())
 	    return false;
 	
@@ -769,6 +819,8 @@ public class SimulationManager {
 	if (circuitMatrix == null)
 	    return;
 	
+	CirSim.console("matrix size: " + circuitMatrixSize);
+
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
 	if (!circuitNonLinear) {
