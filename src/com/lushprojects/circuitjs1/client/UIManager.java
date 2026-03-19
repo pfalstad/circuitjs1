@@ -803,7 +803,7 @@ public class UIManager {
 			;
 		    String nodeStr = "nodes:";
 		    for (int nn = 0; nn < mouse.getMouseElm().getNodeCount(); nn++)
-			nodeStr += " " + mouse.getMouseElm().getNode(nn);
+			nodeStr += " " + mouse.getMouseElm().getNode(nn).index;
 		    info[ni] = nodeStr;
 		} else
 		    info[0] = "V = " +

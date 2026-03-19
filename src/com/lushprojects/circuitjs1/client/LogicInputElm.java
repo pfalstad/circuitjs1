@@ -96,7 +96,7 @@ class LogicInputElm extends SwitchElm {
 	void setCurrent(int vs, double c) { current = c; }
 	void calculateCurrent() {}
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[0], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
 	}
 	
 	boolean isWireEquivalent() { return false; }
@@ -106,7 +106,7 @@ class LogicInputElm extends SwitchElm {
 	    double v = (position == 0) ? loV : hiV;
 	    if (isTernary())
 		v = loV + position * (hiV-loV) * .5;
-	    sim.updateVoltageSource(0, nodes[0], voltSource, v);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, v);
 	}
 	int getVoltageSourceCount() { return 1; }
 	double getVoltageDiff() { return volts[0]; }

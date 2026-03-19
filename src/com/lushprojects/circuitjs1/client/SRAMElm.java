@@ -249,7 +249,7 @@ import com.google.gwt.xml.client.Element;
 	    int i;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.stampVoltageSource(0, nodes[internalNodes+i], p.voltSource);
+		sim.stampVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource);
 		sim.stampNonLinear(nodes[internalNodes+i]);
 		sim.stampNonLinear(nodes[dataNodes+i]);
 	    }
@@ -270,7 +270,7 @@ import com.google.gwt.xml.client.Element;
 	    int data = (dataObj == null) ? 0 : dataObj;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.updateVoltageSource(0, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
+		sim.updateVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
 		
 		// stamp resistor from internal voltage source to data pin.
 		// if output enabled, make it a small resistor.  otherwise large.

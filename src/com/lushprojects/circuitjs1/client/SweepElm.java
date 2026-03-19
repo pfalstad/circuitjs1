@@ -123,7 +123,7 @@ class SweepElm extends CircuitElm {
     }
 	
     void stamp() {
-	sim.stampVoltageSource(0, nodes[0], voltSource);
+	sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
     }
     double fadd, fmul, freqTime, savedTimeStep;
     int dir = 1;
@@ -171,7 +171,7 @@ class SweepElm extends CircuitElm {
 	}
     }
     void doStep() {
-	sim.updateVoltageSource(0, nodes[0], voltSource, v);
+	sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, v);
     }
 	
     double getVoltageDiff() { return volts[0]; }

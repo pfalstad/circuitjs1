@@ -40,7 +40,7 @@ class PhaseCompElm extends ChipElm {
     void stamp() {
 	int vn = sim.nodeList.size()+pins[2].voltSource;
 	sim.stampNonLinear(vn);
-	sim.stampNonLinear(0);
+	sim.stampNonLinear(CircuitNode.ground);
 	sim.stampNonLinear(nodes[2]);
     }
     boolean ff1, ff2;
@@ -56,7 +56,7 @@ class PhaseCompElm extends ChipElm {
 	double out = (ff1) ? highVoltage : (ff2) ? 0 : -1;
 	//System.out.println(out + " " + v1 + " " + v2);
 	if (out != -1)
-	    sim.stampVoltageSource(0, nodes[2], pins[2].voltSource, out);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[2], pins[2].voltSource, out);
 	else {
 	    // tie current through output pin to 0
 	    int vn = sim.nodeList.size()+pins[2].voltSource;

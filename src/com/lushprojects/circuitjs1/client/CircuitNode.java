@@ -22,7 +22,9 @@ package com.lushprojects.circuitjs1.client;
 import java.util.Vector;
 
 class CircuitNode {
+    static CircuitNode ground;
     Vector<CircuitNodeLink> links;
     boolean internal;
+    int index;
     CircuitNode() { links = new Vector<CircuitNodeLink>(); }
 }

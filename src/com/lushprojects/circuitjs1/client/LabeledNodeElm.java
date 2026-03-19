@@ -102,13 +102,13 @@ class LabeledNodeElm extends CircuitElm {
 	return null;
     }
     
-    void setNode(int p, int n) {
+    void setNode(int p, CircuitNode n) {
 	super.setNode(p, n);
-	
+
 	// save node number so we can return it in getByName()
 	LabelEntry le = labelList.get(text);
 	if (le != null) // should never happen
-	    le.node = n;
+	    le.node = n.index;
     }
     
     int getDumpType() { return 207; }

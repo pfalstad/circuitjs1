@@ -92,13 +92,13 @@ class RailElm extends VoltageElm {
     double getVoltageDiff() { return volts[0]; }
     void stamp() {
 	if (waveform == WF_DC)
-	    sim.stampVoltageSource(0, nodes[0], voltSource, getVoltage());
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource, getVoltage());
 	else
-	    sim.stampVoltageSource(0, nodes[0], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
     }
     void doStep() {
 	if (waveform != WF_DC)
-	    sim.updateVoltageSource(0, nodes[0], voltSource, getVoltage());
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, getVoltage());
     }
     boolean hasGroundConnection(int n1) { return true; }
     void addRoutingObstacle(WireRouter router) {

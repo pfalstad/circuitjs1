@@ -47,7 +47,7 @@ class DACElm extends ChipElm {
 		ival |= 1<<i;
 	int ivalmax = (1<<bits)-1;
 	double v = ival*volts[bits+1]/ivalmax;
-	sim.updateVoltageSource(0, nodes[bits], pins[bits].voltSource, v);
+	sim.updateVoltageSource(CircuitNode.ground, nodes[bits], pins[bits].voltSource, v);
     }
     int getVoltageSourceCount() { return 1; }
     int getPostCount() { return bits+2; }

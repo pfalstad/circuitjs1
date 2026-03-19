@@ -80,9 +80,9 @@ public class SimulationManager {
     }
     
     class NodeMapEntry {
-	int node;
-	NodeMapEntry() { node = -1; }
-	NodeMapEntry(int n) { node = n; }
+	CircuitNode node;
+	NodeMapEntry() { node = null; }
+	NodeMapEntry(CircuitNode n) { node = n; }
     }
     // map points to node numbers
     HashMap<Point,NodeMapEntry> nodeMap;
@@ -181,13 +181,12 @@ public class SimulationManager {
 	    for (int j = 0; j != ce.getPostCount(); j++) {
 		Point pt = ce.getPost(j);
 		NodeMapEntry nme = uiNodeMap.get(pt);
-		if (nme != null && nme.node == -1)
-		    nme.node = ce.getNode(j);
+		CircuitNode cn = ce.getNode(j);
+		if (nme != null && nme.node == null && cn != null)
+		    nme.node = cn;
 		// always link non-wire elements to nodeList so their volts[]
 		// get updated, even if the post isn't at a wire endpoint
 		// (e.g. composite elements whose posts connect directly)
-		int node = ce.getNode(j);
-		CircuitNode cn = (node >= 0) ? getCircuitNode(node) : null;
 		if (cn != null) {
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
@@ -205,12 +204,13 @@ public class SimulationManager {
 	    for (int j = 0; j != ce.getPostCount(); j++) {
 		Point pt = ce.getPost(j);
 		NodeMapEntry nme = uiNodeMap.get(pt);
-		if (nme != null && nme.node >= 0) {
-		    ce.setNode(j, nme.node);
+		if (nme != null && nme.node != null) {
+		    CircuitNode cn = nme.node;
+		    ce.setNode(j, cn);
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;
-		    getCircuitNode(nme.node).links.addElement(cnl);
+		    cn.links.addElement(cnl);
 		} else
 		    console("missing node for " + pt);
 	    }
@@ -233,7 +233,7 @@ public class SimulationManager {
 	for (i = 0; i != wireInfoList.size(); i++) {
 	    WireInfo wi = wireInfoList.get(i);
 	    CircuitElm wire = wi.wire;
-	    CircuitNode cn1 = nodeList.get(wire.getNode(0));  // both ends of wire have same node #
+	    CircuitNode cn1 = wire.getNode(0);  // both ends of wire have same node #
 	    int j;
 
 	    Vector<CircuitElm> neighbors0 = new Vector<CircuitElm>();
@@ -339,17 +339,23 @@ public class SimulationManager {
 	boolean gotGround = false;
 	boolean gotRail = false;
 	CircuitElm volt = null;
-	    
+
+	// allocate ground node
+	CircuitNode cn = new CircuitNode();
+	cn.index = 0;
+	nodeList.addElement(cn);
+	CircuitNode.ground = cn;
+
 	//System.out.println("ac1");
 	// look for voltage or ground element
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    if (ce instanceof GroundElm) {
 		gotGround = true;
-		
-		// set ground node to 0
+
+		// set ground node
 		NodeMapEntry nme = nodeMap.get(ce.getPost(0));
-		nme.node = 0;
+		nme.node = CircuitNode.ground;
 		break;
 	    }
 	    if (ce instanceof RailElm)
@@ -361,20 +367,14 @@ public class SimulationManager {
 	// if no ground, and no rails, then the voltage elm's first terminal
 	// is ground (but not for subcircuits)
 	if (!subcircuit && !gotGround && volt != null && !gotRail) {
-	    CircuitNode cn = new CircuitNode();
 	    Point pt = volt.getPost(0);
-	    nodeList.addElement(cn);
 
 	    // update node map
 	    NodeMapEntry cln = nodeMap.get(pt);
 	    if (cln != null)
-		cln.node = 0;
+		cln.node = CircuitNode.ground;
 	    else
-		nodeMap.put(pt, new NodeMapEntry(0));
-	} else {
-	    // otherwise allocate extra node for ground
-	    CircuitNode cn = new CircuitNode();
-	    nodeList.addElement(cn);
+		nodeMap.put(pt, new NodeMapEntry(CircuitNode.ground));
 	}
     }
 
@@ -403,39 +403,41 @@ public class SimulationManager {
 		// (we don't allocate nodes before this because changing the allocation order
 		// of nodes changes circuit behavior and breaks backward compatibility;
 		// the code below to connect unconnected nodes may connect a different node to ground) 
-		if (cln == null || cln.node == -1) {
+		if (cln == null || cln.node == null) {
 		    CircuitNode cn = new CircuitNode();
+		    cn.index = nodeList.size();
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;
 		    cn.links.addElement(cnl);
-		    ce.setNode(j, nodeList.size());
+		    ce.setNode(j, cn);
 		    if (cln != null)
-			cln.node = nodeList.size();
+			cln.node = cn;
 		    else
-			nodeMap.put(pt, new NodeMapEntry(nodeList.size()));
+			nodeMap.put(pt, new NodeMapEntry(cn));
 		    nodeList.addElement(cn);
 		} else {
-		    int n = cln.node;
+		    CircuitNode cn = cln.node;
 		    CircuitNodeLink cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;
-		    getCircuitNode(n).links.addElement(cnl);
-		    ce.setNode(j, n);
+		    cn.links.addElement(cnl);
+		    ce.setNode(j, cn);
 		    // if it's the ground node, make sure the node voltage is 0,
 		    // cause it may not get set later
-		    if (n == 0)
+		    if (cn == CircuitNode.ground)
 			ce.setNodeVoltage(j, 0);
 		}
 	    }
 	    for (j = 0; j != inodes; j++) {
 		CircuitNode cn = new CircuitNode();
+		cn.index = nodeList.size();
 		cn.internal = true;
 		CircuitNodeLink cnl = new CircuitNodeLink();
 		cnl.num = j+posts;
 		cnl.elm = ce;
 		cn.links.addElement(cnl);
-		ce.setNode(cnl.num, nodeList.size());
+		ce.setNode(cnl.num, cn);
 		nodeList.addElement(cn);
 	    }
 	    
@@ -458,16 +460,15 @@ public class SimulationManager {
 	    elmList.add(ce);
 	    int nodeCount = ce.getNodeCount();
 	    for (int i = 0; i != nodeCount; i++) {
-		int cn = ce.getNode(i);
+		CircuitNode cn = ce.getNode(i);
 		CircuitNodeLink cnl = new CircuitNodeLink();
 		cnl.num = i;
 		cnl.elm = ce;
-		CircuitNode cnobj = getCircuitNode(cn);
-		cnobj.links.addElement(cnl);
+		cn.links.addElement(cnl);
 		// this is needed so findUnconnectedNodes() works
-		cnobj.internal = false;
+		cn.internal = false;
 		// if it's the ground node, make sure the node voltage is 0
-		if (cn == 0)
+		if (cn.index == 0)
 		    ce.setNodeVoltage(i, 0);
 	    }
 	}
@@ -501,16 +502,17 @@ public class SimulationManager {
 		    boolean hg = ce.hasGroundConnection(j);
 		    if (hg)
 			hasGround = true;
-		    if (!closure[ce.getNode(j)]) {
+		    int jn = ce.getNode(j).index;
+		    if (!closure[jn]) {
 			if (hg)
-			    closure[ce.getNode(j)] = changed = true;
+			    closure[jn] = changed = true;
 			continue;
 		    }
 		    int k;
 		    for (k = 0; k != ce.getPostCount(); k++) {
 			if (j == k)
 			    continue;
-			int kn = ce.getNode(k);
+			int kn = ce.getNode(k).index;
 			if (ce.getConnection(j, k) && !closure[kn]) {
 			    closure[kn] = true;
 			    changed = true;
@@ -571,7 +573,7 @@ public class SimulationManager {
 			    continue;
 			if (!ce.getConnection(post1, k))
 			    continue;
-			int kn = ce.getNode(k);
+			int kn = ce.getNode(k).index;
 			if (closureIndex[kn] < 0) {
 			    //console("node " + n + " connected to node " + kn + " via " + ce.getClassName());
 			    closureIndex[kn] = closureCount;
@@ -592,7 +594,7 @@ public class SimulationManager {
 	int i;
 	for (i = 0; i != unconnectedNodes.size(); i++) {
 	    int n = unconnectedNodes.get(i);
-	    stampResistor(0, n, 1e8);
+	    stampResistor(CircuitNode.ground, nodeList.get(n), 1e8);
 	}
     }
     
@@ -642,7 +644,7 @@ public class SimulationManager {
 	    // look for path from rail to ground
 	    if (ce instanceof RailElm || ce instanceof LogicInputElm) {
 		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, ce, ce.getNode(0));
-		if (fpi.findPath(0)) {
+		if (fpi.findPath(CircuitNode.ground)) {
 		    stop("Path to ground with no resistance!", ce);
 		    return false;
 		}
@@ -1052,13 +1054,13 @@ public class SimulationManager {
 	static final int SHORT   = 3;
 	static final int CAP_V   = 4;
 	boolean visited[];
-	int dest;
+	CircuitNode dest;
 	CircuitElm firstElm;
 	int type;
 
 	// State object to help find loops in circuit subject to various conditions (depending on type_)
 	// elm_ = source and destination element.  dest_ = destination node.
-	FindPathInfo(int type_, CircuitElm elm_, int dest_) {
+	FindPathInfo(int type_, CircuitElm elm_, CircuitNode dest_) {
 	    dest = dest_;
 	    type = type_;
 	    firstElm = elm_;
@@ -1067,34 +1069,31 @@ public class SimulationManager {
 
 	// look through circuit for loop starting at node n1 of firstElm, for a path back to
 	// dest node of firstElm
-	boolean findPath(int n1) {
+	boolean findPath(CircuitNode n1) {
 	    if (n1 == dest)
 		return true;
 
 	    // depth first search, don't need to revisit already visited nodes!
-	    if (visited[n1])
+	    if (visited[n1.index])
 		return false;
 
-	    visited[n1] = true;
-	    CircuitNode cn = getCircuitNode(n1);
+	    visited[n1.index] = true;
 	    int i;
-	    if (cn == null)
-		return false;
-	    for (i = 0; i != cn.links.size(); i++) {
-		CircuitNodeLink cnl = cn.links.get(i);
+	    for (i = 0; i != n1.links.size(); i++) {
+		CircuitNodeLink cnl = n1.links.get(i);
 		CircuitElm ce = cnl.elm;
 		if (checkElm(n1, ce))
 		    return true;
 	    }
-	    if (n1 == 0) {
+	    if (n1 == CircuitNode.ground) {
 		for (i = 0; i != nodesWithGroundConnection.size(); i++)
-		    if (checkElm(0, nodesWithGroundConnection.get(i)))
+		    if (checkElm(CircuitNode.ground, nodesWithGroundConnection.get(i)))
 			return true;
 	    }
 	    return false;
 	}
-	
-	boolean checkElm(int n1, CircuitElm ce) {
+
+	boolean checkElm(CircuitNode n1, CircuitElm ce) {
 		if (ce == firstElm)
 		    return false;
 		if (type == INDUCT) {
@@ -1115,7 +1114,7 @@ public class SimulationManager {
 		    if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce instanceof VoltageElm))
 			return false;
 		}
-		if (n1 == 0) {
+		if (n1 == CircuitNode.ground) {
 		    // look for posts which have a ground connection;
 		    // our path can go through ground
 		    int j;
@@ -1126,7 +1125,7 @@ public class SimulationManager {
 		int j;
 		for (j = 0; j != ce.getPostCount(); j++) {
 		    if (ce.getNode(j) == n1) {
-			if (ce.hasGroundConnection(j) && findPath(0))
+			if (ce.hasGroundConnection(j) && findPath(CircuitNode.ground))
 			    return true;
 			if (type == INDUCT && ce instanceof InductorElm) {
 			    // inductors can use paths with other inductors of matching current
@@ -1161,81 +1160,95 @@ public class SimulationManager {
     
     // control voltage source vs with voltage from n1 to n2 (must
     // also call stampVoltageSource())
-    void stampVCVS(int n1, int n2, double coef, int vs) {
+    void stampVCVS(CircuitNode n1, CircuitNode n2, double coef, int vs) {
 	int vn = nodeList.size()+vs;
-	stampMatrix(vn, n1, coef);
-	stampMatrix(vn, n2, -coef);
+	stampMatrix(vn, n1.index, coef);
+	stampMatrix(vn, n2.index, -coef);
     }
-    
+
     // stamp independent voltage source #vs, from n1 to n2, amount v
-    void stampVoltageSource(int n1, int n2, int vs, double v) {
+    void stampVoltageSource(CircuitNode n1, CircuitNode n2, int vs, double v) {
 	int vn = nodeList.size()+vs;
-	stampMatrix(vn, n1, -1);
-	stampMatrix(vn, n2, 1);
+	stampMatrix(vn, n1.index, -1);
+	stampMatrix(vn, n2.index, 1);
 	stampRightSide(vn, v);
-	stampMatrix(n1, vn, 1);
-	stampMatrix(n2, vn, -1);
+	stampMatrix(n1.index, vn, 1);
+	stampMatrix(n2.index, vn, -1);
     }
 
     // use this if the amount of voltage is going to be updated in doStep(), by updateVoltageSource()
-    void stampVoltageSource(int n1, int n2, int vs) {
+    void stampVoltageSource(CircuitNode n1, CircuitNode n2, int vs) {
 	int vn = nodeList.size()+vs;
-	stampMatrix(vn, n1, -1);
-	stampMatrix(vn, n2, 1);
+	stampMatrix(vn, n1.index, -1);
+	stampMatrix(vn, n2.index, 1);
 	stampRightSide(vn);
-	stampMatrix(n1, vn, 1);
-	stampMatrix(n2, vn, -1);
+	stampMatrix(n1.index, vn, 1);
+	stampMatrix(n2.index, vn, -1);
     }
-    
+
     // update voltage source in doStep()
-    void updateVoltageSource(int n1, int n2, int vs, double v) {
+    void updateVoltageSource(CircuitNode n1, CircuitNode n2, int vs, double v) {
 	int vn = nodeList.size()+vs;
 	stampRightSide(vn, v);
     }
-    
-    void stampResistor(int n1, int n2, double r) {
+
+    void stampResistor(CircuitNode n1, CircuitNode n2, double r) {
 	double r0 = 1/r;
 	if (Double.isNaN(r0) || Double.isInfinite(r0)) {
 	    System.out.print("bad resistance " + r + " " + r0 + "\n");
 	    int a = 0;
 	    a /= a;
 	}
-	stampMatrix(n1, n1, r0);
-	stampMatrix(n2, n2, r0);
-	stampMatrix(n1, n2, -r0);
-	stampMatrix(n2, n1, -r0);
+	stampMatrix(n1.index, n1.index, r0);
+	stampMatrix(n2.index, n2.index, r0);
+	stampMatrix(n1.index, n2.index, -r0);
+	stampMatrix(n2.index, n1.index, -r0);
     }
 
-    void stampConductance(int n1, int n2, double r0) {
-	stampMatrix(n1, n1, r0);
-	stampMatrix(n2, n2, r0);
-	stampMatrix(n1, n2, -r0);
-	stampMatrix(n2, n1, -r0);
+    void stampConductance(CircuitNode n1, CircuitNode n2, double r0) {
+	stampMatrix(n1.index, n1.index, r0);
+	stampMatrix(n2.index, n2.index, r0);
+	stampMatrix(n1.index, n2.index, -r0);
+	stampMatrix(n2.index, n1.index, -r0);
     }
 
-    // specify that current from cn1 to cn2 is equal to voltage from vn1 to 2, divided by g
-    void stampVCCurrentSource(int cn1, int cn2, int vn1, int vn2, double g) {
-	stampMatrix(cn1, vn1, g);
-	stampMatrix(cn2, vn2, g);
-	stampMatrix(cn1, vn2, -g);
-	stampMatrix(cn2, vn1, -g);
+    // specify that current from cn1 to cn2 is equal to voltage from vn1 to vn2, divided by g
+    void stampVCCurrentSource(CircuitNode cn1, CircuitNode cn2, CircuitNode vn1, CircuitNode vn2, double g) {
+	stampMatrix(cn1.index, vn1.index, g);
+	stampMatrix(cn2.index, vn2.index, g);
+	stampMatrix(cn1.index, vn2.index, -g);
+	stampMatrix(cn2.index, vn1.index, -g);
     }
 
-    void stampCurrentSource(int n1, int n2, double i) {
-	stampRightSide(n1, -i);
-	stampRightSide(n2, i);
+    void stampCurrentSource(CircuitNode n1, CircuitNode n2, double i) {
+	stampRightSide(n1.index, -i);
+	stampRightSide(n2.index, i);
     }
 
     // stamp a current source from n1 to n2 depending on current through vs
-    void stampCCCS(int n1, int n2, int vs, double gain) {
+    void stampCCCS(CircuitNode n1, CircuitNode n2, int vs, double gain) {
 	int vn = nodeList.size()+vs;
-	stampMatrix(n1, vn, gain);
-	stampMatrix(n2, vn, -gain);
+	stampMatrix(n1.index, vn, gain);
+	stampMatrix(n2.index, vn, -gain);
     }
+
+    // CircuitNode overloads for stampRightSide and stampNonLinear
+    void stampRightSide(CircuitNode n, double x) { stampRightSide(n.index, x); }
+    void stampRightSide(CircuitNode n) { stampRightSide(n.index); }
+    void stampNonLinear(CircuitNode n) { stampNonLinear(n.index); }
 
     // stamp value x in row i, column j, meaning that a voltage change
     // of dv in node j will increase the current into node i by x dv.
     // (Unless i or j is a voltage source node.)
+    void stampMatrix(CircuitNode i, CircuitNode j, double x) {
+	stampMatrix(i.index, j.index, x);
+    }
+    void stampMatrix(CircuitNode i, int j, double x) {
+	stampMatrix(i.index, j, x);
+    }
+    void stampMatrix(int i, CircuitNode j, double x) {
+	stampMatrix(i, j.index, x);
+    }
     void stampMatrix(int i, int j, double x) {
 	if (Double.isInfinite(x))
 	    debugger();
@@ -1545,18 +1558,18 @@ public class SimulationManager {
 		    continue;
 		
 		// already added to list?
-		if (extnodes[ce.getNode(0)])
+		if (extnodes[ce.getNode(0).index])
 		    continue;
-		
+
 	    int side = ChipElm.SIDE_W;
 	    if (Math.abs(ce.dx) >= Math.abs(ce.dy) && ce.dx > 0) side = ChipElm.SIDE_E;
 	    if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy < 0) side = ChipElm.SIDE_N;
 	    if (Math.abs(ce.dx) <= Math.abs(ce.dy) && ce.dy > 0) side = ChipElm.SIDE_S;
-	    
+
 		// create ext list entry for external nodes
 	    sideLabels[side].add(lne);
-		extnodes[ce.getNode(0)] = true;
-		if (ce.getNode(0) == 0) {
+		extnodes[ce.getNode(0).index] = true;
+		if (ce.getNode(0).index == 0) {
 		    Window.alert("Node \"" + lne.text + "\" can't be connected to ground");
 		    return null;
 		}
@@ -1571,7 +1584,7 @@ public class SimulationManager {
         for (int side = 0; side < sideLabels.length; side++) {
             for (int pos = 0; pos < sideLabels[side].size(); pos++) {
                 LabeledNodeElm lne = sideLabels[side].get(pos);
-                ExtListEntry ent = new ExtListEntry(lne.text, lne.getNode(0), pos, side);
+                ExtListEntry ent = new ExtListEntry(lne.text, lne.getNode(0).index, pos, side);
                 extList.add(ent);
             }
         }
@@ -1602,7 +1615,7 @@ public class SimulationManager {
 	    // build nn (node list) string
 	    String nn = "";
 	    for (j = 0; j != ce.getPostCount(); j++) {
-		int n = ce.getNode(j);
+		int n = ce.getNode(j).index;
 		used[n] = true;
 		if (nn.length() > 0)
 		    nn += " ";

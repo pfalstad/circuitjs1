@@ -347,8 +347,8 @@ class RelayElm extends CircuitElm {
 	// matching the analog switch approach
 	if (needsPulldown()) {
 	    for (i = 0; i < poleCount; i++) {
-		sim.stampResistor(nodes[nSwitch1+i*3], 0, r_off);
-		sim.stampResistor(nodes[nSwitch2+i*3], 0, r_off);
+		sim.stampResistor(nodes[nSwitch1+i*3], CircuitNode.ground, r_off);
+		sim.stampResistor(nodes[nSwitch2+i*3], CircuitNode.ground, r_off);
 	    }
 	}
     }

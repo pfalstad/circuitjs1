@@ -274,7 +274,7 @@ abstract class ChipElm extends CircuitElm {
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
 		if (p.output) {
-		    sim.stampVoltageSource(0, nodes[i], p.voltSource);
+		    sim.stampVoltageSource(CircuitNode.ground, nodes[i], p.voltSource);
 		    vsc++;
 		}
 	    }
@@ -293,7 +293,7 @@ abstract class ChipElm extends CircuitElm {
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
 		if (p.output)
-		    sim.updateVoltageSource(0, nodes[i], p.voltSource,
+		    sim.updateVoltageSource(CircuitNode.ground, nodes[i], p.voltSource,
 					p.value ? highVoltage : 0);
 	    }
 	}

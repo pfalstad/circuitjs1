@@ -67,7 +67,8 @@ public abstract class CircuitElm implements Editable {
     // point to which user dragged out element.  For simple two-terminal elements, this is the second node/post
     int x2, y2;
     
-    int flags, nodes[], voltSource;
+    int flags, voltSource;
+    CircuitNode nodes[];
     
     // length along x and y axes, and sign of difference
     int dx, dy, dsign;
@@ -225,7 +226,7 @@ public abstract class CircuitElm implements Editable {
 	int n = getNodeCount();
 	// preserve voltages if possible
 	if (nodes == null || nodes.length != n) {
-	    nodes = new int[n];
+	    nodes = new CircuitNode[n];
 	    volts = new double[n];
 	}
     }
@@ -668,8 +669,8 @@ public abstract class CircuitElm implements Editable {
 
     int getNodeCount() { return getPostCount() + getInternalNodeCount(); }
     
-    // notify this element that its pth node is n.  This value n can be passed to stampMatrix()
-    void setNode(int p, int n) { nodes[p] = n; }
+    // notify this element that its pth node is n.
+    void setNode(int p, CircuitNode n) { nodes[p] = n; }
     
     // notify this element that its nth voltage source is v.  This value v can be passed to stampVoltageSource(), etc and will be passed back in calls to setCurrent()
     void setVoltageSource(int n, int v) {
@@ -685,8 +686,8 @@ public abstract class CircuitElm implements Editable {
     boolean nonLinear() { return false; }
     int getPostCount() { return 2; }
     
-    // get (global) node number of nth node
-    int getNode(int n) { return nodes[n]; }
+    // get CircuitNode for nth node
+    CircuitNode getNode(int n) { return nodes[n]; }
     
     // get position of nth node
     Point getPost(int n) {
@@ -1163,7 +1164,7 @@ public abstract class CircuitElm implements Editable {
 		isOnHighlightedNet();
     }
     boolean isOnHighlightedNet() {
-	if (app.mouse.highlightedNode < 0)
+	if (app.mouse.highlightedNode == null)
 	    return false;
 	for (int i = 0; i != getPostCount(); i++)
 	    if (nodes[i] == app.mouse.highlightedNode)

@@ -85,8 +85,8 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	sim.stampNonLinear(nodes[1]);
 	sim.stampNonLinear(nodes[2]);
 	if (needsPulldown()) {
-	    sim.stampResistor(nodes[1], 0, r_off);
-	    sim.stampResistor(nodes[2], 0, r_off);
+	    sim.stampResistor(nodes[1], CircuitNode.ground, r_off);
+	    sim.stampResistor(nodes[2], CircuitNode.ground, r_off);
 	}
     }
     void doStep() {

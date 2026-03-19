@@ -169,7 +169,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 		// node = 0 means ground
 		if (nodeOfThisPost == 0) {
-		    ce.setNode(thisPost, 0);
+		    ce.setNode(thisPost, CircuitNode.ground);
 		    ce.setNodeVoltage(thisPost, 0);
 		    thisPost++;
 		    continue;
@@ -362,7 +362,7 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     // called to set node p (local to this element) to equal n (global)
-    public void setNode(int p, int n) {
+    public void setNode(int p, CircuitNode n) {
 	// nodes[p] = n
 	Vector<CircuitNodeLink> cnLinks;
 	super.setNode(p, n);

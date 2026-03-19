@@ -159,7 +159,7 @@ class TriStateElm extends CircuitElm {
     // there is a voltage source connected to node 3, and a resistor (r_off or r_on) from node 3 to 1.
     // then there is a pulldown resistor from node 1 to ground.
     void stamp() {
-	sim.stampVoltageSource(0, nodes[3], voltSource);
+	sim.stampVoltageSource(CircuitNode.ground, nodes[3], voltSource);
 	sim.stampNonLinear(nodes[3]);
 	sim.stampNonLinear(nodes[1]);
     }
@@ -172,9 +172,9 @@ class TriStateElm extends CircuitElm {
 	// Add pulldown resistor for output, so that disabled tristate has output near ground if nothing
 	// else is driving the output.  Otherwise people get confused.
 	if (r_off_ground > 0)
-	    sim.stampResistor(nodes[1], 0, r_off_ground);
-	
-	sim.updateVoltageSource(0, nodes[3], voltSource, volts[0] > highVoltage*.5 ? highVoltage : 0);
+	    sim.stampResistor(nodes[1], CircuitNode.ground, r_off_ground);
+
+	sim.updateVoltageSource(CircuitNode.ground, nodes[3], voltSource, volts[0] > highVoltage*.5 ? highVoltage : 0);
     }
 
     void drag(int xx, int yy) {

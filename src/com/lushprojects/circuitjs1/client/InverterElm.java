@@ -110,7 +110,7 @@ class InverterElm extends CircuitElm {
 	}
 	int getVoltageSourceCount() { return 1; }
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[1], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[1], voltSource);
 	}
 	
 	double lastOutputVoltage;
@@ -122,7 +122,7 @@ class InverterElm extends CircuitElm {
 	    double out = volts[0] > highVoltage*.5 ? 0 : highVoltage;
 	    double maxStep = slewRate * sim.timeStep * 1e9;
 	    out = Math.max(Math.min(lastOutputVoltage+maxStep, out), lastOutputVoltage-maxStep);
-	    sim.updateVoltageSource(0, nodes[1], voltSource, out);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[1], voltSource, out);
 	}
 	double getVoltageDiff() { return volts[0]; }
 	void getInfo(String arr[]) {

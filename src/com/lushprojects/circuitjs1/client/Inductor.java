@@ -21,7 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 class Inductor {
     public static final int FLAG_BACK_EULER = 2;
-    int nodes[];
+    CircuitNode nodes[];
     int flags;
     SimulationManager sim;
 
@@ -31,7 +31,7 @@ class Inductor {
     double saturationCurrent; // 0 = disabled (linear), >0 = saturation onset current (A)
     Inductor(SimulationManager s) {
 	sim = s;
-	nodes = new int[2];
+	nodes = new CircuitNode[2];
     }
     void setup(double ic, double cr, int f) {
 	inductance = ic;
@@ -59,7 +59,7 @@ class Inductor {
 	return inductance / (1 + ratio * ratio);
     }
 
-    void stamp(int n0, int n1) {
+    void stamp(CircuitNode n0, CircuitNode n1) {
 	// inductor companion model using trapezoidal or backward euler
 	// approximations (Norton equivalent) consists of a current
 	// source in parallel with a resistor.  Trapezoidal is more

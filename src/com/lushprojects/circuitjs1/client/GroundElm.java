@@ -104,7 +104,7 @@ class GroundElm extends CircuitElm {
 	}
 	void stamp() {
 	    if (isOldStyle())
-		sim.stampVoltageSource(0, nodes[0], voltSource, 0);
+		sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource, 0);
 	}
 	void setCurrent(int x, double c) { current = isOldStyle() ? -c : c; }
 

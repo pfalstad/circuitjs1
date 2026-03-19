@@ -117,10 +117,10 @@ class DCMotorElm extends CircuitElm {
 	// inertia inductor from internal nodes[4] to internal nodes[5]
 	indInertia.stamp(nodes[4], nodes[5]);
 	// resistor from  internal nodes[5] to  ground 
-	sim.stampResistor(nodes[5], 0, b);
+	sim.stampResistor(nodes[5], CircuitNode.ground, b);
 	// Voltage Source from  internal nodes[4] to ground
 	//System.out.println("doing stamp voltage");
-	sim.stampVoltageSource(nodes[4], 0, voltSources[1]); 
+	sim.stampVoltageSource(nodes[4], CircuitNode.ground, voltSources[1]); 
 	//System.out.println("doing stamp voltage "+voltSource);
     }
     void startIteration() {
@@ -143,7 +143,7 @@ class DCMotorElm extends CircuitElm {
      */
 
     void doStep() {
-	sim.updateVoltageSource(nodes[4],0, voltSources[1],
+	sim.updateVoltageSource(nodes[4], CircuitNode.ground, voltSources[1],
 		coilCurrent*K);
 	sim.updateVoltageSource(nodes[3],nodes[1], voltSources[0],
 		inertiaCurrent*Kb);
