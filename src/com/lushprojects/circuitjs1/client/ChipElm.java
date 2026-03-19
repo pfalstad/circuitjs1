@@ -263,6 +263,7 @@ abstract class ChipElm extends CircuitElm {
 		Pin p = pins[i];
 		if (p.output && j-- == 0) {
 		    p.voltSource = vs;
+		    vs.setNodes(CircuitNode.ground, nodes[i]);
 		    return;
 		}
 	    }

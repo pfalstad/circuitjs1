@@ -198,7 +198,13 @@ class ThreePhaseMotorElm extends CircuitElm {
     double nodeCurrents[];
     VoltageSource voltSources[];
     
-    void setVoltageSource(int n, VoltageSource v) { voltSources[n] = v; }
+    void setVoltageSource(int n, VoltageSource v) {
+	voltSources[n] = v;
+	if (n == 0)
+	    v.setNodes(nodes[n002_ind], CircuitNode.ground);
+	else
+	    v.setNodes(nodes[n006_ind], CircuitNode.ground);
+    }
     
     double vs1value, vs2value;
 

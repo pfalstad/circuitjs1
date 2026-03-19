@@ -26,5 +26,7 @@ class CircuitNode {
     Vector<CircuitNodeLink> links;
     boolean internal;
     int index;
+    CircuitMatrix matrix;
+    int row;  // row in matrix (0 = ground/excluded)
     CircuitNode() { links = new Vector<CircuitNodeLink>(); }
 }

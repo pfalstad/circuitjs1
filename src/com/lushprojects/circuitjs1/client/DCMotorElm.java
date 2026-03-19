@@ -91,7 +91,13 @@ class DCMotorElm extends CircuitElm {
     int getPostCount() { return 2; }
     int getInternalNodeCount() { return 4; }
     int getVoltageSourceCount() { return 2; }
-    void setVoltageSource(int n, VoltageSource v) { voltSources[n] = v; }
+    void setVoltageSource(int n, VoltageSource v) {
+	voltSources[n] = v;
+	if (n == 0)
+	    v.setNodes(nodes[3], nodes[1]);
+	else
+	    v.setNodes(nodes[4], CircuitNode.ground);
+    }
     void reset() {
 	super.reset();
 	ind.reset();

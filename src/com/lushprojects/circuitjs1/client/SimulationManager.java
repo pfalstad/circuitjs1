@@ -25,11 +25,9 @@ public class SimulationManager {
     Vector<CircuitNode> nodeList;
     VoltageSource voltageSources[];
 
-    double circuitMatrix[][], circuitRightSide[], lastNodeVoltages[], nodeVoltages[], origRightSide[], origMatrix[][];
-    int circuitPermute[];
+    CircuitMatrix matrices[];
     boolean circuitNonLinear;
     int voltageSourceCount;
-    int circuitMatrixSize;
     boolean needsStamp;
 
     // mapping from elements to connected routed wires
@@ -537,14 +535,14 @@ public class SimulationManager {
     }
     
     void calculateClosures() {
-	int nodeCount = nodeList.size();
-	int closureIndex[] = new int[nodeCount];
+	int totalNodes = nodeList.size();
+	int closureIndex[] = new int[totalNodes];
 	int i;
-	for (i = 1; i != nodeCount; i++)
+	for (i = 1; i != totalNodes; i++)
 	    closureIndex[i] = -1;
 
 	int closureCount = 0;
-	for (i = 1; i != nodeCount; i++) {
+	for (i = 1; i != totalNodes; i++) {
 	    if (closureIndex[i] >= 0)
 		continue;
 	    if (getCircuitNode(i).internal)
@@ -554,11 +552,10 @@ public class SimulationManager {
 	    Vector<Integer> stack = new Vector<Integer>();
 	    stack.add(i);
 	    closureIndex[i] = closureCount;
-	    int size = 0;
 
+	    console("starting closure " + closureCount + " from node " + i);
 	    while (!stack.isEmpty()) {
 		int n = stack.remove(stack.size() - 1);
-		size++;
 		CircuitNode cn = getCircuitNode(n);
 		int j;
 		for (j = 0; j != cn.links.size(); j++) {
@@ -572,16 +569,63 @@ public class SimulationManager {
 			if (!ce.getConnection(post1, k))
 			    continue;
 			int kn = ce.getNode(k).index;
+			if (kn == 0)
+			    continue;  // don't flood through ground
 			if (closureIndex[kn] < 0) {
-			    //console("node " + n + " connected to node " + kn + " via " + ce.getClassName());
+			    console("  node " + n + " -> node " + kn + " via " + ce.getClass().getSimpleName());
 			    closureIndex[kn] = closureCount;
 			    stack.add(kn);
 			}
 		    }
 		}
 	    }
-	    console("closure " + closureCount + ": " + size + " nodes");
 	    closureCount++;
+	}
+
+	// internal nodes get the same closure as their element's first post
+	for (i = 1; i != totalNodes; i++) {
+	    CircuitNode cn = getCircuitNode(i);
+	    if (cn.internal && closureIndex[i] < 0) {
+		// find the element that owns this internal node
+		CircuitNodeLink cnl = cn.links.get(0);
+		int ownerClosure = closureIndex[cnl.elm.getNode(0).index];
+		closureIndex[i] = ownerClosure;
+	    }
+	}
+
+	// create CircuitMatrix objects, one per closure
+	if (closureCount == 0)
+	    closureCount = 1;
+	matrices = new CircuitMatrix[closureCount];
+	for (i = 0; i != closureCount; i++)
+	    matrices[i] = new CircuitMatrix();
+
+	// count nodes per closure and assign row numbers
+	for (i = 1; i != totalNodes; i++) {
+	    int ci = closureIndex[i];
+	    if (ci < 0)
+		continue;
+	    CircuitNode cn = getCircuitNode(i);
+	    CircuitMatrix m = matrices[ci];
+	    m.nodeCount++;
+	    cn.row = m.nodeCount;  // 1-based
+	    cn.matrix = m;
+	}
+
+	// ground node: row=0, no matrix
+	CircuitNode.ground.row = 0;
+	CircuitNode.ground.matrix = null;
+
+	for (int ci = 0; ci != closureCount; ci++) {
+	    String nodeStr = "";
+	    for (i = 1; i != totalNodes; i++) {
+		if (closureIndex[i] == ci) {
+		    if (nodeStr.length() > 0)
+			nodeStr += ", ";
+		    nodeStr += i;
+		}
+	    }
+	    console("matrix " + ci + ": " + matrices[ci].nodeCount + " nodes [" + nodeStr + "]");
 	}
     }
 
@@ -755,6 +799,29 @@ public class SimulationManager {
 
 	findUnconnectedNodes();
 	calculateClosures();
+
+	// assign voltage sources to matrices
+	int vsPerMatrix[] = new int[matrices.length];
+	for (i = 0; i != voltageSourceCount; i++) {
+	    VoltageSource vs = voltageSources[i];
+	    vs.assignMatrix();
+	}
+	// assign VS row numbers (after node rows)
+	for (i = 0; i != voltageSourceCount; i++) {
+	    VoltageSource vs = voltageSources[i];
+	    CircuitMatrix m = vs.matrix;
+	    int mi = 0;
+	    for (j = 0; j != matrices.length; j++)
+		if (matrices[j] == m) { mi = j; break; }
+	    vsPerMatrix[mi]++;
+	    vs.row = m.nodeCount + vsPerMatrix[mi];  // 1-based, after node rows
+	}
+	// set matrix sizes
+	for (i = 0; i != matrices.length; i++) {
+	    matrices[i].size = matrices[i].nodeCount + vsPerMatrix[i];
+	    console("matrix " + i + ": size=" + matrices[i].size + " nodes=" + matrices[i].nodeCount + " vs=" + vsPerMatrix[i]);
+	}
+
 	if (!validateCircuit())
 	    return false;
 	
@@ -792,16 +859,27 @@ public class SimulationManager {
     // this gets called after something changes in the circuit, and also when auto-adjusting timestep
     void stampCircuit() {
 	int i;
-	int matrixSize = nodeList.size()-1 + voltageSourceCount;
-	circuitMatrix = new double[matrixSize][matrixSize];
-	circuitRightSide = new double[matrixSize];
-	nodeVoltages = new double[nodeList.size()-1];
-	if (lastNodeVoltages == null || lastNodeVoltages.length != nodeVoltages.length)
-	    lastNodeVoltages = new double[nodeList.size()-1];
-	origMatrix = new double[matrixSize][matrixSize];
-	origRightSide = new double[matrixSize];
-	circuitMatrixSize = matrixSize;
-	circuitPermute = new int[matrixSize];
+
+	// initialize per-matrix arrays
+	for (i = 0; i != matrices.length; i++) {
+	    CircuitMatrix m = matrices[i];
+	    int sz = m.size;
+	    m.matrix = new double[sz][sz];
+	    m.rightSide = new double[sz];
+	    m.origMatrix = new double[sz][sz];
+	    m.origRightSide = new double[sz];
+	    m.permute = new int[sz];
+	    m.nodeVoltages = new double[m.nodeCount];
+	    if (m.lastNodeVoltages == null || m.lastNodeVoltages.length != m.nodeCount)
+		m.lastNodeVoltages = new double[m.nodeCount];
+	    m.nonLinear = false;
+	}
+
+	// set nonLinear flag per matrix
+	if (circuitNonLinear) {
+	    for (i = 0; i != matrices.length; i++)
+		matrices[i].nonLinear = true;
+	}
 
 	connectUnconnectedNodes();
 
@@ -813,27 +891,33 @@ public class SimulationManager {
 	}
 
 	// check if we called stop()
-	if (circuitMatrix == null)
+	if (matrices == null)
 	    return;
 
-	// save original matrix for restoring during nonlinear iterations
-	for (i = 0; i != matrixSize; i++)
-	    origRightSide[i] = circuitRightSide[i];
-	for (i = 0; i != matrixSize; i++)
-	    for (int j = 0; j != matrixSize; j++)
-		origMatrix[i][j] = circuitMatrix[i][j];
-
-	CirSim.console("matrix size: " + circuitMatrixSize);
+	// save original matrices for restoring during nonlinear iterations
+	for (int mi = 0; mi != matrices.length; mi++) {
+	    CircuitMatrix m = matrices[mi];
+	    int sz = m.size;
+	    for (i = 0; i != sz; i++)
+		m.origRightSide[i] = m.rightSide[i];
+	    for (i = 0; i != sz; i++)
+		for (int j = 0; j != sz; j++)
+		    m.origMatrix[i][j] = m.matrix[i][j];
+	    CirSim.console("matrix " + mi + " size: " + sz);
+	}
 
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
-	if (!circuitNonLinear) {
-	    if (!lu_factor(circuitMatrix, circuitMatrixSize, circuitPermute)) {
-		stop("Singular matrix!", null);
-		return;
+	for (int mi = 0; mi != matrices.length; mi++) {
+	    CircuitMatrix m = matrices[mi];
+	    if (!m.nonLinear) {
+		if (!lu_factor(m.matrix, m.size, m.permute)) {
+		    stop("Singular matrix!", null);
+		    return;
+		}
 	    }
 	}
-	
+
 	// copy elmList to an array to avoid a bunch of calls to canCast() when doing simulation
 	elmArr = new CircuitElm[elmList.size()];
 	int scopeElmCount = 0;
@@ -842,14 +926,14 @@ public class SimulationManager {
 	    if (elmArr[i] instanceof ScopeElm)
 		scopeElmCount++;
 	}
-	
+
 	// copy ScopeElms to an array to avoid a second pass over entire list of elms during simulation
 	ScopeElm scopeElmArr[] = new ScopeElm[scopeElmCount];
 	int j = 0;
 	for (i = 0; i != elmList.size(); i++) {
 	    if (elmArr[i] instanceof ScopeElm)
 		scopeElmArr[j++] = (ScopeElm) elmArr[i];
-	}	
+	}
 	app.scopeElmArr = scopeElmArr;
 
 	needsStamp = false;
@@ -1038,44 +1122,38 @@ public class SimulationManager {
 
     void stop(String s, CircuitElm ce) {
 	app.setStopElm(ce, Locale.LS(s));
-	circuitMatrix = null;  // causes an exception
+	matrices = null;  // causes an exception
 	app.setSimRunning(false);
 	app.analyzeFlag = false;
-//	cv.repaint();
     }
     
     // control voltage source vs with voltage from n1 to n2 (must
     // also call stampVoltageSource())
     void stampVCVS(CircuitNode n1, CircuitNode n2, double coef, VoltageSource vs) {
-	int vn = nodeList.size()+vs.index;
-	stampMatrix(vn, n1.index, coef);
-	stampMatrix(vn, n2.index, -coef);
+	stampMatrix(vs, n1, coef);
+	stampMatrix(vs, n2, -coef);
     }
 
     // stamp independent voltage source #vs, from n1 to n2, amount v
     void stampVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs, double v) {
-	int vn = nodeList.size()+vs.index;
-	stampMatrix(vn, n1.index, -1);
-	stampMatrix(vn, n2.index, 1);
-	stampRightSide(vn, v);
-	stampMatrix(n1.index, vn, 1);
-	stampMatrix(n2.index, vn, -1);
+	stampMatrix(vs, n1, -1);
+	stampMatrix(vs, n2, 1);
+	stampRightSide(vs, v);
+	stampMatrix(n1, vs, 1);
+	stampMatrix(n2, vs, -1);
     }
 
     // use this if the amount of voltage is going to be updated in doStep(), by updateVoltageSource()
     void stampVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs) {
-	int vn = nodeList.size()+vs.index;
-	stampMatrix(vn, n1.index, -1);
-	stampMatrix(vn, n2.index, 1);
-	stampRightSide(vn);
-	stampMatrix(n1.index, vn, 1);
-	stampMatrix(n2.index, vn, -1);
+	stampMatrix(vs, n1, -1);
+	stampMatrix(vs, n2, 1);
+	stampMatrix(n1, vs, 1);
+	stampMatrix(n2, vs, -1);
     }
 
     // update voltage source in doStep()
     void updateVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs, double v) {
-	int vn = nodeList.size()+vs.index;
-	stampRightSide(vn, v);
+	stampRightSide(vs, v);
     }
 
     void stampResistor(CircuitNode n1, CircuitNode n2, double r) {
@@ -1085,97 +1163,101 @@ public class SimulationManager {
 	    int a = 0;
 	    a /= a;
 	}
-	stampMatrix(n1.index, n1.index, r0);
-	stampMatrix(n2.index, n2.index, r0);
-	stampMatrix(n1.index, n2.index, -r0);
-	stampMatrix(n2.index, n1.index, -r0);
+	stampMatrix(n1, n1, r0);
+	stampMatrix(n2, n2, r0);
+	stampMatrix(n1, n2, -r0);
+	stampMatrix(n2, n1, -r0);
     }
 
     void stampConductance(CircuitNode n1, CircuitNode n2, double r0) {
-	stampMatrix(n1.index, n1.index, r0);
-	stampMatrix(n2.index, n2.index, r0);
-	stampMatrix(n1.index, n2.index, -r0);
-	stampMatrix(n2.index, n1.index, -r0);
+	stampMatrix(n1, n1, r0);
+	stampMatrix(n2, n2, r0);
+	stampMatrix(n1, n2, -r0);
+	stampMatrix(n2, n1, -r0);
     }
 
     // specify that current from cn1 to cn2 is equal to voltage from vn1 to vn2, divided by g
     void stampVCCurrentSource(CircuitNode cn1, CircuitNode cn2, CircuitNode vn1, CircuitNode vn2, double g) {
-	stampMatrix(cn1.index, vn1.index, g);
-	stampMatrix(cn2.index, vn2.index, g);
-	stampMatrix(cn1.index, vn2.index, -g);
-	stampMatrix(cn2.index, vn1.index, -g);
+	stampMatrix(cn1, vn1, g);
+	stampMatrix(cn2, vn2, g);
+	stampMatrix(cn1, vn2, -g);
+	stampMatrix(cn2, vn1, -g);
     }
 
     void stampCurrentSource(CircuitNode n1, CircuitNode n2, double i) {
-	stampRightSide(n1.index, -i);
-	stampRightSide(n2.index, i);
+	stampRightSide(n1, -i);
+	stampRightSide(n2, i);
     }
 
     // stamp a current source from n1 to n2 depending on current through vs
     void stampCCCS(CircuitNode n1, CircuitNode n2, VoltageSource vs, double gain) {
-	int vn = nodeList.size()+vs.index;
-	stampMatrix(n1.index, vn, gain);
-	stampMatrix(n2.index, vn, -gain);
+	stampMatrix(n1, vs, gain);
+	stampMatrix(n2, vs, -gain);
     }
-
-    // CircuitNode overloads for stampRightSide and stampNonLinear
-    void stampRightSide(CircuitNode n, double x) { stampRightSide(n.index, x); }
-    void stampRightSide(CircuitNode n) { stampRightSide(n.index); }
-    void stampNonLinear(CircuitNode n) { stampNonLinear(n.index); }
-
-    // VoltageSource overloads for stampRightSide and stampNonLinear
-    void stampRightSide(VoltageSource vs, double x) { stampRightSide(nodeList.size()+vs.index, x); }
-    void stampRightSide(VoltageSource vs) { stampRightSide(nodeList.size()+vs.index); }
-    void stampNonLinear(VoltageSource vs) { stampNonLinear(nodeList.size()+vs.index); }
 
     // stamp value x in row i, column j, meaning that a voltage change
     // of dv in node j will increase the current into node i by x dv.
     // (Unless i or j is a voltage source node.)
     void stampMatrix(CircuitNode i, CircuitNode j, double x) {
-	stampMatrix(i.index, j.index, x);
-    }
-    void stampMatrix(VoltageSource i, CircuitNode j, double x) {
-	stampMatrix(nodeList.size()+i.index, j.index, x);
-    }
-    void stampMatrix(CircuitNode i, VoltageSource j, double x) {
-	stampMatrix(i.index, nodeList.size()+j.index, x);
-    }
-    void stampMatrix(VoltageSource i, VoltageSource j, double x) {
-	stampMatrix(nodeList.size()+i.index, nodeList.size()+j.index, x);
-    }
-    void stampMatrix(int i, int j, double x) {
 	if (Double.isInfinite(x))
 	    debugger();
-	if (i > 0 && j > 0) {
-	    i--;
-	    j--;
-	    circuitMatrix[i][j] += x;
+	if (i.row > 0 && j.row > 0) {
+	    if (i.matrix != j.matrix)
+		console("stampMatrix cross-matrix! node " + i.index + " (matrix row " + i.row + ") vs node " + j.index + " (matrix row " + j.row + ")");
+	    CircuitMatrix m = (i != CircuitNode.ground) ? i.matrix : j.matrix;
+	    m.matrix[i.row-1][j.row-1] += x;
 	}
+    }
+    void stampMatrix(VoltageSource i, CircuitNode j, double x) {
+	if (Double.isInfinite(x))
+	    debugger();
+	if (j.row > 0) {
+	    if (i.matrix != j.matrix)
+		console("stampMatrix cross-matrix! vs row " + i.row + " vs node " + j.index + " (row " + j.row + ")");
+	    i.matrix.matrix[i.row-1][j.row-1] += x;
+	}
+    }
+    void stampMatrix(CircuitNode i, VoltageSource j, double x) {
+	if (Double.isInfinite(x))
+	    debugger();
+	if (i.row > 0) {
+	    if (i.matrix != j.matrix)
+		console("stampMatrix cross-matrix! node " + i.index + " (row " + i.row + ") vs vs row " + j.row);
+	    j.matrix.matrix[i.row-1][j.row-1] += x;
+	}
+    }
+    void stampMatrix(VoltageSource i, VoltageSource j, double x) {
+	if (Double.isInfinite(x))
+	    debugger();
+	if (i.matrix != j.matrix)
+	    console("stampMatrix cross-matrix! vs row " + i.row + " vs vs row " + j.row);
+	i.matrix.matrix[i.row-1][j.row-1] += x;
     }
 
     // stamp value x on the right side of row i, representing an
     // independent current source flowing into node i
-    void stampRightSide(int i, double x) {
-	if (i > 0) {
-	    i--;
-	    circuitRightSide[i] += x;
-	}
+    void stampRightSide(CircuitNode n, double x) {
+	if (n.row > 0)
+	    n.matrix.rightSide[n.row-1] += x;
+    }
+    void stampRightSide(VoltageSource vs, double x) {
+	vs.matrix.rightSide[vs.row-1] += x;
     }
 
-    // indicate that the value on the right side of row i changes in doStep()
-    void stampRightSide(int i) {
-    }
+    // indicate that the value on the right side of row changes in doStep() (no-ops)
+    void stampRightSide(CircuitNode n) { }
+    void stampRightSide(VoltageSource vs) { }
 
-    // indicate that the values on the left side of row i change in doStep()
-    void stampNonLinear(int i) {
-    }
+    // indicate that the values on the left side of row change in doStep() (no-ops)
+    void stampNonLinear(CircuitNode n) { }
+    void stampNonLinear(VoltageSource vs) { }
 
     boolean converged;
     int subIterations;
     
     void runCircuit(boolean didAnalyze) {
-	if (circuitMatrix == null || elmList.size() == 0) {
-	    circuitMatrix = null;
+	if (matrices == null || elmList.size() == 0) {
+	    matrices = null;
 	    return;
 	}
 	int iter;
@@ -1221,14 +1303,15 @@ public class SimulationManager {
 	    for (subiter = 0; subiter != subiterCount; subiter++) {
 		converged = true;
 		subIterations = subiter;
-//		if (t % .030 < .002 && timeStep > 1e-6)  // force nonconvergence for debugging
-//		    converged = false;
-		for (i = 0; i != circuitMatrixSize; i++)
-		    circuitRightSide[i] = origRightSide[i];
-		if (circuitNonLinear) {
-		    for (i = 0; i != circuitMatrixSize; i++)
-			for (j = 0; j != circuitMatrixSize; j++)
-			    circuitMatrix[i][j] = origMatrix[i][j];
+		for (int mi = 0; mi != matrices.length; mi++) {
+		    CircuitMatrix m = matrices[mi];
+		    for (i = 0; i != m.size; i++)
+			m.rightSide[i] = m.origRightSide[i];
+		    if (m.nonLinear) {
+			for (i = 0; i != m.size; i++)
+			    for (j = 0; j != m.size; j++)
+				m.matrix[i][j] = m.origMatrix[i][j];
+		    }
 		}
 		for (i = 0; i != elmArr.length; i++)
 		    elmArr[i].doStep();
@@ -1236,43 +1319,46 @@ public class SimulationManager {
 		    return;
 		boolean printit = debugprint;
 		debugprint = false;
-		if (circuitMatrixSize < 8) {
-		    // we only need this for debugging purposes, so skip it for large matrices 
-		    for (j = 0; j != circuitMatrixSize; j++) {
-			for (i = 0; i != circuitMatrixSize; i++) {
-			    double x = circuitMatrix[i][j];
-			    if (Double.isNaN(x) || Double.isInfinite(x)) {
-				stop("nan/infinite matrix!", null);
-				console("circuitMatrix " + i + " " + j + " is " + x);
-				return;
+		for (int mi = 0; mi != matrices.length; mi++) {
+		    CircuitMatrix m = matrices[mi];
+		    if (m.size < 8) {
+			for (j = 0; j != m.size; j++) {
+			    for (i = 0; i != m.size; i++) {
+				double x = m.matrix[i][j];
+				if (Double.isNaN(x) || Double.isInfinite(x)) {
+				    stop("nan/infinite matrix!", null);
+				    console("matrix " + mi + " [" + i + "][" + j + "] is " + x);
+				    return;
+				}
 			    }
 			}
 		    }
-		}
-		if (printit) {
-		    for (j = 0; j != circuitMatrixSize; j++) {
-			String x = "";
-			for (i = 0; i != circuitMatrixSize; i++)
-			    x += circuitMatrix[j][i] + ",";
-			x += "\n";
-			console(x);
+		    if (printit) {
+			console("matrix " + mi + ":");
+			for (j = 0; j != m.size; j++) {
+			    String x = "";
+			    for (i = 0; i != m.size; i++)
+				x += m.matrix[j][i] + ",";
+			    x += "\n";
+			    console(x);
+			}
 		    }
+		    if (m.nonLinear) {
+			if (converged && subiter > 0)
+			    continue;
+			if (!lu_factor(m.matrix, m.size, m.permute)) {
+			    stop("Singular matrix!", null);
+			    return;
+			}
+		    }
+		    lu_solve(m.matrix, m.size, m.permute, m.rightSide);
+		    applySolvedRightSide(m);
+		}
+		if (printit)
 		    console("done");
-		}
-		if (circuitNonLinear) {
-		    // stop if converged (elements check for convergence in doStep())
-		    if (converged && subiter > 0)
-			break;
-		    if (!lu_factor(circuitMatrix, circuitMatrixSize,
-				  circuitPermute)) {
-			stop("Singular matrix!", null);
-			return;
-		    }
-		}
-		lu_solve(circuitMatrix, circuitMatrixSize, circuitPermute,
-			 circuitRightSide);
-		applySolvedRightSide(circuitRightSide);
 		if (!circuitNonLinear)
+		    break;
+		if (converged && subiter > 0)
 		    break;
 	    }
 	    if (subiter == subiterCount) {
@@ -1288,7 +1374,8 @@ public class SimulationManager {
 		    break;
 		}
 		// we reduced the timestep.  reset circuit state to the way it was at start of iteration
-		setNodeVoltages(lastNodeVoltages);
+		for (int mi = 0; mi != matrices.length; mi++)
+		    setNodeVoltages(matrices[mi], matrices[mi].lastNodeVoltages);
 		stampCircuit();
 		continue;
 	    }
@@ -1310,8 +1397,11 @@ public class SimulationManager {
 		calcWireCurrents();
 	    app.onTimeStep();
 	    // save last node voltages so we can restart the next iteration if necessary
-	    for (i = 0; i != lastNodeVoltages.length; i++)
-		lastNodeVoltages[i] = nodeVoltages[i];
+	    for (int mi = 0; mi != matrices.length; mi++) {
+		CircuitMatrix m = matrices[mi];
+		for (i = 0; i != m.nodeCount; i++)
+		    m.lastNodeVoltages[i] = m.nodeVoltages[i];
+	    }
 //	    console("set lastrightside at " + t + " " + lastNodeVoltages);
 		
 	    tm = System.currentTimeMillis();
@@ -1329,33 +1419,39 @@ public class SimulationManager {
 //	System.out.println((System.currentTimeMillis()-lastFrameTime)/(double) iter);
     }
 
-    // set node voltages given right side found by solving matrix
-    void applySolvedRightSide(double rs[]) {
-//	console("setvoltages " + rs);
+    // set node voltages given right side found by solving one matrix
+    void applySolvedRightSide(CircuitMatrix m) {
 	int j;
-	for (j = 0; j != circuitMatrixSize; j++) {
-	    double res = rs[j];
+	for (j = 0; j != m.size; j++) {
+	    double res = m.rightSide[j];
 	    if (Double.isNaN(res)) {
 		converged = false;
 		break;
 	    }
-	    if (j < nodeList.size()-1) {
-		nodeVoltages[j] = res;
-	    } else {
-		int ji = j-(nodeList.size()-1);
-		voltageSources[ji].elm.setCurrent(voltageSources[ji], res);
+	    if (j < m.nodeCount) {
+		m.nodeVoltages[j] = res;
 	    }
 	}
-	
-	setNodeVoltages(nodeVoltages);
+	// set currents for voltage sources in this matrix
+	for (j = 0; j != voltageSourceCount; j++) {
+	    VoltageSource vs = voltageSources[j];
+	    if (vs.matrix == m) {
+		double res = m.rightSide[vs.row-1];
+		if (!Double.isNaN(res))
+		    vs.elm.setCurrent(vs, res);
+	    }
+	}
+	setNodeVoltages(m, m.nodeVoltages);
     }
-    
-    // set node voltages in each element given an array of node voltages
-    void setNodeVoltages(double nv[]) {
+
+    // set node voltages in each element given an array of node voltages for one matrix
+    void setNodeVoltages(CircuitMatrix m, double nv[]) {
 	int j, k;
-	for (j = 0; j != nv.length; j++) {
-	    double res = nv[j];
-	    CircuitNode cn = getCircuitNode(j+1);
+	for (j = 1; j != nodeList.size(); j++) {
+	    CircuitNode cn = getCircuitNode(j);
+	    if (cn.matrix != m)
+		continue;
+	    double res = nv[cn.row-1];
 	    for (k = 0; k != cn.links.size(); k++) {
 		CircuitNodeLink cnl = cn.links.elementAt(k);
 		cnl.elm.setNodeVoltage(cnl.num, res);
@@ -1671,8 +1767,10 @@ public class SimulationManager {
 	Integer node = LabeledNodeElm.getByName(name);
 	if (node == null || node == 0)
 	    return 0;
-	// subtract one because ground is not included in nodeVoltages[]
-	return nodeVoltages[node.intValue()-1];
+	CircuitNode cn = getCircuitNode(node.intValue());
+	if (cn == null || cn.matrix == null)
+	    return 0;
+	return cn.matrix.nodeVoltages[cn.row-1];
     }
 
     static class RoutedWireConnection {

@@ -164,10 +164,13 @@ class TransLineElm extends CircuitElm {
     VoltageSource voltSource1, voltSource2;
     double current1, current2, curCount1, curCount2;
     void setVoltageSource(int n, VoltageSource v) {
-	if (n == 0)
+	if (n == 0) {
 	    voltSource1 = v;
-	else
+	    v.setNodes(nodes[4], nodes[0]);
+	} else {
 	    voltSource2 = v;
+	    v.setNodes(nodes[5], nodes[1]);
+	}
     }
     void setCurrent(VoltageSource vs, double c) {
 	if (vs == voltSource1)
