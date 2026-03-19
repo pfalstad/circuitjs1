@@ -32,7 +32,7 @@ class ThreePhaseMotorElm extends CircuitElm {
 	J = 1;
 	angle = pi/2; speed = filteredSpeed = 0;
 	b= 0.05;
-        voltSources = new int[2];
+        voltSources = new VoltageSource[2];
         curcounts = new double[3];
         coilCurrents = new double[coilCount];
     }
@@ -49,7 +49,7 @@ class ThreePhaseMotorElm extends CircuitElm {
 	try {
 	    J = new Double(st.nextToken()).doubleValue();
 	} catch (Exception e) { J = 1; }
-        voltSources = new int[2];
+        voltSources = new VoltageSource[2];
         curcounts = new double[3];
         coilCurrents = new double[coilCount];
     }
@@ -196,9 +196,9 @@ class ThreePhaseMotorElm extends CircuitElm {
     double coilCurSourceValues[];
     double xformMatrix[][];
     double nodeCurrents[];
-    int voltSources[];
+    VoltageSource voltSources[];
     
-    void setVoltageSource(int n, int v) { voltSources[n] = v; }
+    void setVoltageSource(int n, VoltageSource v) { voltSources[n] = v; }
     
     double vs1value, vs2value;
 

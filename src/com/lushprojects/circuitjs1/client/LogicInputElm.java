@@ -93,7 +93,7 @@ class LogicInputElm extends SwitchElm {
 	    return new Rectangle(x2-10, y2-10, 20, 20);
 	}	
 
-	void setCurrent(int vs, double c) { current = c; }
+	void setCurrent(VoltageSource vs, double c) { current = c; }
 	void calculateCurrent() {}
 	void stamp() {
 	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);

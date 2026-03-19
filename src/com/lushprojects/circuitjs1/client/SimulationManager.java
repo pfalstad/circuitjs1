@@ -23,7 +23,7 @@ public class SimulationManager {
     Vector<CircuitElm> elmList;
     
     Vector<CircuitNode> nodeList;
-    CircuitElm voltageSources[];
+    VoltageSource voltageSources[];
 
     double circuitMatrix[][], circuitRightSide[], lastNodeVoltages[], nodeVoltages[], origRightSide[], origMatrix[][];
     RowInfo circuitRowInfo[];
@@ -445,7 +445,7 @@ public class SimulationManager {
 	    vscount += ivs;
 	}
 	
-        voltageSources = new CircuitElm[vscount];
+        voltageSources = new VoltageSource[vscount];
     }
 
     // recursively add child elements to elmList and make node links
@@ -731,8 +731,12 @@ public class SimulationManager {
 		circuitNonLinear = true;
 	    int ivs = ce.getVoltageSourceCount();
 	    for (j = 0; j != ivs; j++) {
-		voltageSources[vscount] = ce;
-		ce.setVoltageSource(j, vscount++);
+		VoltageSource vs = new VoltageSource();
+		vs.index = vscount;
+		vs.elm = ce;
+		voltageSources[vscount] = vs;
+		ce.setVoltageSource(j, vs);
+		vscount++;
 	    }
 	}
 	voltageSourceCount = vscount;
@@ -1160,15 +1164,15 @@ public class SimulationManager {
     
     // control voltage source vs with voltage from n1 to n2 (must
     // also call stampVoltageSource())
-    void stampVCVS(CircuitNode n1, CircuitNode n2, double coef, int vs) {
-	int vn = nodeList.size()+vs;
+    void stampVCVS(CircuitNode n1, CircuitNode n2, double coef, VoltageSource vs) {
+	int vn = nodeList.size()+vs.index;
 	stampMatrix(vn, n1.index, coef);
 	stampMatrix(vn, n2.index, -coef);
     }
 
     // stamp independent voltage source #vs, from n1 to n2, amount v
-    void stampVoltageSource(CircuitNode n1, CircuitNode n2, int vs, double v) {
-	int vn = nodeList.size()+vs;
+    void stampVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs, double v) {
+	int vn = nodeList.size()+vs.index;
 	stampMatrix(vn, n1.index, -1);
 	stampMatrix(vn, n2.index, 1);
 	stampRightSide(vn, v);
@@ -1177,8 +1181,8 @@ public class SimulationManager {
     }
 
     // use this if the amount of voltage is going to be updated in doStep(), by updateVoltageSource()
-    void stampVoltageSource(CircuitNode n1, CircuitNode n2, int vs) {
-	int vn = nodeList.size()+vs;
+    void stampVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs) {
+	int vn = nodeList.size()+vs.index;
 	stampMatrix(vn, n1.index, -1);
 	stampMatrix(vn, n2.index, 1);
 	stampRightSide(vn);
@@ -1187,8 +1191,8 @@ public class SimulationManager {
     }
 
     // update voltage source in doStep()
-    void updateVoltageSource(CircuitNode n1, CircuitNode n2, int vs, double v) {
-	int vn = nodeList.size()+vs;
+    void updateVoltageSource(CircuitNode n1, CircuitNode n2, VoltageSource vs, double v) {
+	int vn = nodeList.size()+vs.index;
 	stampRightSide(vn, v);
     }
 
@@ -1226,8 +1230,8 @@ public class SimulationManager {
     }
 
     // stamp a current source from n1 to n2 depending on current through vs
-    void stampCCCS(CircuitNode n1, CircuitNode n2, int vs, double gain) {
-	int vn = nodeList.size()+vs;
+    void stampCCCS(CircuitNode n1, CircuitNode n2, VoltageSource vs, double gain) {
+	int vn = nodeList.size()+vs.index;
 	stampMatrix(n1.index, vn, gain);
 	stampMatrix(n2.index, vn, -gain);
     }
@@ -1237,17 +1241,25 @@ public class SimulationManager {
     void stampRightSide(CircuitNode n) { stampRightSide(n.index); }
     void stampNonLinear(CircuitNode n) { stampNonLinear(n.index); }
 
+    // VoltageSource overloads for stampRightSide and stampNonLinear
+    void stampRightSide(VoltageSource vs, double x) { stampRightSide(nodeList.size()+vs.index, x); }
+    void stampRightSide(VoltageSource vs) { stampRightSide(nodeList.size()+vs.index); }
+    void stampNonLinear(VoltageSource vs) { stampNonLinear(nodeList.size()+vs.index); }
+
     // stamp value x in row i, column j, meaning that a voltage change
     // of dv in node j will increase the current into node i by x dv.
     // (Unless i or j is a voltage source node.)
     void stampMatrix(CircuitNode i, CircuitNode j, double x) {
 	stampMatrix(i.index, j.index, x);
     }
-    void stampMatrix(CircuitNode i, int j, double x) {
-	stampMatrix(i.index, j, x);
+    void stampMatrix(VoltageSource i, CircuitNode j, double x) {
+	stampMatrix(nodeList.size()+i.index, j.index, x);
     }
-    void stampMatrix(int i, CircuitNode j, double x) {
-	stampMatrix(i, j.index, x);
+    void stampMatrix(CircuitNode i, VoltageSource j, double x) {
+	stampMatrix(i.index, nodeList.size()+j.index, x);
+    }
+    void stampMatrix(VoltageSource i, VoltageSource j, double x) {
+	stampMatrix(nodeList.size()+i.index, nodeList.size()+j.index, x);
     }
     void stampMatrix(int i, int j, double x) {
 	if (Double.isInfinite(x))
@@ -1475,7 +1487,7 @@ public class SimulationManager {
 		nodeVoltages[j] = res;
 	    } else {
 		int ji = j-(nodeList.size()-1);
-		voltageSources[ji].setCurrent(ji, res);
+		voltageSources[ji].elm.setCurrent(voltageSources[ji], res);
 	    }
 	}
 	
@@ -1517,9 +1529,9 @@ public class SimulationManager {
 	    // get correct current polarity
 	    // (LabeledNodes may have wi.post == 1, in which case we flip the current sign)
 	    if (wi.post == 0 || (wi.wire instanceof LabeledNodeElm))
-		wi.wire.setCurrent(-1, cur);
+		wi.wire.setCurrent(null, cur);
 	    else
-		wi.wire.setCurrent(-1, -cur);
+		wi.wire.setCurrent(null, -cur);
 	}
     }
     

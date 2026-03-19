@@ -67,7 +67,8 @@ public abstract class CircuitElm implements Editable {
     // point to which user dragged out element.  For simple two-terminal elements, this is the second node/post
     int x2, y2;
     
-    int flags, voltSource;
+    int flags;
+    VoltageSource voltSource;
     CircuitNode nodes[];
     
     // length along x and y axes, and sign of difference
@@ -248,7 +249,7 @@ public abstract class CircuitElm implements Editable {
     void draw(Graphics g) {}
     
     // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn) 
-    void setCurrent(int vn, double c) { current = c; }
+    void setCurrent(VoltageSource vs, double c) { current = c; }
     
     // get current for one- or two-terminal elements
     double getCurrent() { return current; }
@@ -673,8 +674,8 @@ public abstract class CircuitElm implements Editable {
     void setNode(int p, CircuitNode n) { nodes[p] = n; }
     
     // notify this element that its nth voltage source is v.  This value v can be passed to stampVoltageSource(), etc and will be passed back in calls to setCurrent()
-    void setVoltageSource(int n, int v) {
-	// default implementation only makes sense for subclasses with one voltage source.  If we have 0 this isn't used, if we have >1 this won't work 
+    void setVoltageSource(int n, VoltageSource v) {
+	// default implementation only makes sense for subclasses with one voltage source.  If we have 0 this isn't used, if we have >1 this won't work
 	voltSource = v;
     }
     

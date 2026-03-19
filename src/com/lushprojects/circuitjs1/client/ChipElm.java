@@ -257,7 +257,7 @@ abstract class ChipElm extends CircuitElm {
 	    return pins[n].post;
 	}
 	abstract int getVoltageSourceCount(); // output count
-	void setVoltageSource(int j, int vs) {
+	void setVoltageSource(int j, VoltageSource vs) {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
@@ -385,10 +385,10 @@ abstract class ChipElm extends CircuitElm {
 		    a++;
 	    }
 	}
-	void setCurrent(int x, double c) {
+	void setCurrent(VoltageSource vs, double c) {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++)
-		if (pins[i].output && pins[i].voltSource == x)
+		if (pins[i].output && pins[i].voltSource == vs)
 		    pins[i].current = c;
 	}
 	String getChipName() { return "chip"; }
@@ -563,7 +563,8 @@ abstract class ChipElm extends CircuitElm {
 	    }
 	    Point post, stub;
 	    Point textloc;
-	    int pos, side, side0, voltSource, bubbleX, bubbleY;
+	    int pos, side, side0, bubbleX, bubbleY;
+	    VoltageSource voltSource;
 	    String text;
 	    boolean lineOver, bubble, clock, output, value, state, selected;
 	    double curcount, current;

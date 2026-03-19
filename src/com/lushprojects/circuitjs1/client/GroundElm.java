@@ -106,7 +106,7 @@ class GroundElm extends CircuitElm {
 	    if (isOldStyle())
 		sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource, 0);
 	}
-	void setCurrent(int x, double c) { current = isOldStyle() ? -c : c; }
+	void setCurrent(VoltageSource vs, double c) { current = isOldStyle() ? -c : c; }
 
 	boolean isWireEquivalent() { return true; }
 	boolean isRemovableWire() { return true; }

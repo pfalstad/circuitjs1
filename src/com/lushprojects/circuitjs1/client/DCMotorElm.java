@@ -21,7 +21,7 @@ class DCMotorElm extends CircuitElm {
 
     double coilCurrent;
     double inertiaCurrent;
-    int[] voltSources = new int[2];
+    VoltageSource[] voltSources = new VoltageSource[2];
     public DCMotorElm(int xx, int yy) { 
 	super(xx, yy); 
 	ind = new Inductor(sim);
@@ -91,7 +91,7 @@ class DCMotorElm extends CircuitElm {
     int getPostCount() { return 2; }
     int getInternalNodeCount() { return 4; }
     int getVoltageSourceCount() { return 2; }
-    void setVoltageSource(int n, int v) { voltSources[n] = v; }
+    void setVoltageSource(int n, VoltageSource v) { voltSources[n] = v; }
     void reset() {
 	super.reset();
 	ind.reset();
@@ -158,8 +158,8 @@ class DCMotorElm extends CircuitElm {
     }
 //    public double getCurrent() { current = (volts[2]-volts[3])/resistance; return current; }
 
-    void setCurrent(int vn, double c) {
-	if (vn == voltSources[0])
+    void setCurrent(VoltageSource vs, double c) {
+	if (vs == voltSources[0])
 	    current = c;
     }
     

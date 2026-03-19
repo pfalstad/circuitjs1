@@ -129,7 +129,7 @@ class VaractorElm extends DiodeElm {
     }
 
     int getShortcut() { return 0; }
-    void setCurrent(int x, double c) { capCurrent = c; }
+    void setCurrent(VoltageSource vs, double c) { capCurrent = c; }
     double voltSourceValue;
     int getVoltageSourceCount() { return 1; }
     int getInternalNodeCount() { return 1; }

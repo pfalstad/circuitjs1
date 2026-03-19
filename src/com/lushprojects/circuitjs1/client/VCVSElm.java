@@ -44,8 +44,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	String getChipName() { return "VCVS"; } 
 	void stamp() {
-            int vn = pins[inputCount].voltSource + sim.nodeList.size();
-            sim.stampNonLinear(vn);
+            sim.stampNonLinear(pins[inputCount].voltSource);
             sim.stampVoltageSource(nodes[inputCount+1], nodes[inputCount], pins[inputCount].voltSource);
 	}
 
@@ -59,7 +58,7 @@ package com.lushprojects.circuitjs1.client;
 //        	if (Double.isNaN(volts[i]))
 //        	    volts[i] = 0;
             }
-            int vn = pins[inputCount].voltSource + sim.nodeList.size();
+            VoltageSource vn = pins[inputCount].voltSource;
             if (expr != null) {
         	// calculate output
         	for (i = 0; i != inputCount; i++)
@@ -69,7 +68,7 @@ package com.lushprojects.circuitjs1.client;
         	if (Math.abs(volts[inputCount]-volts[inputCount+1]-v0) > Math.abs(v0)*.01 && sim.subIterations < 100)
         	    sim.converged = false;
         	double rs = v0;
-        	
+
         	// calculate and stamp output derivatives
         	for (i = 0; i != inputCount; i++) {
         	    double dv = volts[i]-lastVolts[i];
@@ -103,8 +102,8 @@ package com.lushprojects.circuitjs1.client;
 	int getDumpType() { return 212; }
         boolean hasCurrentOutput() { return false; }
 
-        void setCurrent(int vn, double c) {
-            if (pins[inputCount].voltSource == vn) {
+        void setCurrent(VoltageSource vs, double c) {
+            if (pins[inputCount].voltSource == vs) {
                 pins[inputCount].current = c;
                 pins[inputCount+1].current = -c;
             }
