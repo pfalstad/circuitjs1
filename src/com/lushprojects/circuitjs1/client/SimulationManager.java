@@ -26,12 +26,10 @@ public class SimulationManager {
     VoltageSource voltageSources[];
 
     double circuitMatrix[][], circuitRightSide[], lastNodeVoltages[], nodeVoltages[], origRightSide[], origMatrix[][];
-    RowInfo circuitRowInfo[];
     int circuitPermute[];
     boolean circuitNonLinear;
     int voltageSourceCount;
-    int circuitMatrixSize, circuitMatrixFullSize;
-    boolean circuitNeedsMap;
+    int circuitMatrixSize;
     boolean needsStamp;
 
     // mapping from elements to connected routed wires
@@ -802,13 +800,9 @@ public class SimulationManager {
 	    lastNodeVoltages = new double[nodeList.size()-1];
 	origMatrix = new double[matrixSize][matrixSize];
 	origRightSide = new double[matrixSize];
-	circuitMatrixSize = circuitMatrixFullSize = matrixSize;
-	circuitRowInfo = new RowInfo[matrixSize];
+	circuitMatrixSize = matrixSize;
 	circuitPermute = new int[matrixSize];
-	for (i = 0; i != matrixSize; i++)
-	    circuitRowInfo[i] = new RowInfo();
-	circuitNeedsMap = false;
-	
+
 	connectUnconnectedNodes();
 
 	// stamp linear circuit elements
@@ -818,13 +812,17 @@ public class SimulationManager {
 	    ce.stamp();
 	}
 
-	if (!simplifyMatrix(matrixSize))
-	    return;
-	
 	// check if we called stop()
 	if (circuitMatrix == null)
 	    return;
-	
+
+	// save original matrix for restoring during nonlinear iterations
+	for (i = 0; i != matrixSize; i++)
+	    origRightSide[i] = circuitRightSide[i];
+	for (i = 0; i != matrixSize; i++)
+	    for (int j = 0; j != matrixSize; j++)
+		origMatrix[i][j] = circuitMatrix[i][j];
+
 	CirSim.console("matrix size: " + circuitMatrixSize);
 
 	// if a matrix is linear, we can do the lu_factor here instead of
@@ -857,122 +855,6 @@ public class SimulationManager {
 	needsStamp = false;
     }
 
-    // simplify the matrix; this speeds things up quite a bit, especially for digital circuits.
-    // or at least it did before we added wire removal
-    boolean simplifyMatrix(int matrixSize) {
-	int i, j;
-	for (i = 0; i != matrixSize; i++) {
-	    int qp = -1;
-	    double qv = 0;
-	    RowInfo re = circuitRowInfo[i];
-	    /*System.out.println("row " + i + " " + re.lsChanges + " " + re.rsChanges + " " +
-			       re.dropRow);*/
-	    
-	    //if (qp != -100) continue;   // uncomment this line to disable matrix simplification for debugging purposes
-	    
-	    if (re.lsChanges || re.dropRow || re.rsChanges)
-		continue;
-	    double rsadd = 0;
-
-	    // see if this row can be removed
-	    for (j = 0; j != matrixSize; j++) {
-		double q = circuitMatrix[i][j];
-		if (circuitRowInfo[j].type == RowInfo.ROW_CONST) {
-		    // keep a running total of const values that have been
-		    // removed already
-		    rsadd -= circuitRowInfo[j].value*q;
-		    continue;
-		}
-		// ignore zeroes
-		if (q == 0)
-		    continue;
-		// keep track of first nonzero element that is not ROW_CONST
-		if (qp == -1) {
-		    qp = j;
-		    qv = q;
-		    continue;
-		}
-		// more than one nonzero element?  give up
-		break;
-	    }
-	    if (j == matrixSize) {
-		if (qp == -1) {
-		    // probably a singular matrix, try disabling matrix simplification above to check this
-		    stop("Matrix error", null);
-		    return false;
-		}
-		RowInfo elt = circuitRowInfo[qp];
-		// we found a row with only one nonzero nonconst entry; that value
-		// is a constant
-		if (elt.type != RowInfo.ROW_NORMAL) {
-		    System.out.println("type already " + elt.type + " for " + qp + "!");
-		    continue;
-		}
-		elt.type = RowInfo.ROW_CONST;
-//		console("ROW_CONST " + i + " " + rsadd);
-		elt.value = (circuitRightSide[i]+rsadd)/qv;
-		circuitRowInfo[i].dropRow = true;
-		// find first row that referenced the element we just deleted
-		for (j = 0; j != i; j++)
-		    if (circuitMatrix[j][qp] != 0)
-			break;
-		// start over just before that
-		i = j-1;
-	    }
-	}
-	//System.out.println("ac7");
-
-	// find size of new matrix
-	int nn = 0;
-	for (i = 0; i != matrixSize; i++) {
-	    RowInfo elt = circuitRowInfo[i];
-	    if (elt.type == RowInfo.ROW_NORMAL) {
-		elt.mapCol = nn++;
-		//System.out.println("col " + i + " maps to " + elt.mapCol);
-		continue;
-	    }
-	    if (elt.type == RowInfo.ROW_CONST)
-		elt.mapCol = -1;
-	}
-
-	// make the new, simplified matrix
-	int newsize = nn;
-	double newmatx[][] = new double[newsize][newsize];
-	double newrs  []   = new double[newsize];
-	int ii = 0;
-	for (i = 0; i != matrixSize; i++) {
-	    RowInfo rri = circuitRowInfo[i];
-	    if (rri.dropRow) {
-		rri.mapRow = -1;
-		continue;
-	    }
-	    newrs[ii] = circuitRightSide[i];
-	    rri.mapRow = ii;
-	    //System.out.println("Row " + i + " maps to " + ii);
-	    for (j = 0; j != matrixSize; j++) {
-		RowInfo ri = circuitRowInfo[j];
-		if (ri.type == RowInfo.ROW_CONST)
-		    newrs[ii] -= ri.value*circuitMatrix[i][j];
-		else
-		    newmatx[ii][ri.mapCol] += circuitMatrix[i][j];
-	    }
-	    ii++;
-	}
-
-//	console("old size = " + matrixSize + " new size = " + newsize);
-	
-	circuitMatrix = newmatx;
-	circuitRightSide = newrs;
-	matrixSize = circuitMatrixSize = newsize;
-	for (i = 0; i != matrixSize; i++)
-	    origRightSide[i] = circuitRightSide[i];
-	for (i = 0; i != matrixSize; i++)
-	    for (j = 0; j != matrixSize; j++)
-		origMatrix[i][j] = circuitMatrix[i][j];
-	circuitNeedsMap = true;
-	return true;
-    }
-    
     // make list of posts we need to draw.  posts shared by 2 elements should be hidden, all
     // others should be drawn.  We can't use the node list for this purpose anymore because wires
     // have the same node number at both ends.
@@ -1265,20 +1147,8 @@ public class SimulationManager {
 	if (Double.isInfinite(x))
 	    debugger();
 	if (i > 0 && j > 0) {
-	    if (circuitNeedsMap) {
-		i = circuitRowInfo[i-1].mapRow;
-		RowInfo ri = circuitRowInfo[j-1];
-		if (ri.type == RowInfo.ROW_CONST) {
-		    //System.out.println("Stamping constant " + i + " " + j + " " + x);
-		    circuitRightSide[i] -= x*ri.value;
-		    return;
-		}
-		j = ri.mapCol;
-		//System.out.println("stamping " + i + " " + j + " " + x);
-	    } else {
-		i--;
-		j--;
-	    }
+	    i--;
+	    j--;
 	    circuitMatrix[i][j] += x;
 	}
     }
@@ -1287,26 +1157,17 @@ public class SimulationManager {
     // independent current source flowing into node i
     void stampRightSide(int i, double x) {
 	if (i > 0) {
-	    if (circuitNeedsMap) {
-		i = circuitRowInfo[i-1].mapRow;
-		//System.out.println("stamping " + i + " " + x);
-	    } else
-		i--;
+	    i--;
 	    circuitRightSide[i] += x;
 	}
     }
 
     // indicate that the value on the right side of row i changes in doStep()
     void stampRightSide(int i) {
-	//System.out.println("rschanges true " + (i-1));
-	if (i > 0)
-	    circuitRowInfo[i-1].rsChanges = true;
     }
-    
+
     // indicate that the values on the left side of row i change in doStep()
     void stampNonLinear(int i) {
-	if (i > 0)
-	    circuitRowInfo[i-1].lsChanges = true;
     }
 
     boolean converged;
@@ -1472,13 +1333,8 @@ public class SimulationManager {
     void applySolvedRightSide(double rs[]) {
 //	console("setvoltages " + rs);
 	int j;
-	for (j = 0; j != circuitMatrixFullSize; j++) {
-	    RowInfo ri = circuitRowInfo[j];
-	    double res = 0;
-	    if (ri.type == RowInfo.ROW_CONST)
-		res = ri.value;
-	    else
-		res = rs[ri.mapCol];
+	for (j = 0; j != circuitMatrixSize; j++) {
+	    double res = rs[j];
 	    if (Double.isNaN(res)) {
 		converged = false;
 		break;
