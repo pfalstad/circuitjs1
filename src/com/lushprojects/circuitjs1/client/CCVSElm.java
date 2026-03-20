@@ -157,7 +157,7 @@ class CCVSElm extends VCCSElm {
 	}
         boolean hasCurrentOutput() { return false; }
         boolean isSpiceStyle() { return (flags & FLAG_SPICE) != 0; }
-	
+
         void setCurrent(VoltageSource vs, double c) {
             int i = 0;
             if (!isSpiceStyle()) {
@@ -208,10 +208,16 @@ class CCVSElm extends VCCSElm {
         }
         
 	void setVoltageSource(int j, VoltageSource vs) {
-	    if (isSpiceStyle())
+	    if (isSpiceStyle()) {
 		pins[inputCount].voltSource = vs;
-	    else
+		vs.setNodes(nodes[inputCount+1], nodes[inputCount]);
+	    } else {
 		super.setVoltageSource(j, vs);
+		if (j < inputPairCount)
+		    vs.setNodes(nodes[j*2], nodes[j*2+1]);
+		else
+		    vs.setNodes(nodes[inputCount+1], nodes[inputCount]);
+	    }
 	}
 
         void getInfo(String arr[]) {

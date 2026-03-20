@@ -1139,6 +1139,11 @@ public abstract class CircuitElm implements Editable {
     // are n1 and n2 connected by this element?  this is used to determine
     // unconnected nodes, and look for loops
     boolean getConnection(int n1, int n2) { return true; }
+
+    // are n1 and n2 in the same matrix?  by default same as getConnection(), but
+    // can be overridden for elements like MOSFETs where the gate affects drain/source
+    // but isn't electrically connected.  n1 and n2 may be internal nodes.
+    boolean getMatrixConnection(int n1, int n2) { return getConnection(n1, n2); }
     
     // is n1 connected to ground somehow?
     boolean hasGroundConnection(int n1) { return false; }

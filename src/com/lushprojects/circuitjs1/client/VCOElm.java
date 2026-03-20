@@ -100,5 +100,6 @@ package com.lushprojects.circuitjs1.client;
 	int getPostCount() { return 6; }
 	int getVoltageSourceCount() { return 3; }
 	int getDumpType() { return 158; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	@Override boolean isDigitalChip() { return false; }
     }

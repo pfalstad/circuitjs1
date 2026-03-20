@@ -494,6 +494,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean getConnection(int n1, int n2) {
 	    return !(n1 == 0 || n2 == 0);
 	}
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	public EditInfo getEditInfo(int n) {
 		if (n == 0)
 			return new EditInfo("Threshold Voltage", pnp*vt, .01, 5);

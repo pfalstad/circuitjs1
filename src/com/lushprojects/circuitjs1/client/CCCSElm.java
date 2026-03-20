@@ -210,8 +210,10 @@ class CCCSElm extends VCCSElm {
         void setVoltageSource(int j, VoltageSource vs) {
             if (isSpiceStyle())
                 pins[inputCount].voltSource = vs;
-            else
+            else {
                 super.setVoltageSource(j, vs);
+                vs.setNodes(nodes[j*2], nodes[j*2+1]);
+            }
         }
         
         void getInfo(String arr[]) {

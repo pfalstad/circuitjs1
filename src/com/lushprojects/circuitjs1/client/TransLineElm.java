@@ -229,12 +229,13 @@ class TransLineElm extends CircuitElm {
     boolean hasGroundConnection(int n1) { return false; }
     boolean getConnection(int n1, int n2) {
 	return false;
-	/*if (comparePair(n1, n2, 0, 1))
-	  return true;
-	  if (comparePair(n1, n2, 2, 3))
-	  return true;
-	  return false;*/
     }
+
+    boolean getMatrixConnection(int n1, int n2) {
+	// odd nodes == right side, even nodes == left side
+	return ((n1 % 2) == (n2 % 2));
+    }
+
     void getInfo(String arr[]) {
 	arr[0] = "transmission line";
 	arr[1] = getUnitText(imped, Locale.ohmString);

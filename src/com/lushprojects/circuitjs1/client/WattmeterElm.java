@@ -142,6 +142,7 @@ class WattmeterElm extends CircuitElm {
 
     void setVoltageSource(int j, VoltageSource vs) {
 	voltSources[j] = vs;
+	vs.setNodes(nodes[j*2], nodes[j*2+1]);
     }
 
     void stepFinished() {

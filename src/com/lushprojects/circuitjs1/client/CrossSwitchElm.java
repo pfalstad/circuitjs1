@@ -180,6 +180,7 @@ package com.lushprojects.circuitjs1.client;
 	
         void setVoltageSource(int j, VoltageSource vs) {
             voltageSources[j] = vs;
+            vs.setNodes(nodes[j*2], nodes[j*2+1]);
         }
 
 	void stamp() {
@@ -187,7 +188,7 @@ package com.lushprojects.circuitjs1.client;
 	    if (position == 0) {
 		for (i = 0; i != poleCount; i++)
 		    sim.stampVoltageSource(nodes[i*2], nodes[i*2+1], voltageSources[i], 0);
-	    } else {		
+	    } else {
 		for (i = 0; i != poleCount; i++)
 		    sim.stampVoltageSource(nodes[i*2], nodes[3-i*2], voltageSources[i], 0);
 	    }

@@ -23,5 +23,8 @@ class VoltageSource {
 	else
 	    // fallback: use element's last node
 	    matrix = elm.getNode(elm.getPostCount()-1).matrix;
+	if (matrix == null) {
+	    CirSim.console("null matrix! " + elm + " n1=" + (n1 == null ? "null" : n1.index + " m=" + n1.matrix) + " n2=" + (n2 == null ? "null" : n2.index + " m=" + n2.matrix) + " fallback=" + elm.getNode(elm.getPostCount()-1).index);
+	}
     }
 }

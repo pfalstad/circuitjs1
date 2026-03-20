@@ -144,13 +144,19 @@ class MBBSwitchElm extends SwitchElm {
 	}
 	void setVoltageSource(int n, VoltageSource v) {
 	    voltSources[n] = v;
+	    if (both)
+		v.setNodes(nodes[0], nodes[n+1]);
+	    else if (position == 0)
+		v.setNodes(nodes[0], nodes[1]);
+	    else
+		v.setNodes(nodes[0], nodes[2]);
 	}
 	void stamp() {
 	    int vs = 0;
 	    if (both || position == 0)
-		sim.stampVoltageSource(nodes[0], nodes[1], voltSources[vs++], 0);
+		sim.stampVoltageSource(voltSources[vs++], 0);
 	    if (both || position == 2)
-		sim.stampVoltageSource(nodes[0], nodes[2], voltSources[vs++], 0);
+		sim.stampVoltageSource(voltSources[vs++], 0);
 	}
 	
 	// connection is implemented by voltage source with voltage = 0.

@@ -168,12 +168,13 @@ class DPDTSwitchElm extends SwitchElm {
 	
         void setVoltageSource(int j, VoltageSource vs) {
             voltageSources[j] = vs;
+            vs.setNodes(nodes[j*3], nodes[position+1+j*3]);
         }
 
 	void stamp() {
 	    int i;
 	    for (i = 0; i != poleCount; i++)
-		sim.stampVoltageSource(nodes[i*3], nodes[position+1+i*3], voltageSources[i], 0);
+		sim.stampVoltageSource(voltageSources[i], 0);
 	}
 		
 	int getVoltageSourceCount() {

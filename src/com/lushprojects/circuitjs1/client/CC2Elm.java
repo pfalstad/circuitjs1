@@ -75,6 +75,7 @@ import com.google.gwt.xml.client.Element;
 	int getPostCount() { return 3; }
 	int getVoltageSourceCount() { return 1; }
 	int getDumpType() { return 179; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
     }
 
 class CC2NegElm extends CC2Elm {

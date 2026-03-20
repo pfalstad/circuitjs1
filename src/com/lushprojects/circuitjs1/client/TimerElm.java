@@ -128,6 +128,7 @@ class TimerElm extends ChipElm {
     }
     int getPostCount() { return hasGroundPin() ? 8 : hasReset() ? 7 : 6; }
     int getVoltageSourceCount() { return 0; }
+    boolean getMatrixConnection(int n1, int n2) { return true; }
     int getDumpType() { return 165; }
     public EditInfo getChipEditInfo(int n) {
         if (n == 0) {

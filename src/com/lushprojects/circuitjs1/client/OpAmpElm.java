@@ -198,6 +198,7 @@ import com.google.gwt.xml.client.Document;
 	// there is no current path through the op-amp inputs, but there
 	// is an indirect path through the output to ground.
 	boolean getConnection(int n1, int n2) { return false; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	boolean hasGroundConnection(int n1) {
 	    return (n1 == 2);
 	}

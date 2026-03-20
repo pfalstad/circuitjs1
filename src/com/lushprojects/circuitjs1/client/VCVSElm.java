@@ -102,6 +102,11 @@ package com.lushprojects.circuitjs1.client;
 	int getDumpType() { return 212; }
         boolean hasCurrentOutput() { return false; }
 
+        void setVoltageSource(int j, VoltageSource vs) {
+            super.setVoltageSource(j, vs);
+            vs.setNodes(nodes[inputCount+1], nodes[inputCount]);
+        }
+
         void setCurrent(VoltageSource vs, double c) {
             if (pins[inputCount].voltSource == vs) {
                 pins[inputCount].current = c;

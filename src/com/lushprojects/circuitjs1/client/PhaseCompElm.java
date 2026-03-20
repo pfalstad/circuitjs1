@@ -66,5 +66,6 @@ class PhaseCompElm extends ChipElm {
     int getPostCount() { return 3; }
     int getVoltageSourceCount() { return 1; }
     int getDumpType() { return 161; }
+    boolean getMatrixConnection(int n1, int n2) { return true; }
 }
     

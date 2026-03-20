@@ -131,6 +131,10 @@ import com.google.gwt.xml.client.Document;
 		current = 0;
 	}
 	
+	void setVoltageSource(int n, VoltageSource v) {
+	    voltSource = v;
+	    v.setNodes(nodes[0], nodes[position+1]);
+	}
 	void stamp() {
 	    if (position == 2 && hasCenterOff()) // in center?
 		return;

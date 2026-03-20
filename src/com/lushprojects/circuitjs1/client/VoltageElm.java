@@ -122,6 +122,12 @@ class VoltageElm extends CircuitElm {
 	return 1-(x-pi)*(2/pi);
     }
     VoltageSource getVoltageSource() { return voltSource; }
+
+    void setVoltageSource(int n, VoltageSource v) {
+	super.setVoltageSource(n, v);
+	v.setNodes(nodes[0], nodes[1]);
+    }
+
     void stamp() {
 	if (waveform == WF_DC)
 	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource,

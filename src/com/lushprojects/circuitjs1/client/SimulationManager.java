@@ -545,8 +545,6 @@ public class SimulationManager {
 	for (i = 1; i != totalNodes; i++) {
 	    if (closureIndex[i] >= 0)
 		continue;
-	    if (getCircuitNode(i).internal)
-		continue;
 
 	    // flood-fill from node i
 	    Vector<Integer> stack = new Vector<Integer>();
@@ -563,10 +561,10 @@ public class SimulationManager {
 		    CircuitElm ce = cnl.elm;
 		    int post1 = cnl.num;
 		    int k;
-		    for (k = 0; k != ce.getPostCount(); k++) {
+		    for (k = 0; k != ce.getNodeCount(); k++) {
 			if (k == post1)
 			    continue;
-			if (!ce.getConnection(post1, k))
+			if (!ce.getMatrixConnection(post1, k))
 			    continue;
 			int kn = ce.getNode(k).index;
 			if (kn == 0)
@@ -580,17 +578,6 @@ public class SimulationManager {
 		}
 	    }
 	    closureCount++;
-	}
-
-	// internal nodes get the same closure as their element's first post
-	for (i = 1; i != totalNodes; i++) {
-	    CircuitNode cn = getCircuitNode(i);
-	    if (cn.internal && closureIndex[i] < 0) {
-		// find the element that owns this internal node
-		CircuitNodeLink cnl = cn.links.get(0);
-		int ownerClosure = closureIndex[cnl.elm.getNode(0).index];
-		closureIndex[i] = ownerClosure;
-	    }
 	}
 
 	// create CircuitMatrix objects, one per closure
@@ -1149,6 +1136,11 @@ public class SimulationManager {
 	stampMatrix(vs, n2, 1);
 	stampMatrix(n1, vs, 1);
 	stampMatrix(n2, vs, -1);
+    }
+
+    // stamp voltage source using nodes saved in VoltageSource
+    void stampVoltageSource(VoltageSource vs, double v) {
+	stampVoltageSource(vs.n1, vs.n2, vs, v);
     }
 
     // update voltage source in doStep()

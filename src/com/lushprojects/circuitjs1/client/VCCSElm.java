@@ -176,6 +176,7 @@ class VCCSElm extends ChipElm {
 	boolean getConnection(int n1, int n2) {
 	    return comparePair(inputCount, inputCount+1, n1, n2);
 	}
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	boolean hasGroundConnection(int n1) {
 	    return false;
 	}

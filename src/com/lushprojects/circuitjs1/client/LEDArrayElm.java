@@ -178,6 +178,7 @@ class LEDArrayElm extends ChipElm {
 	
 	// this is true but it causes strange behavior with unconnected pins so we don't do it
 //	boolean getConnection(int n1, int n2) { return true; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	
 	public EditInfo getChipEditInfo(int n) {
             if (n == 0)
