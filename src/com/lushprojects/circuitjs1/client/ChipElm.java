@@ -57,9 +57,13 @@ abstract class ChipElm extends CircuitElm {
 	    for (i = 0; i != getPostCount(); i++) {
 		if (pins == null)
 		    volts[i] = new Double(st.nextToken()).doubleValue();
-		else if (pins[i].state) {
-		    volts[i] = new Double(st.nextToken()).doubleValue();
-		    pins[i].value = volts[i] > getThreshold();
+		else {
+		    int pi = pinForPost(i);
+		    if (pins[pi].state) {
+			volts[i] = new Double(st.nextToken()).doubleValue();
+			if (bitForPost(i) == 0)
+			    pins[pi].value = volts[i] > getThreshold();
+		    }
 		}
 	    }
 	}
@@ -87,15 +91,15 @@ abstract class ChipElm extends CircuitElm {
 //	    FontMetrics fm = g.getFontMetrics();
 	    boolean hasVertical = false;
 	    // check if there are any vertical pins.  if not, we can make the labels wider
-	    for (i = 0; i != getPostCount(); i++)
+	    for (i = 0; i != getPinCount(); i++)
 		if (pins[i].side == SIDE_N || pins[i].side == SIDE_S) {
 		    hasVertical = true;
 		    break;
 		}
-	    for (i = 0; i != getPostCount(); i++) {
+	    for (i = 0; i != getPinCount(); i++) {
 		g.setFont(f);
 		Pin p = pins[i];
-		setVoltageColor(g, volts[i]);
+		setVoltageColor(g, volts[postForPin(i)]);
 		Point a = p.post;
 		Point b = p.stub;
 		drawThickLine(g, a, b);
@@ -185,7 +189,7 @@ abstract class ChipElm extends CircuitElm {
 	    int xs = flippedSizeX*cspc2;
 	    int ys = flippedSizeY*cspc2;
 	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
+	    for (i = 0; i != getPinCount(); i++) {
 		Pin p = pins[i];
 		p.side = p.side0;
 		if ((flags & FLAG_FLIP_XY) != 0)
@@ -244,7 +248,7 @@ abstract class ChipElm extends CircuitElm {
 	}
 	
 	int getOverlappingPin(int p1, int p2, int pin) {
-	    for (int i = 0; i != getPostCount(); i++) {
+	    for (int i = 0; i != getPinCount(); i++) {
 		if (pin == i)
 		    continue;
 		if (pins[i].overlaps(p1, p2))
@@ -254,57 +258,106 @@ abstract class ChipElm extends CircuitElm {
 	}
 	
 	Point getPost(int n) {
-	    return pins[n].post;
+	    int pi = pinForPost(n);
+	    int bit = bitForPost(n);
+	    if (bit == 0)
+		return pins[pi].post;
+	    Point p = new Point(pins[pi].post);
+	    p.z = bit;
+	    return p;
+	}
+	int getPostWidth(int n) {
+	    return pins[pinForPost(n)].busWidth;
 	}
 	abstract int getVoltageSourceCount(); // output count
 	void setVoltageSource(int j, VoltageSource vs) {
-	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
+	    int postIdx = 0;
+	    for (int i = 0; i < pins.length; i++) {
 		Pin p = pins[i];
-		if (p.output && j-- == 0) {
-		    p.voltSource = vs;
-		    vs.setNodes(CircuitNode.ground, nodes[i]);
-		    return;
+		if (p.output) {
+		    for (int b = 0; b < p.busWidth; b++) {
+			if (j-- == 0) {
+			    if (p.busWidth > 1) {
+				if (p.busVoltSources == null)
+				    p.busVoltSources = new VoltageSource[p.busWidth];
+				p.busVoltSources[b] = vs;
+			    } else {
+				p.voltSource = vs;
+			    }
+			    vs.setNodes(CircuitNode.ground, nodes[postIdx + b]);
+			    return;
+			}
+		    }
 		}
+		postIdx += p.busWidth;
 	    }
 	    System.out.println("setVoltageSource failed for " + this);
 	}
 	void stamp() {
-	    int i;
+	    int postIdx = 0;
 	    int vsc = 0;
-	    for (i = 0; i != getPostCount(); i++) {
+	    for (int i = 0; i < pins.length; i++) {
 		Pin p = pins[i];
 		if (p.output) {
-		    sim.stampVoltageSource(CircuitNode.ground, nodes[i], p.voltSource);
-		    vsc++;
+		    for (int b = 0; b < p.busWidth; b++) {
+			VoltageSource vs = (p.busWidth > 1) ? p.busVoltSources[b] : p.voltSource;
+			sim.stampVoltageSource(CircuitNode.ground, nodes[postIdx + b], vs);
+			vsc++;
+		    }
 		}
+		postIdx += p.busWidth;
 	    }
 	    if (vsc != getVoltageSourceCount())
 		CirSim.console("voltage source count does not match number of outputs");
 	}
 	void execute() {}
 	void doStep() {
-	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
+	    int postIdx = 0;
+	    for (int i = 0; i < pins.length; i++) {
 		Pin p = pins[i];
-		if (!p.output)
-		    p.value = volts[i] > getThreshold();
+		if (!p.output) {
+		    if (p.busWidth > 1) {
+			if (p.busValues == null)
+			    p.busValues = new boolean[p.busWidth];
+			for (int b = 0; b < p.busWidth; b++)
+			    p.busValues[b] = volts[postIdx + b] > getThreshold();
+			p.value = p.busValues[0];
+		    } else {
+			p.value = volts[postIdx] > getThreshold();
+		    }
+		}
+		postIdx += p.busWidth;
 	    }
 	    execute();
-	    for (i = 0; i != getPostCount(); i++) {
+	    postIdx = 0;
+	    for (int i = 0; i < pins.length; i++) {
 		Pin p = pins[i];
-		if (p.output)
-		    sim.updateVoltageSource(CircuitNode.ground, nodes[i], p.voltSource,
-					p.value ? highVoltage : 0);
+		if (p.output) {
+		    if (p.busWidth > 1) {
+			if (p.busValues == null)
+			    p.busValues = new boolean[p.busWidth];
+			for (int b = 0; b < p.busWidth; b++)
+			    sim.updateVoltageSource(CircuitNode.ground, nodes[postIdx + b],
+				p.busVoltSources[b], p.busValues[b] ? highVoltage : 0);
+		    } else {
+			sim.updateVoltageSource(CircuitNode.ground, nodes[postIdx], p.voltSource,
+			    p.value ? highVoltage : 0);
+		    }
+		}
+		postIdx += p.busWidth;
 	    }
 	}
 	void reset() {
 	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
+	    for (i = 0; i != pins.length; i++) {
 		pins[i].value = false;
 		pins[i].curcount = 0;
-		volts[i] = 0;
+		if (pins[i].busValues != null)
+		    for (int b = 0; b < pins[i].busValues.length; b++)
+			pins[i].busValues[b] = false;
 	    }
+	    for (i = 0; i != getPostCount(); i++)
+		volts[i] = 0;
 	    lastClock = false;
 	}
 	
@@ -319,10 +372,12 @@ abstract class ChipElm extends CircuitElm {
 		s += " " + bits;
 	    if (hasCustomVoltage())
 		s += " " + highVoltage;
-	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
+	    int postIdx = 0;
+	    for (int i = 0; i != pins.length; i++) {
 		if (pins[i].state)
-		    s += " " + volts[i];
+		    for (int b = 0; b < pins[i].busWidth; b++)
+			s += " " + volts[postIdx + b];
+		postIdx += pins[i].busWidth;
 	    }
 	    return s;
 	}
@@ -336,10 +391,15 @@ abstract class ChipElm extends CircuitElm {
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
-	    int i;
-	    for (i = 0; i != getPostCount(); i++) {
-		if (pins[i].state && volts[i] > 0)
-		    XMLSerializer.dumpAttr(elem, "v" + i, volts[i]);
+	    int postIdx = 0;
+	    for (int i = 0; i < pins.length; i++) {
+		if (pins[i].state)
+		    for (int b = 0; b < pins[i].busWidth; b++) {
+			int pIdx = postIdx + b;
+			if (volts[pIdx] > 0)
+			    XMLSerializer.dumpAttr(elem, "v" + pIdx, volts[pIdx]);
+		    }
+		postIdx += pins[i].busWidth;
 	    }
 	}
 
@@ -354,10 +414,12 @@ abstract class ChipElm extends CircuitElm {
 
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
-		final int i0 = i;
-		volts[i0] = xml.parseDoubleAttr("v" + i, 0);
-		if (pins != null)
-		    pins[i].value = volts[i] > getThreshold();
+		volts[i] = xml.parseDoubleAttr("v" + i, 0);
+		if (pins != null) {
+		    int pi = pinForPost(i);
+		    if (bitForPost(i) == 0)
+			pins[pi].value = volts[i] > getThreshold();
+		}
 	    }
 	}
 
@@ -370,7 +432,7 @@ abstract class ChipElm extends CircuitElm {
 	void getInfo(String arr[]) {
 	    arr[0] = getChipName();
 	    int i, a = 1;
-	    for (i = 0; i != getPostCount(); i++) {
+	    for (i = 0; i != getPinCount(); i++) {
 		Pin p = pins[i];
 		if (arr[a] != null)
 		    arr[a] += "; ";
@@ -381,25 +443,44 @@ abstract class ChipElm extends CircuitElm {
 		    t += '\'';
 		if (p.clock)
 		    t = "Clk";
-		arr[a] += t + " = " + getVoltageText(volts[i]);
+		if (p.busWidth > 1) {
+		    int value = 0;
+		    int base = postForPin(i);
+		    for (int b = 0; b < p.busWidth; b++)
+			if (volts[base + b] > getThreshold())
+			    value |= 1 << b;
+		    arr[a] += t + " = " + value;
+		} else {
+		    arr[a] += t + " = " + getVoltageText(volts[postForPin(i)]);
+		}
 		if (i % 2 == 1)
 		    a++;
 	    }
 	}
 	void setCurrent(VoltageSource vs, double c) {
-	    int i;
-	    for (i = 0; i != getPostCount(); i++)
-		if (pins[i].output && pins[i].voltSource == vs)
-		    pins[i].current = c;
+	    for (int i = 0; i < pins.length; i++) {
+		Pin p = pins[i];
+		if (!p.output) continue;
+		if (p.busWidth > 1 && p.busVoltSources != null) {
+		    for (int b = 0; b < p.busWidth; b++)
+			if (p.busVoltSources[b] == vs) {
+			    if (b == 0) p.current = c;
+			    return;
+			}
+		} else if (p.voltSource == vs) {
+		    p.current = c;
+		    return;
+		}
+	    }
 	}
 	String getChipName() { return "chip"; }
 	boolean getConnection(int n1, int n2) { return false; }
 	boolean hasGroundConnection(int n1) {
-	    return pins[n1].output;
+	    return pins[pinForPost(n1)].output;
 	}
-	
+
 	double getCurrentIntoNode(int n) {
-	    return pins[n].current;
+	    return pins[pinForPost(n)].current;
 	}
 	
 	boolean isFlippedX () { return hasFlag(FLAG_FLIP_X ); }
@@ -569,6 +650,9 @@ abstract class ChipElm extends CircuitElm {
 	    String text;
 	    boolean lineOver, bubble, clock, output, value, state, selected;
 	    double curcount, current;
+	    int busWidth = 1;
+	    boolean[] busValues;
+	    VoltageSource[] busVoltSources;
             int clockPointsX[], clockPointsY[];
 	    void setPoint(int px, int py, int dx, int dy, int dax, int day, int sx, int sy) {
 		if (isFlippedX()) {
@@ -665,6 +749,31 @@ abstract class ChipElm extends CircuitElm {
 	    }
 	    
 
+	}
+
+	int getPinCount() { return pins.length; }
+
+	int pinForPost(int n) {
+	    for (int i = 0; i < pins.length; i++) {
+		if (n < pins[i].busWidth) return i;
+		n -= pins[i].busWidth;
+	    }
+	    return -1;
+	}
+
+	int bitForPost(int n) {
+	    for (int i = 0; i < pins.length; i++) {
+		if (n < pins[i].busWidth) return n;
+		n -= pins[i].busWidth;
+	    }
+	    return 0;
+	}
+
+	int postForPin(int pinIndex) {
+	    int post = 0;
+	    for (int i = 0; i < pinIndex; i++)
+		post += pins[i].busWidth;
+	    return post;
 	}
     }
 

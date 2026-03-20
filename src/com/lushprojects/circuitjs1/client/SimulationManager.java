@@ -99,6 +99,41 @@ public class SimulationManager {
     // the element list that wireInfoList was built from
     HashSet<CircuitElm> wireInfoElmSet;
     
+    // detect bus widths for wires based on connected elements
+    void detectBusWidths() {
+	HashMap<Point, Integer> widthMap = new HashMap<Point, Integer>();
+	for (int i = 0; i < elmList.size(); i++) {
+	    CircuitElm ce = elmList.get(i);
+	    if (ce.isRemovableWire()) continue;
+	    for (int j = 0; j < ce.getPostCount(); j++) {
+		int w = ce.getPostWidth(j);
+		if (w > 1) {
+		    Point pt = ce.getPost(j);
+		    Point key = new Point(pt.x, pt.y); // z=0 for map key
+		    Integer existing = widthMap.get(key);
+		    if (existing == null || w > existing)
+			widthMap.put(key, w);
+		}
+	    }
+	}
+	for (int i = 0; i < elmList.size(); i++) {
+	    CircuitElm ce = elmList.get(i);
+	    if (!(ce instanceof WireElm)) continue;
+	    WireElm wire = (WireElm) ce;
+	    Point p1 = new Point(wire.x, wire.y);
+	    Point p2 = new Point(wire.x2, wire.y2);
+	    Integer w1 = widthMap.get(p1);
+	    Integer w2 = widthMap.get(p2);
+	    int w = 1;
+	    if (w1 != null) w = w1;
+	    if (w2 != null && w2 > w) w = w2;
+	    if (w != wire.busWidth) {
+		wire.busWidth = w;
+		wire.allocNodes();
+	    }
+	}
+    }
+
     // find groups of nodes connected by wire equivalents and map them to the same node.  this speeds things
     // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
     // The actual node we map to is not assigned yet.  Instead we map to the same NodeMapEntry.
@@ -121,40 +156,41 @@ public class SimulationManager {
 		continue;
 	    ce.hasWireInfo = false;
 	    wireInfoList.add(new WireInfo(ce));
-	    Point p0 = ce.getPost(0);
-	    NodeMapEntry cn  = nm.get(p0);
 
-	    // what post are we connected to
-	    Point p1 = (uiList && ce instanceof LabeledNodeElm) ? null : ce.getConnectedPost();
-	    if (p1 == null) {
-		// no connected post (true for labeled node the first time it's encountered, or ground)
-		if (cn == null) {
+	    // for bus wires, merge each bit's endpoints; for others, just one pair
+	    int pairs = (ce instanceof WireElm) ? ((WireElm)ce).busWidth : 1;
+	    for (int j = 0; j < pairs; j++) {
+		Point p0 = ce.getPost(j);
+		NodeMapEntry cn = nm.get(p0);
+
+		// what post are we connected to
+		Point p1 = (uiList && ce instanceof LabeledNodeElm) ? null : ce.getConnectedPost(j);
+		if (p1 == null) {
+		    // no connected post (true for labeled node the first time it's encountered, or ground)
+		    if (cn == null) {
+			cn = new NodeMapEntry();
+			nm.put(p0, cn);
+		    }
+		    continue;
+		}
+		NodeMapEntry cn2 = nm.get(p1);
+		if (cn != null && cn2 != null) {
+		    // merge nodes; go through map and change all keys pointing to cn2 to point to cn
+		    for (Map.Entry<Point, NodeMapEntry> entry : nm.entrySet()) {
+			if (entry.getValue() == cn2)
+			    entry.setValue(cn);
+		    }
+		} else if (cn != null) {
+		    nm.put(p1, cn);
+		} else if (cn2 != null) {
+		    nm.put(p0, cn2);
+		} else {
+		    // new entry
 		    cn = new NodeMapEntry();
 		    nm.put(p0, cn);
+		    nm.put(p1, cn);
 		}
-		continue;
 	    }
-	    NodeMapEntry cn2 = nm.get(p1);
-	    if (cn != null && cn2 != null) {
-		// merge nodes; go through map and change all keys pointing to cn2 to point to cn
-		for (Map.Entry<Point, NodeMapEntry> entry : nm.entrySet()) {
-		    if (entry.getValue() == cn2)
-			entry.setValue(cn);
-		}
-		continue;
-	    }
-	    if (cn != null) {
-		nm.put(p1, cn);
-		continue;
-	    }
-	    if (cn2 != null) {
-		nm.put(p0, cn2);
-		continue;
-	    }
-	    // new entry
-	    cn = new NodeMapEntry();
-	    nm.put(p0, cn);
-	    nm.put(p1, cn);
 	}
 	if (uiList)
 	    uiNodeMap = nm;
@@ -268,8 +304,8 @@ public class SimulationManager {
 		    neighbors0.add(ce);
 		    if (notReady) isReady0 = false;
 		} else if (wire.getPostCount() > 1) {
-		    Point p2 = wire.getConnectedPost();
-		    if (pt.x == p2.x && pt.y == p2.y) { 
+		    Point p2 = wire.getConnectedPost(0);
+		    if (p2 != null && pt.x == p2.x && pt.y == p2.y) {
 			neighbors1.add(ce);
 			// console("  found immediate neighbor " + ce + " " + pt);
 			if (notReady) isReady1 = false;
@@ -723,6 +759,7 @@ public class SimulationManager {
 	nodeList = new Vector<CircuitNode>();
 	elmList = app.elmList;
 
+	detectBusWidths();
 	calculateWireClosure();
 	setGroundNode(subcircuit);
 

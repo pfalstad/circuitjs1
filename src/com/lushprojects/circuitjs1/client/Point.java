@@ -22,40 +22,53 @@ package com.lushprojects.circuitjs1.client;
 public class Point {
 	public int x;
 	public int y;
-	
+	public int z;
+
 	 public Point(int i, int j) {
 		x=i;
 		y=j;
 	}
-	 
+
+	 public Point(int i, int j, int k) {
+		x=i;
+		y=j;
+		z=k;
+	}
+
 	 public Point(Point p) {
 		x=p.x;
 		y=p.y;
+		z=p.z;
 	}
-	 
+
 	 public Point() {
 		 x=0;
 		 y=0;
 	 }
-	 
+
 	 public void setLocation(Point p) {
 		 x=p.x;
 		 y=p.y;
+		 z=p.z;
 	 }
-	 
-         public String toString() { return "Point(" + x + "," + y + ")"; }
+
+         public String toString() {
+             if (z != 0)
+                 return "Point(" + x + "," + y + "," + z + ")";
+             return "Point(" + x + "," + y + ")";
+         }
 
          @Override public boolean equals(Object other) {
              boolean result = false;
              if (other instanceof Point) {
                  Point that = (Point) other;
-                 result = (this.x == that.x && this.y == that.y);
+                 result = (this.x == that.x && this.y == that.y && this.z == that.z);
              }
              return result;
          }
 
          @Override public int hashCode() {
-             return (41 * (41 + x) + y);
+             return 41 * (41 * (41 + x) + y) + z;
          }
 
 	public void move(int dx, int dy) {

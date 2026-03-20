@@ -29,6 +29,7 @@ class CounterElm extends ChipElm {
 	int modulus;
 	final int FLAG_UP_DOWN = 4;
 	final int FLAG_NEGATIVE_EDGE = 8;
+	final int FLAG_BUS = 16;
 
 	public CounterElm(int xx, int yy) {
 	    super(xx, yy);
@@ -68,23 +69,41 @@ class CounterElm extends ChipElm {
 		return "Counter";
 	    return Locale.LS("Counter") + Locale.LS(" (mod ") + modulus + ")";
 	}
+	boolean useBus() { return (flags & FLAG_BUS) != 0; }
 	void setupPins() {
 	    sizeX = 2;
-	    sizeY = bits > 2 ? bits : 2;
-	    pins = new Pin[getPostCount()];
-	    pins[0] = new Pin(0, SIDE_W, "");
-	    pins[0].clock = true;
-	    pins[0].bubble = negativeEdgeTriggered();
-	    pins[1] = new Pin(sizeY-1, SIDE_W, "R");
-	    pins[1].bubble = invertreset;
-	    int i;
-	    for (i = 0; i != bits; i++) {
-		int ii = i+2;
-		pins[ii] = new Pin(i, SIDE_E, "Q" + (bits-i-1));
-		pins[ii].output = pins[ii].state = true;
+	    if (useBus()) {
+		sizeY = 2;
+		int pinCount = hasUpDown() ? 4 : 3;
+		pins = new Pin[pinCount];
+		pins[0] = new Pin(0, SIDE_W, "");
+		pins[0].clock = true;
+		pins[0].bubble = negativeEdgeTriggered();
+		pins[1] = new Pin(sizeY-1, SIDE_W, "R");
+		pins[1].bubble = invertreset;
+		pins[2] = new Pin(0, SIDE_E, "Q");
+		pins[2].output = pins[2].state = true;
+		pins[2].busWidth = bits;
+		pins[2].busValues = new boolean[bits];
+		if (hasUpDown())
+		    pins[3] = new Pin(1, SIDE_W, "U/D");
+	    } else {
+		sizeY = bits > 2 ? bits : 2;
+		pins = new Pin[getPostCount()];
+		pins[0] = new Pin(0, SIDE_W, "");
+		pins[0].clock = true;
+		pins[0].bubble = negativeEdgeTriggered();
+		pins[1] = new Pin(sizeY-1, SIDE_W, "R");
+		pins[1].bubble = invertreset;
+		int i;
+		for (i = 0; i != bits; i++) {
+		    int ii = i+2;
+		    pins[ii] = new Pin(i, SIDE_E, "Q" + (bits-i-1));
+		    pins[ii].output = pins[ii].state = true;
+		}
+		if (hasUpDown())
+		    pins[bits+2] = new Pin(sizeY-2, SIDE_W, "U/D");
 	    }
-	    if (hasUpDown())
-	        pins[bits+2] = new Pin(sizeY-2, SIDE_W, "U/D");
 	    allocNodes();
 	}
 	int getPostCount() {
@@ -110,6 +129,11 @@ class CounterElm extends ChipElm {
     		ei.checkbox = new Checkbox("Negative Edge Triggered", negativeEdgeTriggered());
     		return ei;
     	    }
+	    if (n == 5) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Bus Output", useBus());
+		return ei;
+	    }
 	    return null;
 	}
 	public void setChipEditValue(int n, EditInfo ei) {
@@ -135,6 +159,11 @@ class CounterElm extends ChipElm {
 		setupPins();
 		setPoints();
 	    }
+	    if (n == 5) {
+		flags = ei.changeFlag(flags, FLAG_BUS);
+		setupPins();
+		setPoints();
+	    }
 	}
 	boolean hasUpDown() { return (flags & FLAG_UP_DOWN) != 0; }
 	boolean negativeEdgeTriggered() { return (flags & FLAG_NEGATIVE_EDGE) != 0; }
@@ -144,31 +173,50 @@ class CounterElm extends ChipElm {
 	    if (pins[0].value != neg && lastClock == neg) {
 		int i;
 		int value = 0;
-		
+
 		// get direction
 		int dir = 1;
-		if (hasUpDown() && pins[bits+2].value)
-		    dir = -1;
-		
+		if (hasUpDown()) {
+		    int udPin = useBus() ? 3 : bits+2;
+		    if (pins[udPin].value)
+			dir = -1;
+		}
+
 		// get current value
-		int lastBit = 2+bits-1;
-		for (i = 0; i != bits; i++)
-		    if (pins[lastBit-i].value)
-			value |= 1<<i;
-		
+		if (useBus()) {
+		    for (i = 0; i != bits; i++)
+			if (pins[2].busValues[i])
+			    value |= 1<<i;
+		} else {
+		    int lastBit = 2+bits-1;
+		    for (i = 0; i != bits; i++)
+			if (pins[lastBit-i].value)
+			    value |= 1<<i;
+		}
+
 		// update value
 		value += dir;
 		if (modulus != 0)
 		   value = (value+modulus) % modulus;
-		
+
 		// convert value to binary
-		for (i = 0; i != bits; i++)
-		    pins[lastBit-i].value = (value & (1<<i)) != 0;
+		if (useBus()) {
+		    for (i = 0; i != bits; i++)
+			pins[2].busValues[i] = (value & (1<<i)) != 0;
+		} else {
+		    int lastBit = 2+bits-1;
+		    for (i = 0; i != bits; i++)
+			pins[lastBit-i].value = (value & (1<<i)) != 0;
+		}
 	    }
 	    if (!pins[1].value == invertreset) {
-		int i;
-		for (i = 0; i != bits; i++)
-		    pins[i+2].value = false;
+		if (useBus()) {
+		    for (int i = 0; i != bits; i++)
+			pins[2].busValues[i] = false;
+		} else {
+		    for (int i = 0; i != bits; i++)
+			pins[i+2].value = false;
+		}
 	    }
 	    lastClock = pins[0].value;
 	}

@@ -686,6 +686,7 @@ public abstract class CircuitElm implements Editable {
     }
     boolean nonLinear() { return false; }
     int getPostCount() { return 2; }
+    int getPostWidth(int n) { return 1; }
     
     // get CircuitNode for nth node
     CircuitNode getNode(int n) { return nodes[n]; }
@@ -698,6 +699,11 @@ public abstract class CircuitElm implements Editable {
     // return post we're connected to (for wires, so we can optimize them out in calculateWireClosure())
     Point getConnectedPost() {
 	return point2;
+    }
+
+    // return the post that post n connects through to (for bus wires, each bit connects to its counterpart)
+    Point getConnectedPost(int n) {
+	return getConnectedPost();
     }
     
     int getNodeAtPoint(int xp, int yp) {
