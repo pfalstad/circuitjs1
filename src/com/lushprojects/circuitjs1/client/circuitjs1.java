@@ -190,5 +190,4 @@ public class circuitjs1 implements EntryPoint {
 
         theApp.updateCircuit();
     }
-
 }
