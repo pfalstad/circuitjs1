@@ -242,7 +242,18 @@ import com.google.gwt.xml.client.Element;
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }
-	
+	void setVoltageSource(int j, VoltageSource vs) {
+	    super.setVoltageSource(j, vs);
+	    vs.setNodes(CircuitNode.ground, nodes[internalNodes+j]);
+	}
+	boolean getMatrixConnection(int n1, int n2) {
+	    // each internal node connects to its corresponding data pin
+	    for (int i = 0; i != dataBits; i++)
+		if (comparePair(n1, n2, internalNodes+i, dataNodes+i))
+		    return true;
+	    return false;
+	}
+
 	int address;
 	
 	void stamp() {

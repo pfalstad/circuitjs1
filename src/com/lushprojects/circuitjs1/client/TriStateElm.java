@@ -204,6 +204,13 @@ class TriStateElm extends CircuitElm {
     int getVoltageSourceCount() {
 	return 1;
     }
+    void setVoltageSource(int n, VoltageSource v) {
+	super.setVoltageSource(n, v);
+	v.setNodes(CircuitNode.ground, nodes[3]);
+    }
+    boolean getMatrixConnection(int n1, int n2) {
+	return comparePair(n1, n2, 1, 3);
+    }
 
     Point getPost(int n) {
 	return (n == 0) ? point1 : (n == 1) ? point2 : point3;
