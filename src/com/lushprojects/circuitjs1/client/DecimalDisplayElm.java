@@ -62,16 +62,9 @@ class DecimalDisplayElm extends ChipElm {
         g.context.setTextBaseline("middle");
         int i;
         int value = 0;
-        if (useBus()) {
-            if (pins[0].busValues != null)
-        	for (i = 0; i != bitCount; i++)
-        	    if (pins[0].busValues[i])
-        		value |= 1<<i;
-        } else {
-            for (i = 0; i != bitCount; i++)
-        	if (pins[i].value)
-        	    value |= 1<<i;
-        }
+        for (i = 0; i != bitCount; i++)
+            if (pins[i].value)
+        	value |= 1<<i;
         String str;
         switch (displayMode) {
         case 1:  str = Integer.toHexString(value).toUpperCase(); break;
@@ -105,10 +98,13 @@ class DecimalDisplayElm extends ChipElm {
 	sizeX = 3;
 	if (useBus()) {
 	    sizeY = 2;
-	    pins = new Pin[1];
-	    pins[0] = new Pin(0, SIDE_W, "I");
-	    pins[0].busWidth = bitCount;
-	    pins[0].busValues = new boolean[bitCount];
+	    pins = new Pin[bitCount];
+	    int i;
+	    for (i = 0; i != bitCount; i++) {
+		pins[i] = new Pin(0, SIDE_W, i == 0 ? "I" : "");
+		pins[i].busWidth = bitCount;
+		pins[i].busZ = i;
+	    }
 	} else {
 	    sizeY = bitCount;
 	    pins = new Pin[bitCount];

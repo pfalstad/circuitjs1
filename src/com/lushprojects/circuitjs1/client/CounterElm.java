@@ -74,19 +74,22 @@ class CounterElm extends ChipElm {
 	    sizeX = 2;
 	    if (useBus()) {
 		sizeY = 2;
-		int pinCount = hasUpDown() ? 4 : 3;
-		pins = new Pin[pinCount];
+		pins = new Pin[getPostCount()];
 		pins[0] = new Pin(0, SIDE_W, "");
 		pins[0].clock = true;
 		pins[0].bubble = negativeEdgeTriggered();
 		pins[1] = new Pin(sizeY-1, SIDE_W, "R");
 		pins[1].bubble = invertreset;
-		pins[2] = new Pin(0, SIDE_E, "Q");
-		pins[2].output = pins[2].state = true;
-		pins[2].busWidth = bits;
-		pins[2].busValues = new boolean[bits];
+		int i;
+		for (i = 0; i != bits; i++) {
+		    int ii = i+2;
+		    pins[ii] = new Pin(0, SIDE_E, i == 0 ? "Q" : "");
+		    pins[ii].output = pins[ii].state = true;
+		    pins[ii].busWidth = bits;
+		    pins[ii].busZ = bits-1-i;
+		}
 		if (hasUpDown())
-		    pins[3] = new Pin(1, SIDE_W, "U/D");
+		    pins[bits+2] = new Pin(1, SIDE_W, "U/D");
 	    } else {
 		sizeY = bits > 2 ? bits : 2;
 		pins = new Pin[getPostCount()];
@@ -173,50 +176,31 @@ class CounterElm extends ChipElm {
 	    if (pins[0].value != neg && lastClock == neg) {
 		int i;
 		int value = 0;
-
+		
 		// get direction
 		int dir = 1;
-		if (hasUpDown()) {
-		    int udPin = useBus() ? 3 : bits+2;
-		    if (pins[udPin].value)
-			dir = -1;
-		}
-
+		if (hasUpDown() && pins[bits+2].value)
+		    dir = -1;
+		
 		// get current value
-		if (useBus()) {
-		    for (i = 0; i != bits; i++)
-			if (pins[2].busValues[i])
-			    value |= 1<<i;
-		} else {
-		    int lastBit = 2+bits-1;
-		    for (i = 0; i != bits; i++)
-			if (pins[lastBit-i].value)
-			    value |= 1<<i;
-		}
-
+		int lastBit = 2+bits-1;
+		for (i = 0; i != bits; i++)
+		    if (pins[lastBit-i].value)
+			value |= 1<<i;
+		
 		// update value
 		value += dir;
 		if (modulus != 0)
 		   value = (value+modulus) % modulus;
-
+		
 		// convert value to binary
-		if (useBus()) {
-		    for (i = 0; i != bits; i++)
-			pins[2].busValues[i] = (value & (1<<i)) != 0;
-		} else {
-		    int lastBit = 2+bits-1;
-		    for (i = 0; i != bits; i++)
-			pins[lastBit-i].value = (value & (1<<i)) != 0;
-		}
+		for (i = 0; i != bits; i++)
+		    pins[lastBit-i].value = (value & (1<<i)) != 0;
 	    }
 	    if (!pins[1].value == invertreset) {
-		if (useBus()) {
-		    for (int i = 0; i != bits; i++)
-			pins[2].busValues[i] = false;
-		} else {
-		    for (int i = 0; i != bits; i++)
-			pins[i+2].value = false;
-		}
+		int i;
+		for (i = 0; i != bits; i++)
+		    pins[i+2].value = false;
 	    }
 	    lastClock = pins[0].value;
 	}
