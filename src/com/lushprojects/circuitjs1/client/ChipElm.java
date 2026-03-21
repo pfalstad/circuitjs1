@@ -105,7 +105,7 @@ abstract class ChipElm extends CircuitElm {
 		setVoltageColor(g, volts[i]);
 		Point a = p.post;
 		Point b = p.stub;
-		drawThickLine(g, a, b);
+		drawThickLine(g, a, b, p.busWidth > 1 ? 5 : 3);
 		p.curcount = updateDotCount(p.current, p.curcount);
 		drawDots(g, b, a, p.curcount);
 		if (p.bubble) {
@@ -648,7 +648,9 @@ abstract class ChipElm extends CircuitElm {
 		int xa = px+cspc2*dx*pos+sx;
 		int ya = py+cspc2*dy*pos+sy;
 		post    = new Point(xa+dax*cspc2, ya+day*cspc2);
-		stub    = new Point(xa+dax*cspc , ya+day*cspc );
+		// need this because the thicker lines are visible inside the box otherwise
+		int busExtra = (busWidth > 1) ? 2 : 0;
+		stub    = new Point(xa+dax*(cspc+busExtra) , ya+day*(cspc+busExtra) );
 		textloc = new Point(xa       , ya       );
 		post.z = busZ;
 		if (bubble) {

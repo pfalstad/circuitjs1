@@ -72,11 +72,7 @@ package com.lushprojects.circuitjs1.client;
 
 	void draw(Graphics g) {
 	    setVoltageColor(g, volts[0]);
-	    if (busWidth > 1)
-		g.setLineWidth(5.0);
-	    drawThickLine(g, point1, point2);
-	    if (busWidth > 1)
-		g.setLineWidth(1.0);
+	    drawThickLine(g, point1, point2, (busWidth > 1) ? 5 : 3);
 	    doDots(g);
 	    setBbox(point1, point2, 3);
 	    String s = "";

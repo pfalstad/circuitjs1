@@ -888,7 +888,11 @@ public abstract class CircuitElm implements Editable {
     }
 
     static void drawThickLine(Graphics g, Point pa, Point pb) {
-    	g.setLineWidth(3.0);
+	drawThickLine(g, pa, pb, 3);
+    }
+
+    static void drawThickLine(Graphics g, Point pa, Point pb, double width) {
+    	g.setLineWidth(width);
     	g.drawLine(pa.x, pa.y, pb.x, pb.y);
     	g.setLineWidth(1.0);
     }
