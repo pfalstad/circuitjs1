@@ -20,6 +20,8 @@ class ExtListEntry {
     ExtListEntry(String s, int n, int p, int sd) { name = s; node = n; pos = p; side = sd; }
     String name;
     int node, pos, side;
+    int busWidth = 1;
+    int busZ;
 };
 
 public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
@@ -334,6 +336,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    XMLSerializer.dumpAttr(ext, "nd", ent.node);
 	    XMLSerializer.dumpAttr(ext, "ps", ent.pos);
 	    XMLSerializer.dumpAttr(ext, "sd", ent.side);
+	    if (ent.busWidth > 1) {
+		XMLSerializer.dumpAttr(ext, "bw", ent.busWidth);
+		XMLSerializer.dumpAttr(ext, "bz", ent.busZ);
+	    }
 	    elem.appendChild(ext);
 	}
 	// copy child elements from elmDoc into output
@@ -398,7 +404,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		int n = xml.parseIntAttr("nd", 0);
 		int p = xml.parseIntAttr("ps", 0);
 		int sd = xml.parseIntAttr("sd", 0);
-		extList.add(new ExtListEntry(s, n, p, sd));
+		ExtListEntry ent = new ExtListEntry(s, n, p, sd);
+		ent.busWidth = xml.parseIntAttr("bw", 1);
+		ent.busZ = xml.parseIntAttr("bz", 0);
+		extList.add(ent);
 	    } else {
 		// element definition - import into elmDoc
 		Element imported = (Element) elmDoc.importNode(child, true);

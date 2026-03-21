@@ -253,7 +253,7 @@ abstract class ChipElm extends CircuitElm {
 	
 	int getOverlappingPin(int p1, int p2, int pin) {
 	    for (int i = 0; i != getPostCount(); i++) {
-		if (pin == i)
+		if (pin == i || pins[i].busZ > 0)
 		    continue;
 		if (pins[i].overlaps(p1, p2))
 		    return i;

@@ -83,7 +83,9 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
             int sideCounts[] = new int[] { 0, 0, 0, 0 };
             for (i = 0; i != postCount; i++) {
         	ExtListEntry pin = model.extList.get(i);
-                sideCounts[pin.side] += 1;
+		// only count first pin of each bus group for layout
+		if (pin.busZ == 0)
+		    sideCounts[pin.side] += 1;
 
         	if (nodeSet.contains(pin.node)) {
         	    Window.alert(Locale.LS("Can't have two input/output nodes connected!"));
@@ -263,6 +265,8 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    for (int i = 0; i != postCount; i++) {
 		ExtListEntry pin = model.extList.get(i);
 		chip.setPin(i, pin.pos, pin.side, pin.name);
+		chip.pins[i].busWidth = pin.busWidth;
+		chip.pins[i].busZ = pin.busZ;
 		chip.volts[i] = 0;
 		if (i == selectedPin)
 		    chip.pins[i].selected = true;
@@ -335,6 +339,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    if (dx < 0 || dy < 0) {
 		for (int i = 0; i != postCount; i++) {
 		    Pin p = chip.pins[i];
+		    if (p.busZ > 0) continue;
 		    if (dx < 0 && (p.side == ChipElm.SIDE_N || p.side == ChipElm.SIDE_S) && p.pos >= chip.sizeX+dx)
 			return;
 		    if (dy < 0 && (p.side == ChipElm.SIDE_E || p.side == ChipElm.SIDE_W) && p.pos >= chip.sizeY+dy)
@@ -381,13 +386,29 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		ExtListEntry p = model.extList.get(selectedPin);
 		int pn = chip.getOverlappingPin(pos[0], pos[1], selectedPin);
 		if (pn != -1) {
-		    // swap positions with overlapping pin
+		    // swap positions with overlapping pin (move whole bus group)
 		    ExtListEntry p2 = model.extList.get(pn);
 		    p2.pos = p.pos;
 		    p2.side = p.side;
+		    // move all entries in the overlapping pin's bus group
+		    for (int j = 0; j < postCount; j++) {
+			ExtListEntry pj = model.extList.get(j);
+			if (j != pn && pj.name.equals(p2.name) && pj.busWidth == p2.busWidth) {
+			    pj.pos = p.pos;
+			    pj.side = p.side;
+			}
+		    }
 		}
+		// move all entries in selected pin's bus group
 		p.pos  = pos[0];
 		p.side = pos[1];
+		for (int j = 0; j < postCount; j++) {
+		    ExtListEntry pj = model.extList.get(j);
+		    if (j != selectedPin && pj.name.equals(p.name) && pj.busWidth == p.busWidth) {
+			pj.pos = pos[0];
+			pj.side = pos[1];
+		    }
+		}
 		createPinsFromModel();
 		drawChip();
 	    } else {
@@ -396,6 +417,9 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		selectedPin = -1;
 		for (i = 0; i != postCount; i++) {
 		    Pin p = chip.pins[i];
+		    // only consider first pin of each bus group for selection
+		    if (p.busZ > 0)
+			continue;
 		    int dx = (int)(x*scale) - p.textloc.x;
 		    int dy = (int)(y*scale) - p.textloc.y;
 		    double dist = Math.hypot(dx, dy);

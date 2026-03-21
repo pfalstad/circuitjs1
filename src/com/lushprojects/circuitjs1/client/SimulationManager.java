@@ -102,11 +102,13 @@ public class SimulationManager {
     // detect bus widths for wires based on connected elements
     Vector<Point> busMismatchList;
 
-    void detectBusWidths() {
+    void detectBusWidths() { detectBusWidths(elmList); }
+
+    void detectBusWidths(Vector<CircuitElm> list) {
 	busMismatchList = new Vector<Point>();
 	HashMap<Point, Integer> widthMap = new HashMap<Point, Integer>();
-	for (int i = 0; i < elmList.size(); i++) {
-	    CircuitElm ce = elmList.get(i);
+	for (int i = 0; i < list.size(); i++) {
+	    CircuitElm ce = list.get(i);
 	    if (ce.isRemovableWire()) continue;
 	    for (int j = 0; j < ce.getPostCount(); j++) {
 		int w = ce.getPostWidth(j);
@@ -125,8 +127,8 @@ public class SimulationManager {
 	boolean changed = true;
 	while (changed) {
 	    changed = false;
-	    for (int i = 0; i < elmList.size(); i++) {
-		CircuitElm ce = elmList.get(i);
+	    for (int i = 0; i < list.size(); i++) {
+		CircuitElm ce = list.get(i);
 		if (ce instanceof WireElm) {
 		    WireElm wire = (WireElm) ce;
 		    Point p1 = new Point(wire.x, wire.y);
@@ -164,8 +166,8 @@ public class SimulationManager {
 	}
 	// check for width mismatches: compare each non-wire element's post width
 	// against the propagated widthMap.  this catches both direct and wire-mediated mismatches.
-	for (int i = 0; i < elmList.size(); i++) {
-	    CircuitElm ce = elmList.get(i);
+	for (int i = 0; i < list.size(); i++) {
+	    CircuitElm ce = list.get(i);
 	    if (ce.isRemovableWire()) continue;
 	    for (int j = 0; j < ce.getPostCount(); j++) {
 		int w = ce.getPostWidth(j);
@@ -797,6 +799,8 @@ public class SimulationManager {
 	    return;
 	}
 	detectBusWidths();
+	if (app.ui.elmList != app.elmList)
+	    detectBusWidths(app.ui.elmList);
 	makePostDrawList();
 
 	needsStamp = true;
@@ -816,6 +820,7 @@ public class SimulationManager {
 	// if UI is showing composite internals, run wire closure on UI list to assign
 	// nodes to display-only wires and build wireInfoList for current display
 	if (app.ui.elmList != app.elmList) {
+	    detectBusWidths(app.ui.elmList);
 	    calculateWireClosureForList(app.ui.elmList, true);
 	    assignUiWireNodes();
 	}
@@ -1609,10 +1614,12 @@ public class SimulationManager {
 
 		// create ext list entry for external nodes
 	    sideLabels[side].add(lne);
-		extnodes[ce.getNode(0).index] = true;
-		if (ce.getNode(0).index == 0) {
-		    Window.alert("Node \"" + lne.text + "\" can't be connected to ground");
-		    return null;
+		for (int j = 0; j < lne.busWidth; j++) {
+		    extnodes[ce.getNode(j).index] = true;
+		    if (ce.getNode(j).index == 0) {
+			Window.alert("Node \"" + lne.text + "\" can't be connected to ground");
+			return null;
+		    }
 		}
 	    }
 	}
@@ -1625,8 +1632,12 @@ public class SimulationManager {
         for (int side = 0; side < sideLabels.length; side++) {
             for (int pos = 0; pos < sideLabels[side].size(); pos++) {
                 LabeledNodeElm lne = sideLabels[side].get(pos);
-                ExtListEntry ent = new ExtListEntry(lne.text, lne.getNode(0).index, pos, side);
-                extList.add(ent);
+		for (int j = 0; j < lne.busWidth; j++) {
+		    ExtListEntry ent = new ExtListEntry(lne.text, lne.getNode(j).index, pos, side);
+		    ent.busWidth = lne.busWidth;
+		    ent.busZ = j;
+		    extList.add(ent);
+		}
             }
         }
 

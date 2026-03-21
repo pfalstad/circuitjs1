@@ -100,8 +100,10 @@ public class CustomCompositeElm extends CompositeElm {
 	for (i = 0; i != postCount; i++) {
 	    ExtListEntry pin = model.extList.get(i);
 	    chip.setPin(i, pin.pos, pin.side, pin.name);
+	    chip.pins[i].busWidth = pin.busWidth;
+	    chip.pins[i].busZ = pin.busZ;
 	}
-	
+
 	chip.setPoints();
 	for (i = 0; i != getPostCount(); i++)
 	    setPost(i, chip.getPost(i));
@@ -172,6 +174,9 @@ public class CustomCompositeElm extends CompositeElm {
     }
     
     int getPostCount() { return postCount; }
+    int getPostWidth(int n) {
+	return chip != null ? chip.getPostWidth(n) : 1;
+    }
     
     Vector<CustomCompositeModel> models;
     
@@ -306,11 +311,23 @@ public class CustomCompositeElm extends CompositeElm {
 	    arr[0] = model.name.substring(1);
 	else
 	    arr[0] = "subcircuit (" + model.name + ")";
-	int i;
-	for (i = 0; i != postCount; i++) {
-	    if (i+1 >= arr.length)
+	int a = 1;
+	for (int i = 0; i != postCount; i++) {
+	    if (a >= arr.length)
 		break;
-	    arr[i+1] = model.extList.get(i).name + " = " + getVoltageText(volts[i]);
+	    ExtListEntry ent = model.extList.get(i);
+	    if (ent.busZ > 0)
+		continue;
+	    if (ent.busWidth > 1) {
+		int value = 0;
+		for (int j = 0; j < ent.busWidth; j++)
+		    if (volts[i+j] > chip.getThreshold())
+			value |= 1 << j;
+		arr[a] = ent.name + " = " + value + " / 0x" + Integer.toHexString(value).toUpperCase();
+	    } else {
+		arr[a] = ent.name + " = " + getVoltageText(volts[i]);
+	    }
+	    a++;
 	}
     }
 
