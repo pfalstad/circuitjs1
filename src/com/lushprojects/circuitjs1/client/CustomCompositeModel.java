@@ -323,14 +323,29 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	return arr.split(",");
     }
 
+    // check if all bus entries have consecutive node numbers so we can use compact format
+    boolean busNodesConsecutive() {
+	for (int i = 0; i < extList.size(); i++) {
+	    ExtListEntry ent = extList.get(i);
+	    if (ent.busZ > 0 && ent.node != extList.get(i-1).node + 1)
+		return false;
+	}
+	return true;
+    }
+
     // build XML attributes and children into the given element
     void buildXmlElement(Document doc, Element elem) {
 	XMLSerializer.dumpAttr(elem, "nm", name);
 	XMLSerializer.dumpAttr(elem, "f", flags);
 	XMLSerializer.dumpAttr(elem, "sx", sizeX);
 	XMLSerializer.dumpAttr(elem, "sy", sizeY);
+	boolean bcs = busNodesConsecutive();
+	if (bcs)
+	    XMLSerializer.dumpAttr(elem, "bcs", 1);
 	for (int i = 0; i != extList.size(); i++) {
 	    ExtListEntry ent = extList.get(i);
+	    if (bcs && ent.busZ > 0)
+		continue;
 	    Element ext = doc.createElement("ext");
 	    XMLSerializer.dumpAttr(ext, "nm", ent.name);
 	    XMLSerializer.dumpAttr(ext, "nd", ent.node);
@@ -338,7 +353,8 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    XMLSerializer.dumpAttr(ext, "sd", ent.side);
 	    if (ent.busWidth > 1) {
 		XMLSerializer.dumpAttr(ext, "bw", ent.busWidth);
-		XMLSerializer.dumpAttr(ext, "bz", ent.busZ);
+		if (!bcs)
+		    XMLSerializer.dumpAttr(ext, "bz", ent.busZ);
 	    }
 	    elem.appendChild(ext);
 	}
@@ -390,6 +406,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	flags = xml.parseIntAttr("f", flags);
 	sizeX = xml.parseIntAttr("sx", sizeX);
 	sizeY = xml.parseIntAttr("sy", sizeY);
+	boolean bcs = xml.parseIntAttr("bcs", 0) != 0;
 	extList = new Vector<ExtListEntry>();
 
 	// build elmDoc from XML children
@@ -404,10 +421,21 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		int n = xml.parseIntAttr("nd", 0);
 		int p = xml.parseIntAttr("ps", 0);
 		int sd = xml.parseIntAttr("sd", 0);
-		ExtListEntry ent = new ExtListEntry(s, n, p, sd);
-		ent.busWidth = xml.parseIntAttr("bw", 1);
-		ent.busZ = xml.parseIntAttr("bz", 0);
-		extList.add(ent);
+		int bw = xml.parseIntAttr("bw", 1);
+		if (bcs && bw > 1) {
+		    // expand compact bus entries
+		    for (int j = 0; j < bw; j++) {
+			ExtListEntry ent = new ExtListEntry(s, n + j, p, sd);
+			ent.busWidth = bw;
+			ent.busZ = j;
+			extList.add(ent);
+		    }
+		} else {
+		    ExtListEntry ent = new ExtListEntry(s, n, p, sd);
+		    ent.busWidth = bw;
+		    ent.busZ = xml.parseIntAttr("bz", 0);
+		    extList.add(ent);
+		}
 	    } else {
 		// element definition - import into elmDoc
 		Element imported = (Element) elmDoc.importNode(child, true);
