@@ -90,28 +90,24 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	boolean nonLinear() { return true; }
+	boolean allowBus() { return true; }
 	String getChipName() { return "Static RAM"; }
 	void setupPins() {
 	    sizeX = 2;
-	    sizeY = max(addressBits, dataBits) + 1;
+	    int addrY = useBus() ? 1 : addressBits;
+	    int dataY = useBus() ? 1 : dataBits;
+	    sizeY = max(addrY, dataY) + 1;
+	    bits = addressBits;
 	    pins = new Pin[getPostCount()];
 	    pins[0] = new Pin(0, SIDE_W, "WE");
 	    pins[0].lineOver = true;
 	    pins[1] = new Pin(0, SIDE_E, "OE");
 	    pins[1].lineOver = true;
-	    int i;
 	    addressNodes = 2;
 	    dataNodes = 2+addressBits;
 	    internalNodes = 2+addressBits+dataBits;
-	    for (i = 0; i != addressBits; i++) {
-		int ii = i+addressNodes;
-		pins[ii] = new Pin(sizeY-addressBits+i, SIDE_W, "A" + (addressBits-i-1));
-	    }
-	    for (i = 0; i != dataBits; i++) {
-		int ii = i+dataNodes;
-		pins[ii] = new Pin(sizeY-dataBits+i, SIDE_E, "D" + (dataBits-i-1));
-		pins[ii].output = true;
-	    }
+	    makeBitPins(addressBits, sizeY-addrY, SIDE_W, addressNodes, "A", false, false, true);
+	    makeBitPins(dataBits, sizeY-dataY, SIDE_E, dataNodes, "D", true, false, true);
 	    allocNodes();
 	}
 	int getPostCount() {

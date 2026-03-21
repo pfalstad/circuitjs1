@@ -1080,6 +1080,8 @@ public abstract class CircuitElm implements Editable {
     	if (!app.menus.voltsCheckItem.getState()) {
     	    	return(whiteColor);
     	}
+    	if (Double.isNaN(volts))
+    	    volts = 0;
     	int c = (int) ((volts+voltageRange)*(colorScaleCount-1)/
     		       (voltageRange*2));
     	if (c < 0)

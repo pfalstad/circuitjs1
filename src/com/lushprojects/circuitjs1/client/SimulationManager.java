@@ -119,6 +119,48 @@ public class SimulationManager {
 		}
 	    }
 	}
+	// propagate bus widths through wire chains until stable
+	boolean changed = true;
+	while (changed) {
+	    changed = false;
+	    for (int i = 0; i < elmList.size(); i++) {
+		CircuitElm ce = elmList.get(i);
+		if (ce instanceof WireElm) {
+		    WireElm wire = (WireElm) ce;
+		    Point p1 = new Point(wire.x, wire.y);
+		    Point p2 = new Point(wire.x2, wire.y2);
+		    Integer w1 = widthMap.get(p1);
+		    Integer w2 = widthMap.get(p2);
+		    int w = 1;
+		    if (w1 != null) w = w1;
+		    if (w2 != null && w2 > w) w = w2;
+		    if (w != wire.busWidth) {
+			wire.busWidth = w;
+			wire.allocNodes();
+			changed = true;
+		    }
+		    if (w > 1) {
+			if (w1 == null || w1 < w) { widthMap.put(p1, w); changed = true; }
+			if (w2 == null || w2 < w) { widthMap.put(p2, w); changed = true; }
+		    }
+		} else if (ce instanceof LabeledNodeElm) {
+		    LabeledNodeElm ln = (LabeledNodeElm) ce;
+		    Point p = new Point(ln.x, ln.y);
+		    Integer w = widthMap.get(p);
+		    int bw = (w != null) ? w : 1;
+		    if (bw != ln.busWidth) {
+			ln.busWidth = bw;
+			ln.allocNodes();
+			changed = true;
+		    }
+		    if (bw > 1 && (w == null || w < bw)) {
+			widthMap.put(p, bw);
+			changed = true;
+		    }
+		}
+	    }
+	}
+	// check for width mismatches
 	for (int i = 0; i < elmList.size(); i++) {
 	    CircuitElm ce = elmList.get(i);
 	    if (ce instanceof WireElm) {
@@ -127,25 +169,9 @@ public class SimulationManager {
 		Point p2 = new Point(wire.x2, wire.y2);
 		Integer w1 = widthMap.get(p1);
 		Integer w2 = widthMap.get(p2);
-		int w = 1;
-		if (w1 != null) w = w1;
-		if (w2 != null && w2 > w) w = w2;
 		if (w1 != null && w2 != null && !w1.equals(w2)) {
 		    busMismatchList.add(new Point(wire.x, wire.y));
 		    busMismatchList.add(new Point(wire.x2, wire.y2));
-		}
-		if (w != wire.busWidth) {
-		    wire.busWidth = w;
-		    wire.allocNodes();
-		}
-	    } else if (ce instanceof LabeledNodeElm) {
-		LabeledNodeElm ln = (LabeledNodeElm) ce;
-		Point p = new Point(ln.x, ln.y);
-		Integer w = widthMap.get(p);
-		int bw = (w != null) ? w : 1;
-		if (bw != ln.busWidth) {
-		    ln.busWidth = bw;
-		    ln.allocNodes();
 		}
 	    }
 	}
