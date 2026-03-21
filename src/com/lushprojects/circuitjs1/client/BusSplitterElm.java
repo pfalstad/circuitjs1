@@ -33,6 +33,7 @@ class BusSplitterElm extends ChipElm {
     void setupPins() {
 	sizeX = 2;
 	sizeY = bits;
+	currents = new double[bits];
 	pins = new Pin[getPostCount()];
 
 	// bus side: all pins at same position
@@ -50,6 +51,8 @@ class BusSplitterElm extends ChipElm {
 	}
     }
 
+    double[] currents;
+
     int getPostCount() { return bits * 2; }
     int getVoltageSourceCount() { return 0; }
 
@@ -66,7 +69,14 @@ class BusSplitterElm extends ChipElm {
 	return getPost(n + bits);
     }
 
+    double getCurrentIntoNode(int n) {
+	if (n < bits)
+	    return currents[n];
+	return -currents[n - bits];
+    }
+
     int getDumpType() { return 433; }
+    String getXmlDumpType() { return "bs"; }
 
     public EditInfo getChipEditInfo(int n) {
 	if (n == 0)

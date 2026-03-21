@@ -89,8 +89,13 @@ public class SimulationManager {
 	CircuitElm wire;
 	Vector<CircuitElm> neighbors;
 	int post;
+	int bit; // which bit for multi-bit wire elements (BusSplitterElm)
 	WireInfo(CircuitElm w) {
 	    wire = w;
+	}
+	WireInfo(CircuitElm w, int b) {
+	    wire = w;
+	    bit = b;
 	}
     }
     
@@ -213,7 +218,12 @@ public class SimulationManager {
 	    if (!ce.isRemovableWire())
 		continue;
 	    ce.hasWireInfo = false;
-	    wireInfoList.add(new WireInfo(ce));
+	    if (ce instanceof BusSplitterElm) {
+		int bits = ((BusSplitterElm) ce).bits;
+		for (int b = 0; b < bits; b++)
+		    wireInfoList.add(new WireInfo(ce, b));
+	    } else
+		wireInfoList.add(new WireInfo(ce));
 
 	    // for bus wires/labels, merge each bit's endpoints; for others, just one pair
 	    int pairs = (ce instanceof WireElm) ? ((WireElm)ce).busWidth :
@@ -325,19 +335,23 @@ public class SimulationManager {
 	for (i = 0; i != wireInfoList.size(); i++) {
 	    WireInfo wi = wireInfoList.get(i);
 	    CircuitElm wire = wi.wire;
-	    CircuitNode cn1 = wire.getNode(0);  // both ends of wire have same node #
+	    CircuitNode cn1 = wire.getNode(wi.bit);  // both ends of wire have same node #
 	    int j;
 
 	    Vector<CircuitElm> neighbors0 = new Vector<CircuitElm>();
 	    Vector<CircuitElm> neighbors1 = new Vector<CircuitElm>();
-	    
+
 	    // assume each end is ready (except ground nodes which have one end)
 	    // labeled nodes are treated as having 2 terminals, see below
 	    boolean isReady0 = true, isReady1 = !(wire instanceof GroundElm);
 
+	    // get the two endpoint positions for this wire (or this bit of it)
+	    Point end0 = wire.getPost(wi.bit);
+	    Point end1 = wire.getConnectedPost(wi.bit);
+
 	    // go through elements sharing a node with this wire (may be connected indirectly
 	    // by other wires, but at least it's faster than going through all elements)
-	    // console("looking at " + wire + " " + wire.getNode(0));
+	    // console("looking at " + wire + " " + wire.getNode(wi.bit));
 	    for (j = 0; j != cn1.links.size(); j++) {
 		CircuitNodeLink cnl = cn1.links.get(j);
 		CircuitElm ce = cnl.elm;
@@ -353,23 +367,20 @@ public class SimulationManager {
 		// console("  connected to " + ce + " " + pt + " " + cnl.num + " " + ce.getPostCount());
 		if (pt == null)
 		    continue;
-		
+
 		// is this a wire that doesn't have wire info yet?  If so we can't use it yet.
 		// That would create a circular dependency.  So that side isn't ready.
 		boolean notReady = (ce.isRemovableWire() && !ce.hasWireInfo);
-		
+
 		// which post does this element connect to, if any?
-		if (pt.x == wire.x && pt.y == wire.y) {
+		if (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) {
 		    // console("  found immediate neighbor " + ce + " " + pt);
 		    neighbors0.add(ce);
 		    if (notReady) isReady0 = false;
-		} else if (wire.getPostCount() > 1) {
-		    Point p2 = wire.getConnectedPost(0);
-		    if (p2 != null && pt.x == p2.x && pt.y == p2.y) {
-			neighbors1.add(ce);
-			// console("  found immediate neighbor " + ce + " " + pt);
-			if (notReady) isReady1 = false;
-		    }
+		} else if (end1 != null && pt.x == end1.x && pt.y == end1.y && pt.z == end1.z) {
+		    neighbors1.add(ce);
+		    // console("  found immediate neighbor " + ce + " " + pt);
+		    if (notReady) isReady1 = false;
 		} else if (ce instanceof LabeledNodeElm && wire instanceof LabeledNodeElm &&
 			((LabeledNodeElm) ce).text == ((LabeledNodeElm) wire).text) {
 		    // ce and wire are both labeled nodes with matching labels.  treat them as neighbors
@@ -1564,15 +1575,25 @@ public class SimulationManager {
 	    WireInfo wi = wireInfoList.get(i);
 	    double cur = 0;
 	    int j;
-	    Point p = wi.wire.getPost(wi.post);
+
+	    // get the actual post position for the end we're using
+	    Point p;
+	    if (wi.wire instanceof BusSplitterElm) {
+		BusSplitterElm bs = (BusSplitterElm) wi.wire;
+		p = wi.wire.getPost(wi.post == 0 ? wi.bit : wi.bit + bs.bits);
+	    } else
+		p = wi.wire.getPost(wi.post);
+
 	    for (j = 0; j != wi.neighbors.size(); j++) {
 		CircuitElm ce = wi.neighbors.get(j);
-		int n = ce.getNodeAtPoint(p.x, p.y);
+		int n = ce.getNodeAtPoint(p);
 		cur += ce.getCurrentIntoNode(n);
 	    }
 	    // get correct current polarity
 	    // (LabeledNodes may have wi.post == 1, in which case we flip the current sign)
-	    if (wi.post == 0 || (wi.wire instanceof LabeledNodeElm))
+	    if (wi.wire instanceof BusSplitterElm) {
+		((BusSplitterElm) wi.wire).currents[wi.bit] = (wi.post == 0) ? cur : -cur;
+	    } else if (wi.post == 0 || (wi.wire instanceof LabeledNodeElm))
 		wi.wire.setCurrent(null, cur);
 	    else
 		wi.wire.setCurrent(null, -cur);

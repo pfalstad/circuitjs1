@@ -706,11 +706,10 @@ public abstract class CircuitElm implements Editable {
 	return getConnectedPost();
     }
     
-    int getNodeAtPoint(int xp, int yp) {
+    int getNodeAtPoint(Point pt) {
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
-	    Point p = getPost(i);
-	    if (p.x == xp && p.y == yp)
+	    if (getPost(i).equals(pt))
 		return i;
 	}
 	return 0;
