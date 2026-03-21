@@ -25,7 +25,6 @@ import com.google.gwt.xml.client.Document;
 class DecimalDisplayElm extends ChipElm {
     int bitCount;
     int displayMode; // 0=decimal, 1=hex, 2=octal
-    static final int FLAG_BUS_INPUT = 16;
 
     public DecimalDisplayElm(int xx, int yy) {
 	super(xx, yy);
@@ -92,8 +91,8 @@ class DecimalDisplayElm extends ChipElm {
     }
     
     String getXmlDumpType() { return "dd"; }
+    boolean allowBus() { return true; }
 
-    boolean useBus() { return (flags & FLAG_BUS_INPUT) != 0; }
     void setupPins() {
 	sizeX = 3;
 	if (useBus()) {
@@ -130,12 +129,7 @@ class DecimalDisplayElm extends ChipElm {
             ei.choice.select(displayMode);
             return ei;
         }
-        if (n == 2) {
-            EditInfo ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Bus Input", useBus());
-            return ei;
-        }
-        return super.getChipEditInfo(n);
+        return null;
     }
     public void setChipEditValue(int n, EditInfo ei) {
         if (n == 0 && ei.value >= 1 && ei.value <= 16) {
@@ -146,13 +140,6 @@ class DecimalDisplayElm extends ChipElm {
         }
         if (n == 1)
             displayMode = ei.choice.getSelectedIndex();
-        if (n == 2) {
-            flags = ei.changeFlag(flags, FLAG_BUS_INPUT);
-            setupPins();
-            setPoints();
-            return;
-        }
-        super.setChipEditValue(n, ei);
     }
 
 }

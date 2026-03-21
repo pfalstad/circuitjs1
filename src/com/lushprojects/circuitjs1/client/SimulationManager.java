@@ -100,7 +100,10 @@ public class SimulationManager {
     HashSet<CircuitElm> wireInfoElmSet;
     
     // detect bus widths for wires based on connected elements
+    Vector<Point> busMismatchList;
+
     void detectBusWidths() {
+	busMismatchList = new Vector<Point>();
 	HashMap<Point, Integer> widthMap = new HashMap<Point, Integer>();
 	for (int i = 0; i < elmList.size(); i++) {
 	    CircuitElm ce = elmList.get(i);
@@ -127,6 +130,10 @@ public class SimulationManager {
 	    int w = 1;
 	    if (w1 != null) w = w1;
 	    if (w2 != null && w2 > w) w = w2;
+	    if (w1 != null && w2 != null && !w1.equals(w2)) {
+		busMismatchList.add(new Point(wire.x, wire.y));
+		busMismatchList.add(new Point(wire.x2, wire.y2));
+	    }
 	    if (w != wire.busWidth) {
 		wire.busWidth = w;
 		wire.allocNodes();
@@ -748,6 +755,7 @@ public class SimulationManager {
 	    app.badConnectionList = new Vector<Point>();
 	    return;
 	}
+	detectBusWidths();
 	makePostDrawList();
 
 	needsStamp = true;
@@ -758,8 +766,6 @@ public class SimulationManager {
 	int i, j;
 	nodeList = new Vector<CircuitNode>();
 	elmList = app.elmList;
-
-	detectBusWidths();
 	calculateWireClosure();
 	setGroundNode(subcircuit);
 
@@ -1011,6 +1017,7 @@ public class SimulationManager {
 		    badConnectionList.add(cn);
 	    }
 	}
+	badConnectionList.addAll(busMismatchList);
 
 	// build mapping from elements to connected routed wires
 	routedWireMap = new HashMap<CircuitElm, ArrayList<RoutedWireConnection>>();

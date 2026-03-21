@@ -32,6 +32,7 @@ abstract class ChipElm extends CircuitElm {
 	static final int FLAG_FLIP_Y = 1<<11;
 	static final int FLAG_FLIP_XY = 1<<12;
 	static final int FLAG_CUSTOM_VOLTAGE = 1<<13;
+	static final int FLAG_BUS = 1<<14;
 	public ChipElm(int xx, int yy) {
 	    super(xx, yy);
 	    if (needsBits())
@@ -65,6 +66,7 @@ abstract class ChipElm extends CircuitElm {
 	}
 	boolean needsBits() { return false; }
 	boolean hasCustomVoltage() { return (flags & FLAG_CUSTOM_VOLTAGE) != 0; }
+	boolean useBus() { return (flags & FLAG_BUS) != 0; }
 	boolean isDigitalChip() { return true; }
 	double getThreshold() { return highVoltage/2; }
 	
@@ -95,6 +97,8 @@ abstract class ChipElm extends CircuitElm {
 	    for (i = 0; i != getPostCount(); i++) {
 		g.setFont(f);
 		Pin p = pins[i];
+		if (p.busZ > 0)
+		    continue;
 		setVoltageColor(g, volts[i]);
 		Point a = p.post;
 		Point b = p.stub;
@@ -119,8 +123,9 @@ abstract class ChipElm extends CircuitElm {
 		// more work to avoid overlaps)
 		if (!hasVertical && sizeX > 2)
 		    availSpace = cspc*2.5+cspc*(sizeX-3);
+		String text = p.busWidth > 1 ? p.text + "/" + p.busWidth : p.text;
 		while (true) {
-		    int sw=(int)g.context.measureText(p.text).getWidth();
+		    int sw=(int)g.context.measureText(text).getWidth();
 		    // scale font down if it's too big
 		    if (sw > availSpace) {
 			fsz -= 1;
@@ -137,7 +142,7 @@ abstract class ChipElm extends CircuitElm {
 			tx = p.textloc.x+(cspc-5)-sw;
 		    else
 			tx = p.textloc.x-sw/2;
-		    g.drawString(p.text, tx, p.textloc.y+asc/3);
+		    g.drawString(text, tx, p.textloc.y+asc/3);
 		    if (p.lineOver) {
 			int ya = p.textloc.y-asc+asc/3;
 			g.drawLine(tx, ya, tx+sw, ya);
@@ -409,13 +414,22 @@ abstract class ChipElm extends CircuitElm {
 	boolean isFlippedY () { return hasFlag(FLAG_FLIP_Y ); }
 	boolean isFlippedXY() { return hasFlag(FLAG_FLIP_XY); }
 	
+	boolean allowBus() { return false; }
+
 	public EditInfo getEditInfo(int n) {
 	    if (!isDigitalChip())
 		return getChipEditInfo(n);
-	    
+
 	    if (n == 0)
 		return new EditInfo("High Logic Voltage", highVoltage);
-	    
+	    if (allowBus()) {
+		if (n == 1) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.checkbox = new Checkbox("Bus", useBus());
+		    return ei;
+		}
+		return getChipEditInfo(n-2);
+	    }
 	    return getChipEditInfo(n-1);
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -423,12 +437,22 @@ abstract class ChipElm extends CircuitElm {
 		setChipEditValue(n, ei);
 		return;
 	    }
-	    
-	    if (n == 0)
+
+	    if (n == 0) {
 		highVoltage = ei.value;
-	    
-	    if (n >= 1)
-		setChipEditValue(n-1, ei);
+		return;
+	    }
+	    if (allowBus()) {
+		if (n == 1) {
+		    flags = ei.changeFlag(flags, FLAG_BUS);
+		    setupPins();
+		    setPoints();
+		    return;
+		}
+		setChipEditValue(n-2, ei);
+		return;
+	    }
+	    setChipEditValue(n-1, ei);
 	}
 	
 	public EditInfo getChipEditInfo(int n) { return null; }

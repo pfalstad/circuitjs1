@@ -29,7 +29,6 @@ class CounterElm extends ChipElm {
 	int modulus;
 	final int FLAG_UP_DOWN = 4;
 	final int FLAG_NEGATIVE_EDGE = 8;
-	final int FLAG_BUS = 16;
 
 	public CounterElm(int xx, int yy) {
 	    super(xx, yy);
@@ -64,12 +63,12 @@ class CounterElm extends ChipElm {
 	}
 
 	boolean needsBits() { return true; }
+	boolean allowBus() { return true; }
 	String getChipName() {
 	    if (modulus == 0)
 		return "Counter";
 	    return Locale.LS("Counter") + Locale.LS(" (mod ") + modulus + ")";
 	}
-	boolean useBus() { return (flags & FLAG_BUS) != 0; }
 	void setupPins() {
 	    sizeX = 2;
 	    if (useBus()) {
@@ -83,7 +82,7 @@ class CounterElm extends ChipElm {
 		int i;
 		for (i = 0; i != bits; i++) {
 		    int ii = i+2;
-		    pins[ii] = new Pin(0, SIDE_E, i == 0 ? "Q" : "");
+		    pins[ii] = new Pin(0, SIDE_E, "Q");
 		    pins[ii].output = pins[ii].state = true;
 		    pins[ii].busWidth = bits;
 		    pins[ii].busZ = bits-1-i;
@@ -132,11 +131,6 @@ class CounterElm extends ChipElm {
     		ei.checkbox = new Checkbox("Negative Edge Triggered", negativeEdgeTriggered());
     		return ei;
     	    }
-	    if (n == 5) {
-		EditInfo ei = new EditInfo("", 0, -1, -1);
-		ei.checkbox = new Checkbox("Bus Output", useBus());
-		return ei;
-	    }
 	    return null;
 	}
 	public void setChipEditValue(int n, EditInfo ei) {
@@ -159,11 +153,6 @@ class CounterElm extends ChipElm {
 	    }
 	    if (n == 4) {
 		flags = ei.changeFlag(flags, FLAG_NEGATIVE_EDGE);
-		setupPins();
-		setPoints();
-	    }
-	    if (n == 5) {
-		flags = ei.changeFlag(flags, FLAG_BUS);
 		setupPins();
 		setPoints();
 	    }
