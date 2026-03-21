@@ -186,11 +186,7 @@ class LabeledNodeElm extends CircuitElm {
 
     void draw(Graphics g) {
 	setVoltageColor(g, volts[0]);
-	if (busWidth > 1)
-	    g.setLineWidth(5.0);
-	drawThickLine(g, point1, lead1);
-	if (busWidth > 1)
-	    g.setLineWidth(1.0);
+	drawThickLine(g, point1, lead1, (busWidth > 1) ? 5 : 3);
 	g.setColor(needsHighlight() ? selectColor : whiteColor);
 	setPowerColor(g, false);
 	interpPoint(point1, point2, ps2, 1+11./dn);
@@ -206,10 +202,24 @@ class LabeledNodeElm extends CircuitElm {
     int getShortcut() { return 'b'; }
     double getVoltageDiff() { return volts[0]; }
     String getElmType() { return "Labeled Node"; }
+    int getBusValue() {
+	int value = 0;
+	for (int i = 0; i < busWidth; i++)
+	    if (volts[i] > 2.5)
+		value |= 1 << i;
+	return value;
+    }
+
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS(text) + " (" + Locale.LS("Labeled Node") + ")";
-	arr[1] = "I = " + getCurrentText(getCurrent());
-	arr[2] = "V = " + getVoltageText(volts[0]);
+	if (busWidth > 1) {
+	    int value = getBusValue();
+	    arr[1] = "value = " + value;
+	    arr[2] = "hex = 0x" + Integer.toHexString(value).toUpperCase();
+	} else {
+	    arr[1] = "I = " + getCurrentText(getCurrent());
+	    arr[2] = "V = " + getVoltageText(volts[0]);
+	}
     }
 
     public EditInfo getEditInfo(int n) {
