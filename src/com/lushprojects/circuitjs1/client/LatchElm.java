@@ -43,27 +43,23 @@ class LatchElm extends ChipElm {
     }
     String getChipName() { return "Latch"; }
     boolean needsBits() { return true; }
+    boolean allowBus() { return true; }
     boolean isEdgeTriggered() { return (flags & FLAG_NO_EDGE) == 0; }
     int loadPin, resetPin, setPin;
     void setupPins() {
 	sizeX = 2;
 	int extraPins = (hasReset() ? 1 : 0) + (hasSet() ? 1 : 0);
-	sizeY = bits+1+extraPins;
+	int bitsY = useBus() ? 1 : bits;
+	sizeY = bitsY+1+extraPins;
 	pins = new Pin[getPostCount()];
-	int i;
-	for (i = 0; i != bits; i++)
-	    pins[i] = new Pin(bits-1-i, SIDE_W, "I" + i);
-	for (i = 0; i != bits; i++) {
-	    pins[i+bits] = new Pin(bits-1-i, SIDE_E, "O");
-	    pins[i+bits].output = true;
-	    pins[i+bits].state = (flags & FLAG_STATE) != 0;
-	}
+	makeBitPins(bits, 0, SIDE_W, 0, "I", false, false);
+	makeBitPins(bits, 0, SIDE_E, bits, "O", true, false);
 	int pinIndex = bits*2;
-	pins[loadPin = pinIndex++] = new Pin(bits, SIDE_W, "Ld");
+	pins[loadPin = pinIndex++] = new Pin(bitsY, SIDE_W, "Ld");
 	if (hasReset())
-	    pins[resetPin = pinIndex++] = new Pin(bits+1, SIDE_W, "R");
+	    pins[resetPin = pinIndex++] = new Pin(bitsY+1, SIDE_W, "R");
 	if (hasSet())
-	    pins[setPin = pinIndex++] = new Pin(bits + 1 + (hasReset() ? 1 : 0), SIDE_W, "S");
+	    pins[setPin = pinIndex++] = new Pin(bitsY + 1 + (hasReset() ? 1 : 0), SIDE_W, "S");
 	allocNodes();
     }
     boolean lastLoad = false;

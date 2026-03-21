@@ -216,8 +216,12 @@ import com.google.gwt.xml.client.Element;
 
 	void draw(Graphics g) {
 	    setVoltageColor(g, volts[0]);
+	    if (busWidth > 1)
+		g.setLineWidth(5.0);
 	    for (int i = 0; i < routePoints.size() - 1; i++)
 		drawThickLine(g, routePoints.get(i), routePoints.get(i + 1));
+	    if (busWidth > 1)
+		g.setLineWidth(1.0);
 	    doDots(g);
 
 	    final int m = 5;
@@ -231,15 +235,49 @@ import com.google.gwt.xml.client.Element;
 	    }
 	    setBbox(minX - m, minY - m, maxX + m, maxY + m);
 	    String s = "";
-	    if (mustShowCurrent()) {
-		s = getShortUnitText(Math.abs(getCurrent()), "A");
-	    }
-	    if (mustShowVoltage()) {
-		s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
+	    if (busWidth > 1 && mustShowBusValue()) {
+		int value = getBusValue();
+		s = ""+value;
+	    } else if (busWidth == 1) {
+		if (mustShowCurrent())
+		    s = getShortUnitText(Math.abs(getCurrent()), "A");
+		if (mustShowVoltage())
+		    s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
 	    }
 	    if (s.length() > 0)
-		drawValues(g, s, 4);
+		drawValuesOnLongestSegment(g, s);
 	    drawPosts(g);
+	}
+
+	void drawValuesOnLongestSegment(Graphics g, String s) {
+	    // find longest segment
+	    double bestLen = 0;
+	    int bestSeg = 0;
+	    for (int i = 0; i < routePoints.size() - 1; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		double dx = b.x - a.x;
+		double dy = b.y - a.y;
+		double len = dx * dx + dy * dy;
+		if (len > bestLen) {
+		    bestLen = len;
+		    bestSeg = i;
+		}
+	    }
+	    Point a = routePoints.get(bestSeg);
+	    Point b = routePoints.get(bestSeg + 1);
+	    int mx = (a.x + b.x) / 2;
+	    int my = (a.y + b.y) / 2;
+	    g.setFont(unitsFont);
+	    int w = (int)g.context.measureText(s).getWidth();
+	    int ya = (int)g.currentFontSize/2;
+	    g.setColor(whiteColor);
+	    if (a.y == b.y)
+		// horizontal segment: draw above
+		g.drawString(s, mx - w/2, my - 6);
+	    else
+		// vertical segment: draw to the right
+		g.drawString(s, mx + 4, my + ya);
 	}
 
 	void doDots(Graphics g) {
@@ -309,8 +347,7 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	void getInfo(String arr[]) {
-	    arr[0] = "routed wire";
-	    arr[1] = "I = " + getCurrentDText(getCurrent());
-	    arr[2] = "V = " + getVoltageText(volts[0]);
+	    super.getInfo(arr);
+	    arr[0] = (busWidth > 1) ? "routed bus wire (" + busWidth + ")" : "routed wire";
 	}
     }

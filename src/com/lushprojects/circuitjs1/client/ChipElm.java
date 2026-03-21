@@ -383,8 +383,8 @@ abstract class ChipElm extends CircuitElm {
 	
 	void getInfo(String arr[]) {
 	    arr[0] = getChipName();
-	    int i, a = 1;
-	    for (i = 0; i != getPostCount(); i++) {
+	    int a = 1, shown = 0;
+	    for (int i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
 		if (arr[a] != null)
 		    arr[a] += "; ";
@@ -395,8 +395,16 @@ abstract class ChipElm extends CircuitElm {
 		    t += '\'';
 		if (p.clock)
 		    t = "Clk";
-		arr[a] += t + " = " + getVoltageText(volts[i]);
-		if (i % 2 == 1)
+		if (p.busWidth > 1) {
+		    int value = 0;
+		    for (int j = 0; j < p.busWidth; j++)
+			if (volts[i+j] > getThreshold())
+			    value |= 1 << pins[i+j].busZ;
+		    arr[a] += t + " = " + value + " / 0x" + Integer.toHexString(value).toUpperCase();
+		    i += p.busWidth-1;
+		} else
+		    arr[a] += t + " = " + getVoltageText(volts[i]);
+		if (++shown % 2 == 0)
 		    a++;
 	    }
 	}
@@ -599,7 +607,7 @@ abstract class ChipElm extends CircuitElm {
             for (int i = 0; i != count; i++) {
                 int ii = (reversed) ? offset + count-1-i: offset + i;
                 if (useBus()) {
-                    pins[ii] = new Pin(pos, side, i == 0 ? name : "");
+                    pins[ii] = new Pin(pos, side, name);
                     pins[ii].busWidth = count;
                     pins[ii].busZ = i;
                 } else if (bitOrder == BIT_ORDER_LSB_FIRST) {

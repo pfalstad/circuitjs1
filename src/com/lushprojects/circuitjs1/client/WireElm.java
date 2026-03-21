@@ -29,6 +29,7 @@ package com.lushprojects.circuitjs1.client;
 	}
 	static final int FLAG_SHOWCURRENT = 1;
 	static final int FLAG_SHOWVOLTAGE = 2;
+	static final int FLAG_SHOW_BUS_VALUE = 4;
 
 	int getPostCount() { return busWidth * 2; }
 
@@ -61,6 +62,14 @@ package com.lushprojects.circuitjs1.client;
 	    return new Point(point1.x, point1.y, n - busWidth);
 	}
 
+	int getBusValue() {
+	    int value = 0;
+	    for (int i = 0; i < busWidth; i++)
+		if (volts[i] > 2.5)
+		    value |= 1 << i;
+	    return value;
+	}
+
 	void draw(Graphics g) {
 	    setVoltageColor(g, volts[0]);
 	    if (busWidth > 1)
@@ -71,11 +80,14 @@ package com.lushprojects.circuitjs1.client;
 	    doDots(g);
 	    setBbox(point1, point2, 3);
 	    String s = "";
-	    if (mustShowCurrent()) {
-	        s = getShortUnitText(Math.abs(getCurrent()), "A");
-	    }
-	    if (mustShowVoltage()) {
-	        s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
+	    if (busWidth > 1 && mustShowBusValue()) {
+		int value = getBusValue();
+		s = ""+value;
+	    } else if (busWidth == 1) {
+		if (mustShowCurrent())
+		    s = getShortUnitText(Math.abs(getCurrent()), "A");
+		if (mustShowVoltage())
+		    s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
 	    }
 	    drawValues(g, s, 4);
 	    drawPosts(g);
@@ -89,11 +101,20 @@ package com.lushprojects.circuitjs1.client;
 	boolean mustShowVoltage() {
 	    return (flags & FLAG_SHOWVOLTAGE) != 0;
 	}
+	boolean mustShowBusValue() {
+	    return (flags & FLAG_SHOW_BUS_VALUE) != 0;
+	}
 //	int getVoltageSourceCount() { return 1; }
 	void getInfo(String arr[]) {
 	    arr[0] = (busWidth > 1) ? "bus wire (" + busWidth + ")" : "wire";
-	    arr[1] = "I = " + getCurrentDText(getCurrent());
-	    arr[2] = "V = " + getVoltageText(volts[0]);
+	    if (busWidth > 1) {
+		int value = getBusValue();
+		arr[1] = "value = " + value;
+		arr[2] = "hex = 0x" + Integer.toHexString(value).toUpperCase();
+	    } else {
+		arr[1] = "I = " + getCurrentDText(getCurrent());
+		arr[2] = "V = " + getVoltageText(volts[0]);
+	    }
 	}
 	int getDumpType() { return 'w'; }
 	double getPower() { return 0; }
@@ -111,6 +132,11 @@ package com.lushprojects.circuitjs1.client;
 		ei.checkbox = new Checkbox("Show Voltage", mustShowVoltage());
 		return ei;
 	    }
+	    if (n == 2) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Show Bus Value", mustShowBusValue());
+		return ei;
+	    }
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -126,6 +152,8 @@ package com.lushprojects.circuitjs1.client;
 		else
 		    flags &= ~FLAG_SHOWVOLTAGE;
 	    }
+	    if (n == 2)
+		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE);
 	}
         int getShortcut() { return 'w'; }
 
