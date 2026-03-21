@@ -161,6 +161,16 @@ public class SimulationManager {
 			widthMap.put(p, bw);
 			changed = true;
 		    }
+		} else if (ce instanceof BusSplitterElm) {
+		    BusSplitterElm bs = (BusSplitterElm) ce;
+		    // bus side is at pin 0 position
+		    Point p = new Point(bs.pins[0].post.x, bs.pins[0].post.y);
+		    int bw = bs.bits;
+		    Integer w = widthMap.get(p);
+		    if (w == null || w < bw) {
+			widthMap.put(p, bw);
+			changed = true;
+		    }
 		}
 	    }
 	}
