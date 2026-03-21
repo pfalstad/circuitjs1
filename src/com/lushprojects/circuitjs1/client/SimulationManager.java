@@ -114,6 +114,8 @@ public class SimulationManager {
 		    Point pt = ce.getPost(j);
 		    Point key = new Point(pt.x, pt.y); // z=0 for map key
 		    Integer existing = widthMap.get(key);
+		    if (existing != null && existing != w)
+			busMismatchList.add(key);
 		    if (existing == null || w > existing)
 			widthMap.put(key, w);
 		}
@@ -160,18 +162,19 @@ public class SimulationManager {
 		}
 	    }
 	}
-	// check for width mismatches
+	// check for width mismatches: compare each non-wire element's post width
+	// against the propagated widthMap.  this catches both direct and wire-mediated mismatches.
 	for (int i = 0; i < elmList.size(); i++) {
 	    CircuitElm ce = elmList.get(i);
-	    if (ce instanceof WireElm) {
-		WireElm wire = (WireElm) ce;
-		Point p1 = new Point(wire.x, wire.y);
-		Point p2 = new Point(wire.x2, wire.y2);
-		Integer w1 = widthMap.get(p1);
-		Integer w2 = widthMap.get(p2);
-		if (w1 != null && w2 != null && !w1.equals(w2)) {
-		    busMismatchList.add(new Point(wire.x, wire.y));
-		    busMismatchList.add(new Point(wire.x2, wire.y2));
+	    if (ce.isRemovableWire()) continue;
+	    for (int j = 0; j < ce.getPostCount(); j++) {
+		int w = ce.getPostWidth(j);
+		if (w > 1) {
+		    Point pt = ce.getPost(j);
+		    Point key = new Point(pt.x, pt.y);
+		    Integer propagated = widthMap.get(key);
+		    if (propagated != null && propagated != w)
+			busMismatchList.add(key);
 		}
 	    }
 	}
