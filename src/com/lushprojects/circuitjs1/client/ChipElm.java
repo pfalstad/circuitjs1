@@ -32,7 +32,10 @@ abstract class ChipElm extends CircuitElm {
 	static final int FLAG_FLIP_Y = 1<<11;
 	static final int FLAG_FLIP_XY = 1<<12;
 	static final int FLAG_CUSTOM_VOLTAGE = 1<<13;
-	static final int FLAG_BUS = 1<<14;
+	static final int BIT_ORDER_MSB_TOP = 0;
+	static final int BIT_ORDER_LSB_TOP = 1;
+	static final int BIT_ORDER_BUS = 2;
+	int bitOrder;
 	public ChipElm(int xx, int yy) {
 	    super(xx, yy);
 	    if (needsBits())
@@ -66,7 +69,7 @@ abstract class ChipElm extends CircuitElm {
 	}
 	boolean needsBits() { return false; }
 	boolean hasCustomVoltage() { return (flags & FLAG_CUSTOM_VOLTAGE) != 0; }
-	boolean useBus() { return (flags & FLAG_BUS) != 0; }
+	boolean useBus() { return bitOrder == BIT_ORDER_BUS; }
 	boolean isDigitalChip() { return true; }
 	double getThreshold() { return highVoltage/2; }
 	
@@ -341,6 +344,8 @@ abstract class ChipElm extends CircuitElm {
 		XMLSerializer.dumpAttr(elem, "bi", bits);
 	    if (highVoltage != 5)
 		XMLSerializer.dumpAttr(elem, "hv", highVoltage);
+	    if (bitOrder != 0)
+		XMLSerializer.dumpAttr(elem, "bo", bitOrder);
 	}
 
 	void dumpXmlState(Document doc, Element elem) {
@@ -356,6 +361,7 @@ abstract class ChipElm extends CircuitElm {
 	    super.undumpXml(xml);
 	    bits = xml.parseIntAttr("bi", bits);
 	    highVoltage = xml.parseDoubleAttr("hv", highVoltage);
+	    bitOrder = xml.parseIntAttr("bo", bitOrder);
 
 	    setupPins();
 	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
@@ -424,8 +430,12 @@ abstract class ChipElm extends CircuitElm {
 		return new EditInfo("High Logic Voltage", highVoltage);
 	    if (allowBus()) {
 		if (n == 1) {
-		    EditInfo ei = new EditInfo("", 0, -1, -1);
-		    ei.checkbox = new Checkbox("Bus", useBus());
+		    EditInfo ei = new EditInfo("Bit Order", 0, -1, -1);
+		    ei.choice = new Choice();
+		    ei.choice.add("MSB Top");
+		    ei.choice.add("LSB Top");
+		    ei.choice.add("Bus");
+		    ei.choice.select(bitOrder);
 		    return ei;
 		}
 		return getChipEditInfo(n-2);
@@ -444,7 +454,7 @@ abstract class ChipElm extends CircuitElm {
 	    }
 	    if (allowBus()) {
 		if (n == 1) {
-		    flags = ei.changeFlag(flags, FLAG_BUS);
+		    bitOrder = ei.choice.getSelectedIndex();
 		    setupPins();
 		    setPoints();
 		    return;
@@ -584,6 +594,23 @@ abstract class ChipElm extends CircuitElm {
 	}
 
 	int getNumHandles() { return 0; }
+
+	void makeBitPins(int count, int pos, int side, int offset, String name, boolean output, boolean reversed) {
+            for (int i = 0; i != count; i++) {
+                int ii = (reversed) ? offset + count-1-i: offset + i;
+                if (useBus()) {
+                    pins[ii] = new Pin(pos, side, i == 0 ? name : "");
+                    pins[ii].busWidth = count;
+                    pins[ii].busZ = i;
+                } else if (bitOrder == BIT_ORDER_LSB_TOP) {
+                    pins[ii] = new Pin(pos+i, side, name + i);
+                } else {
+                    pins[ii] = new Pin(pos+(count-1-i), side, name + i);
+                }
+                if (output)
+                    pins[ii].output = pins[ii].state = true;
+            }
+	}
 
 	class Pin {
 	    Pin(int p, int s, String t) {
