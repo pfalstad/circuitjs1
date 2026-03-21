@@ -32,8 +32,8 @@ abstract class ChipElm extends CircuitElm {
 	static final int FLAG_FLIP_Y = 1<<11;
 	static final int FLAG_FLIP_XY = 1<<12;
 	static final int FLAG_CUSTOM_VOLTAGE = 1<<13;
-	static final int BIT_ORDER_MSB_TOP = 0;
-	static final int BIT_ORDER_LSB_TOP = 1;
+	static final int BIT_ORDER_MSB_FIRST = 0;
+	static final int BIT_ORDER_LSB_FIRST = 1;
 	static final int BIT_ORDER_BUS = 2;
 	int bitOrder;
 	public ChipElm(int xx, int yy) {
@@ -432,8 +432,8 @@ abstract class ChipElm extends CircuitElm {
 		if (n == 1) {
 		    EditInfo ei = new EditInfo("Bit Order", 0, -1, -1);
 		    ei.choice = new Choice();
-		    ei.choice.add("MSB Top");
-		    ei.choice.add("LSB Top");
+		    ei.choice.add("MSB First");
+		    ei.choice.add("LSB First");
 		    ei.choice.add("Bus");
 		    ei.choice.select(bitOrder);
 		    return ei;
@@ -602,7 +602,7 @@ abstract class ChipElm extends CircuitElm {
                     pins[ii] = new Pin(pos, side, i == 0 ? name : "");
                     pins[ii].busWidth = count;
                     pins[ii].busZ = i;
-                } else if (bitOrder == BIT_ORDER_LSB_TOP) {
+                } else if (bitOrder == BIT_ORDER_LSB_FIRST) {
                     pins[ii] = new Pin(pos+i, side, name + i);
                 } else {
                     pins[ii] = new Pin(pos+(count-1-i), side, name + i);
