@@ -431,13 +431,13 @@ abstract class ChipElm extends CircuitElm {
 	boolean allowBus() { return false; }
 
 	public EditInfo getEditInfo(int n) {
-	    if (!isDigitalChip())
-		return getChipEditInfo(n);
-
-	    if (n == 0)
-		return new EditInfo("High Logic Voltage", highVoltage);
+	    if (isDigitalChip()) {
+		if (n == 0)
+		    return new EditInfo("High Logic Voltage", highVoltage);
+		n--;
+	    }
 	    if (allowBus()) {
-		if (n == 1) {
+		if (n == 0) {
 		    EditInfo ei = new EditInfo("Bit Order", 0, -1, -1);
 		    ei.choice = new Choice();
 		    ei.choice.add("MSB First");
@@ -446,31 +446,29 @@ abstract class ChipElm extends CircuitElm {
 		    ei.choice.select(bitOrder);
 		    return ei;
 		}
-		return getChipEditInfo(n-2);
+		n--;
 	    }
-	    return getChipEditInfo(n-1);
+	    return getChipEditInfo(n);
 	}
-	public void setEditValue(int n, EditInfo ei) {
-	    if (!isDigitalChip()) {
-		setChipEditValue(n, ei);
-		return;
-	    }
 
-	    if (n == 0) {
-		highVoltage = ei.value;
-		return;
+	public void setEditValue(int n, EditInfo ei) {
+	    if (isDigitalChip()) {
+		if (n == 0) {
+		    highVoltage = ei.value;
+		    return;
+		}
+		n--;
 	    }
 	    if (allowBus()) {
-		if (n == 1) {
+		if (n == 0) {
 		    bitOrder = ei.choice.getSelectedIndex();
 		    setupPins();
 		    setPoints();
 		    return;
 		}
-		setChipEditValue(n-2, ei);
-		return;
+		n--;
 	    }
-	    setChipEditValue(n-1, ei);
+	    setChipEditValue(n, ei);
 	}
 	
 	public EditInfo getChipEditInfo(int n) { return null; }
@@ -603,7 +601,7 @@ abstract class ChipElm extends CircuitElm {
 
 	int getNumHandles() { return 0; }
 
-	void makeBitPins(int count, int pos, int side, int offset, String name, boolean output, boolean reversed) {
+	void makeBitPins(int count, int pos, int side, int offset, String name, boolean output, boolean state, boolean reversed) {
             for (int i = 0; i != count; i++) {
                 int ii = (reversed) ? offset + count-1-i: offset + i;
                 if (useBus()) {
@@ -615,8 +613,8 @@ abstract class ChipElm extends CircuitElm {
                 } else {
                     pins[ii] = new Pin(pos+(count-1-i), side, name + i);
                 }
-                if (output)
-                    pins[ii].output = pins[ii].state = true;
+		pins[ii].output = output;
+		pins[ii].state  = state;
             }
 	}
 

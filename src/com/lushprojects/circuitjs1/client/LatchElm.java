@@ -52,8 +52,8 @@ class LatchElm extends ChipElm {
 	int bitsY = useBus() ? 1 : bits;
 	sizeY = bitsY+1+extraPins;
 	pins = new Pin[getPostCount()];
-	makeBitPins(bits, 0, SIDE_W, 0, "I", false, false);
-	makeBitPins(bits, 0, SIDE_E, bits, "O", true, false);
+	makeBitPins(bits, 0, SIDE_W, 0, "I", false, false, false);
+	makeBitPins(bits, 0, SIDE_E, bits, "O", true, (flags & FLAG_STATE) != 0, false);
 	int pinIndex = bits*2;
 	pins[loadPin = pinIndex++] = new Pin(bitsY, SIDE_W, "Ld");
 	if (hasReset())

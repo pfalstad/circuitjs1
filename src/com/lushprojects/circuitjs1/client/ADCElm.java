@@ -27,15 +27,13 @@ class ADCElm extends ChipElm {
     }
     String getChipName() { return "ADC"; }
     boolean needsBits() { return true; }
+    boolean allowBus() { return true; }
     void setupPins() {
 	sizeX = 2;
-	sizeY = bits > 2 ? bits : 2;
+	int bitsY = useBus() ? 1 : (bits > 2 ? bits : 2);
+	sizeY = bitsY > 2 ? bitsY : 2;
 	pins = new Pin[getPostCount()];
-	int i;
-	for (i = 0; i != bits; i++) {
-	    pins[i] = new Pin(bits-1-i, SIDE_E, "D" + i);
-	    pins[i].output = true;
-	}
+	makeBitPins(bits, 0, SIDE_E, 0, "D", true, false, false);
 	pins[bits]   = new Pin(0, SIDE_W, "In");
 	pins[bits+1] = new Pin(sizeY-1, SIDE_W, "V+");
 	allocNodes();

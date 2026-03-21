@@ -404,7 +404,8 @@ public class Menus {
 		"Add Adder", "FullAdderElm",
 		"Add Half Adder", "HalfAdderElm",
 		"Add Custom Logic", "UserDefinedLogicElm", // don't change this, it will break people's saved shortcuts
-		"Add Static RAM", "SRAMElm"
+		"Add Static RAM", "SRAMElm",
+		"Add Bus Splitter", "BusSplitterElm"
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Digital Chips")), chipMenuBar);
     	

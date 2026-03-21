@@ -78,7 +78,7 @@ class CounterElm extends ChipElm {
 	    pins[0].bubble = negativeEdgeTriggered();
 	    pins[1] = new Pin(sizeY-1, SIDE_W, "R");
 	    pins[1].bubble = invertreset;
-	    makeBitPins(bits, 0, SIDE_E, 2, "Q", true, true);
+	    makeBitPins(bits, 0, SIDE_E, 2, "Q", true, true, true);
 	    if (hasUpDown())
 		pins[bits+2] = new Pin(sizeY-2, SIDE_W, "U/D");
 	    allocNodes();

@@ -63,12 +63,13 @@ class LabeledNodeElm extends CircuitElm {
     }
 
     String text;
-    
+    int busWidth = 1;
+
     class LabelEntry {
 	Point point;
 	int node;
     }
-    
+
     static HashMap<String,LabelEntry> labelList;
     boolean isInternal() { return (flags & FLAG_INTERNAL) != 0; }
     boolean isRotateText() { return (flags & FLAG_ROTATE_TEXT) != 0; }
@@ -89,16 +90,22 @@ class LabeledNodeElm extends CircuitElm {
     
     // get post we're connected to
     Point getConnectedPost() {
-	LabelEntry le = labelList.get(text);
+	return getConnectedPost(0);
+    }
+
+    Point getConnectedPost(int n) {
+	String key = (busWidth > 1) ? text + ":" + n : text;
+	Point myPost = getPost(n);
+	LabelEntry le = labelList.get(key);
 	if (le != null)
 	    return le.point;
-	
-	// this is the first time calcWireClosure() encountered this label.  so save point1 and
-	// return null for now, but return point1 the next time we see this label so that all nodes
+
+	// this is the first time calcWireClosure() encountered this label.  so save our post and
+	// return null for now, but return it the next time we see this label so that all nodes
 	// with the same label are connected
 	le = new LabelEntry();
-	le.point = point1;
-	labelList.put(text, le);
+	le.point = myPost;
+	labelList.put(key, le);
 	return null;
     }
     
@@ -106,18 +113,27 @@ class LabeledNodeElm extends CircuitElm {
 	super.setNode(p, n);
 
 	// save node number so we can return it in getByName()
-	LabelEntry le = labelList.get(text);
+	String key = (busWidth > 1) ? text + ":" + p : text;
+	LabelEntry le = labelList.get(key);
 	if (le != null) // should never happen
 	    le.node = n.index;
     }
     
     int getDumpType() { return 207; }
     String getXmlDumpType() { return "ln"; }
-    int getPostCount() { return 1; }
+    int getPostCount() { return busWidth; }
+    int getPostWidth(int n) { return busWidth; }
+
+    Point getPost(int n) {
+	if (busWidth == 1)
+	    return point1;
+	return new Point(point1.x, point1.y, n);
+    }
     
     // this is basically a wire, since it just connects two or more nodes together
     boolean isWireEquivalent() { return true; }
     boolean isRemovableWire() { return true; }
+    boolean getConnection(int n1, int n2) { return n1 == n2; }
     
     static Integer getByName(String n) {
 	if (labelList == null)
@@ -170,7 +186,11 @@ class LabeledNodeElm extends CircuitElm {
 
     void draw(Graphics g) {
 	setVoltageColor(g, volts[0]);
+	if (busWidth > 1)
+	    g.setLineWidth(5.0);
 	drawThickLine(g, point1, lead1);
+	if (busWidth > 1)
+	    g.setLineWidth(1.0);
 	g.setColor(needsHighlight() ? selectColor : whiteColor);
 	setPowerColor(g, false);
 	interpPoint(point1, point2, ps2, 1+11./dn);

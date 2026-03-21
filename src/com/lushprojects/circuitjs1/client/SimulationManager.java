@@ -121,22 +121,32 @@ public class SimulationManager {
 	}
 	for (int i = 0; i < elmList.size(); i++) {
 	    CircuitElm ce = elmList.get(i);
-	    if (!(ce instanceof WireElm)) continue;
-	    WireElm wire = (WireElm) ce;
-	    Point p1 = new Point(wire.x, wire.y);
-	    Point p2 = new Point(wire.x2, wire.y2);
-	    Integer w1 = widthMap.get(p1);
-	    Integer w2 = widthMap.get(p2);
-	    int w = 1;
-	    if (w1 != null) w = w1;
-	    if (w2 != null && w2 > w) w = w2;
-	    if (w1 != null && w2 != null && !w1.equals(w2)) {
-		busMismatchList.add(new Point(wire.x, wire.y));
-		busMismatchList.add(new Point(wire.x2, wire.y2));
-	    }
-	    if (w != wire.busWidth) {
-		wire.busWidth = w;
-		wire.allocNodes();
+	    if (ce instanceof WireElm) {
+		WireElm wire = (WireElm) ce;
+		Point p1 = new Point(wire.x, wire.y);
+		Point p2 = new Point(wire.x2, wire.y2);
+		Integer w1 = widthMap.get(p1);
+		Integer w2 = widthMap.get(p2);
+		int w = 1;
+		if (w1 != null) w = w1;
+		if (w2 != null && w2 > w) w = w2;
+		if (w1 != null && w2 != null && !w1.equals(w2)) {
+		    busMismatchList.add(new Point(wire.x, wire.y));
+		    busMismatchList.add(new Point(wire.x2, wire.y2));
+		}
+		if (w != wire.busWidth) {
+		    wire.busWidth = w;
+		    wire.allocNodes();
+		}
+	    } else if (ce instanceof LabeledNodeElm) {
+		LabeledNodeElm ln = (LabeledNodeElm) ce;
+		Point p = new Point(ln.x, ln.y);
+		Integer w = widthMap.get(p);
+		int bw = (w != null) ? w : 1;
+		if (bw != ln.busWidth) {
+		    ln.busWidth = bw;
+		    ln.allocNodes();
+		}
 	    }
 	}
     }
@@ -164,8 +174,10 @@ public class SimulationManager {
 	    ce.hasWireInfo = false;
 	    wireInfoList.add(new WireInfo(ce));
 
-	    // for bus wires, merge each bit's endpoints; for others, just one pair
-	    int pairs = (ce instanceof WireElm) ? ((WireElm)ce).busWidth : 1;
+	    // for bus wires/labels, merge each bit's endpoints; for others, just one pair
+	    int pairs = (ce instanceof WireElm) ? ((WireElm)ce).busWidth :
+			(ce instanceof LabeledNodeElm) ? ((LabeledNodeElm)ce).busWidth :
+			(ce instanceof BusSplitterElm) ? ((BusSplitterElm)ce).bits : 1;
 	    for (int j = 0; j < pairs; j++) {
 		Point p0 = ce.getPost(j);
 		NodeMapEntry cn = nm.get(p0);

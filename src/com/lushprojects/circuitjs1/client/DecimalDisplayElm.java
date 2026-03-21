@@ -97,7 +97,7 @@ class DecimalDisplayElm extends ChipElm {
 	sizeX = 3;
 	sizeY = useBus() ? 2 : bitCount;
 	pins = new Pin[bitCount];
-	makeBitPins(bitCount, 0, SIDE_W, 0, "I", false, false);
+	makeBitPins(bitCount, 0, SIDE_W, 0, "I", false, false, false);
 	allocNodes();
     }
     int getPostCount() { return bitCount; }
