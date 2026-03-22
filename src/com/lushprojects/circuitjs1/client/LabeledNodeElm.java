@@ -195,6 +195,11 @@ class LabeledNodeElm extends CircuitElm {
 	setBbox(point1, ps2, circleSize);
 	drawLabeledNode(g, text, point1, lead1);
 
+	if (currents != null) {
+	    current = 0;
+	    for (int i = 0; i < currents.length; i++)
+		current += currents[i];
+	}
 	curcount = updateDotCount(current, curcount);
 	drawDots(g, point1, lead1, curcount);
 	drawPosts(g);

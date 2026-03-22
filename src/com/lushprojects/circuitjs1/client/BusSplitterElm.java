@@ -72,8 +72,8 @@ class BusSplitterElm extends ChipElm {
 
     double getCurrentIntoNode(int n) {
 	if (n < bits)
-	    return currents[n];
-	return -currents[n - bits];
+	    return -currents[n];
+	return currents[n - bits];
     }
 
     void setWireCurrent(int bit, double c) {

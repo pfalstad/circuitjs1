@@ -130,8 +130,8 @@ package com.lushprojects.circuitjs1.client;
 	double getCurrentIntoNode(int n) {
 	    if (currents != null) {
 		if (n < busWidth)
-		    return currents[n];
-		return -currents[n - busWidth];
+		    return -currents[n];
+		return currents[n - busWidth];
 	    }
 	    if (n == 0)
 		return -current;
