@@ -23,6 +23,7 @@ import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 import java.util.HashMap;
+import java.util.Vector;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 class LabeledNodeElm extends CircuitElm {
@@ -132,6 +133,14 @@ class LabeledNodeElm extends CircuitElm {
 	return new Point(point1.x, point1.y, n);
     }
     
+    void getWireSegments(Vector<SimulationManager.WireSegment> list) {
+	for (int b = 0; b < busWidth; b++) {
+	    String ep0 = SimulationManager.pointKey(getPost(b));
+	    String ep1 = (busWidth > 1) ? "label:" + text + ":" + b : "label:" + text;
+	    list.add(new SimulationManager.WireSegment(this, b, ep0, ep1));
+	}
+    }
+
     // this is basically a wire, since it just connects two or more nodes together
     boolean isWireEquivalent() { return true; }
     boolean isRemovableWire() { return true; }

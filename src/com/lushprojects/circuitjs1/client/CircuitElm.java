@@ -690,6 +690,18 @@ public abstract class CircuitElm implements Editable {
     int getPostCount() { return 2; }
     int getPostWidth(int n) { return 1; }
     int getBusWidth() { return 1; }
+
+    // generate WireSegment entries for this wire-like element (called during calculateWireClosureForList)
+    void getWireSegments(Vector<SimulationManager.WireSegment> list) {
+	int bw = getBusWidth();
+	for (int b = 0; b < bw; b++) {
+	    Point p0 = getPost(b);
+	    Point p1 = getConnectedPost(b);
+	    String ep0 = SimulationManager.pointKey(p0);
+	    String ep1 = (p1 != null && !p1.equals(p0)) ? SimulationManager.pointKey(p1) : null;
+	    list.add(new SimulationManager.WireSegment(this, b, ep0, ep1));
+	}
+    }
     
     // get CircuitNode for nth node
     CircuitNode getNode(int n) { return nodes[n]; }

@@ -85,22 +85,24 @@ public class SimulationManager {
     // separate node map for UI element list (when viewing composite internals)
     HashMap<Point,NodeMapEntry> uiNodeMap;
     
-    class WireInfo {
+    static class WireSegment {
 	CircuitElm wire;
-	Vector<CircuitElm> neighbors;
-	int post;
-	int bit; // which bit for multi-bit wire elements (BusSplitterElm)
-	WireInfo(CircuitElm w) {
-	    wire = w;
-	}
-	WireInfo(CircuitElm w, int b) {
-	    wire = w;
-	    bit = b;
+	int bit;
+	String endpoint0, endpoint1; // string keys for each endpoint
+	Vector<CircuitElm> neighbors; // position-based neighbors
+	Vector<WireSegment> labelNeighbors; // neighbors at shared label endpoint
+	int post; // 0 or 1: which endpoint was used for current calc
+	double current; // set by calcWireCurrents, for label neighbor use
+
+	WireSegment(CircuitElm w, int b, String ep0, String ep1) {
+	    wire = w; bit = b; endpoint0 = ep0; endpoint1 = ep1;
 	}
     }
-    
-    // info about each wire and its neighbors, used to calculate wire currents
-    Vector<WireInfo> wireInfoList;
+
+    static String pointKey(Point p) { return p.x + "," + p.y + "," + p.z; }
+
+    // info about each wire segment and its neighbors, used to calculate wire currents
+    Vector<WireSegment> wireInfoList;
     // the element list that wireInfoList was built from
     HashSet<CircuitElm> wireInfoElmSet;
     // tracks which (element, bit) pairs have been resolved in calcWireInfo
@@ -212,17 +214,16 @@ public class SimulationManager {
     void calculateWireClosureForList(Vector<CircuitElm> list, boolean uiList) {
 	int i;
 	HashMap<Point,NodeMapEntry> nm = new HashMap<Point,NodeMapEntry>();
-	wireInfoList = new Vector<WireInfo>();
+	wireInfoList = new Vector<WireSegment>();
 	wireInfoElmSet = new HashSet<CircuitElm>(list);
 	for (i = 0; i != list.size(); i++) {
 	    CircuitElm ce = list.get(i);
 	    if (!ce.isRemovableWire())
 		continue;
-	    int bw = ce.getBusWidth();
-	    for (int b = 0; b < bw; b++)
-		wireInfoList.add(new WireInfo(ce, b));
+	    ce.getWireSegments(wireInfoList);
 
 	    // for bus wires/labels, merge each bit's endpoints; for others, just one pair
+	    int bw = ce.getBusWidth();
 	    for (int j = 0; j < bw; j++) {
 		Point p0 = ce.getPost(j);
 		NodeMapEntry cn = nm.get(p0);
@@ -337,118 +338,89 @@ public class SimulationManager {
     }
 
     boolean calcWireInfo() {
-	int i;
+	int i, j;
 	int moved = 0;
 	wireInfoResolved = new HashMap<CircuitElm, HashSet<Integer>>();
-	
+
+	// build label endpoint map: label string → list of WireSegments sharing that label
+	HashMap<String, Vector<WireSegment>> labelMap = new HashMap<String, Vector<WireSegment>>();
 	for (i = 0; i != wireInfoList.size(); i++) {
-	    WireInfo wi = wireInfoList.get(i);
-	    CircuitElm wire = wi.wire;
-	    CircuitNode cn1 = wire.getNode(wi.bit);  // both ends of wire have same node #
-	    int j;
+	    WireSegment ws = wireInfoList.get(i);
+	    if (ws.endpoint1 != null && ws.endpoint1.startsWith("label:")) {
+		Vector<WireSegment> list = labelMap.get(ws.endpoint1);
+		if (list == null) { list = new Vector<WireSegment>(); labelMap.put(ws.endpoint1, list); }
+		list.add(ws);
+	    }
+	}
+
+	for (i = 0; i != wireInfoList.size(); i++) {
+	    WireSegment ws = wireInfoList.get(i);
+	    CircuitElm wire = ws.wire;
+	    CircuitNode cn1 = wire.getNode(ws.bit);
 
 	    Vector<CircuitElm> neighbors0 = new Vector<CircuitElm>();
 	    Vector<CircuitElm> neighbors1 = new Vector<CircuitElm>();
-
-	    // assume each end is ready (except ground nodes which have one end)
-	    // labeled nodes are treated as having 2 terminals, see below
+	    Vector<WireSegment> labelNeighbors = new Vector<WireSegment>();
 	    boolean isReady0 = true, isReady1 = !(wire instanceof GroundElm);
 
-	    // get the two endpoint positions for this wire (or this bit of it)
-	    Point end0 = wire.getPost(wi.bit);
-	    Point end1 = wire.getConnectedPost(wi.bit);
-	    // first labeled node for a given label gets its own point back from
-	    // getConnectedPost; treat that as null so it only resolves from end0
-	    if (end1 != null && end0.x == end1.x && end0.y == end1.y && end0.z == end1.z)
-		end1 = null;
-
-	    // go through elements sharing a node with this wire (may be connected indirectly
-	    // by other wires, but at least it's faster than going through all elements)
-	    console("calcWireInfo[" + i + "]: " + wire.getClass().getSimpleName() + " bit=" + wi.bit
-		+ " end0=" + end0 + " end1=" + end1 + " cn1=" + cn1 + " links=" + cn1.links.size());
+	    // position-based matching via cn.links
 	    for (j = 0; j != cn1.links.size(); j++) {
 		CircuitNodeLink cnl = cn1.links.get(j);
 		CircuitElm ce = cnl.elm;
-		if (ce == wire)
-		    continue;
-		// skip elements not in the list we're processing
-		if (!wireInfoElmSet.contains(ce)) {
-		    console("  skipping (not in set): " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num);
-		    continue;
-		}
-		// skip internal nodes (e.g. from enclosing CompositeElm) which have no position
-		if (cnl.num >= ce.getPostCount()) {
-		    console("  skipping (internal): " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num + " postCount=" + ce.getPostCount());
-		    continue;
-		}
+		if (ce == wire) continue;
+		if (!wireInfoElmSet.contains(ce)) continue;
+		if (cnl.num >= ce.getPostCount()) continue;
 		Point pt = ce.getPost(cnl.num);
-		console("  candidate: " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num + " pt=" + pt + " end0match=" +
-		    (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) + " end1match=" +
-		    (end1 != null && pt.x == end1.x && pt.y == end1.y && pt.z == end1.z));
-		if (pt == null)
-		    continue;
+		if (pt == null) continue;
+		String ptKey = pointKey(pt);
 
-		// is this a wire that doesn't have wire info yet for this specific bit?
-		// If so we can't use it yet — that would create a circular dependency.
-		// We use cnl.num % getBusWidth() to map the post index to the bit,
-		// since individual-side posts of BusSplitterElm have z=0 regardless of bit.
 		int neighborBit = cnl.num % ce.getBusWidth();
 		boolean notReady = (ce.isRemovableWire() && !isWireInfoResolved(ce, neighborBit));
 
-		// which post does this element connect to, if any?
-		if (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) {
-		    // console("  found immediate neighbor " + ce + " " + pt);
+		if (ws.endpoint0 != null && ws.endpoint0.equals(ptKey)) {
 		    neighbors0.add(ce);
 		    if (notReady) isReady0 = false;
-		} else if (end1 != null && pt.x == end1.x && pt.y == end1.y && pt.z == end1.z) {
-		    // skip matching labeled nodes at end1 — their current was derived from the
-		    // other elements at this same point, so counting both would double-count
-		    if (ce instanceof LabeledNodeElm && wire instanceof LabeledNodeElm &&
-			    ((LabeledNodeElm) ce).text == ((LabeledNodeElm) wire).text)
-			continue;
+		} else if (ws.endpoint1 != null && !ws.endpoint1.startsWith("label:") && ws.endpoint1.equals(ptKey)) {
 		    neighbors1.add(ce);
-		    // console("  found immediate neighbor " + ce + " " + pt);
 		    if (notReady) isReady1 = false;
 		}
 	    }
 
-	    // does one of the posts have all information necessary to calculate current?
+	    // label-based matching: find other WireSegments sharing the same label endpoint
+	    if (ws.endpoint1 != null && ws.endpoint1.startsWith("label:")) {
+		Vector<WireSegment> peers = labelMap.get(ws.endpoint1);
+		if (peers != null) {
+		    for (j = 0; j != peers.size(); j++) {
+			WireSegment other = peers.get(j);
+			if (other == ws) continue;
+			boolean notReady = !isWireInfoResolved(other.wire, other.bit);
+			labelNeighbors.add(other);
+			if (notReady) isReady1 = false;
+		    }
+		}
+	    }
+
 	    if (isReady0) {
-		wi.neighbors = neighbors0;
-		wi.post = 0;
-		setWireInfoResolved(wire, wi.bit);
+		ws.neighbors = neighbors0;
+		ws.post = 0;
+		setWireInfoResolved(wire, ws.bit);
 		moved = 0;
-	    } else if (isReady1 && (end1 != null || !(wire instanceof LabeledNodeElm))) {
-		wi.neighbors = neighbors1;
-		wi.post = 1;
-		setWireInfoResolved(wire, wi.bit);
+	    } else if (isReady1 && (ws.endpoint1 != null || !(wire instanceof GroundElm))) {
+		ws.neighbors = neighbors1;
+		ws.labelNeighbors = labelNeighbors;
+		ws.post = 1;
+		setWireInfoResolved(wire, ws.bit);
 		moved = 0;
 	    } else {
-		// no, so move to the end of the list and try again later
 		wireInfoList.add(wireInfoList.remove(i--));
 		moved++;
 		if (moved > wireInfoList.size() * 2) {
-		    Vector<CircuitElm> uiList = app.ui.elmList;
-		    Vector<CircuitElm> mainList = app.elmList;
 		    console("wire loop detected, " + wireInfoList.size() + " wires total, unresolved:");
 		    for (int k = i; k < wireInfoList.size(); k++) {
-			WireInfo wk = wireInfoList.get(k);
-			CircuitElm ww = wk.wire;
-			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") resolved=" + wireInfoResolved.get(ww)
-			    + " inUI=" + uiList.contains(ww) + " inMain=" + mainList.contains(ww));
-		    }
-		    console("current wire: " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")"
-			+ " inUI=" + uiList.contains(wire) + " inMain=" + mainList.contains(wire));
-		    console("  isReady0=" + isReady0 + " neighbors0=" + neighbors0.size() + " isReady1=" + isReady1 + " neighbors1=" + neighbors1.size());
-		    for (int k = 0; k < neighbors0.size(); k++) {
-			CircuitElm ne = neighbors0.get(k);
-			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " resolved=" + wireInfoResolved.get(ne)
-			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
-		    }
-		    for (int k = 0; k < neighbors1.size(); k++) {
-			CircuitElm ne = neighbors1.get(k);
-			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " resolved=" + wireInfoResolved.get(ne)
-			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
+			WireSegment wk = wireInfoList.get(k);
+			console("  unresolved: " + wk.wire.getClass().getSimpleName()
+			    + " bit=" + wk.bit + " ep0=" + wk.endpoint0 + " ep1=" + wk.endpoint1
+			    + " resolved=" + wireInfoResolved.get(wk.wire));
 		    }
 		    stop("wire loop detected", wire);
 		    return false;
@@ -457,21 +429,12 @@ public class SimulationManager {
 	}
 
 	for (i = 0; i != wireInfoList.size(); i++) {
-	    WireInfo wi = wireInfoList.get(i);
-	    CircuitElm wire = wi.wire;
-	    Point end0 = wire.getPost(wi.bit);
-	    Point end1 = wire.getConnectedPost(wi.bit);
-	    console("wireInfo[" + i + "]: " + wire.getClass().getSimpleName()
-		+ " bit=" + wi.bit + " post=" + wi.post
-		+ " end0=" + end0 + " end1=" + end1
-		+ " neighbors=" + (wi.neighbors != null ? wi.neighbors.size() : "null")
-		+ " node=" + wire.getNode(wi.bit));
-	    if (wi.neighbors != null)
-		for (int k = 0; k < wi.neighbors.size(); k++) {
-		    CircuitElm ne = wi.neighbors.get(k);
-		    console("  neighbor[" + k + "]: " + ne.getClass().getSimpleName()
-			+ " removable=" + ne.isRemovableWire());
-		}
+	    WireSegment ws = wireInfoList.get(i);
+	    console("wireInfo[" + i + "]: " + ws.wire.getClass().getSimpleName()
+		+ " bit=" + ws.bit + " post=" + ws.post
+		+ " ep0=" + ws.endpoint0 + " ep1=" + ws.endpoint1
+		+ " neighbors=" + (ws.neighbors != null ? ws.neighbors.size() : "null")
+		+ " labelNeighbors=" + (ws.labelNeighbors != null ? ws.labelNeighbors.size() : "null"));
 	}
 
 	return true;
@@ -1606,29 +1569,39 @@ public class SimulationManager {
     // we removed wires from the matrix to speed things up.  in order to display wire currents,
     // we need to calculate them now.
     void calcWireCurrents() {
-	int i;
-	
-	// for debugging
-	//for (i = 0; i != wireInfoList.size(); i++)
-	 //   wireInfoList.get(i).wire.setCurrent(-1, 1.23);
-	
+	int i, j;
+
 	for (i = 0; i != wireInfoList.size(); i++) {
-	    WireInfo wi = wireInfoList.get(i);
+	    WireSegment ws = wireInfoList.get(i);
 	    double cur = 0;
-	    int j;
 
-	    // get the actual post position for the end we're using
-	    Point p = (wi.post == 0) ? wi.wire.getPost(wi.bit) : wi.wire.getConnectedPost(wi.bit);
-
-	    for (j = 0; j != wi.neighbors.size(); j++) {
-		CircuitElm ce = wi.neighbors.get(j);
-		int n = ce.getNodeAtPoint(p);
-		cur += ce.getCurrentIntoNode(n);
+	    if (ws.post == 0) {
+		// resolve from endpoint0 (position-based neighbors)
+		Point p = ws.wire.getPost(ws.bit);
+		for (j = 0; j != ws.neighbors.size(); j++) {
+		    CircuitElm ce = ws.neighbors.get(j);
+		    cur += ce.getCurrentIntoNode(ce.getNodeAtPoint(p));
+		}
+	    } else {
+		if (ws.endpoint1 != null && ws.endpoint1.startsWith("label:")) {
+		    // label neighbors: use their already-computed current
+		    if (ws.labelNeighbors != null)
+			for (j = 0; j != ws.labelNeighbors.size(); j++)
+			    cur += ws.labelNeighbors.get(j).current;
+		} else {
+		    // position-based neighbors at endpoint1
+		    Point p = ws.wire.getConnectedPost(ws.bit);
+		    for (j = 0; j != ws.neighbors.size(); j++) {
+			CircuitElm ce = ws.neighbors.get(j);
+			cur += ce.getCurrentIntoNode(ce.getNodeAtPoint(p));
+		    }
+		}
 	    }
 	    // get correct current polarity
-	    if (wi.post != 0)
+	    if (ws.post != 0)
 		cur = -cur;
-	    wi.wire.setWireCurrent(wi.bit, cur);
+	    ws.wire.setWireCurrent(ws.bit, cur);
+	    ws.current = cur;
 	}
     }
     
