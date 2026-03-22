@@ -73,6 +73,11 @@ package com.lushprojects.circuitjs1.client;
 	}
 
 	void draw(Graphics g) {
+	    if (currents != null) {
+		current = 0;
+		for (int i = 0; i < currents.length; i++)
+		    current += currents[i];
+	    }
 	    setVoltageColor(g, volts[0]);
 	    drawThickLine(g, point1, point2, (busWidth > 1) ? 5 : 3);
 	    doDots(g);

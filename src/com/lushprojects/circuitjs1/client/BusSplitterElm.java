@@ -78,6 +78,12 @@ class BusSplitterElm extends ChipElm {
 
     void setWireCurrent(int bit, double c) {
 	currents[bit] = c;
+	pins[bit + bits].current = c;
+	// update total bus current on pin 0 (the only bus-side pin that gets drawn)
+	double total = 0;
+	for (int i = 0; i < bits; i++)
+	    total += currents[i];
+	pins[0].current = -total;
     }
 
     int getDumpType() { return 433; }
