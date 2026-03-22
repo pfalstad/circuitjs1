@@ -54,6 +54,7 @@ class BusSplitterElm extends ChipElm {
     double[] currents;
 
     int getPostCount() { return bits * 2; }
+    int getBusWidth() { return bits; }
     int getVoltageSourceCount() { return 0; }
 
     boolean getConnection(int n1, int n2) {

@@ -124,6 +124,7 @@ class LabeledNodeElm extends CircuitElm {
     String getXmlDumpType() { return "ln"; }
     int getPostCount() { return busWidth; }
     int getPostWidth(int n) { return busWidth; }
+    int getBusWidth() { return busWidth; }
 
     Point getPost(int n) {
 	if (busWidth == 1)

@@ -33,6 +33,7 @@ package com.lushprojects.circuitjs1.client;
 	static final int FLAG_SHOW_BUS_VALUE = 4;
 
 	int getPostCount() { return busWidth * 2; }
+	int getBusWidth() { return busWidth; }
 
 	Point getPost(int n) {
 	    if (busWidth == 1)

@@ -103,6 +103,8 @@ public class SimulationManager {
     Vector<WireInfo> wireInfoList;
     // the element list that wireInfoList was built from
     HashSet<CircuitElm> wireInfoElmSet;
+    // tracks which (element, bit) pairs have been resolved in calcWireInfo
+    HashMap<CircuitElm, HashSet<Integer>> wireInfoResolved;
     
     // detect bus widths for wires based on connected elements
     Vector<Point> busMismatchList;
@@ -219,24 +221,12 @@ public class SimulationManager {
 	    CircuitElm ce = list.get(i);
 	    if (!ce.isRemovableWire())
 		continue;
-	    ce.hasWireInfoBits = 0;
-	    if (ce instanceof BusSplitterElm) {
-		for (int b = 0; b < ((BusSplitterElm) ce).bits; b++)
-		    wireInfoList.add(new WireInfo(ce, b));
-	    } else if (ce instanceof WireElm && ((WireElm) ce).busWidth > 1) {
-		for (int b = 0; b < ((WireElm) ce).busWidth; b++)
-		    wireInfoList.add(new WireInfo(ce, b));
-	    } else if (ce instanceof LabeledNodeElm && ((LabeledNodeElm) ce).busWidth > 1) {
-		for (int b = 0; b < ((LabeledNodeElm) ce).busWidth; b++)
-		    wireInfoList.add(new WireInfo(ce, b));
-	    } else
-		wireInfoList.add(new WireInfo(ce));
+	    int bw = ce.getBusWidth();
+	    for (int b = 0; b < bw; b++)
+		wireInfoList.add(new WireInfo(ce, b));
 
 	    // for bus wires/labels, merge each bit's endpoints; for others, just one pair
-	    int pairs = (ce instanceof WireElm) ? ((WireElm)ce).busWidth :
-			(ce instanceof LabeledNodeElm) ? ((LabeledNodeElm)ce).busWidth :
-			(ce instanceof BusSplitterElm) ? ((BusSplitterElm)ce).bits : 1;
-	    for (int j = 0; j < pairs; j++) {
+	    for (int j = 0; j < bw; j++) {
 		Point p0 = ce.getPost(j);
 		NodeMapEntry cn = nm.get(p0);
 
@@ -335,9 +325,24 @@ public class SimulationManager {
     // (once per frame, not once per subiteration).  We need the WireInfos arranged in the correct order,
     // each one containing a list of neighbors and which end to use (since one end may be ready before
     // the other)
+    boolean isWireInfoResolved(CircuitElm ce, int bit) {
+	HashSet<Integer> bits = wireInfoResolved.get(ce);
+	return bits != null && bits.contains(bit);
+    }
+
+    void setWireInfoResolved(CircuitElm ce, int bit) {
+	HashSet<Integer> bits = wireInfoResolved.get(ce);
+	if (bits == null) {
+	    bits = new HashSet<Integer>();
+	    wireInfoResolved.put(ce, bits);
+	}
+	bits.add(bit);
+    }
+
     boolean calcWireInfo() {
 	int i;
 	int moved = 0;
+	wireInfoResolved = new HashMap<CircuitElm, HashSet<Integer>>();
 	
 	for (i = 0; i != wireInfoList.size(); i++) {
 	    WireInfo wi = wireInfoList.get(i);
@@ -384,7 +389,7 @@ public class SimulationManager {
 
 		// is this a wire that doesn't have wire info yet for this specific bit?
 		// If so we can't use it yet — that would create a circular dependency.
-		boolean notReady = (ce.isRemovableWire() && (ce.hasWireInfoBits & (1L << pt.z)) == 0);
+		boolean notReady = (ce.isRemovableWire() && !isWireInfoResolved(ce, pt.z));
 
 		// which post does this element connect to, if any?
 		if (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) {
@@ -407,12 +412,12 @@ public class SimulationManager {
 	    if (isReady0) {
 		wi.neighbors = neighbors0;
 		wi.post = 0;
-		wire.hasWireInfoBits |= (1L << wi.bit);
+		setWireInfoResolved(wire, wi.bit);
 		moved = 0;
 	    } else if (isReady1 && (!neighbors1.isEmpty() || !(wire instanceof LabeledNodeElm))) {
 		wi.neighbors = neighbors1;
 		wi.post = 1;
-		wire.hasWireInfoBits |= (1L << wi.bit);
+		setWireInfoResolved(wire, wi.bit);
 		moved = 0;
 	    } else {
 		// no, so move to the end of the list and try again later
@@ -425,7 +430,7 @@ public class SimulationManager {
 		    for (int k = i; k < wireInfoList.size(); k++) {
 			WireInfo wk = wireInfoList.get(k);
 			CircuitElm ww = wk.wire;
-			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") hasWireInfoBits=" + ww.hasWireInfoBits
+			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") resolved=" + wireInfoResolved.get(ww)
 			    + " inUI=" + uiList.contains(ww) + " inMain=" + mainList.contains(ww));
 		    }
 		    console("current wire: " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")"
@@ -433,12 +438,12 @@ public class SimulationManager {
 		    console("  isReady0=" + isReady0 + " neighbors0=" + neighbors0.size() + " isReady1=" + isReady1 + " neighbors1=" + neighbors1.size());
 		    for (int k = 0; k < neighbors0.size(); k++) {
 			CircuitElm ne = neighbors0.get(k);
-			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfoBits=" + ne.hasWireInfoBits
+			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " resolved=" + wireInfoResolved.get(ne)
 			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    for (int k = 0; k < neighbors1.size(); k++) {
 			CircuitElm ne = neighbors1.get(k);
-			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfoBits=" + ne.hasWireInfoBits
+			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " resolved=" + wireInfoResolved.get(ne)
 			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    stop("wire loop detected", wire);

@@ -98,7 +98,6 @@ public abstract class CircuitElm implements Editable {
     
     public boolean selected;
     
-    long hasWireInfoBits; // bitmask of which bits have wire info resolved
     
 //    abstract int getDumpType();
     int getDumpType() {
@@ -690,6 +689,7 @@ public abstract class CircuitElm implements Editable {
     boolean nonLinear() { return false; }
     int getPostCount() { return 2; }
     int getPostWidth(int n) { return 1; }
+    int getBusWidth() { return 1; }
     
     // get CircuitNode for nth node
     CircuitNode getNode(int n) { return nodes[n]; }
