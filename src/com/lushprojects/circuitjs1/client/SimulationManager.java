@@ -138,10 +138,8 @@ public class SimulationManager {
 		CircuitElm ce = list.get(i);
 		if (ce instanceof WireElm) {
 		    WireElm wire = (WireElm) ce;
-		    Point p1 = new Point(wire.x, wire.y);
-		    Point p2 = new Point(wire.x2, wire.y2);
-		    Integer w1 = widthMap.get(p1);
-		    Integer w2 = widthMap.get(p2);
+		    Integer w1 = widthMap.get(wire.point1);
+		    Integer w2 = widthMap.get(wire.point2);
 		    int w = 1;
 		    if (w1 != null) w = w1;
 		    if (w2 != null && w2 > w) w = w2;
@@ -152,13 +150,12 @@ public class SimulationManager {
 			changed = true;
 		    }
 		    if (w > 1) {
-			if (w1 == null || w1 < w) { widthMap.put(p1, w); changed = true; }
-			if (w2 == null || w2 < w) { widthMap.put(p2, w); changed = true; }
+			if (w1 == null || w1 < w) { widthMap.put(wire.point1, w); changed = true; }
+			if (w2 == null || w2 < w) { widthMap.put(wire.point2, w); changed = true; }
 		    }
 		} else if (ce instanceof LabeledNodeElm) {
 		    LabeledNodeElm ln = (LabeledNodeElm) ce;
-		    Point p = new Point(ln.x, ln.y);
-		    Integer w = widthMap.get(p);
+		    Integer w = widthMap.get(ln.point1);
 		    int bw = (w != null) ? w : 1;
 		    if (bw != ln.busWidth) {
 			ln.busWidth = bw;
@@ -167,7 +164,7 @@ public class SimulationManager {
 			changed = true;
 		    }
 		    if (bw > 1 && (w == null || w < bw)) {
-			widthMap.put(p, bw);
+			widthMap.put(ln.point1, bw);
 			changed = true;
 		    }
 		} else if (ce instanceof BusSplitterElm) {
