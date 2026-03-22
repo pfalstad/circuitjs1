@@ -145,6 +145,7 @@ public class SimulationManager {
 		    if (w2 != null && w2 > w) w = w2;
 		    if (w != wire.busWidth) {
 			wire.busWidth = w;
+			wire.currents = (w > 1) ? new double[w] : null;
 			wire.allocNodes();
 			changed = true;
 		    }
@@ -159,6 +160,7 @@ public class SimulationManager {
 		    int bw = (w != null) ? w : 1;
 		    if (bw != ln.busWidth) {
 			ln.busWidth = bw;
+			ln.currents = (bw > 1) ? new double[bw] : null;
 			ln.allocNodes();
 			changed = true;
 		    }
@@ -217,10 +219,15 @@ public class SimulationManager {
 	    CircuitElm ce = list.get(i);
 	    if (!ce.isRemovableWire())
 		continue;
-	    ce.hasWireInfo = false;
+	    ce.hasWireInfoBits = 0;
 	    if (ce instanceof BusSplitterElm) {
-		int bits = ((BusSplitterElm) ce).bits;
-		for (int b = 0; b < bits; b++)
+		for (int b = 0; b < ((BusSplitterElm) ce).bits; b++)
+		    wireInfoList.add(new WireInfo(ce, b));
+	    } else if (ce instanceof WireElm && ((WireElm) ce).busWidth > 1) {
+		for (int b = 0; b < ((WireElm) ce).busWidth; b++)
+		    wireInfoList.add(new WireInfo(ce, b));
+	    } else if (ce instanceof LabeledNodeElm && ((LabeledNodeElm) ce).busWidth > 1) {
+		for (int b = 0; b < ((LabeledNodeElm) ce).busWidth; b++)
 		    wireInfoList.add(new WireInfo(ce, b));
 	    } else
 		wireInfoList.add(new WireInfo(ce));
@@ -351,26 +358,33 @@ public class SimulationManager {
 
 	    // go through elements sharing a node with this wire (may be connected indirectly
 	    // by other wires, but at least it's faster than going through all elements)
-	    // console("looking at " + wire + " " + wire.getNode(wi.bit));
+	    console("calcWireInfo[" + i + "]: " + wire.getClass().getSimpleName() + " bit=" + wi.bit
+		+ " end0=" + end0 + " end1=" + end1 + " cn1=" + cn1 + " links=" + cn1.links.size());
 	    for (j = 0; j != cn1.links.size(); j++) {
 		CircuitNodeLink cnl = cn1.links.get(j);
 		CircuitElm ce = cnl.elm;
 		if (ce == wire)
 		    continue;
 		// skip elements not in the list we're processing
-		if (!wireInfoElmSet.contains(ce))
+		if (!wireInfoElmSet.contains(ce)) {
+		    console("  skipping (not in set): " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num);
 		    continue;
+		}
 		// skip internal nodes (e.g. from enclosing CompositeElm) which have no position
-		if (cnl.num >= ce.getPostCount())
+		if (cnl.num >= ce.getPostCount()) {
+		    console("  skipping (internal): " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num + " postCount=" + ce.getPostCount());
 		    continue;
+		}
 		Point pt = ce.getPost(cnl.num);
-		// console("  connected to " + ce + " " + pt + " " + cnl.num + " " + ce.getPostCount());
+		console("  candidate: " + ce.getClass().getSimpleName() + " cnl.num=" + cnl.num + " pt=" + pt + " end0match=" +
+		    (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) + " end1match=" +
+		    (end1 != null && pt.x == end1.x && pt.y == end1.y && pt.z == end1.z));
 		if (pt == null)
 		    continue;
 
-		// is this a wire that doesn't have wire info yet?  If so we can't use it yet.
-		// That would create a circular dependency.  So that side isn't ready.
-		boolean notReady = (ce.isRemovableWire() && !ce.hasWireInfo);
+		// is this a wire that doesn't have wire info yet for this specific bit?
+		// If so we can't use it yet — that would create a circular dependency.
+		boolean notReady = (ce.isRemovableWire() && (ce.hasWireInfoBits & (1L << pt.z)) == 0);
 
 		// which post does this element connect to, if any?
 		if (end0 != null && pt.x == end0.x && pt.y == end0.y && pt.z == end0.z) {
@@ -393,12 +407,12 @@ public class SimulationManager {
 	    if (isReady0) {
 		wi.neighbors = neighbors0;
 		wi.post = 0;
-		wire.hasWireInfo = true;
+		wire.hasWireInfoBits |= (1L << wi.bit);
 		moved = 0;
 	    } else if (isReady1 && (!neighbors1.isEmpty() || !(wire instanceof LabeledNodeElm))) {
 		wi.neighbors = neighbors1;
 		wi.post = 1;
-		wire.hasWireInfo = true;
+		wire.hasWireInfoBits |= (1L << wi.bit);
 		moved = 0;
 	    } else {
 		// no, so move to the end of the list and try again later
@@ -411,7 +425,7 @@ public class SimulationManager {
 		    for (int k = i; k < wireInfoList.size(); k++) {
 			WireInfo wk = wireInfoList.get(k);
 			CircuitElm ww = wk.wire;
-			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") hasWireInfo=" + ww.hasWireInfo
+			console("  unresolved: " + ww + " (" + ww.x + "," + ww.y + ")-(" + ww.x2 + "," + ww.y2 + ") hasWireInfoBits=" + ww.hasWireInfoBits
 			    + " inUI=" + uiList.contains(ww) + " inMain=" + mainList.contains(ww));
 		    }
 		    console("current wire: " + wire + " (" + wire.x + "," + wire.y + ")-(" + wire.x2 + "," + wire.y2 + ")"
@@ -419,12 +433,12 @@ public class SimulationManager {
 		    console("  isReady0=" + isReady0 + " neighbors0=" + neighbors0.size() + " isReady1=" + isReady1 + " neighbors1=" + neighbors1.size());
 		    for (int k = 0; k < neighbors0.size(); k++) {
 			CircuitElm ne = neighbors0.get(k);
-			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo
+			console("  neighbor0: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfoBits=" + ne.hasWireInfoBits
 			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    for (int k = 0; k < neighbors1.size(); k++) {
 			CircuitElm ne = neighbors1.get(k);
-			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfo=" + ne.hasWireInfo
+			console("  neighbor1: " + ne + " removable=" + ne.isRemovableWire() + " hasWireInfoBits=" + ne.hasWireInfoBits
 			    + " inUI=" + uiList.contains(ne) + " inMain=" + mainList.contains(ne));
 		    }
 		    stop("wire loop detected", wire);
@@ -432,7 +446,25 @@ public class SimulationManager {
 		}
 	    }
 	}
-	
+
+	for (i = 0; i != wireInfoList.size(); i++) {
+	    WireInfo wi = wireInfoList.get(i);
+	    CircuitElm wire = wi.wire;
+	    Point end0 = wire.getPost(wi.bit);
+	    Point end1 = wire.getConnectedPost(wi.bit);
+	    console("wireInfo[" + i + "]: " + wire.getClass().getSimpleName()
+		+ " bit=" + wi.bit + " post=" + wi.post
+		+ " end0=" + end0 + " end1=" + end1
+		+ " neighbors=" + (wi.neighbors != null ? wi.neighbors.size() : "null")
+		+ " node=" + wire.getNode(wi.bit));
+	    if (wi.neighbors != null)
+		for (int k = 0; k < wi.neighbors.size(); k++) {
+		    CircuitElm ne = wi.neighbors.get(k);
+		    console("  neighbor[" + k + "]: " + ne.getClass().getSimpleName()
+			+ " removable=" + ne.isRemovableWire());
+		}
+	}
+
 	return true;
     }
 
@@ -1577,12 +1609,7 @@ public class SimulationManager {
 	    int j;
 
 	    // get the actual post position for the end we're using
-	    Point p;
-	    if (wi.wire instanceof BusSplitterElm) {
-		BusSplitterElm bs = (BusSplitterElm) wi.wire;
-		p = wi.wire.getPost(wi.post == 0 ? wi.bit : wi.bit + bs.bits);
-	    } else
-		p = wi.wire.getPost(wi.post);
+	    Point p = (wi.post == 0) ? wi.wire.getPost(wi.bit) : wi.wire.getConnectedPost(wi.bit);
 
 	    for (j = 0; j != wi.neighbors.size(); j++) {
 		CircuitElm ce = wi.neighbors.get(j);
@@ -1591,12 +1618,9 @@ public class SimulationManager {
 	    }
 	    // get correct current polarity
 	    // (LabeledNodes may have wi.post == 1, in which case we flip the current sign)
-	    if (wi.wire instanceof BusSplitterElm) {
-		((BusSplitterElm) wi.wire).currents[wi.bit] = (wi.post == 0) ? cur : -cur;
-	    } else if (wi.post == 0 || (wi.wire instanceof LabeledNodeElm))
-		wi.wire.setCurrent(null, cur);
-	    else
-		wi.wire.setCurrent(null, -cur);
+	    if (wi.post != 0 && !(wi.wire instanceof LabeledNodeElm))
+		cur = -cur;
+	    wi.wire.setWireCurrent(wi.bit, cur);
 	}
     }
     

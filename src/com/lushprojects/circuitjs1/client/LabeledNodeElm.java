@@ -64,6 +64,7 @@ class LabeledNodeElm extends CircuitElm {
 
     String text;
     int busWidth = 1;
+    double[] currents;
 
     class LabelEntry {
 	Point point;
@@ -197,8 +198,18 @@ class LabeledNodeElm extends CircuitElm {
 	drawDots(g, point1, lead1, curcount);
 	drawPosts(g);
     }
-    double getCurrentIntoNode(int n) { return -current; }
+    double getCurrentIntoNode(int n) {
+	if (currents != null)
+	    return -currents[n];
+	return -current;
+    }
     void setCurrent(VoltageSource vs, double c) { current = c; }
+    void setWireCurrent(int bit, double c) {
+	if (currents != null)
+	    currents[bit] = c;
+	else
+	    current = c;
+    }
     int getShortcut() { return 'b'; }
     double getVoltageDiff() { return volts[0]; }
     String getElmType() { return "Labeled Node"; }

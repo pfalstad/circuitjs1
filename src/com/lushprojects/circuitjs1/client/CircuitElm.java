@@ -98,7 +98,7 @@ public abstract class CircuitElm implements Editable {
     
     public boolean selected;
     
-    boolean hasWireInfo; // used in calcWireInfo()
+    long hasWireInfoBits; // bitmask of which bits have wire info resolved
     
 //    abstract int getDumpType();
     int getDumpType() {
@@ -248,9 +248,12 @@ public abstract class CircuitElm implements Editable {
     }
     void draw(Graphics g) {}
     
-    // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn) 
+    // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn)
     void setCurrent(VoltageSource vs, double c) { current = c; }
-    
+
+    // set current for wire-like elements (called from calcWireCurrents, one call per bit for bus wires)
+    void setWireCurrent(int bit, double c) { current = c; }
+
     // get current for one- or two-terminal elements
     double getCurrent() { return current; }
 

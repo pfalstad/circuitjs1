@@ -75,6 +75,10 @@ class BusSplitterElm extends ChipElm {
 	return -currents[n - bits];
     }
 
+    void setWireCurrent(int bit, double c) {
+	currents[bit] = c;
+    }
+
     int getDumpType() { return 433; }
     String getXmlDumpType() { return "bs"; }
 

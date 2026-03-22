@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
     class WireElm extends CircuitElm {
 	int busWidth = 1;
+	double[] currents;
 
 	public WireElm(int xx, int yy) { super(xx, yy); }
 	public WireElm(int xa, int ya, int xb, int yb, int f,
@@ -117,6 +118,24 @@ package com.lushprojects.circuitjs1.client;
 	double getVoltageDiff() { return volts[0]; }
 	boolean isWireEquivalent() { return true; }
 	boolean isRemovableWire() { return true; }
+
+	void setWireCurrent(int bit, double c) {
+	    if (currents != null)
+		currents[bit] = c;
+	    else
+		current = c;
+	}
+
+	double getCurrentIntoNode(int n) {
+	    if (currents != null) {
+		if (n < busWidth)
+		    return currents[n];
+		return -currents[n - busWidth];
+	    }
+	    if (n == 0)
+		return -current;
+	    return current;
+	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
