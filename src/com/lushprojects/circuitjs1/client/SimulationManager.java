@@ -132,7 +132,8 @@ public class SimulationManager {
 		}
 	    }
 	}
-	// propagate bus widths through wire chains until stable
+	// propagate bus widths through wire chains and matching labels until stable
+	HashMap<String, Integer> labelWidthMap = new HashMap<String, Integer>();
 	boolean changed = true;
 	while (changed) {
 	    changed = false;
@@ -157,17 +158,21 @@ public class SimulationManager {
 		    }
 		} else if (ce instanceof LabeledNodeElm) {
 		    LabeledNodeElm ln = (LabeledNodeElm) ce;
+		    // get max width from position map and label name map
 		    Integer w = widthMap.get(ln.point1);
-		    int bw = (w != null) ? w : 1;
+		    Integer lw = labelWidthMap.get(ln.text);
+		    int bw = 1;
+		    if (w != null) bw = w;
+		    if (lw != null && lw > bw) bw = lw;
 		    if (bw != ln.busWidth) {
 			ln.busWidth = bw;
 			ln.currents = (bw > 1) ? new double[bw] : null;
 			ln.allocNodes();
 			changed = true;
 		    }
-		    if (bw > 1 && (w == null || w < bw)) {
-			widthMap.put(ln.point1, bw);
-			changed = true;
+		    if (bw > 1) {
+			if (w == null || w < bw) { widthMap.put(ln.point1, bw); changed = true; }
+			if (lw == null || lw < bw) { labelWidthMap.put(ln.text, bw); changed = true; }
 		    }
 		} else if (ce instanceof BusSplitterElm) {
 		    BusSplitterElm bs = (BusSplitterElm) ce;
@@ -175,6 +180,8 @@ public class SimulationManager {
 		    Point p = new Point(bs.pins[0].post.x, bs.pins[0].post.y);
 		    int bw = bs.bits;
 		    Integer w = widthMap.get(p);
+		    if (w != null && w != bw)
+			busMismatchList.add(p);
 		    if (w == null || w < bw) {
 			widthMap.put(p, bw);
 			changed = true;
