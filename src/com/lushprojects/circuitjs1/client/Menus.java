@@ -592,7 +592,7 @@ public class Menus {
 	if (title != null)
 	    sim.setCircuitTitle(title);
 	sim.unsavedChanges = false;
-	ExportAsLocalFileDialog.setLastFileName(str);
+	ExportAsLocalFileDialog.setLastFileName(str.equals("blank.txt") ? null : str);
     }
 }
 
