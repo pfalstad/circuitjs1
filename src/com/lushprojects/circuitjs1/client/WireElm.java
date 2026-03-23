@@ -31,6 +31,7 @@ package com.lushprojects.circuitjs1.client;
 	static final int FLAG_SHOWCURRENT = 1;
 	static final int FLAG_SHOWVOLTAGE = 2;
 	static final int FLAG_SHOW_BUS_VALUE = 4;
+	static final int FLAG_SHOW_BUS_VALUE_HEX = 8;
 
 	int getPostCount() { return busWidth * 2; }
 	int getBusWidth() { return busWidth; }
@@ -83,9 +84,12 @@ package com.lushprojects.circuitjs1.client;
 	    doDots(g);
 	    setBbox(point1, point2, 3);
 	    String s = "";
-	    if (busWidth > 1 && mustShowBusValue()) {
+	    if (busWidth > 1 && (mustShowBusValue() || mustShowBusValueHex())) {
 		int value = getBusValue();
-		s = ""+value;
+		if (mustShowBusValue())
+		    s = ""+value;
+		if (mustShowBusValueHex())
+		    s = (s.length() > 0 ? s + " " : "") + "0x" + Integer.toHexString(value).toUpperCase();
 	    } else if (busWidth == 1) {
 		if (mustShowCurrent())
 		    s = getShortUnitText(Math.abs(getCurrent()), "A");
@@ -106,6 +110,9 @@ package com.lushprojects.circuitjs1.client;
 	}
 	boolean mustShowBusValue() {
 	    return (flags & FLAG_SHOW_BUS_VALUE) != 0;
+	}
+	boolean mustShowBusValueHex() {
+	    return (flags & FLAG_SHOW_BUS_VALUE_HEX) != 0;
 	}
 //	int getVoltageSourceCount() { return 1; }
 	void getInfo(String arr[]) {
@@ -158,6 +165,11 @@ package com.lushprojects.circuitjs1.client;
 		ei.checkbox = new Checkbox("Show Bus Value", mustShowBusValue());
 		return ei;
 	    }
+	    if (n == 3) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Show Bus Value (Hex)", mustShowBusValueHex());
+		return ei;
+	    }
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -175,6 +187,8 @@ package com.lushprojects.circuitjs1.client;
 	    }
 	    if (n == 2)
 		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE);
+	    if (n == 3)
+		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE_HEX);
 	}
         int getShortcut() { return 'w'; }
 
