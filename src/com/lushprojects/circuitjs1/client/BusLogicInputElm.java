@@ -22,7 +22,7 @@ package com.lushprojects.circuitjs1.client;
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
-class BusLogicInputElm extends CircuitElm {
+class BusLogicInputElm extends SwitchElm {
     int busWidth = 4;
     int value = 0;
     double hiV = 5, loV = 0;
@@ -33,7 +33,7 @@ class BusLogicInputElm extends CircuitElm {
     }
     public BusLogicInputElm(int xa, int ya, int xb, int yb, int f,
 			    StringTokenizer st) {
-	super(xa, ya, xb, yb, f);
+	super(xa, ya, xb, yb, f, st);
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -56,6 +56,7 @@ class BusLogicInputElm extends CircuitElm {
     }
 
     int getPostCount() { return busWidth; }
+    int getNumHandles() { return 1; }
     int getPostWidth(int n) { return busWidth; }
     int getVoltageSourceCount() { return busWidth; }
 
@@ -70,10 +71,9 @@ class BusLogicInputElm extends CircuitElm {
     }
 
     void setCurrent(VoltageSource vs, double c) {
-	// find which voltage source this is
 	for (int i = 0; i < busWidth; i++)
 	    if (voltageSources[i] == vs) {
-		current = c;  // just track total for display
+		current = c;
 		break;
 	    }
     }
@@ -97,6 +97,16 @@ class BusLogicInputElm extends CircuitElm {
 	g.restore();
     }
 
+    Rectangle getSwitchRect() {
+	return new Rectangle(x2 - 10, y2 - 10, 20, 20);
+    }
+
+    void toggle() {
+	value++;
+	if (value >= (1 << busWidth))
+	    value = 0;
+    }
+
     void stamp() {
 	for (int i = 0; i < busWidth; i++) {
 	    double v = ((value & (1 << i)) != 0) ? hiV : loV;
@@ -106,6 +116,8 @@ class BusLogicInputElm extends CircuitElm {
 
     void calculateCurrent() {}
     boolean hasGroundConnection(int n) { return true; }
+    boolean isWireEquivalent() { return false; }
+    boolean isRemovableWire() { return false; }
 
     int getDumpType() { return 434; }
     String getXmlDumpType() { return "bli"; }
