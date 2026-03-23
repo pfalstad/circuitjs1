@@ -375,6 +375,7 @@ public class Menus {
 	makeClassCheckItems(gateMenuBar, new String[] {
 		"Add Logic Input", "LogicInputElm",
 		"Add Logic Output", "LogicOutputElm",
+		"Add Bus Input", "BusLogicInputElm",
 		"Add Inverter", "InverterElm",
 		"Add NAND Gate", "NandGateElm",
 		"Add NOR Gate", "NorGateElm",
