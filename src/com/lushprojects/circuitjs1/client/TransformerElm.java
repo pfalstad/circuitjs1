@@ -322,6 +322,8 @@ class TransformerElm extends CircuitElm {
 		return true;
 	    return false;
 	}
+	// VCCS stamps couple all nodes, so they must all be in the same matrix
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return new EditInfo("Primary Inductance (H)", inductance, .01, 5);
