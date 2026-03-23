@@ -145,6 +145,10 @@ public class CommandManager {
 	    WireConverter.convertWires(app);
 	    app.needAnalyze();
     	}
+    	if (item=="createTest") {
+	    app.undoManager.pushUndo();
+	    TestCreator.createTest(app);
+    	}
     	if (item=="stackAll")
     		app.scopeManager.stackAll();
     	if (item=="unstackAll")
