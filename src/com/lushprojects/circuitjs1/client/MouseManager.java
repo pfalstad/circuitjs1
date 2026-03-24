@@ -89,6 +89,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     private boolean mouseDragging;
     public int menuClientX, menuClientY;
     public int menuX, menuY;
+    // elements grabbed at mouse-down for DragRow/DragColumn (element + which endpoint)
+    ArrayList<CircuitElm> dragRowColElms;
+    ArrayList<Integer> dragRowColPosts;
 
     MouseManager(CirSim sim, UIManager ui) {
 	this.sim = sim;
@@ -322,12 +325,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	int dy = y-dragGridY;
     	if (dy == 0)
     		return;
-    	for (CircuitElm ce : ui.elmList) {
-    		if (ce.y  == dragGridY)
-    			ce.movePoint(0, 0, dy);
-    		if (ce.y2 == dragGridY)
-    			ce.movePoint(1, 0, dy);
-    	}
+    	for (int i = 0; i < dragRowColElms.size(); i++)
+    	    dragRowColElms.get(i).movePoint(dragRowColPosts.get(i), 0, dy);
     	removeZeroLengthElements();
     }
 
@@ -335,12 +334,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	int dx = x-dragGridX;
     	if (dx == 0)
     		return;
-    	for (CircuitElm ce : ui.elmList) {
-    		if (ce.x  == dragGridX)
-    			ce.movePoint(0, dx, 0);
-    		if (ce.x2 == dragGridX)
-    			ce.movePoint(1, dx, 0);
-    	}
+    	for (int i = 0; i < dragRowColElms.size(); i++)
+    	    dragRowColElms.get(i).movePoint(dragRowColPosts.get(i), dx, 0);
     	removeZeroLengthElements();
     }
 
@@ -951,6 +946,36 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	initDragGridX = gx;
 	initDragGridY = gy;
 	dragging = true;
+
+	// capture elements for DragRow/DragColumn at mouse-down so we don't
+	// pick up new elements as we sweep over them
+	if (tempMouseMode == MODE_DRAG_ROW || tempMouseMode == MODE_DRAG_COLUMN) {
+	    dragRowColElms = new ArrayList<CircuitElm>();
+	    dragRowColPosts = new ArrayList<Integer>();
+	    int sgx = snapGrid(gx);
+	    int sgy = snapGrid(gy);
+	    for (CircuitElm ce : ui.elmList) {
+		if (tempMouseMode == MODE_DRAG_ROW) {
+		    if (ce.y == sgy) {
+			dragRowColElms.add(ce);
+			dragRowColPosts.add(0);
+		    }
+		    if (ce.y2 == sgy) {
+			dragRowColElms.add(ce);
+			dragRowColPosts.add(1);
+		    }
+		} else {
+		    if (ce.x == sgx) {
+			dragRowColElms.add(ce);
+			dragRowColPosts.add(0);
+		    }
+		    if (ce.x2 == sgx) {
+			dragRowColElms.add(ce);
+			dragRowColPosts.add(1);
+		    }
+		}
+	    }
+	}
 	if (tempMouseMode !=MODE_ADD_ELM)
 		return;
 //
