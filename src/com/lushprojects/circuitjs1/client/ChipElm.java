@@ -170,7 +170,7 @@ abstract class ChipElm extends CircuitElm {
 		xx = x; yy = y;
 	    } else {
 		y = y2 = yy;
-		x2 = snapGrid(xx);
+		x2 = min(snapGrid(xx), x+(sizeX+1)*cspc2);
 	    }
 	    setPoints();
 	}
