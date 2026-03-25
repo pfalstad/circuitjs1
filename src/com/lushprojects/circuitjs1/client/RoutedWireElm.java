@@ -231,9 +231,12 @@ import com.google.gwt.xml.client.Element;
 	    }
 	    setBbox(minX - m, minY - m, maxX + m, maxY + m);
 	    String s = "";
-	    if (busWidth > 1 && mustShowBusValue()) {
+	    if (busWidth > 1 && (mustShowBusValue() || mustShowBusValueHex())) {
 		int value = getBusValue();
-		s = ""+value;
+		if (mustShowBusValue())
+		    s = ""+value;
+		if (mustShowBusValueHex())
+		    s = (s.length() > 0 ? s + " " : "") + "0x" + Integer.toHexString(value).toUpperCase();
 	    } else if (busWidth == 1) {
 		if (mustShowCurrent())
 		    s = getShortUnitText(Math.abs(getCurrent()), "A");
@@ -299,13 +302,29 @@ import com.google.gwt.xml.client.Element;
 	    for (int i = 0; i < routePoints.size() - 1; i++) {
 		Point a = routePoints.get(i);
 		Point b = routePoints.get(i + 1);
-		int d = lineDistanceSq(a.x, a.y, b.x, b.y, gx, gy);
+		int d = segmentDistanceSq(a.x, a.y, b.x, b.y, gx, gy);
 		if (d < best)
 		    best = d;
 	    }
 	    if (best <= thresh * thresh)
 		return best;
 	    return -1;
+	}
+
+	// distance squared from point (gx,gy) to line segment (ax,ay)-(bx,by)
+	static int segmentDistanceSq(int ax, int ay, int bx, int by, int gx, int gy) {
+	    int dx = bx - ax, dy = by - ay;
+	    int lenSq = dx * dx + dy * dy;
+	    if (lenSq == 0)
+		return (gx - ax) * (gx - ax) + (gy - ay) * (gy - ay);
+	    // project (gx,gy) onto the segment, clamped to [0,1]
+	    double t = ((double)(gx - ax) * dx + (double)(gy - ay) * dy) / lenSq;
+	    if (t < 0) t = 0;
+	    else if (t > 1) t = 1;
+	    double px = ax + t * dx;
+	    double py = ay + t * dy;
+	    double ex = gx - px, ey = gy - py;
+	    return (int)(ex * ex + ey * ey);
 	}
 
 	// return the snapped point on the wire nearest to (mx, my), or null
