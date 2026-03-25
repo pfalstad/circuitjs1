@@ -127,6 +127,7 @@ class BusLogicInputElm extends SwitchElm {
 	arr[1] = "value = " + value;
 	arr[2] = "hex = 0x" + Integer.toHexString(value).toUpperCase();
     }
+    int getShortcut() { return 0; }
 
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
