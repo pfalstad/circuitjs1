@@ -435,14 +435,14 @@ public class SimulationManager {
 	    }
 	}
 
-	for (i = 0; i != wireInfoList.size(); i++) {
+	/* for (i = 0; i != wireInfoList.size(); i++) {
 	    WireSegment ws = wireInfoList.get(i);
 	    console("wireInfo[" + i + "]: " + ws.wire.getClass().getSimpleName()
 		+ " bit=" + ws.bit + " post=" + ws.post
 		+ " ep0=" + ws.endpoint0 + " ep1=" + ws.endpoint1
 		+ " neighbors=" + (ws.neighbors != null ? ws.neighbors.size() : "null")
 		+ " labelNeighbors=" + (ws.labelNeighbors != null ? ws.labelNeighbors.size() : "null"));
-	}
+	} */
 
 	return true;
     }
@@ -669,7 +669,7 @@ public class SimulationManager {
 	    stack.add(i);
 	    closureIndex[i] = closureCount;
 
-	    console("starting closure " + closureCount + " from node " + i);
+	    //console("starting closure " + closureCount + " from node " + i);
 	    while (!stack.isEmpty()) {
 		int n = stack.remove(stack.size() - 1);
 		CircuitNode cn = getCircuitNode(n);
@@ -688,7 +688,7 @@ public class SimulationManager {
 			if (kn == 0)
 			    continue;  // don't flood through ground
 			if (closureIndex[kn] < 0) {
-			    console("  node " + n + " -> node " + kn + " via " + ce.getClass().getSimpleName());
+			    //console("  node " + n + " -> node " + kn + " via " + ce.getClass().getSimpleName());
 			    closureIndex[kn] = closureCount;
 			    stack.add(kn);
 			}
@@ -730,7 +730,7 @@ public class SimulationManager {
 		    nodeStr += i;
 		}
 	    }
-	    console("matrix " + ci + ": " + matrices[ci].nodeCount + " nodes [" + nodeStr + "]");
+	    //console("matrix " + ci + ": " + matrices[ci].nodeCount + " nodes [" + nodeStr + "]");
 	}
     }
 
@@ -927,7 +927,7 @@ public class SimulationManager {
 	// set matrix sizes
 	for (i = 0; i != matrices.length; i++) {
 	    matrices[i].size = matrices[i].nodeCount + vsPerMatrix[i];
-	    console("matrix " + i + ": size=" + matrices[i].size + " nodes=" + matrices[i].nodeCount + " vs=" + vsPerMatrix[i]);
+	    //console("matrix " + i + ": size=" + matrices[i].size + " nodes=" + matrices[i].nodeCount + " vs=" + vsPerMatrix[i]);
 	}
 
 	if (!validateCircuit())
@@ -1011,7 +1011,7 @@ public class SimulationManager {
 	    for (i = 0; i != sz; i++)
 		for (int j = 0; j != sz; j++)
 		    m.origMatrix[i][j] = m.matrix[i][j];
-	    CirSim.console("matrix " + mi + " size: " + sz);
+	    //CirSim.console("matrix " + mi + " size: " + sz);
 	}
 
 	// if a matrix is linear, we can do the lu_factor here instead of
