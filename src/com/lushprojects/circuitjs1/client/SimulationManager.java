@@ -1079,6 +1079,11 @@ public class SimulationManager {
 		    CircuitElm ce = drawList.get(j);
 		    if ( ce instanceof GraphicElm )
 			continue;
+
+		    // routed wire's bounding box is too big
+		    if ( ce instanceof RoutedWireElm )
+			continue;
+
 		    // does this post intersect elm's bounding box?
 		    if (!ce.boundingBox.contains(cn.x, cn.y))
 			continue;
