@@ -33,7 +33,7 @@ import com.google.gwt.xml.client.Element;
 	HashMap<Integer, Integer> map;
 	static String contentsOverride = null;
 	TextArea editTextArea;
-	boolean hexTogglePending;
+
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -210,28 +210,15 @@ import com.google.gwt.xml.client.Element;
 		setupPins();
 		setPoints();
 	    }
-	    if (n == 2) {
-		// skip re-parse during apply() if hex toggle already handled it
-		if (!hexTogglePending)
-		    parseContentsString(ei.textArea.getText());
-	    }
+	    if (n == 2)
+		parseContentsString(ei.textArea.getText());
 	    if (n == 3) {
-		if (hexTogglePending) {
-		    // already handled by the checkbox click; skip the
-		    // redundant apply() call so we don't re-parse with wrong radix
-		    hexTogglePending = false;
-		    return;
-		}
 		int oldFlags = flags;
-		// parse text area contents with old flag before toggling,
-		// so values are not reinterpreted in the wrong radix
 		if (editTextArea != null)
 		    parseContentsString(editTextArea.getText());
 		flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
 		if (flags != oldFlags) {
-		    // regenerate display with new format
 		    contentsOverride = contentsToString();
-		    hexTogglePending = true;
 		    ei.newDialog = true;
 		}
 	    }
