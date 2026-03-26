@@ -30,6 +30,7 @@ class VoltageElm extends CircuitElm {
     static final int FLAG_PULSE_DUTY = 4;
     static final int FLAG_CIRCLE_SYMBOL = 8;
     static final int FLAG_SHOW_VOLTAGE = 16;
+    static final int FLAG_TIME_SPEC = 32;
     int waveform;
     static final int WF_DC = 0;
     static final int WF_AC = 1;
@@ -463,6 +464,28 @@ class VoltageElm extends CircuitElm {
     }
     // rails don't have Show Voltage or Circle Symbol options, so frequency starts earlier
     int getFrequencyOffset() { return (this instanceof RailElm) ? 3 : 4; }
+    boolean hasTimingOptions() { return waveform == WF_PULSE || waveform == WF_SQUARE; }
+    boolean timeSpec() { return hasFlag(FLAG_TIME_SPEC) && hasTimingOptions(); }
+
+    void setFrequency(double newFreq) {
+	double oldfreq = frequency;
+	frequency = newFreq;
+	double maxfreq = 1/(8*sim.maxTimeStep);
+	if (frequency > maxfreq) {
+	    if (Window.confirm(Locale.LS("Adjust timestep to allow for higher frequencies?")))
+		sim.maxTimeStep = 1/(32*frequency);
+	    else
+		frequency = maxfreq;
+	}
+	freqTimeZero = (frequency == 0) ? 0 : sim.t-oldfreq*(sim.t-freqTimeZero)/frequency;
+    }
+
+    void setFrequencyFromTimes(double highTime, double lowTime) {
+	double newFreq = 1 / (highTime + lowTime);
+	double newDuty = highTime / (highTime + lowTime);
+	setFrequency(newFreq);
+	dutyCycle = newDuty;
+    }
 
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
@@ -496,16 +519,41 @@ class VoltageElm extends CircuitElm {
 	int fo = getFrequencyOffset();
 	if (waveform == WF_DC || waveform == WF_NOISE)
 	    return null;
-	if (n == fo)
-	    return new EditInfo("Frequency (Hz)", frequency, 4, 500);
-	if (n == fo+1)
-	    return new EditInfo("Phase Offset (degrees)", phaseShift*180/pi,
-				-180, 180).setDimensionless();
-	if (n == fo+2 && (waveform == WF_PULSE || waveform == WF_SQUARE))
-	    return new EditInfo("Duty Cycle", dutyCycle*100, 0, 100).
-		setDimensionless();
-	if (n == fo+3 && (waveform == WF_PULSE || waveform == WF_SQUARE))
-	    return new EditInfo("Rise/Fall Time (s)", riseTime, 0, 0);
+	int n2 = n - fo;
+	if (hasTimingOptions()) {
+	    // square/pulse: dropdown + freq-or-time + phase + duty-or-time + rise
+	    if (n2 == 0) {
+		EditInfo ei = new EditInfo("Specify As", 0, -1, -1);
+		ei.choice = new Choice();
+		ei.choice.add("Frequency/Duty Cycle");
+		ei.choice.add("High Time/Low Time");
+		ei.choice.select(timeSpec() ? 1 : 0);
+		return ei;
+	    }
+	    if (n2 == 1) {
+		if (timeSpec())
+		    return new EditInfo("High Time (s)", dutyCycle / frequency, 0, 0);
+		return new EditInfo("Frequency (Hz)", frequency, 4, 500);
+	    }
+	    if (n2 == 2)
+		return new EditInfo("Phase Offset (degrees)", phaseShift*180/pi,
+				    -180, 180).setDimensionless();
+	    if (n2 == 3) {
+		if (timeSpec())
+		    return new EditInfo("Low Time (s)", (1 - dutyCycle) / frequency, 0, 0);
+		return new EditInfo("Duty Cycle", dutyCycle*100, 0, 100).
+		    setDimensionless();
+	    }
+	    if (n2 == 4)
+		return new EditInfo("Rise/Fall Time (s)", riseTime, 0, 0);
+	} else {
+	    // other waveforms: freq + phase only
+	    if (n2 == 0)
+		return new EditInfo("Frequency (Hz)", frequency, 4, 500);
+	    if (n2 == 1)
+		return new EditInfo("Phase Offset (degrees)", phaseShift*180/pi,
+				    -180, 180).setDimensionless();
+	}
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -518,22 +566,6 @@ class VoltageElm extends CircuitElm {
 	if (n == 4 && waveform == WF_DC && ei.checkbox != null && !(this instanceof RailElm)) {
 	    flags = ei.changeFlag(flags, FLAG_CIRCLE_SYMBOL);
 	    setPoints();
-	}
-	int fo = getFrequencyOffset();
-	if (n == fo && waveform != WF_DC && ei.value != 0) {
-	    // adjust time zero to maintain continuity in the waveform
-	    // even though the frequency has changed.
-	    double oldfreq = frequency;
-	    frequency = ei.value;
-	    double maxfreq = 1/(8*sim.maxTimeStep);
-	    if (frequency > maxfreq) {
-		if (Window.confirm(Locale.LS("Adjust timestep to allow for higher frequencies?")))
-		    sim.maxTimeStep = 1/(32*frequency);
-		else
-		    frequency = maxfreq;
-	    }
-	    double adj = frequency-oldfreq;
-	    freqTimeZero = (frequency == 0) ? 0 : sim.t-oldfreq*(sim.t-freqTimeZero)/frequency;
 	}
 	if (n == 1) {
 	    int ow = waveform;
@@ -552,15 +584,54 @@ class VoltageElm extends CircuitElm {
 
 	    setPoints();
 	}
-	if (n == fo+1) {
-	    phaseShift = ei.value*pi/180;
-	    // normalize to [0, 2*pi)
-	    phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
+	int fo = getFrequencyOffset();
+	int n2 = n - fo;
+	if (hasTimingOptions()) {
+	    if (n2 == 0 && ei.choice != null) {
+		int oldFlags = flags;
+		flags = (ei.choice.getSelectedIndex() == 1) ?
+		    (flags | FLAG_TIME_SPEC) : (flags & ~FLAG_TIME_SPEC);
+		if (flags != oldFlags)
+		    ei.newDialog = true;
+	    }
+	    if (n2 == 1) {
+		if (timeSpec()) {
+		    // high time changed; recompute frequency and duty cycle
+		    double highTime = ei.value;
+		    double lowTime = (1 - dutyCycle) / frequency;
+		    if (highTime > 0 && lowTime > 0) {
+			setFrequencyFromTimes(highTime, lowTime);
+		    }
+		} else if (ei.value != 0) {
+		    setFrequency(ei.value);
+		}
+	    }
+	    if (n2 == 2) {
+		phaseShift = ei.value*pi/180;
+		phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
+	    }
+	    if (n2 == 3) {
+		if (timeSpec()) {
+		    // low time changed; recompute frequency and duty cycle
+		    double highTime = dutyCycle / frequency;
+		    double lowTime = ei.value;
+		    if (highTime > 0 && lowTime > 0) {
+			setFrequencyFromTimes(highTime, lowTime);
+		    }
+		} else {
+		    dutyCycle = ei.value * .01;
+		}
+	    }
+	    if (n2 == 4)
+		riseTime = ei.value;
+	} else {
+	    if (n2 == 0 && waveform != WF_DC && ei.value != 0)
+		setFrequency(ei.value);
+	    if (n2 == 1) {
+		phaseShift = ei.value*pi/180;
+		phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
+	    }
 	}
-	if (n == fo+2)
-	    dutyCycle = ei.value*.01;
-	if (n == fo+3)
-	    riseTime = ei.value;
     }
 }
 

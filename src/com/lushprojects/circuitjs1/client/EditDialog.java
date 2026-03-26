@@ -285,7 +285,9 @@ class EditDialog extends Dialog {
 					ei.value = d;
 				} catch (Exception ex) { /* ignored */ }
 			}
-			if (ei.button != null)
+			// don't press buttons.  also don't operate on choices becuase then they might happen
+			// twice.  (for square wave)
+			if (ei.button != null || ei.choice != null)
 			    continue;
 			elm.setEditValue(i, ei);
 			
@@ -308,8 +310,9 @@ class EditDialog extends Dialog {
 		EditInfo ei = einfos[i];
 		if (ei.choice == src || ei.checkbox == src || ei.button == src) {
 		    
-		    // if we're pressing a button, make sure to apply changes first
-		    if (ei.button == src && !ei.newDialog) {
+		    // if we're pressing a button, make sure to apply changes first.
+		    // also for choices (for square wave)
+		    if ((ei.button == src || ei.choice == src) && !ei.newDialog) {
 			apply();
 			applied = true;
 		    }
