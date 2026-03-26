@@ -111,19 +111,30 @@ class EditDialog extends Dialog {
 		VerticalPanel vp = new VerticalPanel();
 		mainPanel.insert(hp, mainPanel.getWidgetIndex(bottomButtonPanel));
 		hp.add(vp);
+		boolean first = true;
 		for (i = 0; ; i++) {
 			Label l = null;
 			einfos[i] = elm.getEditInfo(i);
 			if (einfos[i] == null)
 				break;
 			final EditInfo ei = einfos[i];
+
+			if (vp.getWidgetCount() > 15 || ei.newColumn) {
+			    // start a new column
+			    vp = new VerticalPanel();
+			    hp.add(vp);
+			    vp.getElement().getStyle().setPaddingLeft(10, Unit.PX);
+			    first = true;
+			}
+
 			String name = Locale.LS(ei.name);
 			if (ei.name.startsWith("<"))
 			    vp.add(l = new HTML(name));
 			else
 			    vp.add(l = new Label(name));
-			if (i!=0 && l != null)
+			if (!first && l != null)
 				l.setStyleName("topSpace");
+			first = false;
 			if (ei.choice != null) {
 				vp.add(ei.choice);
 				ei.choice.addChangeHandler( new ChangeHandler() {
@@ -173,12 +184,6 @@ class EditDialog extends Dialog {
 			    if (ei.text == null) {
 				ei.textf.setText(unitString(ei));
 			    }
-			}
-			if (vp.getWidgetCount() > 15) {
-			    // start a new column
-			    vp = new VerticalPanel();
-			    hp.add(vp);
-			    vp.getElement().getStyle().setPaddingLeft(10, Unit.PX);
 			}
 		}
 		einfocount = i;

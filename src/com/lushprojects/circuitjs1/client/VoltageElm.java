@@ -528,6 +528,7 @@ class VoltageElm extends CircuitElm {
 		ei.choice.add("Frequency/Duty Cycle");
 		ei.choice.add("High Time/Low Time");
 		ei.choice.select(timeSpec() ? 1 : 0);
+		ei.newColumn = true;
 		return ei;
 	    }
 	    if (n2 == 1) {
