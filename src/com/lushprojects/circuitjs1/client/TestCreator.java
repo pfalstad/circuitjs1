@@ -7,6 +7,8 @@ import java.util.Vector;
 
 class TestCreator {
 
+    static final boolean enabled = true;
+
     static void createTest(CirSim app) {
 	Vector<CircuitElm> elmList = app.ui.elmList;
 
