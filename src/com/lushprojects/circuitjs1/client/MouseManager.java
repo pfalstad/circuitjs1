@@ -38,7 +38,11 @@ import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.DoubleClickHandler;
 import com.google.gwt.event.dom.client.DoubleClickEvent;
 import com.google.gwt.dom.client.CanvasElement;
+import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.NativeEvent;
+import com.google.gwt.dom.client.Style;
+import com.google.gwt.event.logical.shared.CloseEvent;
+import com.google.gwt.event.logical.shared.CloseHandler;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -715,13 +719,57 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     }
 
     @SuppressWarnings("deprecation")
+    // show a context menu popup, clamping to canvas bounds and repositioning submenus
+    void showContextPanel(int x, int y) {
+	watchSubmenus(true);
+	ui.contextPanel.addCloseHandler(new CloseHandler<PopupPanel>() {
+	    public void onClose(CloseEvent<PopupPanel> event) {
+		watchSubmenus(false);
+	    }
+	});
+	// show at requested position, then measure and clamp
+	ui.contextPanel.setPopupPosition(x, y);
+	ui.contextPanel.show();
+	int w = ui.contextPanel.getOffsetWidth();
+	int h = ui.contextPanel.getOffsetHeight();
+	int clampedX = Math.max(0, Math.min(x, ui.canvasWidth - w));
+	int clampedY = Math.max(0, Math.min(y, ui.canvasHeight - h));
+	if (clampedX != x || clampedY != y)
+	    ui.contextPanel.setPopupPosition(clampedX, clampedY);
+    }
+
+    // watch for GWT submenu popups and reposition them if they extend below the viewport
+    native void watchSubmenus(boolean watch) /*-{
+	if (watch) {
+	    var vh = $wnd.innerHeight;
+	    var clamp = function(el) {
+		var rect = el.getBoundingClientRect();
+		if (rect.bottom > vh) {
+		    var newTop = Math.max(0, vh - rect.height);
+		    el.style.top = newTop + 'px';
+		}
+	    };
+	    // clamp any submenu popup that appears or changes
+	    $wnd.__circuitSubmenuObserver = new MutationObserver(function(mutations) {
+		var popups = $doc.querySelectorAll('.gwt-MenuBarPopup');
+		for (var i = 0; i < popups.length; i++)
+		    clamp(popups[i]);
+	    });
+	    $wnd.__circuitSubmenuObserver.observe($doc.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style']});
+	} else {
+	    if ($wnd.__circuitSubmenuObserver) {
+		$wnd.__circuitSubmenuObserver.disconnect();
+		$wnd.__circuitSubmenuObserver = null;
+	    }
+	}
+    }-*/;
+
     void doPopupMenu() {
 	if (ui.isReadOnly() || sim.dialogIsShowing())
 	    return;
     	menuElm = mouseElm;
     	sim.scopeManager.menuScope=-1;
     	sim.scopeManager.menuPlot=-1;
-    	int x, y;
     	if (sim.scopeManager.scopeSelected!=-1) {
     	    	if (sim.scopeManager.scopes[sim.scopeManager.scopeSelected].canMenu()) {
     	    	    sim.scopeManager.menuScope=sim.scopeManager.scopeSelected;
@@ -730,9 +778,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    		    sim.scopeManager.canUnstackScope(sim.scopeManager.scopeSelected), sim.scopeManager.scopes[sim.scopeManager.scopeSelected]);
     	    	    ui.contextPanel=new PopupPanel(true);
     	    	    ui.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
-    	    	    y=Math.max(0, Math.min(menuClientY,ui.canvasHeight-160));
-    	    	    ui.contextPanel.setPopupPosition(menuClientX, y);
-    	    	    ui.contextPanel.show();
+    	    	    showContextPanel(menuClientX, menuClientY);
     		}
     	} else if (mouseElm != null) {
     	    	if (! (mouseElm instanceof ScopeElm)) {
@@ -771,8 +817,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    	    sim.menus.elmFlipXYMenuItem.setEnabled(canFlipXY);
     	    	    ui.contextPanel=new PopupPanel(true);
     	    	    ui.contextPanel.add(sim.menus.elmMenuBar);
-    	    	    ui.contextPanel.setPopupPosition(menuClientX, menuClientY);
-    	    	    ui.contextPanel.show();
+    	    	    showContextPanel(menuClientX, menuClientY);
     	    	} else {
     	    	    ScopeElm s = (ScopeElm) mouseElm;
     	    	    if (s.elmScope.canMenu()) {
@@ -780,18 +825,14 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    		sim.scopeManager.scopePopupMenu.doScopePopupChecks(true, false, false, false, s.elmScope);
     			ui.contextPanel=new PopupPanel(true);
     			ui.contextPanel.add(sim.scopeManager.scopePopupMenu.getMenuBar());
-    			ui.contextPanel.setPopupPosition(menuClientX, menuClientY);
-    			ui.contextPanel.show();
+    			showContextPanel(menuClientX, menuClientY);
     	    	    }
     	    	}
     	} else {
     		doMainMenuChecks();
     		ui.contextPanel=new PopupPanel(true);
     		ui.contextPanel.add(sim.menus.mainMenuBar);
-    		x=Math.max(0, Math.min(menuClientX, ui.canvasWidth-400));
-    		y=Math.max(0, Math.min(menuClientY, ui.canvasHeight-450));
-    		ui.contextPanel.setPopupPosition(x,y);
-    		ui.contextPanel.show();
+    		showContextPanel(menuClientX, menuClientY);
     	}
     }
 
