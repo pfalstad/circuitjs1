@@ -19,6 +19,49 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
     double satCur, invRollOffF, BEleakCur, leakBEemissionCoeff, invRollOffR, BCleakCur, leakBCemissionCoeff;
     double emissionCoeffF, emissionCoeffR, invEarlyVoltF, invEarlyVoltR, betaR;
 
+    // Junction capacitance parameters (SPICE Gummel-Poon charge storage)
+    // These model the physical depletion-layer capacitance of each PN junction.
+    // A real transistor junction is a thin insulating depletion region sandwiched
+    // between two conducting regions -- physically identical to a parallel-plate
+    // capacitor whose plate spacing (and therefore capacitance) varies with the
+    // applied voltage.  Reverse bias widens the depletion layer (less capacitance);
+    // forward bias narrows it (more capacitance).
+    //
+    // Without these, the BJT is a pure DC device -- it responds instantly to any
+    // signal, no matter how fast.  With them, the transistor has a finite
+    // transition frequency (ft) and exhibits the propagation delay and phase
+    // shift that real transistors produce.
+    //
+    // SPICE formula:  C(V) = Cj0 / (1 - V/Vj)^Mj   for V < 0.5*Vj
+    //                 (linear extrapolation above 0.5*Vj to avoid singularity)
+    //
+    // Typical values (from SPICE .model cards):
+    //   2N2222A (general-purpose NPN):  CJE=22.01pF VJE=0.7  MJE=0.377
+    //                                   CJC=7.306pF VJC=0.75 MJC=0.3416
+    //   2N3904  (small-signal NPN):     CJE=4.493pF VJE=0.65 MJE=0.2593
+    //                                   CJC=3.638pF VJC=0.75 MJC=0.3085
+    //   2N3906  (small-signal PNP):     CJE=4.49pF  VJE=0.632 MJE=0.267
+    //                                   CJC=4.43pF  VJC=0.632 MJC=0.33
+    double junctionCapBE;                   // CJE: zero-bias BE depletion capacitance (F), 0=disabled
+    double junctionCapBC;                   // CJC: zero-bias BC depletion capacitance (F), 0=disabled
+    double junctionPotBE = 0.75;            // VJE: BE built-in potential (V)
+    double junctionPotBC = 0.75;            // VJC: BC built-in potential (V)
+    double junctionExpBE = 0.33;            // MJE: BE junction grading coefficient
+    double junctionExpBC = 0.33;            // MJC: BC junction grading coefficient
+
+    // Transit time parameters (SPICE Gummel-Poon diffusion charge storage)
+    // These model the minority carrier charge stored in the base region during
+    // active operation.  The diffusion capacitance Cd = TT * gm adds to the
+    // depletion capacitance above, and is the dominant contributor at high
+    // forward bias (where gm is large).
+    //
+    // Typical values (from SPICE .model cards):
+    //   2N2222A:  TF=0.411ns  TR=46.91ns
+    //   2N3904:   TF=0.301ns  TR=239ns
+    //   2N3906:   TF=0.579ns  TR=94.36ns
+    double transitTimeF;                    // TF: forward transit time (s), 0=disabled
+    double transitTimeR;                    // TR: reverse transit time (s), 0=disabled
+
     boolean dumped;
     boolean readOnly;
     boolean builtIn;
@@ -31,6 +74,14 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	leakBEemissionCoeff = 1.5;
 	leakBCemissionCoeff = 2;
 	betaR = 1;
+	junctionCapBE = 0;
+	junctionCapBC = 0;
+	junctionPotBE = 0.75;
+	junctionPotBC = 0.75;
+	junctionExpBE = 0.33;
+	junctionExpBC = 0.33;
+	transitTimeF = 0;
+	transitTimeR = 0;
 	updateModel();
     }
 
@@ -156,6 +207,14 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltF = copy.invEarlyVoltF;
 	invEarlyVoltR = copy.invEarlyVoltR;
 	betaR = copy.betaR;
+	junctionCapBE = copy.junctionCapBE;
+	junctionPotBE = copy.junctionPotBE;
+	junctionExpBE = copy.junctionExpBE;
+	junctionCapBC = copy.junctionCapBC;
+	junctionPotBC = copy.junctionPotBC;
+	junctionExpBC = copy.junctionExpBC;
+	transitTimeF = copy.transitTimeF;
+	transitTimeR = copy.transitTimeR;
 	updateModel();
     }
 
@@ -188,6 +247,22 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltR = Double.parseDouble(st.nextToken());
 	betaR = Double.parseDouble(st.nextToken());
 
+	// Junction capacitance params (optional, for backward compatibility)
+	try {
+	    junctionCapBE = Double.parseDouble(st.nextToken());
+	    junctionPotBE = Double.parseDouble(st.nextToken());
+	    junctionExpBE = Double.parseDouble(st.nextToken());
+	    junctionCapBC = Double.parseDouble(st.nextToken());
+	    junctionPotBC = Double.parseDouble(st.nextToken());
+	    junctionExpBC = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {
+	}
+	try {
+	    transitTimeF = Double.parseDouble(st.nextToken());
+	    transitTimeR = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {
+	}
+
 	updateModel();
     }
 
@@ -209,6 +284,14 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 10) return new EditInfo("B-E Leakage Emission Coefficient (NE)", leakBEemissionCoeff);
 	if (n == 11) return new EditInfo("B-C Leakage Saturation Current (ISC)", BCleakCur);
 	if (n == 12) return new EditInfo("B-C Leakage Emission Coefficient (NC)", leakBCemissionCoeff);
+	if (n == 13) return new EditInfo("B-E Zero-Bias Junction Capacitance (CJE)", junctionCapBE);
+	if (n == 14) return new EditInfo("B-E Junction Potential (VJE)", junctionPotBE);
+	if (n == 15) return new EditInfo("B-E Junction Grading Coefficient (MJE)", junctionExpBE);
+	if (n == 16) return new EditInfo("B-C Zero-Bias Junction Capacitance (CJC)", junctionCapBC);
+	if (n == 17) return new EditInfo("B-C Junction Potential (VJC)", junctionPotBC);
+	if (n == 18) return new EditInfo("B-C Junction Grading Coefficient (MJC)", junctionExpBC);
+	if (n == 19) return new EditInfo("Forward Transit Time TF (s)", transitTimeF);
+	if (n == 20) return new EditInfo("Reverse Transit Time TR (s)", transitTimeR);
 	return null;
     }
 
@@ -230,6 +313,14 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 10) leakBEemissionCoeff = ei.value;
 	if (n == 11) BCleakCur = ei.value;
 	if (n == 12) leakBCemissionCoeff = ei.value;
+	if (n == 13) junctionCapBE = ei.value;
+	if (n == 14 && ei.value > 0) junctionPotBE = ei.value;
+	if (n == 15 && ei.value > 0) junctionExpBE = ei.value;
+	if (n == 16) junctionCapBC = ei.value;
+	if (n == 17 && ei.value > 0) junctionPotBC = ei.value;
+	if (n == 18 && ei.value > 0) junctionExpBC = ei.value;
+	if (n == 19 && ei.value >= 0) transitTimeF = ei.value;
+	if (n == 20 && ei.value >= 0) transitTimeR = ei.value;
 	updateModel();
 	CirSim.theApp.updateModels();
     }
@@ -254,6 +345,20 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	XMLSerializer.dumpAttr(elem, "vaf", invEarlyVoltF);
 	XMLSerializer.dumpAttr(elem, "var", invEarlyVoltR);
 	XMLSerializer.dumpAttr(elem, "br", betaR);
+	if (junctionCapBE != 0) {
+	    XMLSerializer.dumpAttr(elem, "cje", junctionCapBE);
+	    XMLSerializer.dumpAttr(elem, "vje", junctionPotBE);
+	    XMLSerializer.dumpAttr(elem, "mje", junctionExpBE);
+	}
+	if (junctionCapBC != 0) {
+	    XMLSerializer.dumpAttr(elem, "cjc", junctionCapBC);
+	    XMLSerializer.dumpAttr(elem, "vjc", junctionPotBC);
+	    XMLSerializer.dumpAttr(elem, "mjc", junctionExpBC);
+	}
+	if (transitTimeF != 0)
+	    XMLSerializer.dumpAttr(elem, "tf", transitTimeF);
+	if (transitTimeR != 0)
+	    XMLSerializer.dumpAttr(elem, "tr", transitTimeR);
 	doc.getDocumentElement().appendChild(elem);
     }
 
@@ -278,6 +383,14 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	invEarlyVoltF = xml.parseDoubleAttr("vaf", invEarlyVoltF);
 	invEarlyVoltR = xml.parseDoubleAttr("var", invEarlyVoltR);
 	betaR = xml.parseDoubleAttr("br", betaR);
+	junctionCapBE = xml.parseDoubleAttr("cje", junctionCapBE);
+	junctionPotBE = xml.parseDoubleAttr("vje", junctionPotBE);
+	junctionExpBE = xml.parseDoubleAttr("mje", junctionExpBE);
+	junctionCapBC = xml.parseDoubleAttr("cjc", junctionCapBC);
+	junctionPotBC = xml.parseDoubleAttr("vjc", junctionPotBC);
+	junctionExpBC = xml.parseDoubleAttr("mjc", junctionExpBC);
+	transitTimeF = xml.parseDoubleAttr("tf", transitTimeF);
+	transitTimeR = xml.parseDoubleAttr("tr", transitTimeR);
 	updateModel();
     }
 }
