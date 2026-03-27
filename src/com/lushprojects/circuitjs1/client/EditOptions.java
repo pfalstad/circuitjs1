@@ -88,10 +88,15 @@ class EditOptions implements Editable {
 		    return new EditInfo("Mouse Wheel Sensitivity", app.mouse.wheelSensitivity);
 		if (n == 14) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.checkbox = new Checkbox("Show Operating Region", CircuitElm.showOperatingRegion);
+		    return ei;
+		}
+		if (n == 15) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 15 && sim.adjustTimeStep)
+		if (n == 16 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
@@ -186,10 +191,16 @@ class EditOptions implements Editable {
 			stor.setItem("wheelSensitivity", Double.toString(app.mouse.wheelSensitivity));
 		}
 		if (n == 14) {
+		    CircuitElm.showOperatingRegion = ei.checkbox.getState();
+		    Storage stor = Storage.getLocalStorageIfSupported();
+		    if (stor != null)
+			stor.setItem("showOperatingRegion", CircuitElm.showOperatingRegion ? "true" : "false");
+		}
+		if (n == 15) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 15 && ei.value > 0)
+		if (n == 16 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 	
