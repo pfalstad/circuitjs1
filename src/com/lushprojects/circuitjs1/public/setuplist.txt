@@ -230,6 +230,7 @@ crystalosc.txt CMOS Crystal Oscillator
 -
 +555 Timer Chip
 555square.txt Square Wave Generator
+555dutycycle.txt Adjustable Duty Cycle
 555int.txt Internals
 555saw.txt Sawtooth Oscillator
 555lowduty.txt Low-duty-cycle Oscillator
