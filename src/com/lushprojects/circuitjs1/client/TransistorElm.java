@@ -305,27 +305,25 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    if (hasBEcap && sim.timeStep > 0) {
 		double vjBE = pnp * capVoltBE;  // physical junction voltage
 		double cje = calcJunctionCap(vjBE, model.junctionCapBE, model.junctionPotBE, model.junctionExpBE);
-		// Add diffusion capacitance: Cd = TF * gd, where gd is the
-		// small-signal junction conductance (same as diode transit time)
-		if (model.transitTimeF > 0) {
+		// Add diffusion capacitance only in forward bias (like SPICE)
+		if (model.transitTimeF > 0 && vjBE > 0) {
 		    double vtn = vt * model.emissionCoeffF;
-		    double gd = model.satCur * Math.exp(vjBE / vtn) / vtn;
-		    cje += model.transitTimeF * gd;
+		    cje += model.transitTimeF * model.satCur * Math.exp(vjBE / vtn) / vtn;
 		}
 		geqBE = 2 * cje / sim.timeStep;
-		ceqBE = -geqBE * capVoltBE - capCurBE;
+		if (geqBE < 1e-20) { geqBE = ceqBE = capCurBE = 0; }
+		else ceqBE = -geqBE * capVoltBE - capCurBE;
 	    }
 	    if (hasBCcap && sim.timeStep > 0) {
 		double vjBC = pnp * capVoltBC;  // physical junction voltage
 		double cjc = calcJunctionCap(vjBC, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
-		// Add diffusion capacitance: Cd = TR * gd
-		if (model.transitTimeR > 0) {
-		    double vtn = vt * model.emissionCoeffR;
-		    double gd = model.satCur * Math.exp(vjBC / vtn) / vtn;
-		    cjc += model.transitTimeR * gd;
+		// Add diffusion capacitance only in forward bias (like SPICE)
+		if (model.transitTimeR > 0 && vjBC > 0) {
+		    cjc += model.transitTimeR * model.satCur * Math.exp(vjBC / (vt * model.emissionCoeffR)) / (vt * model.emissionCoeffR);
 		}
 		geqBC = 2 * cjc / sim.timeStep;
-		ceqBC = -geqBC * capVoltBC - capCurBC;
+		if (geqBC < 1e-20) { geqBC = ceqBC = capCurBC = 0; }
+		else ceqBC = -geqBC * capVoltBC - capCurBC;
 	    }
 	}
 
