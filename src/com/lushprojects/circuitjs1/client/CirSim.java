@@ -399,6 +399,7 @@ public class CirSim implements NativePreviewHandler {
 		    resetEditingContext();
 		if (circuitText != null) {
 			loader.readCircuit(circuitText, flags);
+			ExportAsLocalFileDialog.setLastFileName(null);
 			allowSave(false);
 		}
     }
