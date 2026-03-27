@@ -171,11 +171,12 @@ abstract class GateElm extends CircuitElm {
 	
 	void draw(Graphics g) {
 	    int i;
+	    double threshold = highVoltage * .5;
 	    for (i = 0; i != inputCount; i++) {
-		setVoltageColor(g, volts[i]);
+		setLogicPinColor(g, volts[i], threshold);
 		drawThickLine(g, inPosts[i], inGates[i]);
 	    }
-	    setVoltageColor(g, volts[inputCount]);
+	    setLogicPinColor(g, volts[inputCount], threshold);
 	    drawThickLine(g, lead2, point2);
 	    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	    if (useEuroGates()) {

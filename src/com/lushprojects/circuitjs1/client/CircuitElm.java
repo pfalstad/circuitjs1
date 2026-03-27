@@ -60,7 +60,11 @@ public abstract class CircuitElm implements Editable {
     static final int SCALE_MU = 3;
     
     static int decimalDigits, shortDecimalDigits;
- 
+
+    // when true, logic gate/chip pin leads are colored by logical state (high/low)
+    // rather than by analog voltage
+    static boolean colorLogicPins;
+
     // initial point where user created element.  For simple two-terminal elements, this is the first node/post.
     int x, y;
     
@@ -1084,7 +1088,22 @@ public abstract class CircuitElm implements Editable {
     void setVoltageColor(Graphics g, double volts) {
     	g.setColor(getVoltageColor(g, volts));
     }
-    
+
+    // Set pin color based on logical state (high/low) relative to a threshold.
+    // Used by logic gates and chips when colorLogicPins is enabled.
+    // Falls back to normal voltage coloring when the option is off.
+    void setLogicPinColor(Graphics g, double volts, double threshold) {
+	if (colorLogicPins) {
+	    if (needsHighlight()) {
+		g.setColor(selectColor);
+		return;
+	    }
+	    g.setColor(volts > threshold ? positiveColor : neutralColor);
+	} else {
+	    setVoltageColor(g, volts);
+	}
+    }
+
     // yellow argument is unused, can't remember why it was there
     void setPowerColor(Graphics g, boolean yellow) {
 
