@@ -81,7 +81,7 @@ public class CommandManager {
     	    	app.dialogShowing = new ShortcutsDialog(app);
     	    	app.dialogShowing.show();
     	}
-    	if (menu=="options" && item=="subcircuits") {
+    	if (item=="subcircuits") {
     	    	app.dialogShowing = new SubcircuitDialog(app);
     	    	app.dialogShowing.show();
     	}
@@ -124,9 +124,9 @@ public class CommandManager {
     	if (item=="selectAll")
     		app.mouse.doSelectAll();
 
-    	if (item=="centrecircuit") {
+    	if (item=="centercircuit") {
     		app.undoManager.pushUndo();
-    		app.centreCircuit();
+    		app.centerCircuit();
     	}
     	if (item=="flipx") {
 	    app.undoManager.pushUndo();
@@ -139,6 +139,15 @@ public class CommandManager {
     	if (item=="flipxy") {
 	    app.undoManager.pushUndo();
 	    flipXY();
+    	}
+    	if (item=="convertWires") {
+	    app.undoManager.pushUndo();
+	    WireConverter.convertWires(app);
+	    app.needAnalyze();
+    	}
+    	if (item=="createTest") {
+	    app.undoManager.pushUndo();
+	    TestCreator.createTest(app);
     	}
     	if (item=="stackAll")
     		app.scopeManager.stackAll();
@@ -300,7 +309,7 @@ public class CommandManager {
     		Graphics.viewFullScreen();
     	    else
     		Graphics.exitFullScreen();
-    	    app.centreCircuit();
+    	    app.centerCircuit();
     	}
 
 	app.repaint();

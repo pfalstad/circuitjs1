@@ -99,7 +99,7 @@ class DelayBufferElm extends CircuitElm {
 	}
 	int getVoltageSourceCount() { return 1; }
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[1], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[1], voltSource);
 	}
 	
 	double delayEndTime;
@@ -112,7 +112,7 @@ class DelayBufferElm extends CircuitElm {
 		    outState = inState;
 	    } else
 		delayEndTime = sim.t + delay;
-	    sim.updateVoltageSource(0, nodes[1], voltSource, outState ? highVoltage : 0);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[1], voltSource, outState ? highVoltage : 0);
 	}
 	double getVoltageDiff() { return volts[0]; }
 	void getInfo(String arr[]) {

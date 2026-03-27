@@ -21,21 +21,26 @@ package com.lushprojects.circuitjs1.client;
 
 class Inductor {
     public static final int FLAG_BACK_EULER = 2;
-    int nodes[];
+    CircuitNode nodes[];
     int flags;
     SimulationManager sim;
-    
+
     double inductance;
     double compResistance, current;
     double curSourceValue;
+    double saturationCurrent; // 0 = disabled (linear), >0 = saturation onset current (A)
     Inductor(SimulationManager s) {
 	sim = s;
-	nodes = new int[2];
+	nodes = new CircuitNode[2];
     }
     void setup(double ic, double cr, int f) {
 	inductance = ic;
 	current = cr;
 	flags = f;
+    }
+    void setup(double ic, double cr, int f, double isat) {
+	setup(ic, cr, f);
+	saturationCurrent = isat;
     }
     boolean isTrapezoidal() { return (flags & FLAG_BACK_EULER) == 0; }
     void reset() { resetTo(0); }
@@ -45,7 +50,16 @@ class Inductor {
 	// startIteration() gets called
 	curSourceValue = current = c;
     }
-    void stamp(int n0, int n1) {
+
+    // compute effective inductance with saturation: L(I) = L0 / (1 + (I/Isat)^2)
+    // smooth rolloff: at |I|=Isat, L=L0/2; at |I|=3*Isat, L=L0/10
+    double calcEffectiveInductance(double i) {
+	if (saturationCurrent <= 0) return inductance;
+	double ratio = i / saturationCurrent;
+	return inductance / (1 + ratio * ratio);
+    }
+
+    void stamp(CircuitNode n0, CircuitNode n1) {
 	// inductor companion model using trapezoidal or backward euler
 	// approximations (Norton equivalent) consists of a current
 	// source in parallel with a resistor.  Trapezoidal is more
@@ -53,23 +67,38 @@ class Inductor {
 	// The oscillation is a real problem in circuits with switches.
 	nodes[0] = n0;
 	nodes[1] = n1;
-	if (isTrapezoidal())
-	    compResistance = 2*inductance/sim.timeStep;
-	else // backward euler
-	    compResistance = inductance/sim.timeStep;
-	sim.stampResistor(nodes[0], nodes[1], compResistance);
+	if (saturationCurrent > 0) {
+	    // nonlinear: conductance changes with current, stamped in doStep()
+	    sim.stampNonLinear(nodes[0]);
+	    sim.stampNonLinear(nodes[1]);
+	} else {
+	    // linear: fixed companion conductance
+	    if (isTrapezoidal())
+		compResistance = 2*inductance/sim.timeStep;
+	    else // backward euler
+		compResistance = inductance/sim.timeStep;
+	    sim.stampResistor(nodes[0], nodes[1], compResistance);
+	}
 	sim.stampRightSide(nodes[0]);
 	sim.stampRightSide(nodes[1]);
     }
-    boolean nonLinear() { return false; }
+    boolean nonLinear() { return saturationCurrent > 0; }
 
     void startIteration(double voltdiff) {
+	if (saturationCurrent > 0) {
+	    // recompute companion resistance from current-dependent inductance
+	    double lEff = calcEffectiveInductance(current);
+	    if (isTrapezoidal())
+		compResistance = 2*lEff/sim.timeStep;
+	    else
+		compResistance = lEff/sim.timeStep;
+	}
 	if (isTrapezoidal())
 	    curSourceValue = voltdiff/compResistance+current;
 	else // backward euler
 	    curSourceValue = current;
     }
-    
+
     double calculateCurrent(double voltdiff) {
 	// we check compResistance because this might get called
 	// before stamp(), which sets compResistance, causing
@@ -79,6 +108,10 @@ class Inductor {
 	return current;
     }
     void doStep(double voltdiff) {
+	if (saturationCurrent > 0) {
+	    // stamp companion conductance (matrix was restored to origMatrix)
+	    sim.stampConductance(nodes[0], nodes[1], 1.0/compResistance);
+	}
 	sim.stampCurrentSource(nodes[0], nodes[1], curSourceValue);
     }
 }

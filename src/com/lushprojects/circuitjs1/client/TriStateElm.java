@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -28,6 +28,8 @@ import com.google.gwt.xml.client.Document;
 
 class TriStateElm extends CircuitElm {
     double resistance, r_on, r_off, r_off_ground, highVoltage;
+    int busWidth = 1;
+    VoltageSource voltageSources[];
 
     // Unfortunately we need all three flags to keep track of flipping.
     // FLAG_FLIP_X/Y affect the rounding direction if the elm is an odd grid length.
@@ -42,7 +44,7 @@ class TriStateElm extends CircuitElm {
 	r_off = 1e10;
 	r_off_ground = 1e8;
 	noDiagonal = true;
-            
+
         // copy defaults from last gate edited
         highVoltage = GateElm.lastHighVoltage;
     }
@@ -74,6 +76,8 @@ class TriStateElm extends CircuitElm {
         XMLSerializer.dumpAttr(elem, "roff", r_off);
         XMLSerializer.dumpAttr(elem, "rog", r_off_ground);
         XMLSerializer.dumpAttr(elem, "hi", highVoltage);
+	if (busWidth != 1)
+	    XMLSerializer.dumpAttr(elem, "bw", busWidth);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -82,6 +86,7 @@ class TriStateElm extends CircuitElm {
         r_off = xml.parseDoubleAttr("roff", r_off);
         r_off_ground = xml.parseDoubleAttr("rog", r_off_ground);
         highVoltage = xml.parseDoubleAttr("hi", highVoltage);
+	busWidth = xml.parseIntAttr("bw", 1);
     }
 
     int getDumpType() { return 180; }
@@ -90,7 +95,7 @@ class TriStateElm extends CircuitElm {
 
     boolean open;
 
-    Point ps, point3, lead3;
+    Point ps, point3, lead3, busLead1;
 
     Polygon gatePoly;
 
@@ -111,40 +116,62 @@ class TriStateElm extends CircuitElm {
 	triPoints[2] = interpPoint(lead1, lead2, .5 + (ww - 2) / (double)len);
 	gatePoly = createPolygon(triPoints);
 
+	// busLead1 is lead1 pulled back slightly so thick bus line doesn't bleed into triangle
+	busLead1 = interpPoint(point1, lead1, 1 - 2 / dn);
+
 	int sign = ((flags & FLAG_FLIP) == 0) ? -1 : 1;
 	point3 = interpPoint(lead1, lead2, .5, sign*hs);
-	lead3 = interpPoint(lead1, lead2, .5, sign*hs/2);
+	lead3 = interpPoint(lead1, lead2, .5, sign*(hs/2 + 2));
     }
 
     void draw(Graphics g) {
 	int hs = 16;
 	setBbox(point1, point2, hs);
 
-	draw2Leads(g);
+	// draw control lead underneath the triangle
+	setVoltageColor(g, volts[2 * busWidth]);
+	drawThickLine(g, point3, lead3);
+
+	// draw leads with bus thickness if bus mode
+	if (busWidth > 1) {
+	    setVoltageColor(g, volts[0]);
+	    drawThickLine(g, point1, busLead1, 5);
+	    setVoltageColor(g, volts[busWidth]);
+	    drawThickLine(g, lead2, point2, 5);
+	} else {
+	    draw2Leads(g);
+	}
 
 	g.setColor(lightGrayColor);
 	drawThickPolygon(g, gatePoly);
-	setVoltageColor(g, volts[2]);
-	drawThickLine(g, point3, lead3);
 	curcount = updateDotCount(current, curcount);
 	drawDots(g, lead2, point2, curcount);
 	drawPosts(g);
     }
 
-    void calculateCurrent() {
-	// current from node 3 to node 1
-	double current31 = (volts[3]-volts[1])/resistance;
-	
-	// current from node 1 through pulldown
-	double current10 = (r_off_ground == 0) ? 0 : volts[1]/r_off_ground;
+    // node layout:
+    // nodes[0..busWidth-1]: input bus
+    // nodes[busWidth..2*busWidth-1]: output bus
+    // nodes[2*busWidth]: control
+    // nodes[2*busWidth+1..3*busWidth]: internal nodes (one per bit)
 
-	// output current is difference of these
-	current = current31-current10;
+    int controlNode() { return 2 * busWidth; }
+    int internalNode(int bit) { return 2 * busWidth + 1 + bit; }
+
+    void calculateCurrent() {
+	current = 0;
+	for (int i = 0; i < busWidth; i++) {
+	    int intNode = internalNode(i);
+	    int outNode = busWidth + i;
+	    double current31 = (volts[intNode] - volts[outNode]) / resistance;
+	    double current10 = (r_off_ground == 0) ? 0 : volts[outNode] / r_off_ground;
+	    current += current31 - current10;
+	}
     }
 
     double getCurrentIntoNode(int n) {
-	if (n == 1)
-	    return current;
+	if (n >= busWidth && n < 2 * busWidth)
+	    return current / busWidth;
 	return 0;
     }
 
@@ -153,35 +180,35 @@ class TriStateElm extends CircuitElm {
 	return true;
     }
 
-    // node 0: input
-    // node 1: output
-    // node 2: control input
-    // node 3: internal node
-    // there is a voltage source connected to node 3, and a resistor (r_off or r_on) from node 3 to 1.
-    // then there is a pulldown resistor from node 1 to ground.
     void stamp() {
-	sim.stampVoltageSource(0, nodes[3], voltSource);
-	sim.stampNonLinear(nodes[3]);
-	sim.stampNonLinear(nodes[1]);
+	for (int i = 0; i < busWidth; i++) {
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[internalNode(i)], voltageSources[i]);
+	    sim.stampNonLinear(nodes[internalNode(i)]);
+	    sim.stampNonLinear(nodes[busWidth + i]);
+	}
     }
 
     void doStep() {
-	open = (volts[2] < highVoltage*.5);
+	open = (volts[controlNode()] < highVoltage * .5);
 	resistance = (open) ? r_off : r_on;
-	sim.stampResistor(nodes[3], nodes[1], resistance);
-	
-	// Add pulldown resistor for output, so that disabled tristate has output near ground if nothing
-	// else is driving the output.  Otherwise people get confused.
-	if (r_off_ground > 0)
-	    sim.stampResistor(nodes[1], 0, r_off_ground);
-	
-	sim.updateVoltageSource(0, nodes[3], voltSource, volts[0] > highVoltage*.5 ? highVoltage : 0);
+	for (int i = 0; i < busWidth; i++) {
+	    int intNode = internalNode(i);
+	    int outNode = busWidth + i;
+	    int inNode = i;
+	    sim.stampResistor(nodes[intNode], nodes[outNode], resistance);
+
+	    if (r_off_ground > 0)
+		sim.stampResistor(nodes[outNode], CircuitNode.ground, r_off_ground);
+
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[intNode], voltageSources[i],
+		volts[inNode] > highVoltage * .5 ? highVoltage : 0);
+	}
     }
 
     void drag(int xx, int yy) {
 	// use mouse to select which side the buffer enable should be on
 	boolean flip = (xx < x) == (yy < y);
-	
+
 	xx = snapGrid(xx);
 	yy = snapGrid(yy);
 	if (abs(x - xx) < abs(y - yy))
@@ -194,28 +221,56 @@ class TriStateElm extends CircuitElm {
 	super.drag(xx, yy);
     }
 
+    // posts: busWidth inputs + busWidth outputs + 1 control
     int getPostCount() {
-	return 3;
+	return 2 * busWidth + 1;
     }
-    
+
     int getInternalNodeCount() {
-	return 1;
+	return busWidth;
     }
 
     int getVoltageSourceCount() {
-	return 1;
+	return busWidth;
+    }
+
+    void setVoltageSource(int n, VoltageSource v) {
+	if (voltageSources == null || voltageSources.length != busWidth)
+	    voltageSources = new VoltageSource[busWidth];
+	voltageSources[n] = v;
+	v.setNodes(CircuitNode.ground, nodes[internalNode(n)]);
+    }
+
+    boolean getMatrixConnection(int n1, int n2) {
+	// each internal node connects to its corresponding output node
+	for (int i = 0; i < busWidth; i++)
+	    if (comparePair(n1, n2, busWidth + i, internalNode(i)))
+		return true;
+	return false;
     }
 
     Point getPost(int n) {
-	return (n == 0) ? point1 : (n == 1) ? point2 : point3;
+	if (n < busWidth)
+	    return (busWidth > 1) ? new Point(point1.x, point1.y, n) : point1;
+	if (n < 2 * busWidth)
+	    return (busWidth > 1) ? new Point(point2.x, point2.y, n - busWidth) : point2;
+	return point3;
+    }
+
+    int getPostWidth(int n) {
+	if (n < 2 * busWidth)
+	    return busWidth;
+	return 1;
     }
 
     void getInfo(String arr[]) {
 	arr[0] = "tri-state buffer";
+	if (busWidth > 1)
+	    arr[0] += " (" + busWidth + ")";
 	arr[1] = open ? "open" : "closed";
 	arr[2] = "Vd = " + getVoltageDText(getVoltageDiff());
 	arr[3] = "I = " + getCurrentDText(getCurrent());
-	arr[4] = "Vc = " + getVoltageText(volts[2]);
+	arr[4] = "Vc = " + getVoltageText(volts[controlNode()]);
     }
 
     // there is no current path through the input, but there
@@ -225,7 +280,7 @@ class TriStateElm extends CircuitElm {
     }
 
     boolean hasGroundConnection(int n1) {
-	return (n1 == 1);
+	return (n1 >= busWidth && n1 < 2 * busWidth);
     }
 
     public EditInfo getEditInfo(int n) {
@@ -237,6 +292,8 @@ class TriStateElm extends CircuitElm {
 	    return new EditInfo("Output Pulldown Resistance (ohms)", r_off_ground, 0, 0);
         if (n == 3)
             return new EditInfo("High Logic Voltage", highVoltage, 1, 10);
+	if (n == 4)
+	    return new EditInfo("Bus Width", busWidth, 1, 32).setDimensionless();
 	return null;
     }
 
@@ -250,6 +307,10 @@ class TriStateElm extends CircuitElm {
 	    r_off_ground = ei.value;
 	if (n == 3)
             highVoltage = GateElm.lastHighVoltage = ei.value;
+	if (n == 4 && ei.value >= 1) {
+	    busWidth = (int) ei.value;
+	    allocNodes();
+	}
     }
 
     void flipX(int c2, int count) {
@@ -267,4 +328,3 @@ class TriStateElm extends CircuitElm {
 	super.flipXY(c2, count);
     }
 }
-

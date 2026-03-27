@@ -24,7 +24,7 @@ import com.google.gwt.xml.client.Document;
 
 class MBBSwitchElm extends SwitchElm {
 	int link;
-	int voltSources[];
+	VoltageSource voltSources[];
 	double currents[];
 	double curcounts[];
 	boolean both;
@@ -36,7 +36,7 @@ class MBBSwitchElm extends SwitchElm {
 	
 	void setup() {
 	    noDiagonal = true;
-	    voltSources = new int[2];
+	    voltSources = new VoltageSource[2];
 	    currents = new double[2];
 	    curcounts = new double[3];
 	}
@@ -130,11 +130,11 @@ class MBBSwitchElm extends SwitchElm {
 	
 	int getPostCount() { return 3; }
 	
-	void setCurrent(int vn, double c) {
-	    // set current for voltage source vn to c
-	    if (vn == voltSources[0])
+	void setCurrent(VoltageSource vs, double c) {
+	    // set current for voltage source vs to c
+	    if (vs == voltSources[0])
 		currents[both ? 0 : position/2] = c;
-	    else if (vn == voltSources[1])
+	    else if (vs == voltSources[1])
 		currents[1] = c;
 	}
 	void calculateCurrent() {
@@ -142,15 +142,21 @@ class MBBSwitchElm extends SwitchElm {
 	    if (!both)
 		currents[1-(position/2)] = 0;
 	}
-	void setVoltageSource(int n, int v) {
+	void setVoltageSource(int n, VoltageSource v) {
 	    voltSources[n] = v;
+	    if (both)
+		v.setNodes(nodes[0], nodes[n+1]);
+	    else if (position == 0)
+		v.setNodes(nodes[0], nodes[1]);
+	    else
+		v.setNodes(nodes[0], nodes[2]);
 	}
 	void stamp() {
 	    int vs = 0;
 	    if (both || position == 0)
-		sim.stampVoltageSource(nodes[0], nodes[1], voltSources[vs++], 0);
+		sim.stampVoltageSource(voltSources[vs++], 0);
 	    if (both || position == 2)
-		sim.stampVoltageSource(nodes[0], nodes[2], voltSources[vs++], 0);
+		sim.stampVoltageSource(voltSources[vs++], 0);
 	}
 	
 	// connection is implemented by voltage source with voltage = 0.

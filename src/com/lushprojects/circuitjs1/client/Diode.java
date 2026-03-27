@@ -21,12 +21,12 @@ package com.lushprojects.circuitjs1.client;
 
 // diode that can be embedded in other elements.  series resistance is handled in DiodeElm, not here.
 class Diode {
-    int nodes[];
+    CircuitNode nodes[];
     SimulationManager sim;
-    
+
     Diode(SimulationManager s) {
 	sim = s;
-	nodes = new int[2];
+	nodes = new CircuitNode[2];
     }
     void setup(DiodeModel model) {
 	leakage = model.saturationCurrent;
@@ -130,7 +130,7 @@ class Diode {
 	return vnew;
     }
     
-    void stamp(int n0, int n1) {
+    void stamp(CircuitNode n0, CircuitNode n1) {
 	nodes[0] = n0;
 	nodes[1] = n1;
 	sim.stampNonLinear(nodes[0]);

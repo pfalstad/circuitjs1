@@ -33,7 +33,7 @@ import com.google.gwt.xml.client.Element;
 	HashMap<Integer, Integer> map;
 	static String contentsOverride = null;
 	TextArea editTextArea;
-	boolean hexTogglePending;
+
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -90,28 +90,24 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	boolean nonLinear() { return true; }
+	boolean allowBus() { return true; }
 	String getChipName() { return "Static RAM"; }
 	void setupPins() {
 	    sizeX = 2;
-	    sizeY = max(addressBits, dataBits) + 1;
+	    int addrY = useBus() ? 1 : addressBits;
+	    int dataY = useBus() ? 1 : dataBits;
+	    sizeY = max(addrY, dataY) + 1;
+	    bits = addressBits;
 	    pins = new Pin[getPostCount()];
 	    pins[0] = new Pin(0, SIDE_W, "WE");
 	    pins[0].lineOver = true;
 	    pins[1] = new Pin(0, SIDE_E, "OE");
 	    pins[1].lineOver = true;
-	    int i;
 	    addressNodes = 2;
 	    dataNodes = 2+addressBits;
 	    internalNodes = 2+addressBits+dataBits;
-	    for (i = 0; i != addressBits; i++) {
-		int ii = i+addressNodes;
-		pins[ii] = new Pin(sizeY-addressBits+i, SIDE_W, "A" + (addressBits-i-1));
-	    }
-	    for (i = 0; i != dataBits; i++) {
-		int ii = i+dataNodes;
-		pins[ii] = new Pin(sizeY-dataBits+i, SIDE_E, "D" + (dataBits-i-1));
-		pins[ii].output = true;
-	    }
+	    makeBitPins(addressBits, sizeY-addrY, SIDE_W, addressNodes, "A", false, false, true);
+	    makeBitPins(dataBits, sizeY-dataY, SIDE_E, dataNodes, "D", true, false, true);
 	    allocNodes();
 	}
 	int getPostCount() {
@@ -214,42 +210,40 @@ import com.google.gwt.xml.client.Element;
 		setupPins();
 		setPoints();
 	    }
-	    if (n == 2) {
-		// skip re-parse during apply() if hex toggle already handled it
-		if (!hexTogglePending)
-		    parseContentsString(ei.textArea.getText());
-	    }
+	    if (n == 2)
+		parseContentsString(ei.textArea.getText());
 	    if (n == 3) {
-		if (hexTogglePending) {
-		    // already handled by the checkbox click; skip the
-		    // redundant apply() call so we don't re-parse with wrong radix
-		    hexTogglePending = false;
-		    return;
-		}
 		int oldFlags = flags;
-		// parse text area contents with old flag before toggling,
-		// so values are not reinterpreted in the wrong radix
 		if (editTextArea != null)
 		    parseContentsString(editTextArea.getText());
 		flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
 		if (flags != oldFlags) {
-		    // regenerate display with new format
 		    contentsOverride = contentsToString();
-		    hexTogglePending = true;
 		    ei.newDialog = true;
 		}
 	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }
-	
+	void setVoltageSource(int j, VoltageSource vs) {
+	    super.setVoltageSource(j, vs);
+	    vs.setNodes(CircuitNode.ground, nodes[internalNodes+j]);
+	}
+	boolean getMatrixConnection(int n1, int n2) {
+	    // each internal node connects to its corresponding data pin
+	    for (int i = 0; i != dataBits; i++)
+		if (comparePair(n1, n2, internalNodes+i, dataNodes+i))
+		    return true;
+	    return false;
+	}
+
 	int address;
 	
 	void stamp() {
 	    int i;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.stampVoltageSource(0, nodes[internalNodes+i], p.voltSource);
+		sim.stampVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource);
 		sim.stampNonLinear(nodes[internalNodes+i]);
 		sim.stampNonLinear(nodes[dataNodes+i]);
 	    }
@@ -270,7 +264,7 @@ import com.google.gwt.xml.client.Element;
 	    int data = (dataObj == null) ? 0 : dataObj;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.updateVoltageSource(0, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
+		sim.updateVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
 		
 		// stamp resistor from internal voltage source to data pin.
 		// if output enabled, make it a small resistor.  otherwise large.

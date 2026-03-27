@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ v3-dev ]   # ← Only trigger on pushes to v3-dev
+    branches: [ dev ]   # ← Only trigger on pushes to dev
 
 permissions:
   contents: read

@@ -162,7 +162,7 @@ public class Menus {
 	m.addItem(selectAllItem = menuItemWithShortcut("select-all", "Select All", Locale.LS(ctrlMetaKey + "A"), new MyCommand("edit","selectAll")));
 	m.addSeparator();
 	m.addItem(menuItemWithShortcut("search", "Find Component...", "/", new MyCommand("edit", "search")));
-	m.addItem(iconMenuItem("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit", new MyCommand("edit", "centrecircuit")));
+	m.addItem(iconMenuItem("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit", new MyCommand("edit", "centercircuit")));
 	m.addItem(menuItemWithShortcut("zoom-11", "Zoom 100%", "0", new MyCommand("zoom", "zoom100")));
 	m.addItem(menuItemWithShortcut("zoom-in", "Zoom In", "+", new MyCommand("zoom", "zoomin")));
 	m.addItem(menuItemWithShortcut("zoom-out", "Zoom Out", "-", new MyCommand("zoom", "zoomout")));
@@ -235,10 +235,16 @@ public class Menus {
 	}));
 
 	m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Shortcuts..."), new MyCommand("options", "shortcuts")));
-	m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Subcircuits..."), new MyCommand("options", "subcircuits")));
 	m.addItem(optionsItem = new CheckboxAlignedMenuItem(Locale.LS("Other Options..."), new MyCommand("options","other")));
 	if (isElectron())
 	    m.addItem(new CheckboxAlignedMenuItem(Locale.LS("Toggle Dev Tools"), new MyCommand("options","devtools")));
+
+	m = new MenuBar(true);
+	m.addItem(new MenuItem(Locale.LS("Convert Wires to Routed Wires"), new MyCommand("tools", "convertWires")));
+	m.addItem(new MenuItem(Locale.LS("Subcircuit Manager"), new MyCommand("tools", "subcircuits")));
+	if (TestCreator.enabled)
+	    m.addItem(new MenuItem(Locale.LS("Create Test"), new MyCommand("tools", "createTest")));
+	menuBar.addItem(Locale.LS("Tools"), m);
 
 	mainMenuBar = new MenuBar(true);
 	mainMenuBar.setAutoOpen(true);
@@ -265,7 +271,7 @@ public class Menus {
 
     // this is called twice, once for the Draw menu, once for the right mouse popup menu
     public void composeMainMenu(MenuBar mainMenuBar, int num) {
-	makeClassCheckItems(mainMenuBar, new String[] { "Add Wire", "WireElm", "Add Resistor", "ResistorElm" });
+	makeClassCheckItems(mainMenuBar, new String[] { "Add Wire", "WireElm", "Add Routed Wire", "RoutedWireElm", "Add Resistor", "ResistorElm" });
 
     	MenuBar passMenuBar = new MenuBar(true);
 	makeClassCheckItems(passMenuBar, new String[] {
@@ -365,38 +371,13 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Components")), activeMenuBar);
 
     	MenuBar activeBlocMenuBar = new MenuBar(true);
-	makeClassCheckItems(activeBlocMenuBar, new String[] {
-		"Add Op Amp (ideal, - on top)", "OpAmpElm",
-		"Add Op Amp (ideal, + on top)", "OpAmpSwapElm",
-		"Add Op Amp (real)", "OpAmpRealElm",
-		"Add Analog Switch (SPST)", "AnalogSwitchElm",
-		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
-		"Add Analog Multiplexer", "AnalogMuxElm",
-		"Add Tristate Buffer", "TriStateElm",
-		"Add Schmitt Trigger", "SchmittElm",
-		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",
-		"Add Delay Buffer", "DelayBufferElm",
-		"Add CCII+", "CC2Elm",
-		"Add CCII-", "CC2NegElm",
-		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
-		"Add OTA (LM13700 style)", "OTAElm",
-		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
-		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
-		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
-		"Add Current-Controlled Current Source (CCCS)", "CCCSElm",
-		"Add Optocoupler", "OptocouplerElm",
-		"Add Time Delay Relay", "TimeDelayRelayElm",
-		"Add LM317", "CustomCompositeElm:~LM317-v2",
-		"Add TL431", "CustomCompositeElm:~TL431",
-		"Add Motor Protection Switch", "MotorProtectionSwitchElm",
-		"Add Subcircuit Instance", "CustomCompositeElm",
-	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Building Blocks")), activeBlocMenuBar);
     	
     	MenuBar gateMenuBar = new MenuBar(true);
 	makeClassCheckItems(gateMenuBar, new String[] {
 		"Add Logic Input", "LogicInputElm",
 		"Add Logic Output", "LogicOutputElm",
+		"Add Bus Input", "BusLogicInputElm",
 		"Add Inverter", "InverterElm",
 		"Add NAND Gate", "NandGateElm",
 		"Add NOR Gate", "NorGateElm",
@@ -426,7 +407,8 @@ public class Menus {
 		"Add Adder", "FullAdderElm",
 		"Add Half Adder", "HalfAdderElm",
 		"Add Custom Logic", "UserDefinedLogicElm", // don't change this, it will break people's saved shortcuts
-		"Add Static RAM", "SRAMElm"
+		"Add Static RAM", "SRAMElm",
+		"Add Bus Splitter", "BusSplitterElm"
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Digital Chips")), chipMenuBar);
     	
@@ -441,6 +423,34 @@ public class Menus {
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Analog and Hybrid Chips")), achipMenuBar);
     	
+	// do these later so all the other elements are added to the map first
+	makeClassCheckItems(activeBlocMenuBar, new String[] {
+		"Add Op Amp (ideal, - on top)", "OpAmpElm",
+		"Add Op Amp (ideal, + on top)", "OpAmpSwapElm",
+		"Add Op Amp (real)", "OpAmpRealElm",
+		"Add Analog Switch (SPST)", "AnalogSwitchElm",
+		"Add Analog Switch (SPDT)", "AnalogSwitch2Elm",
+		"Add Analog Multiplexer", "AnalogMuxElm",
+		"Add Tristate Buffer", "TriStateElm",
+		"Add Schmitt Trigger", "SchmittElm",
+		"Add Schmitt Trigger (Inverting)", "InvertingSchmittElm",
+		"Add Delay Buffer", "DelayBufferElm",
+		"Add CCII+", "CC2Elm",
+		"Add CCII-", "CC2NegElm",
+		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
+		"Add OTA (LM13700 style)", "OTAElm",
+		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
+		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
+		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
+		"Add Current-Controlled Current Source (CCCS)", "CCCSElm",
+		"Add Optocoupler", "OptocouplerElm",
+		"Add Time Delay Relay", "TimeDelayRelayElm",
+		"Add LM317", "CustomCompositeElm:~LM317-v2",
+		"Add TL431", "CustomCompositeElm:~TL431",
+		"Add Motor Protection Switch", "MotorProtectionSwitchElm",
+		"Add Subcircuit Instance", "CustomCompositeElm",
+	});
+
     	if (subcircuitMenuBar == null)
     	    subcircuitMenuBar = new MenuBar[2];
     	subcircuitMenuBar[num] = new MenuBar(true);
@@ -583,7 +593,7 @@ public class Menus {
 	if (title != null)
 	    sim.setCircuitTitle(title);
 	sim.unsavedChanges = false;
-	ExportAsLocalFileDialog.setLastFileName(str);
+	ExportAsLocalFileDialog.setLastFileName(str.equals("blank.txt") ? null : str);
     }
 }
 

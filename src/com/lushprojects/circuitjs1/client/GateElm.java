@@ -100,6 +100,10 @@ abstract class GateElm extends CircuitElm {
 	    setupVolts();
 	}
 
+	void addRoutingObstacle(WireRouter router) {
+	    addRoutingObstacleWithLeads(router, gwidth2);
+        }
+
 	String getXmlDumpType() { return getClassName().replace("GateElm", ""); }
 
 	Point inPosts[], inGates[];
@@ -214,7 +218,7 @@ abstract class GateElm extends CircuitElm {
 	void setHighVoltage(double hv) { highVoltage = hv; }
 
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[inputCount], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[inputCount], voltSource);
 	}
 	boolean hasSchmittInputs() { return (flags & FLAG_SCHMITT) != 0; }
 	boolean getInput(int x) {
@@ -252,7 +256,7 @@ abstract class GateElm extends CircuitElm {
 	    }
 	    
 	    double res = f ? highVoltage : 0;
-	    sim.updateVoltageSource(0, nodes[inputCount], voltSource, res);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[inputCount], voltSource, res);
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)

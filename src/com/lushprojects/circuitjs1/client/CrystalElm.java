@@ -24,6 +24,7 @@ import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 class CrystalElm extends CompositeElm {
+	static final int FLAG_SHOW_FREQ = 2;
 	double seriesCapacitance, parallelCapacitance;
 	double inductance, resistance;
 	Point plate1[], plate2[];
@@ -32,6 +33,7 @@ class CrystalElm extends CompositeElm {
 	
 	public CrystalElm(int xx, int yy) {
 	    super(xx, yy, modelString, modelExternalNodes);
+	    flags = FLAG_SHOW_FREQ;
 	    parallelCapacitance = 28.7e-12;
 	    seriesCapacitance = 0.1e-12;
 	    inductance = 2.5e-3;
@@ -70,7 +72,7 @@ class CrystalElm extends CompositeElm {
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
             XMLSerializer.dumpAttr(elem, "pc", parallelCapacitance);
-            XMLSerializer.dumpAttr(elem, "sc", parallelCapacitance);
+            XMLSerializer.dumpAttr(elem, "sc", seriesCapacitance);
             XMLSerializer.dumpAttr(elem, "in", inductance);
             XMLSerializer.dumpAttr(elem, "r", resistance);
         }
@@ -137,6 +139,11 @@ class CrystalElm extends CompositeElm {
 		drawDots(g, point2, lead2, -curcount);
 	    }
 	    drawPosts(g);
+	    if (hasFlag(FLAG_SHOW_FREQ)) {
+		double fs = 1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2);
+		String s = getShortUnitText(fs, "Hz");
+		drawValues(g, s, hs);
+	    }
 	}
 	
 	public void stepFinished() {
@@ -147,11 +154,14 @@ class CrystalElm extends CompositeElm {
 	void getInfo(String arr[]) {
 	    arr[0] = "crystal";
 	    getBasicInfo(arr);
-	    arr[3] = "fs = " + getUnitText(1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2), "Hz");
-//	    arr[3] = "C = " + getUnitText(capacitance, "F");
-//	    arr[4] = "P = " + getUnitText(getPower(), "W");
-	    //double v = getVoltageDiff();
-	    //arr[4] = "U = " + getUnitText(.5*capacitance*v*v, "J");
+	    double fs = 1/(Math.sqrt(inductance*seriesCapacitance)*Math.PI*2);
+	    double cSer = (parallelCapacitance*seriesCapacitance)/(parallelCapacitance+seriesCapacitance);
+	    double fp = 1/(Math.sqrt(inductance*cSer)*Math.PI*2);
+	    double q = 2*Math.PI*fs*inductance/resistance;
+	    arr[3] = "fs = " + getUnitText(fs, "Hz");
+	    arr[4] = "fp = " + getUnitText(fp, "Hz");
+	    arr[5] = "Q = " + getUnitText(q, "");
+	    arr[6] = "P = " + getUnitText(getPower(), "W");
 	}
 	
 	public boolean canViewInScope() { return true; }
@@ -165,6 +175,11 @@ class CrystalElm extends CompositeElm {
 		return new EditInfo("Inductance (H)", inductance, 0, 0);
 	    if (n == 3)
 		return new EditInfo("Resistance (" + Locale.ohmString + ")", resistance, 0, 0);
+	    if (n == 4) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Show Frequency", hasFlag(FLAG_SHOW_FREQ));
+		return ei;
+	    }
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -176,6 +191,8 @@ class CrystalElm extends CompositeElm {
 		inductance = ei.value;
 	    if (n == 3 && ei.value > 0)
 		resistance = ei.value;
+	    if (n == 4)
+		flags = ei.changeFlag(flags, FLAG_SHOW_FREQ);
 	    initCrystal();
 	}
     }

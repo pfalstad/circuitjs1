@@ -33,7 +33,7 @@ class TimerElm extends ChipElm {
     final int N_RST = 6;
     final int N_GND = 7;
     int getDefaultFlags() { return FLAG_RESET | FLAG_GROUND; }
-    int ground;
+    CircuitNode ground;
     public TimerElm(int xx, int yy) { super(xx, yy); }
     public TimerElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
@@ -65,7 +65,7 @@ class TimerElm extends ChipElm {
     boolean usePinNames() { return (flags & FLAG_NUMBERS) == 0; }
     @Override boolean isDigitalChip() { return false; }
     void stamp() {
-	ground = hasGroundPin() ? nodes[N_GND] : 0;
+	ground = hasGroundPin() ? nodes[N_GND] : CircuitNode.ground;
 	// stamp voltage divider to put ctl pin at 2/3 V
 	sim.stampResistor(nodes[N_VCC], nodes[N_CTL],  5000);
 	sim.stampResistor(nodes[N_CTL], ground,        10000);
@@ -128,6 +128,7 @@ class TimerElm extends ChipElm {
     }
     int getPostCount() { return hasGroundPin() ? 8 : hasReset() ? 7 : 6; }
     int getVoltageSourceCount() { return 0; }
+    boolean getMatrixConnection(int n1, int n2) { return true; }
     int getDumpType() { return 165; }
     public EditInfo getChipEditInfo(int n) {
         if (n == 0) {

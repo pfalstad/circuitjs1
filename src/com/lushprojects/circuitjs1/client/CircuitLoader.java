@@ -37,6 +37,7 @@ public class CircuitLoader {
     }
 
     public void clearCircuit() {
+	WireRouter.lastRouter = null;
         app.mouse.clearMouseElm();
         for (CircuitElm ce : app.elmList) {
             ce.delete();
@@ -227,7 +228,7 @@ public class CircuitLoader {
 
         app.needAnalyze();
         if ((flags & RC_NO_CENTER) == 0)
-            app.centreCircuit();
+            app.centerCircuit();
 
         if ((flags & RC_SUBCIRCUITS) != 0)
             app.updateModels();

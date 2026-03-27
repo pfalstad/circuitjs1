@@ -103,6 +103,8 @@ import com.google.gwt.xml.client.Document;
 	    drawPosts(g);
 	}
 
+	void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 6); }
+
 	void calculateCurrent() {
 	    current = (volts[0]-volts[1])/resistance;
 	    //System.out.print(this + " res current set to " + current + "\n");

@@ -62,13 +62,13 @@ class DPDTSwitchElm extends SwitchElm {
 	final int openhs = 16;
 	final int posCount = 2;
 	Point poleLeads[], throwLeads[], polePosts[], throwPosts[], linePoints[];
-        int voltageSources[];
+        VoltageSource voltageSources[];
         double currents[], curcounts[];
 
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);
-	    voltageSources = new int[poleCount];
+	    voltageSources = new VoltageSource[poleCount];
 	    throwPosts = newPointArray(2*poleCount);
 	    throwLeads = newPointArray(4*poleCount);
 	    poleLeads = newPointArray(poleCount);
@@ -145,10 +145,10 @@ class DPDTSwitchElm extends SwitchElm {
 	    return 0;
 	}
 
-	void setCurrent(int vn, double c) {
+	void setCurrent(VoltageSource vs, double c) {
 	    int i;
 	    for (i = 0; i != poleCount; i++)
-		if (vn == voltageSources[i])
+		if (vs == voltageSources[i])
 		    currents[i] = c;
 	}
 	Rectangle getSwitchRect() {
@@ -166,14 +166,15 @@ class DPDTSwitchElm extends SwitchElm {
 	void calculateCurrent() {
 	}
 	
-        void setVoltageSource(int j, int vs) {
+        void setVoltageSource(int j, VoltageSource vs) {
             voltageSources[j] = vs;
+            vs.setNodes(nodes[j*3], nodes[position+1+j*3]);
         }
 
 	void stamp() {
 	    int i;
 	    for (i = 0; i != poleCount; i++)
-		sim.stampVoltageSource(nodes[i*3], nodes[position+1+i*3], voltageSources[i], 0);
+		sim.stampVoltageSource(voltageSources[i], 0);
 	}
 		
 	int getVoltageSourceCount() {

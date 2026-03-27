@@ -93,10 +93,10 @@ class LogicInputElm extends SwitchElm {
 	    return new Rectangle(x2-10, y2-10, 20, 20);
 	}	
 
-	void setCurrent(int vs, double c) { current = c; }
+	void setCurrent(VoltageSource vs, double c) { current = c; }
 	void calculateCurrent() {}
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[0], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
 	}
 	
 	boolean isWireEquivalent() { return false; }
@@ -106,7 +106,7 @@ class LogicInputElm extends SwitchElm {
 	    double v = (position == 0) ? loV : hiV;
 	    if (isTernary())
 		v = loV + position * (hiV-loV) * .5;
-	    sim.updateVoltageSource(0, nodes[0], voltSource, v);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, v);
 	}
 	int getVoltageSourceCount() { return 1; }
 	double getVoltageDiff() { return volts[0]; }
@@ -167,6 +167,11 @@ class LogicInputElm extends SwitchElm {
 	    if (n == 5)
 		setKeyShortcutEditValue(ei);
 	}
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	    router.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
+	}
+
 	int getShortcut() { return 'i'; }
 	
 	double getCurrentIntoNode(int n) {

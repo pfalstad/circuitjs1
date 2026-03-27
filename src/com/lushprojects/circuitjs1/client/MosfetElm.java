@@ -128,6 +128,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    vt = xml.parseDoubleAttr("vt", vt);
 	    beta = xml.parseDoubleAttr("be", beta);
 	    globalFlags = flags & (FLAGS_GLOBAL);
+            pnp = ((flags & FLAG_PNP) != 0) ? -1 : 1;
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true 
 	}
 
@@ -245,6 +246,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    return ids*(volts[2]-volts[1]) - diodeCurrent1*(volts[1]-volts[bodyTerminal]) - diodeCurrent2*(volts[2]-volts[bodyTerminal]);
 	    }
 	int getPostCount() { return hasBodyTerminal() ? 4 : 3; }
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(new Point[] { gate[0], gate[2], src[0], drn[0], src[2], drn[2] });
+	    router.addWire(point1.x, point1.y, gate[1].x, gate[1].y);
+	}
 
 	int pcircler;
 	
@@ -488,6 +494,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean getConnection(int n1, int n2) {
 	    return !(n1 == 0 || n2 == 0);
 	}
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	public EditInfo getEditInfo(int n) {
 		if (n == 0)
 			return new EditInfo("Threshold Voltage", pnp*vt, .01, 5);

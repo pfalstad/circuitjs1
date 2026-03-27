@@ -115,7 +115,7 @@ import com.google.gwt.xml.client.Element;
 	}
 	int getVoltageSourceCount() { return 1; }
 	void stamp() {
-	    sim.stampVoltageSource(0, nodes[1], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[1], voltSource);
 	}
 	void doStep() {
 	    double v0 = volts[1];
@@ -147,7 +147,7 @@ import com.google.gwt.xml.client.Element;
 	    
 	    double maxStep = slewRate * sim.timeStep * 1e9;
 	    out = Math.max(Math.min(v0+maxStep, out), v0-maxStep);
-	    sim.updateVoltageSource(0, nodes[1], voltSource, out);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[1], voltSource, out);
 	}
 	double getVoltageDiff() { return volts[0]; }
 

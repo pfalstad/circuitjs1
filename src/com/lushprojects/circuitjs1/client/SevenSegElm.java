@@ -79,46 +79,58 @@ class SevenSegElm extends ChipElm {
 	    setPinCount();
 	}
 	
+	boolean allowBus() { return diodeDirection == 0; }
 	String getChipName() { return segmentCount + "-segment display"; }
 	Color darkred, lightgray;
-	
+
 	void setupPins() {
 	    if (pinCount == 0)
 		return;
 	    darkred = new Color(30, 0, 0);
 	    lightgray = new Color(255-10, 255-10, 255-10);
-	    int segmentPinsOnLeftSide = (baseSegmentCount+1)/2;
-	    sizeY = segmentPinsOnLeftSide;
-	    if (baseSegmentCount == 7) {
-		sizeX = 4;
-		if (pinCount > 7)
+	    bits = segmentCount;
+
+	    if (useBus()) {
+		sizeX = (baseSegmentCount == 7) ? 4 : 5;
+		sizeY = (baseSegmentCount == 7) ? 4 : 6;
+		pins = new Pin[pinCount];
+		makeBitPins(segmentCount, 0, SIDE_W, 0, "I", false, false, false);
+		if (commonPin > 0)
+		    pins[commonPin] = new Pin(1, SIDE_W, (diodeDirection == 1) ? "gnd" : "Vcc");
+	    } else {
+		int segmentPinsOnLeftSide = (baseSegmentCount+1)/2;
+		sizeY = segmentPinsOnLeftSide;
+		if (baseSegmentCount == 7) {
+		    sizeX = 4;
+		    if (pinCount > 7)
+			sizeX = 5;
+		} else
 		    sizeX = 5;
-	    } else
-		sizeX = 5;
-	    
-	    // make room for common/dp/colon pins
-	    if (pinCount > sizeY*2)
-		sizeY++;
-	    
-	    pins = new Pin[pinCount];
-	    int i;
-	    for (i = 0; i != segmentPinsOnLeftSide; i++)
-		pins[i] = new Pin(i, SIDE_W, Character.toString((char)('a'+i)));
-	    
-	    // retain backward compatibility pin layout for old 7-segment setup, otherwise put pins on left and right side
-	    boolean backwardCompatibility = (segmentCount == 7 && diodeDirection == 0 && extraSegment == ES_NONE);
-	    int s = (backwardCompatibility) ? 1 : 0;
-	    for (; i != segmentCount; i++)
-		pins[i] = new Pin(s++, backwardCompatibility ? SIDE_S : SIDE_E, Character.toString((char)('a'+i)));
-	    if (extraSegment == ES_DP)
-		pins[segmentCount-1].text = "dp";
-	    if (commonPin > 0) {
-		int side = SIDE_E;
-		if (segmentCount != 7) {
-		    side = SIDE_W;
-		    s = segmentPinsOnLeftSide;
+
+		// make room for common/dp/colon pins
+		if (pinCount > sizeY*2)
+		    sizeY++;
+
+		pins = new Pin[pinCount];
+		int i;
+		for (i = 0; i != segmentPinsOnLeftSide; i++)
+		    pins[i] = new Pin(i, SIDE_W, Character.toString((char)('a'+i)));
+
+		// retain backward compatibility pin layout for old 7-segment setup, otherwise put pins on left and right side
+		boolean backwardCompatibility = (segmentCount == 7 && diodeDirection == 0 && extraSegment == ES_NONE);
+		int s = (backwardCompatibility) ? 1 : 0;
+		for (; i != segmentCount; i++)
+		    pins[i] = new Pin(s++, backwardCompatibility ? SIDE_S : SIDE_E, Character.toString((char)('a'+i)));
+		if (extraSegment == ES_DP)
+		    pins[segmentCount-1].text = "dp";
+		if (commonPin > 0) {
+		    int side = SIDE_E;
+		    if (segmentCount != 7) {
+			side = SIDE_W;
+			s = segmentPinsOnLeftSide;
+		    }
+		    pins[commonPin] = new Pin(s++, side, (diodeDirection == 1) ? "gnd" : "Vcc");
 		}
-		pins[commonPin] = new Pin(s++, side, (diodeDirection == 1) ? "gnd" : "Vcc");
 	    }
 	}
 	

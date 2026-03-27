@@ -67,7 +67,9 @@ public abstract class CircuitElm implements Editable {
     // point to which user dragged out element.  For simple two-terminal elements, this is the second node/post
     int x2, y2;
     
-    int flags, nodes[], voltSource;
+    int flags;
+    VoltageSource voltSource;
+    CircuitNode nodes[];
     
     // length along x and y axes, and sign of difference
     int dx, dy, dsign;
@@ -96,7 +98,6 @@ public abstract class CircuitElm implements Editable {
     
     public boolean selected;
     
-    boolean hasWireInfo; // used in calcWireInfo()
     
 //    abstract int getDumpType();
     int getDumpType() {
@@ -225,7 +226,7 @@ public abstract class CircuitElm implements Editable {
 	int n = getNodeCount();
 	// preserve voltages if possible
 	if (nodes == null || nodes.length != n) {
-	    nodes = new int[n];
+	    nodes = new CircuitNode[n];
 	    volts = new double[n];
 	}
     }
@@ -250,8 +251,11 @@ public abstract class CircuitElm implements Editable {
     void setHighVoltage(double hv) {}
 
     // set current for voltage source vn to c.  vn will be the same value as in a previous call to setVoltageSource(n, vn)
-    void setCurrent(int vn, double c) { current = c; }
-    
+    void setCurrent(VoltageSource vs, double c) { current = c; }
+
+    // set current for wire-like elements (called from calcWireCurrents, one call per bit for bus wires)
+    void setWireCurrent(int bit, double c) { current = c; }
+
     // get current for one- or two-terminal elements
     double getCurrent() { return current; }
 
@@ -265,7 +269,25 @@ public abstract class CircuitElm implements Editable {
     // stamp matrix values for linear elements.
     // for non-linear elements, use this to stamp values that don't change each iteration, and call stampRightSide() or stampNonLinear() as needed
     void stamp() {}
+
+    // add this element as an obstacle to the wire router grid
+    void addRoutingObstacle(WireRouter router) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    if (lead1 != null && lead2 != null)
+		router.addObstacle(lead1.x, lead1.y, lead2.x, lead2.y);
+	}
+    }
     
+    void addRoutingObstacleWithLeads(WireRouter router, int width) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    Point pa = interpPoint(lead1, lead2, 0, width);
+	    Point pb = interpPoint(lead1, lead2, 1, -width);
+	    router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+	}
+    }
+
     // stamp matrix values for non-linear elements
     void doStep() {}
     
@@ -619,6 +641,8 @@ public abstract class CircuitElm implements Editable {
     }
     
     void drawHandles(Graphics g, Color c) {
+    	if (getNumHandles() == 0)
+	    return;
     	g.setColor(c);
     	if (lastHandleGrabbed==-1)
     		g.fillRect(x-3, y-3, 7, 7);
@@ -651,12 +675,12 @@ public abstract class CircuitElm implements Editable {
 
     int getNodeCount() { return getPostCount() + getInternalNodeCount(); }
     
-    // notify this element that its pth node is n.  This value n can be passed to stampMatrix()
-    void setNode(int p, int n) { nodes[p] = n; }
+    // notify this element that its pth node is n.
+    void setNode(int p, CircuitNode n) { nodes[p] = n; }
     
     // notify this element that its nth voltage source is v.  This value v can be passed to stampVoltageSource(), etc and will be passed back in calls to setCurrent()
-    void setVoltageSource(int n, int v) {
-	// default implementation only makes sense for subclasses with one voltage source.  If we have 0 this isn't used, if we have >1 this won't work 
+    void setVoltageSource(int n, VoltageSource v) {
+	// default implementation only makes sense for subclasses with one voltage source.  If we have 0 this isn't used, if we have >1 this won't work
 	voltSource = v;
     }
     
@@ -667,9 +691,23 @@ public abstract class CircuitElm implements Editable {
     }
     boolean nonLinear() { return false; }
     int getPostCount() { return 2; }
+    int getPostWidth(int n) { return 1; }
+    int getBusWidth() { return 1; }
+
+    // generate WireSegment entries for this wire-like element (called during calculateWireClosureForList)
+    void getWireSegments(Vector<SimulationManager.WireSegment> list) {
+	int bw = getBusWidth();
+	for (int b = 0; b < bw; b++) {
+	    Point p0 = getPost(b);
+	    Point p1 = getConnectedPost(b);
+	    String ep0 = SimulationManager.pointKey(p0);
+	    String ep1 = (p1 != null && !p1.equals(p0)) ? SimulationManager.pointKey(p1) : null;
+	    list.add(new SimulationManager.WireSegment(this, b, ep0, ep1));
+	}
+    }
     
-    // get (global) node number of nth node
-    int getNode(int n) { return nodes[n]; }
+    // get CircuitNode for nth node
+    CircuitNode getNode(int n) { return nodes[n]; }
     
     // get position of nth node
     Point getPost(int n) {
@@ -680,12 +718,16 @@ public abstract class CircuitElm implements Editable {
     Point getConnectedPost() {
 	return point2;
     }
+
+    // return the post that post n connects through to (for bus wires, each bit connects to its counterpart)
+    Point getConnectedPost(int n) {
+	return getConnectedPost();
+    }
     
-    int getNodeAtPoint(int xp, int yp) {
+    int getNodeAtPoint(Point pt) {
 	int i;
 	for (i = 0; i != getPostCount(); i++) {
-	    Point p = getPost(i);
-	    if (p.x == xp && p.y == yp)
+	    if (getPost(i).equals(pt))
 		return i;
 	}
 	return 0;
@@ -795,6 +837,7 @@ public abstract class CircuitElm implements Editable {
     }
     
     void drawLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
+	g.setFont(unitsFont);
 	boolean lineOver = false;
 	if (str.startsWith("/")) {
 	    lineOver = true;
@@ -862,7 +905,11 @@ public abstract class CircuitElm implements Editable {
     }
 
     static void drawThickLine(Graphics g, Point pa, Point pb) {
-    	g.setLineWidth(3.0);
+	drawThickLine(g, pa, pb, 3);
+    }
+
+    static void drawThickLine(Graphics g, Point pa, Point pb, double width) {
+    	g.setLineWidth(width);
     	g.drawLine(pa.x, pa.y, pb.x, pb.y);
     	g.setLineWidth(1.0);
     }
@@ -1054,6 +1101,8 @@ public abstract class CircuitElm implements Editable {
     	if (!app.menus.voltsCheckItem.getState()) {
     	    	return(whiteColor);
     	}
+    	if (Double.isNaN(volts))
+    	    volts = 0;
     	int c = (int) ((volts+voltageRange)*(colorScaleCount-1)/
     		       (voltageRange*2));
     	if (c < 0)
@@ -1119,6 +1168,11 @@ public abstract class CircuitElm implements Editable {
     // are n1 and n2 connected by this element?  this is used to determine
     // unconnected nodes, and look for loops
     boolean getConnection(int n1, int n2) { return true; }
+
+    // are n1 and n2 in the same matrix?  by default same as getConnection(), but
+    // can be overridden for elements like MOSFETs where the gate affects drain/source
+    // but isn't electrically connected.  n1 and n2 may be internal nodes.
+    boolean getMatrixConnection(int n1, int n2) { return getConnection(n1, n2); }
     
     // is n1 connected to ground somehow?
     boolean hasGroundConnection(int n1) { return false; }
@@ -1145,7 +1199,7 @@ public abstract class CircuitElm implements Editable {
 		isOnHighlightedNet();
     }
     boolean isOnHighlightedNet() {
-	if (app.mouse.highlightedNode < 0)
+	if (app.mouse.highlightedNode == null)
 	    return false;
 	for (int i = 0; i != getPostCount(); i++)
 	    if (nodes[i] == app.mouse.highlightedNode)

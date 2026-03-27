@@ -79,6 +79,7 @@ class EditInfo {
 	boolean dimensionless;
 	boolean noSliders;
 	boolean isColor;
+	boolean newColumn;
 	double minVal, maxVal;
 	
 	// for slider dialog

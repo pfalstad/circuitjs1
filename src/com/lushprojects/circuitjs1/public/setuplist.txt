@@ -54,6 +54,11 @@ transformerdc.txt Transformer w/ DC
 transformerup.txt Step-Up Transformer
 transformerdown.txt Step-Down Transformer
 longdist.txt Long-Distance Power Transmission
++Saturable Core
+satcore-inductor.txt Saturable vs Linear Inductor (DC)
+satcore-comparison.txt Low vs High Drive (AC Saturation)
+satcore-transformer.txt Transformer with Saturable Core
+-
 -
 +Relays
 relay.txt Relay
@@ -329,6 +334,7 @@ ledflasher.txt LED Flasher
 traffic.txt Traffic Light
 sram.txt Static RAM
 dram.txt Dynamic RAM
+td4.txt TD4 CPU
 -
 +Analog/Digital
 flashadc.txt Flash ADC
@@ -367,6 +373,24 @@ tlmatch2.txt Impedance Matching (Shunt Stub)
 tlfreq.txt Stub Frequency Response
 tllopass.txt Low-Pass Filter
 tllight.txt Light Switch
+-
++Controlled Sources
+cs-resistor.txt VCCS Resistor
+cs-varyresistor.txt VCCS Varying Resistor
+cs-opamp.txt VCVS Op-Amp
+cs-opamprail.txt VCVS Op-Amp With Rails
+cs-multiplier.txt VCVS Multiplier
+cs-fullrectifier.txt VCVS Full Rectifier
+cs-ramp.txt VCVS Voltage Ramp
+cs-currentadder.txt Current Adder
+cs-integrator.txt VCVS Integrator
+cs-diff.txt VCVS Differentiator
+cs-varinduct.txt CCVS Variable Inductor
+cs-varicap.txt VCCS Variable Capacitor
+-
++Subcircuits
+fullrect-sc.txt Full Rectifier
+adder4-sc.txt Full Adder (nested)
 -
 +Misc Devices
 +JFETs

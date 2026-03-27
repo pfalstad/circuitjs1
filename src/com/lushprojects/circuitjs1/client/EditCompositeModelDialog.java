@@ -83,7 +83,9 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
             int sideCounts[] = new int[] { 0, 0, 0, 0 };
             for (i = 0; i != postCount; i++) {
         	ExtListEntry pin = model.extList.get(i);
-                sideCounts[pin.side] += 1;
+		// only count first pin of each bus group for layout
+		if (pin.busZ == 0)
+		    sideCounts[pin.side] += 1;
 
         	if (nodeSet.contains(pin.node)) {
         	    Window.alert(Locale.LS("Can't have two input/output nodes connected!"));
@@ -108,7 +110,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
             model.sizeX = Math.max(minWidth, pinsNS + xOffsetLeft + xOffsetRight);
             model.sizeY = Math.max(minHeight, pinsWE);
 
-            model.modelCircuit = CirSim.theApp.dumpCircuit();
+            //model.modelCircuit = CirSim.theApp.dumpCircuit();
             return true;
         }
         
@@ -118,8 +120,12 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	}
 	
 	TextBox modelNameTextBox = null;
-	Checkbox saveCheck = null;
+	Choice scopeChoice = null;
 	Checkbox labelCheck = null;
+
+	static final int SCOPE_THIS_CIRCUIT = 0;
+	static final int SCOPE_THIS_SESSION = 1;
+	static final int SCOPE_SAVE_ACROSS_SESSIONS = 2;
 
 	void createDialog() {
 		Button okButton;
@@ -159,7 +165,10 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		
 		HorizontalPanel hp = new HorizontalPanel();
-		hp.add(new Label(Locale.LS("Width")));
+		hp.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		Label widthLabel = new Label(Locale.LS("Width"));
+		widthLabel.getElement().getStyle().setMarginRight(6, com.google.gwt.dom.client.Style.Unit.PX);
+		hp.add(widthLabel);
 		Button b;
 		hp.add(b = new Button("+"));
 		b.addClickHandler(new ClickHandler() {
@@ -168,12 +177,15 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
                     }
                 });
 		hp.add(b = new Button("-"));
+		b.getElement().getStyle().setMarginRight(10, com.google.gwt.dom.client.Style.Unit.PX);
 		b.addClickHandler(new ClickHandler() {
                     public void onClick(ClickEvent event) {
                 	adjustChipSize(-1, 0);
                     }
                 });
-		hp.add(new Label(Locale.LS("Height")));
+		Label heightLabel = new Label(Locale.LS("Height"));
+		heightLabel.getElement().getStyle().setMarginRight(6, com.google.gwt.dom.client.Style.Unit.PX);
+		hp.add(heightLabel);
 		hp.add(b = new Button("+"));
 		b.addClickHandler(new ClickHandler() {
                     public void onClick(ClickEvent event) {
@@ -196,8 +208,24 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 			drawChip();
 		    }
 		});
-		vp.add(saveCheck = new Checkbox(Locale.LS("Save Across Sessions")));
-		saveCheck.setState(model.isSaved());
+		HorizontalPanel scopePanel = new HorizontalPanel();
+		scopePanel.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		scopePanel.addStyleName("topSpace");
+		Label scopeLabel = new Label(Locale.LS("Scope:"));
+		scopeLabel.getElement().getStyle().setMarginRight(8, com.google.gwt.dom.client.Style.Unit.PX);
+		scopePanel.add(scopeLabel);
+		scopeChoice = new Choice();
+		scopeChoice.add(Locale.LS("This Circuit"));
+		scopeChoice.add(Locale.LS("This Session"));
+		scopeChoice.add(Locale.LS("Save Across Sessions"));
+		if (model.isSaved())
+		    scopeChoice.select(SCOPE_SAVE_ACROSS_SESSIONS);
+		else if (model.name != null && CustomCompositeModel.globalModelMap.containsKey(model.name))
+		    scopeChoice.select(SCOPE_THIS_SESSION);
+		else
+		    scopeChoice.select(SCOPE_THIS_CIRCUIT);
+		scopePanel.add(scopeChoice);
+		vp.add(scopePanel);
 	
                 canvas.addMouseDownHandler(this);
                 canvas.addMouseUpHandler(this);
@@ -237,6 +265,8 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    for (int i = 0; i != postCount; i++) {
 		ExtListEntry pin = model.extList.get(i);
 		chip.setPin(i, pin.pos, pin.side, pin.name);
+		chip.pins[i].busWidth = pin.busWidth;
+		chip.pins[i].busZ = pin.busZ;
 		chip.volts[i] = 0;
 		if (i == selectedPin)
 		    chip.pins[i].selected = true;
@@ -253,9 +283,24 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		model.setName(CustomCompositeElm.lastModelName = name);
 	    }
-	    model.setSaved(saveCheck.getState());
+	    int scope = scopeChoice.getSelectedIndex();
+	    // remove from old locations first
+	    CustomCompositeModel.localModelMap.remove(model.name);
+	    CustomCompositeModel.globalModelMap.remove(model.name);
+	    model.setSaved(false); // remove from storage
+	    if (scope == SCOPE_THIS_CIRCUIT) {
+		CustomCompositeModel.localModelMap.put(model.name, model);
+	    } else if (scope == SCOPE_THIS_SESSION) {
+		CustomCompositeModel.globalModelMap.put(model.name, model);
+	    } else {
+		model.setSaved(true); // puts in global map + storage
+	    }
 	    CirSim.theApp.updateModels();
 	    CirSim.theApp.needAnalyze(); // will get singular matrix if we don't do this
+	    if (!popContext && !CirSim.theApp.contextStack.isEmpty()) {
+		// record this model change so it survives when the parent context pops
+		CirSim.theApp.contextStack.lastElement().changedModels.add(model);
+	    }
 	    if (popContext) {
 		// Save the new model, pop context (which reloads old circuit with old models),
 		// then swap the new model back in.  Also carry forward any models changed at
@@ -294,6 +339,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    if (dx < 0 || dy < 0) {
 		for (int i = 0; i != postCount; i++) {
 		    Pin p = chip.pins[i];
+		    if (p.busZ > 0) continue;
 		    if (dx < 0 && (p.side == ChipElm.SIDE_N || p.side == ChipElm.SIDE_S) && p.pos >= chip.sizeX+dx)
 			return;
 		    if (dy < 0 && (p.side == ChipElm.SIDE_E || p.side == ChipElm.SIDE_W) && p.pos >= chip.sizeY+dy)
@@ -340,13 +386,29 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		ExtListEntry p = model.extList.get(selectedPin);
 		int pn = chip.getOverlappingPin(pos[0], pos[1], selectedPin);
 		if (pn != -1) {
-		    // swap positions with overlapping pin
+		    // swap positions with overlapping pin (move whole bus group)
 		    ExtListEntry p2 = model.extList.get(pn);
 		    p2.pos = p.pos;
 		    p2.side = p.side;
+		    // move all entries in the overlapping pin's bus group
+		    for (int j = 0; j < postCount; j++) {
+			ExtListEntry pj = model.extList.get(j);
+			if (j != pn && pj.name.equals(p2.name) && pj.busWidth == p2.busWidth) {
+			    pj.pos = p.pos;
+			    pj.side = p.side;
+			}
+		    }
 		}
+		// move all entries in selected pin's bus group
 		p.pos  = pos[0];
 		p.side = pos[1];
+		for (int j = 0; j < postCount; j++) {
+		    ExtListEntry pj = model.extList.get(j);
+		    if (j != selectedPin && pj.name.equals(p.name) && pj.busWidth == p.busWidth) {
+			pj.pos = pos[0];
+			pj.side = pos[1];
+		    }
+		}
 		createPinsFromModel();
 		drawChip();
 	    } else {
@@ -355,6 +417,9 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		selectedPin = -1;
 		for (i = 0; i != postCount; i++) {
 		    Pin p = chip.pins[i];
+		    // only consider first pin of each bus group for selection
+		    if (p.busZ > 0)
+			continue;
 		    int dx = (int)(x*scale) - p.textloc.x;
 		    int dy = (int)(y*scale) - p.textloc.y;
 		    double dist = Math.hypot(dx, dy);

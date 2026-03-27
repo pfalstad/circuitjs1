@@ -225,6 +225,7 @@ class TriodeElm extends CircuitElm {
     }
     // grid not connected to other terminals
     boolean getConnection(int n1, int n2) { return !(n1 == 1 || n2 == 1); }
+    boolean getMatrixConnection(int n1, int n2) { return true; }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo("mu", mu, 0, 0).setDimensionless();

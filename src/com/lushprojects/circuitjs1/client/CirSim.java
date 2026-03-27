@@ -202,6 +202,8 @@ public class CirSim implements NativePreviewHandler {
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
 
+	CustomCompositeModel.loadModelsFromStorage();
+
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 
 	if (startCircuitText != null) {
@@ -249,7 +251,7 @@ public class CirSim implements NativePreviewHandler {
 
     public void setiFrameHeight() { ui.setiFrameHeight(); }
     
-    void centreCircuit() { ui.centreCircuit(); }
+    void centerCircuit() { ui.centerCircuit(); }
 
     Rectangle getCircuitBounds() { return ui.getCircuitBounds(); }
     static CirSim theApp;
@@ -397,6 +399,7 @@ public class CirSim implements NativePreviewHandler {
 		    resetEditingContext();
 		if (circuitText != null) {
 			loader.readCircuit(circuitText, flags);
+			ExportAsLocalFileDialog.setLastFileName(null);
 			allowSave(false);
 		}
     }
@@ -547,10 +550,10 @@ public class CirSim implements NativePreviewHandler {
 	if (elm == null)
 	    return;
 	int t = elm.getDumpType();
-	if (t == 0) {
+	/*if (t == 0) {
 	    console("got dump type 0 for " + className);
 	    return;
-	}
+	}*/
 	String s = dumpTypeMap.get(t);
 	Class cs = elm.getDumpClass();
 	className = cs.getName();

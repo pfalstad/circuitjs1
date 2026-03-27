@@ -98,7 +98,7 @@ class VCCSElm extends ChipElm {
         }
         
         boolean hasCurrentOutput() { return true; }
-        int getOutputNode(int n) {
+        CircuitNode getOutputNode(int n) {
             return nodes[n+inputCount];
         }
         
@@ -146,7 +146,7 @@ class VCCSElm extends ChipElm {
         	    double dx = (v-v2)/dv;
         	    if (Math.abs(dx) < 1e-6)
         		dx = sign(dx, 1e-6);
-        	    sim.stampVCCurrentSource(nodes[inputCount], nodes[inputCount+1], nodes[i], 0, dx);
+        	    sim.stampVCCurrentSource(nodes[inputCount], nodes[inputCount+1], nodes[i], CircuitNode.ground, dx);
         	    //if (sim.subIterations > 1)
         		//sim.console("ccedx " + i + " " + dx + " " + sim.subIterations + " " + sim.t);
         	    // adjust right side
@@ -176,6 +176,7 @@ class VCCSElm extends ChipElm {
 	boolean getConnection(int n1, int n2) {
 	    return comparePair(inputCount, inputCount+1, n1, n2);
 	}
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	boolean hasGroundConnection(int n1) {
 	    return false;
 	}

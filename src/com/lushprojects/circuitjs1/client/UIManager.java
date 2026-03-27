@@ -43,6 +43,8 @@ import static com.google.gwt.event.dom.client.KeyCodes.*;
 
 public class UIManager {
 
+    static UIManager theUI;
+
     CirSim app;
     Menus menus;
     ScopeManager scopeManager;
@@ -96,9 +98,11 @@ public class UIManager {
     static final int MENUBARHEIGHT = 30;
     static final int TOOLBARHEIGHT = 40;
     static int VERTICALPANELWIDTH = 166; // default
+    long lastResizeTime;
 
     UIManager(CirSim app) {
 	this.app = app;
+	theUI = this;
     }
 
     void init() {
@@ -268,7 +272,8 @@ public class UIManager {
 
 	Window.addResizeHandler(new ResizeHandler() {
 	    public void onResize(ResizeEvent event) {
-		centreCircuit();
+		// canvas hasn't been laid out yet, so we can't recenter here
+		lastResizeTime = System.currentTimeMillis();
 		repaint();
 	    }
 	});
@@ -324,6 +329,18 @@ public class UIManager {
 	verticalPanel.add(powerBar = new Scrollbar(Scrollbar.HORIZONTAL,
 		50, 1, 1, 100));
 	setPowerBarEnable();
+
+/*
+	// for debugging
+	Button exportImportButton = new Button("Export/Import");
+	exportImportButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		String dump = app.dumpCircuit();
+		app.importCircuitFromText(dump, false);
+	    }
+	});
+	verticalPanel.add(exportImportButton);
+*/
 
 	//	verticalPanel.add(new Label(""));
 	//        Font f = new Font("SansSerif", 0, 10);
@@ -408,8 +425,10 @@ public class UIManager {
 	    subcircuitBar.updatePosition(0, barTop, width);
 	}
 
-	if (app.transform[0] == 0)
-	    centreCircuit();
+	// center circuit if we have no transform, or if a resize happened in the last second.
+	// should we always center the circuit here?  maybe, but I thought I tried that and it caused problems...
+	if (app.transform[0] == 0 || (System.currentTimeMillis()-lastResizeTime < 1000))
+	    centerCircuit();
     }
 
     void setCircuitArea() {
@@ -423,7 +442,7 @@ public class UIManager {
     	app.circuitArea = new Rectangle(0, 0, width, height-h);
     }
 
-    void centreCircuit() {
+    void centerCircuit() {
 	if (elmList == null)
 	    return;
 
@@ -648,6 +667,16 @@ public class UIManager {
 
         if (mouse.tempMouseMode == MouseManager.MODE_SELECT && mouse.getMouseElm() != null) {
             mouse.getMouseElm().drawHandles(g, CircuitElm.selectColor);
+            if (mouse.getMouseElm() instanceof RoutedWireElm && mouse.mouseCursorX >= 0) {
+                RoutedWireElm rw = (RoutedWireElm) mouse.getMouseElm();
+                int gx = mouse.inverseTransformX(mouse.mouseCursorX);
+                int gy = mouse.inverseTransformY(mouse.mouseCursorY);
+                Point sp = rw.getSnapPointOnWire(gx, gy);
+                if (sp != null) {
+                    g.setColor(CircuitElm.selectColor);
+                    g.fillOval(sp.x - 4, sp.y - 4, 9, 9);
+                }
+            }
         }
 
         if (mouse.dragElm != null && (mouse.dragElm.x != mouse.dragElm.x2 || mouse.dragElm.y != mouse.dragElm.y2)) {
@@ -674,6 +703,9 @@ public class UIManager {
             g.drawLine(x, mouse.inverseTransformY(0), x, mouse.inverseTransformY(app.circuitArea.height));
             g.drawLine(mouse.inverseTransformX(0), y, mouse.inverseTransformX(app.circuitArea.width), y);
         }
+
+	/*if (WireRouter.lastRouter != null)
+	    WireRouter.lastRouter.drawGrid(g.context, true);*/
 
         cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
 
@@ -765,6 +797,16 @@ public class UIManager {
 		    info[0] = Locale.LS(info[0]);
 		    if (info[1] != null)
 			info[1] = Locale.LS(info[1]);
+		    // show node numbers for debugging
+		    int ni;
+		    for (ni = 0; info[ni] != null && ni < info.length-1; ni++)
+			;
+		    try {
+			String nodeStr = "nodes:";
+			for (int nn = 0; nn < mouse.getMouseElm().getNodeCount(); nn++)
+			    nodeStr += " " + mouse.getMouseElm().getNode(nn).index;
+			info[ni] = nodeStr;
+		    } catch (Exception e) {}
 		} else
 		    info[0] = "V = " +
 			CircuitElm.getUnitText(mouse.getMouseElm().getPostVoltage(mouse.mousePost), "V");
@@ -847,6 +889,7 @@ public class UIManager {
 	elmList = allElms;
 	updateSubcircuitPath();
 	app.sim.analyzeCircuit();
+	centerCircuit();
     }
 
     void popSubcircuit() {
@@ -862,6 +905,7 @@ public class UIManager {
 	}
 	updateSubcircuitPath();
 	app.sim.analyzeCircuit();
+	centerCircuit();
     }
 
     void updateSubcircuitPath() {
@@ -1257,7 +1301,7 @@ public class UIManager {
 	}
     	CheckboxMenuItem mi;
     	app.register(t, elm);
-	if (elm == null)
+	if (elm == null && t.indexOf("Elm") >= 0)
 	    app.console("can't create class: " + t);
     	if ( elm!=null ) {
     		if (elm.needsShortcut() ) {

@@ -256,5 +256,14 @@ class SwitchElm extends CircuitElm {
 	    keyShortcut = s.substring(0, 1).toLowerCase();
     }
 
+    void addRoutingObstacle(WireRouter router) {
+        if (x == x2 || y == y2) {
+            router.addWire(x, y, x2, y2);
+            Point pa = interpPoint(lead1, lead2, 0, 0);
+            Point pb = interpPoint(lead1, lead2, 1, openhs);
+            router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+        }
+    }
+
     int getShortcut() { return 's'; }
 }

@@ -130,20 +130,8 @@ class XMLSerializer {
 	}
 	for (int i = 0; i != app.scopeManager.scopeCount; i++)
 	    app.scopeManager.scopes[i].dumpXml(doc, root);
-	for (int i = 0; i != app.adjustables.size(); i++) {
-	    Adjustable adj = app.adjustables.get(i);
-	    Element ae = doc.createElement("adj");
-	    dumpAttr(ae, "e", app.locateElm(adj.elm));
-	    dumpAttr(ae, "ei", adj.editItem);
-	    dumpAttr(ae, "mn", adj.minValue);
-	    dumpAttr(ae, "mx", adj.maxValue);
-	    dumpAttr(ae, "st", adj.sliderText);
-	    if (adj.sliderStep > 0)
-		dumpAttr(ae, "stp", adj.sliderStep);
-	    if (adj.sharedSlider != null)
-		dumpAttr(ae, "ss", app.adjustables.indexOf(adj.sharedSlider));
-	    root.appendChild(ae);
-	}
+	for (int i = 0; i != app.adjustables.size(); i++)
+	    app.adjustables.get(i).dumpXml(doc, root, app);
 	if (app.hintType != -1) {
 	    Element h = doc.createElement("h");
 	    dumpAttr(h, "t", app.hintType);

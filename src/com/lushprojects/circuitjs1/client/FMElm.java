@@ -78,10 +78,10 @@ class FMElm extends CircuitElm {
       int getPostCount() { return 1; }
 	
      void stamp() {
-	    sim.stampVoltageSource(0, nodes[0], voltSource);
+	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
     }
     void doStep() {
-	    sim.updateVoltageSource(0, nodes[0], voltSource, getVoltage());
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, getVoltage());
     }
     double getVoltage() {
 	double deltaT=sim.t-lasttime;

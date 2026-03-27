@@ -159,9 +159,8 @@ import com.google.gwt.xml.client.Document;
 	double lastvd;
 
 	void stamp() {
-	    int vn = sim.nodeList.size()+voltSource;
-	    sim.stampNonLinear(vn);
-	    sim.stampMatrix(nodes[2], vn, 1);
+	    sim.stampNonLinear(voltSource);
+	    sim.stampMatrix(nodes[2], voltSource, 1);
 	}
 	void doStep() {
 	    double vd = volts[1] - volts[0];
@@ -171,7 +170,6 @@ import com.google.gwt.xml.client.Document;
 	    else if (volts[2] > maxOut+.1 || volts[2] < minOut-.1)
 		sim.converged = false;
 	    double x = 0;
-	    int vn = sim.nodeList.size()+voltSource;
 	    double dx = 0;
 	    double maxAdj = maxOut-midpoint;
 	    double minAdj = minOut-midpoint;
@@ -186,13 +184,13 @@ import com.google.gwt.xml.client.Document;
 		x = midpoint;
 	    }
 	    //System.out.println("opamp " + vd + " " + volts[2] + " " + dx + " "  + x + " " + lastvd + " " + sim.converged);
-	    
+
 	    // newton-raphson
-	    sim.stampMatrix(vn, nodes[0], dx);
-	    sim.stampMatrix(vn, nodes[1], -dx);
-	    sim.stampMatrix(vn, nodes[2], 1);
-	    sim.stampRightSide(vn, x);
-	    
+	    sim.stampMatrix(voltSource, nodes[0], dx);
+	    sim.stampMatrix(voltSource, nodes[1], -dx);
+	    sim.stampMatrix(voltSource, nodes[2], 1);
+	    sim.stampRightSide(voltSource, x);
+
 	    lastvd = vd;
 	    /*if (sim.converged)
 	      System.out.println((volts[1]-volts[0]) + " " + volts[2] + " " + initvd);*/
@@ -200,6 +198,7 @@ import com.google.gwt.xml.client.Document;
 	// there is no current path through the op-amp inputs, but there
 	// is an indirect path through the output to ground.
 	boolean getConnection(int n1, int n2) { return false; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	boolean hasGroundConnection(int n1) {
 	    return (n1 == 2);
 	}
@@ -247,4 +246,5 @@ import com.google.gwt.xml.client.Document;
 	    super.flipXY(xmy, count);
 	}
 
+	void addRoutingObstacle(WireRouter router) { addRoutingObstacleWithLeads(router, opwidth); }
     }
