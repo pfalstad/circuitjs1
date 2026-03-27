@@ -183,6 +183,8 @@ public class CustomCompositeElm extends CompositeElm {
 	}
     }
 
+    void setHighVoltage(double hv) { highVoltage = hv; }
+
     int getPostCount() { return postCount; }
     
     Vector<CustomCompositeModel> models;
