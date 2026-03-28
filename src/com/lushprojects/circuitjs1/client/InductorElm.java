@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
+import com.lushprojects.circuitjs1.client.util.Locale;
 
     class InductorElm extends CircuitElm {
 	Inductor ind;
@@ -120,6 +121,12 @@ import com.google.gwt.xml.client.Document;
 		arr[6] = "Isat = " + getUnitText(saturationCurrent, "A");
 	    }
 	}
+
+        @Override
+        String getScopeText(int v) {
+            return Locale.LS("inductor") + ", " + getUnitText(inductance, "H");
+        }
+
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return new EditInfo("Inductance (H)", inductance, 1e-2, 10);
