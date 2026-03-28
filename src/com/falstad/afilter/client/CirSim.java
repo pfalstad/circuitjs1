@@ -236,6 +236,8 @@ MouseOutHandler, MouseWheelHandler {
     Polynomial transferNum, transferDen;
     Complex[] polyPoles, polyZeros;
     boolean polyDirty;
+    int[] polyIndexMap; // maps raw node/VS index to reduced matrix index (0=skip)
+    int polyMatrixSize; // reduced matrix size
     boolean circuitNeedsMap;
  //   public boolean useFrame;
     int scopeCount;
@@ -2084,10 +2086,9 @@ MouseOutHandler, MouseWheelHandler {
 
     void buildTransferFunction() {
 	int i, j;
-	int matrixSize = circuitMatrixSize;
 
 	// Guard: if circuit not yet initialized, bail out
-	if (nodeList == null || matrixSize == 0) {
+	if (nodeList == null || circuitMatrixSize == 0) {
 	    console("buildTransferFunction: circuit not initialized yet");
 	    transferNum = new Polynomial(0);
 	    transferDen = new Polynomial(1.0);
@@ -2097,31 +2098,115 @@ MouseOutHandler, MouseWheelHandler {
 	    return;
 	}
 
-	console("buildTransferFunction: matrixSize=" + matrixSize +
-		" elmCount=" + elmList.size() +
-		" nodeCount=" + nodeList.size());
+	int numNodes = nodeList.size(); // includes ground (index 0)
 
-	// Allocate polynomial matrix and right-hand side
-	polyMatrix = new Polynomial[matrixSize][matrixSize];
-	polyRightSide = new Polynomial[matrixSize];
+	// --- Union-Find to merge wire-connected and grounded nodes ---
+	int[] parent = new int[numNodes];
+	for (i = 0; i < numNodes; i++)
+	    parent[i] = i;
+
+	// Merge nodes connected by wires
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (ce instanceof WireElm)
+		ufUnion(parent, ce.getNode(0), ce.getNode(1));
+	}
+
+	// Merge grounded nodes to node 0
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (ce instanceof GroundElm)
+		ufUnion(parent, 0, ce.getNode(0));
+	}
+
+	// Build node mapping: old node -> new node number (0 = ground/skip)
+	int[] nodeMap = new int[numNodes]; // old node -> new node
+	int newNodeCount = 0; // not counting ground
+	for (i = 0; i < numNodes; i++) {
+	    int root = ufFind(parent, i);
+	    if (root == ufFind(parent, 0)) {
+		nodeMap[i] = 0; // maps to ground
+	    } else if (root == i) {
+		// This is a root of a non-ground set, assign new number
+		newNodeCount++;
+		nodeMap[i] = newNodeCount; // 1-indexed
+	    } else {
+		nodeMap[i] = -1; // will be filled from root's mapping
+	    }
+	}
+	// Fill in non-root nodes from their root's mapping
+	for (i = 0; i < numNodes; i++) {
+	    if (nodeMap[i] == -1)
+		nodeMap[i] = nodeMap[ufFind(parent, i)];
+	}
+
+	// Build VS mapping: identify which voltage sources to skip
+	// (wires and grounds) and renumber the rest
+	boolean[] vsSkip = new boolean[voltageSourceCount];
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (ce instanceof WireElm || ce instanceof GroundElm) {
+		int vs = ce.getVoltageSource();
+		if (vs >= 0)
+		    vsSkip[vs] = true;
+	    }
+	}
+	int[] vsMap = new int[voltageSourceCount]; // old VS -> new VS index
+	int newVSCount = 0;
+	for (i = 0; i < voltageSourceCount; i++) {
+	    if (vsSkip[i])
+		vsMap[i] = -1;
+	    else
+		vsMap[i] = newVSCount++;
+	}
+
+	// Build the full index map: raw 1-indexed stamp index -> reduced index
+	// Raw indices: 1..numNodes-1 are circuit nodes,
+	//              numNodes..numNodes+vsCount-1 are VS rows
+	polyIndexMap = new int[numNodes + voltageSourceCount];
+	polyIndexMap[0] = 0; // ground stays ground
+	for (i = 1; i < numNodes; i++)
+	    polyIndexMap[i] = nodeMap[i]; // 0 = ground/skip, >0 = new node
+	for (i = 0; i < voltageSourceCount; i++) {
+	    if (vsMap[i] >= 0)
+		polyIndexMap[numNodes + i] = newNodeCount + 1 + vsMap[i];
+	    else
+		polyIndexMap[numNodes + i] = 0; // eliminated
+	}
+
+	polyMatrixSize = newNodeCount + newVSCount;
+
+	console("buildTransferFunction: nodes " + numNodes + "->" +
+		(newNodeCount+1) + " VS " + voltageSourceCount + "->" +
+		newVSCount + " matrix " + circuitMatrixSize + "->" +
+		polyMatrixSize);
+
+	// Allocate reduced polynomial matrix and right-hand side
+	polyMatrix = new Polynomial[polyMatrixSize][polyMatrixSize];
+	polyRightSide = new Polynomial[polyMatrixSize];
 	Polynomial zero = new Polynomial(0);
-	for (i = 0; i < matrixSize; i++) {
+	for (i = 0; i < polyMatrixSize; i++) {
 	    polyRightSide[i] = zero;
-	    for (j = 0; j < matrixSize; j++)
+	    for (j = 0; j < polyMatrixSize; j++)
 		polyMatrix[i][j] = zero;
 	}
 
-	// Stamp all elements (polynomial/s-multiplied versions)
+	// Stamp all elements except wires and grounds (those are eliminated)
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
+	    if (ce instanceof WireElm || ce instanceof GroundElm)
+		continue;
 	    ce.polyStamp();
 	}
 
-	// Handle unconnected nodes (same logic as solveCircuit)
+	// Handle unconnected nodes
 	if (needsClosure) {
-	    boolean closure[] = new boolean[nodeList.size()];
+	    boolean closure[] = new boolean[numNodes];
 	    boolean changed = true;
 	    closure[0] = true;
+	    // Mark all ground-merged nodes as in closure
+	    for (i = 0; i < numNodes; i++)
+		if (nodeMap[i] == 0) closure[i] = true;
 	    while (changed) {
 		changed = false;
 		for (i = 0; i != elmList.size(); i++) {
@@ -2146,7 +2231,7 @@ MouseOutHandler, MouseWheelHandler {
 		}
 		if (changed)
 		    continue;
-		for (i = 0; i != nodeList.size(); i++)
+		for (i = 0; i != numNodes; i++)
 		    if (!closure[i] && !getCircuitNode(i).internal) {
 			console("polyStamp: node " + i + " unconnected");
 			stampPolyAdmittance(0, i, new Polynomial(0, 1e-8));
@@ -2157,17 +2242,21 @@ MouseOutHandler, MouseWheelHandler {
 	    }
 	}
 
-	// Find output node
+	// Find output node (mapped)
 	int outputNode = -1;
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    if (ce instanceof OutputElm) {
-		outputNode = ce.getNode(0) - 1; // 0-indexed into matrix
+		int rawNode = ce.getNode(0);
+		int mapped = polyIndexMap[rawNode];
+		if (mapped > 0)
+		    outputNode = mapped - 1; // 0-indexed into matrix
 		break;
 	    }
 	}
 
-	console("buildTransferFunction: outputNode=" + outputNode + " (matrix index)");
+	console("buildTransferFunction: outputNode=" + outputNode +
+		" (reduced matrix index)");
 
 	if (outputNode < 0) {
 	    transferNum = new Polynomial(0);
@@ -2179,21 +2268,21 @@ MouseOutHandler, MouseWheelHandler {
 	}
 
 	// Debug: dump poly matrix
-	for (j = 0; j < matrixSize; j++) {
+	for (j = 0; j < polyMatrixSize; j++) {
 	    String s = "polyRow " + j + ": ";
-	    for (i = 0; i < matrixSize; i++)
+	    for (i = 0; i < polyMatrixSize; i++)
 		s += polyMatrix[j][i].asString() + ", ";
 	    s += " | " + polyRightSide[j].asString();
 	    console(s);
 	}
 
 	// Compute denominator = det(polyMatrix)
-	transferDen = PolynomialMatrix.determinant(polyMatrix, matrixSize);
+	transferDen = PolynomialMatrix.determinant(polyMatrix, polyMatrixSize);
 	console("transferDen: " + transferDen.asString());
 
 	// Compute numerator via Cramer's rule
 	transferNum = PolynomialMatrix.cramerNumerator(
-		polyMatrix, polyRightSide, matrixSize, outputNode);
+		polyMatrix, polyRightSide, polyMatrixSize, outputNode);
 	console("transferNum (raw): " + transferNum.asString());
 
 	// Strip only the common s^n factor (from the s-multiplication).
@@ -2221,6 +2310,22 @@ MouseOutHandler, MouseWheelHandler {
 	    console("  " + polyZeros[i].asString());
 
 	polyDirty = false;
+    }
+
+    // Union-Find helpers
+    private int ufFind(int[] parent, int x) {
+	while (parent[x] != x)
+	    x = parent[x] = parent[parent[x]]; // path compression
+	return x;
+    }
+    private void ufUnion(int[] parent, int a, int b) {
+	a = ufFind(parent, a);
+	b = ufFind(parent, b);
+	if (a != b) {
+	    // Always make 0 the root if involved (so ground wins)
+	    if (b == 0) { int t = a; a = b; b = t; }
+	    parent[b] = a;
+	}
     }
 
     void calcResponse() {
@@ -2675,6 +2780,10 @@ MouseOutHandler, MouseWheelHandler {
     // --- Polynomial stamping methods (s-multiplied) ---
 
     void stampPolyMatrix(int i, int j, Polynomial p) {
+	if (polyIndexMap != null) {
+	    i = polyIndexMap[i];
+	    j = polyIndexMap[j];
+	}
 	if (i > 0 && j > 0) {
 	    i--;
 	    j--;
@@ -2683,6 +2792,8 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void stampPolyRightSide(int i, Polynomial p) {
+	if (polyIndexMap != null)
+	    i = polyIndexMap[i];
 	if (i > 0) {
 	    i--;
 	    polyRightSide[i] = polyRightSide[i].add(p);
