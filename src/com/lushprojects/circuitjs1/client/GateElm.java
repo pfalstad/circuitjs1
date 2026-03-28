@@ -57,7 +57,6 @@ abstract class GateElm extends CircuitElm {
 	    highVoltage = 5;
 	    try {
 		highVoltage = new Double(st.nextToken()).doubleValue();
-		propagationDelay = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) { }
 	    lastOutput = lastOutputVoltage > highVoltage*.5;
 	    setSize((f & FLAG_SMALL) != 0 ? 1 : 2);
@@ -73,9 +72,6 @@ abstract class GateElm extends CircuitElm {
 	    gheight = 8*s;
 	    flags &= ~FLAG_SMALL;
 	    flags |= (s == 1) ? FLAG_SMALL : 0;
-	}
-	String dump() {
-	    return super.dump() + " " + inputCount + " " + volts[inputCount] + " " + highVoltage + " " + propagationDelay;
 	}
 
 	void dumpXml(Document doc, Element elem) {
@@ -241,7 +237,7 @@ abstract class GateElm extends CircuitElm {
 	    if (isInverting())
 		f = !f;
 
-	    if (lastTime != sim.t) {
+	    if (propagationDelay == 0 && lastTime != sim.t) {
 		// detect oscillation (using same strategy as Atanua)
 		if (lastOutput == !f) {
 		    if (oscillationCount++ > 50) {
@@ -259,12 +255,18 @@ abstract class GateElm extends CircuitElm {
 	    // apply propagation delay if configured
 	    if (propagationDelay > 0) {
 		if (f != lastOutput) {
-		    // desired output differs from current output; wait for delay
-		    if (sim.t >= delayEndTime)
+		    // desired output differs from current output
+		    if (delayEndTime == 0)
+			// start the delay timer on first detection of change
+			delayEndTime = sim.t + propagationDelay;
+		    else if (sim.t >= delayEndTime) {
+			// delay has elapsed, apply the change
 			lastOutput = f;
+			delayEndTime = 0;
+		    }
 		} else {
-		    // output matches desired; reset the delay timer
-		    delayEndTime = sim.t + propagationDelay;
+		    // output matches desired; cancel any pending delay
+		    delayEndTime = 0;
 		}
 	    } else {
 		lastOutput = f;
