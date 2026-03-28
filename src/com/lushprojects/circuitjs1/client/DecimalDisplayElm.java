@@ -91,14 +91,13 @@ class DecimalDisplayElm extends ChipElm {
     }
     
     String getXmlDumpType() { return "dd"; }
+    boolean allowBus() { return true; }
 
     void setupPins() {
 	sizeX = 3;
-	sizeY = bitCount;
+	sizeY = useBus() ? 2 : bitCount;
 	pins = new Pin[bitCount];
-	int i;
-	for (i = 0; i != bitCount; i++)
-	    pins[i] = new Pin(bitCount-1-i, SIDE_W, "I" + i);
+	makeBitPins(bitCount, 0, SIDE_W, 0, "I", false, false, false);
 	allocNodes();
     }
     int getPostCount() { return bitCount; }
@@ -117,7 +116,7 @@ class DecimalDisplayElm extends ChipElm {
             ei.choice.select(displayMode);
             return ei;
         }
-        return super.getChipEditInfo(n);
+        return null;
     }
     public void setChipEditValue(int n, EditInfo ei) {
         if (n == 0 && ei.value >= 1 && ei.value <= 16) {
@@ -128,7 +127,6 @@ class DecimalDisplayElm extends ChipElm {
         }
         if (n == 1)
             displayMode = ei.choice.getSelectedIndex();
-        super.setChipEditValue(n, ei);
     }
 
 }

@@ -40,12 +40,13 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	double gmin;
 	String modelName;
 	TransistorModel model;
-	static String lastModelName = "default";
+	static String lastModelName = "default"; // never changes??
 	final int FLAG_FLIP = 1;
 	final int FLAG_CIRCLE = 2;
 	final int FLAGS_GLOBAL = FLAG_CIRCLE;
 	static int globalFlags;
 	int badIters;
+	int localSubIters;
 	
 	TransistorElm(int xx, int yy, boolean pnpflag) {
 	    super(xx, yy);
@@ -82,7 +83,10 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	void reset() {
 	    volts[0] = volts[1] = volts[2] = 0;
 	    lastvbc = lastvbe = curcount_c = curcount_e = curcount_b = 0;
+	    capVoltBE = capVoltBC = capCurBE = capCurBC = 0;
+	    geqBE = geqBC = ceqBE = ceqBC = 0;
 	    badIters = 0;
+	    localSubIters = 0;
 	}
 	public void onMouseWheel(MouseWheelEvent e) {
 	    if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
@@ -114,7 +118,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    super.undumpXml(xml);
 	    pnp = xml.parseIntAttr("pn", pnp);
 	    beta = xml.parseDoubleAttr("be", beta);
-	    modelName = xml.parseStringAttr("mo", "default");
+	    modelName = xml.parseStringAttr("mo", modelName);
 	    lastvbe = xml.parseDoubleAttr("vbe", 0);
 	    lastvbc = xml.parseDoubleAttr("vbc", 0);
 	    volts[0] = 0;
@@ -134,6 +138,12 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	}
 
 	double ic, ie, ib, curcount_c, curcount_e, curcount_b;
+
+	// Junction capacitance state (trapezoidal companion model)
+	double capVoltBE, capVoltBC;   // junction voltages from end of previous time step
+	double capCurBE, capCurBC;     // junction cap currents from end of previous time step
+	double geqBE, geqBC;           // companion conductances (computed in startIteration)
+	double ceqBE, ceqBC;           // companion current sources (computed in startIteration)
 	
 	Polygon rectPoly, arrowPoly;
 	Point circleCenter;	
@@ -234,7 +244,12 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    
 	    circleCenter = interpPoint(base, point2, .5);
 	}
-	
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addObstacle(new Point[] { rect[0], rect[1], rect[2], rect[3], coll[0], emit[0] });
+	    router.addWire(point1.x, point1.y, base.x, base.y);
+	}
+
 	static final double leakage = 1e-13; // 1e-6;
 	// Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
 	static final double vt = 0.025865;
@@ -260,6 +275,60 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    }
 	    return(vnew);
 	}
+	// Calculate voltage-dependent junction depletion capacitance.
+	// This is the SPICE standard formula: the PN junction's depletion
+	// layer acts as a parallel-plate capacitor whose plate spacing
+	// changes with applied voltage.
+	//   vj  = voltage across the junction (positive = forward bias)
+	//   cj0 = zero-bias capacitance (the value when no voltage is applied)
+	//   vj0 = built-in junction potential (typically 0.6-0.8V for silicon)
+	//   mj  = grading coefficient (0.33 for linearly graded, 0.5 for abrupt)
+	static double calcJunctionCap(double vj, double cj0, double vj0, double mj) {
+	    if (cj0 <= 0)
+		return 0;
+	    double fc = 0.5;
+	    if (vj < fc * vj0) {
+		// Normal depletion region: C increases as reverse bias decreases
+		return cj0 / Math.pow(1 - vj/vj0, mj);
+	    } else {
+		// Forward bias beyond fc*Vj: linear extrapolation to avoid
+		// the singularity at V=Vj where capacitance would go to infinity
+		return cj0 / Math.pow(1 - fc, 1 + mj) * (1 - fc*(1+mj) + mj*vj/vj0);
+	    }
+	}
+
+	void startIteration() {
+	    // Compute junction capacitance companion model for this time step.
+	    // Uses trapezoidal integration (same as CapacitorElm).
+	    // Total cap = depletion cap (CJE/CJC) + diffusion cap (TF*gm / TR*gm).
+	    boolean hasBEcap = model.junctionCapBE > 0 || model.transitTimeF > 0;
+	    boolean hasBCcap = model.junctionCapBC > 0 || model.transitTimeR > 0;
+
+	    if (hasBEcap && sim.timeStep > 0) {
+		double vjBE = pnp * capVoltBE;  // physical junction voltage
+		double cje = calcJunctionCap(vjBE, model.junctionCapBE, model.junctionPotBE, model.junctionExpBE);
+		// Add diffusion capacitance only in forward bias (like SPICE)
+		if (model.transitTimeF > 0 && vjBE > 0) {
+		    double vtn = vt * model.emissionCoeffF;
+		    cje += model.transitTimeF * model.satCur * Math.exp(vjBE / vtn) / vtn;
+		}
+		geqBE = 2 * cje / sim.timeStep;
+		if (geqBE < 1e-20) { geqBE = ceqBE = capCurBE = 0; }
+		else ceqBE = -geqBE * capVoltBE - capCurBE;
+	    }
+	    if (hasBCcap && sim.timeStep > 0) {
+		double vjBC = pnp * capVoltBC;  // physical junction voltage
+		double cjc = calcJunctionCap(vjBC, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
+		// Add diffusion capacitance only in forward bias (like SPICE)
+		if (model.transitTimeR > 0 && vjBC > 0) {
+		    cjc += model.transitTimeR * model.satCur * Math.exp(vjBC / (vt * model.emissionCoeffR)) / (vt * model.emissionCoeffR);
+		}
+		geqBC = 2 * cjc / sim.timeStep;
+		if (geqBC < 1e-20) { geqBC = ceqBC = capCurBC = 0; }
+		else ceqBC = -geqBC * capVoltBC - capCurBC;
+	    }
+	}
+
 	void stamp() {
 	    sim.stampNonLinear(nodes[0]);
 	    sim.stampNonLinear(nodes[1]);
@@ -268,19 +337,28 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	void doStep() {
 	    double vbc = pnp*(volts[0]-volts[1]); // typically negative
 	    double vbe = pnp*(volts[0]-volts[2]); // typically positive
-	    if (Math.abs(vbc-lastvbc) > .01 || // .01
-		Math.abs(vbe-lastvbe) > .01)
+	    boolean notConverged = Math.abs(vbc-lastvbc) > .01 || // .01
+		Math.abs(vbe-lastvbe) > .01;
+	    if (notConverged)
 		sim.converged = false;
+
+	    // track per-transistor convergence difficulty
+	    if (notConverged)
+		localSubIters++;
+	    else
+		localSubIters = 0;
 
 	    // To prevent a possible singular matrix, put a tiny conductance in parallel
 	    // with each P-N junction.
 //	    gmin = leakage * 0.01;
 	    gmin = 1e-12;
-	    
-	    if (sim.subIterations > 100 && badIters < 5) {
-		// if we have trouble converging, put a conductance in parallel with all P-N junctions.
-		// Gradually increase the conductance value for each iteration.
-		gmin = Math.exp(-9*Math.log(10)*(1-sim.subIterations/300.));
+
+	    if (localSubIters > 100 && badIters < 5) {
+		// if THIS transistor has trouble converging, put a conductance in
+		// parallel with all P-N junctions.  Use per-transistor iteration
+		// count to avoid contaminating unrelated transistors elsewhere
+		// in the circuit.
+		gmin = Math.exp(-9*Math.log(10)*(1-localSubIters/300.));
 		if (gmin > .1)
 		    gmin = .1;
 	    }
@@ -416,6 +494,31 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    sim.stampRightSide(nodes[1], ceqbc);
 	    sim.stampRightSide(nodes[2], ceqbe);
 
+	    // Junction capacitance companion model stamps.
+	    // Each junction cap is modeled as a conductance (Geq) in parallel
+	    // with a current source (Ceq), using trapezoidal integration.
+	    // This is identical to how CapacitorElm works, but embedded inside
+	    // the transistor and with voltage-dependent capacitance.
+	    if (geqBE > 0) {
+		// BE junction cap: conductance between base (node 0) and emitter (node 2)
+		sim.stampMatrix(nodes[0], nodes[0],  geqBE);
+		sim.stampMatrix(nodes[2], nodes[2],  geqBE);
+		sim.stampMatrix(nodes[0], nodes[2], -geqBE);
+		sim.stampMatrix(nodes[2], nodes[0], -geqBE);
+		// Current source (positive = base to emitter)
+		sim.stampRightSide(nodes[0], -ceqBE);
+		sim.stampRightSide(nodes[2],  ceqBE);
+	    }
+	    if (geqBC > 0) {
+		// BC junction cap: conductance between base (node 0) and collector (node 1)
+		sim.stampMatrix(nodes[0], nodes[0],  geqBC);
+		sim.stampMatrix(nodes[1], nodes[1],  geqBC);
+		sim.stampMatrix(nodes[0], nodes[1], -geqBC);
+		sim.stampMatrix(nodes[1], nodes[0], -geqBC);
+		// Current source (positive = base to collector)
+		sim.stampRightSide(nodes[0], -ceqBC);
+		sim.stampRightSide(nodes[1],  ceqBC);
+	    }
 	}
 	
 	@Override String getScopeText(int x) {
@@ -449,6 +552,28 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    arr[5] = "Vbc = " + getVoltageText(vbc);
 	    arr[6] = "Vce = " + getVoltageText(vce);
 	    arr[7] = "P = " + getUnitText(getPower(), "W");
+	    if (model.junctionCapBE > 0 || model.junctionCapBC > 0 || model.transitTimeF > 0 || model.transitTimeR > 0) {
+		double cjeVal = calcJunctionCap(vbe*pnp, model.junctionCapBE, model.junctionPotBE, model.junctionExpBE);
+		double cjcVal = calcJunctionCap(vbc*pnp, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
+		// Add diffusion capacitance from transit time
+		if (model.transitTimeF > 0) {
+		    double vtn = vt * model.emissionCoeffF;
+		    double gdBE = model.satCur * Math.exp(vbe*pnp / vtn) / vtn;
+		    cjeVal += model.transitTimeF * gdBE;
+		}
+		if (model.transitTimeR > 0) {
+		    double vtn = vt * model.emissionCoeffR;
+		    double gdBC = model.satCur * Math.exp(vbc*pnp / vtn) / vtn;
+		    cjcVal += model.transitTimeR * gdBC;
+		}
+		double cTotal = cjeVal + cjcVal;
+		if (cTotal > 0 && ic != 0) {
+		    // gm = Ic / Vt (transconductance at operating point)
+		    double gmVal = Math.abs(ic) / vt;
+		    double ft = gmVal / (2 * Math.PI * cTotal);
+		    arr[8] = "ft = " + getUnitText(ft, "Hz");
+		}
+	    }
 	}
 	
 	double getScopeValue(int x) {
@@ -576,12 +701,39 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
             if (Math.abs(ic) > 1e12 || Math.abs(ib) > 1e12)
                 sim.stop("max current exceeded", this);
 
-            // if we needed to add a conductance to all junctions, this was a bad iteration.
-            // If we have 5 of those in a row, give up
-	    if (sim.subIterations > 100)
+            // if this transistor needed gmin ramping, it was a bad iteration.
+            // If we have 5 of those in a row, give up on gmin for this transistor.
+	    if (localSubIters > 100)
 		badIters++;
 	    else
 		badIters = 0;
+
+	    // Save junction cap state for next time step's companion model.
+	    // capVoltXX = node voltage difference across junction (circuit reference, not pnp-adjusted).
+	    // capCurXX  = actual capacitor current at end of this time step.
+	    if (geqBE > 0) {
+		capVoltBE = volts[0] - volts[2];
+		capCurBE = geqBE * capVoltBE + ceqBE;
+	    }
+	    if (geqBC > 0) {
+		capVoltBC = volts[0] - volts[1];
+		capCurBC = geqBC * capVoltBC + ceqBC;
+	    }
+
+	    // Add junction cap currents to terminal currents for display.
+	    // BE cap current flows base to emitter; BC cap current flows base to collector.
+	    if (geqBE > 0) {
+		double icapBE = geqBE * (volts[0] - volts[2]) + ceqBE;
+		ib += icapBE;
+		ie -= icapBE;
+	    }
+	    if (geqBC > 0) {
+		double icapBC = geqBC * (volts[0] - volts[1]) + ceqBC;
+		ib += icapBC;
+		ic -= icapBC;
+	    }
+
+	    localSubIters = 0;
         }
 
 	void flipX(int c2, int count) {

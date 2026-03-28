@@ -27,10 +27,13 @@ import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 
     class SRAMElm extends ChipElm {
+	static final int FLAG_HEX_DISPLAY = 4;
 	int addressNodes, dataNodes, internalNodes;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
 	static String contentsOverride = null;
+	TextArea editTextArea;
+
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -87,28 +90,24 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	boolean nonLinear() { return true; }
+	boolean allowBus() { return true; }
 	String getChipName() { return "Static RAM"; }
 	void setupPins() {
 	    sizeX = 2;
-	    sizeY = max(addressBits, dataBits) + 1;
+	    int addrY = useBus() ? 1 : addressBits;
+	    int dataY = useBus() ? 1 : dataBits;
+	    sizeY = max(addrY, dataY) + 1;
+	    bits = addressBits;
 	    pins = new Pin[getPostCount()];
 	    pins[0] = new Pin(0, SIDE_W, "WE");
 	    pins[0].lineOver = true;
 	    pins[1] = new Pin(0, SIDE_E, "OE");
 	    pins[1].lineOver = true;
-	    int i;
 	    addressNodes = 2;
 	    dataNodes = 2+addressBits;
 	    internalNodes = 2+addressBits+dataBits;
-	    for (i = 0; i != addressBits; i++) {
-		int ii = i+addressNodes;
-		pins[ii] = new Pin(sizeY-addressBits+i, SIDE_W, "A" + (addressBits-i-1));
-	    }
-	    for (i = 0; i != dataBits; i++) {
-		int ii = i+dataNodes;
-		pins[ii] = new Pin(sizeY-dataBits+i, SIDE_E, "D" + (dataBits-i-1));
-		pins[ii].output = true;
-	    }
+	    makeBitPins(addressBits, sizeY-addrY, SIDE_W, addressNodes, "A", false, false, true);
+	    makeBitPins(dataBits, sizeY-dataY, SIDE_E, dataNodes, "D", true, false, true);
 	    allocNodes();
 	}
 	int getPostCount() {
@@ -122,13 +121,19 @@ import com.google.gwt.xml.client.Element;
             if (n == 2) {
         	EditInfo ei = new EditInfo("Contents", 0);
         	ei.textArea = new TextArea();
+        	editTextArea = ei.textArea;
         	ei.textArea.setVisibleLines(5);
         	String s = (contentsOverride != null) ? contentsOverride : contentsToString();
         	contentsOverride = null;
     	    	ei.textArea.setText(s);
     	    	return ei;
             }
-            if (n == 3 && SRAMLoadFile.isSupported()) {
+            if (n == 3) {
+            	EditInfo ei = new EditInfo("", 0, -1, -1);
+            	ei.checkbox = new Checkbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY));
+            	return ei;
+            }
+            if (n == 4 && SRAMLoadFile.isSupported()) {
             	EditInfo ei = new EditInfo("", 0, -1, -1);
             	ei.loadFile = new SRAMLoadFile();
             	ei.button = new Button("Load Contents From File");
@@ -139,25 +144,32 @@ import com.google.gwt.xml.client.Element;
 	}
 	
 	String contentsToString() {
+	    boolean hex = hasFlag(FLAG_HEX_DISPLAY);
 	    String s = "";
 	    int maxI = 1<<addressBits;
 	    for (int i = 0; i < maxI; i++) {
 		Integer val = map.get(i);
 		if (val == null)
 		    continue;
-		s += i + ": " + val;
+		s += (hex ? Integer.toHexString(i).toUpperCase() : "" + i) + ": " +
+		     (hex ? toHex(val) : "" + val);
 		int ct = 1;
 		while (true) {
 		    val = map.get(++i);
 		    if (val == null)
 			break;
-		    s += " " + val;
+		    s += " " + (hex ? toHex(val) : "" + val);
 		    if (++ct == 8)
 			break;
 		}
 		s += "\n";
 	    }
 	    return s;
+	}
+
+	String toHex(int val) {
+	    String h = Integer.toHexString(val & 0xFF).toUpperCase();
+	    return h.length() < 2 ? "0" + h : h;
 	}
 
 	void parseContentsString(String s) {
@@ -182,6 +194,8 @@ import com.google.gwt.xml.client.Element;
 		return Integer.parseInt(str.substring(2), 16);
 	    if (str.startsWith("0b"))
 		return Integer.parseInt(str.substring(2), 2);
+	    if (hasFlag(FLAG_HEX_DISPLAY))
+		return Integer.parseInt(str, 16);
 	    return Integer.parseInt(str);
 	}
 
@@ -198,17 +212,38 @@ import com.google.gwt.xml.client.Element;
 	    }
 	    if (n == 2)
 		parseContentsString(ei.textArea.getText());
+	    if (n == 3) {
+		int oldFlags = flags;
+		if (editTextArea != null)
+		    parseContentsString(editTextArea.getText());
+		flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
+		if (flags != oldFlags) {
+		    contentsOverride = contentsToString();
+		    ei.newDialog = true;
+		}
+	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }
 	int getInternalNodeCount() { return dataBits; }
-	
+	void setVoltageSource(int j, VoltageSource vs) {
+	    super.setVoltageSource(j, vs);
+	    vs.setNodes(CircuitNode.ground, nodes[internalNodes+j]);
+	}
+	boolean getMatrixConnection(int n1, int n2) {
+	    // each internal node connects to its corresponding data pin
+	    for (int i = 0; i != dataBits; i++)
+		if (comparePair(n1, n2, internalNodes+i, dataNodes+i))
+		    return true;
+	    return false;
+	}
+
 	int address;
 	
 	void stamp() {
 	    int i;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.stampVoltageSource(0, nodes[internalNodes+i], p.voltSource);
+		sim.stampVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource);
 		sim.stampNonLinear(nodes[internalNodes+i]);
 		sim.stampNonLinear(nodes[dataNodes+i]);
 	    }
@@ -229,7 +264,7 @@ import com.google.gwt.xml.client.Element;
 	    int data = (dataObj == null) ? 0 : dataObj;
 	    for (i = 0; i != dataBits; i++) {
 		Pin p = pins[i+dataNodes];
-		sim.updateVoltageSource(0, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
+		sim.updateVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
 		
 		// stamp resistor from internal voltage source to data pin.
 		// if output enabled, make it a small resistor.  otherwise large.

@@ -30,6 +30,7 @@ class SwitchElm extends CircuitElm {
     final int FLAG_IEC = 2;
     final int FLAG_LABEL = 4;
     String label;
+    String keyShortcut;
     
     public SwitchElm(int xx, int yy) {
 	super(xx, yy);
@@ -37,6 +38,7 @@ class SwitchElm extends CircuitElm {
 	position = 0;
 	posCount = 2;
 	label = null;
+	keyShortcut = null;
     }
     SwitchElm(int xx, int yy, boolean mm) {
 	super(xx, yy);
@@ -44,6 +46,7 @@ class SwitchElm extends CircuitElm {
 	momentary = mm;
 	posCount = 2;
 	label = null;
+	keyShortcut = null;
     }
     public SwitchElm(int xa, int ya, int xb, int yb, int f,
 		     StringTokenizer st) {
@@ -71,6 +74,8 @@ class SwitchElm extends CircuitElm {
             XMLSerializer.dumpAttr(elem, "mm", momentary);
 	if (label != null)
             XMLSerializer.dumpAttr(elem, "lab", label);
+	if (keyShortcut != null)
+	    XMLSerializer.dumpAttr(elem, "key", keyShortcut);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -78,6 +83,7 @@ class SwitchElm extends CircuitElm {
         position = xml.parseIntAttr("p", position);
         momentary = xml.parseBooleanAttr("mm", momentary);
         label = xml.parseStringAttr("lab", label);
+        keyShortcut = xml.parseStringAttr("key", keyShortcut);
     }
 
     Point ps, ps2;
@@ -214,6 +220,8 @@ class SwitchElm extends CircuitElm {
 	    return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
         if (n == 2)
             return new EditInfo("Label (for linking)", label == null ? "" : label);
+	if (n == 3)
+	    return getKeyShortcutEditInfo();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -230,6 +238,30 @@ class SwitchElm extends CircuitElm {
         	flags &= ~FLAG_LABEL;
             } else
         	flags |= FLAG_LABEL;
+        }
+	if (n == 3)
+	    setKeyShortcutEditValue(ei);
+    }
+
+    // helper methods for keyboard shortcut edit field, usable by subclasses
+    EditInfo getKeyShortcutEditInfo() {
+	return new EditInfo("Keyboard Shortcut", keyShortcut == null ? "" : keyShortcut);
+    }
+
+    void setKeyShortcutEditValue(EditInfo ei) {
+	String s = ei.textf.getText().trim();
+	if (s.length() == 0)
+	    keyShortcut = null;
+	else
+	    keyShortcut = s.substring(0, 1).toLowerCase();
+    }
+
+    void addRoutingObstacle(WireRouter router) {
+        if (x == x2 || y == y2) {
+            router.addWire(x, y, x2, y2);
+            Point pa = interpPoint(lead1, lead2, 0, 0);
+            Point pb = interpPoint(lead1, lead2, 1, openhs);
+            router.addObstacle(pa.x, pa.y, pb.x, pb.y);
         }
     }
 

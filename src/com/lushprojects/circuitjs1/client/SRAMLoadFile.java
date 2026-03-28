@@ -34,9 +34,9 @@ public class SRAMLoadFile extends EditDialogLoadFile {
 			var reader = new FileReader();
 			reader.onload = function(e) {
 				var arr = new Uint8Array(reader.result);
-				var str = "0:";
+				var str = "0x0:";
 				for (var i = 0; i < arr.length; i++)
-					str += " " + arr[i];
+					str += " 0x" + ("0" + arr[i].toString(16)).slice(-2).toUpperCase();
 				@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;)(str);
 			};
 	

@@ -20,6 +20,8 @@ class ExtListEntry {
     ExtListEntry(String s, int n, int p, int sd) { name = s; node = n; pos = p; side = sd; }
     String name;
     int node, pos, side;
+    int busWidth = 1;
+    int busZ;
 };
 
 public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
@@ -66,6 +68,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	globalModelMap.put(d.name, d);
 	sequenceNumber = 1;
 
+        loadInternalModels();
+    }
+
+    public static void loadModelsFromStorage() {
 	// get models from local storage
         Storage stor = Storage.getLocalStorageIfSupported();
         if (stor != null) {
@@ -97,8 +103,6 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
         	}
             }
         }
-
-        loadInternalModels();
     }
 
     static CustomCompositeModel getModelWithName(String name) {
@@ -106,12 +110,11 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	    initModelMap();
 	CustomCompositeModel lm = localModelMap.get(name);
 	if (lm != null) {
-	    CirSim.console("getModelWithName: " + name + " found in local");
+	    //CirSim.console("getModelWithName: " + name + " found in local");
 	    return lm;
 	}
 	lm = globalModelMap.get(name);
-	if (lm != null)
-	    CirSim.console("getModelWithName: " + name + " found in global");
+	//if (lm != null) CirSim.console("getModelWithName: " + name + " found in global");
 	return lm;
     }
 
@@ -179,20 +182,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = CustomLogicModel.unescape(st.nextToken());
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
-	    CirSim.console("undumpModel: creating new local model " + name);
+	    //CirSim.console("undumpModel: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
 	    // model exists in global map; create a local shadow instead of modifying global
-	    CirSim.console("undumpModel: creating local shadow for global model " + name);
+	    //CirSim.console("undumpModel: creating local shadow for global model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else {
-	    CirSim.console("undumpModel: updating existing local model " + name);
+	    //CirSim.console("undumpModel: updating existing local model " + name);
 	}
 	model.undump(st);
 	return model;
@@ -247,6 +250,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		int ceFlags = Integer.parseInt(stCe.nextToken());
 		ce = CirSim.createCe(ce.getDumpType(), 0, 0, 0, 0, ceFlags, stCe);
 	    }
+
+	    // needed for very old dumps which still have GroundElm
+	    if (ce instanceof GroundElm)
+		((GroundElm) ce).setOldStyle();
 
 	    Element child = elmDoc.createElement(ce.getXmlDumpType());
 	    XMLSerializer.dumpAttr(child, "nn", nn);
@@ -316,19 +323,39 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	return arr.split(",");
     }
 
+    // check if all bus entries have consecutive node numbers so we can use compact format
+    boolean busNodesConsecutive() {
+	for (int i = 0; i < extList.size(); i++) {
+	    ExtListEntry ent = extList.get(i);
+	    if (ent.busZ > 0 && ent.node != extList.get(i-1).node + 1)
+		return false;
+	}
+	return true;
+    }
+
     // build XML attributes and children into the given element
     void buildXmlElement(Document doc, Element elem) {
 	XMLSerializer.dumpAttr(elem, "nm", name);
 	XMLSerializer.dumpAttr(elem, "f", flags);
 	XMLSerializer.dumpAttr(elem, "sx", sizeX);
 	XMLSerializer.dumpAttr(elem, "sy", sizeY);
+	boolean bcs = busNodesConsecutive();
+	if (bcs)
+	    XMLSerializer.dumpAttr(elem, "bcs", 1);
 	for (int i = 0; i != extList.size(); i++) {
 	    ExtListEntry ent = extList.get(i);
+	    if (bcs && ent.busZ > 0)
+		continue;
 	    Element ext = doc.createElement("ext");
 	    XMLSerializer.dumpAttr(ext, "nm", ent.name);
 	    XMLSerializer.dumpAttr(ext, "nd", ent.node);
 	    XMLSerializer.dumpAttr(ext, "ps", ent.pos);
 	    XMLSerializer.dumpAttr(ext, "sd", ent.side);
+	    if (ent.busWidth > 1) {
+		XMLSerializer.dumpAttr(ext, "bw", ent.busWidth);
+		if (!bcs)
+		    XMLSerializer.dumpAttr(ext, "bz", ent.busZ);
+	    }
 	    elem.appendChild(ext);
 	}
 	// copy child elements from elmDoc into output
@@ -355,20 +382,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	String name = xml.parseStringAttr("nm", null);
 	CustomCompositeModel model = getModelWithName(name);
 	if (model == null) {
-	    CirSim.console("undumpModelXml: creating new local model " + name);
+	    //CirSim.console("undumpModelXml: creating new local model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else if (globalModelMap.containsKey(name) && !localModelMap.containsKey(name)) {
 	    // model exists in global map; create a local shadow instead of modifying global
-	    CirSim.console("undumpModelXml: creating local shadow for global model " + name);
+	    //CirSim.console("undumpModelXml: creating local shadow for global model " + name);
 	    model = new CustomCompositeModel();
 	    model.name = name;
 	    localModelMap.put(name, model);
 	    sequenceNumber++;
 	} else {
-	    CirSim.console("undumpModelXml: updating existing local model " + name);
+	    //CirSim.console("undumpModelXml: updating existing local model " + name);
 	}
 	model.undumpXml(xml);
 	return model;
@@ -379,6 +406,7 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	flags = xml.parseIntAttr("f", flags);
 	sizeX = xml.parseIntAttr("sx", sizeX);
 	sizeY = xml.parseIntAttr("sy", sizeY);
+	boolean bcs = xml.parseIntAttr("bcs", 0) != 0;
 	extList = new Vector<ExtListEntry>();
 
 	// build elmDoc from XML children
@@ -393,7 +421,21 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		int n = xml.parseIntAttr("nd", 0);
 		int p = xml.parseIntAttr("ps", 0);
 		int sd = xml.parseIntAttr("sd", 0);
-		extList.add(new ExtListEntry(s, n, p, sd));
+		int bw = xml.parseIntAttr("bw", 1);
+		if (bcs && bw > 1) {
+		    // expand compact bus entries
+		    for (int j = 0; j < bw; j++) {
+			ExtListEntry ent = new ExtListEntry(s, n + j, p, sd);
+			ent.busWidth = bw;
+			ent.busZ = j;
+			extList.add(ent);
+		    }
+		} else {
+		    ExtListEntry ent = new ExtListEntry(s, n, p, sd);
+		    ent.busWidth = bw;
+		    ent.busZ = xml.parseIntAttr("bz", 0);
+		    extList.add(ent);
+		}
 	    } else {
 		// element definition - import into elmDoc
 		Element imported = (Element) elmDoc.importNode(child, true);
@@ -457,8 +499,14 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	sequenceNumber++;
     }
 
+    // replace a model in whichever map it lives in (used after popContext to swap in the newly saved model)
+    static void replaceModel(CustomCompositeModel model) {
+	localModelMap.put(model.name, model);
+	sequenceNumber++;
+    }
+
     static void clearLocalModels() {
-	CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
+	//CirSim.console("clearLocalModels: clearing " + localModelMap.size() + " local models");
 	localModelMap.clear();
 	sequenceNumber++;
     }

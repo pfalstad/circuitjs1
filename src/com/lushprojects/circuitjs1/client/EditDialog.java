@@ -111,19 +111,30 @@ class EditDialog extends Dialog {
 		VerticalPanel vp = new VerticalPanel();
 		mainPanel.insert(hp, mainPanel.getWidgetIndex(bottomButtonPanel));
 		hp.add(vp);
+		boolean first = true;
 		for (i = 0; ; i++) {
 			Label l = null;
 			einfos[i] = elm.getEditInfo(i);
 			if (einfos[i] == null)
 				break;
 			final EditInfo ei = einfos[i];
+
+			if (vp.getWidgetCount() > 15 || ei.newColumn) {
+			    // start a new column
+			    vp = new VerticalPanel();
+			    hp.add(vp);
+			    vp.getElement().getStyle().setPaddingLeft(10, Unit.PX);
+			    first = true;
+			}
+
 			String name = Locale.LS(ei.name);
 			if (ei.name.startsWith("<"))
 			    vp.add(l = new HTML(name));
 			else
 			    vp.add(l = new Label(name));
-			if (i!=0 && l != null)
+			if (!first && l != null)
 				l.setStyleName("topSpace");
+			first = false;
 			if (ei.choice != null) {
 				vp.add(ei.choice);
 				ei.choice.addChangeHandler( new ChangeHandler() {
@@ -174,28 +185,19 @@ class EditDialog extends Dialog {
 				ei.textf.setText(unitString(ei));
 			    }
 			}
-			if (vp.getWidgetCount() > 15) {
-			    // start a new column
-			    vp = new VerticalPanel();
-			    hp.add(vp);
-			    vp.getElement().getStyle().setPaddingLeft(10, Unit.PX);
-			}
 		}
 		einfocount = i;
 	}
 
 	static final double ROOT2 = 1.41421356237309504880;
-	
-	double diffFromInteger(double x) {
-	    return Math.abs(x-Math.round(x));
-	}
-	
+
 	String unitString(EditInfo ei) {
 	    // for voltage elements, express values in rms if that would be shorter
-	    if (elm != null && elm instanceof VoltageElm &&
-		Math.abs(ei.value) > 1e-4 &&
-		diffFromInteger(ei.value*1e4) > diffFromInteger(ei.value*1e4/ROOT2))
-		return unitString(ei, ei.value/ROOT2) + "rms";
+	    if (elm != null && elm instanceof VoltageElm) {
+		VoltageElm ve = (VoltageElm) elm;
+		if (ve.useRmsDisplay(ei.value))
+		    return unitString(ei, ei.value * ve.getRmsMultiplier()) + "rms";
+	    }
 	    return unitString(ei, ei.value);
 	}
 
@@ -226,7 +228,16 @@ class EditDialog extends Dialog {
 	}
 
 	double parseUnits(EditInfo ei) throws java.text.ParseException {
-		String s = ei.textf.getText();
+		String s = ei.textf.getText().trim();
+		// for voltage elements, convert rms input using waveform-specific multiplier
+		if (elm != null && elm instanceof VoltageElm && s.endsWith("rms")) {
+		    s = s.substring(0, s.length()-3).trim();
+		    double rmsMult = ((VoltageElm)elm).getRmsMultiplier();
+		    if (rmsMult > 0) {
+			// parseUnits will not see "rms" suffix, so no double-conversion
+			return parseUnits(s) / rmsMult;
+		    }
+		}
 		return parseUnits(s);
 	}
 	
@@ -241,6 +252,13 @@ class EditDialog extends Dialog {
 		s=s.replaceAll("([0-9]+)([pPnNuUmMkKgG])([0-9]+)", "$1.$3$2");
 		// rewrite meg to M
 		s=s.replaceAll("[mM][eE][gG]$", "M");
+
+		// handle scientific notation (e.g. "4.416e-8", "1.2E+3", "5e9")
+		// before checking for unit suffixes, so that "e" is not
+		// misinterpreted and the value is not silently rejected
+		if (s.matches("^-?[0-9]*\\.?[0-9]+[eE][+-]?[0-9]+$"))
+		    return Double.parseDouble(s) * rmsMult;
+
 		int len = s.length();
 		char uc = s.charAt(len-1);
 		double mult = 1;
@@ -272,7 +290,9 @@ class EditDialog extends Dialog {
 					ei.value = d;
 				} catch (Exception ex) { /* ignored */ }
 			}
-			if (ei.button != null)
+			// don't press buttons.  also don't operate on choices becuase then they might happen
+			// twice.  (for square wave)
+			if (ei.button != null || ei.choice != null)
 			    continue;
 			elm.setEditValue(i, ei);
 			
@@ -295,8 +315,9 @@ class EditDialog extends Dialog {
 		EditInfo ei = einfos[i];
 		if (ei.choice == src || ei.checkbox == src || ei.button == src) {
 		    
-		    // if we're pressing a button, make sure to apply changes first
-		    if (ei.button == src && !ei.newDialog) {
+		    // if we're pressing a button, make sure to apply changes first.
+		    // also for choices (for square wave)
+		    if ((ei.button == src || ei.choice == src) && !ei.newDialog) {
 			apply();
 			applied = true;
 		    }

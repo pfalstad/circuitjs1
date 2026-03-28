@@ -63,6 +63,7 @@ class CounterElm extends ChipElm {
 	}
 
 	boolean needsBits() { return true; }
+	boolean allowBus() { return true; }
 	String getChipName() {
 	    if (modulus == 0)
 		return "Counter";
@@ -70,21 +71,16 @@ class CounterElm extends ChipElm {
 	}
 	void setupPins() {
 	    sizeX = 2;
-	    sizeY = bits > 2 ? bits : 2;
+	    sizeY = useBus() ? 3 : bits;
 	    pins = new Pin[getPostCount()];
 	    pins[0] = new Pin(0, SIDE_W, "");
 	    pins[0].clock = true;
 	    pins[0].bubble = negativeEdgeTriggered();
 	    pins[1] = new Pin(sizeY-1, SIDE_W, "R");
 	    pins[1].bubble = invertreset;
-	    int i;
-	    for (i = 0; i != bits; i++) {
-		int ii = i+2;
-		pins[ii] = new Pin(i, SIDE_E, "Q" + (bits-i-1));
-		pins[ii].output = pins[ii].state = true;
-	    }
+	    makeBitPins(bits, 0, SIDE_E, 2, "Q", true, true, true);
 	    if (hasUpDown())
-	        pins[bits+2] = new Pin(sizeY-2, SIDE_W, "U/D");
+		pins[bits+2] = new Pin(sizeY-2, SIDE_W, "U/D");
 	    allocNodes();
 	}
 	int getPostCount() {

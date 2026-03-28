@@ -16,6 +16,7 @@ public class CustomCompositeElm extends CompositeElm {
     int postCount;
     int inputCount, outputCount;
     CustomCompositeModel model;
+    double highVoltage;
     static String lastModelName = "default";
     static final int FLAG_SMALL = 2;
     
@@ -60,10 +61,13 @@ public class CustomCompositeElm extends CompositeElm {
 	dumpXmlModel(doc);
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "mo", modelName);
+	if (highVoltage != 0)
+	    XMLSerializer.dumpAttr(elem, "hv", highVoltage);
     }
 
     void undumpXml(XMLDeserializer xml) {
 	modelName = xml.parseStringAttr("mo", modelName);
+	highVoltage = xml.parseDoubleAttr("hv", 0);
 	updateModels();
 	super.undumpXml(xml);
     }
@@ -77,6 +81,10 @@ public class CustomCompositeElm extends CompositeElm {
 	chip.setSelected(needsHighlight());
 	chip.draw(g);
 	boundingBox = chip.boundingBox;
+    }
+
+    void addRoutingObstacle(WireRouter router) {
+	chip.addRoutingObstacle(router);
     }
 
     void setPoints() {
@@ -96,8 +104,10 @@ public class CustomCompositeElm extends CompositeElm {
 	for (i = 0; i != postCount; i++) {
 	    ExtListEntry pin = model.extList.get(i);
 	    chip.setPin(i, pin.pos, pin.side, pin.name);
+	    chip.pins[i].busWidth = pin.busWidth;
+	    chip.pins[i].busZ = pin.busZ;
 	}
-	
+
 	chip.setPoints();
 	for (i = 0; i != getPostCount(); i++)
 	    setPost(i, chip.getPost(i));
@@ -163,17 +173,34 @@ public class CustomCompositeElm extends CompositeElm {
 	} else {
 	    loadCompositeXml(model.getElmEntries(), externalNodes);
 	}
+	propagateHighVoltage();
 	allocNodes();
 	setPoints();
     }
     
+    void propagateHighVoltage() {
+	if (highVoltage == 0)
+	    return;
+	for (int i = 0; i != compElmList.size(); i++) {
+	    CircuitElm ce = compElmList.get(i);
+	    ce.setHighVoltage(highVoltage);
+	    if (ce instanceof CustomCompositeElm)
+		((CustomCompositeElm) ce).propagateHighVoltage();
+	}
+    }
+
+    void setHighVoltage(double hv) { highVoltage = hv; }
+
     int getPostCount() { return postCount; }
+    int getPostWidth(int n) {
+	return chip != null ? chip.getPostWidth(n) : 1;
+    }
     
     Vector<CustomCompositeModel> models;
     
     public EditInfo getEditInfo(int n) {
-	// if model is built in, don't allow it to be changed
-	if (model.builtin)
+	// if model is internal, don't allow it to be changed
+	if (model.internal)
 	    n += 2;
 	
 	if (n == 0) {
@@ -194,12 +221,15 @@ public class CustomCompositeElm extends CompositeElm {
             ei.button = new Button(Locale.LS("Edit Pin Layout"));
             return ei;
         }
-        if (n == 2) {
+        if (n == 2 && canViewComponents()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("View Components"));
             return ei;
         }
-        if (n == 3 && model.canLoadModelCircuit()) {
+	int hvIdx = (canViewComponents()) ? 3 : 2;
+        if (n == hvIdx)
+            return new EditInfo("High Logic Voltage (0=default)", highVoltage, 0, 10);
+        if (n == hvIdx+1 && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Edit Model"));
             return ei;
@@ -208,7 +238,7 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     public void setEditValue(int n, EditInfo ei) {
-	if (model.builtin)
+	if (model.internal)
 	    n += 2;
 	if (n == 0) {
             model = models.get(ei.choice.getSelectedIndex());
@@ -233,7 +263,12 @@ public class CustomCompositeElm extends CompositeElm {
             app.ui.pushSubcircuit(this, buildDisplayElmList());
             CirSim.editDialog.closeDialog();
         }
-        if (n == 3) {
+	int hvIdx = (canViewComponents()) ? 3 : 2;
+        if (n == hvIdx) {
+            highVoltage = ei.value;
+            propagateHighVoltage();
+        }
+        if (n == hvIdx+1) {
             app.pushContext(model.name);
             if (model.modelCircuit != null)
         	app.readCircuit(model.modelCircuit);
@@ -257,7 +292,7 @@ public class CustomCompositeElm extends CompositeElm {
 	    if (className == null)
 		continue;
 	    CircuitElm ce;
-	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+	    if (className.equals("WireElm") || className.equals("RoutedWireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
 		    className.equals("GraphicElm") ||
 		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
 		ce = CirSim.constructElement(className, 0, 0);
@@ -272,8 +307,22 @@ public class CustomCompositeElm extends CompositeElm {
 	return allElms;
     }
 
+    boolean canViewComponents() {
+	Vector<Element> elmEntries = model.getElmEntries();
+	XMLDeserializer xml = new XMLDeserializer(app);
+	int compIdx = 0;
+	for (Element childElem : elmEntries) {
+	    if (childElem.getAttribute("x") != null)
+		return true;
+        }
+	return false;
+    }
+
     void onDoubleClick() {
-	app.ui.pushSubcircuit(this, buildDisplayElmList());
+	if (canViewComponents())
+	    app.ui.pushSubcircuit(this, buildDisplayElmList());
+	else if (!app.ui.isReadOnly())
+            app.commands.doEdit(this);
     }
 
     int getDumpType() { return 410; }
@@ -286,11 +335,25 @@ public class CustomCompositeElm extends CompositeElm {
 	    arr[0] = model.name.substring(1);
 	else
 	    arr[0] = "subcircuit (" + model.name + ")";
-	int i;
-	for (i = 0; i != postCount; i++) {
-	    if (i+1 >= arr.length)
+	int a = 1;
+	for (int i = 0; i != postCount; i++) {
+	    if (a >= arr.length)
 		break;
-	    arr[i+1] = model.extList.get(i).name + " = " + getVoltageText(volts[i]);
+	    ExtListEntry ent = model.extList.get(i);
+	    if (ent.busZ > 0)
+		continue;
+	    if (ent.busWidth > 1) {
+		int value = 0;
+		for (int j = 0; j < ent.busWidth; j++)
+		    if (volts[i+j] > chip.getThreshold())
+			value |= 1 << j;
+		arr[a] = ent.name + " = " + value + " / 0x" + Integer.toHexString(value).toUpperCase();
+	    } else {
+		arr[a] = ent.name + " = " + getVoltageText(volts[i]);
+	    }
+	    a++;
 	}
     }
+
+    int getNumHandles() { return 0; }
 }

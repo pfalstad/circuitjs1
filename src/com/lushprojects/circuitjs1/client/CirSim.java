@@ -66,6 +66,7 @@ public class CirSim implements NativePreviewHandler {
 
     double minFrameRate = 20;
     boolean developerMode;
+
     static final int HINT_LC = 1;
     static final int HINT_RC = 2;
     static final int HINT_3DB_C = 3;
@@ -184,6 +185,7 @@ public class CirSim implements NativePreviewHandler {
 	    selectColor = qp.getValue("selectColor");
 	    currentColor = qp.getValue("currentColor");
 	    mouseModeReq = qp.getValue("mouseMode");
+
 	} catch (Exception e) { }
 
 	transform = new double[6];
@@ -199,6 +201,8 @@ public class CirSim implements NativePreviewHandler {
 
 	ui.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
 	ui.setWheelSensitivity();
+
+	CustomCompositeModel.loadModelsFromStorage();
 
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
 
@@ -247,7 +251,7 @@ public class CirSim implements NativePreviewHandler {
 
     public void setiFrameHeight() { ui.setiFrameHeight(); }
     
-    void centreCircuit() { ui.centreCircuit(); }
+    void centerCircuit() { ui.centerCircuit(); }
 
     Rectangle getCircuitBounds() { return ui.getCircuitBounds(); }
     static CirSim theApp;
@@ -384,14 +388,18 @@ public class CirSim implements NativePreviewHandler {
 
     static native String getElectronStartCircuitText() /*-{
     	return $wnd.startCircuitText;
-    }-*/;    
-    
+    }-*/;
+
+
     void allowSave(boolean b) { ui.allowSave(b); }
     
     public void importCircuitFromText(String circuitText, boolean subcircuitsOnly) {
 		int flags = subcircuitsOnly ? (CircuitLoader.RC_SUBCIRCUITS | CircuitLoader.RC_RETAIN) : 0;
+		if (!subcircuitsOnly)
+		    resetEditingContext();
 		if (circuitText != null) {
 			loader.readCircuit(circuitText, flags);
+			ExportAsLocalFileDialog.setLastFileName(null);
 			allowSave(false);
 		}
     }
@@ -447,14 +455,25 @@ public class CirSim implements NativePreviewHandler {
     }
 
     void popContext() {
+	popContextAndGetChangedModels();
+    }
+
+    // pop context and return the list of models changed at deeper levels
+    Vector<CustomCompositeModel> popContextAndGetChangedModels() {
 	if (contextStack.isEmpty())
-	    return;
+	    return new Vector<CustomCompositeModel>();
 	CircuitContext ctx = contextStack.remove(contextStack.size() - 1);
 	loader.readCircuit(ctx.circuitDump, CircuitLoader.RC_NO_CENTER);
 	transform = ctx.transform;
 	undoManager.undoStack = ctx.undoStack;
 	undoManager.redoStack = ctx.redoStack;
 	undoManager.enableUndoRedo();
+	ui.updateContextButtons();
+	return ctx.changedModels;
+    }
+
+    void resetEditingContext() {
+	contextStack.clear();
 	ui.updateContextButtons();
     }
 
@@ -531,10 +550,10 @@ public class CirSim implements NativePreviewHandler {
 	if (elm == null)
 	    return;
 	int t = elm.getDumpType();
-	if (t == 0) {
+	/*if (t == 0) {
 	    console("got dump type 0 for " + className);
 	    return;
-	}
+	}*/
 	String s = dumpTypeMap.get(t);
 	Class cs = elm.getDumpClass();
 	className = cs.getName();
@@ -605,6 +624,20 @@ public class CirSim implements NativePreviewHandler {
 	    ce.updateModels();
     }
 
+    // force all CustomCompositeElm with a given model name to re-fetch their model
+    public void refreshModels(String modelName) {
+	for (CircuitElm ce : elmList) {
+	    if (ce instanceof CustomCompositeElm) {
+		CustomCompositeElm cce = (CustomCompositeElm) ce;
+		if (cce.modelName.equals(modelName)) {
+		    cce.model = null;
+		    cce.updateModels();
+		}
+	    }
+	}
+	needAnalyze();
+    }
+
 	boolean isSelection() { return ui.isSelection(); }
 
 }
@@ -615,5 +648,6 @@ class CircuitContext {
     Vector<UndoManager.UndoItem> redoStack;
     double[] transform;
     String modelName;
+    Vector<CustomCompositeModel> changedModels = new Vector<CustomCompositeModel>();
 }
 

@@ -104,9 +104,9 @@ class GroundElm extends CircuitElm {
 	}
 	void stamp() {
 	    if (isOldStyle())
-		sim.stampVoltageSource(0, nodes[0], voltSource, 0);
+		sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource, 0);
 	}
-	void setCurrent(int x, double c) { current = isOldStyle() ? -c : c; }
+	void setCurrent(VoltageSource vs, double c) { current = isOldStyle() ? -c : c; }
 
 	boolean isWireEquivalent() { return true; }
 	boolean isRemovableWire() { return true; }
@@ -128,6 +128,13 @@ class GroundElm extends CircuitElm {
 	    arr[1] = "I = " + getCurrentText(getCurrent());
 	}
 	boolean hasGroundConnection(int n1) { return true; }
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, point2.x, point2.y);
+	    Point pa = new Point(), pb = new Point();
+	    interpPoint2(point1, point2, pa, pb, 1+11./dn, 10);
+	    router.addObstacle(new Point[] { pa, pb, point2 });
+	}
+
 	int getShortcut() { return 'g'; }
 	
 	public EditInfo getEditInfo(int n) {

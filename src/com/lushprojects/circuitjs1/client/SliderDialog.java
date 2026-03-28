@@ -42,6 +42,7 @@ class SliderDialog extends Dialog  {
 	CirSim sim;
 	Button applyButton, okButton, cancelButton;
 	EditInfo einfos[];
+	Checkbox logCheckboxes[];
 	int einfocount;
 	final int barmax = 1000;
 	VerticalPanel vp;
@@ -56,6 +57,7 @@ class SliderDialog extends Dialog  {
 		vp=new VerticalPanel();
 		setWidget(vp);
 		einfos = new EditInfo[10];
+		logCheckboxes = new Checkbox[10];
 		noCommaFormat=NumberFormat.getFormat("####.##########");
 		hp=new HorizontalPanel();
 		hp.setWidth("100%");
@@ -141,6 +143,11 @@ class SliderDialog extends Dialog  {
 			    vp.insert(new Label(Locale.LS("Max Value")), idx++);
 			    ei.maxBox = new TextBox();
 			    vp.insert(ei.maxBox, idx++);
+			    vp.insert(new Label(Locale.LS("Step (0=continuous)")), idx++);
+			    ei.stepBox = new TextBox();
+			    vp.insert(ei.stepBox, idx++);
+			    logCheckboxes[i] = new Checkbox(Locale.LS("Logarithmic"), adj.logarithmic);
+			    vp.insert(logCheckboxes[i], idx++);
 			    if (adj.sharedSlider == null) {
 				// select label if this is a new slider
 				vp.insert(new Label(Locale.LS("Label")), idx++);
@@ -150,6 +157,7 @@ class SliderDialog extends Dialog  {
 			    }
 			    ei.minBox.setText(EditDialog.unitString(ei, adj.minValue));
 			    ei.maxBox.setText(EditDialog.unitString(ei, adj.maxValue));
+			    ei.stepBox.setText(EditDialog.unitString(ei, adj.sliderStep));
 			}
 			    
 		}
@@ -178,6 +186,15 @@ class SliderDialog extends Dialog  {
 			adj.minValue = d;
 			d = EditDialog.parseUnits(ei.maxBox.getText());
 			adj.maxValue = d;
+			d = EditDialog.parseUnits(ei.stepBox.getText());
+			adj.sliderStep = d;
+			if (adj.slider != null && adj.maxValue != adj.minValue)
+			    adj.slider.setStepSize(d * 100 / (adj.maxValue - adj.minValue));
+			if (logCheckboxes[i] != null)
+			    adj.logarithmic = logCheckboxes[i].getState();
+			// guard: logarithmic requires minValue > 0
+			if (adj.logarithmic && adj.minValue <= 0)
+			    adj.logarithmic = false;
 			adj.setSliderValue(ei.value);
 		    } catch (Exception e) { CirSim.console(e.toString()); }
 		}
@@ -240,6 +257,8 @@ class SliderDialog extends Dialog  {
 	public void clearDialog() {
 		while (vp.getWidget(0)!=hp)
 			vp.remove(0);
+		for (int j = 0; j < logCheckboxes.length; j++)
+			logCheckboxes[j] = null;
 	}
 }
 

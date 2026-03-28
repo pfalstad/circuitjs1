@@ -34,6 +34,7 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 	
 	static public void doLoadCallback(String s, String t) {
 		sim.undoManager.pushUndo();
+		sim.resetEditingContext();
 		sim.loader.readCircuit(s);
 		sim.createNewLoadFile();
 		sim.setCircuitTitle(t);
@@ -67,7 +68,7 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 			var oFiles = $doc.getElementById("LoadFileElement").files,
     		nFiles = oFiles.length;
     		if (nFiles>=1) {
-    		    if (oFiles[0].size >= 128000)
+    		    if (oFiles[0].size >= 1280000)
     		    	alert("File too large!");
     		    else {
         		var reader = new FileReader();

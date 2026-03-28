@@ -26,11 +26,12 @@ import com.google.gwt.xml.client.Document;
 	Inductor ind;
 	double inductance;
 	double initialCurrent;
+	double saturationCurrent; // 0 = disabled (linear)
 	public InductorElm(int xx, int yy) {
 	    super(xx, yy);
 	    ind = new Inductor(sim);
 	    inductance = 1;
-	    ind.setup(inductance, current, flags);
+	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	public InductorElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
@@ -40,20 +41,23 @@ import com.google.gwt.xml.client.Document;
 	    current = new Double(st.nextToken()).doubleValue();
 	    try {
 		initialCurrent = new Double(st.nextToken()).doubleValue();
+		saturationCurrent = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
-	    ind.setup(inductance, current, flags);
+	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	int getDumpType() { return 'l'; }
 	String dump() {
-	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent;
+	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent;
 	}
 	
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
             XMLSerializer.dumpAttr(elem, "l", inductance);
             XMLSerializer.dumpAttr(elem, "ic", initialCurrent);
+            if (saturationCurrent != 0)
+                XMLSerializer.dumpAttr(elem, "isat", saturationCurrent);
         }
- 
+
         void dumpXmlState(Document doc, Element elem) {
             XMLSerializer.dumpAttr(elem, "i", current);
         }
@@ -63,7 +67,8 @@ import com.google.gwt.xml.client.Document;
             inductance = xml.parseDoubleAttr("l", inductance);
             initialCurrent = xml.parseDoubleAttr("ic", initialCurrent);
             current = xml.parseDoubleAttr("i", current);
-	    ind.setup(inductance, current, flags);
+            saturationCurrent = xml.parseDoubleAttr("isat", 0);
+	    ind.setup(inductance, current, flags, saturationCurrent);
         }
 
 	void setPoints() {
@@ -105,10 +110,15 @@ import com.google.gwt.xml.client.Document;
 	    ind.doStep(voltdiff);
 	}
 	void getInfo(String arr[]) {
-	    arr[0] = "inductor";
+	    arr[0] = (saturationCurrent > 0) ? "inductor (sat)" : "inductor";
 	    getBasicInfo(arr);
 	    arr[3] = "L = " + getUnitText(inductance, "H");
 	    arr[4] = "P = " + getUnitText(getPower(), "W");
+	    if (saturationCurrent > 0) {
+		double lEff = ind.calcEffectiveInductance(current);
+		arr[5] = "Leff = " + getUnitText(lEff, "H");
+		arr[6] = "Isat = " + getUnitText(saturationCurrent, "A");
+	    }
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
@@ -121,9 +131,11 @@ import com.google.gwt.xml.client.Document;
 	    }
             if (n == 2)
                 return new EditInfo("Initial Current (on Reset) (A)", initialCurrent);
+	    if (n == 3)
+		return new EditInfo("Saturation Current (A) (0=none)", saturationCurrent);
 	    return null;
 	}
-	
+
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 0 && ei.value > 0)
 		inductance = ei.value;
@@ -135,13 +147,20 @@ import com.google.gwt.xml.client.Document;
 	    }
             if (n == 2)
                 initialCurrent = ei.value;
-	    ind.setup(inductance, current, flags);
+	    if (n == 3 && ei.value >= 0)
+		saturationCurrent = ei.value;
+	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	
 	int getShortcut() { return 'L'; }
 	public double getInductance() { return inductance; }
 	void setInductance(double l) {
 	    inductance = l;
-	    ind.setup(inductance, current, flags);
+	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
+	void setSaturationCurrent(double isat) {
+	    saturationCurrent = isat;
+	    ind.setup(inductance, current, flags, saturationCurrent);
+	}
+	double getSaturationCurrent() { return saturationCurrent; }
     }

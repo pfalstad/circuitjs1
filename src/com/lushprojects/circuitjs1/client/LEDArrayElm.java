@@ -68,9 +68,17 @@ class LEDArrayElm extends ChipElm {
 	    brightness = new double[sizeX*sizeY];
 	}
 	
+	void reset() {
+	    brightness = new double[sizeX*sizeY];
+	}
+
 	Diode diodes[];
 	double currents[];
 	double brightness[];
+	double lastDrawTime;
+	double decayMultiplier = 1;
+	// time constant for exponential brightness decay (30ms persistence of vision)
+	static final double brightnessTau = .03;
 	
 	void stamp() {
 	    super.stamp();
@@ -98,6 +106,9 @@ class LEDArrayElm extends ChipElm {
         @Override boolean isDigitalChip() { return false; }
 
 	void draw(Graphics g) {
+	    double elapsed = sim.t - lastDrawTime;
+	    lastDrawTime = sim.t;
+	    decayMultiplier = (elapsed > 0) ? Math.exp(-elapsed / brightnessTau) : 1;
 	    drawChip(g);
 	    int ix, iy;
 	    for (ix = 0; ix != sizeX; ix++)
@@ -154,9 +165,9 @@ class LEDArrayElm extends ChipElm {
             if (w < 20)
                 w = 20;
             
-            // when diode turns off, made it fade gradually to simulate persistence of vision
+            // when diode turns off, fade gradually to simulate persistence of vision
             w = Math.max(w, brightness[p]);
-            brightness[p] = w*.99;
+            brightness[p] = w * decayMultiplier;
             
             Color cc = new Color((int) w, 0, 0);
             g.setColor(cc);
@@ -167,6 +178,7 @@ class LEDArrayElm extends ChipElm {
 	
 	// this is true but it causes strange behavior with unconnected pins so we don't do it
 //	boolean getConnection(int n1, int n2) { return true; }
+	boolean getMatrixConnection(int n1, int n2) { return true; }
 	
 	public EditInfo getChipEditInfo(int n) {
             if (n == 0)

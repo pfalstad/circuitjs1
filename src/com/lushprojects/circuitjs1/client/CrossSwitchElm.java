@@ -41,13 +41,13 @@ package com.lushprojects.circuitjs1.client;
 	final int posCount = 2;
 	Point poleLeads[], throwLeads[], polePosts[], throwPosts[], linePoints[];
 	Point crossPoints[];
-        int voltageSources[];
+        VoltageSource voltageSources[];
         double currents[], curcounts[];
 
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);
-	    voltageSources = new int[poleCount];
+	    voltageSources = new VoltageSource[poleCount];
 	    throwPosts = newPointArray(2*poleCount);
 	    throwLeads = newPointArray(4*poleCount);
 	    poleLeads = newPointArray(poleCount);
@@ -156,8 +156,8 @@ package com.lushprojects.circuitjs1.client;
 	    return currents[1-n/2];
 	}
 
-	void setCurrent(int vn, double c) {
-	    if (vn == voltageSources[0])
+	void setCurrent(VoltageSource vs, double c) {
+	    if (vs == voltageSources[0])
 		currents[0] = c;
 	    else
 		currents[1] = c;
@@ -178,8 +178,9 @@ package com.lushprojects.circuitjs1.client;
 	void calculateCurrent() {
 	}
 	
-        void setVoltageSource(int j, int vs) {
+        void setVoltageSource(int j, VoltageSource vs) {
             voltageSources[j] = vs;
+            vs.setNodes(nodes[j*2], nodes[j*2+1]);
         }
 
 	void stamp() {
@@ -187,7 +188,7 @@ package com.lushprojects.circuitjs1.client;
 	    if (position == 0) {
 		for (i = 0; i != poleCount; i++)
 		    sim.stampVoltageSource(nodes[i*2], nodes[i*2+1], voltageSources[i], 0);
-	    } else {		
+	    } else {
 		for (i = 0; i != poleCount; i++)
 		    sim.stampVoltageSource(nodes[i*2], nodes[3-i*2], voltageSources[i], 0);
 	    }
@@ -222,14 +223,18 @@ package com.lushprojects.circuitjs1.client;
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
+	    if (n == 1)
+		return getKeyShortcutEditInfo();
 	    return null;
 	}
-	
+
 	public void setEditValue(int n, EditInfo ei) {
 	    if (n == 0) {
 		flags = ei.changeFlag(flags, FLAG_IEC);
 		setPoints();
 	    }
+	    if (n == 1)
+		setKeyShortcutEditValue(ei);
 	}
 
     }

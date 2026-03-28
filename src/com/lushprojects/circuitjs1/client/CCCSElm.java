@@ -69,7 +69,7 @@ class CCCSElm extends VCCSElm {
             } else {
                 // voltage sources (0V) between C+ and C- so we can measure current
         	for (i = 0; i != inputCount; i += 2) {
-        	    int vn1 = pins[i+1].voltSource;
+        	    VoltageSource vn1 = pins[i+1].voltSource;
         	    sim.stampVoltageSource(nodes[i], nodes[i+1], vn1, 0);
         	}
             }
@@ -165,10 +165,10 @@ class CCCSElm extends VCCSElm {
         boolean hasCurrentOutput() { return true; }
         boolean isSpiceStyle() { return (flags & FLAG_SPICE) != 0; }
 
-        void setCurrent(int vn, double c) {
+        void setCurrent(VoltageSource vs, double c) {
             int i;
             for (i = 0; i != inputCount; i += 2)
-                if (pins[i+1].voltSource == vn) {
+                if (pins[i+1].voltSource == vs) {
                     pins[i].current = -c;
                     pins[i+1].current = c;
                     return;
@@ -207,11 +207,13 @@ class CCCSElm extends VCCSElm {
             }
         }
         
-        void setVoltageSource(int j, int vs) {
+        void setVoltageSource(int j, VoltageSource vs) {
             if (isSpiceStyle())
                 pins[inputCount].voltSource = vs;
-            else
+            else {
                 super.setVoltageSource(j, vs);
+                vs.setNodes(nodes[j*2], nodes[j*2+1]);
+            }
         }
         
         void getInfo(String arr[]) {

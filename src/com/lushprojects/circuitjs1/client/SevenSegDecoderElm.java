@@ -120,28 +120,40 @@ import com.google.gwt.xml.client.Element;
 	    return 7;
 	}
 
+	boolean needsBits() { return false; }
+	boolean allowBus() { return true; }
+
 	String getChipName() {
-	    return getSegmentCount() + "-Segment Decoder";
+	    // makes automated localization easier to do it this way
+	    if (getSegmentCount() == 7)
+		return "7-Segment Decoder";
+	    if (getSegmentCount() == 14)
+		return "14-Segment Decoder";
+	    return "16-Segment Decoder";
 	}
 
 	void setupPins() {
 	    int segCount = getSegmentCount();
+	    bits = 4;
 	    sizeX = 3;
-	    sizeY = Math.max(segCount, 4);
+	    int inputPinsY = useBus() ? 1 : 4;
+	    int outputPinsY = useBus() ? 1 : segCount;
+	    sizeY = Math.max(outputPinsY, inputPinsY + (hasBlank() ? 1 : 0));
 	    pins = new Pin[getPostCount()];
 
-	    pins[segCount+0] = new Pin(0, SIDE_W, "I3");
-	    pins[segCount+1] = new Pin(1, SIDE_W, "I2");
-	    pins[segCount+2] = new Pin(2, SIDE_W, "I1");
-	    pins[segCount+3] = new Pin(3, SIDE_W, "I0");
+	    makeBitPins(4, 0, SIDE_W, segCount, "I", false, false, true);
 
-	    for (int i = 0; i < segCount; i++) {
-		pins[i] = new Pin(i, SIDE_E, Character.toString((char)('a'+i)));
-		pins[i].output = true;
+	    if (useBus()) {
+		makeBitPins(segCount, 0, SIDE_E, 0, "seg", true, false, false);
+	    } else {
+		for (int i = 0; i < segCount; i++) {
+		    pins[i] = new Pin(i, SIDE_E, Character.toString((char)('a'+i)));
+		    pins[i].output = true;
+		}
 	    }
 
 	    if (hasBlank()) {
-		pins[segCount+4] = new Pin(4, SIDE_W, "BI");
+		pins[segCount+4] = new Pin(inputPinsY, SIDE_W, "BI");
 		pins[segCount+4].bubble = true;
 	    }
 	    allocNodes();

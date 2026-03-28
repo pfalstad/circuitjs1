@@ -66,7 +66,7 @@ class SchmittElm extends InvertingSchmittElm{
 	    
 	    double maxStep = slewRate * sim.timeStep * 1e9;
 	    out = Math.max(Math.min(lastOutputVoltage+maxStep, out), lastOutputVoltage-maxStep);
-	    sim.updateVoltageSource(0, nodes[1], voltSource, out);
+	    sim.updateVoltageSource(CircuitNode.ground, nodes[1], voltSource, out);
 	}
 
 	void draw(Graphics g) {

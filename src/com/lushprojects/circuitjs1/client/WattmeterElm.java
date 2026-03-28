@@ -24,7 +24,7 @@ import com.google.gwt.xml.client.Document;
 
 class WattmeterElm extends CircuitElm {
     int width;
-    int voltSources[];
+    VoltageSource voltSources[];
     double currents[];
     double curcounts[];
     int meter; // 0=instantaneous, 1=average
@@ -50,7 +50,7 @@ class WattmeterElm extends CircuitElm {
     }
 
     void setup() {
-	voltSources = new int[2];
+	voltSources = new VoltageSource[2];
 	currents = new double[2];
 	curcounts = new double[2];
     }
@@ -140,8 +140,9 @@ class WattmeterElm extends CircuitElm {
 	sim.stampVoltageSource(nodes[2], nodes[3], voltSources[1], 0);
     }
 
-    void setVoltageSource(int j, int vs) {
+    void setVoltageSource(int j, VoltageSource vs) {
 	voltSources[j] = vs;
+	vs.setNodes(nodes[j*2], nodes[j*2+1]);
     }
 
     void stepFinished() {
@@ -235,8 +236,8 @@ class WattmeterElm extends CircuitElm {
 
     double getPower() { return getVoltageDiff()*getCurrent(); }
 
-    void setCurrent(int vn, double c) {
-	currents[vn == voltSources[0] ? 0 : 1] = c;
+    void setCurrent(VoltageSource vs, double c) {
+	currents[vs == voltSources[0] ? 0 : 1] = c;
     }
     double getCurrentIntoNode(int n) {
 	if (n % 2 == 0)

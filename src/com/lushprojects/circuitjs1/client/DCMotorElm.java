@@ -13,7 +13,7 @@ class DCMotorElm extends CircuitElm {
     // Electrical parameters
     double resistance, inductance;
     // Electro-mechanical parameters
-    double K, Kb, J, b, gearRatio, tau; //tau reserved for static friction parameterization  
+    double K, Kb, J, b, gearRatio, tau; //tau reserved for static friction parameterization
     public double angle;
     public double speed;
 
@@ -21,7 +21,7 @@ class DCMotorElm extends CircuitElm {
 
     double coilCurrent;
     double inertiaCurrent;
-    int[] voltSources = new int[2];
+    VoltageSource[] voltSources = new VoltageSource[2];
     public DCMotorElm(int xx, int yy) { 
 	super(xx, yy); 
 	ind = new Inductor(sim);
@@ -91,7 +91,13 @@ class DCMotorElm extends CircuitElm {
     int getPostCount() { return 2; }
     int getInternalNodeCount() { return 4; }
     int getVoltageSourceCount() { return 2; }
-    void setVoltageSource(int n, int v) { voltSources[n] = v; }
+    void setVoltageSource(int n, VoltageSource v) {
+	voltSources[n] = v;
+	if (n == 0)
+	    v.setNodes(nodes[3], nodes[1]);
+	else
+	    v.setNodes(nodes[4], CircuitNode.ground);
+    }
     void reset() {
 	super.reset();
 	ind.reset();
@@ -117,10 +123,10 @@ class DCMotorElm extends CircuitElm {
 	// inertia inductor from internal nodes[4] to internal nodes[5]
 	indInertia.stamp(nodes[4], nodes[5]);
 	// resistor from  internal nodes[5] to  ground 
-	sim.stampResistor(nodes[5], 0, b);
+	sim.stampResistor(nodes[5], CircuitNode.ground, b);
 	// Voltage Source from  internal nodes[4] to ground
 	//System.out.println("doing stamp voltage");
-	sim.stampVoltageSource(nodes[4], 0, voltSources[1]); 
+	sim.stampVoltageSource(nodes[4], CircuitNode.ground, voltSources[1]); 
 	//System.out.println("doing stamp voltage "+voltSource);
     }
     void startIteration() {
@@ -143,7 +149,7 @@ class DCMotorElm extends CircuitElm {
      */
 
     void doStep() {
-	sim.updateVoltageSource(nodes[4],0, voltSources[1],
+	sim.updateVoltageSource(nodes[4], CircuitNode.ground, voltSources[1],
 		coilCurrent*K);
 	sim.updateVoltageSource(nodes[3],nodes[1], voltSources[0],
 		inertiaCurrent*Kb);
@@ -158,8 +164,8 @@ class DCMotorElm extends CircuitElm {
     }
 //    public double getCurrent() { current = (volts[2]-volts[3])/resistance; return current; }
 
-    void setCurrent(int vn, double c) {
-	if (vn == voltSources[0])
+    void setCurrent(VoltageSource vs, double c) {
+	if (vs == voltSources[0])
 	    current = c;
     }
     
@@ -221,7 +227,6 @@ class DCMotorElm extends CircuitElm {
 	arr[6] = "P = " + getUnitText(getPower(), "W");
     }
     public EditInfo getEditInfo(int n) {
-
 	if (n == 0)
 	    return new EditInfo("Armature inductance (H)", inductance, 0, 0);
 	if (n == 1)
@@ -229,34 +234,31 @@ class DCMotorElm extends CircuitElm {
 	if (n == 2)
 	    return new EditInfo("Torque constant (Nm/A)", K, 0, 0);
 	if (n == 3)
-	    return new EditInfo("Back emf constant (Vs/rad)", Kb, 0, 0);
-	if (n == 4)
 	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
-	if (n == 5)
+	if (n == 4)
 	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
-	if (n == 6)
+	if (n == 5)
 	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
-
-	if (ei.value > 0 & n==0) {
+	if (n == 0 && ei.value > 0) {
             inductance = ei.value;
             ind.setup(inductance, current, Inductor.FLAG_BACK_EULER);
         }
-	if (ei.value > 0 & n==1)
+	if (n == 1 && ei.value > 0)
 	    resistance = ei.value;
-	if (ei.value > 0 & n==2)
+	if (n == 2 && ei.value > 0) {
 	    K = ei.value;
-	if (ei.value > 0 & n==3)
-	    Kb = ei.value;
-	if (ei.value > 0 & n==4) {
+	    Kb = K;
+	}
+	if (n == 3 && ei.value > 0) {
             J = ei.value;
             indInertia.setup(J, inertiaCurrent, Inductor.FLAG_BACK_EULER);
         }
-	if (ei.value > 0 & n==5)
+	if (n == 4 && ei.value > 0)
 	    b = ei.value;
-	if (ei.value > 0 & n==6)
+	if (n == 5 && ei.value > 0)
 	    gearRatio = ei.value;
     }
 }

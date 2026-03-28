@@ -79,6 +79,11 @@ class OutputElm extends CircuitElm {
 	    drawPosts(g);
 	    g.restore();
 	}
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, x2, y2);
+	    router.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
+	}
+
 	double getVoltageDiff() { return volts[0]; }
 	void getInfo(String arr[]) {
 	    arr[0] = "output";

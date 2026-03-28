@@ -104,7 +104,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 	compNodeInfo = nodeInfoList.toArray(new String[0]);
 	extNodeIds = externalNodes;
-	numPosts = externalNodes.length;
+	numPosts = numNodes = externalNodes.length;
 	posts = new Point[numPosts];
 
 	// dump new circuits with escape()
@@ -126,10 +126,10 @@ public abstract class CompositeElm extends CircuitElm {
 	    // GroundElm is only skipped if it has coordinates, meaning it came from a
 	    // newer dump where it's purely visual.  Old-style dumps have no coordinates
 	    // and need GroundElm for simulation.
-	    if (className.equals("WireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
+	    if (className.equals("WireElm") || className.equals("RoutedWireElm") || className.equals("LabeledNodeElm") || className.equals("ScopeElm") ||
 		    className.equals("GraphicElm") ||
 		    (className.equals("GroundElm") && childElem.getAttribute("x") != null)) {
-		sim.console("skipping " + className + " in loadCompositeXml");
+		//sim.console("skipping " + className + " in loadCompositeXml");
 		continue;
 	    }
 	    CircuitElm newce = CirSim.constructElement(className, 0, 0);
@@ -144,7 +144,9 @@ public abstract class CompositeElm extends CircuitElm {
 
 	compNodeInfo = nodeInfoList.toArray(new String[0]);
 	extNodeIds = externalNodes;
-	numPosts = externalNodes.length;
+
+	// we set numNodes here to allocNodes will work when creating.  but we will fill in the real node count later during prestamp
+	numPosts = numNodes = externalNodes.length;
 	posts = new Point[numPosts];
 	flags |= FLAG_ESCAPE;
     }
@@ -167,7 +169,7 @@ public abstract class CompositeElm extends CircuitElm {
 
 		// node = 0 means ground
 		if (nodeOfThisPost == 0) {
-		    ce.setNode(thisPost, 0);
+		    ce.setNode(thisPost, CircuitNode.ground);
 		    ce.setNodeVoltage(thisPost, 0);
 		    thisPost++;
 		    continue;
@@ -295,6 +297,10 @@ public abstract class CompositeElm extends CircuitElm {
         for (Element elem: xml.getChildElements()) {
             xml.parseChildElement(elem);
 	    int ix = xml.parseIntAttr("ix", -1);
+		if (ix >= compElmList.size()) {
+		    CirSim.console("ix " + ix);
+		    for (CircuitElm ce: compElmList) CirSim.console("cel " + ce);
+		}
 	    CircuitElm ce = compElmList.get(ix);
 	    if (!elem.getTagName().equals(ce.getXmlDumpType()))
 		throw new RuntimeException("dump type mismatch for composite child: " + ix);
@@ -356,7 +362,7 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     // called to set node p (local to this element) to equal n (global)
-    public void setNode(int p, int n) {
+    public void setNode(int p, CircuitNode n) {
 	// nodes[p] = n
 	Vector<CircuitNodeLink> cnLinks;
 	super.setNode(p, n);
@@ -374,8 +380,9 @@ public abstract class CompositeElm extends CircuitElm {
     }
 
     public void delete() {
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).delete();
+	if (compElmList != null)
+	    for (int i = 0; i < compElmList.size(); i++)
+		compElmList.get(i).delete();
         super.delete();
     }
 

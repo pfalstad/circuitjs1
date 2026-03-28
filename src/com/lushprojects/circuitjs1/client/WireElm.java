@@ -20,6 +20,9 @@
 package com.lushprojects.circuitjs1.client;
 
     class WireElm extends CircuitElm {
+	int busWidth = 1;
+	double[] currents;
+
 	public WireElm(int xx, int yy) { super(xx, yy); }
 	public WireElm(int xa, int ya, int xb, int yb, int f,
 		       StringTokenizer st) {
@@ -27,17 +30,71 @@ package com.lushprojects.circuitjs1.client;
 	}
 	static final int FLAG_SHOWCURRENT = 1;
 	static final int FLAG_SHOWVOLTAGE = 2;
+	static final int FLAG_SHOW_BUS_VALUE = 4;
+	static final int FLAG_SHOW_BUS_VALUE_HEX = 8;
+
+	int getPostCount() { return busWidth * 2; }
+	int getBusWidth() { return busWidth; }
+
+	Point getPost(int n) {
+	    if (busWidth == 1)
+		return (n == 0) ? point1 : point2;
+	    if (n < busWidth)
+		return new Point(point1.x, point1.y, n);
+	    return new Point(point2.x, point2.y, n - busWidth);
+	}
+
+	int getPostWidth(int n) { return busWidth; }
+
+	boolean getConnection(int n1, int n2) {
+	    if (busWidth == 1)
+		return true;
+	    // only connect matching bits: post n1 connects to n1 +/- busWidth
+	    return Math.abs(n1 - n2) == busWidth;
+	}
+
+	Point getConnectedPost() {
+	    return point2;
+	}
+
+	Point getConnectedPost(int n) {
+	    if (busWidth == 1)
+		return (n == 0) ? point2 : point1;
+	    if (n < busWidth)
+		return new Point(point2.x, point2.y, n);
+	    return new Point(point1.x, point1.y, n - busWidth);
+	}
+
+	int getBusValue() {
+	    int value = 0;
+	    for (int i = 0; i < busWidth; i++)
+		if (volts[i] > 2.5)
+		    value |= 1 << i;
+	    return value;
+	}
+
 	void draw(Graphics g) {
+	    if (currents != null) {
+		current = 0;
+		for (int i = 0; i < currents.length; i++)
+		    current += currents[i];
+	    }
 	    setVoltageColor(g, volts[0]);
-	    drawThickLine(g, point1, point2);
+	    drawThickLine(g, point1, point2, (busWidth > 1) ? 5 : 3);
 	    doDots(g);
 	    setBbox(point1, point2, 3);
 	    String s = "";
-	    if (mustShowCurrent()) {
-	        s = getShortUnitText(Math.abs(getCurrent()), "A");
-	    } 
-	    if (mustShowVoltage()) {
-	        s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
+	    if (busWidth > 1 && (mustShowBusValue() || mustShowBusValueHex())) {
+		int value = getBusValue();
+		if (mustShowBusValue())
+		    s = ""+value;
+		if (mustShowBusValueHex())
+		    s = (s.length() > 0 ? s + " " : "") + "0x" + Integer.toHexString(value).toUpperCase();
+	    } else if (busWidth == 1) {
+		if (mustShowCurrent())
+		    s = getShortUnitText(Math.abs(getCurrent()), "A");
+		if (mustShowVoltage())
+		    s = (s.length() > 0 ? s + " " : "") + getShortUnitText(volts[0], "V");
 	    }
 	    drawValues(g, s, 4);
 	    drawPosts(g);
@@ -51,17 +108,47 @@ package com.lushprojects.circuitjs1.client;
 	boolean mustShowVoltage() {
 	    return (flags & FLAG_SHOWVOLTAGE) != 0;
 	}
+	boolean mustShowBusValue() {
+	    return (flags & FLAG_SHOW_BUS_VALUE) != 0;
+	}
+	boolean mustShowBusValueHex() {
+	    return (flags & FLAG_SHOW_BUS_VALUE_HEX) != 0;
+	}
 //	int getVoltageSourceCount() { return 1; }
 	void getInfo(String arr[]) {
-	    arr[0] = "wire";
-	    arr[1] = "I = " + getCurrentDText(getCurrent());
-	    arr[2] = "V = " + getVoltageText(volts[0]);
+	    arr[0] = (busWidth > 1) ? "bus wire (" + busWidth + ")" : "wire";
+	    if (busWidth > 1) {
+		int value = getBusValue();
+		arr[1] = "value = " + value;
+		arr[2] = "hex = 0x" + Integer.toHexString(value).toUpperCase();
+	    } else {
+		arr[1] = "I = " + getCurrentDText(getCurrent());
+		arr[2] = "V = " + getVoltageText(volts[0]);
+	    }
 	}
 	int getDumpType() { return 'w'; }
 	double getPower() { return 0; }
 	double getVoltageDiff() { return volts[0]; }
 	boolean isWireEquivalent() { return true; }
 	boolean isRemovableWire() { return true; }
+
+	void setWireCurrent(int bit, double c) {
+	    if (currents != null)
+		currents[bit] = c;
+	    else
+		current = c;
+	}
+
+	double getCurrentIntoNode(int n) {
+	    if (currents != null) {
+		if (n < busWidth)
+		    return -currents[n];
+		return currents[n - busWidth];
+	    }
+	    if (n == 0)
+		return -current;
+	    return current;
+	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
@@ -71,6 +158,16 @@ package com.lushprojects.circuitjs1.client;
 	    if (n == 1) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Show Voltage", mustShowVoltage());
+		return ei;
+	    }
+	    if (n == 2) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Show Bus Value", mustShowBusValue());
+		return ei;
+	    }
+	    if (n == 3) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Show Bus Value (Hex)", mustShowBusValueHex());
 		return ei;
 	    }
 	    return null;
@@ -88,6 +185,10 @@ package com.lushprojects.circuitjs1.client;
 		else
 		    flags &= ~FLAG_SHOWVOLTAGE;
 	    }
+	    if (n == 2)
+		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE);
+	    if (n == 3)
+		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE_HEX);
 	}
         int getShortcut() { return 'w'; }
 

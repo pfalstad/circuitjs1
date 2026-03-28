@@ -79,10 +79,11 @@ class EditInfo {
 	boolean dimensionless;
 	boolean noSliders;
 	boolean isColor;
+	boolean newColumn;
 	double minVal, maxVal;
 	
 	// for slider dialog
-	TextBox minBox, maxBox, labelBox;
+	TextBox minBox, maxBox, labelBox, stepBox;
 	
 	boolean canCreateAdjustable() {
 	    return choice == null && checkbox == null && button == null && textArea == null &&

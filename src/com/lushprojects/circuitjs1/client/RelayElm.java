@@ -162,7 +162,7 @@ class RelayElm extends CircuitElm {
         offCurrent = xml.parseDoubleAttr("of", offCurrent);
         switchingTime = xml.parseDoubleAttr("sw", switchingTime);
         coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
-        i_position = xml.parseIntAttr("ip", i_position);
+        d_position = i_position = xml.parseIntAttr("ip", i_position);
 	postUndump();
     }
     
@@ -347,8 +347,8 @@ class RelayElm extends CircuitElm {
 	// matching the analog switch approach
 	if (needsPulldown()) {
 	    for (i = 0; i < poleCount; i++) {
-		sim.stampResistor(nodes[nSwitch1+i*3], 0, r_off);
-		sim.stampResistor(nodes[nSwitch2+i*3], 0, r_off);
+		sim.stampResistor(nodes[nSwitch1+i*3], CircuitNode.ground, r_off);
+		sim.stampResistor(nodes[nSwitch2+i*3], CircuitNode.ground, r_off);
 	    }
 	}
     }
@@ -562,18 +562,9 @@ class RelayElm extends CircuitElm {
     boolean getConnection(int n1, int n2) {
 	if (n1 / 3 != n2 / 3)
 	    return false;
-	// coil nodes are always connected to each other
-	if (n1 >= nCoil1)
-	    return true;
-	if (!needsPulldown())
-	    return true;
-	// with pulldown, only the active contact is connected to pole
-	int k1 = n1 % 3, k2 = n2 % 3;
-	if (i_position == 0)
-	    return comparePair(k1, k2, 0, 1);
-	if (i_position == 1)
-	    return comparePair(k1, k2, 0, 2);
-	return false; // intermediate: nothing connected
+
+	// nodes in the same group (both coil or both same switch) are potentially connected
+	return true;
     }
 
     boolean hasGroundConnection(int n) {
