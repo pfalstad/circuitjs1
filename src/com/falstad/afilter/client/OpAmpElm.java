@@ -124,6 +124,19 @@ package com.falstad.afilter.client;
 	    sim.stampMatrix(vn, nodes[1], -g1);
 	    sim.stampMatrix(vn, nodes[2], 1);
 	}
+	void polyStamp() {
+	    int vn = sim.nodeList.size()+voltSource;
+	    // Single-pole model: A(s) = A0*wp/(s+wp), wp = 2*pi*gbw/A0
+	    // Equation: (s+wp)*Vout + A0*wp*(V- - V+) = 0
+	    // After s-multiplication:
+	    //   (s^2 + s*wp)*Vout + s*A0*wp*V- - s*A0*wp*V+ = 0
+	    double wp = 2*Math.PI*gbw/gain;
+	    double A0wp = gain*wp;
+	    sim.stampPolyMatrix(nodes[2], vn, new Polynomial(0, 1));
+	    sim.stampPolyMatrix(vn, nodes[0], new Polynomial(0, A0wp));
+	    sim.stampPolyMatrix(vn, nodes[1], new Polynomial(0, -A0wp));
+	    sim.stampPolyMatrix(vn, nodes[2], new Polynomial(0, wp, 1));
+	}
 	// there is no current path through the op-amp inputs, but there
 	// is an indirect path through the output to ground.
 	boolean getConnection(int n1, int n2) { return false; }

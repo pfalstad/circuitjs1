@@ -141,6 +141,53 @@ class TransLineElm extends CircuitElm {
 	sim.stampVCVS(nodes[2], nodes[4], coef, voltSource2);
     }
 
+    void polyStamp() {
+	// Resistors: s-multiplied admittance = s/Z0
+	Polynomial sOverZ = new Polynomial(0, 1.0/imped);
+	sim.stampPolyAdmittance(nodes[2], nodes[4], sOverZ);
+	sim.stampPolyAdmittance(nodes[3], nodes[5], sOverZ);
+
+	// Padé [1/1] approximation: e^(-sT) ~ (2-sT)/(2+sT)
+	// We multiply each voltage source equation row by (2+sT)
+	// so the delay coefficient becomes polynomial (2-sT).
+	// The extra (2+sT) factor cancels in the transfer function ratio.
+	double T = delay;
+	// (2+sT) after s-mult: s*(2+sT) = 2s + s^2*T
+	Polynomial sMult2psT  = new Polynomial(0, 2, T);   // s*(2+sT)
+	Polynomial sMultNeg2psT = new Polynomial(0, -2, -T);
+	// (2-sT) after s-mult: s*(2-sT) = 2s - s^2*T
+	Polynomial sMult2msT  = new Polynomial(0, 2, -T);
+	Polynomial sMultNeg2msT = new Polynomial(0, -2, T);
+
+	int vn1 = sim.nodeList.size()+voltSource1;
+	int vn2 = sim.nodeList.size()+voltSource2;
+
+	// Voltage source 1: nodes[4] to nodes[0]
+	// Row vn1: -1*V[4] + 1*V[0], multiplied by (2+sT) and then by s:
+	sim.stampPolyMatrix(vn1, nodes[4], sMultNeg2psT);
+	sim.stampPolyMatrix(vn1, nodes[0], sMult2psT);
+	// Current linkage (on node rows, NOT multiplied by extra factor):
+	sim.stampPolyMatrix(nodes[4], vn1, new Polynomial(0, 1));   // s
+	sim.stampPolyMatrix(nodes[0], vn1, new Polynomial(0, -1));  // -s
+
+	// VCVS on vs1: coef*(V[3]-V[1]) + coef*(V[3]-V[5])
+	// coef = (2-sT), after s-mult: s*(2-sT)
+	sim.stampPolyMatrix(vn1, nodes[3], sMult2msT.add(sMult2msT)); // 2*coef for nodes[3]
+	sim.stampPolyMatrix(vn1, nodes[1], sMultNeg2msT);             // -coef for nodes[1]
+	sim.stampPolyMatrix(vn1, nodes[5], sMultNeg2msT);             // -coef for nodes[5]
+
+	// Voltage source 2: nodes[5] to nodes[1]
+	sim.stampPolyMatrix(vn2, nodes[5], sMultNeg2psT);
+	sim.stampPolyMatrix(vn2, nodes[1], sMult2psT);
+	sim.stampPolyMatrix(nodes[5], vn2, new Polynomial(0, 1));
+	sim.stampPolyMatrix(nodes[1], vn2, new Polynomial(0, -1));
+
+	// VCVS on vs2: coef*(V[2]-V[0]) + coef*(V[2]-V[4])
+	sim.stampPolyMatrix(vn2, nodes[2], sMult2msT.add(sMult2msT));
+	sim.stampPolyMatrix(vn2, nodes[0], sMultNeg2msT);
+	sim.stampPolyMatrix(vn2, nodes[4], sMultNeg2msT);
+    }
+
     Point getPost(int n) {
 	return posts[n];
     }

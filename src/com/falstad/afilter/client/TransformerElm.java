@@ -170,6 +170,25 @@ package com.falstad.afilter.client;
 	    sim.stampRightSide(nodes[2]);
 	    sim.stampRightSide(nodes[3]);
 	}
+	void polyStamp() {
+	    // s-domain admittance form (s-multiplied).
+	    // Coupled inductor: di1/dt = (l2*v1 - m*v2)*deti
+	    //                   di2/dt = (-m*v1 + l1*v2)*deti
+	    // In s-domain: i1 = (l2*v1 - m*v2)*deti/s
+	    // After s-multiplication the admittance entries become constants.
+	    double l1 = inductance;
+	    double l2 = inductance*ratio*ratio;
+	    double m = couplingCoef*Math.sqrt(l1*l2);
+	    double deti = 1/(l1*l2-m*m);
+	    sim.stampPolyConductance(nodes[0], nodes[2],
+		new Polynomial(l2*deti));
+	    sim.stampPolyVCCurrentSource(nodes[0], nodes[2],
+		nodes[1], nodes[3], new Polynomial(-m*deti));
+	    sim.stampPolyVCCurrentSource(nodes[1], nodes[3],
+		nodes[0], nodes[2], new Polynomial(-m*deti));
+	    sim.stampPolyConductance(nodes[1], nodes[3],
+		new Polynomial(l1*deti));
+	}
 	void startIteration() {
 	    double voltdiff1 = volts[0]-volts[2];
 	    double voltdiff2 = volts[1]-volts[3];

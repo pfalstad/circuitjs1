@@ -49,6 +49,9 @@ package com.falstad.afilter.client;
 	void stamp() {
 	    sim.stampVoltageSource(0, nodes[0], voltSource, 0);
 	}
+	void polyStamp() {
+	    sim.stampPolyVoltageSource(0, nodes[0], voltSource, 0);
+	}
 	double getVoltageDiff() { return 0; }
 	int getVoltageSourceCount() { return 1; }
 	void getInfo(String arr[]) {

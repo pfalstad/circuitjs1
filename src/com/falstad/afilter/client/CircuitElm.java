@@ -356,6 +356,7 @@ public abstract class CircuitElm implements Editable {
     }
     
     void stamp() {}
+    void polyStamp() {}
     int getVoltageSourceCount() { return 0; }
     int getInternalNodeCount() { return 0; }
     void setNode(int p, int n) { nodes[p] = n; }

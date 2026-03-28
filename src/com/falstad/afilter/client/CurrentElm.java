@@ -76,6 +76,9 @@ package com.falstad.afilter.client;
 	    current = currentValue;
 	    sim.stampCurrentSource(nodes[0], nodes[1], current);
 	}
+	void polyStamp() {
+	    sim.stampPolyCurrentSource(nodes[0], nodes[1], currentValue);
+	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return new EditInfo("Current (A)", currentValue, 0, .1);

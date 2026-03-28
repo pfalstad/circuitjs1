@@ -68,6 +68,11 @@ package com.falstad.afilter.client;
 	void stamp() {
 	    sim.stampReactance(nodes[0], nodes[1], -1/(sim.omega*capacitance));
 	}
+	void polyStamp() {
+	    // s * sC = s^2 * C
+	    sim.stampPolyAdmittance(nodes[0], nodes[1],
+		new Polynomial(0, 0, capacitance));
+	}
 	void getInfo(String arr[]) {
 	    arr[0] = "capacitor";
 	    int x = getBasicInfo(arr);

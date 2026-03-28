@@ -126,6 +126,11 @@ import com.google.gwt.canvas.dom.client.CanvasGradient;
 	void stamp() {
 	    sim.stampResistor(nodes[0], nodes[1], resistance);
 	}
+	void polyStamp() {
+	    // s * (1/R) = s/R
+	    sim.stampPolyAdmittance(nodes[0], nodes[1],
+		new Polynomial(0, 1.0/resistance));
+	}
 	void getInfo(String arr[]) {
 	    arr[0] = "resistor";
 	    int x = getBasicInfo(arr);

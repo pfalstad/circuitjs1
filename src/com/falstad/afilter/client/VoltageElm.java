@@ -93,6 +93,10 @@ class VoltageElm extends CircuitElm {
 	else
 	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource);
     }
+    void polyStamp() {
+	double v = (waveform == WF_DC) ? getVoltage() : maxVoltage;
+	sim.stampPolyVoltageSource(nodes[0], nodes[1], voltSource, v);
+    }
     void doStep() {
 	if (waveform != WF_DC)
 	    sim.updateVoltageSource(nodes[0], nodes[1], voltSource,

@@ -47,6 +47,9 @@ package com.falstad.afilter.client;
 	void stamp() {
 	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource, 0);
 	}
+	void polyStamp() {
+	    sim.stampPolyVoltageSource(nodes[0], nodes[1], voltSource, 0);
+	}
 	boolean mustShowCurrent() {
 	    return (flags & FLAG_SHOWCURRENT) != 0;
 	}

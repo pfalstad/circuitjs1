@@ -232,6 +232,10 @@ MouseOutHandler, MouseWheelHandler {
     boolean circuitNonLinear;
     int voltageSourceCount;
     int circuitMatrixSize, circuitMatrixFullSize;
+    Polynomial polyMatrix[][], polyRightSide[];
+    Polynomial transferNum, transferDen;
+    Complex[] polyPoles, polyZeros;
+    boolean polyDirty;
     boolean circuitNeedsMap;
  //   public boolean useFrame;
     int scopeCount;
@@ -1591,10 +1595,12 @@ MouseOutHandler, MouseWheelHandler {
 
     void drawPoles(Graphics g) {
         Complex poles[] = null;
-        if (customizer != null)
-            poles = customizer.getPoles();
-        if (poles == null)
-            poles = getHintPoles();
+        // always use our computed poles/zeros
+        //if (customizer != null)
+        //    poles = customizer.getPoles();
+        //if (poles == null)
+        //    poles = getHintPoles();
+        poles = polyPoles;
         //System.out.println(hintType + " " + customizer + " " + poles);
         if (poles == null) {
             g.setColor(Color.black);
@@ -1665,7 +1671,8 @@ MouseOutHandler, MouseWheelHandler {
                 g.drawLine(cx-2, cy-2, cx+2, cy+2);
                 g.drawLine(cx+2, cy-2, cx-2, cy+2);
             }
-            Complex zeros[] = customizer.getZeros();
+            // always use our computed zeros
+            Complex zeros[] = polyZeros;
             if (zeros != null) {
                 for (i = 0; i != zeros.length; i++) {
                     Complex c = zeros[i];
@@ -2065,10 +2072,7 @@ MouseOutHandler, MouseWheelHandler {
 	needsClosure = true;
 	response = new double[responseArea == null ? 1024 : responseArea.width];
 	phaseResponse = new double[response.length];
-	specStep = 1;
-	while (specStep < response.length)
-	    specStep *= 2;
-	specIndex = specStep/2;
+	polyDirty = true;
 	calcResponse();
 	idealResponse = null;
 	if (customizer != null)
@@ -2077,58 +2081,179 @@ MouseOutHandler, MouseWheelHandler {
 
     int specIndex, specStep;
     boolean needsClosure = true;
-    
-    void calcResponse() {
-	int i, j, fi;
-	int matrixSize = circuitMatrixSize;
-	long tm = System.currentTimeMillis() + 50;
-	if (specStep == 0)
-	    return;
-	int steps = 0;
-	while (specStep != 0 && System.currentTimeMillis() <= tm) {
-	    steps++;
-	    fi = specIndex-1;
-	    frequency = linearToFrequency(fi/(double) response.length);
-	    solveCircuit();
-	    
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (ce instanceof OutputElm) {
-		    int n = ce.getNode(0);
-		    response[fi] = circuitRightSide[n-1].mag();
-		    phaseResponse[fi] = -circuitRightSide[n-1].phase();
-		}
-	    }
 
-	    // interpolate
-	    int prev = specIndex-specStep/2-1;
-	    if (prev >= 0) {
-		for (i = prev+1; i < fi; i++) {
-		    double w = (i-prev)/(fi-(double)prev);
-		    response[i] = response[prev]*(1-w) + response[fi]*w;
-		    phaseResponse[i] = phaseResponse[prev]*(1-w) +
-			phaseResponse[fi]*w;
+    void buildTransferFunction() {
+	int i, j;
+	int matrixSize = circuitMatrixSize;
+
+	// Guard: if circuit not yet initialized, bail out
+	if (nodeList == null || matrixSize == 0) {
+	    console("buildTransferFunction: circuit not initialized yet");
+	    transferNum = new Polynomial(0);
+	    transferDen = new Polynomial(1.0);
+	    polyPoles = new Complex[0];
+	    polyZeros = new Complex[0];
+	    polyDirty = false;
+	    return;
+	}
+
+	console("buildTransferFunction: matrixSize=" + matrixSize +
+		" elmCount=" + elmList.size() +
+		" nodeCount=" + nodeList.size());
+
+	// Allocate polynomial matrix and right-hand side
+	polyMatrix = new Polynomial[matrixSize][matrixSize];
+	polyRightSide = new Polynomial[matrixSize];
+	Polynomial zero = new Polynomial(0);
+	for (i = 0; i < matrixSize; i++) {
+	    polyRightSide[i] = zero;
+	    for (j = 0; j < matrixSize; j++)
+		polyMatrix[i][j] = zero;
+	}
+
+	// Stamp all elements (polynomial/s-multiplied versions)
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    ce.polyStamp();
+	}
+
+	// Handle unconnected nodes (same logic as solveCircuit)
+	if (needsClosure) {
+	    boolean closure[] = new boolean[nodeList.size()];
+	    boolean changed = true;
+	    closure[0] = true;
+	    while (changed) {
+		changed = false;
+		for (i = 0; i != elmList.size(); i++) {
+		    CircuitElm ce = getElm(i);
+		    for (j = 0; j < ce.getConnectionNodeCount(); j++) {
+			if (!closure[ce.getConnectionNode(j)]) {
+			    if (ce.hasGroundConnection(j))
+				closure[ce.getConnectionNode(j)] = changed = true;
+			    continue;
+			}
+			int k;
+			for (k = 0; k != ce.getConnectionNodeCount(); k++) {
+			    if (j == k)
+				continue;
+			    int kn = ce.getConnectionNode(k);
+			    if (ce.getConnection(j, k) && !closure[kn]) {
+				closure[kn] = true;
+				changed = true;
+			    }
+			}
+		    }
 		}
-	    }
-	    int next = specIndex+specStep/2-1;
-	    if (next < response.length) {
-		for (i = fi+1; i < next; i++) {
-		    double w = (next-i)/(next-(double)fi);
-		    response[i] = response[next]*(1-w) + response[fi]*w;
-		    phaseResponse[i] =
-			phaseResponse[next]*(1-w) + phaseResponse[fi]*w;
-		}
-	    }
-	    
-	    // next step
-	    specIndex += specStep;
-	    if (specIndex > response.length) {
-		specStep /= 2;
-		specIndex = specStep/2;
-		if (specStep == 1)
-		    specStep = 0;
+		if (changed)
+		    continue;
+		for (i = 0; i != nodeList.size(); i++)
+		    if (!closure[i] && !getCircuitNode(i).internal) {
+			console("polyStamp: node " + i + " unconnected");
+			stampPolyAdmittance(0, i, new Polynomial(0, 1e-8));
+			closure[i] = true;
+			changed = true;
+			break;
+		    }
 	    }
 	}
+
+	// Find output node
+	int outputNode = -1;
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (ce instanceof OutputElm) {
+		outputNode = ce.getNode(0) - 1; // 0-indexed into matrix
+		break;
+	    }
+	}
+
+	console("buildTransferFunction: outputNode=" + outputNode + " (matrix index)");
+
+	if (outputNode < 0) {
+	    transferNum = new Polynomial(0);
+	    transferDen = new Polynomial(1.0);
+	    polyPoles = new Complex[0];
+	    polyZeros = new Complex[0];
+	    polyDirty = false;
+	    return;
+	}
+
+	// Debug: dump poly matrix
+	for (j = 0; j < matrixSize; j++) {
+	    String s = "polyRow " + j + ": ";
+	    for (i = 0; i < matrixSize; i++)
+		s += polyMatrix[j][i].asString() + ", ";
+	    s += " | " + polyRightSide[j].asString();
+	    console(s);
+	}
+
+	// Compute denominator = det(polyMatrix)
+	transferDen = PolynomialMatrix.determinant(polyMatrix, matrixSize);
+	console("transferDen: " + transferDen.asString());
+
+	// Compute numerator via Cramer's rule
+	transferNum = PolynomialMatrix.cramerNumerator(
+		polyMatrix, polyRightSide, matrixSize, outputNode);
+	console("transferNum (raw): " + transferNum.asString());
+
+	// Strip only the common s^n factor (from the s-multiplication).
+	// The minimum of the two lowest powers is the common factor;
+	// any extra s factors in the numerator are real zeros at the origin.
+	int commonPower = Math.min(transferNum.lowestPower(),
+				   transferDen.lowestPower());
+	console("stripping common s^" + commonPower +
+		" (num lowest=" + transferNum.lowestPower() +
+		" den lowest=" + transferDen.lowestPower() + ")");
+	transferNum = transferNum.divideByS(commonPower);
+	transferDen = transferDen.divideByS(commonPower);
+	console("transferNum (stripped): " + transferNum.asString());
+	console("transferDen (stripped): " + transferDen.asString());
+
+	// Find poles and zeros
+	polyPoles = RootFinder.findRoots(transferDen);
+	polyZeros = RootFinder.findRoots(transferNum);
+
+	console("poles (" + polyPoles.length + "):");
+	for (i = 0; i < polyPoles.length; i++)
+	    console("  " + polyPoles[i].asString());
+	console("zeros (" + polyZeros.length + "):");
+	for (i = 0; i < polyZeros.length; i++)
+	    console("  " + polyZeros[i].asString());
+
+	polyDirty = false;
+    }
+
+    void calcResponse() {
+	int i, fi;
+
+	// Guard: if response array not allocated yet, bail
+	if (response == null)
+	    return;
+
+	// Build transfer function if needed
+	if (polyDirty || transferNum == null)
+	    buildTransferFunction();
+
+	if (transferDen.isZero()) {
+	    // Singular — fall back to zero response
+	    for (fi = 0; fi < response.length; fi++) {
+		response[fi] = 0;
+		phaseResponse[fi] = 0;
+	    }
+	} else {
+	    // Evaluate H(jw) = N(jw)/D(jw) at each frequency point
+	    for (fi = 0; fi < response.length; fi++) {
+		frequency = linearToFrequency(fi/(double) response.length);
+		double w = 2*pi*frequency;
+		Complex jw = new Complex(0, w);
+		Complex num = transferNum.evaluate(jw);
+		Complex den = transferDen.evaluate(jw);
+		num.divide(den);
+		response[fi] = num.mag();
+		phaseResponse[fi] = -num.phase();
+	    }
+	}
+
 	double maxResponse = 0;
 	for (i = 0; i != response.length; i++)
 	    if (response[i] > maxResponse)
@@ -2139,9 +2264,8 @@ MouseOutHandler, MouseWheelHandler {
 	    responseAdjust /= 100;
 	    responseZero++;
 	}
-//	console("did " + steps + " steps");
-//	if (specStep != 0)
-//	    cv.repaint();
+	// Mark complete (no more incremental steps needed)
+	specStep = 0;
     }
 
     void solveCircuit() {
@@ -2548,6 +2672,70 @@ MouseOutHandler, MouseWheelHandler {
 	    circuitRowInfo[i-1].lsChanges = true;
     }
 
+    // --- Polynomial stamping methods (s-multiplied) ---
+
+    void stampPolyMatrix(int i, int j, Polynomial p) {
+	if (i > 0 && j > 0) {
+	    i--;
+	    j--;
+	    polyMatrix[i][j] = polyMatrix[i][j].add(p);
+	}
+    }
+
+    void stampPolyRightSide(int i, Polynomial p) {
+	if (i > 0) {
+	    i--;
+	    polyRightSide[i] = polyRightSide[i].add(p);
+	}
+    }
+
+    void stampPolyAdmittance(int n1, int n2, Polynomial p) {
+	stampPolyMatrix(n1, n1, p);
+	stampPolyMatrix(n2, n2, p);
+	stampPolyMatrix(n1, n2, p.negate());
+	stampPolyMatrix(n2, n1, p.negate());
+    }
+
+    void stampPolyVoltageSource(int n1, int n2, int vs, double v) {
+	CirSim.console("stamp poly voltage source " + n1 + " " + n2 + " " + vs + " " + v);
+	int vn = nodeList.size() + vs;
+	Polynomial sPos = new Polynomial(0, 1);   // s
+	Polynomial sNeg = new Polynomial(0, -1);  // -s
+	stampPolyMatrix(vn, n1, sNeg);   // -s
+	stampPolyMatrix(vn, n2, sPos);   // s
+	stampPolyRightSide(vn, new Polynomial(0, v));  // s*v
+	stampPolyMatrix(n1, vn, sPos);   // s
+	stampPolyMatrix(n2, vn, sNeg);   // -s
+    }
+
+    void stampPolyCurrentSource(int n1, int n2, double i) {
+	stampPolyRightSide(n1, new Polynomial(0, -i));  // -s*i
+	stampPolyRightSide(n2, new Polynomial(0, i));    // s*i
+    }
+
+    void stampPolyVCCurrentSource(int cn1, int cn2, int vn1, int vn2,
+	    Polynomial g) {
+	stampPolyMatrix(cn1, vn1, g);
+	stampPolyMatrix(cn2, vn2, g);
+	stampPolyMatrix(cn1, vn2, g.negate());
+	stampPolyMatrix(cn2, vn1, g.negate());
+    }
+
+    void stampPolyConductance(int n1, int n2, Polynomial g) {
+	stampPolyAdmittance(n1, n2, g);
+    }
+
+    void stampPolyCCCS(int n1, int n2, int vs, Polynomial gain) {
+	int vn = nodeList.size() + vs;
+	stampPolyMatrix(n1, vn, gain);
+	stampPolyMatrix(n2, vn, gain.negate());
+    }
+
+    void stampPolyVCVS(int n1, int n2, Polynomial coef, int vs) {
+	int vn = nodeList.size() + vs;
+	stampPolyMatrix(vn, n1, coef);
+	stampPolyMatrix(vn, n2, coef.negate());
+    }
 
     double getIterCount() {
     	// IES - remove interaction

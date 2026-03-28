@@ -76,6 +76,10 @@ class RailElm extends VoltageElm {
 	else
 	    sim.stampVoltageSource(0, nodes[0], voltSource);
     }
+    void polyStamp() {
+	double v = (waveform == WF_DC) ? getVoltage() : maxVoltage;
+	sim.stampPolyVoltageSource(0, nodes[0], voltSource, v);
+    }
     void doStep() {
 	if (waveform != WF_DC)
 	    sim.updateVoltageSource(0, nodes[0], voltSource, getVoltage());

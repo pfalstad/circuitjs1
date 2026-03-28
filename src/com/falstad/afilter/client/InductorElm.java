@@ -40,6 +40,11 @@ package com.falstad.afilter.client;
 	void stamp() {
 	    sim.stampReactance(nodes[0], nodes[1], sim.omega*inductance);
 	}
+	void polyStamp() {
+	    // s * 1/(sL) = 1/L (constant)
+	    sim.stampPolyAdmittance(nodes[0], nodes[1],
+		new Polynomial(1.0/inductance));
+	}
 	void calculateCurrent() {
 	    Complex q = new Complex(volts[0]-volts[1], voltsi[0]-voltsi[1]);
 	    q.mult(0, 1/(sim.omega*inductance));

@@ -78,6 +78,9 @@ class SweepElm extends CircuitElm {
     void stamp() {
 	sim.stampVoltageSource(0, nodes[0], voltSource, 1);
     }
+    void polyStamp() {
+	sim.stampPolyVoltageSource(0, nodes[0], voltSource, 1);
+    }
     double fadd, fmul, freqTime;
     int dir = 1;
     void setParams() {
