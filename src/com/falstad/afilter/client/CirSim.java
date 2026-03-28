@@ -238,6 +238,7 @@ MouseOutHandler, MouseWheelHandler {
     boolean polyDirty;
     int[] polyIndexMap; // maps raw node/VS index to reduced matrix index (0=skip)
     int polyMatrixSize; // reduced matrix size
+    boolean useOldSolve; // true when transmission lines present (infinite poles)
     boolean circuitNeedsMap;
  //   public boolean useFrame;
     int scopeCount;
@@ -1206,7 +1207,7 @@ MouseOutHandler, MouseWheelHandler {
 	    analyzeCircuit();
 	    analyzeFlag = false;
 	}
-	calcResponse();
+	//calcResponse();
 	frequency = (animateFreq > 0) ? animateFreq : selectedFreq;
 //	if (editDialog != null && editDialog.elm instanceof CircuitElm)
 //	    mouseElm = (CircuitElm) (editDialog.elm);
@@ -1603,7 +1604,9 @@ MouseOutHandler, MouseWheelHandler {
         //if (poles == null)
         //    poles = getHintPoles();
         poles = polyPoles;
-        //System.out.println(hintType + " " + customizer + " " + poles);
+        // Fall back to customizer poles if polynomial poles unavailable
+        if ((poles == null || poles.length == 0) && customizer != null)
+            poles = customizer.getPoles();
         if (poles == null) {
             g.setColor(Color.black);
             g.fillRect(polesArea.x, polesArea.y,
@@ -2181,6 +2184,30 @@ MouseOutHandler, MouseWheelHandler {
 		newVSCount + " matrix " + circuitMatrixSize + "->" +
 		polyMatrixSize);
 
+	// Check for transmission lines (infinite poles — can't represent as polynomial)
+	boolean hasTransLine = false;
+	for (i = 0; i != elmList.size(); i++) {
+	    if (getElm(i) instanceof TransLineElm) {
+		hasTransLine = true;
+		break;
+	    }
+	}
+	useOldSolve = hasTransLine || polyMatrixSize > 10;
+
+	// If matrix is too large for cofactor expansion or has trans lines,
+	// skip polynomial determinant and fall back to per-frequency solve
+	if (useOldSolve) {
+	    console("buildTransferFunction: skipping polynomial determinant" +
+		    (hasTransLine ? " (transmission line present)" :
+		     " (matrix too large: " + polyMatrixSize + ")"));
+	    transferNum = new Polynomial(0);
+	    transferDen = new Polynomial(1.0);
+	    polyPoles = new Complex[0];
+	    polyZeros = new Complex[0];
+	    polyDirty = false;
+	    return;
+	}
+
 	// Allocate reduced polynomial matrix and right-hand side
 	polyMatrix = new Polynomial[polyMatrixSize][polyMatrixSize];
 	polyRightSide = new Polynomial[polyMatrixSize];
@@ -2339,7 +2366,21 @@ MouseOutHandler, MouseWheelHandler {
 	if (polyDirty || transferNum == null)
 	    buildTransferFunction();
 
-	if (transferDen.isZero()) {
+	if (useOldSolve || transferNum.isZero()) {
+	    // Use per-frequency matrix solve (transmission lines or large matrix)
+	    for (fi = 0; fi < response.length; fi++) {
+		frequency = linearToFrequency(fi/(double) response.length);
+		solveCircuit();
+		for (i = 0; i != elmList.size(); i++) {
+		    CircuitElm ce = getElm(i);
+		    if (ce instanceof OutputElm) {
+			int n = ce.getNode(0);
+			response[fi] = circuitRightSide[n-1].mag();
+			phaseResponse[fi] = -circuitRightSide[n-1].phase();
+		    }
+		}
+	    }
+	} else if (transferDen.isZero()) {
 	    // Singular — fall back to zero response
 	    for (fi = 0; fi < response.length; fi++) {
 		response[fi] = 0;
