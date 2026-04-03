@@ -23,6 +23,8 @@ import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 class TriodeElm extends CircuitElm {
+    final int FLAG_FLIP = 1;
+    final int FLAG_DSIGN_FIX = 2;
     double mu, kg1;
     double curcountp, curcountc, curcountg, currentp, currentg, currentc;
     final double gridCurrentR = 6000;
@@ -30,6 +32,7 @@ class TriodeElm extends CircuitElm {
 	super(xx, yy);
 	mu = 93;
 	kg1 = 680;
+	flags |= FLAG_DSIGN_FIX;
 	setup();
     }
     public TriodeElm(int xa, int ya, int xb, int yb, int f,
@@ -65,17 +68,20 @@ class TriodeElm extends CircuitElm {
     int circler;
     void setPoints() {
 	super.setPoints();
+	int s = ((flags & FLAG_DSIGN_FIX) != 0) ? dsign : 1;
+	if ((flags & FLAG_FLIP) != 0)
+	    s = -s;
 	plate = newPointArray(4);
 	grid  = newPointArray(8);
 	cath  = newPointArray(4);
 	grid[0] = point1;
-	int nearw = 8;
+	int nearw = 8*s;
 	interpPoint(point1, point2, plate[1], 1, nearw);
-	int farw  = 32;
+	int farw  = 32*s;
 	interpPoint(point1, point2, plate[0], 1, farw);
 	int platew = 18;
 	interpPoint2(point2, plate[1], plate[2], plate[3], 1, platew);
-	    
+
 	circler = 24;
 	interpPoint(point1, point2, grid[1], (dn-circler)/dn, 0);
 	int i;
@@ -85,7 +91,7 @@ class TriodeElm extends CircuitElm {
 	}
 	midgrid = point2;
 
-	int cathw = 16;
+	int cathw = 16*s;
 	midcath = interpPoint(point1, point2, 1, -nearw);
 	interpPoint2(point2, plate[1], cath[1], cath[2], -1, cathw);
 	interpPoint(point2, plate[1], cath[3], -1.2, -cathw);
@@ -240,8 +246,25 @@ class TriodeElm extends CircuitElm {
 	    kg1 = ei.value;
     }
     boolean canViewInScope() { return true; }
-    double getVoltageDiff() { return volts[plateN] - volts[cathN]; }    
-    boolean canFlipX() { return false; }
-    boolean canFlipY() { return false; }
+    double getVoltageDiff() { return volts[plateN] - volts[cathN]; }
+
+    void flipX(int c2, int count) {
+	if (x == x2)
+	    flags ^= FLAG_FLIP;
+	if ((flags & FLAG_DSIGN_FIX) == 0 && x != x2)
+	    flags ^= FLAG_FLIP;
+	super.flipX(c2, count);
+    }
+    void flipY(int c2, int count) {
+	if (y == y2)
+	    flags ^= FLAG_FLIP;
+	if ((flags & FLAG_DSIGN_FIX) == 0 && y != y2)
+	    flags ^= FLAG_FLIP;
+	super.flipY(c2, count);
+    }
+    void flipXY(int xmy, int count) {
+	flags ^= FLAG_FLIP;
+	super.flipXY(xmy, count);
+    }
 }
 
