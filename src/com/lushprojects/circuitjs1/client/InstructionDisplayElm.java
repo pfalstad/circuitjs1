@@ -36,7 +36,6 @@ class InstructionDisplayElm extends CircuitElm {
 	parseEntries();
     }
 
-    int getDumpType() { return 437; }
     String getXmlDumpType() { return "ins"; }
     int getPostCount() { return busWidth; }
     int getPostWidth(int n) { return busWidth; }

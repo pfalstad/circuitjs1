@@ -554,19 +554,21 @@ public class CirSim implements NativePreviewHandler {
 	    console("got dump type 0 for " + className);
 	    return;
 	}*/
-	String s = dumpTypeMap.get(t);
 	Class cs = elm.getDumpClass();
 	className = cs.getName();
 	className = className.substring(className.lastIndexOf('.')+1);
-	if (s != null) {
-	    if (!s.equals(className))
-		console("dump type conflict for " + className + " " + t);
-	} else {
-	    dumpTypeMap.put(t, className);
+	if (t > 0) {
+	    String s = dumpTypeMap.get(t);
+	    if (s != null) {
+		if (!s.equals(className))
+		    console("dump type conflict for " + className + " " + t);
+	    } else {
+		dumpTypeMap.put(t, className);
+	    }
 	}
 
 	String xt = elm.getXmlDumpType();
-	s = xmlDumpTypeMap.get(xt);
+	String s = xmlDumpTypeMap.get(xt);
 	if (s != null) {
 	    if (!s.equals(className))
 		console("xml dump type conflict for " + className + " " + xt);

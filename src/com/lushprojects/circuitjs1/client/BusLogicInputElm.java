@@ -31,10 +31,6 @@ class BusLogicInputElm extends SwitchElm {
     public BusLogicInputElm(int xx, int yy) {
 	super(xx, yy);
     }
-    public BusLogicInputElm(int xa, int ya, int xb, int yb, int f,
-			    StringTokenizer st) {
-	super(xa, ya, xb, yb, f, st);
-    }
 
     void dumpXml(Document doc, Element elem) {
 	super.dumpXml(doc, elem);
@@ -55,6 +51,7 @@ class BusLogicInputElm extends SwitchElm {
 	loV = xml.parseDoubleAttr("lo", loV);
     }
 
+    int getDumpType() { return 0; }
     int getPostCount() { return busWidth; }
     int getNumHandles() { return 1; }
     int getPostWidth(int n) { return busWidth; }
@@ -120,7 +117,6 @@ class BusLogicInputElm extends SwitchElm {
     boolean isWireEquivalent() { return false; }
     boolean isRemovableWire() { return false; }
 
-    int getDumpType() { return 434; }
     String getXmlDumpType() { return "bli"; }
 
     void getInfo(String arr[]) {

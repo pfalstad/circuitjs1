@@ -28,10 +28,6 @@ import com.google.gwt.xml.client.Element;
 	ArrayList<Point> routePoints;
 
 	public RoutedWireElm(int xx, int yy) { super(xx, yy); }
-	public RoutedWireElm(int xa, int ya, int xb, int yb, int f,
-			     StringTokenizer st) {
-	    super(xa, ya, xb, yb, f, st);
-	}
 
 	public RoutedWireElm(ArrayList<Point> points) {
 	    super(points.get(0).x, points.get(0).y);

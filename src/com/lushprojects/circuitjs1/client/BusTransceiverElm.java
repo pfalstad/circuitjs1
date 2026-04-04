@@ -34,12 +34,6 @@ class BusTransceiverElm extends ChipElm {
 	setupPins();
     }
 
-    public BusTransceiverElm(int xa, int ya, int xb, int yb, int f,
-			     StringTokenizer st) {
-	super(xa, ya, xb, yb, f, st);
-	setupPins();
-    }
-
     void dumpXml(Document doc, Element elem) {
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "db", dataBits);
@@ -54,7 +48,6 @@ class BusTransceiverElm extends ChipElm {
     boolean nonLinear() { return true; }
     boolean allowBus() { return true; }
     String getChipName() { return "Bus Transceiver"; }
-    int getDumpType() { return 435; }
     int defaultBitCount() { return 4; }
 
     void setupPins() {
