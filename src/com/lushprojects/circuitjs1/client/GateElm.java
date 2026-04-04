@@ -103,7 +103,17 @@ abstract class GateElm extends CircuitElm {
 	}
 
 	void addRoutingObstacle(WireRouter router) {
-	    addRoutingObstacleWithLeads(router, gwidth2);
+	    // add wires from each input post to gate body
+	    for (int i = 0; i < inputCount; i++)
+		router.addWire(inPosts[i].x, inPosts[i].y, inGates[i].x, inGates[i].y);
+	    // add output wire
+	    router.addWire(lead2.x, lead2.y, point2.x, point2.y);
+
+	    double leadDist = distance(lead1, lead2);
+	    double hs2 = gwidth*(inputCount/2+1);
+            Point pa = interpPoint(lead1, lead2, -8/leadDist, hs2);
+            Point pb = interpPoint(lead1, lead2, 1, -hs2);
+            router.addObstacle(pa.x, pa.y, pb.x, pb.y);
         }
 
 	String getXmlDumpType() { return getClassName().replace("GateElm", ""); }
