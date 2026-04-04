@@ -80,7 +80,7 @@ class BusLogicInputElm extends SwitchElm {
 
     void setPoints() {
 	super.setPoints();
-	lead1 = interpPoint(point1, point2, 1 - 12 / dn);
+	lead1 = new Point();
     }
 
     void draw(Graphics g) {
@@ -89,6 +89,7 @@ class BusLogicInputElm extends SwitchElm {
 	g.setFont(f);
 	g.setColor(needsHighlight() ? selectColor : whiteColor);
 	String s = "" + value;
+	interpPoint(point1, point2, lead1, 1 - ((int) g.context.measureText(s).getWidth() / 2 + 8) / dn);
 	setBbox(point1, lead1, 0);
 	drawCenteredText(g, s, x2, y2, true);
 	setVoltageColor(g, volts[0]);
