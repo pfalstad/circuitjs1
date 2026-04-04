@@ -84,6 +84,9 @@ class Expr {
 	case E_SINH: return Math.sinh(left.eval(es));
 	case E_COSH: return Math.cosh(left.eval(es));
 	case E_TANH: return Math.tanh(left.eval(es));
+	case E_BITAND: return (int)left.eval(es) & (int)right.eval(es);
+	case E_BITOR:  return (int)left.eval(es) | (int)right.eval(es);
+	case E_RSHIFT: return (int)left.eval(es) >> (int)right.eval(es);
 	case E_FLOOR: return Math.floor(left.eval(es));
 	case E_CEIL: return Math.ceil(left.eval(es));
 	case E_MIN: {
@@ -226,7 +229,10 @@ class Expr {
     static final int E_SINH = 47;
     static final int E_COSH = 48;
     static final int E_TANH = 49;
-    static final int E_A = 50;
+    static final int E_BITAND = 50;
+    static final int E_BITOR = 51;
+    static final int E_RSHIFT = 52;
+    static final int E_A = 53;
     static final int E_DADT = E_A+10; // must be E_A+10
     static final int E_LASTA = E_DADT+10; // should be at end and equal to E_DADT+10
 };
@@ -328,32 +334,56 @@ class ExprParser {
     }
     
     Expr parseAnd() {
-	Expr e = parseEquals();
+	Expr e = parseBitOr();
 	while (skip("&&")) {
-	    e = new Expr(e, parseEquals(), Expr.E_AND);
+	    e = new Expr(e, parseBitOr(), Expr.E_AND);
 	}
 	return e;
     }
-    
+
+    Expr parseBitOr() {
+	Expr e = parseBitAnd();
+	while (skip("|")) {
+	    e = new Expr(e, parseBitAnd(), Expr.E_BITOR);
+	}
+	return e;
+    }
+
+    Expr parseBitAnd() {
+	Expr e = parseEquals();
+	while (skip("&")) {
+	    e = new Expr(e, parseEquals(), Expr.E_BITAND);
+	}
+	return e;
+    }
+
     Expr parseEquals() {
 	Expr e = parseCompare();
 	if (skip("=="))
 	    return new Expr(e, parseCompare(), Expr.E_EQUALS);
 	return e;
     }
-    
+
     Expr parseCompare() {
-	Expr e = parseAdd();
+	Expr e = parseShift();
 	if (skip("<="))
-	    return new Expr(e, parseAdd(), Expr.E_LEQ);
+	    return new Expr(e, parseShift(), Expr.E_LEQ);
 	if (skip(">="))
-	    return new Expr(e, parseAdd(), Expr.E_GEQ);
+	    return new Expr(e, parseShift(), Expr.E_GEQ);
 	if (skip("!="))
-	    return new Expr(e, parseAdd(), Expr.E_NEQ);
+	    return new Expr(e, parseShift(), Expr.E_NEQ);
 	if (skip("<"))
-	    return new Expr(e, parseAdd(), Expr.E_LESS);
+	    return new Expr(e, parseShift(), Expr.E_LESS);
 	if (skip(">"))
-	    return new Expr(e, parseAdd(), Expr.E_GREATER);
+	    return new Expr(e, parseShift(), Expr.E_GREATER);
+	return e;
+    }
+
+    Expr parseShift() {
+	Expr e = parseAdd();
+	while (skip(">>")) {
+	    e = new Expr(e, parseAdd(), Expr.E_RSHIFT);
+	}
 	return e;
     }
 

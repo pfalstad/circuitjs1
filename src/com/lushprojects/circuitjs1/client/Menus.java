@@ -339,6 +339,7 @@ public class Menus {
 		"Add Wattmeter", "WattmeterElm",
 		"Add Test Point", "TestPointElm",
 		"Add Decimal Display", "DecimalDisplayElm",
+		"Add Instruction Display", "InstructionDisplayElm",
 		"Add LED Array", "LEDArrayElm",
 		"Add Data Export", "DataRecorderElm",
 		"Add Audio Output", "AudioOutputElm",

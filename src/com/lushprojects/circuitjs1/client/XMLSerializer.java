@@ -45,6 +45,10 @@ class XMLSerializer {
 
     XMLSerializer(CirSim app_) { app = app_; }
 
+    static String escapeXml(String s) {
+	return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
     public static String prettyPrint(Document doc) {
         return prettyPrint(doc.getDocumentElement(), 0);
     }
@@ -63,7 +67,7 @@ class XMLSerializer {
         if (attributes != null) {
             for (int i = 0; i < attributes.getLength(); i++) {
                 Node attr = attributes.item(i);
-                sb.append(" ").append(attr.getNodeName()).append("=\"").append(attr.getNodeValue()).append("\"");
+                sb.append(" ").append(attr.getNodeName()).append("=\"").append(escapeXml(attr.getNodeValue())).append("\"");
             }
         }
 
@@ -86,7 +90,7 @@ class XMLSerializer {
                 } else if (child.getNodeType() == Node.TEXT_NODE) {
                     String text = child.getNodeValue().trim();
                     if (!text.isEmpty())
-                        sb.append(text);
+                        sb.append(escapeXml(text));
                 }
             }
 
