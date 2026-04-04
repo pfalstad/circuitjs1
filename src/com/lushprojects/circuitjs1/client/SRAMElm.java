@@ -266,9 +266,12 @@ import com.google.gwt.xml.client.Element;
 		Pin p = pins[i+dataNodes];
 		sim.updateVoltageSource(CircuitNode.ground, nodes[internalNodes+i], p.voltSource, (data & (1<<(dataBits-1-i))) == 0 ? 0 : highVoltage);
 		
-		// stamp resistor from internal voltage source to data pin.
-		// if output enabled, make it a small resistor.  otherwise large.
-		sim.stampResistor(nodes[internalNodes+i], nodes[dataNodes+i], outputEnabled ? 1 : 1e8);
+		// if output enabled, stamp a small resistor from internal voltage source to data pin.
+		// if output disabled, stamp a large pulldown resistor from data pin to ground.
+		if (outputEnabled)
+		    sim.stampResistor(nodes[internalNodes + i], nodes[dataNodes + i], 1);
+		else
+		    sim.stampResistor(nodes[dataNodes + i], CircuitNode.ground, 1e8);
 	    }
 	}
 	

@@ -408,6 +408,7 @@ public class Menus {
 		"Add Half Adder", "HalfAdderElm",
 		"Add Custom Logic", "UserDefinedLogicElm", // don't change this, it will break people's saved shortcuts
 		"Add Static RAM", "SRAMElm",
+		"Add ROM", "ROMElm",
 		"Add Bus Transceiver", "BusTransceiverElm",
 		"Add Bus Splitter", "BusSplitterElm"
 	});
