@@ -168,13 +168,13 @@ class CrystalElm extends CompositeElm {
 	
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo(EditInfo.makeLink("crystal.html", "Parallel Capacitance"), parallelCapacitance);
+		return new EditInfo(EditInfo.makeLink("crystal.html", "Parallel Capacitance"), parallelCapacitance).setPositive();
 	    if (n == 1)
-		return new EditInfo("Series Capacitance (F)", seriesCapacitance);
+		return new EditInfo("Series Capacitance (F)", seriesCapacitance).setPositive();
 	    if (n == 2)
-		return new EditInfo("Inductance (H)", inductance, 0, 0);
+		return new EditInfo("Inductance (H)", inductance, 0, 0).setPositive();
 	    if (n == 3)
-		return new EditInfo("Resistance (" + Locale.ohmString + ")", resistance, 0, 0);
+		return new EditInfo("Resistance (" + Locale.ohmString + ")", resistance, 0, 0).setPositive();
 	    if (n == 4) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Show Frequency", hasFlag(FLAG_SHOW_FREQ));

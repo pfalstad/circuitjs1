@@ -307,11 +307,14 @@ abstract class GateElm extends CircuitElm {
 	}
 
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value >= 1) {
-		inputCount = (int) ei.value;
-		allocNodes();
-		setupVolts();
-		setPoints();
+	    if (n == 0) {
+		if (ei.value >= 1) {
+		    inputCount = (int) ei.value;
+		    allocNodes();
+		    setupVolts();
+		    setPoints();
+		} else
+		    ei.setError("must be >= 1");
 	    }
 	    if (n == 1)
 		highVoltage = lastHighVoltage = ei.value;

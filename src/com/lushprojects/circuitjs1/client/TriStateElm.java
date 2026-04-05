@@ -285,11 +285,11 @@ class TriStateElm extends CircuitElm {
 
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0);
+	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0);
+	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
 	if (n == 2)
-	    return new EditInfo("Output Pulldown Resistance (ohms)", r_off_ground, 0, 0);
+	    return new EditInfo("Output Pulldown Resistance (ohms)", r_off_ground, 0, 0).setPositive();
         if (n == 3)
             return new EditInfo("High Logic Voltage", highVoltage, 1, 10);
 	if (n == 4)
@@ -307,9 +307,12 @@ class TriStateElm extends CircuitElm {
 	    r_off_ground = ei.value;
 	if (n == 3)
             highVoltage = GateElm.lastHighVoltage = ei.value;
-	if (n == 4 && ei.value >= 1) {
-	    busWidth = (int) ei.value;
-	    allocNodes();
+	if (n == 4) {
+	    if (ei.value >= 1) {
+		busWidth = (int) ei.value;
+		allocNodes();
+	    } else
+		ei.setError("must be >= 1");
 	}
     }
 

@@ -119,10 +119,13 @@ package com.lushprojects.circuitjs1.client;
 		setPoints();
 		return;
 	    }
-	    if (n == 1 && ei.value >= 2) {
-		bits = (int)ei.value;
-		setupPins();
-		setPoints();
+	    if (n == 1) {
+		if (ei.value >= 2) {
+		    bits = (int)ei.value;
+		    setupPins();
+		    setPoints();
+		} else
+		    ei.setError("must be >= 2");
 	    }
 	}
 	

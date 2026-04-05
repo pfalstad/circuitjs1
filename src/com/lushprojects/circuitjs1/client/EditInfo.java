@@ -80,11 +80,13 @@ class EditInfo {
 	boolean noSliders;
 	boolean isColor;
 	boolean newColumn;
+	boolean positive;
 	double minVal, maxVal;
 	String error;
 	String errorFieldName;
 	void setError(String s) { error = s; }
 	EditInfo setErrorFieldName(String s) { errorFieldName = s; return this; }
+	EditInfo setPositive() { positive = true; return this; }
 	
 	// for slider dialog
 	TextBox minBox, maxBox, labelBox, stepBox;

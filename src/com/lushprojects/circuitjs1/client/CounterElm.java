@@ -114,10 +114,13 @@ class CounterElm extends ChipElm {
 		setupPins();
 		setPoints();
 	    }
-	    if (n == 1 && ei.value >= 3) {
-		bits = (int)ei.value;
-		setupPins();
-		setPoints();
+	    if (n == 1) {
+		if (ei.value >= 3) {
+		    bits = (int)ei.value;
+		    setupPins();
+		    setPoints();
+		} else
+		    ei.setError("must be >= 3");
 	    }
 	    if (n == 2)
 		modulus = (int)ei.value;

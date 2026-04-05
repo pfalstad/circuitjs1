@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ import com.google.gwt.xml.client.Element;
 	double resistance;
 	double onDelay, offDelay;
 	double onResistance, offResistance;
-	
+
 	public TimeDelayRelayElm(int xx, int yy) {
 	    super(xx, yy);
 	    onDelay = 1;
@@ -75,7 +75,7 @@ import com.google.gwt.xml.client.Element;
 	    pins[2] = new Pin(0, SIDE_W, "in");
 	    pins[3] = new Pin(0, SIDE_E, "out");
 	}
-	
+
 	boolean nonLinear() { return true; }
 	void stamp() {
 	    resistance = (onState) ? onResistance : offResistance;
@@ -83,12 +83,12 @@ import com.google.gwt.xml.client.Element;
 	    sim.stampNonLinear(nodes[2]);
 	    sim.stampNonLinear(nodes[3]);
 	}
-	
+
 	void doStep() {
 	    resistance = (onState) ? onResistance : offResistance;
 	    sim.stampResistor(nodes[2], nodes[3], resistance);
 	}
-	
+
 	void stepFinished() {
 	    // power applied, then delay, then in and out are connected
 	    boolean oldState = poweredState;
@@ -98,7 +98,7 @@ import com.google.gwt.xml.client.Element;
 	    if (sim.t > lastTransition + (poweredState ? onDelay : offDelay))
 		onState = poweredState;
 	}
-	
+
 	void draw(Graphics g) {
 	    pins[0].current = -(volts[0]-volts[1])/vinResistance;
 	    pins[2].current = -(volts[2]-volts[3])/resistance;
@@ -110,16 +110,16 @@ import com.google.gwt.xml.client.Element;
 	int getPostCount() { return 4; }
 	int getVoltageSourceCount() { return 0; }
 	int getDumpType() { return 414; }
-	
+
 	    public EditInfo getChipEditInfo(int n) {
 	        if (n == 0)
 	            return new EditInfo("On Delay (s)", onDelay, 0, 0);
 	        if (n == 1)
 	            return new EditInfo("Off Delay (s)", offDelay, 0, 0);
 	        if (n == 2)
-	            return new EditInfo("On Resistance (ohms)", onResistance, 0, 0);
+	            return new EditInfo("On Resistance (ohms)", onResistance, 0, 0).setPositive();
 	        if (n == 3)
-	            return new EditInfo("Off Resistance (ohms)", offResistance, 0, 0);
+	            return new EditInfo("Off Resistance (ohms)", offResistance, 0, 0).setPositive();
 	        return null;
 	    }
 	    public void setChipEditValue(int n, EditInfo ei) {
@@ -127,10 +127,9 @@ import com.google.gwt.xml.client.Element;
 	            onDelay = ei.value;
 	        if (n == 1)
 	            offDelay = ei.value;
-	        if (n == 2 && ei.value > 0)
+	        if (n == 2)
 	            onResistance = ei.value;
-	        if (n == 3 && ei.value > 0)
+	        if (n == 3)
 	            offResistance = ei.value;
 	    }
     }
-

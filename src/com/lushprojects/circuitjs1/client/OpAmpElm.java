@@ -210,7 +210,7 @@ import com.google.gwt.xml.client.Document;
 	    if (n == 1)
 		return new EditInfo("Min Output (V)", minOut, -20, 0);
 	    if (n == 2)
-		return new EditInfo("Gain", gain, 10, 1000000);
+		return new EditInfo("Gain", gain, 10, 1000000).setPositive();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -218,7 +218,7 @@ import com.google.gwt.xml.client.Document;
 		maxOut = ei.value;
 	    if (n == 1)
 		minOut = ei.value;
-	    if (n == 2 && ei.value > 0)
+	    if (n == 2)
 		gain = ei.value;
 	}
 	int getShortcut() { return 'a'; }

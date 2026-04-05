@@ -138,9 +138,12 @@ class BusLogicInputElm extends SwitchElm {
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value >= 2) {
-	    busWidth = (int) ei.value;
-	    allocNodes();
+	if (n == 0) {
+	    if (ei.value >= 2) {
+		busWidth = (int) ei.value;
+		allocNodes();
+	    } else
+		ei.setError("must be >= 2");
 	}
 	if (n == 1)
 	    value = (int) ei.value;

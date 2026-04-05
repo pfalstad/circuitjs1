@@ -129,7 +129,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("Inductance (H)", inductance, 1e-2, 10);
+		return new EditInfo("Inductance (H)", inductance, 1e-2, 10).setPositive();
 	    if (n == 1) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Trapezoidal Approximation",
@@ -144,7 +144,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	}
 
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value > 0)
+	    if (n == 0)
 		inductance = ei.value;
 	    if (n == 1) {
 		if (ei.checkbox.getState())
@@ -154,8 +154,12 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    }
             if (n == 2)
                 initialCurrent = ei.value;
-	    if (n == 3 && ei.value >= 0)
-		saturationCurrent = ei.value;
+	    if (n == 3) {
+		if (ei.value >= 0)
+		    saturationCurrent = ei.value;
+		else
+		    ei.setError("must be >= 0");
+	    }
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	

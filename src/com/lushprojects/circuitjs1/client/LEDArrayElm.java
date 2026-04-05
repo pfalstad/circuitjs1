@@ -189,18 +189,24 @@ class LEDArrayElm extends ChipElm {
 	}
 	
 	public void setChipEditValue(int n, EditInfo ei) {
-            if (n == 0 && ei.value >= 2 && ei.value <= 16) {
-        		sizeX = (int)ei.value;
-        		allocNodes();
-                setupPins();
-                setPoints();
+            if (n == 0) {
+        	if (ei.value >= 2 && ei.value <= 16) {
+        	    sizeX = (int)ei.value;
+        	    allocNodes();
+                    setupPins();
+                    setPoints();
+        	} else
+        	    ei.setError("must be between 2 and 16");
                 return;
             }
-            if (n == 1 && ei.value >= 2 && ei.value <= 16) {
-        		sizeY = (int)ei.value;
-        		allocNodes();
-                setupPins();
-                setPoints();
+            if (n == 1) {
+        	if (ei.value >= 2 && ei.value <= 16) {
+        	    sizeY = (int)ei.value;
+        	    allocNodes();
+                    setupPins();
+                    setPoints();
+        	} else
+        	    ei.setError("must be between 2 and 16");
                 return;
             }
 	}

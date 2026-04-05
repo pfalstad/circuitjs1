@@ -468,13 +468,13 @@ class RelayElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Inductance (H)", inductance, 0, 0);
+	    return new EditInfo("Inductance (H)", inductance, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0);
+	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0).setPositive();
 	if (n == 2)
-	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0);
+	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
 	if (n == 3)
-	    return new EditInfo("On Current (A)", onCurrent, 0, 0);
+	    return new EditInfo("On Current (A)", onCurrent, 0, 0).setPositive();
 	if (n == 4) {
 	    if (switchingTime == 0) {
 		// still using old model, so hide off current which won't work.
@@ -489,7 +489,7 @@ class RelayElm extends CircuitElm {
 	    return new EditInfo("Number of Poles", poleCount, 1, 4).
 		setDimensionless();
 	if (n == 6)
-	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0);
+	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0).setPositive();
 	if (n == 7) {
 	    int style = 1;
 	    if ((flags & FLAG_SWAP_COIL) != 0)
@@ -512,7 +512,7 @@ class RelayElm extends CircuitElm {
 	
 	// show switching time only for new model, since it is meaningless for old one
 	if (n == 9 && switchingTime > 0)
-	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
+	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0).setPositive();
 	if (n == 10)
 	    return EditInfo.createCheckbox("Pulldown Resistor", needsPulldown());
 	return null;
@@ -538,9 +538,12 @@ class RelayElm extends CircuitElm {
 	    } else if (ei.value > 0)
 		offCurrent = ei.value;
 	}
-	if (n == 5 && ei.value >= 1) {
-	    poleCount = (int) ei.value;
-	    setPoints();
+	if (n == 5) {
+	    if (ei.value >= 1) {
+		poleCount = (int) ei.value;
+		setPoints();
+	    } else
+		ei.setError("must be >= 1");
 	}
 	if (n == 6 && ei.value > 0)
 	    coilR = ei.value;

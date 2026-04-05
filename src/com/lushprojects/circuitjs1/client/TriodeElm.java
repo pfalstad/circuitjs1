@@ -234,15 +234,15 @@ class TriodeElm extends CircuitElm {
     boolean getMatrixConnection(int n1, int n2) { return true; }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("mu", mu, 0, 0).setDimensionless();
+	    return new EditInfo("mu", mu, 0, 0).setDimensionless().setPositive();
 	if (n == 1)
-	    return new EditInfo("kg1", kg1, 0, 0).setDimensionless();
+	    return new EditInfo("kg1", kg1, 0, 0).setDimensionless().setPositive();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value > 0)
+	if (n == 0)
 	    mu = ei.value;
-	if (n == 1 && ei.value > 0)
+	if (n == 1)
 	    kg1 = ei.value;
     }
     boolean canViewInScope() { return true; }

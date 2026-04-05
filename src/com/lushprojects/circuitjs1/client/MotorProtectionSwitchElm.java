@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -126,7 +126,7 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	    }
 	    return Color.white;
 	}
-	
+
 	void draw(Graphics g) {
 	    int i;
 	    int hs=6;
@@ -137,7 +137,7 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	    g.setLineDash(4, 4);
 	    int squareX = -spx-12;
 	    int squareY = 48-12;
-	    
+
 	    // dotted lines
 	    g.setColor(Color.lightGray);
 	    g.drawLine(squareX+24+4, squareY+12, 48*2-(blown ? 8 : 0), squareY+12);
@@ -145,7 +145,7 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	    g.drawLine(squareX+12, 80+48+48/2, -spx/2, 80+48+48/2);
 	    g.drawLine(squareX+12, 80+   48/2, -spx/2, 80+   48/2);
 	    g.setLineDash(0, 0);
-	    
+
 	    for (i = 0; i != 3; i++) {
 		// terminal at top
 		setVoltageColor(g, volts[i*2]);
@@ -156,8 +156,8 @@ class MotorProtectionSwitchElm extends CircuitElm {
 		drawThickLine(g, i*spx-sw, 32, i*spx, 64);
 		g.context.setLineCap(LineCap.BUTT);
 		drawThickLine(g, i*spx, 64, i*spx, 80);
-		g.drawLine(i*spx-4, 16-4, i*spx+4, 16+4); 
-		g.drawLine(i*spx+4, 16-4, i*spx-4, 16+4); 
+		g.drawLine(i*spx-4, 16-4, i*spx+4, 16+4);
+		g.drawLine(i*spx+4, 16-4, i*spx-4, 16+4);
 		setVoltageColor(g, volts[i*2+1]);
 		drawThickLine(g, i*spx, 176, i*spx, 192);
 		g.context.setLineCap(LineCap.ROUND);
@@ -179,7 +179,7 @@ class MotorProtectionSwitchElm extends CircuitElm {
 		g.drawLine(-spx/2,  80+48*i, 2*spx+spx/2,  80+48*i);
 	    for (i = 0; i != 4; i++)
 		g.drawLine(i*spx-spx/2, 80, i*spx-spx/2, 80+48*2);
-	    
+
 	    for (i = 0; i != 3; i++)
 		g.drawLine(squareX + 12*i, squareY, squareX+12*i, squareY+24);
 	    for (i = 0; i != 3; i++)
@@ -213,35 +213,35 @@ class MotorProtectionSwitchElm extends CircuitElm {
 		sim.stampNonLinear(nodes[i]);
 	}
 	boolean nonLinear() { return true; }
-	
+
 	boolean getConnection(int n1, int n2) {
 	    return n1/2 == n2/2;
 	}
-	
+
 	void startIteration() {
 	    int j;
 	    boolean wasBlown = blown;
 	    for (j = 0; j != 3; j++) {
 		double i = currents[j];
-	    
+
 		// accumulate heat
 		double heat = heats[j];
 		heat += i*i*sim.timeStep;
 
 		// dissipate heat.  we assume the fuse can dissipate its entire i2t in 3 seconds
 		heat -= sim.timeStep*i2t/3;
-	    
+
 		if (heat < 0)
 		    heat = 0;
 		if (heat > i2t)
 		    blown = true;
 		heats[j] = heat;
 	    }
-	    
+
 	    if (blown != wasBlown)
 		setSwitchPositions();
 	}
-	
+
 	void setSwitchPositions() {
 	    int i;
 	    int switchPosition = (blown) ? 0 : 1;
@@ -268,22 +268,22 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("I2t", i2t, 0, 0);
+		return new EditInfo("I2t", i2t, 0, 0).setPositive();
 	    if (n == 1)
-		return new EditInfo("On Resistance", resistance, 0, 0);
+		return new EditInfo("On Resistance", resistance, 0, 0).setPositive();
 	    if (n == 2)
 		return new EditInfo("Label (for linking)", label);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value > 0)
+	    if (n == 0)
 		i2t = ei.value;
-	    if (n == 1 && ei.value > 0)
+	    if (n == 1)
 		resistance = ei.value;
 	    if (n == 2)
 	        label = ei.textf.getText();
 	}
-	
+
 	double getCurrentIntoNode(int n) {
 	    if ((n % 2) == 1)
 		return currents[n/2];

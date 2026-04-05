@@ -298,11 +298,15 @@ class EditDialog extends Dialog {
 					ei.value = d;
 				} catch (Exception ex) { /* ignored */ }
 			}
+			if (ei.positive && ei.value <= 0) {
+			    ei.setError("must be > 0");
+			}
 			// don't press buttons.  also don't operate on choices becuase then they might happen
 			// twice.  (for square wave)
 			if (ei.button != null || ei.choice != null)
 			    continue;
-			elm.setEditValue(i, ei);
+			if (ei.error == null)
+			    elm.setEditValue(i, ei);
 			if (ei.error != null) {
 			    String msg = ei.error;
 			    String field = ei.errorFieldName != null ? ei.errorFieldName : ei.name;

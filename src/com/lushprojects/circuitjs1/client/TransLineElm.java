@@ -245,9 +245,9 @@ class TransLineElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Delay (s)", delay, 0, 0);
+	    return new EditInfo("Delay (s)", delay, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("Impedance (ohms)", imped, 0, 0);
+	    return new EditInfo("Impedance (ohms)", imped, 0, 0).setPositive();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {

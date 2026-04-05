@@ -142,9 +142,12 @@ class InstructionDisplayElm extends CircuitElm {
     }
 
     public void setEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value >= 1 && ei.value <= 32) {
-	    busWidth = (int) ei.value;
-	    allocNodes();
+	if (n == 0) {
+	    if (ei.value >= 1 && ei.value <= 32) {
+		busWidth = (int) ei.value;
+		allocNodes();
+	    } else
+		ei.setError("must be between 1 and 32");
 	}
 	if (n == 1)
 	    threshold = ei.value;

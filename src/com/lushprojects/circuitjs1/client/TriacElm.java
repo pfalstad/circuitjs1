@@ -258,19 +258,19 @@ class TriacElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Trigger Current (A)", triggerI, 0, 0);
+	    return new EditInfo("Trigger Current (A)", triggerI, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("Holding Current (A)", holdingI, 0, 0);
+	    return new EditInfo("Holding Current (A)", holdingI, 0, 0).setPositive();
         if (n == 2)
-            return new EditInfo("Gate-MT1 Resistance (ohms)", cresistance, 0, 0);
+            return new EditInfo("Gate-MT1 Resistance (ohms)", cresistance, 0, 0).setPositive();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value > 0)
+	if (n == 0)
 	    triggerI = ei.value;
-	if (n == 1 && ei.value > 0)
+	if (n == 1)
 	    holdingI = ei.value;
-        if (n == 2 && ei.value > 0)
+        if (n == 2)
             cresistance = ei.value;
     }
     boolean canViewInScope() { return true; }

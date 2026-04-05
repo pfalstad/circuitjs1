@@ -166,7 +166,7 @@ public class AudioOutputElm extends CircuitElm {
 	
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
-		EditInfo ei = new EditInfo("Duration (s)", duration, 0, 5);
+		EditInfo ei = new EditInfo("Duration (s)", duration, 0, 5).setPositive();
 		return ei;
 	    }
 	    if (n == 1) {

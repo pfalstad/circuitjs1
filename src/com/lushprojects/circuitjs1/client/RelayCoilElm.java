@@ -372,15 +372,15 @@ class RelayCoilElm extends CircuitElm {
             return ei;
         }
 	if (n == 1)
-	    return new EditInfo("Inductance (H)", inductance, 0, 0);
+	    return new EditInfo("Inductance (H)", inductance, 0, 0).setPositive();
 	if (n == 2)
-	    return new EditInfo("On Current (A)", onCurrent, 0, 0);
+	    return new EditInfo("On Current (A)", onCurrent, 0, 0).setPositive();
 	if (n == 3)
-	    return new EditInfo("Off Current (A)", offCurrent, 0, 0);
+	    return new EditInfo("Off Current (A)", offCurrent, 0, 0).setPositive();
 	if (n == 4)
-	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0);
+	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0).setPositive();
 	if (n == 5)
-	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0);
+	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0).setPositive();
 	if (n == 6)
 	    return new EditInfo("Label (for linking)", label);
 	return null;

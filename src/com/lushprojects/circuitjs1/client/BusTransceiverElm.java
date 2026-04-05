@@ -156,10 +156,13 @@ class BusTransceiverElm extends ChipElm {
     }
 
     public void setChipEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value >= 1 && ei.value <= 16) {
-	    dataBits = (int) ei.value;
-	    setupPins();
-	    setPoints();
+	if (n == 0) {
+	    if (ei.value >= 1 && ei.value <= 16) {
+		dataBits = (int) ei.value;
+		setupPins();
+		setPoints();
+	    } else
+		ei.setError("must be between 1 and 16");
 	}
     }
 }

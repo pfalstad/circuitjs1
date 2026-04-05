@@ -68,8 +68,12 @@ public class PolarCapacitorElm extends CapacitorElm {
 	    return super.getEditInfo(n);
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 4 && ei.value >= 0)
-		maxNegativeVoltage = ei.value;
+	    if (n == 4) {
+		if (ei.value >= 0)
+		    maxNegativeVoltage = ei.value;
+		else
+		    ei.setError("must be >= 0");
+	    }
 	    super.setEditValue(n, ei);
 	}
 	

@@ -60,10 +60,13 @@ class ADCElm extends ChipElm {
         return null;
     }
     public void setChipEditValue(int n, EditInfo ei) {
-        if (n == 0 && ei.value >= 2) {
-            bits = (int)ei.value;
-            setupPins();
-            setPoints();
+        if (n == 0) {
+            if (ei.value >= 2) {
+                bits = (int)ei.value;
+                setupPins();
+                setPoints();
+            } else
+                ei.setError("must be >= 2");
         }
     }
 }

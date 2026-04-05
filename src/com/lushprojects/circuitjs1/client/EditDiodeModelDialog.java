@@ -13,7 +13,8 @@ public class EditDiodeModelDialog extends EditDialog {
     }
 
     boolean apply() {
-	super.apply();
+	if (!super.apply())
+	    return false;
 	if (model.name == null || model.name.length() == 0)
 	    model.pickName();
 	if (diodeElm != null)

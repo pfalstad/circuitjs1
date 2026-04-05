@@ -459,7 +459,7 @@ class CustomTransformerElm extends CircuitElm {
 
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("Base Inductance (H)", inductance, .01, 5);
+		return new EditInfo("Base Inductance (H)", inductance, .01, 5).setPositive();
 	    if (n == 1) {
 		EditInfo ei = new EditInfo(EditInfo.makeLink("customtransformer.html", "Description"), 0, -1, -1);
 		ei.setErrorFieldName("Description");
@@ -469,7 +469,7 @@ class CustomTransformerElm extends CircuitElm {
 	    }
 	    if (n == 2)
 		return new EditInfo("Coupling Coefficient", couplingCoef, 0, 1).
-		    setDimensionless();
+		    setDimensionless().setPositive();
 	    if (n == 3) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Trapezoidal Approximation",
@@ -493,9 +493,12 @@ class CustomTransformerElm extends CircuitElm {
 		    setPoints();
 		}
 	    }
-	    if (n == 2 && ei.value > 0 && ei.value < 1) {
-		couplingCoef = ei.value;
-		parseDescription();
+	    if (n == 2) {
+		if (ei.value > 0 && ei.value < 1) {
+		    couplingCoef = ei.value;
+		    parseDescription();
+		} else
+		    ei.setError("must be > 0 and < 1");
 	    }
 	    if (n == 3) {
 		if (ei.checkbox.getState())

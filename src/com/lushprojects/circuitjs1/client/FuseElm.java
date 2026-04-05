@@ -175,17 +175,17 @@ class FuseElm extends CircuitElm {
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("I2t", i2t, 0, 0);
+		return new EditInfo("I2t", i2t, 0, 0).setPositive();
 	    if (n == 1)
-		return new EditInfo("Resistance", resistance, 0, 0);
+		return new EditInfo("Resistance", resistance, 0, 0).setPositive();
 	    if (n == 2)
 		return EditInfo.createCheckbox("IEC Symbol", isIECSymbol());
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value > 0)
+	    if (n == 0)
 		i2t = ei.value;
-	    if (n == 1 && ei.value > 0)
+	    if (n == 1)
 		resistance = ei.value;
 	    if (n == 2) {
 		flags = ei.changeFlag(flags, FLAG_IEC_SYMBOL);

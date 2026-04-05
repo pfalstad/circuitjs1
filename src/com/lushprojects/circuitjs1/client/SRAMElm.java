@@ -200,15 +200,21 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	public void setChipEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value >= 2 && ei.value <= 16) {
-		addressBits = (int)ei.value;
-		setupPins();
-		setPoints();
+	    if (n == 0) {
+		if (ei.value >= 2 && ei.value <= 16) {
+		    addressBits = (int)ei.value;
+		    setupPins();
+		    setPoints();
+		} else
+		    ei.setError("must be between 2 and 16");
 	    }
-	    if (n == 1 && ei.value >= 2 && ei.value <= 16) {
-		dataBits = (int)ei.value;
-		setupPins();
-		setPoints();
+	    if (n == 1) {
+		if (ei.value >= 2 && ei.value <= 16) {
+		    dataBits = (int)ei.value;
+		    setupPins();
+		    setPoints();
+		} else
+		    ei.setError("must be between 2 and 16");
 	    }
 	    if (n == 2)
 		parseContentsString(ei.textArea.getText());

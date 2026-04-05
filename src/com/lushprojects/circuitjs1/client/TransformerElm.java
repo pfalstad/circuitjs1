@@ -326,12 +326,12 @@ class TransformerElm extends CircuitElm {
 	boolean getMatrixConnection(int n1, int n2) { return true; }
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("Primary Inductance (H)", inductance, .01, 5);
+		return new EditInfo("Primary Inductance (H)", inductance, .01, 5).setPositive();
 	    if (n == 1)
-		return new EditInfo("Ratio (N1/N2)", 1/ratio, 1, 10).setDimensionless();
+		return new EditInfo("Ratio (N1/N2)", 1/ratio, 1, 10).setDimensionless().setPositive();
 	    if (n == 2)
 		return new EditInfo("Coupling Coefficient", couplingCoef, 0, 1).
-		    setDimensionless();
+		    setDimensionless().setPositive();
 	    if (n == 3) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Trapezoidal Approximation",
@@ -353,8 +353,12 @@ class TransformerElm extends CircuitElm {
 		inductance = ei.value;
 	    if (n == 1 && ei.value > 0)
 		ratio = 1/ei.value;
-	    if (n == 2 && ei.value > 0 && ei.value < 1)
-		couplingCoef = ei.value;
+	    if (n == 2) {
+		if (ei.value > 0 && ei.value < 1)
+		    couplingCoef = ei.value;
+		else
+		    ei.setError("must be > 0 and < 1");
+	    }
 	    if (n == 3) {
 		if (ei.checkbox.getState())
 		    flags &= ~Inductor.FLAG_BACK_EULER;
@@ -369,8 +373,12 @@ class TransformerElm extends CircuitElm {
 		    flags &= ~FLAG_REVERSE;
 		setPoints();
 	    }
-	    if (n == 5 && ei.value >= 0)
-		saturationCurrent = ei.value;
+	    if (n == 5) {
+		if (ei.value >= 0)
+		    saturationCurrent = ei.value;
+		else
+		    ei.setError("must be >= 0");
+	    }
 	}
 	int getShortcut() { return 'T'; }
 

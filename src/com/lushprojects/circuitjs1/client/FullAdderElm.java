@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@ package com.lushprojects.circuitjs1.client;
 	    setupPins();
 	}
 	static final int FLAG_BITS = 2;
-	
+
 	String getChipName() { return "Adder"; }
 	int carryIn, carryOut;
 
@@ -75,11 +75,11 @@ package com.lushprojects.circuitjs1.client;
 
         public EditInfo getChipEditInfo(int n) {
             if (n == 0)
-                return new EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+                return new EditInfo("# of Bits", bits, 1, 1).setDimensionless().setPositive();
             return super.getChipEditInfo(n);
         }
         public void setChipEditValue(int n, EditInfo ei) {
-            if (n == 0 && ei.value > 0) {
+            if (n == 0) {
                 bits = (int)ei.value;
                 flags |= FLAG_BITS;
                 setupPins();

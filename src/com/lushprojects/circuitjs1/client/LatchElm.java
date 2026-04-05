@@ -249,10 +249,13 @@ class LatchElm extends ChipElm {
     }
 
     public void setChipEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value >= 2 && bits != (int)ei.value) {
-	    bits = (int)ei.value;
-	    setupPins();
-	    setPoints();
+	if (n == 0) {
+	    if (ei.value >= 2 && bits != (int)ei.value) {
+		bits = (int)ei.value;
+		setupPins();
+		setPoints();
+	    } else if (ei.value < 2)
+		ei.setError("must be >= 2");
 	}
 	if (n == 1)
 	    flags = ei.changeFlagInverted(flags, FLAG_NO_EDGE);

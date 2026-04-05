@@ -195,13 +195,13 @@ class LampElm extends CircuitElm {
 	public EditInfo getEditInfo(int n) {
 	    // ohmString doesn't work here on linux
 	    if (n == 0)
-		return new EditInfo("Nominal Power", nom_pow, 0, 0);
+		return new EditInfo("Nominal Power", nom_pow, 0, 0).setPositive();
 	    if (n == 1)
-		return new EditInfo("Nominal Voltage", nom_v, 0, 0);
+		return new EditInfo("Nominal Voltage", nom_v, 0, 0).setPositive();
 	    if (n == 2)
-		return new EditInfo("Warmup Time (s)", warmTime, 0, 0);
+		return new EditInfo("Warmup Time (s)", warmTime, 0, 0).setPositive();
 	    if (n == 3)
-		return new EditInfo("Cooldown Time (s)", coolTime, 0, 0);
+		return new EditInfo("Cooldown Time (s)", coolTime, 0, 0).setPositive();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {

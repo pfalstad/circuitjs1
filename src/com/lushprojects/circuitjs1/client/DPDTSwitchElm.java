@@ -211,10 +211,13 @@ class DPDTSwitchElm extends SwitchElm {
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value >= 2) {
-		poleCount = (int) ei.value;
-		allocNodes();
-		setPoints();
+	    if (n == 0) {
+		if (ei.value >= 2) {
+		    poleCount = (int) ei.value;
+		    allocNodes();
+		    setPoints();
+		} else
+		    ei.setError("must be >= 2");
 	    }
 	    if (n == 1) {
 		flags = ei.changeFlag(flags, FLAG_IEC);

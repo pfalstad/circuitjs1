@@ -119,10 +119,13 @@ class DecimalDisplayElm extends ChipElm {
         return null;
     }
     public void setChipEditValue(int n, EditInfo ei) {
-        if (n == 0 && ei.value >= 1 && ei.value <= 16) {
-            bitCount = (int) ei.value;
-            setupPins();
-            setPoints();
+        if (n == 0) {
+            if (ei.value >= 1 && ei.value <= 16) {
+                bitCount = (int) ei.value;
+                setupPins();
+                setPoints();
+            } else
+                ei.setError("must be between 1 and 16");
             return;
         }
         if (n == 1)

@@ -103,11 +103,14 @@ class Counter2Elm extends ChipElm {
 	    return null;
 	}
 	public void setChipEditValue(int n, EditInfo ei) {
-	    if (n == 0 && ei.value >= 2) {
-		bits = (int)ei.value;
-		setupPins();
-		setPoints();
-		allocNodes();
+	    if (n == 0) {
+		if (ei.value >= 2) {
+		    bits = (int)ei.value;
+		    setupPins();
+		    setPoints();
+		    allocNodes();
+		} else
+		    ei.setError("must be >= 2");
 	    }
 	    if (n == 1)
 		modulus = (int)ei.value;

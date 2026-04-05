@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -27,15 +27,15 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 class EditOptions implements Editable {
 	CirSim app;
 	SimulationManager sim;
-	
+
 	public EditOptions(CirSim a, SimulationManager s) { app = a; sim = s; }
-	
+
 	public EditInfo getEditInfo(int n) {
 		if (n == 0)
-			return new EditInfo("Time step size (s)", sim.maxTimeStep, 0, 0);
+			return new EditInfo("Time step size (s)", sim.maxTimeStep, 0, 0).setPositive();
 		if (n == 1)
 			return new EditInfo("Range for voltage color (V)",
-					CircuitElm.voltageRange, 0, 0);
+					CircuitElm.voltageRange, 0, 0).setPositive();
 		if (n == 2) {
 	            EditInfo ei =  new EditInfo("Change Language", 0, -1, -1);
 	            ei.choice = new Choice();
@@ -50,14 +50,14 @@ class EditOptions implements Editable {
 	            ei.choice.add("Norsk bokmål");
 	            ei.choice.add("Polski");
 	            ei.choice.add("Português");
-	            ei.choice.add("\u0420\u0443\u0441\u0441\u043a\u0438\u0439"); // Russian 
-	            ei.choice.add("\u4e2d\u6587 (\u4e2d\u56fd\u5927\u9646)"); // Chinese 
-	            ei.choice.add("\u4e2d\u6587 (\u53f0\u6e7e)"); // Chinese (tw) 
+	            ei.choice.add("\u0420\u0443\u0441\u0441\u043a\u0438\u0439"); // Russian
+	            ei.choice.add("\u4e2d\u6587 (\u4e2d\u56fd\u5927\u9646)"); // Chinese
+	            ei.choice.add("\u4e2d\u6587 (\u53f0\u6e7e)"); // Chinese (tw)
 	            ei.choice.add("日本語"); // Japanese
 	            ei.choice.add("한국어"); // Korean
 	            return ei;
 		}
-		
+
 		if (n == 3)
 		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor();
 		if (n == 4)
@@ -83,30 +83,30 @@ class EditOptions implements Editable {
 		    return ei;
 		}
 		if (n == 12)
-		    return new EditInfo("Minimum Target Frame Rate", app.minFrameRate);
+		    return new EditInfo("Minimum Target Frame Rate", app.minFrameRate).setPositive();
 		if (n == 13)
-		    return new EditInfo("Mouse Wheel Sensitivity", app.mouse.wheelSensitivity);
+		    return new EditInfo("Mouse Wheel Sensitivity", app.mouse.wheelSensitivity).setPositive();
 		if (n == 14) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
 		if (n == 15 && sim.adjustTimeStep)
-		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
+		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
 
 		return null;
 	}
-	
+
 	public void setEditValue(int n, EditInfo ei) {
-		if (n == 0 && ei.value > 0) {
+		if (n == 0) {
 			sim.maxTimeStep = ei.value;
 
 			// if timestep changed manually, prompt before changing it again
 			AudioOutputElm.okToChangeTimeStep = false;
 		}
-		if (n == 1 && ei.value > 0)
+		if (n == 1)
 			CircuitElm.voltageRange = ei.value;
 		if (n == 2) {
 		    	int lang = ei.choice.getSelectedIndex();
@@ -177,9 +177,9 @@ class EditOptions implements Editable {
 		    CircuitElm.setDecimalDigits((int)ei.value, false, true);
 		if (n == 11)
 	            app.developerMode = ei.checkbox.getState();
-		if (n == 12 && ei.value > 0)
+		if (n == 12)
 		    app.minFrameRate = ei.value;
-		if (n == 13 && ei.value > 0) {
+		if (n == 13) {
 		    app.mouse.wheelSensitivity = ei.value;
 		    Storage stor = Storage.getLocalStorageIfSupported();
 		    if (stor != null)
@@ -189,10 +189,10 @@ class EditOptions implements Editable {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 15 && ei.value > 0)
+		if (n == 15)
 		    sim.minTimeStep = ei.value;
 	}
-	
+
 	Color setColor(String name, EditInfo ei, Color def) {
 	    String val = ei.textf.getText();
 	    if (val.length() == 0)

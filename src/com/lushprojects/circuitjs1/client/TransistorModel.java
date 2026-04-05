@@ -117,7 +117,7 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	modelMap = new HashMap<String,TransistorModel>();
 	addDefaultModel("default",      new TransistorModel("default",        1e-13));
 	addDefaultModel("spice-default", new TransistorModel("spice-default", 1e-16));
-	
+
 	// for LM324v2 OpAmpRealElm
 	loadInternalModel("xlm324v2-qpi 0 1.01e-16 333.3333333333333 0 1.5 0 0 2 1 1 0.0034482758620689655 0 1");
 	loadInternalModel("xlm324v2-qpi 0 1.01e-16 333.3333333333333 0 1.5 0 0 2 1 1 0.0034482758620689655 0 1");
@@ -223,7 +223,7 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	TransistorModel tm = undumpModel(st);
 	tm.builtIn = tm.internal = true;
     }
-    
+
     static TransistorModel undumpModel(StringTokenizer st) {
 	String name = CustomLogicModel.unescape(st.nextToken());
 	TransistorModel dm = TransistorModel.getModelWithName(name);
@@ -285,11 +285,11 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 11) return new EditInfo("B-C Leakage Saturation Current (ISC)", BCleakCur);
 	if (n == 12) return new EditInfo("B-C Leakage Emission Coefficient (NC)", leakBCemissionCoeff);
 	if (n == 13) return new EditInfo("B-E Zero-Bias Junction Capacitance (CJE)", junctionCapBE);
-	if (n == 14) return new EditInfo("B-E Junction Potential (VJE)", junctionPotBE);
-	if (n == 15) return new EditInfo("B-E Junction Grading Coefficient (MJE)", junctionExpBE);
+	if (n == 14) return new EditInfo("B-E Junction Potential (VJE)", junctionPotBE).setPositive();
+	if (n == 15) return new EditInfo("B-E Junction Grading Coefficient (MJE)", junctionExpBE).setPositive();
 	if (n == 16) return new EditInfo("B-C Zero-Bias Junction Capacitance (CJC)", junctionCapBC);
-	if (n == 17) return new EditInfo("B-C Junction Potential (VJC)", junctionPotBC);
-	if (n == 18) return new EditInfo("B-C Junction Grading Coefficient (MJC)", junctionExpBC);
+	if (n == 17) return new EditInfo("B-C Junction Potential (VJC)", junctionPotBC).setPositive();
+	if (n == 18) return new EditInfo("B-C Junction Grading Coefficient (MJC)", junctionExpBC).setPositive();
 	if (n == 19) return new EditInfo("Forward Transit Time TF (s)", transitTimeF);
 	if (n == 20) return new EditInfo("Reverse Transit Time TR (s)", transitTimeR);
 	return null;
@@ -314,13 +314,19 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	if (n == 11) BCleakCur = ei.value;
 	if (n == 12) leakBCemissionCoeff = ei.value;
 	if (n == 13) junctionCapBE = ei.value;
-	if (n == 14 && ei.value > 0) junctionPotBE = ei.value;
-	if (n == 15 && ei.value > 0) junctionExpBE = ei.value;
+	if (n == 14) junctionPotBE = ei.value;
+	if (n == 15) junctionExpBE = ei.value;
 	if (n == 16) junctionCapBC = ei.value;
-	if (n == 17 && ei.value > 0) junctionPotBC = ei.value;
-	if (n == 18 && ei.value > 0) junctionExpBC = ei.value;
-	if (n == 19 && ei.value >= 0) transitTimeF = ei.value;
-	if (n == 20 && ei.value >= 0) transitTimeR = ei.value;
+	if (n == 17) junctionPotBC = ei.value;
+	if (n == 18) junctionExpBC = ei.value;
+	if (n == 19) {
+	    if (ei.value >= 0) transitTimeF = ei.value;
+	    else ei.setError("must be >= 0");
+	}
+	if (n == 20) {
+	    if (ei.value >= 0) transitTimeR = ei.value;
+	    else ei.setError("must be >= 0");
+	}
 	updateModel();
 	CirSim.theApp.updateModels();
     }

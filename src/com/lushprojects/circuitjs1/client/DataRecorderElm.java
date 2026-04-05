@@ -98,7 +98,7 @@ public class DataRecorderElm extends CircuitElm {
 
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
-		EditInfo ei = new EditInfo("# of Data Points", dataCount, -1, -1).setDimensionless();
+		EditInfo ei = new EditInfo("# of Data Points", dataCount, -1, -1).setDimensionless().setPositive();
 		return ei;
 	    }
 	    if (n == 1) {

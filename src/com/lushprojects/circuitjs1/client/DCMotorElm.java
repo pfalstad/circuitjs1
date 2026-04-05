@@ -228,17 +228,17 @@ class DCMotorElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Armature inductance (H)", inductance, 0, 0);
+	    return new EditInfo("Armature inductance (H)", inductance, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("Armature Resistance (ohms)", resistance, 0, 0);
+	    return new EditInfo("Armature Resistance (ohms)", resistance, 0, 0).setPositive();
 	if (n == 2)
-	    return new EditInfo("Torque constant (Nm/A)", K, 0, 0);
+	    return new EditInfo("Torque constant (Nm/A)", K, 0, 0).setPositive();
 	if (n == 3)
-	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0);
+	    return new EditInfo("Moment of inertia (Kg.m^2)", J, 0, 0).setPositive();
 	if (n == 4)
-	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0);
+	    return new EditInfo("Friction coefficient (Nms/rad)", b, 0, 0).setPositive();
 	if (n == 5)
-	    return new EditInfo("Gear Ratio", gearRatio, 0, 0);
+	    return new EditInfo("Gear Ratio", gearRatio, 0, 0).setPositive();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {

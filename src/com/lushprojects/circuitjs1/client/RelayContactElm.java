@@ -237,9 +237,9 @@ class RelayContactElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0);
+	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0).setPositive();
 	if (n == 1)
-	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0);
+	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
 	if (n == 2)
 	    return new EditInfo("Label (for linking)", label);
 	if (n == 3)

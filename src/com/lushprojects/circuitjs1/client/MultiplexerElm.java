@@ -324,10 +324,13 @@ import com.google.gwt.xml.client.Document;
         }
 
         public void setChipEditValue(int n, EditInfo ei) {
-            if (n == 0 && ei.value >= 1 && ei.value <= 6) {
-                selectBitCount = (int) ei.value;
-                setupPins();
-                setPoints();
+            if (n == 0) {
+                if (ei.value >= 1 && ei.value <= 6) {
+                    selectBitCount = (int) ei.value;
+                    setupPins();
+                    setPoints();
+                } else
+                    ei.setError("must be between 1 and 6");
                 return;
             }
             if (n == 1) {
@@ -354,10 +357,13 @@ import com.google.gwt.xml.client.Document;
         	setPoints();
         	return;
             }
-            if (n == 5 && ei.value >= 2) {
-        	dataBusWidth = (int) ei.value;
-        	setupPins();
-        	setPoints();
+            if (n == 5) {
+        	if (ei.value >= 2) {
+        	    dataBusWidth = (int) ei.value;
+        	    setupPins();
+        	    setPoints();
+        	} else
+        	    ei.setError("must be >= 2");
         	return;
             }
         }

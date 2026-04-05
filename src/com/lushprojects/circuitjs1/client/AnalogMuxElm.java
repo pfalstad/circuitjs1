@@ -144,19 +144,22 @@ class AnalogMuxElm extends ChipElm {
 	if (n == 0)
 	    return new EditInfo("# of Select Bits", selectBitCount, 1, 8).setDimensionless();
 	if (n == 1)
-	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0);
+	    return new EditInfo("On Resistance (ohms)", r_on, 0, 0).setPositive();
 	if (n == 2)
-	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0);
+	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
 	if (n == 3)
 	    return new EditInfo("Threshold Voltage", threshold, 0, 0);
 	return super.getChipEditInfo(n);
     }
 
     public void setChipEditValue(int n, EditInfo ei) {
-	if (n == 0 && ei.value >= 1 && ei.value <= 6) {
-	    selectBitCount = (int) ei.value;
-	    setupPins();
-	    setPoints();
+	if (n == 0) {
+	    if (ei.value >= 1 && ei.value <= 6) {
+		selectBitCount = (int) ei.value;
+		setupPins();
+		setPoints();
+	    } else
+		ei.setError("must be between 1 and 6");
 	    return;
 	}
 	if (n == 1 && ei.value > 0)
