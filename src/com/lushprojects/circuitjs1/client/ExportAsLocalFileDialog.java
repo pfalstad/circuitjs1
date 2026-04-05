@@ -117,7 +117,7 @@ public class ExportAsLocalFileDialog extends Dialog {
 	    elem.click();
 	}-*/;
 	
-	void apply() {
+	boolean apply() {
 	    String fname = textBox.getText();
 	    if (!fname.contains("."))
 		fname += ".txt";
@@ -126,5 +126,6 @@ public class ExportAsLocalFileDialog extends Dialog {
 	    a.getElement().setAttribute("Download", fname);
 	    vp.add(a);
 	    click(a.getElement());
+	    return true;
 	}
 }

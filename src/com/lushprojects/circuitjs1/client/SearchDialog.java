@@ -107,9 +107,9 @@ public class SearchDialog extends Dialog {
 		textBox.setFocus(true);
 	}
 	
-	void apply() {
+	boolean apply() {
 	    String s = listBox.getSelectedItemText();
-	    
+
 	    int i;
 	    for (i = 0; i != ui.mainMenuItems.size(); i++) {
 		CheckboxMenuItem item = ui.mainMenuItems.get(i);
@@ -118,8 +118,9 @@ public class SearchDialog extends Dialog {
 		    break;
 		}
 	    }
-	    
+
 	    closeDialog();
+	    return true;
 	}
 	
 	void search() {

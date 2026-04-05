@@ -52,6 +52,7 @@ class EditDialog extends Dialog {
 	final int barmax = 1000;
 	VerticalPanel mainPanel;
 	HorizontalPanel bottomButtonPanel;
+	Label errorLabel;
 	static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
 
 	EditDialog(Editable ce, CirSim f) {
@@ -90,8 +91,8 @@ class EditDialog extends Dialog {
 		bottomButtonPanel.add(okButton = new Button(Locale.LS("OK")));
 		okButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				apply();
-				closeDialog();
+				if (apply())
+				    closeDialog();
 			}
 		});
 		bottomButtonPanel.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
@@ -101,7 +102,13 @@ class EditDialog extends Dialog {
 				closeDialog();
 			}
 		});
+
 		buildDialog();
+
+		errorLabel = new Label();
+		errorLabel.getElement().getStyle().setColor("red");
+		errorLabel.setVisible(false);
+		mainPanel.insert(errorLabel, mainPanel.getWidgetIndex(bottomButtonPanel));
 		this.center();
 	}
 	
@@ -280,10 +287,11 @@ class EditDialog extends Dialog {
 		return noCommaFormat.parse(s) * mult * rmsMult;
 	}
 
-	void apply() {
+	boolean apply() {
 		int i;
 		for (i = 0; i != einfocount; i++) {
 			EditInfo ei = einfos[i];
+			ei.error = null;
 			if (ei.textf!=null && ei.text==null) {
 				try {
 					double d = parseUnits(ei);
@@ -295,7 +303,16 @@ class EditDialog extends Dialog {
 			if (ei.button != null || ei.choice != null)
 			    continue;
 			elm.setEditValue(i, ei);
-			
+			if (ei.error != null) {
+			    String msg = ei.error;
+			    String field = ei.errorFieldName != null ? ei.errorFieldName : ei.name;
+			    if (field != null && field.length() > 0)
+				msg = field + ": " + msg;
+			    errorLabel.setText(msg);
+			    errorLabel.setVisible(true);
+			    return false;
+			}
+
 			// update slider if any
 			if (elm instanceof CircuitElm) {
 			    Adjustable adj = cframe.findAdjustable((CircuitElm)elm, i);
@@ -303,7 +320,9 @@ class EditDialog extends Dialog {
 				adj.setSliderValue(ei.value);
 			}
 		}
+		errorLabel.setVisible(false);
 		cframe.needAnalyze();
+		return true;
 	}
 
 	public void itemStateChanged(GwtEvent e) {

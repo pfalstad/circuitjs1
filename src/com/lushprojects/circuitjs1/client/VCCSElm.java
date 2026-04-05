@@ -196,7 +196,7 @@ class VCCSElm extends ChipElm {
         public void setChipEditValue(int n, EditInfo ei) {
             if (n == 0) {
         	exprString = ei.textf.getText();
-        	parseExpr();
+        	parseExpr(ei);
         	return;
             }
             if (n == 1) {
@@ -214,12 +214,16 @@ class VCCSElm extends ChipElm {
             parseExpr();
         }
         
-        void parseExpr() {
+        void parseExpr() { parseExpr(null); }
+
+        void parseExpr(EditInfo ei) {
             ExprParser parser = new ExprParser(exprString);
             expr = parser.parseExpression();
             String err = parser.gotError();
-            if (err != null)
-        	Window.alert(Locale.LS("Parse error in expression") + ": " + exprString + ": " + err);
+            if (err != null) {
+		ei.setErrorFieldName("Output Function");
+        	ei.setError(Locale.LS("Parse error in expression") + ": " + exprString + ": " + err);
+	    }
         }
         
         void getInfo(String arr[]) {

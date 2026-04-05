@@ -802,12 +802,12 @@ labelledGridManager gridLabels;
 	    }
 	}
 	
-	void apply() {
+	boolean apply() {
 	    String label = labelTextBox.getText();
 	    if (label.length() == 0)
 		label = null;
 	    scope.setText(label);
-	    
+
 	    if (scope.isManualScale()) {
 		double d=getManualScaleValue();
 		if (d>0)
@@ -816,6 +816,7 @@ labelledGridManager gridLabels;
 		if (n > 0)
 		    scope.setManDivisions(n);
 	    }
+	    return true;
 	}
 
 	void applyTriggerLevel() {

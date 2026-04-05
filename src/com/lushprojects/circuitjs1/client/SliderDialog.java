@@ -168,7 +168,7 @@ class SliderDialog extends Dialog  {
 	    return sim.findAdjustable(elm, item);
 	}
 
-	void apply() {
+	boolean apply() {
 		int i;
 		for (i = 0; i != einfocount; i++) {
 		    Adjustable adj = findAdjustable(i);
@@ -198,6 +198,7 @@ class SliderDialog extends Dialog  {
 			adj.setSliderValue(ei.value);
 		    } catch (Exception e) { CirSim.console(e.toString()); }
 		}
+		return true;
 	}
 
 	public void itemStateChanged(GwtEvent e) {

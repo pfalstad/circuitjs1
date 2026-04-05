@@ -40,12 +40,13 @@ class Dialog extends DialogBox  {
 	
 	public void enterPressed() {
 	    if (closeOnEnter) {
-		apply();
-		closeDialog();
+		if (apply())
+		    closeDialog();
 	    }
 	}
 
-	void apply() {
+	boolean apply() {
+	    return true;
 	}
 }
 

@@ -91,9 +91,9 @@ public class CustomLogicModel implements Editable {
 	outputs = listToArray(unescape(st.nextToken()));
 	infoText = unescape(st.nextToken());
 	rules = unescape(st.nextToken());
-	parseRules();
+	parseRules(null);
     }
-    
+
     static void undumpModelXml(XMLDeserializer xml) {
         String name = xml.parseStringAttr("nm", null);
         CustomLogicModel model = getModelWithName(name);
@@ -106,7 +106,7 @@ public class CustomLogicModel implements Editable {
         outputs = listToArray(xml.parseStringAttr("o", null));
         infoText = xml.parseStringAttr("if", null);
 	rules = xml.parseContents().trim();
-	parseRules();
+	parseRules(null);
     }
 
     String arrayToList(String arr[]) {
@@ -143,6 +143,7 @@ public class CustomLogicModel implements Editable {
         }
         if (n == 3) {
             EditInfo ei = new EditInfo(EditInfo.makeLink("customlogic.html", "Definition"), 0, -1, -1);
+            ei.setErrorFieldName("Definition");
             ei.textArea = new TextArea();
             ei.textArea.setVisibleLines(5);
             ei.textArea.setText(rules);
@@ -168,7 +169,7 @@ public class CustomLogicModel implements Editable {
 	    infoText = ei.textf.getText();
 	if (n == 3) {
 	    rules = ei.textArea.getText();
-	    parseRules();
+	    parseRules(ei);
 	}
 	if (n == 4) {
 	    if (ei.checkbox.getState())
@@ -179,7 +180,7 @@ public class CustomLogicModel implements Editable {
 	CirSim.theApp.updateModels();
     }
 
-    void parseRules() {
+    void parseRules(EditInfo ei) {
 	String lines[] = rules.split("\n");
 	int i;
 	rulesLeft = new Vector<String>();
@@ -191,19 +192,23 @@ public class CustomLogicModel implements Editable {
 		continue;
 	    String s0[] = s.replaceAll(" ", "").split("=");
 	    if (s0.length != 2) {
-		Window.alert("Error on line " + (i+1) + " of model description");
+		if (ei != null)
+		    ei.setError("error on line " + (i+1));
 		return;
 	    }
 	    if (s0[0].length() < inputs.length) {
-		Window.alert("Model must have >= " + (inputs.length) + " digits on left side");
+		if (ei != null)
+		    ei.setError("must have >= " + (inputs.length) + " digits on left side (line " + (i+1) + ")");
 		return;
 	    }
 	    if (s0[0].length() > inputs.length + outputs.length) {
-		Window.alert("Model must have <= " + (inputs.length+outputs.length) + " digits on left side");
+		if (ei != null)
+		    ei.setError("must have <= " + (inputs.length+outputs.length) + " digits on left side (line " + (i+1) + ")");
 		return;
 	    }
 	    if (s0[1].length() != outputs.length) {
-		Window.alert("Model must have " + (outputs.length) + " digits on right side");
+		if (ei != null)
+		    ei.setError("must have " + (outputs.length) + " digits on right side (line " + (i+1) + ")");
 		return;
 	    }
 	    String rl = s0[0];
@@ -217,7 +222,8 @@ public class CustomLogicModel implements Editable {
 		    continue;
 		}
 		if (x < 'a' || x > 'z') {
-		    Window.alert("Error on line " + (i+1) + " of model description");
+		    if (ei != null)
+			ei.setError("error on line " + (i+1));
 		    return;
 		}
 		// if a letter appears twice, capitalize it the 2nd time so we can compare

@@ -116,13 +116,17 @@ class CustomTransformerElm extends CircuitElm {
 	}
 	
 	boolean parseDescription(String desc) {
+	    return parseDescription(desc, null);
+	}
+
+	boolean parseDescription(String desc, EditInfo ei) {
 	    // a number indicates a coil (number = turns ratio to base inductance coil)
 	    // (negative number = reverse polarity)
 	    // : separates primary and secondary
 	    // , separates two coils
 	    // + separates two connected coils (tapped)
 	    StringTokenizer st = new StringTokenizer(desc, ",:+", true);
-	    
+
 	    // count coils/nodes
 	    coilCount = nodeCount = 0;
 	    while (st.hasMoreTokens()) {
@@ -134,7 +138,13 @@ class CustomTransformerElm extends CircuitElm {
 		nodeCount += 2;
 		coilCount++;
 	    }
-	    
+
+	    if (coilCount == 0) {
+		if (ei != null)
+		    ei.setError("no coils defined");
+		return false;
+	    }
+
 	    coilNodes = new int[coilCount];
 	    coilInductances = new double[coilCount];
 	    // save coil currents if possible (needed for undumping)
@@ -147,7 +157,7 @@ class CustomTransformerElm extends CircuitElm {
 	    nodeTaps = newPointArray(nodeCount);
 	    nodeCurrents = new double[nodeCount];
 	    nodeCurCounts = new double[nodeCount];
-	    
+
 	    // start over
 	    st = new StringTokenizer(desc, ",:+", true);
 	    int nodeNum = 0;
@@ -160,9 +170,16 @@ class CustomTransformerElm extends CircuitElm {
 		double n = 0;
 		try {
 		    n = Double.parseDouble(tok);
-		} catch (Exception e) { return false; }
-		if (n == 0)
+		} catch (Exception e) {
+		    if (ei != null)
+			ei.setError("expected number, got '" + tok + "'");
 		    return false;
+		}
+		if (n == 0) {
+		    if (ei != null)
+			ei.setError("turns ratio cannot be zero");
+		    return false;
+		}
 		// create new coil
 		coilNodes[coilNum] = nodeNum;
 		coilInductances[coilNum] = n*n*inductance;
@@ -186,11 +203,16 @@ class CustomTransformerElm extends CircuitElm {
 		}
 		if (tok == ":") {
 		    // switch to secondary
-		    if (secondary)
+		    if (secondary) {
+			if (ei != null)
+			    ei.setError("only one ':' separator allowed");
 			return false;
+		    }
 		    secondary = true;
 		    continue;
 		}
+		if (ei != null)
+		    ei.setError("unexpected '" + tok + "'");
 		return false;
 	    }
 	    allocNodes();
@@ -440,6 +462,7 @@ class CustomTransformerElm extends CircuitElm {
 		return new EditInfo("Base Inductance (H)", inductance, .01, 5);
 	    if (n == 1) {
 		EditInfo ei = new EditInfo(EditInfo.makeLink("customtransformer.html", "Description"), 0, -1, -1);
+		ei.setErrorFieldName("Description");
 		ei.text = description;
 		ei.disallowSliders();
 		return ei;
@@ -463,9 +486,8 @@ class CustomTransformerElm extends CircuitElm {
 	    if (n == 1) {
 		String s = ei.textf.getText();
 		if (s != description) {
-		    if (!parseDescription(s)) {
+		    if (!parseDescription(s, ei)) {
 			parseDescription(description);
-			Window.alert("Parse error in description");
 		    } else
 			description = s;
 		    setPoints();

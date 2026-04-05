@@ -12,12 +12,13 @@ public class EditDiodeModelDialog extends EditDialog {
 	applyButton.removeFromParent();
     }
 
-    void apply() {
+    boolean apply() {
 	super.apply();
 	if (model.name == null || model.name.length() == 0)
 	    model.pickName();
 	if (diodeElm != null)
 	    diodeElm.newModelCreated(model);
+	return true;
     }
     
     public void closeDialog() {

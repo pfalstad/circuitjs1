@@ -33,7 +33,7 @@ class InstructionDisplayElm extends CircuitElm {
     public InstructionDisplayElm(int xx, int yy) {
 	super(xx, yy);
 	lookupText = "0=text0\n1=text1\n0x2-0xF=other ({a})\n";
-	parseEntries();
+	parseEntries(null);
     }
 
     String getXmlDumpType() { return "ins"; }
@@ -64,7 +64,7 @@ class InstructionDisplayElm extends CircuitElm {
 	CirSim.console("lookupText: " + lookupText);
 	if (lookupText == null)
 	    lookupText = "";
-	parseEntries();
+	parseEntries(null);
     }
 
     Point getPost(int n) {
@@ -150,11 +150,11 @@ class InstructionDisplayElm extends CircuitElm {
 	    threshold = ei.value;
 	if (n == 2) {
 	    lookupText = ei.textArea.getText();
-	    parseEntries();
+	    parseEntries(ei);
 	}
     }
 
-    void parseEntries() {
+    void parseEntries(EditInfo ei) {
 	entries = new Vector<LookupEntry>();
 	if (lookupText == null || lookupText.length() == 0)
 	    return;
@@ -164,8 +164,11 @@ class InstructionDisplayElm extends CircuitElm {
 	    if (line.length() == 0)
 		continue;
 	    int eq = line.indexOf('=');
-	    if (eq < 0)
+	    if (eq < 0) {
+		if (ei != null)
+		    ei.setError("missing =: " + line);
 		continue;
+	    }
 	    String key = line.substring(0, eq).trim();
 	    String val = line.substring(eq + 1);
 	    try {
