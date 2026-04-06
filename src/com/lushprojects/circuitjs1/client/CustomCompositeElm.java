@@ -51,8 +51,10 @@ public class CustomCompositeElm extends CompositeElm {
     
     void dumpXmlModel(Document doc) {
 	// dump models of all children first
-	for (int i = 0; i < compElmList.size(); i++)
-	    compElmList.get(i).dumpXmlModel(doc);
+	if (compElmList != null) {
+	    for (int i = 0; i < compElmList.size(); i++)
+		compElmList.get(i).dumpXmlModel(doc);
+	}
 	if (!(model.builtin || model.dumped))
 	    model.dumpXml(doc);
     }
