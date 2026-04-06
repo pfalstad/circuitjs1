@@ -80,25 +80,29 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
         	if (!key.startsWith("subcircuit:"))
         	    continue;
         	String data = stor.getItem(key);
-        	if (data.startsWith("<")) {
-        	    // XML format
-        	    loadModelFromStorage(data);
-        	} else {
-        	    // old format
-        	    String firstLine = data;
-        	    int lineLen = data.indexOf('\n');
-        	    if (lineLen != -1)
-        		firstLine = data.substring(0, lineLen);
-        	    StringTokenizer st = new StringTokenizer(firstLine, " ");
-        	    if (st.nextToken() == ".") {
-        		CustomCompositeModel model = undumpModel(st);
-        		if (lineLen != -1)
-        		    model.modelCircuit = data.substring(lineLen+1);
-        		// move from local to global since this is from storage
-        		localModelMap.remove(model.name);
-        		globalModelMap.put(model.name, model);
-        	    }
-        	}
+		try {
+		    if (data.startsWith("<")) {
+			// XML format
+			loadModelFromStorage(data);
+		    } else {
+			// old format
+			String firstLine = data;
+			int lineLen = data.indexOf('\n');
+			if (lineLen != -1)
+			    firstLine = data.substring(0, lineLen);
+			StringTokenizer st = new StringTokenizer(firstLine, " ");
+			if (st.nextToken() == ".") {
+			    CustomCompositeModel model = undumpModel(st);
+			    if (lineLen != -1)
+				model.modelCircuit = data.substring(lineLen+1);
+			    // move from local to global since this is from storage
+			    localModelMap.remove(model.name);
+			    globalModelMap.put(model.name, model);
+			}
+		    }
+		} catch (Exception e) {
+		    CirSim.console("Exception: " + e);
+		}
             }
         }
     }

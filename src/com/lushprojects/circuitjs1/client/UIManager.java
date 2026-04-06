@@ -749,7 +749,9 @@ public class UIManager {
             }
         }
 
-        app.jsInterface.callUpdateHook();
+	try {
+	    app.jsInterface.callUpdateHook();
+	} catch (Exception e) {}
     }
 
     void drawBottomArea(Graphics g) {
