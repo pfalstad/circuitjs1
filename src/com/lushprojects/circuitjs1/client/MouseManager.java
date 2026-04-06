@@ -548,8 +548,19 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     void updateNetHighlight() {
     	CircuitElm ce = mouseElm;
-    	if (ce != null && ce.isRemovableWire() && sim.sim.nodeList != null && netHighlightKeyHeld) {
-    	    highlightedNode = ce.getNode(0);
+    	if (ce != null && ce.isRemovableWire() && netHighlightKeyHeld) {
+
+    	    // force full analysis if pending so node info is up to date
+	    if (sim.sim.needsStamp) {
+		try {
+		    sim.sim.preStampAndStampCircuit();
+		} catch (Exception e) {
+		    sim.sim.stop("Exception in stampCircuit()", null);
+		}
+	    }
+
+    	    if (sim.sim.nodeList != null)
+    		highlightedNode = ce.getNode(0);
     	} else {
     	    highlightedNode = null;
     	}
