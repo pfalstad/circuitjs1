@@ -285,6 +285,7 @@ public class Menus {
 		"Add Transformer", "TransformerElm",
 		"Add Tapped Transformer", "TappedTransformerElm",
 		"Add Custom Transformer", "CustomTransformerElm",
+		"Add Gyrator", "GyratorElm",
 		"Add Transmission Line", "TransLineElm",
 		"Add Relay", "RelayElm",
 		"Add Relay Coil", "RelayCoilElm",

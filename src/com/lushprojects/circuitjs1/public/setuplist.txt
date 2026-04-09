@@ -60,6 +60,12 @@ satcore-comparison.txt Low vs High Drive (AC Saturation)
 satcore-transformer.txt Transformer with Saturable Core
 -
 -
++Gyrators
+gyrator.txt Gyrator (using Op-Amp)
+gyratorelm.txt Gyrator (Impedance Inverter)
+gyratorfilter.txt Gyrator Low-Pass Filter
+gyratorbandpass.txt Gyrator Bandpass Filter
+-
 +Relays
 relay.txt Relay
 relayand.txt Relay AND

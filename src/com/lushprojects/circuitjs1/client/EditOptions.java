@@ -93,6 +93,11 @@ class EditOptions implements Editable {
 		}
 		if (n == 15 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
+		if (n == 15) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", app.autoDCOnReset);
+		    return ei;
+		}
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
 
@@ -191,6 +196,8 @@ class EditOptions implements Editable {
 		}
 		if (n == 15 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
+		if (n == 15)
+		    app.autoDCOnReset = ei.checkbox.getState();
 	}
 	
 	Color setColor(String name, EditInfo ei, Color def) {
