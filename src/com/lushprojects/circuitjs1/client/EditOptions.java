@@ -85,13 +85,13 @@ class EditOptions implements Editable {
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 14 && sim.adjustTimeStep)
-		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
-		if (n == 15) {
+		if (n == 14) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", app.autoDCOnReset);
 		    return ei;
 		}
+		if (n == 15 && sim.adjustTimeStep)
+		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0);
 
 		return null;
 	}
@@ -173,10 +173,10 @@ class EditOptions implements Editable {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 14 && ei.value > 0)
-		    sim.minTimeStep = ei.value;
-		if (n == 15)
+		if (n == 14)
 		    app.autoDCOnReset = ei.checkbox.getState();
+		if (n == 15 && ei.value > 0)
+		    sim.minTimeStep = ei.value;
 	}
 	
 	Color setColor(String name, EditInfo ei, Color def) {
