@@ -215,7 +215,7 @@ class EditDialog extends DialogBox  {
 			    continue;
 			elm.setEditValue(i, ei);
 		}
-		cframe.needAnalyze();
+		cframe.editPerformed(elm);
 	}
 
 	public void itemStateChanged(GwtEvent e) {
@@ -225,15 +225,15 @@ class EditDialog extends DialogBox  {
 	    for (i = 0; i != einfocount; i++) {
 		EditInfo ei = einfos[i];
 		if (ei.choice == src || ei.checkbox == src || ei.button == src) {
-		    
+
 		    // if we're pressing a button, make sure to apply changes first
 		    if (ei.button == src)
 			apply();
-		    
+
 		    elm.setEditValue(i, ei);
 		    if (ei.newDialog)
 			changed = true;
-		    cframe.needAnalyze();
+		    cframe.editPerformed(elm);
 		}
 	    }
 	    if (changed) {

@@ -4500,7 +4500,9 @@ MouseOutHandler, MouseWheelHandler {
     	// click to clear selection
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)
     	    clearSelection();
-    	
+
+    	int completedMode = tempMouseMode;
+    	boolean wasDragging = dragging;
     	tempMouseMode = mouseMode;
     	selectedArea = null;
     	dragging = false;
@@ -4524,6 +4526,11 @@ MouseOutHandler, MouseWheelHandler {
     			circuitChanged = true;
     		}
     		dragElm = null;
+    	}
+    	// dragging a post or moving elements changes connections, invalidating customizer poles
+    	if (wasDragging && (completedMode == MODE_DRAG_POST || completedMode == MODE_DRAG_SELECTED)) {
+    	    releaseCustomizer();
+    	    circuitChanged = true;
     	}
     	if (circuitChanged)
     		needAnalyze();
