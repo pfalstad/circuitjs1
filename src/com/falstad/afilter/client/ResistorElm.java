@@ -61,7 +61,10 @@ import com.google.gwt.canvas.dom.client.CanvasGradient;
 	    double len = distance(lead1, lead2);
     	g.context.save();
     	g.context.setLineWidth(3.0);
-    	g.context.setTransform(((double)(lead2.x-lead1.x))/len, ((double)(lead2.y-lead1.y))/len, -((double)(lead2.y-lead1.y))/len,((double)(lead2.x-lead1.x))/len,lead1.x,lead1.y);
+    	// use translate+rotate to compose with the circuit pan/zoom transform
+    	// instead of setTransform which would replace it
+    	g.context.translate(lead1.x, lead1.y);
+    	g.context.rotate(Math.atan2(lead2.y - lead1.y, lead2.x - lead1.x));
     	CanvasGradient grad = g.context.createLinearGradient(0,0,len,0);
     	grad.addColorStop(0, getVoltageColor(g,v1).getHexValue());
     	grad.addColorStop(1.0, getVoltageColor(g,v2).getHexValue());

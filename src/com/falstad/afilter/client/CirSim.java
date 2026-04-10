@@ -37,6 +37,7 @@ import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.canvas.dom.client.Context2d;
+import com.google.gwt.canvas.dom.client.Context2d.LineCap;
 import com.google.gwt.event.dom.client.MouseDownEvent;
 import com.google.gwt.event.dom.client.MouseDownHandler;
 import com.google.gwt.event.dom.client.MouseEvent;
@@ -192,6 +193,11 @@ MouseOutHandler, MouseWheelHandler {
     int dragX, dragY, initDragX, initDragY;
     int selectedSource;
     Rectangle selectedArea;
+    double[] transform = {1, 0, 0, 1, 0, 0};
+    int mouseCursorX = -1, mouseCursorY = -1;
+    boolean middleMouseDragging = false;
+    int middleDragScreenX, middleDragScreenY;
+    long zoomTime;
     int gridSize, gridMask, gridRound;
     boolean dragging;
     boolean analyzeFlag;
@@ -328,12 +334,13 @@ MouseOutHandler, MouseWheelHandler {
 		int w = width;
 		polesArea = null;
 		if (polesCheckItem.getState()) {
-		    w /= 3;
-		    polesArea = new Rectangle(width-w, 0, w, height-h);
+		    int pw = width / 3;
+		    polesArea = new Rectangle(width - pw, 0, pw, height-h);
+		    w = width - pw;
 		}
 		circuitArea = new Rectangle(0, 0, w, height-h);
 		responseArea = new Rectangle(0, height-h, width*3/4, h);
-		
+
 		centerCircuit();
     }
     
@@ -1095,38 +1102,23 @@ MouseOutHandler, MouseWheelHandler {
 //	}
     
     void centerCircuit() {
-//    void handleResize() {
-//        winSize = cv.getSize();
-//	if (winSize.width == 0)
-//	    return;
-//	dbimage = main.createImage(winSize.width, winSize.height);
-  //  	int h = winSize.height / 5;
-    	/*if (h < 128 && winSize.height > 300)
-	  h = 128;*/
-   // 	circuitArea = new Rectangle(0, 0, winSize.width, winSize.height-h);
+	if (elmList == null || circuitArea == null)
+	    return;
 	computeBbox();
 	if (circuitBbox == null)
 	    return;
-	    
-        int minx = circuitBbox.x;
-        int miny = circuitBbox.y;
-        int maxx = minx + circuitBbox.width;
-        int maxy = miny + circuitBbox.height;
-        console("whole bbox " + circuitBbox);
 
-    	// center circuit; we don't use snapGrid() because that rounds
-    	int dx = gridMask & ((circuitArea.width -(maxx-minx))/2-minx);
-    	int dy = gridMask & ((circuitArea.height-(maxy-miny))/2-miny);
-    	if (dx+minx < 0)
-    		dx = gridMask & (-minx);
-    	if (dy+miny < 0)
-    		dy = gridMask & (-miny);
-    	moveAll(dx, dy);
-        console("moved bbox " + circuitBbox);
-    	
-    	// after moving elements, need this to avoid singular matrix probs
-    	needAnalyze();
-    	circuitBottom = 0;
+	double scale = Math.min(
+	    circuitArea.width  / (double) circuitBbox.width,
+	    circuitArea.height / (double) circuitBbox.height);
+	scale = Math.min(scale, 1.5);
+
+	transform[0] = transform[3] = scale;
+	transform[1] = transform[2] = transform[4] = transform[5] = 0;
+	transform[4] = (circuitArea.width  - circuitBbox.width  * scale) / 2.0 - circuitBbox.x * scale;
+	transform[5] = (circuitArea.height - circuitBbox.height * scale) / 2.0 - circuitBbox.y * scale;
+
+	circuitBottom = 0;
     }
 
     void computeBbox() {
@@ -1283,6 +1275,9 @@ MouseOutHandler, MouseWheelHandler {
 	mydrawstarttime=System.currentTimeMillis();
 	// set omega for admittance display
 	omega = 2*pi*selectedFreq;
+	// apply pan/zoom transform for circuit drawing
+	backcontext.setTransform(transform[0], transform[1], transform[2], transform[3], transform[4], transform[5]);
+	backcontext.setLineCap(LineCap.ROUND);
 	g.setColor(CircuitElm.whiteColor);
 	for (i = 0; i != elmList.size(); i++) {
 	    if (powerCheckItem.getState())
@@ -1347,6 +1342,13 @@ MouseOutHandler, MouseWheelHandler {
 	    	dragElm.draw(g);
 	    	dragElm.drawHandles(g, Color.cyan);
 	}
+	// draw selection rectangle in grid space (inside transform)
+	if (selectedArea != null) {
+	    g.setColor(CircuitElm.selectColor);
+	    g.drawRect(selectedArea.x, selectedArea.y, selectedArea.width, selectedArea.height);
+	}
+	// reset transform before drawing UI overlays (response, poles, info text)
+	backcontext.setTransform(1, 0, 0, 1, 0, 0);
 	g.setFont(oldfont);
 	int ct = scopeCount;
 	if (stopMessage != null)
@@ -1559,10 +1561,6 @@ MouseOutHandler, MouseWheelHandler {
 	    for (i = 0; info[i] != null; i++)
 		g.drawString(info[i], x,
 			     ybase+15*(i+1));
-	}
-	if (selectedArea != null) {
-	    g.setColor(CircuitElm.selectColor);
-	    g.drawRect(selectedArea.x, selectedArea.y, selectedArea.width, selectedArea.height);
 	}
 	 mouseElm = realMouseElm;
 	frames++;
@@ -3716,6 +3714,43 @@ MouseOutHandler, MouseWheelHandler {
 	return (x+gridRound) & gridMask;
     }
 
+    // convert screen coordinates to grid coordinates by inverting the circuit transform
+    int inverseTransformX(double x) {
+	return (int) ((x - transform[4]) / transform[0]);
+    }
+    int inverseTransformY(double y) {
+	return (int) ((y - transform[5]) / transform[3]);
+    }
+
+    // pan the circuit view by middle-mouse drag
+    void dragCircuit(int x, int y) {
+	int dx = x - middleDragScreenX;
+	int dy = y - middleDragScreenY;
+	if (dx == 0 && dy == 0) return;
+	transform[4] += dx;
+	transform[5] += dy;
+	middleDragScreenX = x;
+	middleDragScreenY = y;
+    }
+
+    void zoomCircuit(double dy) {
+	double oldScale = transform[0];
+	double val = dy * .01;
+	double newScale = Math.max(oldScale + val, .2);
+	newScale = Math.min(newScale, 2.5);
+	setCircuitScale(newScale);
+    }
+
+    void setCircuitScale(double newScale) {
+	int constX = (mouseCursorX >= 0) ? mouseCursorX : circuitArea.width / 2;
+	int constY = (mouseCursorY >= 0) ? mouseCursorY : circuitArea.height / 2;
+	int cx = inverseTransformX(constX);
+	int cy = inverseTransformY(constY);
+	transform[0] = transform[3] = newScale;
+	transform[4] = constX - cx * newScale;
+	transform[5] = constY - cy * newScale;
+    }
+
 	boolean doSwitch(int x, int y) {
 		if (mouseElm == null || !(mouseElm instanceof SwitchElm))
 			return false;
@@ -3744,6 +3779,13 @@ MouseOutHandler, MouseWheelHandler {
     				e.isAltKeyDown()))
     			return;
     	}
+    	mouseCursorX = e.getX();
+    	mouseCursorY = e.getY();
+    	// pan via middle mouse drag (transform-based, no element movement)
+    	if (middleMouseDragging) {
+    	    dragCircuit(e.getX(), e.getY());
+    	    return;
+    	}
     	// pan inside the poles/zeros view
     	if (draggingPoles) {
     	    polesViewOffX += e.getX() - dragX;
@@ -3754,41 +3796,44 @@ MouseOutHandler, MouseWheelHandler {
     	}
     	if (!circuitArea.contains(e.getX(), e.getY()))
     		return;
+    	// convert screen coords to grid coords for element operations
+    	int gx = inverseTransformX(e.getX());
+    	int gy = inverseTransformY(e.getY());
     	if (dragElm != null)
-    		dragElm.drag(e.getX(), e.getY());
+    		dragElm.drag(gx, gy);
     	boolean success = true;
     	switch (tempMouseMode) {
     	case MODE_DRAG_ALL:
-    		dragAll(snapGrid(e.getX()), snapGrid(e.getY()));
+    		dragAll(snapGrid(gx), snapGrid(gy));
     		break;
     	case MODE_DRAG_ROW:
-    		dragRow(snapGrid(e.getX()), snapGrid(e.getY()));
+    		dragRow(snapGrid(gx), snapGrid(gy));
     		break;
     	case MODE_DRAG_COLUMN:
-    		dragColumn(snapGrid(e.getX()), snapGrid(e.getY()));
+    		dragColumn(snapGrid(gx), snapGrid(gy));
     		break;
     	case MODE_DRAG_POST:
     		if (mouseElm != null)
-    			dragPost(snapGrid(e.getX()), snapGrid(e.getY()));
+    			dragPost(snapGrid(gx), snapGrid(gy));
     		break;
     	case MODE_SELECT:
     		if (mouseElm == null)
-    			selectArea(e.getX(), e.getY());
+    			selectArea(gx, gy);
     		else {
     			tempMouseMode = MODE_DRAG_SELECTED;
-    			success = dragSelected(e.getX(), e.getY());
+    			success = dragSelected(gx, gy);
     		}
     		break;
     	case MODE_DRAG_SELECTED:
-    		success = dragSelected(e.getX(), e.getY());
+    		success = dragSelected(gx, gy);
     		break;
     	}
     	dragging = true;
     	if (success) {
     		if (tempMouseMode == MODE_DRAG_SELECTED && mouseElm instanceof GraphicElm ) {
-    			dragX = e.getX(); dragY = e.getY();
+    			dragX = gx; dragY = gy;
     		} else {
-    			dragX = snapGrid(e.getX()); dragY = snapGrid(e.getY());
+    			dragX = snapGrid(gx); dragY = snapGrid(gy);
     		}
     	}
     	//	cv.repaint(pause);
@@ -4023,8 +4068,12 @@ MouseOutHandler, MouseWheelHandler {
     	//    	if (e.getNativeButton()==NativeEvent.BUTTON_LEFT)
     	//	    return;
     	CircuitElm newMouseElm=null;
-    	int x = e.getX();
-    	int y = e.getY();
+    	int sx = e.getX();
+    	int sy = e.getY();
+    	mouseCursorX = sx;
+    	mouseCursorY = sy;
+    	int x = inverseTransformX(sx);
+    	int y = inverseTransformY(sy);
     	dragX = snapGrid(x); dragY = snapGrid(y);
     	draggingPost = -1;
     	int i;
@@ -4070,10 +4119,10 @@ MouseOutHandler, MouseWheelHandler {
     	}
     	scopeSelected = -1;
     	if (newMouseElm == null) {
-    	    if (responseArea.contains(x, y))
-    		selectedFreq = linearToFrequency(x/(double) responseArea.width);
-    	    if (polesArea != null && polesArea.contains(x, y)) {
-    	        double omega = Math.abs((lastPolesmy - y) / lastPolesScale);
+    	    if (responseArea.contains(sx, sy))
+    		selectedFreq = linearToFrequency(sx/(double) responseArea.width);
+    	    if (polesArea != null && polesArea.contains(sx, sy)) {
+    	        double omega = Math.abs((lastPolesmy - sy) / lastPolesScale);
     	        selectedFreq = omega / (2*pi);
     	    }
     		//	    // the mouse pointer was not in any of the bounding boxes, but we
@@ -4210,6 +4259,15 @@ MouseOutHandler, MouseWheelHandler {
     	// window receives focus
     	enablePaste();
     	
+    	// handle middle mouse button for panning
+    	if (e.getNativeButton() == NativeEvent.BUTTON_MIDDLE) {
+    	    middleMouseDragging = true;
+    	    middleDragScreenX = e.getX();
+    	    middleDragScreenY = e.getY();
+    	    mouseDragging = true;
+    	    return;
+    	}
+
     	// IES - hack to only handle left button events in the web version.
     	if (e.getNativeButton() != NativeEvent.BUTTON_LEFT)
     		return;
@@ -4275,13 +4333,15 @@ MouseOutHandler, MouseWheelHandler {
 	}
 
 	// IES - Grab resize handles in select mode if they are far enough apart and you are on top of them
-	if (tempMouseMode == MODE_SELECT && mouseElm!=null && 
+	int mgx = inverseTransformX(e.getX());
+	int mgy = inverseTransformY(e.getY());
+	if (tempMouseMode == MODE_SELECT && mouseElm!=null &&
 			distanceSq(mouseElm.x, mouseElm.y, mouseElm.x2, mouseElm.y2) >=256 &&
-			( distanceSq(e.getX(), e.getY(), mouseElm.x, mouseElm.y) <= POSTGRABSQ ||
-			  distanceSq(e.getX(), e.getY(), mouseElm.x2, mouseElm.y2) <= POSTGRABSQ) &&
+			( distanceSq(mgx, mgy, mouseElm.x, mouseElm.y) <= POSTGRABSQ ||
+			  distanceSq(mgx, mgy, mouseElm.x2, mouseElm.y2) <= POSTGRABSQ) &&
 			  !anySelectedButMouse() )
 		tempMouseMode = MODE_DRAG_POST;
-	
+
 	if (tempMouseMode != MODE_SELECT && tempMouseMode != MODE_DRAG_SELECTED)
 	    clearSelection();
 
@@ -4296,17 +4356,17 @@ MouseOutHandler, MouseWheelHandler {
 	setAnimateSpeed();
 
 	pushUndo();
-	initDragX = e.getX();
-	initDragY = e.getY();
+	initDragX = inverseTransformX(e.getX());
+	initDragY = inverseTransformY(e.getY());
 	dragging = true;
 	if (tempMouseMode !=MODE_ADD_ELM)
 		return;
 //	if (tempMouseMode != MODE_ADD_ELM || addingClass == null)
 //	    return;
-//	
-	int x0 = snapGrid(e.getX());
-	int y0 = snapGrid(e.getY());
-	if (!circuitArea.contains(x0, y0))
+//
+	int x0 = snapGrid(inverseTransformX(e.getX()));
+	int y0 = snapGrid(inverseTransformY(e.getY()));
+	if (!circuitArea.contains(e.getX(), e.getY()))
 	    return;
 
 	dragElm = constructElement(mouseModeStr, x0, y0);
@@ -4428,6 +4488,7 @@ MouseOutHandler, MouseWheelHandler {
     public void onMouseUp(MouseUpEvent e) {
     	e.preventDefault();
     	mouseDragging=false;
+    	middleMouseDragging=false;
     	draggingPoles=false;
     	//	int ex = e.getModifiersEx();
     	////	if ((ex & (MouseEvent.SHIFT_DOWN_MASK|MouseEvent.CTRL_DOWN_MASK|
@@ -4474,9 +4535,18 @@ MouseOutHandler, MouseWheelHandler {
     
     public void onMouseWheel(MouseWheelEvent e) {
     	e.preventDefault();
-    	scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), e.getDeltaY());
-    	if (mouseElm instanceof MouseWheelHandler)
+    	// zoom circuit when wheel is used in the circuit area;
+    	// after zooming, suppress component-value scroll for 1s to avoid accidents
+    	boolean inCircuit = circuitArea != null && circuitArea.contains(mouseCursorX, mouseCursorY);
+    	boolean zoomOnly = System.currentTimeMillis() < zoomTime + 1000;
+    	if (inCircuit && (zoomOnly || !(mouseElm instanceof MouseWheelHandler))) {
+    	    zoomCircuit(-e.getDeltaY());
+    	    zoomTime = System.currentTimeMillis();
+    	} else {
+    	    scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), e.getDeltaY());
+    	    if (mouseElm instanceof MouseWheelHandler)
     		((MouseWheelHandler) mouseElm).onMouseWheel(e);
+    	}
     }
     
     void setPowerBarEnable() {
