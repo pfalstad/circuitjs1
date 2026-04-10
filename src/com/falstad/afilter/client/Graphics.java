@@ -136,4 +136,18 @@ public class Graphics {
 		  return (int) context.measureText(s).getWidth();
 	  }
 
+	  public void save() {
+		  context.save();
+	  }
+
+	  public void restore() {
+		  context.restore();
+	  }
+
+	  public void clipRect(int x, int y, int width, int height) {
+		  context.beginPath();
+		  context.rect(x, y, width, height);
+		  context.clip();
+	  }
+
 }

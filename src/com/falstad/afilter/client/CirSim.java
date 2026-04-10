@@ -133,6 +133,7 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem linearCheckItem;
     CheckboxMenuItem polesCheckItem;
     CheckboxMenuItem phaseCheckItem;
+    CheckboxMenuItem impulseCheckItem;
     CheckboxMenuItem currentSpeedCheckItem;
     private Label powerLabel, scrollXLabel, speedLabel, currentLabel;
     private Scrollbar speedBar;
@@ -196,6 +197,7 @@ MouseOutHandler, MouseWheelHandler {
     double[] transform = {1, 0, 0, 1, 0, 0};
     int mouseCursorX = -1, mouseCursorY = -1;
     boolean middleMouseDragging = false;
+    boolean middleDraggingPoles = false;
     int middleDragScreenX, middleDragScreenY;
     long zoomTime;
     int gridSize, gridMask, gridRound;
@@ -262,7 +264,7 @@ MouseOutHandler, MouseWheelHandler {
     static String muString = "u";
     static String ohmString = "ohm";
     String clipboard;
-    Rectangle circuitArea, responseArea, circuitBbox, polesArea;
+    Rectangle circuitArea, responseArea, circuitBbox, polesArea, impulseArea;
     double polesViewScale = 1.0;   // zoom multiplier for poles/zeros view
     double polesViewOffX = 0;      // pixel pan offset (X) from default origin
     double polesViewOffY = 0;      // pixel pan offset (Y) from default origin
@@ -271,7 +273,8 @@ MouseOutHandler, MouseWheelHandler {
     boolean draggingPoles = false;  // true when dragging inside polesArea
     int circuitBottom;
     Vector<String> undoStack, redoStack;
-    double response[], phaseResponse[], idealResponse[];
+    double response[], phaseResponse[], idealResponse[], impulseResponse[];
+    double impulseResponseTMax;
     double responseAdjust;
     int responseZero;
     Customizer customizer;
@@ -331,15 +334,17 @@ MouseOutHandler, MouseWheelHandler {
 		int h = height / 3;
 		/*if (h < 128 && winSize.height > 300)
 		  h = 128;*/
+		int ih = (impulseCheckItem != null && impulseCheckItem.getState()) ? h / 2 : 0;
 		int w = width;
 		polesArea = null;
 		if (polesCheckItem.getState()) {
 		    int pw = width / 3;
-		    polesArea = new Rectangle(width - pw, 0, pw, height-h);
+		    polesArea = new Rectangle(width - pw, 0, pw, height - h - ih);
 		    w = width - pw;
 		}
-		circuitArea = new Rectangle(0, 0, w, height-h);
-		responseArea = new Rectangle(0, height-h, width*3/4, h);
+		circuitArea = new Rectangle(0, 0, w, height - h - ih);
+		responseArea = new Rectangle(0, height - h - ih, width*3/4, h);
+		impulseArea = (ih > 0) ? new Rectangle(0, height - ih, width*3/4, ih) : null;
 
 		centerCircuit();
     }
@@ -582,7 +587,14 @@ MouseOutHandler, MouseWheelHandler {
 		    setCanvasSize();
 		}
 	}));
+	polesCheckItem.setState(true);
+
 	m.addItem(phaseCheckItem = new CheckboxMenuItem("Show Phase"));
+	m.addItem(impulseCheckItem = new CheckboxMenuItem("Show Impulse Response",
+		new Command() { public void execute() {
+		    setCanvasSize();
+		}
+	}));
 	m.addItem(currentSpeedCheckItem = new CheckboxMenuItem("Show Current Speed Bar",
 		new Command() { public void execute() {
 			showHideCurrentSpeedBar();
@@ -1491,6 +1503,8 @@ MouseOutHandler, MouseWheelHandler {
         }
         if (polesArea != null)
             drawPoles(g);
+        if (impulseArea != null)
+            drawImpulseResponse(g);
         g.setColor(Color.white);
 
 	if (stopMessage != null) {
@@ -1623,6 +1637,10 @@ MouseOutHandler, MouseWheelHandler {
         g.fillRect(polesArea.x, polesArea.y,
                    polesArea.width, polesArea.height);
 
+        // clip all subsequent drawing to the poles area
+        g.save();
+        g.clipRect(polesArea.x, polesArea.y, polesArea.width, polesArea.height);
+
         // base origin (imaginary axis at right, real axis at vertical center)
         double baseRx = polesArea.x + polesArea.width - 10;
         double baseMy = polesArea.y + polesArea.height / 2.0;
@@ -1726,6 +1744,7 @@ MouseOutHandler, MouseWheelHandler {
                 drawPoleMarker(g, cx, cy, true);
             }
         }
+        g.restore();
     }
 
     // Draw pole (X) or zero (O) marker; if outside polesArea, draw edge indicator
@@ -1751,7 +1770,130 @@ MouseOutHandler, MouseWheelHandler {
             g.drawLine(ex+3, ey-3, ex-3, ey+3);
         }
     }
-        
+
+    void computeImpulseResponse() {
+        impulseResponse = null;
+        if (polyPoles == null || polyPoles.length == 0)
+            return;
+        if (transferNum == null || transferNum.isZero() || transferDen == null || transferDen.isZero())
+            return;
+
+        // All poles must be in the left-half plane for a stable, decaying response
+        double minDecay = Double.MAX_VALUE;
+        for (int i = 0; i < polyPoles.length; i++) {
+            if (polyPoles[i].re >= 0) return;
+            double d = -polyPoles[i].re;
+            if (d < minDecay) minDecay = d;
+        }
+        if (minDecay == Double.MAX_VALUE) return;
+
+        // Choose a real evaluation point far from all poles/zeros for computing K
+        double sigma0 = 1.0;
+        for (int i = 0; i < polyPoles.length; i++)
+            if (Math.abs(polyPoles[i].im) > sigma0) sigma0 = Math.abs(polyPoles[i].im);
+        if (polyZeros != null)
+            for (int i = 0; i < polyZeros.length; i++)
+                if (Math.abs(polyZeros[i].im) > sigma0) sigma0 = Math.abs(polyZeros[i].im);
+        sigma0 *= 10;
+
+        // K = H(sigma0) * prod(sigma0 - p_i) / prod(sigma0 - z_i)
+        Complex s0 = new Complex(sigma0, 0);
+        Complex Hs0 = transferNum.evaluate(s0);
+        Complex Hd0 = transferDen.evaluate(s0);
+        Hs0.divide(Hd0);
+
+        Complex prodP = new Complex(1.0);
+        for (int i = 0; i < polyPoles.length; i++) {
+            prodP.mult(new Complex(sigma0 - polyPoles[i].re, -polyPoles[i].im));
+        }
+        Complex prodZ = new Complex(1.0);
+        if (polyZeros != null)
+            for (int i = 0; i < polyZeros.length; i++)
+                prodZ.mult(new Complex(sigma0 - polyZeros[i].re, -polyZeros[i].im));
+
+        // K = H(s0) * prodP / prodZ  (should be real for a real filter)
+        Hs0.mult(prodP);
+        if (polyZeros != null && polyZeros.length > 0)
+            Hs0.divide(prodZ);
+        double K = Hs0.re;
+
+        // Time range: show 5 time constants of the slowest pole
+        int n = (impulseArea != null) ? impulseArea.width : 512;
+        impulseResponseTMax = 5.0 / minDecay;
+        double dt = impulseResponseTMax / n;
+
+        double[] h = new double[n];
+        for (int ki = 0; ki < polyPoles.length; ki++) {
+            Complex pk = polyPoles[ki];
+
+            // Residue A_k = K * prod(pk - z_j) / prod_{j!=k}(pk - p_j)
+            Complex Ak = new Complex(K, 0);
+            if (polyZeros != null)
+                for (int j = 0; j < polyZeros.length; j++)
+                    Ak.mult(new Complex(pk.re - polyZeros[j].re, pk.im - polyZeros[j].im));
+            for (int ji = 0; ji < polyPoles.length; ji++) {
+                if (ji == ki) continue;
+                Complex diff = new Complex(pk.re - polyPoles[ji].re, pk.im - polyPoles[ji].im);
+                double n2 = diff.re*diff.re + diff.im*diff.im;
+                if (n2 < 1e-30) continue;  // near-repeated pole
+                Ak.divide(diff);
+            }
+
+            // Add A_k * e^(pk*t) contribution to each sample (real part only)
+            for (int ti = 0; ti < n; ti++) {
+                double t = ti * dt;
+                double expRe = Math.exp(pk.re * t);
+                h[ti] += expRe * (Ak.re * Math.cos(pk.im * t) - Ak.im * Math.sin(pk.im * t));
+            }
+        }
+        impulseResponse = h;
+    }
+
+    void drawImpulseResponse(Graphics g) {
+        g.setColor(Color.darkGray);
+        g.fillRect(impulseArea.x, impulseArea.y, impulseArea.width, impulseArea.height);
+
+        if (impulseResponse == null) {
+            String msg = "Impulse response not available";
+            g.setColor(Color.white);
+            g.drawString(msg,
+                         impulseArea.x + (impulseArea.width - g.measureText(msg)) / 2,
+                         impulseArea.y + impulseArea.height / 2);
+            return;
+        }
+
+        // Find max absolute value for vertical scaling
+        double maxVal = 0;
+        for (int i = 0; i < impulseResponse.length; i++)
+            if (Math.abs(impulseResponse[i]) > maxVal) maxVal = Math.abs(impulseResponse[i]);
+        if (maxVal == 0) return;
+
+        int my = impulseArea.y + impulseArea.height / 2;
+        int halfH = impulseArea.height / 2 - 2;
+
+        // Clip to impulse area
+        g.save();
+        g.clipRect(impulseArea.x, impulseArea.y, impulseArea.width, impulseArea.height);
+
+        // Zero line
+        g.setColor(Color.black);
+        g.drawLine(impulseArea.x, my, impulseArea.x + impulseArea.width, my);
+
+        // Waveform (one sample per pixel)
+        g.setColor(Color.white);
+        int ox = -1, oy = -1;
+        for (int i = 0; i < impulseResponse.length && i < impulseArea.width; i++) {
+            int x = impulseArea.x + i;
+            int y = my - (int)(impulseResponse[i] / maxVal * halfH);
+            if (ox >= 0)
+                g.drawLine(ox, oy, x, y);
+            ox = x;
+            oy = y;
+        }
+
+        g.restore();
+    }
+
 
     void setupScopes() {
     	int i;
@@ -2138,6 +2280,7 @@ MouseOutHandler, MouseWheelHandler {
 	phaseResponse = new double[response.length];
 	polyDirty = true;
 	calcResponse();
+	computeImpulseResponse();
 	idealResponse = null;
 	if (customizer != null)
 	    idealResponse = customizer.getIdealResponse(response.length);
@@ -2238,10 +2381,7 @@ MouseOutHandler, MouseWheelHandler {
 
 	polyMatrixSize = newNodeCount + newVSCount;
 
-	console("buildTransferFunction: nodes " + numNodes + "->" +
-		(newNodeCount+1) + " VS " + voltageSourceCount + "->" +
-		newVSCount + " matrix " + circuitMatrixSize + "->" +
-		polyMatrixSize);
+	//console("buildTransferFunction: nodes " + numNodes + "->" + (newNodeCount+1) + " VS " + voltageSourceCount + "->" + newVSCount + " matrix " + circuitMatrixSize + "->" + polyMatrixSize);
 
 	// Check for transmission lines (infinite poles — can't represent as polynomial)
 	boolean hasTransLine = false;
@@ -2256,9 +2396,7 @@ MouseOutHandler, MouseWheelHandler {
 	// If matrix is too large for cofactor expansion or has trans lines,
 	// skip polynomial determinant and fall back to per-frequency solve
 	if (useOldSolve) {
-	    console("buildTransferFunction: skipping polynomial determinant" +
-		    (hasTransLine ? " (transmission line present)" :
-		     " (matrix too large: " + polyMatrixSize + ")"));
+	    //console("buildTransferFunction: skipping polynomial determinant" + (hasTransLine ? " (transmission line present)" : " (matrix too large: " + polyMatrixSize + ")"));
 	    transferNum = new Polynomial(0);
 	    transferDen = new Polynomial(1.0);
 	    polyPoles = new Complex[0];
@@ -2341,8 +2479,7 @@ MouseOutHandler, MouseWheelHandler {
 	    }
 	}
 
-	console("buildTransferFunction: outputNode=" + outputNode +
-		" (reduced matrix index)");
+	//console("buildTransferFunction: outputNode=" + outputNode + " (reduced matrix index)");
 
 	if (outputNode < 0) {
 	    transferNum = new Polynomial(0);
@@ -2354,48 +2491,49 @@ MouseOutHandler, MouseWheelHandler {
 	}
 
 	// Debug: dump poly matrix
-	for (j = 0; j < polyMatrixSize; j++) {
+	/*for (j = 0; j < polyMatrixSize; j++) {
 	    String s = "polyRow " + j + ": ";
 	    for (i = 0; i < polyMatrixSize; i++)
 		s += polyMatrix[j][i].asString() + ", ";
 	    s += " | " + polyRightSide[j].asString();
 	    console(s);
-	}
+	}*/
 
 	// Compute denominator = det(polyMatrix)
 	transferDen = PolynomialMatrix.determinant(polyMatrix, polyMatrixSize);
-	console("transferDen: " + transferDen.asString());
+	//console("transferDen: " + transferDen.asString());
 
 	// Compute numerator via Cramer's rule
 	transferNum = PolynomialMatrix.cramerNumerator(
 		polyMatrix, polyRightSide, polyMatrixSize, outputNode);
-	console("transferNum (raw): " + transferNum.asString());
+	//console("transferNum (raw): " + transferNum.asString());
 
 	// Strip only the common s^n factor (from the s-multiplication).
 	// The minimum of the two lowest powers is the common factor;
 	// any extra s factors in the numerator are real zeros at the origin.
 	int commonPower = Math.min(transferNum.lowestPower(),
 				   transferDen.lowestPower());
-	console("stripping common s^" + commonPower +
+	/*console("stripping common s^" + commonPower +
 		" (num lowest=" + transferNum.lowestPower() +
-		" den lowest=" + transferDen.lowestPower() + ")");
+		" den lowest=" + transferDen.lowestPower() + ")");*/
 	transferNum = transferNum.divideByS(commonPower);
 	transferDen = transferDen.divideByS(commonPower);
-	console("transferNum (stripped): " + transferNum.asString());
-	console("transferDen (stripped): " + transferDen.asString());
+	//console("transferNum (stripped): " + transferNum.asString());
+	//console("transferDen (stripped): " + transferDen.asString());
 
 	// Find poles and zeros
 	polyPoles = RootFinder.findRoots(transferDen);
 	polyZeros = RootFinder.findRoots(transferNum);
 
-	console("poles (" + polyPoles.length + "):");
+	/*console("poles (" + polyPoles.length + "):");
 	for (i = 0; i < polyPoles.length; i++)
 	    console("  " + polyPoles[i].asString());
 	console("zeros (" + polyZeros.length + "):");
 	for (i = 0; i < polyZeros.length; i++)
-	    console("  " + polyZeros[i].asString());
+	    console("  " + polyZeros[i].asString());*/
 
 	polyDirty = false;
+	console("got poles/zeroes from transfer function");
     }
 
     // Union-Find helpers
@@ -2426,6 +2564,7 @@ MouseOutHandler, MouseWheelHandler {
 	    buildTransferFunction();
 
 	if (useOldSolve || transferNum.isZero()) {
+	    console("using old method to calculate response");
 	    // Use per-frequency matrix solve (transmission lines or large matrix)
 	    for (fi = 0; fi < response.length; fi++) {
 		frequency = linearToFrequency(fi/(double) response.length);
@@ -3786,9 +3925,16 @@ MouseOutHandler, MouseWheelHandler {
     	}
     	mouseCursorX = e.getX();
     	mouseCursorY = e.getY();
-    	// pan via middle mouse drag (transform-based, no element movement)
+    	// pan via middle mouse drag
     	if (middleMouseDragging) {
-    	    dragCircuit(e.getX(), e.getY());
+    	    if (middleDraggingPoles) {
+    		polesViewOffX += e.getX() - middleDragScreenX;
+    		polesViewOffY += e.getY() - middleDragScreenY;
+    		middleDragScreenX = e.getX();
+    		middleDragScreenY = e.getY();
+    	    } else {
+    		dragCircuit(e.getX(), e.getY());
+    	    }
     	    return;
     	}
     	// pan inside the poles/zeros view
@@ -4267,6 +4413,7 @@ MouseOutHandler, MouseWheelHandler {
     	// handle middle mouse button for panning
     	if (e.getNativeButton() == NativeEvent.BUTTON_MIDDLE) {
     	    middleMouseDragging = true;
+    	    middleDraggingPoles = polesArea != null && polesArea.contains(e.getX(), e.getY());
     	    middleDragScreenX = e.getX();
     	    middleDragScreenY = e.getY();
     	    mouseDragging = true;
@@ -4494,6 +4641,7 @@ MouseOutHandler, MouseWheelHandler {
     	e.preventDefault();
     	mouseDragging=false;
     	middleMouseDragging=false;
+    	middleDraggingPoles=false;
     	draggingPoles=false;
     	//	int ex = e.getModifiersEx();
     	////	if ((ex & (MouseEvent.SHIFT_DOWN_MASK|MouseEvent.CTRL_DOWN_MASK|
@@ -4547,17 +4695,21 @@ MouseOutHandler, MouseWheelHandler {
     
     public void onMouseWheel(MouseWheelEvent e) {
     	e.preventDefault();
-    	// zoom circuit when wheel is used in the circuit area;
-    	// after zooming, suppress component-value scroll for 1s to avoid accidents
-    	boolean inCircuit = circuitArea != null && circuitArea.contains(mouseCursorX, mouseCursorY);
+    	// once we start zooming, don't allow other uses of mouse wheel for a while
+    	// so we don't accidentally edit a value while zooming
     	boolean zoomOnly = System.currentTimeMillis() < zoomTime + 1000;
-    	if (inCircuit && (zoomOnly || !(mouseElm instanceof MouseWheelHandler))) {
-    	    zoomCircuit(-e.getDeltaY());
-    	    zoomTime = System.currentTimeMillis();
-    	} else {
+
+    	if (!zoomOnly)
     	    scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), e.getDeltaY());
-    	    if (mouseElm instanceof MouseWheelHandler)
-    		((MouseWheelHandler) mouseElm).onMouseWheel(e);
+
+    	if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
+    	    ((MouseWheelHandler) mouseElm).onMouseWheel(e);
+    	else {
+    	    boolean inCircuit = circuitArea != null && circuitArea.contains(mouseCursorX, mouseCursorY);
+    	    if (inCircuit) {
+    		zoomCircuit(-e.getDeltaY());
+    		zoomTime = System.currentTimeMillis();
+    	    }
     	}
     }
     
@@ -4574,12 +4726,12 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void scrollValues(int x, int y, int deltay) {
-    	if (polesArea != null && polesArea.contains(dragX, dragY) && deltay != 0) {
+    	if (polesArea != null && polesArea.contains(mouseCursorX, mouseCursorY) && deltay != 0) {
     	    // zoom the poles/zeros view, keeping the point under the cursor fixed
     	    double factor = (deltay > 0) ? 0.909 : 1.1;
     	    double baseRx = polesArea.x + polesArea.width - 10;
     	    double baseMy = polesArea.y + polesArea.height / 2.0;
-    	    double px = dragX, py = dragY;
+    	    double px = mouseCursorX, py = mouseCursorY;
     	    polesViewOffX = (px - baseRx) * (1 - factor) + factor * polesViewOffX;
     	    polesViewOffY = (py - baseMy) * (1 - factor) + factor * polesViewOffY;
     	    polesViewScale *= factor;
