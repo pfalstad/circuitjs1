@@ -131,5 +131,9 @@ public class Graphics {
 	  Font getFont(){
 		  return currentFont;
 	  }
-	  
+
+	  public int measureText(String s) {
+		  return (int) context.measureText(s).getWidth();
+	  }
+
 }

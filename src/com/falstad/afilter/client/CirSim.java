@@ -1608,10 +1608,15 @@ MouseOutHandler, MouseWheelHandler {
         // Fall back to customizer poles if polynomial poles unavailable
         if ((poles == null || poles.length == 0) && customizer != null)
             poles = customizer.getPoles();
-        if (poles == null) {
+        if (poles == null || poles.length == 0) {
             g.setColor(Color.black);
             g.fillRect(polesArea.x, polesArea.y,
                        polesArea.width, polesArea.height);
+            String msg = "Poles and Zeros not available";
+            g.setColor(Color.white);
+            g.drawString(msg,
+                         polesArea.x + (polesArea.width  - g.measureText(msg)) / 2,
+                         polesArea.y +  polesArea.height / 2);
             return;
         }
         g.setColor(Color.darkGray);
