@@ -257,6 +257,12 @@ MouseOutHandler, MouseWheelHandler {
     static String ohmString = "ohm";
     String clipboard;
     Rectangle circuitArea, responseArea, circuitBbox, polesArea;
+    double polesViewScale = 1.0;   // zoom multiplier for poles/zeros view
+    double polesViewOffX = 0;      // pixel pan offset (X) from default origin
+    double polesViewOffY = 0;      // pixel pan offset (Y) from default origin
+    double lastPolesScale = 1.0;   // effective scale (pixels/unit) from last drawPoles call
+    double lastPolesRx, lastPolesmy; // pixel coords of s-plane origin from last drawPoles call
+    boolean draggingPoles = false;  // true when dragging inside polesArea
     int circuitBottom;
     Vector<String> undoStack, redoStack;
     double response[], phaseResponse[], idealResponse[];
@@ -565,6 +571,7 @@ MouseOutHandler, MouseWheelHandler {
 	// XXX these should be radio buttons
 	m.addItem(polesCheckItem = new CheckboxMenuItem("Show Poles & Zeroes",
 		new Command() { public void execute() {
+		    polesViewScale = 1.0; polesViewOffX = 0; polesViewOffY = 0;
 		    setCanvasSize();
 		}
 	}));
@@ -1599,10 +1606,6 @@ MouseOutHandler, MouseWheelHandler {
     void drawPoles(Graphics g) {
         Complex poles[] = null;
         // always use our computed poles/zeros
-        //if (customizer != null)
-        //    poles = customizer.getPoles();
-        //if (poles == null)
-        //    poles = getHintPoles();
         poles = polyPoles;
         // Fall back to customizer poles if polynomial poles unavailable
         if ((poles == null || poles.length == 0) && customizer != null)
@@ -1616,8 +1619,11 @@ MouseOutHandler, MouseWheelHandler {
         g.setColor(Color.darkGray);
         g.fillRect(polesArea.x, polesArea.y,
                    polesArea.width, polesArea.height);
-        int rx = polesArea.x+polesArea.width-10;
-        int my = polesArea.y + polesArea.height/2;
+
+        // base origin (imaginary axis at right, real axis at vertical center)
+        double baseRx = polesArea.x + polesArea.width - 10;
+        double baseMy = polesArea.y + polesArea.height / 2.0;
+
         int i;
         double mx = 1;
         if (customizer != null && customizer instanceof FilterCustomizer) {
@@ -1626,6 +1632,9 @@ MouseOutHandler, MouseWheelHandler {
         }
         for (i = 0; i != poles.length; i++) {
             Complex c = poles[i];
+            // if odd count, skip the lone real pole (im≈0) for auto-scale purposes
+            if (poles.length % 2 == 1 && Math.abs(c.im) < 1e-10 * Math.max(1, Math.abs(c.re)))
+                continue;
             if (Math.abs(c.re) > mx)
                 mx = Math.abs(c.re);
             if (Math.abs(c.im) > mx)
@@ -1634,9 +1643,20 @@ MouseOutHandler, MouseWheelHandler {
         int m0 = polesArea.height/2-10;
         if (m0 > polesArea.width-10)
             m0 = polesArea.width-10;
-        double scale = 1;
-        while (scale*mx > m0)
-            scale /= 2;
+        double autoScale = 1;
+        while (autoScale*mx > m0)
+            autoScale /= 2;
+
+        // apply zoom and pan
+        double scale = autoScale * polesViewScale;
+        double rx = baseRx + polesViewOffX;
+        double my = baseMy + polesViewOffY;
+
+        // cache for mouse coordinate conversion
+        lastPolesScale = scale;
+        lastPolesRx = rx;
+        lastPolesmy = my;
+
         double grid = 1e-8;
         while (grid*scale*10 < m0)
             grid *= 10;
@@ -1646,52 +1666,88 @@ MouseOutHandler, MouseWheelHandler {
             if (cx > polesArea.x)
                 g.drawLine(cx, polesArea.y, cx, polesArea.y+polesArea.height);
             int cy = (int) (my-grid*i*scale);
-            g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
+            if (cy >= polesArea.y && cy < polesArea.y+polesArea.height)
+                g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
             cy = (int) (my+grid*i*scale);
-            if (cy < polesArea.y+polesArea.height)
+            if (cy >= polesArea.y && cy < polesArea.y+polesArea.height)
                 g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
         }
         if (customizer != null && customizer instanceof FilterCustomizer) {
             double f = ((FilterCustomizer) customizer).getFrequency();
             int or = (int) (2*Math.PI*f*scale);
-            g.drawOval(rx-or, my-or, or*2, or*2);
+            g.setColor(Color.black);
+            g.drawOval((int)(rx-or), (int)(my-or), or*2, or*2);
         }
         g.setColor(Color.white);
-        g.drawLine(polesArea.x, my,
-                   polesArea.x+polesArea.width, my);
-        g.drawLine(rx, polesArea.y, rx, polesArea.y+polesArea.height-1);
+        // only draw axes if they are visible within the area
+        if (my >= polesArea.y && my < polesArea.y+polesArea.height)
+            g.drawLine(polesArea.x, (int)my, polesArea.x+polesArea.width, (int)my);
+        if (rx >= polesArea.x && rx < polesArea.x+polesArea.width)
+            g.drawLine((int)rx, polesArea.y, (int)rx, polesArea.y+polesArea.height-1);
+
+        // draw selected frequency lines (+jω and -jω)
+        if (selectedFreq > 0) {
+            g.setColor(Color.yellow);
+            double omega = scale*2*pi*selectedFreq;
+            int cy = (int) (my - omega);
+            if (cy >= polesArea.y && cy < polesArea.y+polesArea.height)
+                g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
+            cy = (int) (my + omega);
+            if (cy >= polesArea.y && cy < polesArea.y+polesArea.height)
+                g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
+        }
+
         int selnum = -1;
         if (customizer instanceof LowActiveFilter ||
                 customizer instanceof HighActiveFilter) {
-                for (i = 0; i != countElm(BoxElm.class); i++)
-                    if (mouseElm == getElm(i, BoxElm.class))
-                        selnum = i;
-            }
-            for (i = 0; i != poles.length; i++) {
-                Complex c = poles[i];
-                g.setColor((i == selnum || i == poles.length-1-selnum) ?
-                           CircuitElm.selectColor : Color.white);
-                int cx = (int) (rx+c.re*scale);
-                int cy = (int) (my-c.im*scale);
-                g.drawLine(cx-2, cy-2, cx+2, cy+2);
-                g.drawLine(cx+2, cy-2, cx-2, cy+2);
-            }
-            // always use our computed zeros
-            Complex zeros[] = polyZeros;
-            if (zeros != null) {
-                for (i = 0; i != zeros.length; i++) {
-                    Complex c = zeros[i];
-                    int cx = (int) (rx+c.re*scale);
-                    int cy = (int) (my-c.im*scale);
-                    g.drawOval(cx-3, cy-3, 7, 7);
-                }
-            }
-            if (selectedFreq > 0) {
-                g.setColor(Color.yellow);
-                int cy = (int) (my-scale*2*pi*selectedFreq);
-                g.drawLine(polesArea.x, cy, rx, cy);
+            for (i = 0; i != countElm(BoxElm.class); i++)
+                if (mouseElm == getElm(i, BoxElm.class))
+                    selnum = i;
+        }
+        for (i = 0; i != poles.length; i++) {
+            Complex c = poles[i];
+            g.setColor((i == selnum || i == poles.length-1-selnum) ?
+                       CircuitElm.selectColor : Color.white);
+            int cx = (int) (rx + c.re*scale);
+            int cy = (int) (my - c.im*scale);
+            drawPoleMarker(g, cx, cy, false);
+        }
+        // always use our computed zeros
+        Complex zeros[] = polyZeros;
+        if (zeros != null) {
+            g.setColor(Color.white);
+            for (i = 0; i != zeros.length; i++) {
+                Complex c = zeros[i];
+                int cx = (int) (rx + c.re*scale);
+                int cy = (int) (my - c.im*scale);
+                drawPoleMarker(g, cx, cy, true);
             }
         }
+    }
+
+    // Draw pole (X) or zero (O) marker; if outside polesArea, draw edge indicator
+    void drawPoleMarker(Graphics g, int cx, int cy, boolean isZero) {
+        boolean inX = cx >= polesArea.x && cx < polesArea.x+polesArea.width;
+        boolean inY = cy >= polesArea.y && cy < polesArea.y+polesArea.height;
+        if (inX && inY) {
+            if (isZero)
+                g.drawOval(cx-3, cy-3, 7, 7);
+            else {
+                g.drawLine(cx-3, cy-3, cx+3, cy+3);
+                g.drawLine(cx+3, cy-3, cx-3, cy+3);
+            }
+            return;
+        }
+        // clamp to edge and draw indicator
+        int ex = Math.max(polesArea.x+4, Math.min(polesArea.x+polesArea.width-5, cx));
+        int ey = Math.max(polesArea.y+4, Math.min(polesArea.y+polesArea.height-5, cy));
+        if (isZero)
+            g.drawOval(ex-3, ey-3, 7, 7);
+        else {
+            g.drawLine(ex-3, ey-3, ex+3, ey+3);
+            g.drawLine(ex+3, ey-3, ex-3, ey+3);
+        }
+    }
         
 
     void setupScopes() {
@@ -3688,6 +3744,14 @@ MouseOutHandler, MouseWheelHandler {
     				e.isAltKeyDown()))
     			return;
     	}
+    	// pan inside the poles/zeros view
+    	if (draggingPoles) {
+    	    polesViewOffX += e.getX() - dragX;
+    	    polesViewOffY += e.getY() - dragY;
+    	    dragX = e.getX();
+    	    dragY = e.getY();
+    	    return;
+    	}
     	if (!circuitArea.contains(e.getX(), e.getY()))
     		return;
     	if (dragElm != null)
@@ -4008,6 +4072,10 @@ MouseOutHandler, MouseWheelHandler {
     	if (newMouseElm == null) {
     	    if (responseArea.contains(x, y))
     		selectedFreq = linearToFrequency(x/(double) responseArea.width);
+    	    if (polesArea != null && polesArea.contains(x, y)) {
+    	        double omega = Math.abs((lastPolesmy - y) / lastPolesScale);
+    	        selectedFreq = omega / (2*pi);
+    	    }
     		//	    // the mouse pointer was not in any of the bounding boxes, but we
     		//	    // might still be close to a post
     		for (i = 0; i != elmList.size(); i++) {
@@ -4148,7 +4216,15 @@ MouseOutHandler, MouseWheelHandler {
     	
     	// set mouseElm in case we are on mobile
     	mouseSelect(e);
-    	
+
+    	draggingPoles = polesArea != null && polesArea.contains(e.getX(), e.getY());
+    	if (draggingPoles) {
+    	    dragX = e.getX();
+    	    dragY = e.getY();
+    	    mouseDragging = true;
+    	    return;
+    	}
+
     	mouseDragging=true;
 	didSwitch = false;
 //
@@ -4352,6 +4428,7 @@ MouseOutHandler, MouseWheelHandler {
     public void onMouseUp(MouseUpEvent e) {
     	e.preventDefault();
     	mouseDragging=false;
+    	draggingPoles=false;
     	//	int ex = e.getModifiersEx();
     	////	if ((ex & (MouseEvent.SHIFT_DOWN_MASK|MouseEvent.CTRL_DOWN_MASK|
     	////		   MouseEvent.META_DOWN_MASK)) == 0 && e.isPopupTrigger()) {
@@ -4415,6 +4492,17 @@ MouseOutHandler, MouseWheelHandler {
     }
 
     void scrollValues(int x, int y, int deltay) {
+    	if (polesArea != null && polesArea.contains(dragX, dragY) && deltay != 0) {
+    	    // zoom the poles/zeros view, keeping the point under the cursor fixed
+    	    double factor = (deltay > 0) ? 0.909 : 1.1;
+    	    double baseRx = polesArea.x + polesArea.width - 10;
+    	    double baseMy = polesArea.y + polesArea.height / 2.0;
+    	    double px = dragX, py = dragY;
+    	    polesViewOffX = (px - baseRx) * (1 - factor) + factor * polesViewOffX;
+    	    polesViewOffY = (py - baseMy) * (1 - factor) + factor * polesViewOffY;
+    	    polesViewScale *= factor;
+    	    return;
+    	}
     	if (mouseElm!=null && !dialogIsShowing())
     		if (mouseElm instanceof ResistorElm || mouseElm instanceof CapacitorElm ||  mouseElm instanceof InductorElm) {
     			scrollValuePopup = new ScrollValuePopup(x, y, deltay, mouseElm, this);
