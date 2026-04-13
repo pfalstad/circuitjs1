@@ -151,7 +151,7 @@ package com.falstad.afilter.client;
 	    if (n == 1)
 		return new EditInfo("Min Output (V)", minOut, -20, 0);
 	    if (n == 2)
-		return new EditInfo("Gain-BW Product (MHZ)", gbw*1e-6, .1, 100);
+		return new EditInfo("Gain-BW Product (Hz)", gbw, .1, 100);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -160,7 +160,7 @@ package com.falstad.afilter.client;
 	    if (n == 1)
 		minOut = ei.value;
 	    if (n == 2)
-		gbw = ei.value*1e6;
+		gbw = ei.value;
 	}
 	void setGainProduct(double bw) {
 	    gbw = bw;
