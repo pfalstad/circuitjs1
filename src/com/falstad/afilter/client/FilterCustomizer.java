@@ -32,6 +32,8 @@ class FilterCustomizer extends Customizer {
     boolean isBand() { return (form >= FILT_BANDPASS); }
     boolean isCheby()  { return (design == FILT_CHEBY); }
     boolean isBessel() { return (design == FILT_BESSEL); }
+    int getMaxPoles() { return 7; }
+    int getDefaultPoles() { return 1; }
     int getPoleCount() {
 	if (pslider == null)
 	    return -1;
@@ -68,7 +70,7 @@ class FilterCustomizer extends Customizer {
 
 	pslider = null;
 	if ((flags & FLAG_POLESLIDER) != 0)
-	    pslider = createSlider("# of Poles", 1, 1, 8);
+	    pslider = createSlider("# of Poles", getDefaultPoles(), 1, getMaxPoles()+1);
 
 	rslider = null;
 	if (design > 0) {

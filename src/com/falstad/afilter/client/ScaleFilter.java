@@ -57,6 +57,8 @@ class ScaleFilter extends FilterCustomizer {
 	return null;
     }
     int getPoleCount() {
+        if ((flags & FLAG_POLESLIDER) != 0)
+	    return super.getPoleCount();
 	int pc = sim.countElm(CapacitorElm.class) +
 	    sim.countElm(InductorElm.class);
 	if (pc <= 2)

@@ -3986,6 +3986,8 @@ MouseOutHandler, MouseWheelHandler {
  	    customizer = new FilterCustomizer(flags, st);
  	else if (s == "ScaleFilter")
  	    customizer = new ScaleFilter(flags, st);
+ 	else if (s == "LadderCustomizer")
+ 	    customizer = new LadderCustomizer(flags, st);
  	else if (s == "BandPassActiveFilter")
  	    customizer = new BandPassActiveFilter(flags, st);
  	else if (s == "ButterFilter")
