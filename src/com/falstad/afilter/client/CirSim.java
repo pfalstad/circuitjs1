@@ -1581,14 +1581,17 @@ MouseOutHandler, MouseWheelHandler {
 					" bad connection" : " bad connections");
 	    
 	    // find where to show data; below circuit, not too high unless we need it
-	   // int ybase = winSize.height-15*i-5;
-	    int ybase = cv.getCoordinateSpaceHeight() -15*i-5;
+	    int infoLineHeight = 21;
+	    int ybase = cv.getCoordinateSpaceHeight() -infoLineHeight*i-5;
 	    ybase = min(ybase, circuitArea.height);
 	    ybase = max(ybase, circuitBottom);
 	    int x = responseArea.width;
+	    Font infoFont = new Font("SansSerif", 0, 18);
+	    g.setFont(infoFont);
 	    for (i = 0; info[i] != null; i++)
 		g.drawString(info[i], x,
-			     ybase+15*(i+1));
+			     ybase+infoLineHeight*(i+1));
+	    g.setFont(oldfont);
 	}
 	 mouseElm = realMouseElm;
 	frames++;
@@ -4137,6 +4140,11 @@ MouseOutHandler, MouseWheelHandler {
     	    dragY = e.getY();
     	    return;
     	}
+    	if (responseArea.contains(e.getX(), e.getY()) && customizer instanceof FilterCustomizer) {
+    	    double freq = linearToFrequency(e.getX() / (double) responseArea.width);
+    	    ((FilterCustomizer) customizer).setClickedFrequency(freq);
+    	    return;
+    	}
     	if (!circuitArea.contains(e.getX(), e.getY()))
     		return;
     	// convert screen coords to grid coords for element operations
@@ -4626,6 +4634,10 @@ MouseOutHandler, MouseWheelHandler {
     	    mouseDragging = true;
     	    return;
     	}
+
+    	// if user clicks on response graph, set center/cutoff frequency
+    	if (selectedFreq > 0 && customizer instanceof FilterCustomizer)
+    	    ((FilterCustomizer) customizer).setClickedFrequency(selectedFreq);
 
     	mouseDragging=true;
 	didSwitch = false;
