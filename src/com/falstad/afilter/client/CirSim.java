@@ -676,7 +676,7 @@ MouseOutHandler, MouseWheelHandler {
 
 	// was max of 140
 //	verticalPanel.add(
-		speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, -320, 260);
+		speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 110, 1, -320, 260);
 //		);
 
 //	verticalPanel.add(
@@ -3613,7 +3613,7 @@ MouseOutHandler, MouseWheelHandler {
 	f |= (showValuesCheckItem.getState()) ? 0 : 16;
 	// 32 = linear scale in afilter
 	String dump = "$ " + f + " " +
-	    timeStep + " " + 5 + " " +
+	    timeStep + " " + 0.75 + " " +
 	    currentBar.getValue() + " " + CircuitElm.voltageRange + " " +
 	    powerBar.getValue() + "\n";
 	if (!forCircuitSim) {
@@ -3623,6 +3623,7 @@ MouseOutHandler, MouseWheelHandler {
 	    f |= (phaseCheckItem.getState()) ? 4 : 0;
 	    dump += "% " + f + " " + maxFrequency + "\n";
 	}
+	int outputIndex = -1;
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
 	    if (forCircuitSim && ce instanceof SweepElm && animateFreq > 0) {
@@ -3631,17 +3632,12 @@ MouseOutHandler, MouseWheelHandler {
 	    } else {
 		dump += ce.dump() + "\n";
 	    }
+	    if (ce instanceof OutputElm)
+		outputIndex = i;
 	}
-	if (!forCircuitSim) {
-	    for (i = 0; i != scopeCount; i++) {
-		String d = scopes[i].dump();
-		if (d != null)
-		    dump += d + "\n";
-	    }
-	    if (hintType != -1)
-		dump += "h " + hintType + " " + hintItem1 + " " +
-		    hintItem2 + "\n";
-	}
+	if (outputIndex >= 0 && forCircuitSim)
+	    dump += "o " + outputIndex + " 2 0 4098 5 0.1 0 1\n";
+	console(forCircuitSim + " " + outputIndex + "\n" + dump);
 	return dump;
     }
 
@@ -3856,7 +3852,7 @@ MouseOutHandler, MouseWheelHandler {
 	    voltsCheckItem.setState(true);
 	    showValuesCheckItem.setState(true);
 	    setGrid();
-	    speedBar.setValue(117); // 57
+	    //speedBar.setValue(117); // 57
 	    currentBar.setValue(50);
 	    powerBar.setValue(50);
 	    zoomBar.setValue(20);
@@ -4025,7 +4021,7 @@ MouseOutHandler, MouseWheelHandler {
 	double sp = new Double(st.nextToken()).doubleValue();
 	int sp2 = (int) (Math.log(10*sp)*24+61.5);
 	//int sp2 = (int) (Math.log(sp)*24+1.5);
-	speedBar.setValue(sp2);
+	//speedBar.setValue(sp2);
 	currentBar.setValue(new Integer(st.nextToken()).intValue());
 	CircuitElm.voltageRange = new Double (st.nextToken()).doubleValue();
 
@@ -4726,17 +4722,7 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void setAnimateSpeed() {
-        speedBar.setValue(speedBar.getMinimum());
-        while (true) {
-            double steprate = 160*getIterCount();
-            double x = steprate*timeStep*animateFreq*2;
-            if (x > 1)
-                break;
-            int next = speedBar.getValue()+32;
-            if (next > speedBar.getMaximum())
-                break;
-            speedBar.setValue(next);
-        }
+	timeStep = (1/animateFreq) / 256;
     }
 
     void showHideCurrentSpeedBar() {
