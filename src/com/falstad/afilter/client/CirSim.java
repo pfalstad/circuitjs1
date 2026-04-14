@@ -1218,7 +1218,7 @@ MouseOutHandler, MouseWheelHandler {
 	    analyzeCircuit();
 	    analyzeFlag = false;
 	}
-	//calcResponse();
+	calcResponse();
 	frequency = (animateFreq > 0) ? animateFreq : selectedFreq;
 //	if (editDialog != null && editDialog.elm instanceof CircuitElm)
 //	    mouseElm = (CircuitElm) (editDialog.elm);
@@ -2276,7 +2276,7 @@ MouseOutHandler, MouseWheelHandler {
 		circuitMatrix[i][j] = new Complex();
 	circuitNeedsMap = false;
 	needsClosure = true;
-	response = new double[responseArea == null ? 1024 : responseArea.width];
+	response = new double[1024];
 	phaseResponse = new double[response.length];
 	polyDirty = true;
 	calcResponse();
@@ -2391,7 +2391,8 @@ MouseOutHandler, MouseWheelHandler {
 		break;
 	    }
 	}
-	useOldSolve = hasTransLine || polyMatrixSize > 10;
+	console("!!!polymatrixsize " + polyMatrixSize);
+	useOldSolve = hasTransLine || polyMatrixSize > 22;
 
 	// If matrix is too large for cofactor expansion or has trans lines,
 	// skip polynomial determinant and fall back to per-frequency solve
@@ -2556,18 +2557,29 @@ MouseOutHandler, MouseWheelHandler {
 	int i, fi;
 
 	// Guard: if response array not allocated yet, bail
-	if (response == null)
+	if (response == null || phaseResponse == null)
 	    return;
 
 	// Build transfer function if needed
-	if (polyDirty || transferNum == null)
+	if (polyDirty || transferNum == null) {
 	    buildTransferFunction();
+	    // Initialize incremental state for old-style per-frequency solve
+	    if (useOldSolve || transferNum.isZero()) {
+		specStep = response.length;
+		specIndex = specStep / 2;
+	    }
+	}
 
 	if (useOldSolve || transferNum.isZero()) {
-	    console("using old method to calculate response");
-	    // Use per-frequency matrix solve (transmission lines or large matrix)
-	    for (fi = 0; fi < response.length; fi++) {
-		frequency = linearToFrequency(fi/(double) response.length);
+	    // Incremental per-frequency matrix solve (transmission lines or large matrix).
+	    // Each call does up to ~50ms of work, interpolating between solved points.
+	    if (specStep == 0)
+		return;
+
+	    long tm = System.currentTimeMillis() + 50;
+	    while (specStep != 0 && System.currentTimeMillis() <= tm) {
+		fi = specIndex - 1;
+		frequency = linearToFrequency(fi / (double) response.length);
 		solveCircuit();
 		for (i = 0; i != elmList.size(); i++) {
 		    CircuitElm ce = getElm(i);
@@ -2576,6 +2588,31 @@ MouseOutHandler, MouseWheelHandler {
 			response[fi] = circuitRightSide[n-1].mag();
 			phaseResponse[fi] = -circuitRightSide[n-1].phase();
 		    }
+		}
+		// interpolate between previous solved point and this one
+		int prev = specIndex - specStep/2 - 1;
+		if (prev >= 0) {
+		    for (i = prev+1; i < fi; i++) {
+			double w = (i-prev) / (fi-(double)prev);
+			response[i] = response[prev]*(1-w) + response[fi]*w;
+			phaseResponse[i] = phaseResponse[prev]*(1-w) + phaseResponse[fi]*w;
+		    }
+		}
+		int next = specIndex + specStep/2 - 1;
+		if (next < response.length) {
+		    for (i = fi+1; i < next; i++) {
+			double w = (next-i) / (next-(double)fi);
+			response[i] = response[next]*(1-w) + response[fi]*w;
+			phaseResponse[i] = phaseResponse[next]*(1-w) + phaseResponse[fi]*w;
+		    }
+		}
+		// advance to next step; halve step size when we wrap around
+		specIndex += specStep;
+		if (specIndex > response.length) {
+		    specStep /= 2;
+		    specIndex = specStep / 2;
+		    if (specStep == 1)
+			specStep = 0;
 		}
 	    }
 	} else if (transferDen.isZero()) {
@@ -2608,8 +2645,6 @@ MouseOutHandler, MouseWheelHandler {
 	    responseAdjust /= 100;
 	    responseZero++;
 	}
-	// Mark complete (no more incremental steps needed)
-	specStep = 0;
     }
 
     void solveCircuit() {
@@ -2630,51 +2665,51 @@ MouseOutHandler, MouseWheelHandler {
 	}
 	//System.out.println("ac4");
 
-	if (needsClosure) {
-	// determine nodes that are unconnected
-	boolean closure[] = new boolean[nodeList.size()];
-	boolean changed = true;
-	boolean neededClosure = false;
-	closure[0] = true;
-	while (changed) {
-	    changed = false;
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		// loop through all ce's nodes to see if they are connected
-		// to other nodes not in closure
-		for (j = 0; j < ce.getConnectionNodeCount(); j++) {
-		    if (!closure[ce.getConnectionNode(j)]) {
-			if (ce.hasGroundConnection(j))
-			    closure[ce.getConnectionNode(j)] = changed = true;
-			continue;
-		    }
-		    int k;
-		    for (k = 0; k != ce.getConnectionNodeCount(); k++) {
-			if (j == k)
+	if (needsClosure && nodeList != null) {
+	    // determine nodes that are unconnected
+	    boolean closure[] = new boolean[nodeList.size()];
+	    boolean changed = true;
+	    boolean neededClosure = false;
+	    closure[0] = true;
+	    while (changed) {
+		changed = false;
+		for (i = 0; i != elmList.size(); i++) {
+		    CircuitElm ce = getElm(i);
+		    // loop through all ce's nodes to see if they are connected
+		    // to other nodes not in closure
+		    for (j = 0; j < ce.getConnectionNodeCount(); j++) {
+			if (!closure[ce.getConnectionNode(j)]) {
+			    if (ce.hasGroundConnection(j))
+				closure[ce.getConnectionNode(j)] = changed = true;
 			    continue;
-			int kn = ce.getConnectionNode(k);
-			if (ce.getConnection(j, k) && !closure[kn]) {
-			    closure[kn] = true;
-			    changed = true;
+			}
+			int k;
+			for (k = 0; k != ce.getConnectionNodeCount(); k++) {
+			    if (j == k)
+				continue;
+			    int kn = ce.getConnectionNode(k);
+			    if (ce.getConnection(j, k) && !closure[kn]) {
+				closure[kn] = true;
+				changed = true;
+			    }
 			}
 		    }
 		}
-	    }
-	    if (changed)
-		continue;
+		if (changed)
+		    continue;
 
-	    // connect unconnected nodes
-	    for (i = 0; i != nodeList.size(); i++)
-		if (!closure[i] && !getCircuitNode(i).internal) {
-		    console("node " + i + " unconnected");
-		    stampResistor(0, i, 1e8);
-		    neededClosure = true;
-		    closure[i] = true;
-		    changed = true;
-		    break;
-		}
-	}
-	needsClosure = neededClosure;
+		// connect unconnected nodes
+		for (i = 0; i != nodeList.size(); i++)
+		    if (!closure[i] && !getCircuitNode(i).internal) {
+			console("node " + i + " unconnected");
+			stampResistor(0, i, 1e8);
+			neededClosure = true;
+			closure[i] = true;
+			changed = true;
+			break;
+		    }
+	    }
+	    needsClosure = neededClosure;
 	}
 	
 	circuitMatrixSize = matrixSize;
