@@ -87,6 +87,18 @@ class FFT {
         }
     }
 
+    void ifft(double[] real, double[] imag) {
+      // IFFT = conj(FFT(conj(x))) / N
+      for (int i = 0; i < real.length; i++)
+        imag[i] = -imag[i];
+      fft(real, imag);
+      double scale = 1.0 / real.length;
+      for (int i = 0; i < real.length; i++) {
+        real[i] *= scale;
+        imag[i] = -imag[i] * scale;
+      }
+    }
+
     int getSize() { return size; }
     
     double magnitude(double real, double imag) {

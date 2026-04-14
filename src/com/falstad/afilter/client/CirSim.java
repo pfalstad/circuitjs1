@@ -113,6 +113,7 @@ MouseOutHandler, MouseWheelHandler {
     // IES - remove interaction
 //    Label titleLabel;
     Button resetButton;
+    Button playNoiseButton;
 //    Button dumpMatrixButton;
     MenuItem aboutItem;
     MenuItem importFromLocalFileItem, importFromTextItem,
@@ -653,6 +654,12 @@ MouseOutHandler, MouseWheelHandler {
 //	main.add(dumpMatrixButton);// IES for debugging
 	stoppedCheck = new Checkbox("Stopped");
 	verticalPanel.add(stoppedCheck);
+	verticalPanel.add(playNoiseButton = new Button("Play Filtered Noise"));
+	playNoiseButton.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) {
+		playFilteredNoise();
+	    }
+	});
 	
 	if (LoadFile.isSupported())
 		verticalPanel.add(loadFileInput = new LoadFile(this));
@@ -1849,6 +1856,95 @@ MouseOutHandler, MouseWheelHandler {
         }
         impulseResponse = h;
     }
+
+    // Look up filter magnitude at frequency f (Hz) from the computed response[] array.
+    double getResponseMagnitudeAt(double f) {
+        if (f <= minFrequency) return response[0];
+        if (f >= maxFrequency) return response[response.length - 1];
+        double lin = frequencyToLinear(f);
+        int idx = (int)(lin * response.length);
+        if (idx < 0) idx = 0;
+        if (idx >= response.length) idx = response.length - 1;
+        return response[idx];
+    }
+
+    // Generate filtered white noise by shaping a random-phase spectrum with the
+    // filter's magnitude response, then IFFTing to the time domain.
+    // Called back from JSNI with the actual AudioContext sample rate.
+    double[] computeNoiseSamples(int sampleRate) {
+        if (response == null) return null;
+
+        // FFT size: next power of 2 at or above 2 seconds of samples
+        int N = 1;
+        while (N < sampleRate * 2) N <<= 1;
+
+        double[] real = new double[N];
+        double[] imag = new double[N];
+
+        // Each bin gets the filter magnitude and a random phase
+        for (int k = 0; k <= N / 2; k++) {
+            double f = k * (double) sampleRate / N;
+            double mag = getResponseMagnitudeAt(f);
+            double phase = random.nextDouble() * 2 * pi;
+            real[k] = mag * Math.cos(phase);
+            imag[k] = mag * Math.sin(phase);
+        }
+        // Conjugate symmetry so the IFFT produces a real signal
+        for (int k = 1; k < N / 2; k++) {
+            real[N - k] =  real[k];
+            imag[N - k] = -imag[k];
+        }
+        imag[0] = 0;      // DC must be real
+        imag[N / 2] = 0;  // Nyquist must be real
+
+        new FFT(N).ifft(real, imag);
+
+        // Normalize to 0.9 peak
+        double maxVal = 0;
+        for (int i = 0; i < N; i++)
+            if (Math.abs(real[i]) > maxVal) maxVal = Math.abs(real[i]);
+        if (maxVal > 0) {
+            double scale = 0.9 / maxVal;
+            for (int i = 0; i < N; i++)
+                real[i] *= scale;
+        }
+        return real;
+    }
+
+    void playFilteredNoise() {
+        playFilteredNoiseJS();
+    }
+
+    native void playFilteredNoiseJS() /*-{
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) {
+            alert("Web Audio API not supported in this browser.");
+            return;
+        }
+        var audioCtx = new AudioContext();
+        var sampleRate = audioCtx.sampleRate | 0;
+
+        // Compute shaped noise samples in Java at the actual AudioContext sample rate
+        var samples = this.@com.falstad.afilter.client.CirSim::computeNoiseSamples(I)(sampleRate);
+        if (samples == null) {
+            alert("Cannot play filtered noise: filter response not yet computed.");
+            audioCtx.close();
+            return;
+        }
+
+        var len = sampleRate * 2;
+        if (len > samples.length) len = samples.length;
+
+        var buf = audioCtx.createBuffer(1, len, sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < len; i++)
+            data[i] = samples[i];
+
+        var source = audioCtx.createBufferSource();
+        source.buffer = buf;
+        source.connect(audioCtx.destination);
+        source.start();
+    }-*/;
 
     void drawImpulseResponse(Graphics g) {
         g.setColor(Color.darkGray);
