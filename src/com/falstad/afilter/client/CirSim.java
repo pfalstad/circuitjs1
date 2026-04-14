@@ -4140,11 +4140,6 @@ MouseOutHandler, MouseWheelHandler {
     	    dragY = e.getY();
     	    return;
     	}
-    	if (responseArea.contains(e.getX(), e.getY()) && customizer instanceof FilterCustomizer) {
-    	    double freq = linearToFrequency(e.getX() / (double) responseArea.width);
-    	    ((FilterCustomizer) customizer).setClickedFrequency(freq);
-    	    return;
-    	}
     	if (!circuitArea.contains(e.getX(), e.getY()))
     		return;
     	// convert screen coords to grid coords for element operations
@@ -4634,10 +4629,6 @@ MouseOutHandler, MouseWheelHandler {
     	    mouseDragging = true;
     	    return;
     	}
-
-    	// if user clicks on response graph, set center/cutoff frequency
-    	if (selectedFreq > 0 && customizer instanceof FilterCustomizer)
-    	    ((FilterCustomizer) customizer).setClickedFrequency(selectedFreq);
 
     	mouseDragging=true;
 	didSwitch = false;

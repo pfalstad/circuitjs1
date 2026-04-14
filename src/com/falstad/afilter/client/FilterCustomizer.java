@@ -124,13 +124,6 @@ class FilterCustomizer extends Customizer {
 	    info[i++] = "Ripple: " + CircuitElm.showFormat.format(ripdb) +
 		" dB";
     }
-    void setClickedFrequency(double freq) {
-	int x = (int) (sim.frequencyToLinear(freq) * 1000);
-	if (isBand() && cslider != null)
-	    cslider.setValue(x);
-	else if (slider != null)
-	    slider.setValue(x);
-    }
     void frequencyChanged() {}
     double getScaleFactor(double w, Complex x[]) { return 1; }
     
