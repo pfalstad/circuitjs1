@@ -772,6 +772,9 @@ MouseOutHandler, MouseWheelHandler {
 //	if (useFrame)
 //	    setMenuBar(mb);
 	
+	if (startCircuit == null)
+	    startCircuit = "passlp.txt";
+
 	if (startCircuitText != null) {
 	    getSetupList(false);
 	    readSetup(startCircuitText, false);

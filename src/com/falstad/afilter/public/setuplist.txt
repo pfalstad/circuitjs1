@@ -15,6 +15,7 @@ passbp.txt Band-Pass Butterworth/Chebyshev/Bessel
 passbs.txt Band-Stop Butterworth/Chebyshev/Bessel
 invcheb5lo.txt Inverse Chebyshev Low-Pass (5 pole)
 ladder-short.txt LC Ladder
+ladder-short-hi.txt LC Ladder High-Pass
 -
 +Active Filters
 actlp.txt Low-Pass Butterworth/Chebyshev/Bessel
