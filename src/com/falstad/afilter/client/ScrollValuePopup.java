@@ -210,7 +210,7 @@ public class ScrollValuePopup extends PopupPanel implements MouseOutHandler, Mou
     		lastidx=i;
     		inf.value=values[i];
     		myElm.setEditValue(0, inf);
-    		sim.needAnalyze();
+    		sim.editPerformed(myElm);
     	}
     }
     
