@@ -458,6 +458,7 @@ MouseOutHandler, MouseWheelHandler {
 	  fileMenuBar.addItem(importFromTextItem);
 	  exportAsUrlItem = new MenuItem("Export as Link", new MyCommand("file","exportasurl"));
 	  fileMenuBar.addItem(exportAsUrlItem);
+	  fileMenuBar.addItem(new MenuItem("Export to Circuit Simulator", new MyCommand("file","exporttocircuitsim")));
 	  exportAsLocalFileItem = new MenuItem("Export as Local File", new MyCommand("file","exportaslocalfile"));
 	  exportAsLocalFileItem.setEnabled(ExportAsLocalFileDialog.downloadIsSupported());
 	  fileMenuBar.addItem(exportAsLocalFileItem);
@@ -3179,6 +3180,9 @@ MouseOutHandler, MouseWheelHandler {
     	if (item=="exportasurl") {
     		doExportAsUrl();
     	}
+    	if (item=="exporttocircuitsim") {
+    		doExportToCircuitSimulator();
+    	}
     	if (item=="exportaslocalfile")
     		doExportAsLocalFile();
     	if (item=="exportastext")
@@ -3429,6 +3433,14 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     
+    void doExportToCircuitSimulator()
+    {
+    	String dump = dumpCircuit(true);
+    	dump = dump.replace(' ', '+');
+    	String url = "https://www.falstad.com/circuit/circuitjs.html?cct=" + URL.encode(dump);
+    	Window.open(url, "_blank", "");
+    }
+
     void doExportAsText()
     {
     	String dump = dumpCircuit();
@@ -3443,9 +3455,10 @@ MouseOutHandler, MouseWheelHandler {
     	exportAsLocalFileDialog.show();
     }
     
-    String dumpCircuit() {
+    String dumpCircuit() { return dumpCircuit(false); }
+
+    String dumpCircuit(boolean forCircuitSim) {
 	int i;
-	CustomLogicModel.clearDumpedFlags();
 	int f = (dotsCheckItem.getState()) ? 1 : 0;
 	f |= (smallGridCheckItem.getState()) ? 2 : 0;
 //	f |= (voltsCheckItem.getState()) ? 0 : 4;
@@ -3456,29 +3469,32 @@ MouseOutHandler, MouseWheelHandler {
 	    timeStep + " " + 5 + " " +
 	    currentBar.getValue() + " " + CircuitElm.voltageRange + " " +
 	    powerBar.getValue() + "\n";
-	f = 0;
-	f |= (linearCheckItem.getState()) ? 1 : 0;
-	f |= (polesCheckItem.getState()) ? 2 : 0;
-	f |= (phaseCheckItem.getState()) ? 4 : 0;
-	dump += "% " + f + " " + maxFrequency + "\n";
-		
+	if (!forCircuitSim) {
+	    f = 0;
+	    f |= (linearCheckItem.getState()) ? 1 : 0;
+	    f |= (polesCheckItem.getState()) ? 2 : 0;
+	    f |= (phaseCheckItem.getState()) ? 4 : 0;
+	    dump += "% " + f + " " + maxFrequency + "\n";
+	}
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
-	    if (ce instanceof CustomLogicElm) {
-		String m = ((CustomLogicElm)ce).dumpModel();
-		if (!m.isEmpty())
-		    dump += m + "\n";
+	    if (forCircuitSim && ce instanceof SweepElm && animateFreq > 0) {
+		dump += "R " + ce.x + " " + ce.y + " " + ce.x2 + " " + ce.y2 +
+		    " 0 1 " + animateFreq + " 5 0 0 0.5\n";
+	    } else {
+		dump += ce.dump() + "\n";
 	    }
-	    dump += ce.dump() + "\n";
 	}
-	for (i = 0; i != scopeCount; i++) {
-	    String d = scopes[i].dump();
-	    if (d != null)
-		dump += d + "\n";
+	if (!forCircuitSim) {
+	    for (i = 0; i != scopeCount; i++) {
+		String d = scopes[i].dump();
+		if (d != null)
+		    dump += d + "\n";
+	    }
+	    if (hintType != -1)
+		dump += "h " + hintType + " " + hintItem1 + " " +
+		    hintItem2 + "\n";
 	}
-	if (hintType != -1)
-	    dump += "h " + hintType + " " + hintItem1 + " " +
-		hintItem2 + "\n";
 	return dump;
     }
 
@@ -3769,10 +3785,6 @@ MouseOutHandler, MouseWheelHandler {
 		    }
 		    if (tint == '$') {
 			readOptions(st);
-		            return null;
-		    }
-		    if (tint == '!') {
-			new CustomLogicModel(st);
 		            return null;
 		    }
 		    if (tint >= '0' && tint <= '9')
