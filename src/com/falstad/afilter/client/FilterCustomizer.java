@@ -89,15 +89,23 @@ class FilterCustomizer extends Customizer {
 	if (s == slider) {
 	    double x = slider.getValue()/1000.;
 	    frequency = sim.linearToFrequency(x);
-	    frequencyChanged();
 	} else if (s == cslider) {
 	    double x = cslider.getValue()/1000.;
 	    cfrequency = sim.linearToFrequency(x);
-	    frequencyChanged();
 	} else if (s == pslider) {
 	    polesChanged();
-	} else if (s == rslider)
+	    return;
+	} else if (s == rslider) {
 	    frequencyChanged();
+	    return;
+	}
+	// clamp bandwidth so lower band edge stays positive (frequency/2 < cfrequency)
+	if (isBand() && frequency > 2 * cfrequency) {
+	    frequency = 2 * cfrequency;
+	    int sx = (int) (sim.frequencyToLinear(frequency) * 1000);
+	    slider.setValue(sx);
+	}
+	frequencyChanged();
     }
     /*
     public void itemStateChanged(ItemEvent ie) {
