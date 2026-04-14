@@ -1173,7 +1173,7 @@ MouseOutHandler, MouseWheelHandler {
     		maxy = max(ce.y, max(ce.y2, maxy));
     		*/
     	}
-        int margin = 20;
+        int margin = 50;
     	r.grow(margin);
         circuitBbox = r;
         boolean fits = (circuitBbox.width < circuitArea.width);
