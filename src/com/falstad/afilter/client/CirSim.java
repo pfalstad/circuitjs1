@@ -68,6 +68,8 @@ import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.logical.shared.ValueChangeHandler;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.dom.client.DoubleClickHandler;
 import com.google.gwt.event.dom.client.DoubleClickEvent;
 import com.google.gwt.dom.client.CanvasElement;
@@ -113,7 +115,8 @@ MouseOutHandler, MouseWheelHandler {
     // IES - remove interaction
 //    Label titleLabel;
     Button resetButton;
-    Button playNoiseButton;
+    Checkbox soundCheck;
+    Timer soundRestartTimer;
 //    Button dumpMatrixButton;
     MenuItem aboutItem;
     MenuItem importFromLocalFileItem, importFromTextItem,
@@ -244,7 +247,8 @@ MouseOutHandler, MouseWheelHandler {
     Polynomial polyMatrix[][], polyRightSide[];
     Polynomial transferNum, transferDen;
     Complex[] polyPoles, polyZeros;
-    boolean polyDirty;
+    boolean responseChanged;
+    long lastSoundUpdateTime;
     int[] polyIndexMap; // maps raw node/VS index to reduced matrix index (0=skip)
     int polyMatrixSize; // reduced matrix size
     boolean useOldSolve; // true when transmission lines present (infinite poles)
@@ -654,10 +658,12 @@ MouseOutHandler, MouseWheelHandler {
 //	main.add(dumpMatrixButton);// IES for debugging
 	stoppedCheck = new Checkbox("Stopped");
 	verticalPanel.add(stoppedCheck);
-	verticalPanel.add(playNoiseButton = new Button("Play Filtered Noise"));
-	playNoiseButton.addClickHandler(new ClickHandler() {
-	    public void onClick(ClickEvent event) {
-		playFilteredNoise();
+	soundCheck = new Checkbox("Sound");
+	verticalPanel.add(soundCheck);
+	soundCheck.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+	    public void onValueChange(ValueChangeEvent<Boolean> event) {
+		if (soundCheck.getState()) startFilteredNoise();
+		else stopFilteredNoiseJS();
 	    }
 	});
 	
@@ -1911,29 +1917,46 @@ MouseOutHandler, MouseWheelHandler {
         return real;
     }
 
-    void playFilteredNoise() {
-        playFilteredNoiseJS();
+    void startFilteredNoise() {
+        startFilteredNoiseJS();
+	console("start noise");
     }
 
-    native void playFilteredNoiseJS() /*-{
+    void scheduleSoundRestart() {
+	console("schedule sound restart");
+        if (soundRestartTimer != null)
+            soundRestartTimer.cancel();
+        soundRestartTimer = new Timer() {
+            public void run() {
+                if (soundCheck != null && soundCheck.getState())
+                    startFilteredNoise();
+            }
+        };
+        soundRestartTimer.schedule(400);
+    }
+
+    native void startFilteredNoiseJS() /*-{
         var AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) {
-            alert("Web Audio API not supported in this browser.");
-            return;
-        }
-        var audioCtx = new AudioContext();
+        if (!AudioContext) return;
+        if (!$wnd._afilterCtx)
+            $wnd._afilterCtx = new AudioContext();
+        var audioCtx = $wnd._afilterCtx;
+        if (audioCtx.state === 'suspended')
+            audioCtx.resume();
         var sampleRate = audioCtx.sampleRate | 0;
 
-        // Compute shaped noise samples in Java at the actual AudioContext sample rate
         var samples = this.@com.falstad.afilter.client.CirSim::computeNoiseSamples(I)(sampleRate);
-        if (samples == null) {
-            alert("Cannot play filtered noise: filter response not yet computed.");
-            audioCtx.close();
-            return;
-        }
+        if (samples == null) return;
 
         var len = sampleRate * 2;
         if (len > samples.length) len = samples.length;
+
+        // Stop any currently playing source
+        if ($wnd._afilterSource) {
+            try { $wnd._afilterSource.stop(); } catch(e) {}
+            $wnd._afilterSource.disconnect();
+            $wnd._afilterSource = null;
+        }
 
         var buf = audioCtx.createBuffer(1, len, sampleRate);
         var data = buf.getChannelData(0);
@@ -1942,8 +1965,22 @@ MouseOutHandler, MouseWheelHandler {
 
         var source = audioCtx.createBufferSource();
         source.buffer = buf;
+        source.loop = true;
         source.connect(audioCtx.destination);
         source.start();
+        $wnd._afilterSource = source;
+    }-*/;
+
+    native void stopFilteredNoiseJS() /*-{
+        if ($wnd._afilterSource) {
+            try { $wnd._afilterSource.stop(); } catch(e) {}
+            $wnd._afilterSource.disconnect();
+            $wnd._afilterSource = null;
+        }
+        if ($wnd._afilterCtx) {
+            $wnd._afilterCtx.close();
+            $wnd._afilterCtx = null;
+        }
     }-*/;
 
     void drawImpulseResponse(Graphics g) {
@@ -2375,7 +2412,7 @@ MouseOutHandler, MouseWheelHandler {
 	needsClosure = true;
 	response = new double[1024];
 	phaseResponse = new double[response.length];
-	polyDirty = true;
+	responseChanged = true;
 	calcResponse();
 	computeImpulseResponse();
 	idealResponse = null;
@@ -2396,7 +2433,6 @@ MouseOutHandler, MouseWheelHandler {
 	    transferDen = new Polynomial(1.0);
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
-	    polyDirty = false;
 	    return;
 	}
 
@@ -2499,7 +2535,6 @@ MouseOutHandler, MouseWheelHandler {
 	    transferDen = new Polynomial(1.0);
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
-	    polyDirty = false;
 	    return;
 	}
 
@@ -2584,7 +2619,6 @@ MouseOutHandler, MouseWheelHandler {
 	    transferDen = new Polynomial(1.0);
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
-	    polyDirty = false;
 	    return;
 	}
 
@@ -2630,7 +2664,6 @@ MouseOutHandler, MouseWheelHandler {
 	for (i = 0; i < polyZeros.length; i++)
 	    console("  " + polyZeros[i].asString());*/
 
-	polyDirty = false;
 	console("got poles/zeroes from transfer function");
     }
 
@@ -2657,13 +2690,15 @@ MouseOutHandler, MouseWheelHandler {
 	if (response == null || phaseResponse == null)
 	    return;
 
-	// Build transfer function if needed
-	if (polyDirty || transferNum == null) {
+	// Build transfer function when circuit changed (responseChanged) or first time
+	if (responseChanged || transferNum == null) {
 	    buildTransferFunction();
-	    // Initialize incremental state for old-style per-frequency solve
 	    if (useOldSolve || transferNum.isZero()) {
+		// Incremental solve: initialize and clear responseChanged now —
+		// the response will update progressively via specStep
 		specStep = response.length;
 		specIndex = specStep / 2;
+		responseChanged = false;
 	    }
 	}
 
@@ -2712,14 +2747,27 @@ MouseOutHandler, MouseWheelHandler {
 			specStep = 0;
 		}
 	    }
+	    // Update sound every ~200ms while the incremental solve is running
+	    if (soundCheck != null && soundCheck.getState()) {
+		long now = System.currentTimeMillis();
+		if (now - lastSoundUpdateTime >= 200) {
+		    startFilteredNoise();
+		    lastSoundUpdateTime = now;
+		}
+	    }
 	} else if (transferDen.isZero()) {
-	    // Singular — fall back to zero response
+	    // Singular — fall back to zero response; skip if nothing changed
+	    if (!responseChanged) return;
 	    for (fi = 0; fi < response.length; fi++) {
 		response[fi] = 0;
 		phaseResponse[fi] = 0;
 	    }
+	    if (soundCheck != null && soundCheck.getState())
+		scheduleSoundRestart();
+	    responseChanged = false;
 	} else {
-	    // Evaluate H(jw) = N(jw)/D(jw) at each frequency point
+	    // Evaluate H(jw) = N(jw)/D(jw) at each frequency point; skip if nothing changed
+	    if (!responseChanged) return;
 	    for (fi = 0; fi < response.length; fi++) {
 		frequency = linearToFrequency(fi/(double) response.length);
 		double w = 2*pi*frequency;
@@ -2730,6 +2778,9 @@ MouseOutHandler, MouseWheelHandler {
 		response[fi] = num.mag();
 		phaseResponse[fi] = -num.phase();
 	    }
+	    if (soundCheck != null && soundCheck.getState())
+		scheduleSoundRestart();
+	    responseChanged = false;
 	}
 
 	double maxResponse = 0;
