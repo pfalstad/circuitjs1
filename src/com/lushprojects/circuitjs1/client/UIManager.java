@@ -749,10 +749,13 @@ public class UIManager {
             }
         }
 
-        // Add info about mouse mode in graphics
+        // Add info about mouse mode in graphics; drop below subcircuit/context bar when visible
         if (menus.mouseModeCheckItem.getState()){
             if (menus.printableCheckItem.getState()) g.setColor(Color.black);
-            g.drawString(Locale.LS("Mode: ") + app.classToLabelMap.get(mouseModeStr), 10, 29);
+            int modeY = 29;
+            if (!subcircuitStack.isEmpty() || app.isEditingContext())
+                modeY += subcircuitBar.getOffsetHeight();
+            g.drawString(Locale.LS("Mode: ") + app.classToLabelMap.get(mouseModeStr), 10, modeY);
         }
 
 	try {

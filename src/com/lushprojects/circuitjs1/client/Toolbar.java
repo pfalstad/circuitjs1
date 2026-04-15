@@ -21,7 +21,7 @@ public class Toolbar extends FlowPanel {
     private Label modeLabel;
     private HashMap<String, Label> highlightableButtons = new HashMap<>();
     private Label activeButton;  // Currently active button
-    private String SEPARATOR = "<div style=\"height:30px;width:0;border-left:2px solid grey;\"></div>";
+    private String SEPARATOR = "<div style=\"height:30px;width:0;border-left:2px solid grey;margin:0 8px;\"></div>";
 
     Label resistorButton;
 
