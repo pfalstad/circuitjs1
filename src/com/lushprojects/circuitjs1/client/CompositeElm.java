@@ -366,6 +366,9 @@ public abstract class CompositeElm extends CircuitElm {
 	// nodes[p] = n
 	Vector<CircuitNodeLink> cnLinks;
 	super.setNode(p, n);
+	if (compNodeList == null)
+	    return;
+
 	cnLinks = compNodeList.get(p).links;
 
         // call setNode() for all elements that use that node
