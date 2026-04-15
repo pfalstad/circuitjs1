@@ -39,6 +39,9 @@ const arguments = remote.getGlobal('sharedObject').prop1;
 if (arguments.length > 1) {
   // arguments[1] gets destroyed somehow
   var arg1 = arguments[1];
+  var shortName = arg1.substring(arg1.lastIndexOf('/')+1);
+  shortName = shortName.substring(shortName.lastIndexOf("\\")+1);
+  window.startCircuitFileName = shortName;
   fs.readFile(arguments[1], 'utf-8', function (err, data) {
     if (err) { if (err) window.alert(err); return; }
     lastSavedFilePath = arg1;

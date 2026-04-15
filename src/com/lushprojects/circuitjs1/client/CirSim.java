@@ -214,6 +214,9 @@ public class CirSim implements NativePreviewHandler {
 	if (startCircuitText != null) {
 	    menus.getSetupList(false);
 	    loader.readCircuit(startCircuitText);
+	    String electronFileName = getElectronStartCircuitFileName();
+	    if (electronFileName != null)
+		setCircuitTitle(electronFileName);
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
@@ -393,6 +396,10 @@ public class CirSim implements NativePreviewHandler {
 
     static native String getElectronStartCircuitText() /*-{
     	return $wnd.startCircuitText;
+    }-*/;
+
+    static native String getElectronStartCircuitFileName() /*-{
+    	return $wnd.startCircuitFileName;
     }-*/;
 
 
