@@ -91,12 +91,14 @@ class EditOptions implements Editable {
 		   ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", app.autoDCOnReset);
 		   return ei;
 		}
-		if (n == 15) {
+		if (n == 15)
+		    return new EditInfo("Simulation Temperature (\u00b0C)", CirSim.temperature - 273.15, 0, 0);
+		if (n == 16) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 16 && sim.adjustTimeStep)
+		if (n == 17 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
 		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default.
@@ -194,10 +196,17 @@ class EditOptions implements Editable {
                 if (n == 14)
                     app.autoDCOnReset = ei.checkbox.getState();
 		if (n == 15) {
+		    double tempK = ei.value + 273.15;
+		    if (tempK > 0) {
+			CirSim.setTemperature(tempK);
+			app.updateModels();
+		    }
+		}
+		if (n == 16) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 16)
+		if (n == 17 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 
