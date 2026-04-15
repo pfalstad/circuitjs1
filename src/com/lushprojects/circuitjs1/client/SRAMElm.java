@@ -168,7 +168,8 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	String toHex(int val) {
-	    String h = Integer.toHexString(val & 0xFF).toUpperCase();
+	    int mask = (1<<dataBits)-1;
+	    String h = Integer.toHexString(val & mask).toUpperCase();
 	    return h.length() < 2 ? "0" + h : h;
 	}
 
