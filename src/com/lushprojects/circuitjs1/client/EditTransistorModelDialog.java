@@ -15,8 +15,8 @@ public class EditTransistorModelDialog extends EditDialog {
     boolean apply() {
 	if (!super.apply())
 	    return false;
-//	if (model.name == null || model.name.length() == 0)
-//	    model.pickName();
+	if (model.name == null || model.name.length() == 0)
+	    model.pickName();
 	if (transistorElm != null)
 	    transistorElm.newModelCreated(model);
 	return true;

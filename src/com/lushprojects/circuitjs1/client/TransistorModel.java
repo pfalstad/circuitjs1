@@ -334,6 +334,21 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
     void updateModel() {
     }
 
+    void pickName() {
+	name = "transistormodel";
+	if (modelMap.get(name) != null) {
+	    int num = 2;
+	    for (; ; num++) {
+		String n = name + "-" + num;
+		if (modelMap.get(n) == null) {
+		    name = n;
+		    break;
+		}
+	    }
+	}
+	modelMap.put(name, this);
+    }
+
     void dumpXml(Document doc) {
 	dumped = true;
 	Element elem = doc.createElement("tm");
