@@ -76,7 +76,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	void setup() {
 	    model = TransistorModel.getModelWithNameOrCopy(modelName, model);
 	    modelName = model.name;   // in case we couldn't find that model    
-	    vcrit = vt * Math.log(vt/(Math.sqrt(2)*model.satCur));
+	    vcrit = CirSim.vt * Math.log(CirSim.vt/(Math.sqrt(2)*model.satCur));
 	    noDiagonal = true;
 	}
 	boolean nonLinear() { return true; }
@@ -251,24 +251,22 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	}
 
 	static final double leakage = 1e-13; // 1e-6;
-	// Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
-	static final double vt = 0.025865;
 	double vcrit;
 	double lastvbc, lastvbe;
 	double limitStep(double vnew, double vold) {
 	    double arg;
 	    double oo = vnew;
 	    
-	    if (vnew > vcrit && Math.abs(vnew - vold) > (vt + vt)) {
+	    if (vnew > vcrit && Math.abs(vnew - vold) > (CirSim.vt + CirSim.vt)) {
 		if(vold > 0) {
-		    arg = 1 + (vnew - vold) / vt;
+		    arg = 1 + (vnew - vold) / CirSim.vt;
 		    if(arg > 0) {
-			vnew = vold + vt * Math.log(arg);
+			vnew = vold + CirSim.vt * Math.log(arg);
 		    } else {
 			vnew = vcrit;
 		    }
 		} else {
-		    vnew = vt *Math.log(vnew/vt);
+		    vnew = CirSim.vt *Math.log(vnew/CirSim.vt);
 		}
 		sim.converged = false;
 		//System.out.println(vnew + " " + oo + " " + vold);
@@ -309,7 +307,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		double cje = calcJunctionCap(vjBE, model.junctionCapBE, model.junctionPotBE, model.junctionExpBE);
 		// Add diffusion capacitance only in forward bias (like SPICE)
 		if (model.transitTimeF > 0 && vjBE > 0) {
-		    double vtn = vt * model.emissionCoeffF;
+		    double vtn = CirSim.vt * model.emissionCoeffF;
 		    cje += model.transitTimeF * model.satCur * Math.exp(vjBE / vtn) / vtn;
 		}
 		geqBE = 2 * cje / sim.timeStep;
@@ -321,7 +319,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		double cjc = calcJunctionCap(vjBC, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
 		// Add diffusion capacitance only in forward bias (like SPICE)
 		if (model.transitTimeR > 0 && vjBC > 0) {
-		    cjc += model.transitTimeR * model.satCur * Math.exp(vjBC / (vt * model.emissionCoeffR)) / (vt * model.emissionCoeffR);
+		    cjc += model.transitTimeR * model.satCur * Math.exp(vjBC / (CirSim.vt * model.emissionCoeffR)) / (CirSim.vt * model.emissionCoeffR);
 		}
 		geqBC = 2 * cjc / sim.timeStep;
 		if (geqBC < 1e-20) { geqBC = ceqBC = capCurBC = 0; }
@@ -375,16 +373,16 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
             double csat=model.satCur;
             double oik=model.invRollOffF;
             double c2=model.BEleakCur;
-            double vte=model.leakBEemissionCoeff*vt;
+            double vte=model.leakBEemissionCoeff*CirSim.vt;
             double oikr=model.invRollOffR;
             double c4=model.BCleakCur;
-            double vtc=model.leakBCemissionCoeff*vt;
+            double vtc=model.leakBCemissionCoeff*CirSim.vt;
             
 //          double rbpr=model.minBaseResist;
 //          double rbpi=model.baseResist-rbpr;
 //          double xjrb=model.baseCurrentHalfResist;
             
-            double vtn=vt*model.emissionCoeffF;
+            double vtn=CirSim.vt*model.emissionCoeffF;
             double evbe, cbe, gbe, cben, gben, evben, evbc, cbc, gbc, cbcn, gbcn, evbcn;
             double qb, dqbdve, dqbdvc, q2, sqarg, arg;
             if(vbe > -5*vtn){
@@ -405,7 +403,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
                 gben = -c2/vbe;
                 cben=gben*vbe;
             }
-            vtn=vt*model.emissionCoeffR;
+            vtn=CirSim.vt*model.emissionCoeffR;
             if(vbc > -5*vtn) {
                 evbc=Math.exp(vbc/vtn);
                 cbc=csat*(evbc-1)+gmin*vbc;
@@ -557,19 +555,19 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		double cjcVal = calcJunctionCap(vbc*pnp, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
 		// Add diffusion capacitance from transit time
 		if (model.transitTimeF > 0) {
-		    double vtn = vt * model.emissionCoeffF;
+		    double vtn = CirSim.vt * model.emissionCoeffF;
 		    double gdBE = model.satCur * Math.exp(vbe*pnp / vtn) / vtn;
 		    cjeVal += model.transitTimeF * gdBE;
 		}
 		if (model.transitTimeR > 0) {
-		    double vtn = vt * model.emissionCoeffR;
+		    double vtn = CirSim.vt * model.emissionCoeffR;
 		    double gdBC = model.satCur * Math.exp(vbc*pnp / vtn) / vtn;
 		    cjcVal += model.transitTimeR * gdBC;
 		}
 		double cTotal = cjeVal + cjcVal;
 		if (cTotal > 0 && ic != 0) {
 		    // gm = Ic / Vt (transconductance at operating point)
-		    double gmVal = Math.abs(ic) / vt;
+		    double gmVal = Math.abs(ic) / CirSim.vt;
 		    double ft = gmVal / (2 * Math.PI * cTotal);
 		    arr[8] = "ft = " + getUnitText(ft, "Hz");
 		}

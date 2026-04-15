@@ -28,8 +28,6 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     boolean internal;
     static final int FLAGS_SIMPLE = 1; 
     
-    // Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
-    static final double vt = 0.025865;
     // The diode's "scale voltage", the voltage increase which will raise current by a factor of e.
     double vscale;
     // The multiplicative equivalent of dividing by vscale (for speed).
@@ -142,7 +140,7 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	}
 
 	// create a new one, converting to new parameter values
-	final double vscale = emcoef * vt;
+	final double vscale = emcoef * CirSim.vt;
 	final double vdcoef = 1 / vscale;
 	double leakage = 1 / (Math.exp(fwdrop * vdcoef) - 1);
 	String name = "fwdrop=" + fwdrop;
@@ -168,6 +166,16 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
         StringTokenizer st = new StringTokenizer(s);
         DiodeModel dm = undumpModel(st);
         dm.builtIn = dm.internal = true;
+    }
+
+    static void updateAllModels() {
+	if (modelMap == null)
+	    return;
+	Iterator it = modelMap.entrySet().iterator();
+	while (it.hasNext()) {
+	    Map.Entry<String,DiodeModel> pair = (Map.Entry)it.next();
+	    pair.getValue().updateModel();
+	}
     }
 
     static void clearDumpedFlags() {
@@ -314,7 +322,7 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     // set emission coefficient for simple mode if we have enough data  
     void setEmissionCoefficient() {
 	if (forwardCurrent > 0 && forwardVoltage > 0)
-	    emissionCoefficient = (forwardVoltage/Math.log(forwardCurrent/saturationCurrent+1)) / vt;
+	    emissionCoefficient = (forwardVoltage/Math.log(forwardCurrent/saturationCurrent+1)) / CirSim.vt;
 
 	seriesResistance = 0;
     }
@@ -322,13 +330,13 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     public void setForwardVoltage() {
 	if (forwardCurrent == 0)
 	    forwardCurrent = 1;
-	forwardVoltage = emissionCoefficient*vt * Math.log(forwardCurrent/saturationCurrent+1);
+	forwardVoltage = emissionCoefficient*CirSim.vt * Math.log(forwardCurrent/saturationCurrent+1);
     }
     
     void updateModel() {
-	vscale = emissionCoefficient * vt;
+	vscale = emissionCoefficient * CirSim.vt;
 	vdcoef = 1/vscale;
-	fwdrop = Math.log(1/saturationCurrent + 1) * emissionCoefficient * vt;
+	fwdrop = Math.log(1/saturationCurrent + 1) * emissionCoefficient * CirSim.vt;
     }
     
     String dump() {
