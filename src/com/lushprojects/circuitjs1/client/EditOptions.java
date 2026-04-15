@@ -59,7 +59,7 @@ class EditOptions implements Editable {
 		}
 
 		if (n == 3)
-		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor();
+		    return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor().newColumn();
 		if (n == 4)
 		    return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue()).setIsColor();
 		if (n == 5)
@@ -76,7 +76,7 @@ class EditOptions implements Editable {
 		if (n == 9)
 		    return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
 		if (n == 10)
-		    return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits);
+		    return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits).newColumn();
 		if (n == 11) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Developer Mode", app.developerMode);
@@ -87,14 +87,20 @@ class EditOptions implements Editable {
 		if (n == 13)
 		    return new EditInfo("Mouse Wheel Sensitivity", app.mouse.wheelSensitivity).setPositive();
 		if (n == 14) {
+		   EditInfo ei = new EditInfo("", 0, -1, -1);
+		   ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", app.autoDCOnReset);
+		   return ei;
+		}
+		if (n == 15) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
 		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
 		    return ei;
 		}
-		if (n == 15 && sim.adjustTimeStep)
+		if (n == 16 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
-		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default
+		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default.
+		// add them before the "Auto-Adjust Timestep" checkbox.
 
 		return null;
 	}
@@ -185,11 +191,13 @@ class EditOptions implements Editable {
 		    if (stor != null)
 			stor.setItem("wheelSensitivity", Double.toString(app.mouse.wheelSensitivity));
 		}
-		if (n == 14) {
+                if (n == 14)
+                    app.autoDCOnReset = ei.checkbox.getState();
+		if (n == 15) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 15)
+		if (n == 16)
 		    sim.minTimeStep = ei.value;
 	}
 

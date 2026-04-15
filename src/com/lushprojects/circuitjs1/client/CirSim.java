@@ -59,6 +59,7 @@ public class CirSim implements NativePreviewHandler {
     boolean analyzeFlag, savedFlag;
     boolean dumpMatrix;
     boolean dcAnalysisFlag;
+    boolean autoDCOnReset;
     // boolean useBufferedImage;
     int pause = 10;
     int hintType = -1, hintItem1, hintItem2;
@@ -416,6 +417,7 @@ public class CirSim implements NativePreviewHandler {
 	f |= (menus.showValuesCheckItem.getState()) ? 0 : 16;
 	// 32 = linear scale in afilter
 	f |= sim.adjustTimeStep ? 64 : 0;
+	f |= autoDCOnReset ? 128 : 0;
 	String dump = "$ " + f + " " +
 	    sim.maxTimeStep + " " + getIterCount() + " " +
 	    ui.currentBar.getValue() + " " + CircuitElm.voltageRange + " " +

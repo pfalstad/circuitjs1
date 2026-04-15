@@ -1259,6 +1259,8 @@ public class UIManager {
 
     public void resetAction(){
     	app.analyzeFlag = true;
+    	if (app.autoDCOnReset)
+    	    app.dcAnalysisFlag = true;
     	if (app.sim.t == 0)
     	    setSimRunning(true);
     	app.sim.resetTime();

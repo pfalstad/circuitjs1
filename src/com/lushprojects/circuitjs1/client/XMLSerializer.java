@@ -117,6 +117,7 @@ class XMLSerializer {
         // 32 = linear scale in afilter
 	SimulationManager sim = app.sim;
         f |= sim.adjustTimeStep ? 64 : 0;
+        f |= app.autoDCOnReset ? 128 : 0;
 	XMLSerializer.dumpAttr(root, "f", f);
 	XMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
 	XMLSerializer.dumpAttr(root, "ic", app.getIterCount());
