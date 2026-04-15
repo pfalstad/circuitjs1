@@ -4,9 +4,12 @@ const app = electron.app
 // Module to create native browser window.
 const BrowserWindow = electron.BrowserWindow
 const Menu = electron.Menu
+const ipcMain = electron.ipcMain
+const dialog = electron.dialog
 
 const path = require('path')
 const url = require('url')
+
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -14,30 +17,90 @@ var windows = [];
 
 Menu.setApplicationMenu(false);
 
-// save arguments
-global.sharedObject = {prop1: process.argv};
+
+var pendingOpenFile = null;
+var argvConsumed = false;
+
+// Find the file path in an argv array, skipping flags (args starting with '-')
+function getFileFromArgv(argv) {
+  for (var i = 1; i < argv.length; i++) {
+    if (!argv[i].startsWith('-'))
+      return argv[i];
+  }
+  return null;
+}
+
+// On Windows, if a second instance is launched (e.g. double-clicking another
+// associated file), send its argv to this instance and quit immediately.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, argv) => {
+    if (process.platform !== 'darwin') {
+      var f = getFileFromArgv(argv);
+      if (f) {
+        pendingOpenFile = f;
+        createWindow();
+      }
+    }
+  });
+}
+
+app.on('open-file', function(event, filePath) {
+event.preventDefault();
+  pendingOpenFile = filePath;
+  if (app.isReady()) {
+    createWindow();
+  }
+});
+
+ipcMain.handle('show-save-dialog', async (event) => {
+  return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender));
+});
+
+ipcMain.handle('show-open-dialog', async (event) => {
+  return dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { properties: ['openFile'] });
+});
+
+ipcMain.on('toggle-dev-tools', (event) => {
+  BrowserWindow.fromWebContents(event.sender).toggleDevTools();
+});
+
+ipcMain.on('new-window', () => {
+  createWindow();
+});
 
 function createWindow () {
-  // Create the browser window.
-  var mainWindow = new BrowserWindow({width: 800, 
+  // On Mac, use open-file event path; on Windows/Linux use argv[1]
+  var fileToOpen = pendingOpenFile;
+  pendingOpenFile = null;
+  if (!fileToOpen && !argvConsumed && process.platform !== 'darwin') {
+    fileToOpen = getFileFromArgv(process.argv);
+    argvConsumed = true;
+  }
+// Create the browser window.
+  var mainWindow = new BrowserWindow({width: 800,
     height: 600,
     webPreferences: { nativeWindowOpen: true,
+                      sandbox: false,
+                      contextIsolation: false,
                       preload: path.join(__dirname, 'preload.js')
     }
   })
   windows.push(mainWindow);
 
-  // and load the index.html of the app.
-  mainWindow.loadURL(url.format({
-    // pathname: path.join(__dirname, 'index.html'),
+  var loadUrl = url.format({
     pathname: path.join(__dirname, 'war/circuitjs.html'),
     protocol: 'file:',
     slashes: true
-  }))
-
+  });
+  if (fileToOpen)
+    loadUrl += '?openFile=' + encodeURIComponent(fileToOpen);
+  mainWindow.loadURL(loadUrl);
 
   // Open the DevTools.
-  // mainWindow.webContents.openDevTools()
+  //mainWindow.webContents.openDevTools()
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
@@ -49,14 +112,9 @@ function createWindow () {
       windows.splice(i, 1);
   })
 
-  mainWindow.webContents.on('new-window', (evt, url, frameName, disposition, options) => {
-	if (disposition == 'save-to-disk')
-		return;
-	if (!url.endsWith("circuitjs.html"))
-		return;
-        // app is opening a new window.  override it by creating a BrowserWindow to work around an electron bug (11128)
-	evt.preventDefault();
-	createWindow();
+  mainWindow.webContents.setWindowOpenHandler(({ disposition }) => {
+	// new windows are handled via IPC (window.newWindow); deny everything else
+	return { action: 'deny' };
   });
 
 }

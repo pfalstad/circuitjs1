@@ -33,7 +33,7 @@ public class CommandManager {
     		    app.ui.loadFileInput.click();
     	}
     	if (item=="newwindow") {
-    	    Window.open(Document.get().getURL(), "_blank", "");
+    	    newElectronWindow();
     	}
     	if (item=="save")
     	    electronSave(app.dumpCircuit());
@@ -639,6 +639,10 @@ public class CommandManager {
 	app.repaint();
     }
         
+    static native void newElectronWindow() /*-{
+        $wnd.newWindow();
+    }-*/;
+
     static native void electronSaveAs(String dump) /*-{
         $wnd.showSaveDialog().then(function (file) {
             if (file.canceled)
