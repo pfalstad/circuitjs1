@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -24,35 +24,49 @@ import com.google.gwt.xml.client.Document;
 
 class CurrentElm extends CircuitElm {
 	double currentValue;
+	// Compliance voltage. 0 = unlimited (ideal current source).
+	double maxVoltage;
+	double lastVoltDiff;
 	boolean broken;
 	public CurrentElm(int xx, int yy) {
 	    super(xx, yy);
 	    currentValue = .01;
+	    maxVoltage = 0;
 	}
 	public CurrentElm(int xa, int ya, int xb, int yb, int f,
 		   StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
 	    try {
 		currentValue = new Double(st.nextToken()).doubleValue();
-	    } catch (Exception e) {
+		maxVoltage = new Double(st.nextToken()).doubleValue();
+	    } catch (Exception e) {}
+	    if (currentValue == 0)
 		currentValue = .01;
-	    }
+	}
+	boolean isVoltageLimited() { return maxVoltage > 0; }
+	boolean nonLinear() { return isVoltageLimited(); }
+	void reset() {
+	    super.reset();
+	    lastVoltDiff = 0;
 	}
 	String dump() {
-	    return super.dump() + " " + currentValue;
+	    return super.dump() + " " + currentValue + " " + maxVoltage;
 	}
 
 	void dumpXml(Document doc, Element elem) {
 	    super.dumpXml(doc, elem);
 	    XMLSerializer.dumpAttr(elem, "cu", currentValue);
+	    if (maxVoltage > 0)
+		XMLSerializer.dumpAttr(elem, "mv", maxVoltage);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
 	    currentValue = xml.parseDoubleAttr("cu", currentValue);
+	    maxVoltage = xml.parseDoubleAttr("mv", 0);
 	}
 	int getDumpType() { return 'i'; }
-	
+
 	Polygon arrow;
 	Point ashaft1, ashaft2, center;
 	void setPoints() {
@@ -69,7 +83,7 @@ class CurrentElm extends CircuitElm {
 	    draw2Leads(g);
 	    setVoltageColor(g, (volts[0]+volts[1])/2);
 	    setPowerColor(g, false);
-	    
+
 	    drawThickCircle(g, center.x, center.y, cr);
 	    drawThickLine(g, ashaft1, ashaft2);
 
@@ -83,37 +97,81 @@ class CurrentElm extends CircuitElm {
 	    }
 	    drawPosts(g);
 	}
-	
+
 	// analyzeCircuit determines if current source has a path or if it's broken
 	void setBroken(boolean b) {
 	    broken = b;
 	}
-	
+
 	// we defer stamping current sources until we can tell if they have a current path or not
 	void stamp() {
 	    if (broken) {
 		// no current path; stamping a current source would cause a matrix error.
 		sim.stampResistor(nodes[0], nodes[1], 1e8);
 		current = 0;
+	    } else if (isVoltageLimited()) {
+		// nonlinear; doStep() handles the smooth-saturation companion model
+		sim.stampNonLinear(nodes[0]);
+		sim.stampNonLinear(nodes[1]);
 	    } else {
-		// ok to stamp a current source
+		// ideal current source
 		sim.stampCurrentSource(nodes[0], nodes[1], currentValue);
 		current = currentValue;
 	    }
 	}
-	
+
+	// Smooth voltage compliance via tanh-shaped saturation. Newton-Raphson
+	// gets an exact Jacobian so it converges even when the load is open
+	// (all switches off): as |vd| approaches maxVoltage, the source rolls off
+	// to zero current rather than slamming between full-on and full-off.
+	void doStep() {
+	    if (broken || !isVoltageLimited())
+		return;
+	    double vd = volts[1] - volts[0];
+	    if (Math.abs(lastVoltDiff - vd) > 0.01)
+		sim.converged = false;
+	    lastVoltDiff = vd;
+
+	    double absVd = Math.abs(vd);
+	    double signVd = (vd >= 0) ? 1.0 : -1.0;
+	    double vt = Math.max(maxVoltage * 0.05, 1e-6);
+
+	    // i(vd) = currentValue * 0.5 * (1 - tanh((|vd| - maxVoltage)/vt))
+	    double arg = (absVd - maxVoltage) / vt;
+	    double tanhArg = Math.tanh(arg);
+	    double i = currentValue * 0.5 * (1.0 - tanhArg);
+	    // di/dvd = -currentValue * 0.5 * sech^2(arg) / vt * sign(vd)
+	    double sech2 = 1.0 - tanhArg * tanhArg;
+	    double g = -currentValue * 0.5 * sech2 / vt * signVd;
+
+	    // Norton companion: parallel resistor (1/|g|) + adjusted current source.
+	    // Add gmin so a singular matrix is avoided when sech^2 is near zero
+	    // (well inside or well outside compliance).
+	    double absG = Math.abs(g) + 1e-9;
+	    sim.stampResistor(nodes[0], nodes[1], 1.0 / absG);
+	    sim.stampCurrentSource(nodes[0], nodes[1], i - g * vd);
+	    current = i;
+	}
+
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
 		return new EditInfo("Current (A)", currentValue, 0, .1);
+	    if (n == 1)
+		return new EditInfo("Max Voltage (V, 0=unlimited)", maxVoltage, 0, 0);
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
-	    currentValue = ei.value;
+	    if (n == 0)
+		currentValue = ei.value;
+	    if (n == 1 && ei.value >= 0)
+		maxVoltage = ei.value;
 	}
 	void getInfo(String arr[]) {
 	    arr[0] = "current source";
 	    int i = getBasicInfo(arr);
             arr[i++] = "P = " + getUnitText(getPower(), "W");
+	    if (isVoltageLimited())
+		arr[i++] = "Vmax = " + getVoltageText(maxVoltage);
 	}
 	double getVoltageDiff() {
 	    return volts[1] - volts[0];
