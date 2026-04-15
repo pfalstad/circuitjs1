@@ -649,9 +649,9 @@ labelledGridManager gridLabels;
 	    hScaleGrid.getRowFormatter().setVisible(1, hScaleLabel.expanded);
 	    speedBar.setValue(10-(int)Math.round(Math.log(scope.speed)/Math.log(2)));
 	    if (voltageBox != null) {
-		voltageBox.setValue(scope.showV && !scope.showingValue(Scope.VAL_POWER));
-		currentBox.setValue(scope.showI && !scope.showingValue(Scope.VAL_POWER));
-		powerBox.setValue(scope.showingValue(Scope.VAL_POWER));
+		voltageBox.setValue(scope.showV);
+		currentBox.setValue(scope.showI);
+		powerBox.setValue(scope.hasPlotValue(Scope.VAL_POWER));
 	    }
 	    scaleBox.setValue(scope.showScale);
 	    peakBox.setValue(scope.showMax);
