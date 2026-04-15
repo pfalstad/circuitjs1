@@ -108,9 +108,6 @@ class EditOptions implements Editable {
 		if (n == 17 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
-		// don't add new options here.  they are only visible if sim.adjustTimeStemp is set, and it isn't by default.
-		// add them before the "Auto-Adjust Timestep" checkbox.
-
 		return null;
 	}
 
@@ -210,13 +207,15 @@ class EditOptions implements Editable {
 		    int newType = ei.choice.getSelectedIndex();
 		    if (newType != sim.solverType) {
 			sim.solverType = newType;
+			// Save as default for new circuits; existing circuit will persist its own
+			// solverType via the "st" XML attr when saved.
 			Storage stor = Storage.getLocalStorageIfSupported();
 			if (stor != null)
 			    stor.setItem("solverType", Integer.toString(sim.solverType));
 			app.needAnalyze();
 		    }
 		}
-		if (n == 17)
+		if (n == 17 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 
