@@ -148,6 +148,21 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		setVoltageColor(g, volts[2]);
 		drawThickLine(g, drn[0], drn[1]);
 		
+		// draw operating region indicator on channel
+		if (showOperatingRegion()) {
+		    Color regionColor;
+		    if (mode == 0)
+			regionColor = Color.gray;         // cutoff
+		    else if (mode == 1)
+			regionColor = new Color(64, 128, 255);  // linear/triode - blue
+		    else
+			regionColor = new Color(0, 192, 0);     // saturation - green
+		    g.setColor(regionColor);
+		    g.setLineWidth(6);
+		    g.drawLine(src[1], drn[1]);
+		    g.setLineWidth(3);
+		}
+
 		// draw line connecting source and drain
 		int segments = 6;
 		int i;
