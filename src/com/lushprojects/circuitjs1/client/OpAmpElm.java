@@ -165,18 +165,29 @@ import com.google.gwt.xml.client.Document;
 	void doStep() {
 	    double vd = volts[1] - volts[0];
 	    double midpoint = (maxOut+minOut)*.5;
-	    if (Math.abs(lastvd-vd) > .1)
+	    double maxAdj = maxOut-midpoint;
+	    double minAdj = minOut-midpoint;
+
+	    // limit voltage change to prevent Newton-Raphson overshoot
+	    // in high-gain circuits (e.g., differentiators with fast edges)
+	    double maxVdStep = Math.abs(maxAdj/gain) * 100;
+	    if (maxVdStep < .1) maxVdStep = .1;
+	    if (Math.abs(vd - lastvd) > maxVdStep) {
+		vd = lastvd + Math.signum(vd - lastvd) * maxVdStep;
+		sim.converged = false;
+	    } else if (Math.abs(lastvd-vd) > .1)
 		sim.converged = false;
 	    else if (volts[2] > maxOut+.1 || volts[2] < minOut-.1)
 		sim.converged = false;
 	    double x = 0;
 	    double dx = 0;
-	    double maxAdj = maxOut-midpoint;
-	    double minAdj = minOut-midpoint;
-	    if (vd >= maxAdj/gain && (lastvd >= 0 || app.getrand(4) == 1)) {
+	    // use deterministic check instead of random getrand(4) to avoid
+	    // nondeterministic oscillation between saturation states
+	    boolean allowSwitch = (sim.subIterations > 20);
+	    if (vd >= maxAdj/gain && (lastvd >= 0 || allowSwitch)) {
 		dx = 1e-4;
 		x = maxOut - dx*maxAdj/gain;
-	    } else if (vd <= minAdj/gain && (lastvd <= 0 || app.getrand(4) == 1)) {
+	    } else if (vd <= minAdj/gain && (lastvd <= 0 || allowSwitch)) {
 		dx = 1e-4;
 		x = minOut - dx*minAdj/gain;
 	    } else {
