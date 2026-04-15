@@ -159,6 +159,18 @@ class VCCSElm extends ChipElm {
         	pins[inputCount+1].current = v0;
             }
 
+            // add gmin stepping to aid convergence, similar to Diode and
+            // TransistorElm.  Without this, circuits with controlled sources
+            // in positive feedback loops (e.g., optocoupler Schmitt triggers)
+            // can fail to converge because the Newton-Raphson iteration
+            // oscillates between two states with no damping.
+            if (sim.subIterations > 100) {
+        	double gmin = Math.exp(-9*Math.log(10)*(1-sim.subIterations/3000.));
+        	if (gmin > .1)
+        	    gmin = .1;
+        	sim.stampResistor(nodes[inputCount], nodes[inputCount+1], 1.0/gmin);
+            }
+
             for (i = 0; i != inputCount; i++)
         	lastVolts[i] = volts[i];
         }
