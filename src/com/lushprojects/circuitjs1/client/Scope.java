@@ -315,15 +315,35 @@ class Scope {
     
     void showCurrent(boolean b) {
 	showI = b;
-	if (b && !showingVoltageAndMaybeCurrent())
-	    setValue(0);
+	if (b && !hasPlotValue(VAL_CURRENT)) {
+	    CircuitElm ce = getElm();
+	    if (ce != null && plotsAreVICompatible())
+		plots.add(new ScopePlot(ce, UNITS_A, VAL_CURRENT, getManScaleFromMaxScale(UNITS_A, false)));
+	    else if (!showingVoltageAndMaybeCurrent())
+		setValue(0);
+	}
 	calcVisiblePlots();
     }
     void showVoltage(boolean b) {
 	showV = b;
-	if (b && !showingVoltageAndMaybeCurrent())
-	    setValue(0);
+	if (b && !hasPlotValue(VAL_VOLTAGE)) {
+	    CircuitElm ce = getElm();
+	    if (ce != null && plotsAreVICompatible())
+		plots.add(new ScopePlot(ce, UNITS_V, VAL_VOLTAGE, getManScaleFromMaxScale(UNITS_V, false)));
+	    else if (!showingVoltageAndMaybeCurrent())
+		setValue(0);
+	}
 	calcVisiblePlots();
+    }
+
+    // True if all plots are V/I/Power/Charge — adding another V or I plot is safe (no wipe needed)
+    boolean plotsAreVICompatible() {
+	for (int i = 0; i != plots.size(); i++) {
+	    int v = plots.get(i).value;
+	    if (v != VAL_VOLTAGE && v != VAL_CURRENT && v != VAL_POWER && v != VAL_CHARGE)
+		return false;
+	}
+	return true;
     }
 
     // check if any plot has the given value (unlike showingValue which checks ALL plots)
@@ -349,6 +369,25 @@ class Scope {
 	    // remove any charge plots
 	    for (int i = plots.size() - 1; i >= 0; i--) {
 		if (plots.get(i).value == VAL_CHARGE)
+		    plots.remove(i);
+	    }
+	}
+	calcVisiblePlots();
+	resetGraph();
+    }
+
+    void showPower(boolean b) {
+	if (b) {
+	    // add a power plot if not already present
+	    if (!hasPlotValue(VAL_POWER)) {
+		CircuitElm ce = getElm();
+		if (ce != null)
+		    plots.add(new ScopePlot(ce, UNITS_W, VAL_POWER, getManScaleFromMaxScale(UNITS_W, false)));
+	    }
+	} else {
+	    // remove any power plots
+	    for (int i = plots.size() - 1; i >= 0; i--) {
+		if (plots.get(i).value == VAL_POWER)
 		    plots.remove(i);
 	    }
 	}
@@ -2473,7 +2512,7 @@ class Scope {
     	if (mi == "showelminfo")
 	    	showElmInfo = state;
     	if (mi == "showpower")
-    		setValue(VAL_POWER);
+    		showPower(state);
     	if (mi == "showib")
     		setValue(VAL_IB);
     	if (mi == "showic")
