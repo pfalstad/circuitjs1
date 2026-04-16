@@ -36,7 +36,6 @@ import com.google.gwt.xml.client.Element;
 	static final int FLAG_RELOAD_ON_RESET = 2;
 	static String contentsOverride = null;
 	TextArea editTextArea;
-	boolean hexTogglePending;
 	static String fileNameOverride = null;
 
 	public SRAMElm(int xx, int yy) {
@@ -242,9 +241,7 @@ import com.google.gwt.xml.client.Element;
 		    ei.setError("must be between 2 and 16");
 	    }
 	    if (n == 2) {
-		// skip re-parse during apply() if hex toggle already handled it
-		if (!hexTogglePending)
-		    parseContentsString(ei.textArea.getText());
+		parseContentsString(ei.textArea.getText());
 		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
 		    initialMap = new HashMap<Integer, Integer>(map);
 	    }
