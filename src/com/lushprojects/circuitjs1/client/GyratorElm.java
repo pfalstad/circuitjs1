@@ -40,23 +40,6 @@ class GyratorElm extends CircuitElm {
 	curcount = new double[2];
     }
 
-    public GyratorElm(int xa, int ya, int xb, int yb, int f,
-		      StringTokenizer st) {
-	super(xa, ya, xb, yb, f);
-	if (hasFlag(FLAG_VERTICAL))
-	    width = -max(32, abs(xb-xa));
-	else
-	    width = max(32, abs(yb-ya));
-	gyrResistance = new Double(st.nextToken()).doubleValue();
-	current = new double[2];
-	curcount = new double[2];
-	try {
-	    current[0] = new Double(st.nextToken()).doubleValue();
-	    current[1] = new Double(st.nextToken()).doubleValue();
-	} catch (Exception e) {}
-	noDiagonal = true;
-    }
-
     void drag(int xx, int yy) {
 	xx = snapGrid(xx);
 	yy = snapGrid(yy);
@@ -72,13 +55,6 @@ class GyratorElm extends CircuitElm {
 	    yy = y;
 	x2 = xx; y2 = yy;
 	setPoints();
-    }
-
-    int getDumpType() { return 433; }
-
-    String dump() {
-	return super.dump() + " " + gyrResistance + " " +
-	    current[0] + " " + current[1];
     }
 
     // Wikipedia gyrator symbol: rectangular box with the Greek letter pi
