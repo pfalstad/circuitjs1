@@ -128,18 +128,22 @@ class TriStateElm extends CircuitElm {
 	int hs = 16;
 	setBbox(point1, point2, hs);
 
-	// draw control lead underneath the triangle
-	setVoltageColor(g, volts[2 * busWidth]);
+	double threshold = highVoltage * .5;
+	// control lead
+	setLogicPinColor(g, volts[2 * busWidth], threshold);
 	drawThickLine(g, point3, lead3);
 
-	// draw leads with bus thickness if bus mode
+	// input/output leads (bus-thick in bus mode)
 	if (busWidth > 1) {
-	    setVoltageColor(g, volts[0]);
+	    setLogicPinColor(g, volts[0], threshold);
 	    drawThickLine(g, point1, busLead1, 5);
-	    setVoltageColor(g, volts[busWidth]);
+	    setLogicPinColor(g, volts[busWidth], threshold);
 	    drawThickLine(g, lead2, point2, 5);
 	} else {
-	    draw2Leads(g);
+	    setLogicPinColor(g, volts[0], threshold);
+	    drawThickLine(g, point1, lead1);
+	    setLogicPinColor(g, volts[busWidth], threshold);
+	    drawThickLine(g, lead2, point2);
 	}
 
 	g.setColor(lightGrayColor);
