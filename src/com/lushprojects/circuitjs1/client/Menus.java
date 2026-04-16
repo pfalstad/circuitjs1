@@ -297,7 +297,8 @@ public class Menus {
 		"Add Spark Gap", "SparkGapElm",
 		"Add Fuse", "FuseElm",
 		"Add Crystal", "CrystalElm",
-		"Add Cross Switch", "CrossSwitchElm"
+		"Add Cross Switch", "CrossSwitchElm",
+		"Add Gyrator", "GyratorElm"
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Passive Components")), passMenuBar);
 
