@@ -186,11 +186,16 @@ class GyratorElm extends CircuitElm {
 	current[1] = -g * v1;
     }
 
+    double getCurrent() { return current[0]; }  // for scope
+
     @Override double getCurrentIntoNode(int n) {
 	if (n < 2)
 	    return -current[n];
 	return current[n-2];
     }
+
+    // VCCS stamps couple all nodes, so they must all be in the same matrix
+    boolean getMatrixConnection(int n1, int n2) { return true; }
 
     boolean getConnection(int n1, int n2) {
 	// Port-1 terminals connect to each other; port-2 terminals connect
