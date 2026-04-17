@@ -5558,10 +5558,6 @@ MouseOutHandler, MouseWheelHandler {
     		return (CircuitElm) new SweepElm(x1, y1, x2, y2, f, st);
     	if (tint=='A')
     		return (CircuitElm) new AntennaElm(x1, y1, x2, y2, f, st);
-    	if (tint=='L')
-    		return (CircuitElm) new LogicInputElm(x1, y1, x2, y2, f, st);
-    	if (tint=='M')
-    		return (CircuitElm) new LogicOutputElm(x1, y1, x2, y2, f, st);
     	if (tint=='T')
     		return (CircuitElm) new TransformerElm(x1, y1, x2, y2, f, st);
     	if (tint==169)

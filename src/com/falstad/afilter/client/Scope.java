@@ -125,7 +125,6 @@ class Scope {
     	plot2d = false;
     	// no showI for Output
     		if (elm != null && (elm instanceof OutputElm ||
-    				    elm instanceof LogicOutputElm ||
     				    elm instanceof ProbeElm))
     		    showI = false;
     	
