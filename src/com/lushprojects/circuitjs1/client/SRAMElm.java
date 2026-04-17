@@ -172,14 +172,14 @@ import com.google.gwt.xml.client.Element;
 	    int maxI = 1<<addressBits;
 	    for (int i = 0; i < maxI; i++) {
 		Integer val = map.get(i);
-		if (val == null)
+		if (val == null || val == 0)
 		    continue;
 		s += (hex ? Integer.toHexString(i).toUpperCase() : "" + i) + ": " +
 		     (hex ? toHex(val) : "" + val);
 		int ct = 1;
 		while (true) {
 		    val = map.get(++i);
-		    if (val == null)
+		    if (val == null || val == 0)
 			break;
 		    s += " " + (hex ? toHex(val) : "" + val);
 		    if (++ct == 8)
