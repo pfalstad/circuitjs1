@@ -36,7 +36,8 @@ class RelayCoilElm extends CircuitElm {
     double coilCurrent, coilCurCount;
     double avgCurrent;
     
-    // fractional position, between 0 and 1 inclusive
+    // binary position: 0 = de-energized, 1 = energized
+    // changes as hard step after switching delay expires
     double d_position;
     
     // integer position, can be 0 (off), 1 (on), 2 (in between)
@@ -46,6 +47,10 @@ class RelayCoilElm extends CircuitElm {
     
     // time to switch in seconds
     double switchingTime;
+    // release time (0 = same as switchingTime).  real relays typically
+    // release faster than they engage because the spring force assists
+    // the armature return.
+    double releaseTime;
     double switchingTimeOn, switchingTimeOff;
     double lastTransition;
     
@@ -121,6 +126,8 @@ class RelayCoilElm extends CircuitElm {
 	XMLSerializer.dumpAttr(elem, "cr", coilR);
 	XMLSerializer.dumpAttr(elem, "ofc", offCurrent);
 	XMLSerializer.dumpAttr(elem, "swt", switchingTime);
+	if (releaseTime > 0)
+	    XMLSerializer.dumpAttr(elem, "rt", releaseTime);
 	XMLSerializer.dumpAttr(elem, "tp", type);
     }
     void dumpXmlState(Document doc, Element elem) {
@@ -136,6 +143,7 @@ class RelayCoilElm extends CircuitElm {
 	coilR = xml.parseDoubleAttr("cr", coilR);
 	offCurrent = xml.parseDoubleAttr("ofc", offCurrent);
 	switchingTime = xml.parseDoubleAttr("swt", switchingTime);
+	releaseTime = xml.parseDoubleAttr("rt", 0);
 	type = xml.parseIntAttr("tp", type);
 	coilCurrent = xml.parseDoubleAttr("ci", coilCurrent);
 	state = xml.parseIntAttr("st", state);
@@ -271,6 +279,7 @@ class RelayCoilElm extends CircuitElm {
 	// resistor from internal node to coil post 2
 	sim.stampResistor(nodes[nCoil3], nodes[nCoil2], coilR);
 	
+	double effectiveReleaseTime = (releaseTime > 0) ? releaseTime : switchingTime;
 	if (type == TYPE_ON_DELAY) {
 	    switchingTimeOn = switchingTime;
 	    switchingTimeOff = 0;
@@ -278,7 +287,8 @@ class RelayCoilElm extends CircuitElm {
 	    switchingTimeOff = switchingTime;
 	    switchingTimeOn = 0;
 	} else {
-	    switchingTimeOff = switchingTimeOn = switchingTime;
+	    switchingTimeOn = switchingTime;
+	    switchingTimeOff = effectiveReleaseTime;
 	}
 	setSwitchPositions();
     }
@@ -289,7 +299,7 @@ class RelayCoilElm extends CircuitElm {
 	double a = Math.exp(-sim.timeStep*1e3);
 	avgCurrent = a*avgCurrent + (1-a)*absCurrent;
 	int oldSwitchPosition = switchPosition;
-	
+
 	if (state == 0) {
 	    if (avgCurrent > onCurrent) {
 		lastTransition = sim.t;
@@ -311,7 +321,7 @@ class RelayCoilElm extends CircuitElm {
 		state = 3;
 	    }
 	} else if (state == 3) {
-	    if (avgCurrent > onCurrent) 
+	    if (avgCurrent > onCurrent)
 		state = 2;
 	    else if (sim.t-lastTransition > switchingTimeOff) {
 		state = 0;
@@ -319,7 +329,15 @@ class RelayCoilElm extends CircuitElm {
 		    switchPosition = 0;
 	    }
 	}
-	
+
+	// d_position tracks the binary contact state as a hard step.
+	// During the switching delay (states 1 and 3), d_position stays
+	// at its old value.  It snaps to the new value only when the
+	// delay expires and switchPosition actually changes.  This
+	// produces realistic inductive voltage spikes when relay contacts
+	// open, rather than suppressing them with smooth interpolation.
+	d_position = switchPosition;
+
 	if (oldSwitchPosition != switchPosition)
 	    setSwitchPositions();
     }
@@ -334,7 +352,7 @@ class RelayCoilElm extends CircuitElm {
 	    if (o instanceof RelayContactElm) {
 		RelayContactElm s2 = (RelayContactElm) o;
 		if (s2.label.equals(label))
-		    s2.setPosition(1-switchPosition, type);
+		    s2.setPosition(1-switchPosition, d_position, type);
 	    }
 	}
     }
@@ -381,15 +399,21 @@ class RelayCoilElm extends CircuitElm {
 	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0).setPositive();
 	if (n == 5)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0).setPositive();
-	if (n == 6)
+	if (n == 6 && (type == TYPE_NORMAL || type == TYPE_LATCHING))
+	    return new EditInfo("Release Time (s)", releaseTime > 0 ? releaseTime : switchingTime, 0, 0).setPositive();
+	int labelIdx = (type == TYPE_NORMAL || type == TYPE_LATCHING) ? 7 : 6;
+	if (n == labelIdx)
 	    return new EditInfo("Label (for linking)", label);
 	return null;
     }
     
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0) {
+	    int oldType = type;
 	    type = ei.choice.getSelectedIndex();
 	    setPoints();
+	    if (oldType != type)
+		ei.newDialog = true;
 	}
 	if (n == 1 && ei.value > 0) {
 	    inductance = ei.value;
@@ -403,7 +427,10 @@ class RelayCoilElm extends CircuitElm {
 	    coilR = ei.value;
 	if (n == 5 && ei.value > 0)
 	    switchingTime = ei.value;
-	if (n == 6)
+	if (n == 6 && (type == TYPE_NORMAL || type == TYPE_LATCHING) && ei.value > 0)
+	    releaseTime = ei.value;
+	int labelIdx = (type == TYPE_NORMAL || type == TYPE_LATCHING) ? 7 : 6;
+	if (n == labelIdx)
 	    label = ei.textf.getText();
     }
     
