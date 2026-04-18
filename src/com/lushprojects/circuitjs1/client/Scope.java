@@ -262,6 +262,10 @@ class Scope {
     Canvas imageCanvas;
     Context2d imageContext;
     int alphaCounter =0;
+    // XY-plot trail persistence (wall-clock ms). 0 = instant erase (no trail).
+    int trailPersistence = 200;
+    static final int DEFAULT_TRAIL_PERSISTENCE = 200;
+    long lastTrailTime;
     // scopeTimeStep to check if sim timestep has changed from previous value when redrawing
     double scopeTimeStep;
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
@@ -1054,17 +1058,25 @@ class Scope {
     	g.context.translate(rect.x, rect.y);
     	g.clipRect(0, 0, rect.width, rect.height);
     	
-    	alphaCounter++;
-    	
-    	if (alphaCounter>2) {
-    		// fade out plot
-    		alphaCounter=0;
-    		imageContext.setGlobalAlpha(0.01);
-    		if (app.isPrintable()) {
+    	// Wall-clock-based exponential fade. alpha = 1 - exp(-elapsed/persistence)
+    	// makes the trail look the same across simulation speeds: at 60fps a 200ms
+    	// persistence drops a pixel by 1-exp(-16/200) = 7.7% per frame; at 30fps
+    	// the same persistence drops by 1-exp(-33/200) = 15% per frame, so total
+    	// decay over a fixed wall-clock interval is constant.
+    	long now = System.currentTimeMillis();
+    	long elapsed = (lastTrailTime == 0) ? 16 : (now - lastTrailTime);
+    	lastTrailTime = now;
+    	double fadeAlpha;
+    	if (trailPersistence <= 0)
+    		fadeAlpha = 1.0; // instant erase = no trail
+    	else
+    		fadeAlpha = 1.0 - Math.exp(-elapsed / (double) trailPersistence);
+    	if (fadeAlpha > 0) {
+    		imageContext.setGlobalAlpha(fadeAlpha);
+    		if (app.isPrintable())
     			imageContext.setFillStyle("#ffffff");
-    		} else {
+    		else
     			imageContext.setFillStyle("#000000");
-    		}
     		imageContext.fillRect(0,0,rect.width,rect.height);
     		imageContext.setGlobalAlpha(1.0);
     	}
@@ -2211,6 +2223,8 @@ class Scope {
 	
     	if (text != null)
 	    xmlElm.setAttribute("x", text);
+	if (trailPersistence != DEFAULT_TRAIL_PERSISTENCE)
+	    XMLSerializer.dumpAttr(xmlElm, "tp", trailPersistence);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -2226,6 +2240,7 @@ class Scope {
 	position = xml.parseIntAttr("p", 0);
 	manDivisions = xml.parseIntAttr("md", 8);
 	text = xml.parseStringAttr("x", (String)null);
+	trailPersistence = xml.parseIntAttr("tp", DEFAULT_TRAIL_PERSISTENCE);
 	// Read trigger settings from parent <o> element before iterating children,
 	// because parseChildElement() changes the XML context to child <p> elements
 	int xmlTriggerMode = xml.parseIntAttr("triggerMode", TRIGGER_FREERUN);

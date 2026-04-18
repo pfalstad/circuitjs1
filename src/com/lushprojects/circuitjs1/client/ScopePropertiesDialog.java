@@ -58,7 +58,8 @@ CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, chargeBox, ibBox, icBox, 
 CheckBox elmInfoBox;
 TextBox labelTextBox, manualScaleTextBox, divisionsTextBox;
 Button applyButton, scaleUpButton, scaleDownButton;
-Scrollbar speedBar,positionBar;
+Scrollbar speedBar, positionBar, trailBar;
+Label trailLabel;
 Scope scope;
 Grid grid, vScaleGrid, hScaleGrid;
 int nx, ny;
@@ -518,6 +519,20 @@ labelledGridManager gridLabels;
 		viBox.addValueChangeHandler(this); 
 		addItemToGrid(grid, xyBox = new ScopeCheckBox(Locale.LS("Plot X/Y"), "plotxy"));
 		xyBox.addValueChangeHandler(this);
+		Grid trailGrid = new Grid(1, 3);
+		trailGrid.setWidget(0, 0, new Label(Locale.LS("Trail Persistence (ms)")));
+		// Range 0..2000 ms; step 50; 0 = instant erase (no trail)
+		trailBar = new Scrollbar(Scrollbar.HORIZONTAL, scope.trailPersistence, 1, 0, 2050, new Command() {
+		    public void execute() {
+			scope.trailPersistence = trailBar.getValue();
+			setTrailLabel();
+		    }
+		});
+		trailGrid.setWidget(0, 1, trailBar);
+		trailLabel = new Label("");
+		trailGrid.setWidget(0, 2, trailLabel);
+		fp.add(trailGrid);
+		setTrailLabel();
 		if (transistor) {
 		    addItemToGrid(grid, vceIcBox = new ScopeCheckBox(Locale.LS("Show Vce vs Ic"), "showvcevsic"));
 		    vceIcBox.addValueChangeHandler(this);
@@ -625,7 +640,14 @@ labelledGridManager gridLabels;
 	void setScopeSpeedLabel() {
 	    scopeSpeedLabel.setText(CircuitElm.getUnitText(scope.calcGridStepX(), "s")+"/div");
 	}
-	
+
+	void setTrailLabel() {
+	    if (scope.trailPersistence <= 0)
+		trailLabel.setText(Locale.LS("none"));
+	    else
+		trailLabel.setText(scope.trailPersistence + " ms");
+	}
+
 	void addItemToGrid(Grid g, FocusWidget scb) {
 	    g.setWidget(ny, nx, scb);
 	    if (++nx >= grid.getColumnCount()) {
