@@ -24,10 +24,19 @@ class TestManager {
 	double[] values;
     }
 
+    static class SwitchEvent {
+	double t;
+	int elmNo;
+    }
+
     CirSim app;
     boolean testRunning;
+    boolean recording;
+    String savedCircuitDump;
     double testLen = -1;
     Vector<ScopeDataRef> refData = new Vector<ScopeDataRef>();
+    Vector<SwitchEvent> switchEvents = new Vector<SwitchEvent>();
+    int nextEventIdx;
     static final boolean enabled = true;
     static TestManager theManager;
     static boolean loadingTestCircuit;
@@ -73,14 +82,36 @@ class TestManager {
     }
 
     void startTest() {
+	recording = false;
+	nextEventIdx = 0;
 	app.ui.resetAction();
 	testRunning = true;
+    }
+
+    // called from SwitchElm.toggle() when recording
+    static void recordSwitchToggle(SwitchElm se) {
+	if (theManager == null || !theManager.recording)
+	    return;
+	SwitchEvent ev = new SwitchEvent();
+	ev.t = theManager.app.sim.t;
+	ev.elmNo = theManager.app.locateElm(se);
+	if (ev.elmNo >= 0)
+	    theManager.switchEvents.add(ev);
     }
 
     // called from XMLDeserializer when it sees a <test> tag
     void saveTestTag(double len) {
 	testLen = len;
 	refData.clear();
+	switchEvents.clear();
+    }
+
+    // called from XMLDeserializer when it sees a <switchevent> tag
+    void saveSwitchEvent(double t, int en) {
+	SwitchEvent ev = new SwitchEvent();
+	ev.t = t;
+	ev.elmNo = en;
+	switchEvents.add(ev);
     }
 
     // called from XMLDeserializer when it sees a <scopedata> tag
@@ -97,15 +128,54 @@ class TestManager {
 	refData.add(ref);
     }
 
-    // called each frame from UIManager.updateCircuit() after runCircuit()
-    void checkTime() {
-	if (!testRunning || testLen < 0)
-	    return;
-	if (app.sim.t >= testLen) {
+    // clamp timeStep so we land exactly on the next switch event or testLen
+    // called from SimulationManager.runCircuit() before each iteration
+    double clampTimeStep(double t, double timeStep) {
+	if (!testRunning || recording)
+	    return timeStep;
+	// clamp to next pending switch event
+	if (nextEventIdx < switchEvents.size()) {
+	    double evTime = switchEvents.get(nextEventIdx).t;
+	    if (evTime > t && evTime < t + timeStep)
+		return evTime - t;
+	}
+	// clamp to testLen
+	if (testLen >= 0 && testLen > t && testLen < t + timeStep)
+	    return testLen - t;
+	return timeStep;
+    }
+
+    // called from SimulationManager.runCircuit() after each t increment
+    // returns true if the iteration loop should break
+    boolean checkTime() {
+	if (!testRunning || recording)
+	    return false;
+
+	// fire pending switch events at or before current time
+	boolean fired = false;
+	while (nextEventIdx < switchEvents.size()) {
+	    SwitchEvent ev = switchEvents.get(nextEventIdx);
+	    if (ev.t > app.sim.t)
+		break;
+	    CircuitElm ce = app.getElm(ev.elmNo);
+	    if (ce instanceof SwitchElm) {
+		((SwitchElm) ce).toggle();
+		fired = true;
+	    }
+	    nextEventIdx++;
+	}
+	if (fired) {
+	    app.needAnalyze();
+	    return true;
+	}
+
+	if (testLen >= 0 && app.sim.t >= testLen) {
 	    testRunning = false;
 	    app.setSimRunning(false);
 	    compareAndReport();
+	    return true;
 	}
+	return false;
     }
 
     void compareAndReport() {
@@ -138,7 +208,7 @@ class TestManager {
 		double tol = Math.max(TOLERANCE * Math.abs(expected), 1e-9);
 		if (diff > tol) {
 		    mismatch++;
-		    CirSim.console("mismatch scope " + ref.si + " plot " + ref.pi + " got " + actual + " should be " + expected);
+		    CirSim.console("mismatch scope " + ref.si + " plot " + ref.pi + " ix " + i + " got " + actual + " should be " + expected);
 		    if (diff > maxDiff)
 			maxDiff = diff;
 		}
@@ -160,14 +230,18 @@ class TestManager {
 
 	startButton.addClickHandler(new ClickHandler() {
 	    public void onClick(ClickEvent event) {
+		switchEvents.clear();
 		app.ui.resetAction();
+		savedCircuitDump = app.dumpCircuit();
 		testRunning = true;
+		recording = true;
 	    }
 	});
 
 	stopButton.addClickHandler(new ClickHandler() {
 	    public void onClick(ClickEvent event) {
 		testRunning = false;
+		recording = false;
 		downloadWithTest();
 	    }
 	});
@@ -175,6 +249,7 @@ class TestManager {
 	cancelButton.addClickHandler(new ClickHandler() {
 	    public void onClick(ClickEvent event) {
 		testRunning = false;
+		recording = false;
 	    }
 	});
 
@@ -185,8 +260,10 @@ class TestManager {
 
     void downloadWithTest() {
 	double len = app.sim.t;
-	String dump = app.dumpCircuit();
-	String insert = "  <test len=\"" + len + "\"/>\n" + dumpScopeData();
+	String dump = savedCircuitDump != null ? savedCircuitDump : app.dumpCircuit();
+	String insert = "  <test len=\"" + len + "\"/>\n"
+		+ dumpSwitchEvents()
+		+ dumpScopeData();
 	int idx = dump.lastIndexOf("</cir>");
 	if (idx >= 0)
 	    dump = dump.substring(0, idx) + insert + dump.substring(idx);
@@ -202,6 +279,13 @@ class TestManager {
 	Anchor a = new Anchor(fname, url);
 	a.getElement().setAttribute("Download", fname);
 	ExportAsLocalFileDialog.click(a.getElement());
+    }
+
+    String dumpSwitchEvents() {
+	StringBuilder sb = new StringBuilder();
+	for (SwitchEvent ev : switchEvents)
+	    sb.append("  <switchevent t=\"").append(ev.t).append("\" en=\"").append(ev.elmNo).append("\"/>\n");
+	return sb.toString();
     }
 
     String dumpScopeData() {

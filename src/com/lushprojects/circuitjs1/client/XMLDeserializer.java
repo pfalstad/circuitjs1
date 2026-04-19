@@ -140,6 +140,13 @@ class XMLDeserializer {
 		}
 		continue;
 	    }
+	    if (tagName.equals("switchevent")) {
+		if (TestManager.theManager != null) {
+		    currentXmlElement = elem;
+		    TestManager.theManager.saveSwitchEvent(parseDoubleAttr("t", 0), parseIntAttr("en", -1));
+		}
+		continue;
+	    }
 	    if (tagName.equals("scopedata")) {
 		if (TestManager.theManager != null) {
 		    currentXmlElement = elem;

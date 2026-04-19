@@ -600,8 +600,6 @@ public class UIManager {
                 e.printStackTrace();
             }
             perfmon.stopContext();
-            if (TestManager.theManager != null)
-                TestManager.theManager.checkTime();
         }
 
         long sysTime = System.currentTimeMillis();
