@@ -342,6 +342,11 @@ public class UIManager {
 	verticalPanel.add(exportImportButton);
 */
 
+	if (TestManager.enabled) {
+	    TestManager tm = new TestManager(app);
+	    tm.createUI(verticalPanel);
+	}
+
 	//	verticalPanel.add(new Label(""));
 	//        Font f = new Font("SansSerif", 0, 10);
 	l = new Label(Locale.LS("Current Circuit:"));
@@ -595,6 +600,8 @@ public class UIManager {
                 e.printStackTrace();
             }
             perfmon.stopContext();
+            if (TestManager.theManager != null)
+                TestManager.theManager.checkTime();
         }
 
         long sysTime = System.currentTimeMillis();
