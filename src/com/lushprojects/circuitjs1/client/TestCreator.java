@@ -7,9 +7,10 @@ import java.util.Vector;
 
 class TestCreator {
 
-    static final boolean enabled = true;
+    static final boolean enabled = false;
 
     static void createTest(CirSim app) {
+/*
 	Vector<CircuitElm> elmList = app.ui.elmList;
 
 	// find the single selected ChipElm
@@ -95,5 +96,6 @@ class TestCreator {
 	}
 
 	app.needAnalyze();
+*/
     }
 }
