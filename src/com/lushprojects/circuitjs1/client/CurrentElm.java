@@ -121,20 +121,23 @@ class CurrentElm extends CircuitElm {
 	}
 
 	// Smooth voltage compliance via tanh-shaped saturation. Newton-Raphson
-	// gets an exact Jacobian so it converges even when the load is open
-	// (all switches off): as |vd| approaches maxVoltage, the source rolls off
-	// to zero current rather than slamming between full-on and full-off.
+	// gets an exact Jacobian so it converges even when the load is open:
+	// as |vd| approaches maxVoltage, the source rolls off to zero current
+	// rather than slamming between full-on and full-off.
+	//
+	// vt (transition width) is 20% of maxVoltage so the Jacobian slope
+	// varies gently across the knee; a tighter knee (e.g. 5%) causes
+	// Newton to ping-pong between linear and saturated iterations when
+	// vd hovers near the compliance voltage.
 	void doStep() {
 	    if (broken || !isVoltageLimited())
 		return;
 	    double vd = volts[1] - volts[0];
-	    if (Math.abs(lastVoltDiff - vd) > 0.01)
-		sim.converged = false;
 	    lastVoltDiff = vd;
 
 	    double absVd = Math.abs(vd);
 	    double signVd = (vd >= 0) ? 1.0 : -1.0;
-	    double vt = Math.max(maxVoltage * 0.05, 1e-6);
+	    double vt = Math.max(maxVoltage * 0.2, 0.1);
 
 	    // i(vd) = currentValue * 0.5 * (1 - tanh((|vd| - maxVoltage)/vt))
 	    double arg = (absVd - maxVoltage) / vt;
@@ -145,9 +148,10 @@ class CurrentElm extends CircuitElm {
 	    double g = -currentValue * 0.5 * sech2 / vt * signVd;
 
 	    // Norton companion: parallel resistor (1/|g|) + adjusted current source.
-	    // Add gmin so a singular matrix is avoided when sech^2 is near zero
-	    // (well inside or well outside compliance).
-	    double absG = Math.abs(g) + 1e-9;
+	    // Gmin floor keeps the Norton resistance finite when sech^2 is
+	    // vanishing (well inside or well outside compliance) so the matrix
+	    // stays non-singular and Newton steps remain bounded.
+	    double absG = Math.abs(g) + 1e-6;
 	    sim.stampResistor(nodes[0], nodes[1], 1.0 / absG);
 	    sim.stampCurrentSource(nodes[0], nodes[1], i - g * vd);
 	    current = i;
