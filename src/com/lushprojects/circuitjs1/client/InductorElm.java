@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -27,35 +27,46 @@ import com.google.gwt.xml.client.Document;
 	double inductance;
 	double initialCurrent;
 	double saturationCurrent; // 0 = disabled (linear)
+	double coerciveCurrent;   // 0 = hysteresis disabled
+	double reversibility;     // JA c, 0..1
 	public InductorElm(int xx, int yy) {
 	    super(xx, yy);
 	    ind = new Inductor(sim);
 	    inductance = 1;
-	    ind.setup(inductance, current, flags, saturationCurrent);
+	    reversibility = 0.1;
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
 	}
 	public InductorElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
 	    ind = new Inductor(sim);
+	    reversibility = 0.1;
 	    inductance = new Double(st.nextToken()).doubleValue();
 	    current = new Double(st.nextToken()).doubleValue();
 	    try {
 		initialCurrent = new Double(st.nextToken()).doubleValue();
 		saturationCurrent = new Double(st.nextToken()).doubleValue();
+		coerciveCurrent = new Double(st.nextToken()).doubleValue();
+		reversibility = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
-	    ind.setup(inductance, current, flags, saturationCurrent);
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
 	}
 	int getDumpType() { return 'l'; }
 	String dump() {
-	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent;
+	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent
+		+ " " + coerciveCurrent + " " + reversibility;
 	}
-	
+
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
             XMLSerializer.dumpAttr(elem, "l", inductance);
             XMLSerializer.dumpAttr(elem, "ic", initialCurrent);
             if (saturationCurrent != 0)
                 XMLSerializer.dumpAttr(elem, "isat", saturationCurrent);
+            if (coerciveCurrent != 0) {
+                XMLSerializer.dumpAttr(elem, "ich", coerciveCurrent);
+                XMLSerializer.dumpAttr(elem, "hrev", reversibility);
+            }
         }
 
         void dumpXmlState(Document doc, Element elem) {
@@ -68,7 +79,9 @@ import com.google.gwt.xml.client.Document;
             initialCurrent = xml.parseDoubleAttr("ic", initialCurrent);
             current = xml.parseDoubleAttr("i", current);
             saturationCurrent = xml.parseDoubleAttr("isat", 0);
-	    ind.setup(inductance, current, flags, saturationCurrent);
+            coerciveCurrent = xml.parseDoubleAttr("ich", 0);
+            reversibility = xml.parseDoubleAttr("hrev", 0.1);
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
         }
 
 	void setPoints() {
@@ -110,14 +123,26 @@ import com.google.gwt.xml.client.Document;
 	    ind.doStep(voltdiff);
 	}
 	void getInfo(String arr[]) {
-	    arr[0] = (saturationCurrent > 0) ? "inductor (sat)" : "inductor";
+	    if (ind.hasHysteresis())
+		arr[0] = "inductor (hyst)";
+	    else if (saturationCurrent > 0)
+		arr[0] = "inductor (sat)";
+	    else
+		arr[0] = "inductor";
 	    getBasicInfo(arr);
 	    arr[3] = "L = " + getUnitText(inductance, "H");
 	    arr[4] = "P = " + getUnitText(getPower(), "W");
-	    if (saturationCurrent > 0) {
+	    int row = 5;
+	    if (saturationCurrent > 0 && !ind.hasHysteresis()) {
 		double lEff = ind.calcEffectiveInductance(current);
-		arr[5] = "Leff = " + getUnitText(lEff, "H");
-		arr[6] = "Isat = " + getUnitText(saturationCurrent, "A");
+		arr[row++] = "Leff = " + getUnitText(lEff, "H");
+		arr[row++] = "Isat = " + getUnitText(saturationCurrent, "A");
+	    }
+	    if (ind.hasHysteresis() && row < arr.length) {
+		arr[row++] = "Leff = " + getUnitText(ind.calcEffectiveInductance(current), "H");
+		if (row < arr.length)
+		    arr[row++] = "Ic = " + getUnitText(coerciveCurrent, "A")
+			+ ", M = " + showFormat.format(ind.getMagnetization());
 	    }
 	}
 	public EditInfo getEditInfo(int n) {
@@ -133,6 +158,10 @@ import com.google.gwt.xml.client.Document;
                 return new EditInfo("Initial Current (on Reset) (A)", initialCurrent);
 	    if (n == 3)
 		return new EditInfo("Saturation Current (A) (0=none)", saturationCurrent);
+	    if (n == 4)
+		return new EditInfo("Coercive Current (A) (0=no hysteresis)", coerciveCurrent);
+	    if (n == 5)
+		return new EditInfo("Hysteresis Reversibility (0-1)", reversibility);
 	    return null;
 	}
 
@@ -149,18 +178,25 @@ import com.google.gwt.xml.client.Document;
                 initialCurrent = ei.value;
 	    if (n == 3 && ei.value >= 0)
 		saturationCurrent = ei.value;
-	    ind.setup(inductance, current, flags, saturationCurrent);
+	    if (n == 4 && ei.value >= 0)
+		coerciveCurrent = ei.value;
+	    if (n == 5) {
+		if (ei.value < 0) ei.value = 0;
+		if (ei.value > 1) ei.value = 1;
+		reversibility = ei.value;
+	    }
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
 	}
-	
+
 	int getShortcut() { return 'L'; }
 	public double getInductance() { return inductance; }
 	void setInductance(double l) {
 	    inductance = l;
-	    ind.setup(inductance, current, flags, saturationCurrent);
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
 	}
 	void setSaturationCurrent(double isat) {
 	    saturationCurrent = isat;
-	    ind.setup(inductance, current, flags, saturationCurrent);
+	    ind.setup(inductance, current, flags, saturationCurrent, coerciveCurrent, reversibility);
 	}
 	double getSaturationCurrent() { return saturationCurrent; }
     }
