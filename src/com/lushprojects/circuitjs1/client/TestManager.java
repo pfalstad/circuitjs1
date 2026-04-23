@@ -18,6 +18,20 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 
 class TestManager {
 
+    static final boolean enabled = false;
+    static TestManager theManager;
+    void createUI(VerticalPanel vp) {}
+    double clampTimeStep(double t, double timeStep) { return 0; }
+    boolean checkTime() { return false; }
+    void saveScopeDataTag(int si, int pi, int en, int v, int u, int sp, double ts, double[] values) {}
+    void saveTestTag(double len) {}
+    void saveSwitchEvent(double t, int en) {}
+    TestManager(CirSim app) {}
+    static void recordSwitchToggle(SwitchElm se) {}
+    static void init(CirSim app) {}
+    static boolean loadingTestCircuit;
+
+/*
     static class ScopeDataRef {
 	int si, pi, en, value, units, speed;
 	double ts;
@@ -37,9 +51,6 @@ class TestManager {
     Vector<ScopeDataRef> refData = new Vector<ScopeDataRef>();
     Vector<SwitchEvent> switchEvents = new Vector<SwitchEvent>();
     int nextEventIdx;
-    static final boolean enabled = true;
-    static TestManager theManager;
-    static boolean loadingTestCircuit;
 
     static final double TOLERANCE = 1e-3;
 
@@ -326,4 +337,5 @@ class TestManager {
 	}
 	return sb.toString();
     }
+*/
 }
