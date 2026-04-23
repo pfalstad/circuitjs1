@@ -45,8 +45,10 @@ if (process.platform === 'darwin') {
       { role: 'quit' }
     ]
   });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+} else {
+  Menu.setApplicationMenu(null);
 }
-Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
 
 var pendingOpenFile = null;
