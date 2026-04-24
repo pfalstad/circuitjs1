@@ -189,12 +189,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			// single offset diode with L-shaped leads
 			setVoltageColor(g, volts[1]);
 			g.fillPolygon(bodyDiodePoly);
-			setVoltageColor(g, volts[2]);
-			drawThickLine(g, bodyDiodeCathode[0], bodyDiodeCathode[1]);
 			drawThickLine(g, src[0], bodyDiodeLeads[0]);
 			drawThickLine(g, bodyDiodeLeads[0], bodyDiodeLeads[1]);
-			drawThickLine(g, drn[0], bodyDiodeLeads[3]);
+			setVoltageColor(g, volts[2]);
+			drawThickLine(g, bodyDiodeCathode[0], bodyDiodeCathode[1]);
 			drawThickLine(g, bodyDiodeLeads[2], bodyDiodeLeads[3]);
+			drawThickLine(g, drn[0], bodyDiodeLeads[3]);
 			adjustBbox(bodyDiodeLeads[0], bodyDiodeLeads[3]);
 		    } else {
 			// two inline diodes: src↔body and body↔drn
