@@ -1,5 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 public class OptocouplerElm extends CompositeElm {
     int csize, cspc, cspc2;
     int rectPointsX[], rectPointsY[];
@@ -22,18 +25,21 @@ public class OptocouplerElm extends CompositeElm {
 	// pass st=null since we don't need to undump any of the sub-elements
 	super(xa, ya, xb, yb, f, null, modelString, modelExternalNodes);
 	noDiagonal = true;
-	try {
-	    ctr = new Double(st.nextToken()).doubleValue();
-	} catch (Exception e) {
-	    ctr = 1.0;
-	}
 	initOptocoupler();
     }
 
-    public String dump() {
-	return dumpWithMask(0) + " " + ctr;
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ctr", ctr);
     }
-    
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	ctr = xml.parseDoubleAttr("ctr", ctr);
+	initOptocoupler();
+    }
+
+
     private void initOptocoupler() {
 	csize = 2;
 	cspc = 8*2;
