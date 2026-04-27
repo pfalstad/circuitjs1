@@ -1,6 +1,6 @@
-/*    
+/*
     Copyright (C) Paul Falstad and Iain Sharp
-    
+
     This file is part of CircuitJS1.
 
     CircuitJS1 is free software: you can redistribute it and/or modify
@@ -26,9 +26,35 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 class TransLineElm extends CircuitElm {
     double delay, imped;
+    double resistance;  // total series resistance (ohms), 0 = lossless
+    double conductance;  // total shunt conductance (siemens), 0 = no leakage
+
+    // lossless model state
     double voltageL[], voltageR[];
     int lenSteps, ptr, width;
     int lastStepCount;
+
+    // lossy RLGC ladder model state
+    int actualSegments;
+    double[] indCurSrc;     // inductor companion current source per segment
+    double[] indCurrent;    // inductor current per segment
+    double[] capVoltDiff;   // capacitor voltage per shunt point
+    double[] capCurSrc;     // capacitor companion current source per shunt point
+    double indCompR;        // inductor companion resistance = 2*L_seg/dt
+    double capCompG;        // capacitor companion conductance = 2*C_seg/dt
+    double totalSeriesR;    // R_seg + indCompR per segment
+
+    boolean isLossy() { return resistance > 0 || conductance > 0; }
+
+    // Map ladder position (0..actualSegments) to volts[] index.
+    // Position 0 = Port 2, position actualSegments = Port 3,
+    // positions 1..actualSegments-1 = internal nodes[4..].
+    int topNodeIndex(int i) {
+	if (i == 0) return 2;
+	if (i == actualSegments) return 3;
+	return 4 + i - 1;
+    }
+
     public TransLineElm(int xx, int yy) {
 	super(xx, yy);
 	delay = 1000*sim.maxTimeStep;
@@ -42,17 +68,29 @@ class TransLineElm extends CircuitElm {
 	delay = new Double(st.nextToken()).doubleValue();
 	imped = new Double(st.nextToken()).doubleValue();
 	width = new Integer(st.nextToken()).intValue();
-	// next slot is for resistance (losses), which is not implemented
-	st.nextToken();
+	try {
+	    resistance = new Double(st.nextToken()).doubleValue();
+	} catch (Exception e) {}
+	try {
+	    conductance = new Double(st.nextToken()).doubleValue();
+	} catch (Exception e) {}
 	noDiagonal = true;
 	reset();
     }
     int getDumpType() { return 171; }
     int getPostCount() { return 4; }
-    int getInternalNodeCount() { return 2; }
+    int getInternalNodeCount() {
+	if (isLossy()) {
+	    computeSegments();
+	    return actualSegments - 1;
+	}
+	return 2;
+    }
+    int getVoltageSourceCount() { return isLossy() ? 0 : 2; }
+
     String getXmlDumpType() { return "tl"; }
     String dump() {
-	return super.dump() + " " + delay + " " + imped + " " + width + " " + 0.;
+	return super.dump() + " " + delay + " " + imped + " " + width + " " + resistance + " " + conductance;
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -60,6 +98,10 @@ class TransLineElm extends CircuitElm {
         XMLSerializer.dumpAttr(elem, "de", delay);
         XMLSerializer.dumpAttr(elem, "im", imped);
         XMLSerializer.dumpAttr(elem, "wi", width);
+	if (resistance != 0)
+	    XMLSerializer.dumpAttr(elem, "rs", resistance);
+	if (conductance != 0)
+	    XMLSerializer.dumpAttr(elem, "gs", conductance);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -67,6 +109,8 @@ class TransLineElm extends CircuitElm {
         delay = xml.parseDoubleAttr("de", delay);
         imped = xml.parseDoubleAttr("im", imped);
         width = xml.parseIntAttr("wi", width);
+	resistance = xml.parseDoubleAttr("rs", resistance);
+	conductance = xml.parseDoubleAttr("gs", conductance);
 	reset();
     }
 
@@ -85,19 +129,40 @@ class TransLineElm extends CircuitElm {
 	x2 = xx; y2 = yy;
 	setPoints();
     }
-	
+
     Point posts[], inner[];
-	
+
+    void computeSegments() {
+	if (sim.maxTimeStep == 0) {
+	    actualSegments = 10;
+	    return;
+	}
+	int ls = (int) (delay / sim.maxTimeStep);
+	// ensure at least 2 timesteps per segment for stability
+	actualSegments = Math.max(4, Math.min(50, ls / 4));
+	if (actualSegments > ls)
+	    actualSegments = Math.max(2, ls);
+    }
+
     void reset() {
 	if (sim.maxTimeStep == 0)
 	    return;
 	lenSteps = (int) (delay/sim.maxTimeStep);
-	System.out.println(lenSteps + " steps");
-	if (lenSteps > 100000)
+	if (isLossy()) {
+	    computeSegments();
+	    indCurSrc = new double[actualSegments];
+	    indCurrent = new double[actualSegments];
+	    capVoltDiff = new double[actualSegments];
+	    capCurSrc = new double[actualSegments];
 	    voltageL = voltageR = null;
-	else {
-	    voltageL = new double[lenSteps];
-	    voltageR = new double[lenSteps];
+	} else {
+	    if (lenSteps > 100000)
+		voltageL = voltageR = null;
+	    else {
+		voltageL = new double[lenSteps];
+		voltageR = new double[lenSteps];
+	    }
+	    indCurSrc = null;
 	}
 	ptr = 0;
 	super.reset();
@@ -113,7 +178,7 @@ class TransLineElm extends CircuitElm {
 	Point p6 = interpPoint(point1, point2, 1, -(width/2-sep)*ds);
 	Point p7 = interpPoint(point1, point2, 0, -(width/2+sep)*ds);
 	Point p8 = interpPoint(point1, point2, 1, -(width/2+sep)*ds);
-	    
+
 	// we number the posts like this because we want the lower-numbered
 	// points to be on the bottom, so that if some of them are unconnected
 	// (which is often true) then the bottom ones will get automatically
@@ -124,7 +189,6 @@ class TransLineElm extends CircuitElm {
     void draw(Graphics g) {
 	setBbox(posts[0], posts[3], 0);
 	int segments = (int) (dn/2);
-	int ix0 = ptr-1+lenSteps;
 	double segf = 1./segments;
 	int i;
 	g.setColor(Color.darkGray);
@@ -134,7 +198,23 @@ class TransLineElm extends CircuitElm {
 	    setVoltageColor(g, volts[i]);
 	    drawThickLine(g, posts[i], inner[i]);
 	}
-	if (voltageL != null) {
+	if (isLossy() && indCurSrc != null) {
+	    // draw voltage distribution from internal node voltages
+	    for (i = 0; i != segments; i++) {
+		// map visual segment to ladder position
+		double frac = (double) i / segments;
+		int ladderPos = (int) (frac * actualSegments);
+		if (ladderPos > actualSegments) ladderPos = actualSegments;
+		double v = volts[topNodeIndex(ladderPos)];
+		setVoltageColor(g, v);
+		interpPoint(inner[0], inner[1], ps1, i*segf);
+		interpPoint(inner[2], inner[3], ps2, i*segf);
+		g.drawLine(ps1.x, ps1.y, ps2.x, ps2.y);
+		interpPoint(inner[2], inner[3], ps1, (i+1)*segf);
+		drawThickLine(g, ps1, ps2);
+	    }
+	} else if (voltageL != null) {
+	    int ix0 = ptr-1+lenSteps;
 	    for (i = 0; i != segments; i++) {
 		int ix1 = (ix0-lenSteps*i/segments) % lenSteps;
 		int ix2 = (ix0-lenSteps*(segments-1-i)/segments) % lenSteps;
@@ -178,28 +258,106 @@ class TransLineElm extends CircuitElm {
 	else
 	    current2 = c;
     }
-	
+
     void stamp() {
+	if (isLossy())
+	    stampLossy();
+	else
+	    stampLossless();
+    }
+
+    void stampLossless() {
 	sim.stampVoltageSource(nodes[4], nodes[0], voltSource1);
 	sim.stampVoltageSource(nodes[5], nodes[1], voltSource2);
 	sim.stampResistor(nodes[2], nodes[4], imped);
 	sim.stampResistor(nodes[3], nodes[5], imped);
     }
 
+    void stampLossy() {
+	// Derive total L and C from delay and impedance:
+	//   Z0 = sqrt(L/C), delay = sqrt(L*C)
+	//   => L_total = Z0 * delay, C_total = delay / Z0
+	double lTotal = imped * delay;
+	double cTotal = delay / imped;
+	int n = actualSegments;
+	double lSeg = lTotal / n;
+	double cSeg = cTotal / n;
+	double rSeg = resistance / n;
+	double gSeg = conductance / n;
+
+	// Inductor companion model (trapezoidal): R_comp = 2*L/dt
+	indCompR = 2 * lSeg / sim.timeStep;
+	// Capacitor companion model (trapezoidal): G_comp = 2*C/dt
+	capCompG = 2 * cSeg / sim.timeStep;
+	// Combined series R + inductor companion resistance
+	totalSeriesR = rSeg + indCompR;
+
+	// Stamp N series R+L segments (combined companion model)
+	for (int i = 0; i < n; i++) {
+	    CircuitNode nodeA = nodes[topNodeIndex(i)];
+	    CircuitNode nodeB = nodes[topNodeIndex(i + 1)];
+	    sim.stampResistor(nodeA, nodeB, totalSeriesR);
+	    sim.stampRightSide(nodeA);
+	    sim.stampRightSide(nodeB);
+	}
+
+	// Stamp N shunt C (+G) elements at each segment endpoint
+	// (L-section model: shunt after each series element)
+	for (int i = 0; i < n; i++) {
+	    CircuitNode topNode = nodes[topNodeIndex(i + 1)];
+	    CircuitNode botNode = nodes[0];  // ground reference
+	    // Capacitor companion conductance
+	    sim.stampConductance(topNode, botNode, capCompG);
+	    sim.stampRightSide(topNode);
+	    sim.stampRightSide(botNode);
+	    // Shunt conductance G (constant)
+	    if (gSeg > 0)
+		sim.stampConductance(topNode, botNode, gSeg);
+	}
+
+	// Prevent Port 1 from floating: connect to Port 0 with high impedance
+	sim.stampResistor(nodes[0], nodes[1], 1e8);
+    }
+
     void startIteration() {
-	// calculate voltages, currents sent over wire
+	if (isLossy())
+	    startIterationLossy();
+	else
+	    startIterationLossless();
+    }
+
+    void startIterationLossless() {
 	if (voltageL == null) {
 	    sim.stop("Transmission line delay too large!", this);
 	    return;
 	}
 	voltageL[ptr] = volts[2]-volts[0] + volts[2]-volts[4];
 	voltageR[ptr] = volts[3]-volts[1] + volts[3]-volts[5];
-	//System.out.println(volts[2] + " " + volts[0] + " " + (volts[2]-volts[0]) + " " + (imped*current1) + " " + voltageL[ptr]);
-	/*System.out.println("sending fwd  " + currentL[ptr] + " " + current1);
-	  System.out.println("sending back " + currentR[ptr] + " " + current2);*/
-	//System.out.println("sending back " + voltageR[ptr]);
     }
+
+    void startIterationLossy() {
+	if (indCurSrc == null)
+	    return;
+	int n = actualSegments;
+
+	// Update inductor companion sources: curSrc_new = 2*I_prev - curSrc_old
+	for (int i = 0; i < n; i++)
+	    indCurSrc[i] = 2 * indCurrent[i] - indCurSrc[i];
+
+	// Update capacitor companion sources (trapezoidal):
+	// curSrc_new = -2*V/compR - curSrc_old  (where compR = 1/capCompG)
+	for (int i = 0; i < n; i++)
+	    capCurSrc[i] = -2 * capVoltDiff[i] * capCompG - capCurSrc[i];
+    }
+
     void doStep() {
+	if (isLossy())
+	    doStepLossy();
+	else
+	    doStepLossless();
+    }
+
+    void doStepLossless() {
 	if (voltageL == null) {
 	    sim.stop("Transmission line delay too large!", this);
 	    return;
@@ -213,21 +371,79 @@ class TransLineElm extends CircuitElm {
 	}
     }
 
+    void doStepLossy() {
+	if (indCurSrc == null)
+	    return;
+	int n = actualSegments;
+
+	// Stamp inductor companion current sources.
+	// For combined R+L: I_norton = curSrc * indCompR / totalSeriesR
+	for (int i = 0; i < n; i++) {
+	    CircuitNode nodeA = nodes[topNodeIndex(i)];
+	    CircuitNode nodeB = nodes[topNodeIndex(i + 1)];
+	    double iNorton = indCurSrc[i] * indCompR / totalSeriesR;
+	    sim.stampCurrentSource(nodeA, nodeB, iNorton);
+	}
+
+	// Stamp capacitor companion current sources
+	for (int i = 0; i < n; i++) {
+	    CircuitNode topNode = nodes[topNodeIndex(i + 1)];
+	    sim.stampCurrentSource(topNode, nodes[0], capCurSrc[i]);
+	}
+    }
+
     void stepFinished() {
+	if (isLossy())
+	    stepFinishedLossy();
+	else
+	    stepFinishedLossless();
+    }
+
+    void stepFinishedLossless() {
 	if (sim.timeStepCount == lastStepCount)
 	    return;
 	lastStepCount = sim.timeStepCount;
-	ptr = (ptr+1) % lenSteps;	
+	ptr = (ptr+1) % lenSteps;
     }
-    
+
+    void stepFinishedLossy() {
+	if (indCurSrc == null)
+	    return;
+	int n = actualSegments;
+
+	// Update inductor currents from new node voltages
+	for (int i = 0; i < n; i++) {
+	    double vA = volts[topNodeIndex(i)];
+	    double vB = volts[topNodeIndex(i + 1)];
+	    double voltDiff = vA - vB;
+	    double iNorton = indCurSrc[i] * indCompR / totalSeriesR;
+	    indCurrent[i] = voltDiff / totalSeriesR + iNorton;
+	}
+
+	// Update capacitor voltages
+	for (int i = 0; i < n; i++) {
+	    int topIdx = topNodeIndex(i + 1);
+	    capVoltDiff[i] = volts[topIdx] - volts[0];
+	}
+
+	// Compute port currents for display
+	if (n > 0) {
+	    current1 = -indCurrent[0];        // into Port 2
+	    current2 = -indCurrent[n - 1];    // into Port 1 (return)
+	}
+    }
+
     Point getPost(int n) {
 	return posts[n];
     }
-	
+
     //double getVoltageDiff() { return volts[0]; }
-    int getVoltageSourceCount() { return 2; }
     boolean hasGroundConnection(int n1) { return false; }
+
     boolean getConnection(int n1, int n2) {
+	// In lossy mode, all ports are connected via the ladder network
+	if (isLossy())
+	    return true;
 	return false;
     }
 
@@ -236,31 +452,58 @@ class TransLineElm extends CircuitElm {
 	return ((n1 % 2) == (n2 % 2));
     }
 
+
     void getInfo(String arr[]) {
-	arr[0] = "transmission line";
+	arr[0] = isLossy() ? "lossy \"t\" line" : "\"t\" line";
 	arr[1] = getUnitText(imped, Locale.ohmString);
 	// use velocity factor for RG-58 cable (65%)
 	arr[2] = "length = " + getUnitText(.65*2.9979e8*delay, "m");
 	arr[3] = "delay = " + getUnitText(delay, "s");
+	int idx = 4;
+	if (resistance > 0)
+	    arr[idx++] = "R = " + getUnitText(resistance, Locale.ohmString);
+	if (conductance > 0)
+	    arr[idx++] = "G = " + getUnitText(conductance, "S");
+	if (isLossy())
+	    arr[idx++] = "segments = " + actualSegments;
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo("Delay (s)", delay, 0, 0).setPositive();
 	if (n == 1)
 	    return new EditInfo("Impedance (ohms)", imped, 0, 0).setPositive();
+	if (n == 2)
+	    return new EditInfo("Resistance (ohms)", resistance, 0, 0);
+	if (n == 3)
+	    return new EditInfo("Conductance (S)", conductance, 0, 0);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0 && ei.value > 0) {
 	    delay = ei.value;
+	    allocNodes();
 	    reset();
 	}
 	if (n == 1 && ei.value > 0) {
 	    imped = ei.value;
 	    reset();
 	}
+	if (n == 2 && ei.value >= 0) {
+	    boolean wasLossy = isLossy();
+	    resistance = ei.value;
+	    if (wasLossy != isLossy())
+		allocNodes();
+	    reset();
+	}
+	if (n == 3 && ei.value >= 0) {
+	    boolean wasLossy = isLossy();
+	    conductance = ei.value;
+	    if (wasLossy != isLossy())
+		allocNodes();
+	    reset();
+	}
     }
-    
+
     double getCurrentIntoNode(int n) {
 	if (n == 0)
 	    return current1;
@@ -274,4 +517,3 @@ class TransLineElm extends CircuitElm {
     boolean canFlipX() { return dy == 0; }
     boolean canFlipY() { return dx == 0; }
 }
-
