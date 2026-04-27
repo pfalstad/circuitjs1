@@ -17,7 +17,15 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     int flags;
     String name, description;
     double saturationCurrent, seriesResistance, emissionCoefficient, breakdownVoltage;
-    
+
+    // Junction capacitance parameters (SPICE)
+    // Models the physical depletion-layer capacitance of the PN junction.
+    // C(V) = CJ0 / (1 - V/VJ)^M   for V < 0.5*VJ
+    double junctionCap;                    // CJ0: zero-bias junction capacitance (F), 0=disabled
+    double junctionPot = 0.75;             // VJ: built-in junction potential (V)
+    double junctionExp = 0.33;             // M: junction grading coefficient
+    double transitTime;                    // TT: transit time (s), adds diffusion capacitance Cd = TT*gd
+
     // used for UI code, not guaranteed to be set
     double forwardVoltage, forwardCurrent;
     
@@ -43,8 +51,10 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	emissionCoefficient = ec;
 	breakdownVoltage = bv;
 	description = d;
-//	CirSim.console("creating diode model " + this);
-//	CirSim.debugger();
+	junctionCap = 0;
+	junctionPot = 0.75;
+	junctionExp = 0.33;
+	transitTime = 0;
 	updateModel();
     }
     
@@ -212,6 +222,10 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	seriesResistance = 0;
 	emissionCoefficient = 1;
 	breakdownVoltage = 0;
+	junctionCap = 0;
+	junctionPot = 0.75;
+	junctionExp = 0.33;
+	transitTime = 0;
 	updateModel();
     }
     
@@ -222,6 +236,10 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	emissionCoefficient = copy.emissionCoefficient;
 	breakdownVoltage = copy.breakdownVoltage;
 	forwardCurrent = copy.forwardCurrent;
+	junctionCap = copy.junctionCap;
+	junctionPot = copy.junctionPot;
+	junctionExp = copy.junctionExp;
+	transitTime = copy.transitTime;
 	updateModel();
     }
 
@@ -241,6 +259,13 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	try {
 	    forwardCurrent = Double.parseDouble(st.nextToken());
 	} catch (Exception e) {}
+	// junction capacitance params (optional, for backward compatibility)
+	try {
+	    junctionCap = Double.parseDouble(st.nextToken());
+	    junctionPot = Double.parseDouble(st.nextToken());
+	    junctionExp = Double.parseDouble(st.nextToken());
+	    transitTime = Double.parseDouble(st.nextToken());
+	} catch (Exception e) {}
 	updateModel();
     }
     
@@ -258,6 +283,10 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	emissionCoefficient = xml.parseDoubleAttr("n", emissionCoefficient);
 	breakdownVoltage = xml.parseDoubleAttr("bv", breakdownVoltage);
 	forwardCurrent = xml.parseDoubleAttr("fi", forwardCurrent);
+	junctionCap = xml.parseDoubleAttr("cjo", junctionCap);
+	junctionPot = xml.parseDoubleAttr("vj", junctionPot);
+	junctionExp = xml.parseDoubleAttr("m", junctionExp);
+	transitTime = xml.parseDoubleAttr("tt", transitTime);
 	updateModel();
     }
 
@@ -282,6 +311,16 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	}
 	if (n == 4)
 	    return new EditInfo("Breakdown Voltage", breakdownVoltage, -1, -1);
+	if (!isSimple()) {
+	    if (n == 5)
+		return new EditInfo("Zero-Bias Junction Capacitance (CJ0)", junctionCap);
+	    if (n == 6)
+		return new EditInfo("Junction Potential (VJ)", junctionPot);
+	    if (n == 7)
+		return new EditInfo("Junction Grading Coefficient (M)", junctionExp);
+	    if (n == 8)
+		return new EditInfo("Transit Time (TT)", transitTime);
+	}
 	return null;
     }
 
@@ -307,6 +346,12 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	}
 	if (n == 4)
 	    breakdownVoltage = Math.abs(ei.value);
+	if (!isSimple()) {
+	    if (n == 5) junctionCap = ei.value;
+	    if (n == 6 && ei.value > 0) junctionPot = ei.value;
+	    if (n == 7 && ei.value > 0) junctionExp = ei.value;
+	    if (n == 8 && ei.value >= 0) transitTime = ei.value;
+	}
 	updateModel();
 	CirSim.theApp.updateModels();
     }
@@ -333,7 +378,10 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     
     String dump() {
 	dumped = true;
-	return "34 " + CustomLogicModel.escape(name) + " " + flags + " " + saturationCurrent + " " + seriesResistance + " " + emissionCoefficient + " " + breakdownVoltage + " " + forwardCurrent;
+	String s = "34 " + CustomLogicModel.escape(name) + " " + flags + " " + saturationCurrent + " " + seriesResistance + " " + emissionCoefficient + " " + breakdownVoltage + " " + forwardCurrent;
+	if (junctionCap != 0 || transitTime != 0)
+	    s += " " + junctionCap + " " + junctionPot + " " + junctionExp + " " + transitTime;
+	return s;
     }
     
     void dumpXml(Document doc) {
@@ -347,6 +395,13 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
         XMLSerializer.dumpAttr(elem, "bv", breakdownVoltage);
 	if (forwardCurrent > 0)
 	    XMLSerializer.dumpAttr(elem, "fi", forwardCurrent);
+	if (junctionCap != 0) {
+	    XMLSerializer.dumpAttr(elem, "cjo", junctionCap);
+	    XMLSerializer.dumpAttr(elem, "vj", junctionPot);
+	    XMLSerializer.dumpAttr(elem, "m", junctionExp);
+	}
+	if (transitTime != 0)
+	    XMLSerializer.dumpAttr(elem, "tt", transitTime);
 	doc.getDocumentElement().appendChild(elem);
     }
 
@@ -356,6 +411,13 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
     
     void setSimple(boolean s) {
 	flags = (s) ? FLAGS_SIMPLE : 0;
+	if (s) {
+	    // clear capacitance parameters for simple models
+	    junctionCap = 0;
+	    junctionPot = 0.75;
+	    junctionExp = 0.33;
+	    transitTime = 0;
+	}
     }
     
     void pickName() {
