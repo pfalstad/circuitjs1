@@ -69,6 +69,7 @@ class XMLDeserializer {
 	    CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);
 	    ui.powerBar.setValue(parseIntAttr("pb", ui.powerBar.getValue()));
 	    sim.minTimeStep = parseDoubleAttr("mts", sim.minTimeStep);
+	    sim.solverType = parseIntAttr("st", sim.solverType);
 	    app.setGrid();
 	}
 
