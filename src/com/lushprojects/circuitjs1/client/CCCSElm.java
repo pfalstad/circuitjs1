@@ -57,7 +57,7 @@ class CCCSElm extends VCCSElm {
             pins[i*2].output = true;
             pins[i*2+1] = new Pin(1, SIDE_E, "O-");
             exprState = new ExprState(inputPairCount);
-            lastCurrents = new double[inputPairCount];
+            lastCurrents = new double[inputPairCount+1];
             allocNodes();
       	}
 	String getChipName() { return "CCCS"; } 
@@ -90,9 +90,6 @@ class CCCSElm extends VCCSElm {
         	return;
             }
 
-            // converged yet?
-            double convergeLimit = getConvergeLimit()*.1;
-            
             int i;
             if (isSpiceStyle()) {
         	// get current from connected voltage sources
@@ -100,11 +97,18 @@ class CCCSElm extends VCCSElm {
         	    pins[i*2+1].current = voltageSources[i].getCurrent();
             }
             
-            for (i = 0; i != inputPairCount; i++) {
+            // converged yet?
+            double convergeLimit = getConvergeLimit()*.1;
+            
+            for (i = 0; i <= inputPairCount; i++) {
                 double cur = pins[i*2+1].current;
                 if (Math.abs(cur-lastCurrents[i]) > convergeLimit)
                     sim.converged = false;
+		//CirSim.console("cccs i=" + i + " iter=" + sim.subIterations + " cur=" + cur + " lc=" + lastCurrents[i] + " diff=" + (cur-lastCurrents[i]));
             }
+
+            for (i = 0; i <= inputPairCount; i++)
+                lastCurrents[i] = pins[i*2+1].current;
 
             if (expr != null) {
                 // calculate output
@@ -140,9 +144,6 @@ class CCCSElm extends VCCSElm {
 
         	sim.stampCurrentSource(nodes[inputCount+1], nodes[inputCount], rs);
             }
-
-            for (i = 0; i != inputPairCount; i++)
-                lastCurrents[i] = pins[i*2+1].current;
         }
 	
         void stepFinished() {

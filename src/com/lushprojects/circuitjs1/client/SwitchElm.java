@@ -180,6 +180,7 @@ class SwitchElm extends CircuitElm {
     }
     
     void toggle() {
+	TestManager.recordSwitchToggle(this);
 	simpleToggle();
         if (label != null) {
             int i;

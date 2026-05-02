@@ -36,7 +36,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class circuitjs1 implements EntryPoint {
 
-    public static final String versionString = "4.1.0js (alpha)";
+    public static final String versionString = "4.1.1js (alpha)";
 
     // Set to true if the server runs the shortrelay.php file in the same directory
     // as the circuit simulator

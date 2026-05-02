@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
+import com.google.gwt.user.client.ui.TextArea;
 
 import java.util.Vector;
 
@@ -30,6 +31,7 @@ class TextElm extends GraphicElm {
     String text;
     Vector<String> lines;
     int size;
+    TextArea editTextArea;
 //    final int FLAG_CENTER = 1;
     final int FLAG_BAR = 2;
     final int FLAG_ESCAPE = 4;
@@ -141,7 +143,10 @@ class TextElm extends GraphicElm {
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Text", 0, -1, -1);
-	    ei.text = text;
+	    ei.textArea = new TextArea();
+	    editTextArea = ei.textArea;
+	    ei.textArea.setVisibleLines(5);
+	    ei.textArea.setText(text.replace("\\n", "\n"));
 	    return ei;
 	}
 	if (n == 1)
@@ -156,7 +161,7 @@ class TextElm extends GraphicElm {
     }
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0) {
-	    text = ei.textf.getText();
+	    text = editTextArea.getText().replace("\n", "\\n");
 	    split();
 	}
 	if (n == 1)

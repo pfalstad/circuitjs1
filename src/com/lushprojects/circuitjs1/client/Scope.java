@@ -1568,7 +1568,9 @@ class Scope {
 		    info[ct++] = plot.getUnitText(plot.maxValues[ip]);
 		    int maxvy = (int) (plot.gridMult*(plot.maxValues[ip]+plot.plotOffset));
 		    g.setColor(plot.color);
-		    g.fillOval(cursorX-2, rect.y+y-maxvy-2, 5, 5);
+		    int dotY = rect.y+y-maxvy;
+		    if (dotY >= rect.y && dotY < rect.y+rect.height)
+			g.fillOval(cursorX-2, dotY-2, 5, 5);
 		}
 	    }
 	}

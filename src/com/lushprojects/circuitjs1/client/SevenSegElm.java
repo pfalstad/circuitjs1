@@ -301,6 +301,10 @@ class SevenSegElm extends ChipElm {
 	    }
 	}
 	
+	boolean getConnection(int n1, int n2) {
+	    return diodeDirection == 0 ? false : true;
+	}
+
 	void stepFinished() {
 	    // stop for huge currents that make simulator act weird
 	    if (commonPin > 0 && Math.abs(pins[commonPin].current) > 1e12)

@@ -1,5 +1,8 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 public class OTAElm extends CompositeElm {
 
     private static String modelString = "RailElm 4\rRailElm 10\rNTransistorElm 1 2 3\rNTransistorElm 3 1 4\rNTransistorElm 3 3 4\rNTransistorElm 5 6 2\rNTransistorElm 7 8 2\rPTransistorElm 9 6 10\rPTransistorElm 9 9 10\rPTransistorElm 6 12 9\rPTransistorElm 11 8 10\rPTransistorElm 11 11 10\rPTransistorElm 8 13 11\rNTransistorElm 14 14 4\rNTransistorElm 14 12 4\rNTransistorElm 12 13 14\rNTransistorElm 15 15 5\rNTransistorElm 15 15 7";
@@ -143,6 +146,19 @@ public class OTAElm extends CompositeElm {
 	setPost(2, in3p[0]);
 	setPost(3, in4p[0]);
 	setPost(4, point2bis);
+    }
+
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "pv", posVolt);
+	XMLSerializer.dumpAttr(elem, "nv", negVolt);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	posVolt = xml.parseDoubleAttr("pv", posVolt);
+	negVolt = xml.parseDoubleAttr("nv", negVolt);
+	initOTA();
     }
 
     @Override

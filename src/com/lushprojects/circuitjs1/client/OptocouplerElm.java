@@ -1,9 +1,13 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 public class OptocouplerElm extends CompositeElm {
     int csize, cspc, cspc2;
     int rectPointsX[], rectPointsY[];
     double curCounts[];
+    double ctr = 1.0; // current transfer ratio (1.0 = 100%)
 
     private static String modelString = "DiodeElm 6 1\rCCCSElm 1 2 3 4\rNTransistorElm 3 4 5";
     private static int[] modelExternalNodes = { 6, 2, 4, 5 };
@@ -24,10 +28,18 @@ public class OptocouplerElm extends CompositeElm {
 	initOptocoupler();
     }
 
-    public String dump() {
-	return dumpWithMask(0);
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ctr", ctr);
     }
-    
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	ctr = xml.parseDoubleAttr("ctr", ctr);
+	initOptocoupler();
+    }
+
+
     private void initOptocoupler() {
 	csize = 2;
 	cspc = 8*2;
@@ -36,7 +48,8 @@ public class OptocouplerElm extends CompositeElm {
 	CCCSElm cccs = (CCCSElm) compElmList.get(1);
 	
 	// from http://www.cel.com/pdf/appnotes/an3017.pdf
-	cccs.setExpr("max(0,min(.0001, select(i-.003, (-80000000000*(i)^5+800000000*(i)^4-3000000*(i)^3+5177.2*(i)^2+.2453*(i)-.00005)*1.04/700, (9000000*(i)^5-998113*(i)^4+42174*(i)^3-861.32*(i)^2+9.0836*(i)-.0078)*.945/700)))");
+	// the base expression models a ~100% CTR device; we scale by ctr
+	cccs.setExpr(ctr + "*max(0,min(.0001, select(i-.003, (-80000000000*(i)^5+800000000*(i)^4-3000000*(i)^3+5177.2*(i)^2+.2453*(i)-.00005)*1.04/700, (9000000*(i)^5-998113*(i)^4+42174*(i)^3-861.32*(i)^2+9.0836*(i)-.0078)*.945/700)))");
 	
 	transistor = (TransistorElm) compElmList.get(2);
 	transistor.setBeta(700);
@@ -177,11 +190,21 @@ public class OptocouplerElm extends CompositeElm {
 
     void getInfo(String arr[]) {
 	arr[0] = "optocoupler";
-	arr[1] = "Iin = " + getCurrentText(getCurrentIntoNode(0));
-	arr[2] = "Iout = " + getCurrentText(getCurrentIntoNode(2));
+	arr[1] = "CTR Scale = " + showFormat.format(ctr);
+	arr[2] = "Iin = " + getCurrentText(getCurrentIntoNode(0));
+	arr[3] = "Iout = " + getCurrentText(getCurrentIntoNode(2));
     }
 
     public EditInfo getEditInfo(int n) {
-        return null;
+	if (n == 0)
+	    return new EditInfo("CTR Scale", ctr, 0, 0).setDimensionless();
+	return null;
+    }
+
+    public void setEditValue(int n, EditInfo ei) {
+	if (n == 0 && ei.value > 0) {
+	    ctr = ei.value;
+	    initOptocoupler();
+	}
     }
 }

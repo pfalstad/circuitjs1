@@ -19,6 +19,9 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
+
 class AnalogMuxElm extends ChipElm {
     int selectBitCount;
     int inputCount;
@@ -56,6 +59,23 @@ class AnalogMuxElm extends ChipElm {
 
     String dump() {
 	return super.dump() + " " + selectBitCount + " " + r_on + " " + r_off + " " + threshold;
+    }
+
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "sb", selectBitCount);
+	XMLSerializer.dumpAttr(elem, "ron", r_on);
+	XMLSerializer.dumpAttr(elem, "rof", r_off);
+	XMLSerializer.dumpAttr(elem, "thr", threshold);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	// read selectBitCount before super.undumpXml() since ChipElm calls setupPins() there
+	selectBitCount = xml.parseIntAttr("sb", selectBitCount);
+	super.undumpXml(xml);
+	r_on = xml.parseDoubleAttr("ron", r_on);
+	r_off = xml.parseDoubleAttr("rof", r_off);
+	threshold = xml.parseDoubleAttr("thr", threshold);
     }
 
     void setupPins() {

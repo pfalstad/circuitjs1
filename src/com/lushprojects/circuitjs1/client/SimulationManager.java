@@ -1445,7 +1445,9 @@ public class SimulationManager {
 		stampCircuit();
 		goodIterations = 0;
 	    }
-	    
+	    if (TestManager.theManager != null)
+		timeStep = TestManager.theManager.clampTimeStep(t, timeStep);
+
 	    int i, j, subiter;
 	    for (i = 0; i != elmArr.length; i++)
 		elmArr[i].startIteration();
@@ -1547,6 +1549,8 @@ public class SimulationManager {
 	    if (!delayWireProcessing)
 		calcWireCurrents();
 	    app.onTimeStep();
+	    if (TestManager.theManager != null && TestManager.theManager.checkTime())
+		break;
 	    // save last node voltages so we can restart the next iteration if necessary
 	    for (int mi = 0; mi != matrices.length; mi++) {
 		CircuitMatrix m = matrices[mi];

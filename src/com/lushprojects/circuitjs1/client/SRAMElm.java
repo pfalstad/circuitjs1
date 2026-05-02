@@ -31,9 +31,12 @@ import com.google.gwt.xml.client.Element;
 	int addressNodes, dataNodes, internalNodes;
 	int addressBits, dataBits;
 	HashMap<Integer, Integer> map;
+	HashMap<Integer, Integer> initialMap; // saved initial contents for restore on reset
+	String loadedFileName; // remembers the last file loaded via "Load Contents From File"
+	static final int FLAG_RELOAD_ON_RESET = 2;
 	static String contentsOverride = null;
 	TextArea editTextArea;
-
+	static String fileNameOverride = null;
 
 	public SRAMElm(int xx, int yy) {
 	    super(xx, yy);
@@ -66,6 +69,8 @@ import com.google.gwt.xml.client.Element;
 		    }
 		}
 	    } catch (Exception e) {}
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		initialMap = new HashMap<Integer, Integer>(map);
 	}
 
 	void dumpXml(Document doc, Element elem) {
@@ -87,6 +92,12 @@ import com.google.gwt.xml.client.Element;
 		parseContentsString(xml.parseContents());
 	    } catch (Exception e) {}
 	    setupPins();
+	}
+
+	void reset() {
+	    super.reset();
+	    if ((flags & FLAG_RELOAD_ON_RESET) != 0 && initialMap != null)
+		map = new HashMap<Integer, Integer>(initialMap);
 	}
 
 	boolean nonLinear() { return true; }
@@ -125,6 +136,9 @@ import com.google.gwt.xml.client.Element;
         	ei.textArea.setVisibleLines(5);
         	String s = (contentsOverride != null) ? contentsOverride : contentsToString();
         	contentsOverride = null;
+		if (fileNameOverride != null)
+		    loadedFileName = fileNameOverride;
+		fileNameOverride = null;
     	    	ei.textArea.setText(s);
     	    	return ei;
             }
@@ -134,12 +148,21 @@ import com.google.gwt.xml.client.Element;
             	return ei;
             }
             if (n == 4 && SRAMLoadFile.isSupported()) {
-            	EditInfo ei = new EditInfo("", 0, -1, -1);
+            	EditInfo ei = new EditInfo(
+		    loadedFileName != null ? "Loaded: " + loadedFileName : "",
+		    0, -1, -1);
             	ei.loadFile = new SRAMLoadFile();
             	ei.button = new Button("Load Contents From File");
             	ei.newDialog = true;
             	return ei;
             }
+	    int reloadIdx = SRAMLoadFile.isSupported() ? 5 : 4;
+	    if (n == reloadIdx) {
+		EditInfo ei = new EditInfo("", 0, -1, -1);
+		ei.checkbox = new Checkbox("Restore Contents on Reset",
+		    (flags & FLAG_RELOAD_ON_RESET) != 0);
+		return ei;
+	    }
 	    return super.getChipEditInfo(n);
 	}
 	
@@ -149,14 +172,14 @@ import com.google.gwt.xml.client.Element;
 	    int maxI = 1<<addressBits;
 	    for (int i = 0; i < maxI; i++) {
 		Integer val = map.get(i);
-		if (val == null)
+		if (val == null || val == 0)
 		    continue;
 		s += (hex ? Integer.toHexString(i).toUpperCase() : "" + i) + ": " +
 		     (hex ? toHex(val) : "" + val);
 		int ct = 1;
 		while (true) {
 		    val = map.get(++i);
-		    if (val == null)
+		    if (val == null || val == 0)
 			break;
 		    s += " " + (hex ? toHex(val) : "" + val);
 		    if (++ct == 8)
@@ -217,8 +240,11 @@ import com.google.gwt.xml.client.Element;
 		} else
 		    ei.setError("must be between 2 and 16");
 	    }
-	    if (n == 2)
+	    if (n == 2) {
 		parseContentsString(ei.textArea.getText());
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
+	    }
 	    if (n == 3) {
 		int oldFlags = flags;
 		if (editTextArea != null)
@@ -228,6 +254,14 @@ import com.google.gwt.xml.client.Element;
 		    contentsOverride = contentsToString();
 		    ei.newDialog = true;
 		}
+	    }
+	    int reloadIdx = SRAMLoadFile.isSupported() ? 5 : 4;
+	    if (n == reloadIdx) {
+		flags = ei.changeFlag(flags, FLAG_RELOAD_ON_RESET);
+		if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+		    initialMap = new HashMap<Integer, Integer>(map);
+		else
+		    initialMap = null;
 	    }
 	}
 	int getVoltageSourceCount() { return dataBits; }

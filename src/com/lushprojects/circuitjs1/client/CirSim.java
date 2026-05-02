@@ -210,8 +210,11 @@ public class CirSim implements NativePreviewHandler {
 	}
 
 	loader = new CircuitLoader(this, sim, scopeManager, menus);
+	TestManager.init(this);
 
-	if (startCircuitText != null) {
+	if (TestManager.loadingTestCircuit) {
+	    startCircuitText = startCircuit = null;
+	} else if (startCircuitText != null) {
 	    menus.getSetupList(false);
 	    loader.readCircuit(startCircuitText);
 	    String electronFileName = getElectronStartCircuitFileName();
