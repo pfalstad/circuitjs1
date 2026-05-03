@@ -424,6 +424,8 @@ public class SimulationManager {
 		if (moved > wireInfoList.size() * 2) {
 		    console("wire loop detected, " + wireInfoList.size() + " wires total, unresolved:");
 		    for (int k = i; k < wireInfoList.size(); k++) {
+			if (k < 0)
+			    continue;
 			WireSegment wk = wireInfoList.get(k);
 			console("  unresolved: " + wk.wire.getClass().getSimpleName()
 			    + " bit=" + wk.bit + " ep0=" + wk.endpoint0 + " ep1=" + wk.endpoint1
