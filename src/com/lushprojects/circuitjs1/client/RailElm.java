@@ -108,10 +108,18 @@ class RailElm extends VoltageElm {
     }
 
     int getShortcut() { return 'V'; }
-    
+    boolean validate() {
+	FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
+	if (fpi.findPath(CircuitNode.ground)) {
+	    sim.stop("Path to ground with no resistance!", this);
+	    return false;
+	}
+	return true;
+    }
+
 //    void drawHandles(Graphics g, Color c) {
 //    	g.setColor(c);
 //		g.fillRect(x-3, y-3, 7, 7);
 //    }
-    
+
 }

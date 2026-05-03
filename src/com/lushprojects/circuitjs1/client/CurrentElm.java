@@ -119,4 +119,9 @@ class CurrentElm extends CircuitElm {
 	    return volts[1] - volts[0];
 	}
 	double getPower() { return -getVoltageDiff()*current; }
+	boolean validate() {
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, this, getNode(1), sim);
+	    setBroken(!fpi.findPath(getNode(0)));
+	    return true;
+	}
     }

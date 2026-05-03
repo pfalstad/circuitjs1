@@ -1237,6 +1237,8 @@ public abstract class CircuitElm implements Editable {
     boolean isPrintable() { return app.isPrintable(); }
 
     boolean isGraphicElmt() { return false; }
+
+    boolean validate() { return true; }
     
     void setMouseElm(boolean v) {
 	if (v)

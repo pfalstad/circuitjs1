@@ -249,4 +249,15 @@ import com.google.gwt.xml.client.Document;
 	    positionFlipped = !positionFlipped;
 	}       
 
+	boolean validate() {
+	    if (position == 2 && hasCenterOff())
+		return true;
+
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
+	    if (fpi.findPath(getNode(1+position))) {
+		sim.stop("Voltage source/wire loop with no resistance!", this);
+		return false;
+	    }
+	    return true;
+	}
     }

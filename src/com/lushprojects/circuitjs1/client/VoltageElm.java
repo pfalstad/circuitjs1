@@ -634,5 +634,15 @@ class VoltageElm extends CircuitElm {
 	    }
 	}
     }
+    boolean validate() {
+	if (getPostCount() == 2) {
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(1), sim);
+	    if (fpi.findPath(getNode(0))) {
+		sim.stop("Voltage source/wire loop with no resistance!", this);
+		return false;
+	    }
+	}
+	return true;
+    }
 }
 

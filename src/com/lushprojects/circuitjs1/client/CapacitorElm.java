@@ -271,4 +271,22 @@ class CapacitorElm extends CircuitElm {
 	public boolean isIdealCapacitor() { return (seriesResistance == 0); }
 
 	public void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 12); }
+	boolean validate() {
+	    if (isIdealCapacitor()) {
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.SHORT, this, getNode(1), sim);
+		if (fpi.findPath(getNode(0))) {
+		    CirSim.console(this + " shorted");
+		    shorted();
+		} else {
+		    fpi = new FindPathInfo(FindPathInfo.CAP_V, this, getNode(1), sim);
+		    if (fpi.findPath(getNode(0))) {
+			// loop of ideal capacitors; set a small series resistance to avoid
+			// oscillation in case one of them has voltage on it
+			setSeriesResistance(.1);
+			return false;
+		    }
+		}
+	    }
+	    return true;
+	}
     }
