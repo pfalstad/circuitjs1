@@ -1210,9 +1210,21 @@ class Scope {
     	
     	boolean sel = app.scopeManager.scopeMenuIsSelected(this);
     	
+	boolean somethingSelectedHere = somethingSelected;
+
     	checkForSelectionElsewhere();
     	if (selectedPlot >= 0)
     	    somethingSelected = true;
+
+    	if (somethingSelectedHere || sel) {
+    	    g.context.save();
+    	    g.context.setGlobalAlpha(0.15);
+    	    g.setColor(CircuitElm.selectColor);
+    	    g.fillRect(0, 0, rect.width, rect.height);
+    	    g.context.restore();
+    	}
+	if (getSingleElm() != null)
+	    somethingSelected = false;
 
     	drawGridLines = true;
     	boolean allPlotsSameUnits = true;
@@ -1340,7 +1352,7 @@ class Scope {
     	final int maxy = (rect.height-1)/2;
 
     	String color = (somethingSelected) ? "#A0A0A0" : plot.color;
-	if (allSelected || (app.scopeManager.scopeSelected == -1  && plot.elm.isMouseElm()))
+	if (allSelected || (app.scopeManager.scopeSelected == -1  && getSingleElm() == null && plot.elm.isMouseElm()))
     	    color = CircuitElm.selectColor.getHexValue();
 	else if (selected)
 	    color = plot.color;
