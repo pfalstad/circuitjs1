@@ -846,6 +846,9 @@ public class SimulationManager {
 	findUnconnectedNodes();
 	calculateClosures();
 
+	if (!validateCircuit())
+	    return false;
+	
 	// assign voltage sources to matrices
 	int vsPerMatrix[] = new int[matrices.length];
 	for (i = 0; i != voltageSourceCount; i++) {
@@ -868,9 +871,6 @@ public class SimulationManager {
 	    //console("matrix " + i + ": size=" + matrices[i].size + " nodes=" + matrices[i].nodeCount + " vs=" + vsPerMatrix[i]);
 	}
 
-	if (!validateCircuit())
-	    return false;
-	
 	nodesWithGroundConnectionCount = nodesWithGroundConnection.size();
 	// only need this for validation
 	nodesWithGroundConnection = null;
