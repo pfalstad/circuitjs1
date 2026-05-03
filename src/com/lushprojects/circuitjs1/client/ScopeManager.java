@@ -34,6 +34,7 @@ public class ScopeManager {
 
     public Scope scopes[];
     public int scopeCount;
+    Scope hoverScope;
     public int scopeColCount[];
     public int scopeSelected = -1;
     public int scopeMenuSelected = -1;
@@ -121,6 +122,55 @@ public class ScopeManager {
 	    scopes[i].timeStep();
 	for (i=0; i != sim.scopeElmArr.length; i++)
 	    sim.scopeElmArr[i].stepScope();
+	if (hoverScope != null)
+	    hoverScope.timeStep();
+    }
+
+    void drawHoverScope(Graphics g, int canvasWidth, int canvasHeight) {
+	CircuitElm mouseElm = sim.mouse.getMouseElm();
+	if (mouseElm == null || mouseElm.isWireEquivalent()) {
+	    hoverScope = null;
+	    return;
+	}
+	if (hoverScope == null || hoverScope.getElm() != mouseElm) {
+	    hoverScope = null;
+	    if (!mouseElm.canViewInScope())
+		return;
+	    for (int i = 0; i < scopeCount; i++)
+		if (scopes[i].showingElm(mouseElm))
+		    return;
+	    for (int i = 0; i < sim.scopeElmArr.length; i++)
+		if (sim.scopeElmArr[i].elmScope.showingElm(mouseElm))
+		    return;
+	    hoverScope = new Scope(sim, sim.sim);
+	    hoverScope.setElm(mouseElm);
+	    hoverScope.showMax = true;
+	    hoverScope.showRMS = true;
+	    if (scopeCount > 0)
+		hoverScope.speed = scopes[scopeCount-1].speed;
+	}
+	int w = CirSim.infoWidth*2;
+	int h0 = (int)(canvasHeight * scopeHeightFraction);
+	int h = h0;
+	int y = canvasHeight - h0 - h;
+	if (y < 0)
+	    return;
+	if (canvasWidth < w)
+	    return;
+	Rectangle scopeRect = new Rectangle(canvasWidth - w, y, w, h);
+	Rectangle bb = mouseElm.getBoundingBox();
+	int ex1 = sim.mouse.transformX(bb.x);
+	int ey1 = sim.mouse.transformY(bb.y);
+	int ex2 = sim.mouse.transformX(bb.x + bb.width);
+	int ey2 = sim.mouse.transformY(bb.y + bb.height);
+	Rectangle elmRect = new Rectangle(Math.min(ex1, ex2), Math.min(ey1, ey2),
+		Math.abs(ex2 - ex1) + 1, Math.abs(ey2 - ey1) + 1);
+	if (scopeRect.intersects(elmRect))
+	    return;
+	hoverScope.setRect(scopeRect);
+	g.setColor(Color.black);
+	g.fillRect(canvasWidth - w, y, w, h);
+	hoverScope.draw(g);
     }
 
     void setupScopes() {

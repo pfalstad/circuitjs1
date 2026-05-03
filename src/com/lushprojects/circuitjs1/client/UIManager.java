@@ -792,6 +792,7 @@ public class UIManager {
 		g.drawLine(0, app.circuitArea.height-2, app.circuitArea.width, app.circuitArea.height-2);
 		g.setLineWidth(1.0);
 	}
+	app.scopeManager.drawHoverScope(g, canvasWidth, canvasHeight);
 	g.setColor(CircuitElm.whiteColor);
 
 	if (app.stopMessage != null) {

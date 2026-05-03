@@ -180,5 +180,7 @@ class TextElm extends GraphicElm {
     }
     @Override
     int getShortcut() { return 't'; }
+
+    boolean canViewInScope() { return false; }
 }
 

@@ -2620,6 +2620,13 @@ class Scope {
 	return visiblePlots.size() > 0 ? visiblePlots.get(0).elm : plots.get(0).elm;
     }
 
+    boolean showingElm(CircuitElm e) {
+	for (int i = 0; i != plots.size(); i++)
+	    if (plots.get(i).elm == e)
+		return true;
+	return false;
+    }
+
     boolean viewingWire() {
 	int i;
 	for (i = 0; i != plots.size(); i++)
