@@ -168,7 +168,7 @@ public class ScopeManager {
 	if (scopeRect.intersects(elmRect))
 	    return;
 	hoverScope.setRect(scopeRect);
-	g.setColor(Color.black);
+	g.setColor(sim.menus.printableCheckItem.getState() ? Color.white : Color.black);
 	g.fillRect(canvasWidth - w, y, w, h);
 	hoverScope.draw(g);
     }
