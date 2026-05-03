@@ -252,7 +252,7 @@ class Scope {
     boolean maxScale;
 
     boolean logSpectrum;
-    boolean showFFT, showNegative, showRMS, showAverage, showDutyCycle, showElmInfo;
+    boolean showFFT, showNegative, showRMS, showAverage, showDutyCycle, showElmInfo, showPhaseAngle;
     double fftMaxMagnitude; // peak FFT magnitude, saved for cursor dB readout
     double[] fftReal, fftImag; // saved FFT results for cursor readout
     Vector<ScopePlot> plots, visiblePlots;
@@ -1936,6 +1936,53 @@ class Scope {
 	for (i = 0; info[i] != null; i++)
 	    drawInfoText(g, info[i]);
     }
+
+    // show phase angle between voltage and current using FFT, when exactly one of each is present
+    void drawPhaseAngle(Graphics g) {
+	ScopePlot vPlot = null, iPlot = null;
+	for (ScopePlot p : visiblePlots) {
+	    if (p.units == UNITS_V) {
+		if (vPlot != null) return;
+		vPlot = p;
+	    } else if (p.units == UNITS_A) {
+		if (iPlot != null) return;
+		iPlot = p;
+	    } else
+		return;
+	}
+	if (vPlot == null || iPlot == null)
+	    return;
+	if (fft == null || fft.getSize() != scopePointCount)
+	    fft = new FFT(scopePointCount);
+	double[] vReal = new double[scopePointCount];
+	double[] vImag = new double[scopePointCount];
+	double[] iReal = new double[scopePointCount];
+	double[] iImag = new double[scopePointCount];
+	int ipa = displayStartIndex(vPlot, rect.width);
+	int validCount = validDataCount(vPlot, ipa, rect.width);
+	for (int i = 0; i < validCount; i++) {
+	    int ip = (i + ipa) & (scopePointCount - 1);
+	    vReal[i] = .5 * (vPlot.maxValues[ip] + vPlot.minValues[ip]);
+	    iReal[i] = .5 * (iPlot.maxValues[ip] + iPlot.minValues[ip]);
+	}
+	fft.fft(vReal, vImag, true);
+	fft.fft(iReal, iImag, true);
+	// find fundamental: bin with largest voltage magnitude (skip DC at bin 0)
+	int fund = 1;
+	double maxM = 0;
+	for (int i = 1; i < scopePointCount / 2; i++) {
+	    double m = fft.magnitude(vReal[i], vImag[i]);
+	    if (m > maxM) { maxM = m; fund = i; }
+	}
+	if (maxM < 1e-8)
+	    return;
+	double angleV = Math.atan2(vImag[fund], vReal[fund]);
+	double angleI = Math.atan2(iImag[fund], iReal[fund]);
+	double angle = (angleV - angleI) * 180 / Math.PI;
+	while (angle > 180) angle -= 360;
+	while (angle < -180) angle += 360;
+	drawInfoText(g, Locale.LS("Phase angle: ") + CircuitElm.showFormat.format(angle) + "°");
+    }
     
     int textY;
     
@@ -1981,6 +2028,8 @@ class Scope {
     	    drawFrequency(g);
     	if (showElmInfo)
     	    drawElmInfo(g);
+    	if (showPhaseAngle)
+    	    drawPhaseAngle(g);
     }
 
     String getScopeText() {
@@ -2140,7 +2189,7 @@ class Scope {
 			(showFFT ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
 			(showDutyCycle ? 32768 : 0) | (logSpectrum ? 65536 : 0) |
 			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
-			(showP2P ? (1<<22) : 0);
+			(showP2P ? (1<<22) : 0) | (showPhaseAngle ? (1<<23) : 0);
 	flags |= FLAG_PLOTS; // 4096
 	int allPlotFlags = 0;
 	for (ScopePlot p : plots) {
@@ -2395,6 +2444,7 @@ class Scope {
     	showAverage = (flags & (1<<17)) != 0;
     	showElmInfo = (flags & (1<<20)) != 0;
     	showP2P = (flags & (1<<22)) != 0;
+    	showPhaseAngle = (flags & (1<<23)) != 0;
     	if ((flags & FLAG_TRIGGER) != 0) {
     	    triggerMode = (flags >> 25) & 3;
     	    triggerEdge = (flags >> 27) & 1;
@@ -2472,6 +2522,8 @@ class Scope {
 	    	showAverage = state;
     	if (mi == "showduty")
     	    	showDutyCycle = state;
+    	if (mi == "showphaseangle")
+    	    	showPhaseAngle = state;
     	if (mi == "showelminfo")
 	    	showElmInfo = state;
     	if (mi == "showpower")
