@@ -168,9 +168,15 @@ voltage is determined by javascript code.</li>
 
 <h3><code>getCircuitAsSVG()</code></h3>
 <ul>
-    <li><strong>Description:</strong> Exports the current circuit as an SVG string.</li>
-    <li><strong>Returns:</strong> The SVG representation of the circuit.</li>
-    <li><strong>Example:</strong> <code>var svgData = CircuitJS1.getCircuitAsSVG();</code></li>
+    <li><strong>Description:</strong> Exports the current circuit as an SVG string. The result is delivered asynchronously via the <code>onsvgrendered</code> callback.</li>
+    <li><strong>Callback:</strong> Set <code>sim.onsvgrendered</code> to a function that receives <code>(sim, svg)</code> before calling this method.</li>
+    <li><strong>Example:</strong>
+<pre><code>function svgRendered(sim, svg) {
+    console.log('here is svg data:', svg);
+}
+sim.onsvgrendered = svgRendered;
+sim.getCircuitAsSVG();</code></pre>
+    </li>
 </ul>
 
 <h3><code>exportCircuit()</code></h3>
