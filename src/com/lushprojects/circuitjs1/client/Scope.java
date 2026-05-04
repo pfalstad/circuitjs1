@@ -644,8 +644,9 @@ class Scope {
     
     void setRect(Rectangle r) {
 	int w = this.rect.width;
+	int h = this.rect.height;
 	this.rect = r;
-	if (this.rect.width != w)
+	if (this.rect.width != w || (plotXY && this.rect.height != h))
 	    resetGraph();
     }
     
