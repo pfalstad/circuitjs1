@@ -1,5 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
+import com.lushprojects.circuitjs1.client.matrix.SparseLU;
+
 class CircuitMatrix {
     double matrix[][];
     double rightSide[];
@@ -11,4 +13,5 @@ class CircuitMatrix {
     boolean nonLinear;
     double nodeVoltages[];
     double lastNodeVoltages[];
+    SparseLU sparseLU;
 }

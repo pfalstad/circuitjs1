@@ -45,7 +45,6 @@ public class SimulationManager {
     int solverType = SOLVER_AUTO;
     static final int SPARSE_THRESHOLD = 150;
     boolean usingSparse;
-    SparseLU sparseLU;
 
     // current timestep (time between iterations)
     double timeStep;
@@ -1044,14 +1043,14 @@ public class SimulationManager {
 	    usingSparse = false;
 	else // SOLVER_AUTO
 	    usingSparse = (maxMatrixSize >= SPARSE_THRESHOLD);
-	sparseLU = null; // reset on re-stamp
+	// sparseLU is per-matrix (CircuitMatrix.sparseLU), reset implicitly when matrices[] is recreated
 
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
 	for (int mi = 0; mi != matrices.length; mi++) {
 	    CircuitMatrix m = matrices[mi];
 	    if (!m.nonLinear) {
-		if (!lu_factor(m.matrix, m.size, m.permute)) {
+		if (!lu_factor(m.matrix, m.size, m.permute, m)) {
 		    stop("Singular matrix!", null);
 		    return;
 		}
@@ -1499,12 +1498,12 @@ public class SimulationManager {
 		    if (m.nonLinear) {
 			if (converged && subiter > 0)
 			    continue;
-			if (!lu_factor(m.matrix, m.size, m.permute)) {
+			if (!lu_factor(m.matrix, m.size, m.permute, m)) {
 			    stop("Singular matrix!", null);
 			    return;
 			}
 		    }
-		    lu_solve(m.matrix, m.size, m.permute, m.rightSide);
+		    lu_solve(m.matrix, m.size, m.permute, m.rightSide, m);
 		    applySolvedRightSide(m);
 		}
 		if (printit)
@@ -1812,12 +1811,12 @@ public class SimulationManager {
 		    a[i][j] = inva[i][j];
 	}
     // Dispatching lu_factor: uses sparse or dense solver based on solverType setting
-    static boolean lu_factor(double a[][], int n, int ipvt[]) {
+    static boolean lu_factor(double a[][], int n, int ipvt[], CircuitMatrix cm) {
 	SimulationManager sm = theSim;
 	if (sm != null && sm.usingSparse) {
 	    DMatrixSparseCSC csc = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
-	    if (sm.sparseLU == null) sm.sparseLU = new SparseLU();
-	    return sm.sparseLU.setA(csc);
+	    if (cm.sparseLU == null) cm.sparseLU = new SparseLU();
+	    return cm.sparseLU.setA(csc);
 	}
 	return lu_factor_dense(a, n, ipvt);
     }
@@ -1907,10 +1906,10 @@ public class SimulationManager {
     }
 
     // Dispatching lu_solve: uses sparse or dense solver based on solverType setting
-    static void lu_solve(double a[][], int n, int ipvt[], double b[]) {
+    static void lu_solve(double a[][], int n, int ipvt[], double b[], CircuitMatrix cm) {
 	SimulationManager sm = theSim;
 	if (sm != null && sm.usingSparse) {
-	    sm.sparseLU.solve(b, b);
+	    cm.sparseLU.solve(b, b);
 	    return;
 	}
 	lu_solve_dense(a, n, ipvt, b);
