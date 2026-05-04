@@ -126,6 +126,8 @@ class XMLSerializer {
 	XMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
 	XMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
 	XMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
+	if (sim.solverType != 0)
+	    XMLSerializer.dumpAttr(root, "st", sim.solverType);
 
 	for (CircuitElm ce: app.elmList) {
 	    Element elem = doc.createElement(ce.getXmlDumpType());
