@@ -69,6 +69,8 @@ public class SimulationManager {
 
     SimulationManager(CirSim app_) {
 	theSim = this; app = app_;
+
+	/*
 	// load solver preference from localStorage
 	try {
 	    Storage stor = Storage.getLocalStorageIfSupported();
@@ -77,6 +79,7 @@ public class SimulationManager {
 		if (s != null) solverType = Integer.parseInt(s);
 	    }
 	} catch (Exception e) {}
+	*/
     }
     
     void resetTime() {
