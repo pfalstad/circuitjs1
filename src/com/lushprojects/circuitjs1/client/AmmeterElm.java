@@ -163,14 +163,14 @@ class AmmeterElm extends CircuitElm {
             drawThickLine(g, point1, point2);
             g.fillPolygon(arrowPoly);
         } else {
-            g.setColor(needsHighlight() ? selectColor : lightGrayColor);
-            drawThickCircle(g, center.x, center.y, circleSize);
-            drawCenteredText(g, "A", center.x, center.y, true);
-
 	    calcLeads(circleSize*2);
 	    setVoltageColor(g, volts[0]);
 	    drawThickLine(g, point1, lead1);
 	    drawThickLine(g, lead2, point2);
+
+            g.setColor(needsHighlight() ? selectColor : lightGrayColor);
+            drawThickCircle(g, center.x, center.y, circleSize);
+            drawCenteredText(g, "A", center.x, center.y, true);
 
             g.setColor(whiteColor);
             g.setFont(unitsFont);
@@ -204,6 +204,10 @@ class AmmeterElm extends CircuitElm {
     final int circleSize = 12;
 
     int getDumpType() { return 370; }
+    void setVoltageSource(int n, VoltageSource v) {
+	super.setVoltageSource(n, v);
+	v.setNodes(nodes[0], nodes[1]);
+    }
     void stamp() {
         sim.stampVoltageSource(nodes[0], nodes[1], voltSource, 0);
     }

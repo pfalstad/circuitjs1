@@ -90,6 +90,10 @@ class VaractorElm extends DiodeElm {
 	drawPosts(g);
     }
     
+    void setVoltageSource(int n, VoltageSource v) {
+	super.setVoltageSource(n, v);
+	v.setNodes(nodes[0], nodes[2]);
+    }
     void stamp() {
 	super.stamp();
 	sim.stampVoltageSource(nodes[0], nodes[2], voltSource);
