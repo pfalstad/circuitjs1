@@ -1239,6 +1239,15 @@ public abstract class CircuitElm implements Editable {
     boolean isGraphicElmt() { return false; }
 
     boolean validate() { return true; }
+
+    boolean validateRailNode(int n) {
+	FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(n), sim);
+	if (fpi.findPath(CircuitNode.ground)) {
+	    sim.stop("Path to ground with no resistance!", this);
+	    return false;
+	}
+	return true;
+    }
     
     void setMouseElm(boolean v) {
 	if (v)

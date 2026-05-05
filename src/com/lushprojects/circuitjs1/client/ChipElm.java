@@ -416,6 +416,12 @@ abstract class ChipElm extends CircuitElm {
 		if (pins[i].output && pins[i].voltSource == vs)
 		    pins[i].current = c;
 	}
+	boolean validate() {
+	    for (int i = 0; i != getPostCount(); i++)
+		if (pins[i].output && !validateRailNode(i))
+		    return false;
+	    return true;
+	}
 	String getChipName() { return "chip"; }
 	boolean getConnection(int n1, int n2) { return false; }
 	boolean hasGroundConnection(int n1) {

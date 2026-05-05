@@ -29,4 +29,6 @@ class CircuitNode {
     CircuitMatrix matrix;
     int row;  // row in matrix (0 = ground/excluded)
     CircuitNode() { links = new Vector<CircuitNodeLink>(); }
+
+    @Override public String toString() { return "node " + index; }
 }

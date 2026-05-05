@@ -177,12 +177,5 @@ class LogicInputElm extends SwitchElm {
 	double getCurrentIntoNode(int n) {
 	    return current;
 	}
-	boolean validate() {
-	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
-	    if (fpi.findPath(CircuitNode.ground)) {
-		sim.stop("Path to ground with no resistance!", this);
-		return false;
-	    }
-	    return true;
-	}
+	boolean validate() { return validateRailNode(0); }
     }
