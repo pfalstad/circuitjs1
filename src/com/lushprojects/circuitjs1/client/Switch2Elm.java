@@ -188,7 +188,7 @@ import com.google.gwt.xml.client.Document;
 	    	return ei;
 	    }*/
 	    if (n == 1)
-	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless().disallowSliders();
+	    	return new EditInfo("Group Number (for linking)", link, 0, 100).setDimensionless().disallowSliders();
 	    if (n == 2)
 	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless().disallowSliders();
 	    return super.getEditInfo(n);
