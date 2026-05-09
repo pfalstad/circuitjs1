@@ -690,6 +690,7 @@ class Scope {
 		    !(ce instanceof OutputElm ||
 		    ce instanceof LogicOutputElm ||
 		    ce instanceof AudioOutputElm ||
+		    ce instanceof TestPointElm ||
 		    ce instanceof ProbeElm))
 		plots.add(new ScopePlot(ce, UNITS_A, VAL_CURRENT, getManScaleFromMaxScale(UNITS_A, false)));
 	} else {
