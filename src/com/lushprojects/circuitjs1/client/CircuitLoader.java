@@ -180,6 +180,10 @@ public class CircuitLoader {
                         TransistorModel.undumpModel(st);
                         break;
                     }
+                    if (tint == 36) {
+                        MosfetModel.undumpModel(st);
+                        break;
+                    }
                     if (tint == 38) {
                         Adjustable adj = new Adjustable(st, app);
                         if (adj.elm != null)

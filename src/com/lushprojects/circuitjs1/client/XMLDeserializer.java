@@ -112,6 +112,11 @@ class XMLDeserializer {
 		TransistorModel.undumpModelXml(this);
 		continue;
 	    }
+	    if (tagName.equals("mm")) {
+		currentXmlElement = elem;
+		MosfetModel.undumpModelXml(this);
+		continue;
+	    }
 	    if (tagName.equals("clm")) {
 		currentXmlElement = elem;
 		CustomLogicModel.undumpModelXml(this);
