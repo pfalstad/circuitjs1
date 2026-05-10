@@ -461,5 +461,6 @@ ujtosc.txt Unijunction Oscillator
 3motor.txt 3-Phase Motor
 latchingrelay.txt Latching Relay
 gyratorelm.txt Gyrator
+lfr.txt Loss-Free Resistor
 -
 blank.txt Blank Circuit
