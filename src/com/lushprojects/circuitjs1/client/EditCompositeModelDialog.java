@@ -336,14 +336,38 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	}
 	
 	void adjustChipSize(int dx, int dy) {
-	    if (dx < 0 || dy < 0) {
+	    if (dx < 0) {
 		for (int i = 0; i != postCount; i++) {
 		    Pin p = chip.pins[i];
 		    if (p.busZ > 0) continue;
-		    if (dx < 0 && (p.side == ChipElm.SIDE_N || p.side == ChipElm.SIDE_S) && p.pos >= chip.sizeX+dx)
+		    if ((p.side == ChipElm.SIDE_N || p.side == ChipElm.SIDE_S) && p.pos >= chip.sizeX+dx)
 			return;
-		    if (dy < 0 && (p.side == ChipElm.SIDE_E || p.side == ChipElm.SIDE_W) && p.pos >= chip.sizeY+dy)
-			return;
+		}
+	    }
+	    if (dy < 0) {
+		boolean needShift = false;
+		for (int i = 0; i != postCount; i++) {
+		    Pin p = chip.pins[i];
+		    if (p.busZ > 0) continue;
+		    if ((p.side == ChipElm.SIDE_E || p.side == ChipElm.SIDE_W) && p.pos >= chip.sizeY+dy) {
+			needShift = true;
+			break;
+		    }
+		}
+		if (needShift) {
+		    // check if there's room at the top (no side pins at pos 0)
+		    for (int i = 0; i != postCount; i++) {
+			Pin p = chip.pins[i];
+			if (p.busZ > 0) continue;
+			if ((p.side == ChipElm.SIDE_E || p.side == ChipElm.SIDE_W) && p.pos == 0)
+			    return;
+		    }
+		    // shift all side pins up by 1 to use the room at the top
+		    for (int i = 0; i != postCount; i++) {
+			ExtListEntry pe = model.extList.get(i);
+			if (pe.side == ChipElm.SIDE_E || pe.side == ChipElm.SIDE_W)
+			    pe.pos -= 1;
+		    }
 		}
 	    }
 	    if (chip.sizeX + dx < 1 || chip.sizeY + dy < 1)
