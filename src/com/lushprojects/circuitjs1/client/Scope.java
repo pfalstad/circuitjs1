@@ -295,6 +295,7 @@ class Scope {
     int lastTriggerCheckPtr = -1;
 
     static double cursorTime;
+    static double dragStartTime = -1;
     static int cursorUnits;
     static Scope cursorScope;
     
@@ -1513,17 +1514,30 @@ class Scope {
 	cursorTime = -1;
     }
     
+    double mouseXToTime(int mouseX) {
+	if (isTriggered())
+	    return triggerTime + sim.maxTimeStep*speed*(mouseX - rect.x - rect.width/2);
+	else
+	    return sim.t - sim.maxTimeStep*speed*(rect.x+rect.width-mouseX);
+    }
+
     void selectScope(int mouseX, int mouseY) {
 	if (!rect.contains(mouseX, mouseY))
 	    return;
 	if (plot2d || visiblePlots.size() == 0)
 	    cursorTime = -1;
-	else if (isTriggered())
-	    cursorTime = triggerTime + sim.maxTimeStep*speed*(mouseX - rect.x - rect.width/2);
 	else
-	    cursorTime = sim.t-sim.maxTimeStep*speed*(rect.x+rect.width-mouseX);
+	    cursorTime = mouseXToTime(mouseX);
     	checkForSelection(mouseX, mouseY);
     	cursorScope = this;
+    }
+
+    void mousePressed(int mouseX, int mouseY) {
+	if (!rect.contains(mouseX, mouseY))
+	    return;
+	if (plot2d || showFFT || visiblePlots.size() == 0)
+	    return;
+	dragStartTime = mouseXToTime(mouseX);
     }
     
     // find selected plot
@@ -1559,36 +1573,47 @@ class Scope {
     	    cursorUnits = visiblePlots.get(selectedPlot).units;
     }
     
+    int timeToX(double t) {
+	if (isTriggered())
+	    return (int)(rect.x + rect.width/2 + (t - triggerTime) / (sim.maxTimeStep*speed));
+	else
+	    return -(int) ((sim.t-t)/(sim.maxTimeStep*speed) - rect.x - rect.width);
+    }
+
+    // draw a dot on the selected plot at pixel x; return the plot value there, or NaN if out of range
+    double drawPlotDot(Graphics g, ScopePlot plot, int x) {
+	if (x < rect.x || x >= rect.x+rect.width)
+	    return Double.NaN;
+	int ipa = displayStartIndex(plots.get(0), rect.width);
+	int ip = (x-rect.x+ipa) & (scopePointCount-1);
+	double value = plot.maxValues[ip];
+	int vy = (int) (plot.gridMult*(value+plot.plotOffset));
+	int dotY = rect.y+(rect.height-1)/2-vy;
+	g.setColor(plot.color);
+	if (dotY >= rect.y && dotY < rect.y+rect.height)
+	    g.fillOval(x-2, dotY-2, 5, 5);
+	return value;
+    }
+
     void drawCursor(Graphics g) {
 	if (app.dialogIsShowing())
 	    return;
 	if (cursorScope == null)
 	    return;
-	String info[] = new String[5];
+	String info[] = new String[7];
 	int cursorX = -1;
 	int ct = 0;
+	double cursorValue = Double.NaN;
+	ScopePlot plot = visiblePlots.size() > 0 ? visiblePlots.get(selectedPlot >= 0 ? selectedPlot : 0) : null;
 	if (cursorTime >= 0) {
-	    if (isTriggered())
-		cursorX = (int)(rect.x + rect.width/2 + (cursorTime - triggerTime) / (sim.maxTimeStep*speed));
-	    else
-		cursorX = -(int) ((sim.t-cursorTime)/(sim.maxTimeStep*speed) - rect.x - rect.width);
-	    if (cursorX >= rect.x) {
-		int ipa = displayStartIndex(plots.get(0), rect.width);
-		int ip = (cursorX-rect.x+ipa) & (scopePointCount-1);
-		int maxy = (rect.height-1)/2;
-		int y = maxy;
-		if (visiblePlots.size() > 0) {
-		    ScopePlot plot = visiblePlots.get(selectedPlot >= 0 ? selectedPlot : 0);
-		    info[ct++] = plot.getUnitText(plot.maxValues[ip]);
-		    int maxvy = (int) (plot.gridMult*(plot.maxValues[ip]+plot.plotOffset));
-		    g.setColor(plot.color);
-		    int dotY = rect.y+y-maxvy;
-		    if (dotY >= rect.y && dotY < rect.y+rect.height)
-			g.fillOval(cursorX-2, dotY-2, 5, 5);
-		}
+	    cursorX = timeToX(cursorTime);
+	    if (plot != null) {
+		cursorValue = drawPlotDot(g, plot, cursorX);
+		if (dragStartTime < 0 && !Double.isNaN(cursorValue))
+		    info[ct++] = plot.getUnitText(cursorValue);
 	    }
 	}
-	
+
 	// show FFT even if there's no plots (in which case cursorTime/cursorX will be invalid)
         if (showFFT && cursorScope == this) {
             double maxFrequency = 1 / (sim.maxTimeStep * speed * 2);
@@ -1606,10 +1631,26 @@ class Scope {
             }
         } else if (cursorX < rect.x)
             return;
-        
+
+	// draw drag-start cursor and delta readout
+	if (dragStartTime >= 0 && cursorScope == this && plot != null && !plot2d && !showFFT) {
+	    int dragX = timeToX(dragStartTime);
+	    if (dragX >= rect.x && dragX < rect.x+rect.width) {
+		g.setColor(CircuitElm.lightGrayColor);
+		g.drawLine(dragX, rect.y, dragX, rect.y+rect.height);
+		double startValue = drawPlotDot(g, plot, dragX);
+		double deltaT = cursorTime - dragStartTime;
+		info[ct++] = "Δt=" + CircuitElm.getTimeText(Math.abs(deltaT));
+		if (!Double.isNaN(cursorValue) && !Double.isNaN(startValue)) {
+		    info[ct++] = "Δ=" + plot.getUnitText(cursorValue - startValue);
+		    info[ct++] = plot.getUnitText(cursorValue);
+		}
+	    }
+	}
+
 	if (visiblePlots.size() > 0)
 	    info[ct++] = CircuitElm.getTimeText(cursorTime);
-	
+
 	if (cursorScope != this) {
 	    // don't show cursor info if not enough room, or stacked with selected one
 	    // (position == -1 for embedded scopes)

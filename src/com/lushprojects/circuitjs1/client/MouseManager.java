@@ -230,8 +230,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
     	int gx = inverseTransformX(e.getX());
     	int gy = inverseTransformY(e.getY());
-    	if (!sim.circuitArea.contains(e.getX(), e.getY()))
+    	if (!sim.circuitArea.contains(e.getX(), e.getY())) {
+    	    sim.repaint();
     	    return;
+    	}
     	boolean changed = false;
     	if (dragElm != null)
     	    dragElm.drag(gx, gy);
@@ -976,6 +978,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    return;
 	}
 
+	// start drag-to-measure if clicking inside a scope
+	if (!sim.dialogIsShowing()) {
+	    int i;
+	    for (i = 0; i != sim.scopeManager.scopeCount; i++)
+		sim.scopeManager.scopes[i].mousePressed(e.getX(), e.getY());
+	    if (sim.scopeElmArr != null)
+		for (i = 0; i != sim.scopeElmArr.length; i++)
+		    sim.scopeElmArr[i].elmScope.mousePressed(e.getX(), e.getY());
+	}
+
 	int gx = inverseTransformX(e.getX());
 	int gy = inverseTransformY(e.getY());
 	if (doSwitch(gx, gy)) {
@@ -1074,6 +1086,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public void onMouseUp(MouseUpEvent e) {
     	e.preventDefault();
     	mouseDragging=false;
+    	Scope.dragStartTime = -1;
 
     	// click to clear selection
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)
