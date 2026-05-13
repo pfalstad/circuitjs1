@@ -63,6 +63,55 @@ function getFileFromArgv(argv) {
   return null;
 }
 
+// Parse --key=value or --key value flags from argv into an object
+function getParamsFromArgv(argv) {
+  var params = {};
+  var allowed = ['startCircuit','startLabel','startCircuitLink','positiveColor','negativeColor',
+                 'neutralColor','selectColor','currentColor','mouseMode','running'];
+  for (var i = 1; i < argv.length; i++) {
+    var arg = argv[i];
+    if (!arg.startsWith('--')) continue;
+    var eq = arg.indexOf('=');
+    var key, val;
+    if (eq >= 0) {
+      key = arg.substring(2, eq);
+      val = arg.substring(eq + 1);
+    } else if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
+      key = arg.substring(2);
+      val = argv[++i];
+    } else {
+      key = arg.substring(2);
+      val = 'true';
+    }
+    if (allowed.indexOf(key) >= 0)
+      params[key] = val;
+  }
+  return params;
+}
+
+// Extra URL params parsed once from process.argv at startup
+var extraParams = getParamsFromArgv(process.argv);
+
+if (process.argv.indexOf('--help') >= 0) {
+  console.log(
+    'Usage: CircuitJS1 [options] [file.cir]\n' +
+    '\n' +
+    'Options:\n' +
+    '  --help                   Show this help message\n' +
+    '  --startCircuit=URL       Load circuit from URL\n' +
+    '  --startLabel=LABEL       Label for the circuit\n' +
+    '  --startCircuitLink=URL   Load circuit from Dropbox link\n' +
+    '  --running=false          Start with simulation paused\n' +
+    '  --mouseMode=MODE         Initial mouse mode\n' +
+    '  --positiveColor=COLOR    Color for positive voltage\n' +
+    '  --negativeColor=COLOR    Color for negative voltage\n' +
+    '  --neutralColor=COLOR     Color for neutral/ground\n' +
+    '  --selectColor=COLOR      Color for selected elements\n' +
+    '  --currentColor=COLOR     Color for current flow\n'
+  );
+  process.exit(0);
+}
+
 // On Windows, if a second instance is launched (e.g. double-clicking another
 // associated file), send its argv to this instance and quit immediately.
 const gotLock = app.requestSingleInstanceLock();
@@ -128,8 +177,14 @@ function createWindow () {
     protocol: 'file:',
     slashes: true
   });
+  var queryParts = [];
   if (fileToOpen)
-    loadUrl += '?openFile=' + encodeURIComponent(fileToOpen);
+    queryParts.push('openFile=' + encodeURIComponent(fileToOpen));
+  Object.keys(extraParams).forEach(function(k) {
+    queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(extraParams[k]));
+  });
+  if (queryParts.length > 0)
+    loadUrl += '?' + queryParts.join('&');
   mainWindow.loadURL(loadUrl);
 
   // Open the DevTools.
