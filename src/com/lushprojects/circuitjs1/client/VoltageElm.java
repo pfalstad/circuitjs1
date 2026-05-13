@@ -31,6 +31,10 @@ class VoltageElm extends CircuitElm {
     static final int FLAG_CIRCLE_SYMBOL = 8;
     static final int FLAG_SHOW_VOLTAGE = 16;
     static final int FLAG_TIME_SPEC = 32;
+
+    // this is separate because old RailElms may have FLAG_SHOW_VOLTAGE set even though it didn't do anything
+    static final int FLAG_SHOW_VOLTAGE_RAIL = 64;
+
     int waveform;
     static final int WF_DC = 0;
     static final int WF_AC = 1;
@@ -291,8 +295,7 @@ class VoltageElm extends CircuitElm {
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)
-		s = getShortVoltageText() + " " +
-		    getShortUnitText(frequency, "Hz");
+		s = getShortVoltageText() + " " + getShortUnitText(frequency, "Hz");
 	    else if (showV)
 		s = getShortVoltageText();
 	    else if (showF)
@@ -385,9 +388,17 @@ class VoltageElm extends CircuitElm {
 	    break;
 	}
 	}
-	if (this instanceof RailElm && showValues() && waveform != WF_NOISE) {
-	    String s = getShortUnitText(frequency, "Hz");
-	    if (dx == 0 || dy == 0)
+	if (this instanceof RailElm && (dx == 0 || dy == 0)) {
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE_RAIL) != 0;
+	    boolean showF = showValues() && waveform != WF_NOISE;
+	    String s = null;
+	    if (showV && showF)
+		s = getShortVoltageText() + " " + getShortUnitText(frequency, "Hz");
+	    else if (showV)
+		s = getShortVoltageText();
+	    else if (showF)
+		s = getShortUnitText(frequency, "Hz");
+	    if (s != null)
 		drawValues(g, s, circleSize);
 	}
     }
@@ -408,6 +419,8 @@ class VoltageElm extends CircuitElm {
 
     // return a short voltage string, using RMS if that's a rounder number
     String getShortVoltageText() {
+	if (bias != 0)
+	    return getShortUnitText(bias + maxVoltage, "V");
 	if (useRmsDisplay(maxVoltage))
 	    return getShortUnitText(maxVoltage * getRmsMultiplier(), "V") + "rms";
 	return getShortUnitText(maxVoltage, "V");
@@ -462,8 +475,7 @@ class VoltageElm extends CircuitElm {
 	    arr[i++] = "(R = " + getUnitText(maxVoltage/current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + getUnitText(getPower(), "W");
     }
-    // rails don't have Show Voltage or Circle Symbol options, so frequency starts earlier
-    int getFrequencyOffset() { return (this instanceof RailElm) ? 3 : 4; }
+    int getFrequencyOffset() { return 4; }
     boolean hasTimingOptions() { return waveform == WF_PULSE || waveform == WF_SQUARE; }
     boolean timeSpec() { return hasFlag(FLAG_TIME_SPEC) && hasTimingOptions(); }
 
@@ -506,9 +518,10 @@ class VoltageElm extends CircuitElm {
 	}
 	if (n == 2)
 	    return new EditInfo("DC Offset (V)", bias, -20, 20);
-	if (n == 3 && !(this instanceof RailElm)) {
+	if (n == 3 && !(this instanceof RailElm && (waveform == WF_DC || waveform == WF_VAR))) {
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
-	    ei.checkbox = new Checkbox("Show Voltage", (flags & FLAG_SHOW_VOLTAGE) != 0);
+	    int svFlag = (this instanceof RailElm) ? FLAG_SHOW_VOLTAGE_RAIL : FLAG_SHOW_VOLTAGE;
+	    ei.checkbox = new Checkbox("Show Voltage", (flags & svFlag) != 0);
 	    return ei;
 	}
 	if (n == 4 && waveform == WF_DC && !(this instanceof RailElm)) {
@@ -562,8 +575,10 @@ class VoltageElm extends CircuitElm {
 	    maxVoltage = ei.value;
 	if (n == 2)
 	    bias = ei.value;
-	if (n == 3 && ei.checkbox != null && !(this instanceof RailElm))
-	    flags = ei.changeFlag(flags, FLAG_SHOW_VOLTAGE);
+	if (n == 3 && ei.checkbox != null) {
+	    int svFlag = (this instanceof RailElm) ? FLAG_SHOW_VOLTAGE_RAIL : FLAG_SHOW_VOLTAGE;
+	    flags = ei.changeFlag(flags, svFlag);
+	}
 	if (n == 4 && waveform == WF_DC && ei.checkbox != null && !(this instanceof RailElm)) {
 	    flags = ei.changeFlag(flags, FLAG_CIRCLE_SYMBOL);
 	    setPoints();
