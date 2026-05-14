@@ -268,7 +268,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		chip.pins[i].busWidth = pin.busWidth;
 		chip.pins[i].busZ = pin.busZ;
 		chip.volts[i] = 0;
-		if (i == selectedPin)
+		if (selectedPins.contains(i))
 		    chip.pins[i].selected = true;
 	    }
 	    chip.setPoints();
@@ -379,7 +379,50 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	}
 	
 	boolean dragging;
-	
+	boolean rubberBand;
+	int rubberBandX1, rubberBandY1, rubberBandX2, rubberBandY2;
+	HashSet<Integer> selectedPins = new HashSet<Integer>();
+	int[] dragStartPosArr;
+	int[] dragStartSideArr;
+	int dragStartPos, dragStartSide, dragCurrentSide;
+
+	int findNearestPin(int x, int y) {
+	    double bestdist = 20;
+	    int best = -1;
+	    for (int i = 0; i != postCount; i++) {
+		Pin p = chip.pins[i];
+		if (p.busZ > 0) continue;
+		int dx = (int)(x*scale) - p.textloc.x;
+		int dy = (int)(y*scale) - p.textloc.y;
+		double dist = Math.hypot(dx, dy);
+		if (dist < bestdist) {
+		    bestdist = dist;
+		    best = i;
+		}
+	    }
+	    return best;
+	}
+
+	void updatePinHighlight() {
+	    for (int i = 0; i != postCount; i++)
+		chip.pins[i].selected = selectedPins.contains(i);
+	}
+
+	void drawRubberBand() {
+	    int x1 = Math.min(rubberBandX1, rubberBandX2);
+	    int y1 = Math.min(rubberBandY1, rubberBandY2);
+	    int w  = Math.abs(rubberBandX2 - rubberBandX1);
+	    int h  = Math.abs(rubberBandY2 - rubberBandY1);
+	    context.save();
+	    context.setTransform(1, 0, 0, 1, 0, 0);
+	    context.setFillStyle("rgba(68,136,255,0.15)");
+	    context.fillRect(x1, y1, w, h);
+	    context.setStrokeStyle("#4488ff");
+	    context.setLineWidth(1);
+	    context.strokeRect(x1, y1, w, h);
+	    context.restore();
+	}
+
 	public void onMouseOver(MouseOverEvent event) {
 	    // TODO Auto-generated method stub
 	    
@@ -391,77 +434,257 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	}
 
 	public void onMouseUp(MouseUpEvent event) {
+	    if (rubberBand) {
+		int x1 = Math.min(rubberBandX1, rubberBandX2);
+		int x2 = Math.max(rubberBandX1, rubberBandX2);
+		int y1 = Math.min(rubberBandY1, rubberBandY2);
+		int y2 = Math.max(rubberBandY1, rubberBandY2);
+		int selSide = selectedPins.isEmpty() ? -1
+			: model.extList.get(selectedPins.iterator().next()).side;
+		for (int i = 0; i != postCount; i++) {
+		    if (chip.pins[i].busZ > 0) continue;
+		    int px = (int)(chip.pins[i].textloc.x / scale);
+		    int py = (int)(chip.pins[i].textloc.y / scale);
+		    if (px >= x1 && px <= x2 && py >= y1 && py <= y2) {
+			if (selSide == -1) selSide = model.extList.get(i).side;
+			if (model.extList.get(i).side == selSide) selectedPins.add(i);
+		    }
+		}
+		rubberBand = false;
+		updatePinHighlight();
+		drawChip();
+	    }
 	    dragging = false;
 	}
 
 	int selectedPin;
-	
+
 	public void onMouseMove(MouseMoveEvent event) {
 	    mouseMoved(event.getX(), event.getY());
 	}
-	
+
 	void mouseMoved(int x, int y) {
+	    if (rubberBand) {
+		rubberBandX2 = x;
+		rubberBandY2 = y;
+		int x1 = Math.min(rubberBandX1, rubberBandX2);
+		int x2 = Math.max(rubberBandX1, rubberBandX2);
+		int y1 = Math.min(rubberBandY1, rubberBandY2);
+		int y2 = Math.max(rubberBandY1, rubberBandY2);
+		int selSide2 = selectedPins.isEmpty() ? -1
+			: model.extList.get(selectedPins.iterator().next()).side;
+		// first pass: find side from rectangle if none yet committed
+		if (selSide2 == -1) {
+		    for (int i = 0; i != postCount; i++) {
+			if (chip.pins[i].busZ > 0) continue;
+			int px = (int)(chip.pins[i].textloc.x / scale);
+			int py = (int)(chip.pins[i].textloc.y / scale);
+			if (px >= x1 && px <= x2 && py >= y1 && py <= y2) {
+			    selSide2 = model.extList.get(i).side;
+			    break;
+			}
+		    }
+		}
+		for (int i = 0; i != postCount; i++) {
+		    chip.pins[i].selected = selectedPins.contains(i);
+		    if (chip.pins[i].busZ > 0) continue;
+		    int px = (int)(chip.pins[i].textloc.x / scale);
+		    int py = (int)(chip.pins[i].textloc.y / scale);
+		    if (px >= x1 && px <= x2 && py >= y1 && py <= y2
+			    && model.extList.get(i).side == selSide2)
+			chip.pins[i].selected = true;
+		}
+		drawChip();
+		drawRubberBand();
+		return;
+	    }
 	    if (dragging) {
 		if (selectedPin < 0)
 		    return;
 		int pos[] = new int[2];
-		if (!chip.getPinPos((int)(x*scale), (int)(y*scale), selectedPin, pos))
+		if (!chip.getPinPos((int)(x*scale), (int)(y*scale), dragCurrentSide, pos))
 		    return;
-		ExtListEntry p = model.extList.get(selectedPin);
-		int pn = chip.getOverlappingPin(pos[0], pos[1], selectedPin);
-		if (pn != -1) {
-		    // swap positions with overlapping pin (move whole bus group)
-		    ExtListEntry p2 = model.extList.get(pn);
-		    p2.pos = p.pos;
-		    p2.side = p.side;
-		    // move all entries in the overlapping pin's bus group
-		    for (int j = 0; j < postCount; j++) {
-			ExtListEntry pj = model.extList.get(j);
-			if (j != pn && pj.name.equals(p2.name) && pj.busWidth == p2.busWidth) {
-			    pj.pos = p.pos;
-			    pj.side = p.side;
+		dragCurrentSide = pos[1];
+		{
+		    // Reset to drag-start snapshot so each call is idempotent
+		    for (int i = 0; i < postCount; i++) {
+			model.extList.get(i).pos  = dragStartPosArr[i];
+			model.extList.get(i).side = dragStartSideArr[i];
+		    }
+		    int newSide = pos[1];
+		    int maxNewPos = (newSide == ChipElm.SIDE_N || newSide == ChipElm.SIDE_S)
+			    ? chip.sizeX - 1 : chip.sizeY - 1;
+		    int minOff = Integer.MAX_VALUE, maxOff = Integer.MIN_VALUE;
+		    int sameSideCount = 0;
+		    for (int idx : selectedPins) {
+			if (dragStartSideArr[idx] != dragStartSide) continue;
+			sameSideCount++;
+			int off = dragStartPosArr[idx] - dragStartPos;
+			if (off < minOff) minOff = off;
+			if (off > maxOff) maxOff = off;
+		    }
+		    int groupSize = maxOff - minOff + 1;
+		    // If the group doesn't fit on the target side, stay on the current side
+		    if (groupSize > maxNewPos + 1) {
+			newSide = dragStartSide;
+			maxNewPos = (newSide == ChipElm.SIDE_N || newSide == ChipElm.SIDE_S)
+				? chip.sizeX - 1 : chip.sizeY - 1;
+		    }
+		    int anchor = Math.max(-minOff, Math.min(maxNewPos - maxOff, pos[0]));
+		    int delta = anchor - dragStartPos;
+		    boolean sameSide = (newSide == dragStartSide);
+		    boolean contiguous = (groupSize == sameSideCount);
+
+		    if (sameSide && contiguous) {
+			// Swept-range: every non-selected pin the group sweeps over shifts by groupSize
+			// opposite the direction of travel, keeping all positions conflict-free.
+			for (int i = 0; i < postCount; i++) {
+			    if (selectedPins.contains(i) || chip.pins[i].busZ > 0) continue;
+			    if (dragStartSideArr[i] != dragStartSide) continue;
+			    int origPos = dragStartPosArr[i];
+			    int newPos;
+			    if (delta >= 0)
+				newPos = (origPos >= dragStartPos + maxOff + 1 && origPos <= anchor + maxOff)
+					? origPos - groupSize : origPos;
+			    else
+				newPos = (origPos >= anchor + minOff && origPos <= dragStartPos + minOff - 1)
+					? origPos + groupSize : origPos;
+			    if (newPos != origPos) {
+				ExtListEntry pj = model.extList.get(i);
+				pj.pos = newPos;
+				for (int j = 0; j < postCount; j++) {
+				    ExtListEntry pjj = model.extList.get(j);
+				    if (pjj.name.equals(pj.name) && pjj.busWidth == pj.busWidth)
+					pjj.pos = newPos;
+				}
+			    }
+			}
+		    } else {
+			// Cross-side or non-contiguous: displace only pins at the group's landing slots,
+			// pushing them opposite to the direction of travel.
+			HashSet<Integer> groupPos = new HashSet<Integer>();
+			for (int idx : selectedPins) {
+			    if (dragStartSideArr[idx] != dragStartSide) continue;
+			    groupPos.add(anchor + dragStartPosArr[idx] - dragStartPos);
+			}
+			Vector<Integer> displaced = new Vector<Integer>();
+			for (int i = 0; i < postCount; i++) {
+			    if (selectedPins.contains(i) || chip.pins[i].busZ > 0) continue;
+			    if (dragStartSideArr[i] != newSide) continue;
+			    if (groupPos.contains(dragStartPosArr[i])) displaced.add(i);
+			}
+			HashSet<Integer> taken = new HashSet<Integer>();
+			for (int i = 0; i < postCount; i++) {
+			    if (selectedPins.contains(i) || chip.pins[i].busZ > 0) continue;
+			    if (dragStartSideArr[i] == newSide && !groupPos.contains(dragStartPosArr[i]))
+				taken.add(dragStartPosArr[i]);
+			}
+			Vector<Integer> available = new Vector<Integer>();
+			for (int slot = 0; slot <= maxNewPos; slot++)
+			    if (!groupPos.contains(slot) && !taken.contains(slot)) available.add(slot);
+			Collections.sort(displaced, new Comparator<Integer>() {
+			    public int compare(Integer a, Integer b) { return dragStartPosArr[a] - dragStartPosArr[b]; }
+			});
+			Collections.sort(available);
+			Vector<Integer> slots = new Vector<Integer>();
+			if (delta >= 0) {
+			    for (int k = available.size()-1; k >= 0 && slots.size() < displaced.size(); k--)
+				if (available.get(k) < anchor) slots.add(available.get(k));
+			    for (int k = 0; k < available.size() && slots.size() < displaced.size(); k++)
+				if (available.get(k) > anchor + maxOff) slots.add(available.get(k));
+			} else {
+			    for (int k = 0; k < available.size() && slots.size() < displaced.size(); k++)
+				if (available.get(k) > anchor + maxOff) slots.add(available.get(k));
+			    for (int k = available.size()-1; k >= 0 && slots.size() < displaced.size(); k--)
+				if (available.get(k) < anchor) slots.add(available.get(k));
+			}
+			Collections.sort(slots);
+			for (int k = 0; k < displaced.size() && k < slots.size(); k++) {
+			    int newPos = slots.get(k);
+			    ExtListEntry pj = model.extList.get(displaced.get(k));
+			    pj.pos = newPos;
+			    for (int j = 0; j < postCount; j++) {
+				ExtListEntry pjj = model.extList.get(j);
+				if (pjj.name.equals(pj.name) && pjj.busWidth == pj.busWidth)
+				    pjj.pos = newPos;
+			    }
 			}
 		    }
-		}
-		// move all entries in selected pin's bus group
-		p.pos  = pos[0];
-		p.side = pos[1];
-		for (int j = 0; j < postCount; j++) {
-		    ExtListEntry pj = model.extList.get(j);
-		    if (j != selectedPin && pj.name.equals(p.name) && pj.busWidth == p.busWidth) {
-			pj.pos = pos[0];
-			pj.side = pos[1];
+		    // Move selected pins to their new positions
+		    for (int idx : selectedPins) {
+			if (dragStartSideArr[idx] != dragStartSide) continue;
+			int newPos = anchor + dragStartPosArr[idx] - dragStartPos;
+			ExtListEntry pj = model.extList.get(idx);
+			pj.pos = newPos;  pj.side = newSide;
+			for (int j = 0; j < postCount; j++) {
+			    ExtListEntry pjj = model.extList.get(j);
+			    if (pjj.name.equals(pj.name) && pjj.busWidth == pj.busWidth) {
+				pjj.pos = newPos;  pjj.side = newSide;
+			    }
+			}
 		    }
 		}
 		createPinsFromModel();
 		drawChip();
 	    } else {
-		int i;
-		double bestdist = 20;
-		selectedPin = -1;
-		for (i = 0; i != postCount; i++) {
-		    Pin p = chip.pins[i];
-		    // only consider first pin of each bus group for selection
-		    if (p.busZ > 0)
-			continue;
-		    int dx = (int)(x*scale) - p.textloc.x;
-		    int dy = (int)(y*scale) - p.textloc.y;
-		    double dist = Math.hypot(dx, dy);
-		    if (dist < bestdist) {
-			bestdist = dist;
-			selectedPin = i;
-		    }
-		    p.selected = false;
-		}
-		if (selectedPin >= 0)
-		    chip.pins[selectedPin].selected = true;
+		// hover: highlight nearest pin without disturbing selectedPins
+		int hoveredPin = findNearestPin(x, y);
+		for (int i = 0; i != postCount; i++)
+		    chip.pins[i].selected = selectedPins.contains(i) || i == hoveredPin;
 		drawChip();
 	    }
 	}
 
 	public void onMouseDown(MouseDownEvent event) {
-	    mouseMoved(event.getX(), event.getY());
+	    int x = event.getX(), y = event.getY();
+	    int hoveredPin = findNearestPin(x, y);
+
+	    if (hoveredPin < 0) {
+		// empty space: start rubber-band selection
+		if (!event.isShiftKeyDown())
+		    selectedPins.clear();
+		rubberBand = true;
+		rubberBandX1 = rubberBandX2 = x;
+		rubberBandY1 = rubberBandY2 = y;
+		updatePinHighlight();
+		drawChip();
+		return;
+	    }
+
+	    rubberBand = false;
+	    if (event.isShiftKeyDown()) {
+		if (selectedPins.contains(hoveredPin)) {
+		    selectedPins.remove(hoveredPin);
+		} else {
+		    int hSide = model.extList.get(hoveredPin).side;
+		    boolean ok = selectedPins.isEmpty();
+		    if (!ok) ok = (model.extList.get(selectedPins.iterator().next()).side == hSide);
+		    if (ok) selectedPins.add(hoveredPin);
+		}
+	    } else {
+		// keep existing multi-selection if clicking one of the selected pins
+		if (!selectedPins.contains(hoveredPin)) {
+		    selectedPins.clear();
+		    selectedPins.add(hoveredPin);
+		}
+	    }
+	    selectedPin = hoveredPin;
+
+	    // record per-pin drag-start positions for delta computation
+	    dragStartPosArr  = new int[postCount];
+	    dragStartSideArr = new int[postCount];
+	    for (int i = 0; i < postCount; i++) {
+		ExtListEntry pe = model.extList.get(i);
+		dragStartPosArr[i]  = pe.pos;
+		dragStartSideArr[i] = pe.side;
+	    }
+	    ExtListEntry sp = model.extList.get(selectedPin);
+	    dragStartPos  = sp.pos;
+	    dragStartSide = dragCurrentSide = sp.side;
+
+	    updatePinHighlight();
 	    dragging = true;
+	    drawChip();
 	}
 
 	public void show() {
