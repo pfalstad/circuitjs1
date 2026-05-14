@@ -402,7 +402,7 @@ labelledGridManager gridLabels;
 		trigFreeRunButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
 			if (e.getValue()) {
-			    scope.setTriggerMode(Scope.TRIGGER_FREERUN);
+			    scope.setTriggerMode(ScopeTrigger.TRIGGER_FREERUN);
 			    updateUi();
 			}
 		    }
@@ -411,7 +411,7 @@ labelledGridManager gridLabels;
 		trigNormalButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
 			if (e.getValue()) {
-			    scope.setTriggerMode(Scope.TRIGGER_NORMAL);
+			    scope.setTriggerMode(ScopeTrigger.TRIGGER_NORMAL);
 			    updateUi();
 			}
 		    }
@@ -420,7 +420,7 @@ labelledGridManager gridLabels;
 		trigAutoButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
 			if (e.getValue()) {
-			    scope.setTriggerMode(Scope.TRIGGER_AUTO);
+			    scope.setTriggerMode(ScopeTrigger.TRIGGER_AUTO);
 			    updateUi();
 			}
 		    }
@@ -435,7 +435,7 @@ labelledGridManager gridLabels;
 		trigRisingButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
 			if (e.getValue()) {
-			    scope.triggerEdge = Scope.TRIGGER_EDGE_RISING;
+			    scope.trigger.edge = ScopeTrigger.TRIGGER_EDGE_RISING;
 			    scope.resetGraph();
 			}
 		    }
@@ -444,7 +444,7 @@ labelledGridManager gridLabels;
 		trigFallingButton.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
 		    public void onValueChange(ValueChangeEvent<Boolean> e) {
 			if (e.getValue()) {
-			    scope.triggerEdge = Scope.TRIGGER_EDGE_FALLING;
+			    scope.trigger.edge = ScopeTrigger.TRIGGER_EDGE_FALLING;
 			    scope.resetGraph();
 			}
 		    }
@@ -700,15 +700,15 @@ labelledGridManager gridLabels;
 	    
 
 	    // Trigger section
-	    trigFreeRunButton.setValue(scope.triggerMode == Scope.TRIGGER_FREERUN);
-	    trigNormalButton.setValue(scope.triggerMode == Scope.TRIGGER_NORMAL);
-	    trigAutoButton.setValue(scope.triggerMode == Scope.TRIGGER_AUTO);
-	    boolean trigActive = scope.triggerMode != Scope.TRIGGER_FREERUN;
-	    trigRisingButton.setValue(scope.triggerEdge == Scope.TRIGGER_EDGE_RISING);
-	    trigFallingButton.setValue(scope.triggerEdge == Scope.TRIGGER_EDGE_FALLING);
+	    trigFreeRunButton.setValue(scope.trigger.mode == ScopeTrigger.TRIGGER_FREERUN);
+	    trigNormalButton.setValue(scope.trigger.mode == ScopeTrigger.TRIGGER_NORMAL);
+	    trigAutoButton.setValue(scope.trigger.mode == ScopeTrigger.TRIGGER_AUTO);
+	    boolean trigActive = scope.trigger.isActive();
+	    trigRisingButton.setValue(scope.trigger.edge == ScopeTrigger.TRIGGER_EDGE_RISING);
+	    trigFallingButton.setValue(scope.trigger.edge == ScopeTrigger.TRIGGER_EDGE_FALLING);
 	    trigRisingButton.setEnabled(trigActive);
 	    trigFallingButton.setEnabled(trigActive);
-	    triggerLevelTextBox.setText(EditDialog.unitString(null, scope.triggerLevel));
+	    triggerLevelTextBox.setText(EditDialog.unitString(null, scope.trigger.level));
 	    triggerLevelTextBox.setEnabled(trigActive);
 	    // Show/hide trigger details based on section expansion
 	    trigModep.setVisible(triggerLabel.expanded);
@@ -825,7 +825,7 @@ labelledGridManager gridLabels;
 	void applyTriggerLevel() {
 	    try {
 		double d = EditDialog.parseUnits(triggerLevelTextBox.getText());
-		scope.triggerLevel = d;
+		scope.trigger.level = d;
 		scope.resetGraph();
 	    } catch (Exception e) {
 	    }
