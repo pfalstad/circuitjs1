@@ -19,18 +19,20 @@ class ScopePlot2d {
 	this.scope = scope;
 	scaleX = 5;
 	scaleY = .1;
-	imageCanvas = Canvas.createIfSupported();
-	imageContext = imageCanvas.getContext2d();
     }
 
     void allocImage() {
-	if (imageCanvas != null) {
-	    imageCanvas.setWidth(scope.rect.width + "PX");
-	    imageCanvas.setHeight(scope.rect.height + "PX");
-	    imageCanvas.setCoordinateSpaceWidth(scope.rect.width);
-	    imageCanvas.setCoordinateSpaceHeight(scope.rect.height);
-	    clearView();
+	if (!enabled)
+	    return;
+	if (imageCanvas == null) {
+	    imageCanvas = Canvas.createIfSupported();
+	    imageContext = imageCanvas.getContext2d();
 	}
+	imageCanvas.setWidth(scope.rect.width + "PX");
+	imageCanvas.setHeight(scope.rect.height + "PX");
+	imageCanvas.setCoordinateSpaceWidth(scope.rect.width);
+	imageCanvas.setCoordinateSpaceHeight(scope.rect.height);
+	clearView();
     }
 
     void clearView() {
