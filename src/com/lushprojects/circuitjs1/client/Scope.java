@@ -963,52 +963,40 @@ class Scope {
     void calcMaxAndMin(int units) {
 	maxValue = -1e8;
 	minValue = 1e8;
-    	int i;
-    	int si;
-    	for (si = 0; si != visiblePlots.size(); si++) {
-    	    ScopePlot plot = visiblePlots.get(si);
-    	    if (plot.units != units)
-    		continue;
-    	    int ipa = displayStartIndex(plot, rect.width);
-    	    int validCount = validDataCount(plot, ipa, rect.width);
-    	    double maxV[] = plot.maxValues;
-    	    double minV[] = plot.minValues;
-    	    for (i = 0; i != validCount; i++) {
-    		int ip = (i+ipa) & (scopePointCount-1);
-    		if (maxV[ip] > maxValue)
-    		    maxValue = maxV[ip];
-    		if (minV[ip] < minValue)
-    		    minValue = minV[ip];
-    	    }
-        }
+	for (ScopePlot plot : visiblePlots) {
+	    if (plot.units != units)
+		continue;
+	    ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	    for (int i : sdi) {
+		if (sdi.getMax() > maxValue)
+		    maxValue = sdi.getMax();
+		if (sdi.getMin() < minValue)
+		    minValue = sdi.getMin();
+	    }
+	}
     }
     
     // adjust scale of a plot
     void calcPlotScale(ScopePlot plot) {
 	if (manualScale)
 	    return;
-    	int i;
-    	int ipa = displayStartIndex(plot, rect.width);
-    	int validCount = validDataCount(plot, ipa, rect.width);
-    	double maxV[] = plot.maxValues;
-    	double minV[] = plot.minValues;
-    	double max = 0;
-    	double gridMax = scale[plot.units];
-    	for (i = 0; i != validCount; i++) {
-    	    int ip = (i+ipa) & (scopePointCount-1);
-    	    if (maxV[ip] > max)
-    		max = maxV[ip];
-    	    if (minV[ip] < -max)
-    		max = -minV[ip];
-    	}
-    	// scale fixed at maximum?
-    	if (maxScale)
-    	    gridMax = Math.max(max, gridMax);
-    	else
-    	    // adjust in powers of two
-    	    while (max > gridMax)
-    		gridMax *= 2;
-    	scale[plot.units] = gridMax;
+	double max = 0;
+	double gridMax = scale[plot.units];
+	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	for (int i : sdi) {
+	    if (sdi.getMax() > max)
+		max = sdi.getMax();
+	    if (sdi.getMin() < -max)
+		max = -sdi.getMin();
+	}
+	// scale fixed at maximum?
+	if (maxScale)
+	    gridMax = Math.max(max, gridMax);
+	else
+	    // adjust in powers of two
+	    while (max > gridMax)
+		gridMax *= 2;
+	scale[plot.units] = gridMax;
     }
     
     double calcGridStepX() {
@@ -1389,65 +1377,15 @@ class Scope {
 	    return;
 	}
 	ScopePlot plot = visiblePlots.firstElement();
-	int i;
-	double avg = 0;
-    	int ipa = displayStartIndex(plot, rect.width);
-    	int validCount = validDataCount(plot, ipa, rect.width);
-    	double maxV[] = plot.maxValues;
-    	double minV[] = plot.minValues;
-    	double mid = (maxValue+minValue)/2;
-	int state = -1;
-
-	// skip zeroes
-	for (i = 0; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    if (maxV[ip] != 0) {
-		if (maxV[ip] > mid)
-		    state = 1;
-		break;
-	    }
-	}
-	int firstState = -state;
-	int start = i;
-	int end = 0;
-	int waveCount = 0;
-	double endAvg = 0;
-	for (; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    boolean sw = false;
-
-	    // switching polarity?
-	    if (state == 1) {
-		if (maxV[ip] < mid)
-		    sw = true;
-	    } else if (minV[ip] > mid)
-		sw = true;
-
-	    if (sw) {
-		state = -state;
-
-		// completed a full cycle?
-		if (firstState == state) {
-		    if (waveCount == 0) {
-			start = i;
-			firstState = state;
-			avg = 0;
-		    }
-		    waveCount++;
-		    end = i;
-		    endAvg = avg;
-		}
-	    }
-	    if (waveCount > 0) {
-		double m = (maxV[ip]+minV[ip])*.5;
-		avg += m*m;
-	    }
-	}
-	double rms;
-	if (waveCount > 1) {
-	    rms = Math.sqrt(endAvg/(end-start));
-	    drawInfoText(g, plot.getUnitText(rms) + "rms");
-	}
+	double mid = (maxValue+minValue)/2;
+	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	double[] avg = {0}, endAvg = {0};
+	int span = iterateCycles(sdi, mid,
+	    () -> avg[0] = 0,
+	    () -> { double m = (sdi.getMax()+sdi.getMin())*.5; avg[0] += m*m; },
+	    () -> endAvg[0] = avg[0]);
+	if (span > 0)
+	    drawInfoText(g, plot.getUnitText(Math.sqrt(endAvg[0]/span)) + "rms");
     }
 
     void drawScale(ScopePlot plot, Graphics g) {
@@ -1490,125 +1428,63 @@ class Scope {
 	
     }
     
-    void drawAverage(Graphics g) {
-	ScopePlot plot = visiblePlots.firstElement();
-	int i;
-	double avg = 0;
-    	int ipa = displayStartIndex(plot, rect.width);
-    	int validCount = validDataCount(plot, ipa, rect.width);
-    	double maxV[] = plot.maxValues;
-    	double minV[] = plot.minValues;
-    	double mid = (maxValue+minValue)/2;
-	int state = -1;
-	
-	// skip zeroes
-	for (i = 0; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    if (maxV[ip] != 0) {
-		if (maxV[ip] > mid)
-		    state = 1;
-		break;
-	    }
-	}
-	int firstState = -state;
-	int start = i;
-	int end = 0;
+    // shared cycle-detection loop for drawAverage, drawRMS, drawDutyCycle.
+    // calls onCycleStart at first rising edge, onSample each sample thereafter,
+    // onCycleEnd at each subsequent rising edge.  returns end-start span, or 0.
+    int iterateCycles(ScopeDataIterator sdi, double mid,
+		      Runnable onCycleStart, Runnable onSample, Runnable onCycleEnd) {
+	double fnz = sdi.skipNonzeroValues();
+	int state = (fnz > mid) ? 1 : -1;
 	int waveCount = 0;
-	double endAvg = 0;
-	for (; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
+	int start = 0, end = 0;
+	for (int i : sdi) {
 	    boolean sw = false;
-	    
-	    // switching polarity?
 	    if (state == 1) {
-		if (maxV[ip] < mid)
-		    sw = true;
-	    } else if (minV[ip] > mid)
-		sw = true;
-	    
+		if (sdi.getMax() < mid) sw = true;
+	    } else if (sdi.getMin() > mid) sw = true;
 	    if (sw) {
 		state = -state;
-		
-		// completed a full cycle?
-		if (firstState == state) {
+		if (state == 1) {
 		    if (waveCount == 0) {
 			start = i;
-			firstState = state;
-			avg = 0;
+			onCycleStart.run();
+		    } else {
+			end = i;
+			onCycleEnd.run();
 		    }
 		    waveCount++;
-		    end = i;
-		    endAvg = avg;
 		}
 	    }
-	    if (waveCount > 0) {
-		double m = (maxV[ip]+minV[ip])*.5;
-		avg += m;
-	    }
+	    if (waveCount > 0)
+		onSample.run();
 	}
-	if (waveCount > 1) {
-	    avg = (endAvg/(end-start));
-	    drawInfoText(g, plot.getUnitText(avg) + Locale.LS(" average"));
-	}
+	return end - start;
+    }
+
+    void drawAverage(Graphics g) {
+	ScopePlot plot = visiblePlots.firstElement();
+	double mid = (maxValue+minValue)/2;
+	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	double[] avg = {0}, endAvg = {0};
+	int span = iterateCycles(sdi, mid,
+	    () -> avg[0] = 0,
+	    () -> avg[0] += (sdi.getMax()+sdi.getMin())*.5,
+	    () -> endAvg[0] = avg[0]);
+	if (span > 0)
+	    drawInfoText(g, plot.getUnitText(endAvg[0]/span) + Locale.LS(" average"));
     }
 
     void drawDutyCycle(Graphics g) {
 	ScopePlot plot = visiblePlots.firstElement();
-	int i;
-    	int ipa = displayStartIndex(plot, rect.width);
-    	int validCount = validDataCount(plot, ipa, rect.width);
-    	double maxV[] = plot.maxValues;
-    	double minV[] = plot.minValues;
-    	double mid = (maxValue+minValue)/2;
-	int state = -1;
-	
-	// skip zeroes
-	for (i = 0; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    if (maxV[ip] != 0) {
-		if (maxV[ip] > mid)
-		    state = 1;
-		break;
-	    }
-	}
-	int firstState = 1;
-	int start = i;
-	int end = 0;
-	int waveCount = 0;
-	int dutyLen = 0;
-	int middle = 0;
-	for (; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    boolean sw = false;
-	    
-	    // switching polarity?
-	    if (state == 1) {
-		if (maxV[ip] < mid)
-		    sw = true;
-	    } else if (minV[ip] > mid)
-		sw = true;
-	    
-	    if (sw) {
-		state = -state;
-		
-		// completed a full cycle?
-		if (firstState == state) {
-		    if (waveCount == 0) {
-			start = end = i;
-		    } else {
-			end = start;
-			start = i;
-			dutyLen = end-middle;
-		    }
-		    waveCount++;
-		} else
-		    middle = i;
-	    }
-	}
-	if (waveCount > 1) {
-	    int duty = 100*dutyLen/(end-start);
-	    drawInfoText(g, Locale.LS("Duty cycle ") + duty + "%");
-	}
+	double mid = (maxValue+minValue)/2;
+	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	int[] dutyLen = {0}, prevDuty = {0};
+	int span = iterateCycles(sdi, mid,
+	    () -> dutyLen[0] = 0,
+	    () -> { if (sdi.getMax() > mid) dutyLen[0]++; },
+	    () -> prevDuty[0] = dutyLen[0]);
+	if (span > 0)
+	    drawInfoText(g, Locale.LS("Duty cycle ") + 100*prevDuty[0]/span + "%");
     }
 
     // calc frequency if possible and display it
@@ -1616,17 +1492,11 @@ class Scope {
 	// try to get frequency
 	// get average
 	double avg = 0;
-	int i;
 	ScopePlot plot = visiblePlots.firstElement();
-    	int ipa = displayStartIndex(plot, rect.width);
-    	int validCount = validDataCount(plot, ipa, rect.width);
-    	double minV[] = plot.minValues;
-    	double maxV[] = plot.maxValues;
-	for (i = 0; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    avg += minV[ip]+maxV[ip];
-	}
-	avg /= i*2;
+	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	for (int i : sdi)
+	    avg += sdi.getMin()+sdi.getMax();
+	avg /= sdi.validCount*2;
 	int state = 0;
 	double thresh = avg*.05;
 	int oi = 0;
@@ -1634,9 +1504,8 @@ class Scope {
 	int periodct = -1;
 	double avperiod2 = 0;
 	// count period lengths
-	for (i = 0; i != validCount; i++) {
-	    int ip = (i+ipa) & (scopePointCount-1);
-	    double q = maxV[ip]-avg;
+	for (int i : sdi) {
+	    double q = sdi.getMax()-avg;
 	    int os = state;
 	    if (q < thresh)
 		state = 1;
@@ -2408,5 +2277,42 @@ class Scope {
 	    return Integer.parseInt(s.substring(1), 16);
 	else
 	    return Integer.parseInt(s);
+    }
+
+    class ScopeDataIterator implements Iterable<Integer> {
+	ScopePlot plot;
+	int ipa, validCount;
+	int currentIp;
+	int startIndex;
+
+	ScopeDataIterator(ScopePlot plot) {
+	    this.plot = plot;
+	    ipa = displayStartIndex(plot, rect.width);
+	    validCount = validDataCount(plot, ipa, rect.width);
+	}
+
+	double skipNonzeroValues() {
+	    for (; startIndex < validCount; startIndex++) {
+		int ip = (startIndex + ipa) & (scopePointCount - 1);
+		if (plot.maxValues[ip] != 0)
+		    return plot.maxValues[ip];
+	    }
+	    return 0;
+	}
+
+	double getMin() { return plot.minValues[currentIp]; }
+	double getMax() { return plot.maxValues[currentIp]; }
+
+	public java.util.Iterator<Integer> iterator() {
+	    return new java.util.Iterator<Integer>() {
+		int i = startIndex;
+		public boolean hasNext() { return i < validCount; }
+		public Integer next() {
+		    currentIp = (i + ipa) & (scopePointCount - 1);
+		    return i++;
+		}
+		public void remove() {}
+	    };
+	}
     }
 }
