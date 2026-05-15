@@ -966,7 +966,7 @@ class Scope {
 	for (ScopePlot plot : visiblePlots) {
 	    if (plot.units != units)
 		continue;
-	    ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	    ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	    for (int i : sdi) {
 		if (sdi.getMax() > maxValue)
 		    maxValue = sdi.getMax();
@@ -982,7 +982,7 @@ class Scope {
 	    return;
 	double max = 0;
 	double gridMax = scale[plot.units];
-	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	for (int i : sdi) {
 	    if (sdi.getMax() > max)
 		max = sdi.getMax();
@@ -1378,7 +1378,7 @@ class Scope {
 	}
 	ScopePlot plot = visiblePlots.firstElement();
 	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	double[] avg = {0}, endAvg = {0};
 	int span = iterateCycles(sdi, mid,
 	    () -> avg[0] = 0,
@@ -1464,7 +1464,7 @@ class Scope {
     void drawAverage(Graphics g) {
 	ScopePlot plot = visiblePlots.firstElement();
 	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	double[] avg = {0}, endAvg = {0};
 	int span = iterateCycles(sdi, mid,
 	    () -> avg[0] = 0,
@@ -1477,7 +1477,7 @@ class Scope {
     void drawDutyCycle(Graphics g) {
 	ScopePlot plot = visiblePlots.firstElement();
 	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	int[] dutyLen = {0}, prevDuty = {0};
 	int span = iterateCycles(sdi, mid,
 	    () -> dutyLen[0] = 0,
@@ -1493,7 +1493,7 @@ class Scope {
 	// get average
 	double avg = 0;
 	ScopePlot plot = visiblePlots.firstElement();
-	ScopeDataIterator sdi = new ScopeDataIterator(plot);
+	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
 	for (int i : sdi)
 	    avg += sdi.getMin()+sdi.getMax();
 	avg /= sdi.validCount*2;
@@ -2279,40 +2279,4 @@ class Scope {
 	    return Integer.parseInt(s);
     }
 
-    class ScopeDataIterator implements Iterable<Integer> {
-	ScopePlot plot;
-	int ipa, validCount;
-	int currentIp;
-	int startIndex;
-
-	ScopeDataIterator(ScopePlot plot) {
-	    this.plot = plot;
-	    ipa = displayStartIndex(plot, rect.width);
-	    validCount = validDataCount(plot, ipa, rect.width);
-	}
-
-	double skipNonzeroValues() {
-	    for (; startIndex < validCount; startIndex++) {
-		int ip = (startIndex + ipa) & (scopePointCount - 1);
-		if (plot.maxValues[ip] != 0)
-		    return plot.maxValues[ip];
-	    }
-	    return 0;
-	}
-
-	double getMin() { return plot.minValues[currentIp]; }
-	double getMax() { return plot.maxValues[currentIp]; }
-
-	public java.util.Iterator<Integer> iterator() {
-	    return new java.util.Iterator<Integer>() {
-		int i = startIndex;
-		public boolean hasNext() { return i < validCount; }
-		public Integer next() {
-		    currentIp = (i + ipa) & (scopePointCount - 1);
-		    return i++;
-		}
-		public void remove() {}
-	    };
-	}
-    }
 }
