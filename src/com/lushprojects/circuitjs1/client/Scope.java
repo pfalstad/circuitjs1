@@ -20,7 +20,6 @@
 package com.lushprojects.circuitjs1.client;
 
 import com.google.gwt.event.dom.client.MouseWheelEvent;
-import com.google.gwt.storage.client.Storage;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 import com.lushprojects.circuitjs1.client.util.Locale;
@@ -29,17 +28,6 @@ import java.util.Vector;
 
 
 class Scope {
-    final int FLAG_YELM = 32;
-    
-    // bunch of other flags go here, see getFlags()
-    final int FLAG_IVALUE = 2048; // Flag to indicate if IVALUE is included in dump
-    final int FLAG_PLOTS = 4096; // new-style dump with multiple plots
-    final int FLAG_PERPLOTFLAGS = 1<<18; // new-new style dump with plot flags
-    final int FLAG_PERPLOT_MAN_SCALE = 1<<19; // new-new style dump with manual included in each plot
-    final int FLAG_MAN_SCALE = 16;
-    final int FLAG_DIVISIONS = 1<<21; // dump manDivisions
-    final int FLAG_TRIGGER = 1<<24; // trigger mode settings present
-    // other flags go here too, see getFlags()
     // also bit positions 25, 26, 27 should not be used because they might be set by old trigger mode code
 
     static final int VAL_POWER = 7;
@@ -70,11 +58,12 @@ class Scope {
     int stackCount; // number of scopes in this column
     String text;
     Rectangle rect;
-    private boolean manualScale;
+    boolean manualScale;
     boolean showI, showV, showScale, showMax, showMin, showP2P, showFreq;
     ScopePlot2d plot2d;
     ScopeFFT fftPlot;
     ScopeOverlays overlays;
+    ScopeSerializer serializer;
     boolean maxScale;
 
     boolean showNegative, showRMS, showAverage, showDutyCycle, showElmInfo;
@@ -115,6 +104,7 @@ class Scope {
 	plot2d = new ScopePlot2d(this);
 	fftPlot = new ScopeFFT(this);
 	overlays = new ScopeOverlays(this);
+	serializer = new ScopeSerializer(this);
     	initialize();
     }
     
@@ -269,7 +259,7 @@ class Scope {
     	showV = showI = false;
     	showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     	fftPlot.enabled = false;
-    	if (!loadDefaults()) {
+    	if (!serializer.loadDefaults()) {
     	    // set showV and showI appropriately depending on what plots are present
     	    int i;
     	    for (i = 0; i != plots.size(); i++) {
@@ -461,7 +451,7 @@ class Scope {
 	    s.position = pos;
 	    arr[pos++] = s;
 	    lastPlot = sp;
-	    s.setFlags(getFlags());
+	    s.serializer.setFlags(serializer.getFlags());
 	    s.setSpeed(speed);
 	}
 	return pos;
@@ -749,170 +739,151 @@ class Scope {
 	return ((double)(manDivisions)/2+0.05)*plot.manScale;
     }
     
+    // Compute grid display parameters for a plot. Sets plot.plotOffset, plot.gridMult,
+    // and this.gridStepY as side-effects; returns gridMid for use by callers.
+    double calcGridParams(ScopePlot plot, boolean allPlotsSameUnits) {
+	int maxy = (rect.height-1)/2;
+	double gridMid, positionOffset, gridMax;
+	if (!isManualScale()) {
+	    gridMax = scale[plot.units];
+	    gridMid = 0;
+	    positionOffset = 0;
+	    if (allPlotsSameUnits) {
+		// if we don't have overlapping scopes of different units, we can move zero around.
+		// Put it at the bottom if the scope is never negative.
+		double mx = gridMax;
+		double mn = 0;
+		if (maxScale) {
+		    // scale is maxed out, so fix boundaries of scope at maximum and minimum.
+		    mx = maxValue;
+		    mn = minValue;
+		} else if (showNegative || minValue < (mx+mn)*.5 - (mx-mn)*.55) {
+		    mn = -gridMax;
+		    showNegative = true;
+		}
+		gridMid = (mx+mn)*.5;
+		gridMax = (mx-mn)*.55;  // leave space at top and bottom
+	    }
+	    gridStepY = 1e-8;
+	    int multptr = 0;
+	    while (gridStepY < 20*gridMax/maxy)
+		gridStepY *= multa[(multptr++)%3];
+	} else {
+	    gridMid = 0;
+	    gridMax = getGridMaxFromManScale(plot);
+	    positionOffset = gridMax*2.0*(double)(plot.manVPosition)/(double)(V_POSITION_STEPS);
+	    gridStepY = plot.manScale;
+	}
+	plot.plotOffset = -gridMid + positionOffset;
+	plot.gridMult = maxy / gridMax;
+	return gridMid;
+    }
+
+    void drawHVGridLines(Graphics g, ScopePlot plot, double gridMid, boolean allPlotsSameUnits, boolean allSelected) {
+	int maxy = (rect.height-1)/2;
+	String minorDiv = "#404040";
+	String majorDiv = "#A0A0A0";
+	if (app.isPrintable()) {
+	    minorDiv = "#D0D0D0";
+	    majorDiv = "#808080";
+	    curColor = "#A0A000";
+	}
+	if (allSelected)
+	    majorDiv = CircuitElm.selectColor.getHexValue();
+	boolean highlightCenter = !isManualScale();
+
+	// horizontal gridlines; only show non-center lines if units are unambiguous
+	boolean showHGridLines = (gridStepY != 0) && (isManualScale() || allPlotsSameUnits);
+	for (int ll = -100; ll <= 100; ll++) {
+	    if (ll != 0 && !showHGridLines)
+		continue;
+	    int yl = maxy-(int)((ll*gridStepY-gridMid)*plot.gridMult);
+	    if (yl < 0 || yl >= rect.height-1)
+		continue;
+	    g.setColor(ll == 0 && highlightCenter ? majorDiv : minorDiv);
+	    g.drawLine(0, yl, rect.width-1, yl);
+	}
+
+	// vertical (time) gridlines
+	double ts = sim.maxTimeStep*speed;
+	double tRight = isTriggered() ? trigger.time + ts*rect.width/2 : sim.t;
+	double tstart = tRight - ts*rect.width;
+	double tx = tRight - (tRight % gridStepX);
+	for (int ll = 0; ; ll++) {
+	    double tl = tx - gridStepX*ll;
+	    int gx = (int)((tl-tstart)/ts);
+	    if (gx < 0)
+		break;
+	    if (gx >= rect.width || tl < 0)
+		continue;
+	    g.setColor(((tl+gridStepX/4) % (gridStepX*10)) < gridStepX ? majorDiv : minorDiv);
+	    g.drawLine(gx, 0, gx, rect.height-1);
+	}
+    }
+
     void drawPlot(Graphics g, ScopePlot plot, boolean allPlotsSameUnits, boolean selected, boolean allSelected) {
 	if (plot.elm == null)
 	    return;
-    	int i;
-    	String col;
-    	
-    	double gridMid, positionOffset;
-    	int multptr=0;
-    	int x = 0;
-    	final int maxy = (rect.height-1)/2;
+	final int maxy = (rect.height-1)/2;
 
-    	String color = (somethingSelected) ? "#A0A0A0" : plot.color;
-	if (allSelected || (app.scopeManager.scopeSelected == -1  && getSingleElm() == null && plot.elm.isMouseElm()))
-    	    color = CircuitElm.selectColor.getHexValue();
+	String color = (somethingSelected) ? "#A0A0A0" : plot.color;
+	if (allSelected || (app.scopeManager.scopeSelected == -1 && getSingleElm() == null && plot.elm.isMouseElm()))
+	    color = CircuitElm.selectColor.getHexValue();
 	else if (selected)
 	    color = plot.color;
-    	int ipa = displayStartIndex(plot, rect.width);
-    	double maxV[] = plot.maxValues;
-    	double minV[] = plot.minValues;
-    	double gridMax;
-    	
-    	
-    	// Calculate the max value (positive) to show and the value at the mid point of the grid
-    	if (!isManualScale()) {
-    	    	gridMax = scale[plot.units];
-    	    	gridMid = 0;
-    	    	positionOffset = 0;
-        	if (allPlotsSameUnits) {
-        	    // if we don't have overlapping scopes of different units, we can move zero around.
-        	    // Put it at the bottom if the scope is never negative.
-        	    double mx = gridMax;
-        	    double mn = 0;
-        	    if (maxScale) {
-        		// scale is maxed out, so fix boundaries of scope at maximum and minimum. 
-        		mx = maxValue;
-        		mn = minValue;
-        	    } else if (showNegative || minValue < (mx+mn)*.5 - (mx-mn)*.55) {
-        		mn = -gridMax;
-        		showNegative = true;
-        	    }
-        	    gridMid = (mx+mn)*.5;
-        	    gridMax = (mx-mn)*.55;  // leave space at top and bottom
-        	}
-    	} else {
-    	    gridMid =0;
-    	    gridMax = getGridMaxFromManScale(plot);
-    	    positionOffset = gridMax*2.0*(double)(plot.manVPosition)/(double)(V_POSITION_STEPS);
-    	}
-    	plot.plotOffset = -gridMid+positionOffset;
-    	
-    	plot.gridMult = maxy/gridMax;
-    	
-    	int minRangeLo = -10-(int) (gridMid*plot.gridMult);
-    	int minRangeHi =  10-(int) (gridMid*plot.gridMult);
-    	if (!isManualScale()) {
-    	    gridStepY = 1e-8;    	
-        	while (gridStepY < 20*gridMax/maxy) {
-      			gridStepY *=multa[(multptr++)%3];
-        	}
-    	} else {
-    	    gridStepY = plot.manScale;
-    	}
 
-    	String minorDiv = "#404040";
-    	String majorDiv = "#A0A0A0";
-    	if (app.isPrintable()) {
-    	    minorDiv = "#D0D0D0";
-    	    majorDiv = "#808080";
-    	    curColor = "#A0A000";
-    	}
-    	if (allSelected)
-    	    majorDiv = CircuitElm.selectColor.getHexValue();
-    	
-    	// Vertical (T) gridlines
-    	double ts = sim.maxTimeStep*speed;
-    	gridStepX = calcGridStepX();
+	int ipa = displayStartIndex(plot, rect.width);
+	double maxV[] = plot.maxValues;
+	double minV[] = plot.minValues;
 
-    	boolean highlightCenter = !isManualScale();
-    	
-    	if (drawGridLines) {
-    	    // horizontal gridlines
-    	    
-    	    // don't show hgridlines if lines are too close together (except for center line)
-    	    boolean showHGridLines = (gridStepY != 0) && (isManualScale() || allPlotsSameUnits); // Will only show center line if we have mixed units
-    	    for (int ll = -100; ll <= 100; ll++) {
-    		if (ll != 0 && !showHGridLines)
-    		    continue;
-    		int yl = maxy-(int) ((ll*gridStepY-gridMid)*plot.gridMult);
-    		if (yl < 0 || yl >= rect.height-1)
-    		    continue;
-    		col = ll == 0 && highlightCenter ? majorDiv : minorDiv;
-    		g.setColor(col);
-    		g.drawLine(0,yl,rect.width-1,yl);
-    	    }
-    	    
-    	    // vertical gridlines
-    	    double tRight = isTriggered() ? trigger.time + sim.maxTimeStep*speed*rect.width/2 : sim.t;
-    	    double tstart = tRight-sim.maxTimeStep*speed*rect.width;
-    	    double tx = tRight-(tRight % gridStepX);
+	double gridMid = calcGridParams(plot, allPlotsSameUnits);
+	int minRangeLo = -10-(int)(gridMid*plot.gridMult);
+	int minRangeHi =  10-(int)(gridMid*plot.gridMult);
 
-    	    for (int ll = 0; ; ll++) {
-    		double tl = tx-gridStepX*ll;
-    		int gx = (int) ((tl-tstart)/ts);
-    		if (gx < 0)
-    		    break;
-    		if (gx >= rect.width)
-    		    continue;
-    		if (tl < 0)
-    		    continue;
-    		col = minorDiv;
-    		// first = 0;
-    		if (((tl+gridStepX/4) % (gridStepX*10)) < gridStepX) {
-    		    col = majorDiv;
-    		}
-    		g.setColor(col);
-    		g.drawLine(gx,0,gx,rect.height-1);
-    	    }
-    	}
-    	
-    	// only need gridlines drawn once
-    	drawGridLines = false;
+	gridStepX = calcGridStepX();
+	if (drawGridLines)
+	    drawHVGridLines(g, plot, gridMid, allPlotsSameUnits, allSelected);
+	drawGridLines = false;
 
-        g.setColor(color);
-        
-        if (isManualScale()) {
-            // draw zero point
-            int y0= maxy-(int) (plot.gridMult*plot.plotOffset);
-            g.drawLine(0, y0, 8, y0);
-            g.drawString("0", 0, y0-2);
-        }
-        
-        // In triggered mode, only draw up to the current write pointer.
-        // Data beyond that is stale (old circular buffer contents).
-        int drawWidth = validDataCount(plot, ipa, rect.width);
+	g.setColor(color);
+	if (isManualScale()) {
+	    int y0 = maxy-(int)(plot.gridMult*plot.plotOffset);
+	    g.drawLine(0, y0, 8, y0);
+	    g.drawString("0", 0, y0-2);
+	}
 
-        int ox = -1, oy = -1;
-        for (i = 0; i != drawWidth; i++) {
-            int ip = (i+ipa) & (scopePointCount-1);
-            int minvy = (int) (plot.gridMult*(minV[ip]+plot.plotOffset));
-            int maxvy = (int) (plot.gridMult*(maxV[ip]+plot.plotOffset));
-            if (minvy <= maxy) {
-        	if (minvy < minRangeLo || maxvy > minRangeHi) {
-        	    // we got a value outside min range, so we don't need to rescale later
-        	    reduceRange[plot.units] = false;
-        	    minRangeLo = -1000;
-        	    minRangeHi = 1000; // avoid triggering this test again
-        	}
-        	if (ox != -1) {
-        	    if (minvy == oy && maxvy == oy)
-        		continue;
-        	    g.drawLine(ox, maxy-oy, x+i, maxy-oy);
-        	    ox = oy = -1;
-        	}
-        	if (minvy == maxvy) {
-        	    ox = x+i;
-        	    oy = minvy;
-        	    continue;
-        	}
-        	g.drawLine(x+i, maxy-minvy, x+i, maxy-maxvy);
-            }
-        } // for (i=0...)
-        if (ox != -1)
-            g.drawLine(ox, maxy-oy, x+i-1, maxy-oy); // Horizontal
-        
+	// In triggered mode, only draw up to the current write pointer.
+	// Data beyond that is stale (old circular buffer contents).
+	int drawWidth = validDataCount(plot, ipa, rect.width);
+	int ox = -1, oy = -1;
+	int i;
+	for (i = 0; i != drawWidth; i++) {
+	    int ip = (i+ipa) & (scopePointCount-1);
+	    int minvy = (int)(plot.gridMult*(minV[ip]+plot.plotOffset));
+	    int maxvy = (int)(plot.gridMult*(maxV[ip]+plot.plotOffset));
+	    if (minvy <= maxy) {
+		if (minvy < minRangeLo || maxvy > minRangeHi) {
+		    // value outside min range; no need to rescale later
+		    reduceRange[plot.units] = false;
+		    minRangeLo = -1000;
+		    minRangeHi = 1000;
+		}
+		if (ox != -1) {
+		    if (minvy == oy && maxvy == oy)
+			continue;
+		    g.drawLine(ox, maxy-oy, i, maxy-oy);
+		    ox = oy = -1;
+		}
+		if (minvy == maxvy) {
+		    ox = i;
+		    oy = minvy;
+		    continue;
+		}
+		g.drawLine(i, maxy-minvy, i, maxy-maxvy);
+	    }
+	}
+	if (ox != -1)
+	    g.drawLine(ox, maxy-oy, i-1, maxy-oy);
     }
 
     static void clearCursorInfo() {
@@ -1241,289 +1212,10 @@ class Scope {
 	return plot2d.enabled && plots.size() == 2 && plots.get(0).value == VAL_VCE && plots.get(1).value == VAL_IC;
     }
 
-    int getFlags() {
-    	int flags = (showI ? 1 : 0) | (showV ? 2 : 0) |
-			(showMax ? 0 : 4) |   // showMax used to be always on
-			(showFreq ? 8 : 0) |
-			// In this version we always dump manual settings using the PERPLOT format
-			(isManualScale() ? (FLAG_MAN_SCALE | FLAG_PERPLOT_MAN_SCALE): 0) |
-			(plot2d.enabled ? 64 : 0) |
-			(plot2d.plotXY ? 128 : 0) | (showMin ? 256 : 0) | (showScale? 512:0) |
-			(fftPlot.enabled ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
-			(showDutyCycle ? 32768 : 0) | (fftPlot.logSpectrum ? 65536 : 0) |
-			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
-			(showP2P ? (1<<22) : 0) | (fftPlot.showPhaseAngle ? (1<<23) : 0);
-	flags |= FLAG_PLOTS; // 4096
-	int allPlotFlags = 0;
-	for (ScopePlot p : plots) {
-	    allPlotFlags |= p.getPlotFlags();
-	
-	}
-	// If none of our plots has a flag set we will use the old format with no plot flags, or
-	// else we will set FLAG_PLOTFLAGS and include flags in all plots
-	flags |= (allPlotFlags !=0) ? FLAG_PERPLOTFLAGS :0; // (1<<18)
-
-	if (isManualScale())
-	    flags |= FLAG_DIVISIONS;
-	if (trigger.isActive())
-	    flags |= FLAG_TRIGGER;
-	return flags;
-    }
-    
-    void dumpXml(Document doc, Element root) {
-	ScopePlot vPlot = plots.get(0);
-
-	CircuitElm elm = vPlot.elm;
-    	if (elm == null)
-    	    return;
-    	// sync scale[] from scaleX/scaleY for 2d plots so they get saved correctly
-    	if (plot2d.enabled && plots.size() >= 2) {
-    	    scale[plots.get(0).units] = plot2d.scaleX;
-    	    scale[plots.get(1).units] = plot2d.scaleY;
-    	}
-    	int flags = getFlags();
-    	int eno = app.locateElm(elm);
-    	if (eno < 0)
-    	    return;
-	Element xmlElm = doc.createElement("o");
-	XMLSerializer.dumpAttr(xmlElm, "en", eno);
-	XMLSerializer.dumpAttr(xmlElm, "sp", vPlot.scopePlotSpeed);
-
-	// strip flags that belong to old text format or are superseded by explicit XML attributes
-	int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_PLOTS | FLAG_TRIGGER);
-
-	XMLSerializer.dumpAttr(xmlElm, "f", exportAsDecOrHex(f, 0));
-	XMLSerializer.dumpAttr(xmlElm, "p", position);
-	if (manDivisions != 8)
-	    XMLSerializer.dumpAttr(xmlElm, "md", manDivisions);
-	trigger.dumpXml(xmlElm);
-	root.appendChild(xmlElm);
-	
-    	int i;
-    	for (i = 0; i < plots.size(); i++) {
-    	    ScopePlot p = plots.get(i);
-	    Element pelm = doc.createElement("p");
-	    if (p.getPlotFlags() > 0)
-		XMLSerializer.dumpAttr(pelm, "f", Integer.toHexString(p.getPlotFlags()));
-	    if (p.elm != elm)
-		XMLSerializer.dumpAttr(pelm, "e", app.locateElm(p.elm));
-	    XMLSerializer.dumpAttr(pelm, "v", p.value);
-	    XMLSerializer.dumpAttr(pelm, "sc", scale[p.units]);
-    	    if (isManualScale()) {
-		XMLSerializer.dumpAttr(pelm, "ms", p.manScale);
-		XMLSerializer.dumpAttr(pelm, "mp", p.manVPosition);
-    	    }
-	    xmlElm.appendChild(pelm);
-    	}
-	
-    	if (text != null)
-	    xmlElm.setAttribute("x", text);
-    }
-
-    void undumpXml(XMLDeserializer xml) {
-	int e = xml.parseIntAttr("en", -1);
-	if (e == -1)
-	    return;
-    	CircuitElm ce = app.getElm(e);
-    	setElm(ce);
-	plots = new Vector<ScopePlot>();
-	speed = xml.parseIntAttr("sp", 64);
-	String fs = xml.parseStringAttr("f", "0");
-	int flags = importDecOrHex(fs);
-	position = xml.parseIntAttr("p", 0);
-	manDivisions = xml.parseIntAttr("md", 8);
-	text = xml.parseStringAttr("x", (String)null);
-	setFlags(flags);
-	// override any stale trigger bits from old files with explicit XML attrs;
-	// must be called before parseChildElement() changes XML context
-	trigger.undumpXml(xml);
-	int i = 0;
-	for (Element elem: xml.getChildElements()) {
-	    xml.parseChildElement(elem);
-	    int plotFlags = Integer.parseInt(xml.parseStringAttr("f", "0"), 16);
-	    CircuitElm elm = app.getElm(xml.parseIntAttr("e", e));
-	    int val = xml.parseIntAttr("v", -1);
-	    int u = elm.getScopeUnits(val);
-	    double sc = xml.parseDoubleAttr("sc", -1);
-	    if (sc >= 0)
-		scale[u] = sc;
-	    ScopePlot p = new ScopePlot(elm, u, val, getManScaleFromMaxScale(u, false));
-	    plots.add(p);
-	    p.acCoupled = (plotFlags & ScopePlot.FLAG_AC) != 0;
-	    double ms = xml.parseDoubleAttr("ms", -1);
-	    if (ms >= 0) {
-		p.manScaleSet = true;
-		p.manScale = ms;
-		p.manVPosition = xml.parseIntAttr("mp", 0);
-	    }
-	}
-
-    	// restore scaleX/scaleY for 2d plots
-    	if (plot2d.enabled && plots.size() >= 2) {
-    	    plot2d.scaleX = scale[plots.get(0).units];
-    	    plot2d.scaleY = scale[plots.get(1).units];
-    	}
-    }
-
-    void undump(StringTokenizer st) {
-    	initialize();
-    	int e = new Integer(st.nextToken()).intValue();
-    	if (e == -1)
-    		return;
-    	CircuitElm ce = app.getElm(e);
-    	setElm(ce);
-    	speed = new Integer(st.nextToken()).intValue();
-    	int value = new Integer(st.nextToken()).intValue();
-    	
-    	// fix old value for VAL_POWER which doesn't work for transistors (because it's the same as VAL_IB) 
-    	if (!(ce instanceof TransistorElm) && value == VAL_POWER_OLD)
-    	    value = VAL_POWER;
-    	
-    	int flags = importDecOrHex(st.nextToken());
-    	scale[UNITS_V] = new Double(st.nextToken()).doubleValue();
-    	scale[UNITS_A] = new Double(st.nextToken()).doubleValue();
-    	if (scale[UNITS_V] == 0)
-    	    scale[UNITS_V] = .5;
-    	if (scale[UNITS_A] == 0)
-    	    scale[UNITS_A] = 1;
-    	plot2d.scaleX = scale[UNITS_V];
-    	plot2d.scaleY = scale[UNITS_A];
-    	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_C] = scale[UNITS_V];
-    	text = null;
-	boolean plot2dFlag = (flags & 64) != 0;
-    	boolean hasPlotFlags = (flags & FLAG_PERPLOTFLAGS) != 0;
-    	if ((flags & FLAG_PLOTS) != 0) {
-    	    // new-style dump
-    	    try {
-    		position = Integer.parseInt(st.nextToken());
-    		int sz = Integer.parseInt(st.nextToken());
-		manDivisions = 8;
-		if ((flags & FLAG_DIVISIONS) != 0)
-		    manDivisions = lastManDivisions = Integer.parseInt(st.nextToken());
-    		int i;
-    		int u = ce.getScopeUnits(value);
-		if (u > UNITS_A)
-		    scale[u] = Double.parseDouble(st.nextToken());
-    		setValue(value);
-    		// setValue(0) creates an extra plot for current, so remove that
-    		while (plots.size() > 1)
-    		    plots.removeElementAt(1);
-		
-    		int plotFlags = 0;
-    		for (i = 0; i != sz; i++) {
-    		    if (hasPlotFlags)
-    			plotFlags=Integer.parseInt(st.nextToken(), 16); // Import in hex (no prefix)
-    		    if (i!=0) {
-        		    int ne = Integer.parseInt(st.nextToken());
-        		    int val = Integer.parseInt(st.nextToken());
-        		    CircuitElm elm = app.getElm(ne);
-        		    u = elm.getScopeUnits(val);
-        		    if (u > UNITS_A)
-        			scale[u] = Double.parseDouble(st.nextToken());
-        		    plots.add(new ScopePlot(elm, u, val, getManScaleFromMaxScale(u, false)));
-    		    }
-    		    ScopePlot p = plots.get(i);
-    		    p.acCoupled = (plotFlags & ScopePlot.FLAG_AC) != 0;
-    		    if ( (flags & FLAG_PERPLOT_MAN_SCALE) != 0) {
-    			p.manScaleSet = true;
-    			p.manScale=Double.parseDouble(st.nextToken());
-    			p.manVPosition=Integer.parseInt(st.nextToken());
-    		    }
-    		}
-    		while (st.hasMoreTokens()) {
-    		    if (text == null)
-    			text = st.nextToken();
-    		    else
-    			text += " " + st.nextToken();
-    		}
-    	    } catch (Exception ee) {
-    	    }
-    	} else {
-    	    // old-style dump
-    	    CircuitElm yElm = null;
-    	    int ivalue = 0;
-	    manDivisions = 8;
-    	    try {
-    		position = new Integer(st.nextToken()).intValue();
-    		int ye = -1;
-    		if ((flags & FLAG_YELM) != 0) {
-    		    ye = new Integer(st.nextToken()).intValue();
-    		    if (ye != -1)
-    			yElm = app.getElm(ye);
-    		    // sinediode.txt has yElm set to something even though there's no xy plot...?
-    		    if (!plot2dFlag)
-    			yElm = null;
-    		}
-    		if ((flags & FLAG_IVALUE) !=0) {
-    		    ivalue = new Integer(st.nextToken()).intValue();
-    		}
-    		while (st.hasMoreTokens()) {
-    		    if (text == null)
-    			text = st.nextToken();
-    		    else
-    			text += " " + st.nextToken();
-    		}
-    	    } catch (Exception ee) {
-    	    }
-    	    setValues(value, ivalue, app.getElm(e), yElm);
-    	}
-    	if (text != null)
-    	    text = CustomLogicModel.unescape(text);
-    	plot2d.enabled = plot2dFlag;
-    	setFlags(flags);
-    }
-    
-    void setFlags(int flags) {
-    	showI = (flags & 1) != 0;
-    	showV = (flags & 2) != 0;
-    	showMax = (flags & 4) == 0;
-    	showFreq = (flags & 8) != 0;
-    	manualScale = (flags & FLAG_MAN_SCALE) != 0;
-    	plot2d.enabled = (flags & 64) != 0;
-    	plot2d.plotXY = (flags & 128) != 0;
-    	showMin = (flags & 256) != 0;
-    	showScale = (flags & 512) !=0;
-    	fftPlot.show((flags & 1024) != 0);
-    	maxScale = (flags & 8192) != 0;
-    	showRMS = (flags & 16384) != 0;
-    	showDutyCycle = (flags & 32768) != 0;
-    	fftPlot.logSpectrum = (flags & 65536) != 0;
-    	showAverage = (flags & (1<<17)) != 0;
-    	showElmInfo = (flags & (1<<20)) != 0;
-    	showP2P = (flags & (1<<22)) != 0;
-    	fftPlot.showPhaseAngle = (flags & (1<<23)) != 0;
-    }
-    
-    void saveAsDefault() {
-        Storage stor = Storage.getLocalStorageIfSupported();
-        if (stor == null)
-            return;
-	ScopePlot vPlot = plots.get(0);
-    	int flags = getFlags();
-
-    	// store current scope settings as default.  1 is a version code
-    	String s = "1 " + flags + " " + vPlot.scopePlotSpeed;
-    	if ((flags & FLAG_TRIGGER) != 0)
-    	    s += " " + trigger.level;
-    	stor.setItem("scopeDefaults", s);
-    	CirSim.console("saved defaults " + flags);
-    }
-
-    boolean loadDefaults() {
-        Storage stor = Storage.getLocalStorageIfSupported();
-        if (stor == null)
-            return false;
-        String str = stor.getItem("scopeDefaults");
-        if (str == null)
-            return false;
-        String arr[] = str.split(" ");
-        int flags = Integer.parseInt(arr[1]);
-        setFlags(flags);
-        speed = Integer.parseInt(arr[2]);
-        if (arr.length > 3 && (flags & FLAG_TRIGGER) != 0)
-            trigger.level = Double.parseDouble(arr[3]);
-        return true;
-    }
+    void dumpXml(Document doc, Element root) { serializer.dumpXml(doc, root); }
+    void undumpXml(XMLDeserializer xml) { serializer.undumpXml(xml); }
+    void undump(StringTokenizer st) { serializer.undump(st); }
+    void saveAsDefault() { serializer.saveAsDefault(); }
     
     void handleMenu(String mi, boolean state) {
 	if (mi == "maxscale")
@@ -1708,20 +1400,4 @@ class Scope {
 	    return (2*s)/(double)(manDivisions);
     }
     
-    static String exportAsDecOrHex(int v, int thresh) {
-	// If v>=thresh then export as hex value prefixed by "x", else export as decimal
-	// Allows flags to be exported as dec if in an old value (for compatibility) or in hex if new value
-	if (v>=thresh)
-	    return "x"+Integer.toHexString(v);
-	else
-	    return Integer.toString(v);
-    }
-    
-    static int importDecOrHex(String s) {
-	if (s.charAt(0) == 'x')
-	    return Integer.parseInt(s.substring(1), 16);
-	else
-	    return Integer.parseInt(s);
-    }
-
 }
