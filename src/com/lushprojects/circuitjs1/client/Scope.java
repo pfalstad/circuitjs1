@@ -64,7 +64,6 @@ class Scope {
     static final int V_POSITION_STEPS=200;
     static final double MIN_MAN_SCALE = 1e-9;
     int scopePointCount = 128;
-    FFT fft;
     int position;
     // speed is sim timestep units per pixel
     int speed;
@@ -74,12 +73,11 @@ class Scope {
     private boolean manualScale;
     boolean showI, showV, showScale, showMax, showMin, showP2P, showFreq;
     ScopePlot2d plot2d;
+    ScopeFFT fftPlot;
+    ScopeOverlays overlays;
     boolean maxScale;
 
-    boolean logSpectrum;
-    boolean showFFT, showNegative, showRMS, showAverage, showDutyCycle, showElmInfo, showPhaseAngle;
-    double fftMaxMagnitude; // peak FFT magnitude, saved for cursor dB readout
-    double[] fftReal, fftImag; // saved FFT results for cursor readout
+    boolean showNegative, showRMS, showAverage, showDutyCycle, showElmInfo;
     Vector<ScopePlot> plots, visiblePlots;
     CirSim app;
     SimulationManager sim;
@@ -115,6 +113,8 @@ class Scope {
 
     	rect = new Rectangle(0, 0, 1, 1);
 	plot2d = new ScopePlot2d(this);
+	fftPlot = new ScopeFFT(this);
+	overlays = new ScopeOverlays(this);
     	initialize();
     }
     
@@ -166,12 +166,6 @@ class Scope {
     void showMin    (boolean b) { showMin = b; }
     void showP2P    (boolean b) { showP2P = b; }
     void showFreq   (boolean b) { showFreq = b; }
-    void showFFT(boolean b) {
-      showFFT = b;
-      if (!showFFT)
-    	  fft = null;
-    }
-    
     void setManualScale(boolean value, boolean roundup) { 
 	if (value!=manualScale)
 	    plot2d.clearView();
@@ -274,7 +268,7 @@ class Scope {
     	showMax = true;
     	showV = showI = false;
     	showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
-    	showFFT = false;
+    	fftPlot.enabled = false;
     	if (!loadDefaults()) {
     	    // set showV and showI appropriately depending on what plots are present
     	    int i;
@@ -526,107 +520,6 @@ class Scope {
 	showNegative = false;
     }
 
-    void drawFFTVerticalGridLines(Graphics g) {
-      // Draw x-grid lines and label the frequencies in the FFT that they point to.
-      int prevEnd = 0;
-      int divs = 20;
-      double maxFrequency = 1 / (sim.maxTimeStep * speed * divs * 2);
-      for (int i = 0; i < divs; i++) {
-        int x = rect.width * i / divs;
-        if (x < prevEnd) continue;
-        String s = ((int) Math.round(i * maxFrequency)) + "Hz";
-        int sWidth = (int) Math.ceil(g.context.measureText(s).getWidth());
-        prevEnd = x + sWidth + 4;
-        if (i > 0) {
-          g.setColor("#880000");
-          g.drawLine(x, 0, x, rect.height);
-        }
-        g.setColor("#FF0000");
-        g.drawString(s, x + 2, rect.height);
-      }
-    }
-
-    void drawFFT(Graphics g) {
-    	if (fft == null || fft.getSize() != scopePointCount)
-    		fft = new FFT(scopePointCount);
-      double[] real = new double[scopePointCount];
-      double[] imag = new double[scopePointCount];
-      ScopePlot plot = (visiblePlots.size() == 0) ? plots.firstElement() : visiblePlots.firstElement();
-      double maxV[] = plot.maxValues;
-      double minV[] = plot.minValues;
-      int ptr = plot.ptr;
-      for (int i = 0; i < scopePointCount; i++) {
-	  int ii = (ptr - i + scopePointCount) & (scopePointCount - 1);
-	  // need to average max and min or else it could cause average of function to be > 0, which
-	  // produces spike at 0 Hz that hides rest of spectrum
-	  real[i] = .5*(maxV[ii]+minV[ii]);
-	  imag[i] = 0;
-      }
-      fft.fft(real, imag, true);
-      double maxM = 1e-8;
-      for (int i = 0; i < scopePointCount / 2; i++) {
-    	  double m = fft.magnitude(real[i], imag[i]);
-    	  if (m > maxM)
-    		  maxM = m;
-      }
-      // save for cursor readout
-      fftMaxMagnitude = maxM;
-      fftReal = real;
-      fftImag = imag;
-      int prevX = 0;
-      g.setColor("#FF0000");
-      if (!logSpectrum) {
-	  int prevHeight = 0;
-	  int y = (rect.height - 1) - 12;
-	  for (int i = 0; i < scopePointCount / 2; i++) {
-	      int x = 2 * i * rect.width / scopePointCount;
-	      // rect.width may be greater than or less than scopePointCount/2,
-	      // so x may be greater than or equal to prevX.
-	      double magnitude = fft.magnitude(real[i], imag[i]);
-	      int height = (int) ((magnitude * y) / maxM);
-	      if (x != prevX)
-		  g.drawLine(prevX, y - prevHeight, x, y - height);
-	      prevHeight = height;
-	      prevX = x;
-	  }
-      } else {
-	  // log spectrum mode: display in dB relative to peak magnitude
-	  double dbRange = 80; // show 80 dB of dynamic range
-	  int topMargin = 5;
-	  int bottomMargin = 12;
-	  int plotHeight = rect.height - topMargin - bottomMargin;
-	  double pixelsPerDb = plotHeight / dbRange;
-	  int prevY = 0;
-
-	  // draw horizontal dB grid lines and labels
-	  for (int db = -20; db >= -80; db -= 20) {
-	      int y = topMargin + (int) (-db * pixelsPerDb);
-	      if (y < 0 || y >= rect.height)
-		  continue;
-	      g.setColor("#880000");
-	      g.drawLine(0, y, rect.width, y);
-	      g.setColor("#FF0000");
-	      g.drawString(db + " dB", 2, y - 2);
-	  }
-
-	  g.setColor("#FF0000");
-	  for (int i = 0; i < scopePointCount / 2; i++) {
-	      int x = 2 * i * rect.width / scopePointCount;
-	      // rect.width may be greater than or less than scopePointCount/2,
-	      // so x may be greater than or equal to prevX.
-	      double magnitude = fft.magnitude(real[i], imag[i]);
-	      double db = 20 * Math.log(magnitude / maxM) / Math.log(10);
-	      if (db < -dbRange)
-		  db = -dbRange;
-	      int y = topMargin + (int) (-db * pixelsPerDb);
-	      if (x != prevX)
-		  g.drawLine(prevX, prevY, x, y);
-	      prevY = y;
-	      prevX = x;
-	  }
-      }
-    }
-    
     void drawSettingsWheel(Graphics g) {
 	final int outR = 8;
 	final int inR= 5;
@@ -713,9 +606,9 @@ class Scope {
     	g.context.translate(rect.x, rect.y);    	
     	g.clipRect(0, 0, rect.width, rect.height);
 
-        if (showFFT) {
-            drawFFTVerticalGridLines(g);
-            drawFFT(g);
+        if (fftPlot.enabled) {
+            fftPlot.drawVerticalGridLines(g);
+            fftPlot.draw(g);
         }
 
     	int i;
@@ -782,7 +675,7 @@ class Scope {
     	    drawPlot(g, visiblePlots.get(selectedPlot), allPlotsSameUnits, true, sel);
 
     	drawTriggerIndicator(g);
-        drawInfoTexts(g);
+        overlays.draw(g);
     	
     	g.restore();
     	
@@ -1048,7 +941,7 @@ class Scope {
     void mousePressed(int mouseX, int mouseY) {
 	if (!rect.contains(mouseX, mouseY))
 	    return;
-	if (plot2d.enabled || showFFT || visiblePlots.size() == 0)
+	if (plot2d.enabled || fftPlot.enabled || visiblePlots.size() == 0)
 	    return;
 	dragStartTime = mouseXToTime(mouseX);
     }
@@ -1128,25 +1021,15 @@ class Scope {
 	}
 
 	// show FFT even if there's no plots (in which case cursorTime/cursorX will be invalid)
-        if (showFFT && cursorScope == this) {
-            double maxFrequency = 1 / (sim.maxTimeStep * speed * 2);
+        if (fftPlot.enabled && cursorScope == this) {
             if (cursorX < 0)
         	cursorX = app.mouse.mouseCursorX;
-            info[ct++] = CircuitElm.getUnitText(maxFrequency*(app.mouse.mouseCursorX-rect.x)/rect.width, "Hz");
-            // show dB magnitude at cursor position
-            if (fft != null && fftReal != null && fftMaxMagnitude > 0) {
-                int fftIndex = (app.mouse.mouseCursorX - rect.x) * scopePointCount / (2 * rect.width);
-                if (fftIndex >= 0 && fftIndex < scopePointCount / 2) {
-                    double mag = fft.magnitude(fftReal[fftIndex], fftImag[fftIndex]);
-                    double db = 20 * Math.log(mag / fftMaxMagnitude) / Math.log(10);
-                    info[ct++] = Math.round(db) + " dB";
-                }
-            }
+            ct = fftPlot.addCursorInfo(info, ct, app.mouse.mouseCursorX);
         } else if (cursorX < rect.x)
             return;
 
 	// draw drag-start cursor and delta readout
-	if (dragStartTime >= 0 && cursorScope == this && plot != null && !plot2d.enabled && !showFFT) {
+	if (dragStartTime >= 0 && cursorScope == this && plot != null && !plot2d.enabled && !fftPlot.enabled) {
 	    int dragX = timeToX(dragStartTime);
 	    if (dragX >= rect.x && dragX < rect.x+rect.width) {
 		g.setColor(CircuitElm.lightGrayColor);
@@ -1208,277 +1091,8 @@ class Scope {
 	return (plot.units == Scope.UNITS_V || plot.units == Scope.UNITS_A);
     }
     
-    // calc RMS and display it
-    void drawRMS(Graphics g) {
-	if (!canShowRMS()) {
-	    // needed for backward compatibility
-	    showRMS = false;
-	    showAverage = true;
-	    drawAverage(g);
-	    return;
-	}
-	ScopePlot plot = visiblePlots.firstElement();
-	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
-	double[] avg = {0}, endAvg = {0};
-	int span = iterateCycles(sdi, mid,
-	    () -> avg[0] = 0,
-	    () -> { double m = (sdi.getMax()+sdi.getMin())*.5; avg[0] += m*m; },
-	    () -> endAvg[0] = avg[0]);
-	if (span > 0)
-	    drawInfoText(g, plot.getUnitText(Math.sqrt(endAvg[0]/span)) + "rms");
-    }
-
-    void drawScale(ScopePlot plot, Graphics g) {
-    	    if (!isManualScale()) {
-        	    if ( gridStepY!=0 && (!(showV && showI))) {
-        		String vScaleText=" V=" + plot.getUnitText(gridStepY)+"/div";
-        	    	drawInfoText(g, "H="+CircuitElm.getUnitText(gridStepX, "s")+"/div" + vScaleText);
-        	    }
-    	    }  else {
-    		if (rect.y + rect.height <= textY+5)
-    		    return;
-    		double x = 0;
-    		String hs = "H="+CircuitElm.getUnitText(gridStepX, "s")+"/div";
-    		g.drawString(hs, 0, textY);
-    		x+=g.measureWidth(hs);
-		final double bulletWidth = 17;
-    		for (int i=0; i<visiblePlots.size(); i++) {
-    		    ScopePlot p=visiblePlots.get(i);
-    		    String s=p.getUnitText(p.manScale);
-    		    if (p!=null) {
-    			String vScaleText="="+s+"/div";
-    			double vScaleWidth=g.measureWidth(vScaleText);
-    			if (x+bulletWidth+vScaleWidth > rect.width) {
-    			    x=0;
-    			    textY += 15;
-    			    if (rect.y + rect.height <= textY+5)
-    	    		    	return;
-    			}
-    			g.setColor(p.color);
-    			g.fillOval((int)x+7, textY-9, 8, 8);
-    			x+=bulletWidth;
-    			g.setColor(CircuitElm.whiteColor);
-    			g.drawString(vScaleText, (int)x, textY);
-    			x+=vScaleWidth;
-    		    }
-    		}
-    		textY += 15;
-    	    }
-
-	
-    }
-    
-    // shared cycle-detection loop for drawAverage, drawRMS, drawDutyCycle.
-    // calls onCycleStart at first rising edge, onSample each sample thereafter,
-    // onCycleEnd at each subsequent rising edge.  returns end-start span, or 0.
-    int iterateCycles(ScopeDataIterator sdi, double mid,
-		      Runnable onCycleStart, Runnable onSample, Runnable onCycleEnd) {
-	double fnz = sdi.skipNonzeroValues();
-	int state = (fnz > mid) ? 1 : -1;
-	int waveCount = 0;
-	int start = 0, end = 0;
-	for (int i : sdi) {
-	    boolean sw = false;
-	    if (state == 1) {
-		if (sdi.getMax() < mid) sw = true;
-	    } else if (sdi.getMin() > mid) sw = true;
-	    if (sw) {
-		state = -state;
-		if (state == 1) {
-		    if (waveCount == 0) {
-			start = i;
-			onCycleStart.run();
-		    } else {
-			end = i;
-			onCycleEnd.run();
-		    }
-		    waveCount++;
-		}
-	    }
-	    if (waveCount > 0)
-		onSample.run();
-	}
-	return end - start;
-    }
-
-    void drawAverage(Graphics g) {
-	ScopePlot plot = visiblePlots.firstElement();
-	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
-	double[] avg = {0}, endAvg = {0};
-	int span = iterateCycles(sdi, mid,
-	    () -> avg[0] = 0,
-	    () -> avg[0] += (sdi.getMax()+sdi.getMin())*.5,
-	    () -> endAvg[0] = avg[0]);
-	if (span > 0)
-	    drawInfoText(g, plot.getUnitText(endAvg[0]/span) + Locale.LS(" average"));
-    }
-
-    void drawDutyCycle(Graphics g) {
-	ScopePlot plot = visiblePlots.firstElement();
-	double mid = (maxValue+minValue)/2;
-	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
-	int[] dutyLen = {0}, prevDuty = {0};
-	int span = iterateCycles(sdi, mid,
-	    () -> dutyLen[0] = 0,
-	    () -> { if (sdi.getMax() > mid) dutyLen[0]++; },
-	    () -> prevDuty[0] = dutyLen[0]);
-	if (span > 0)
-	    drawInfoText(g, Locale.LS("Duty cycle ") + 100*prevDuty[0]/span + "%");
-    }
-
-    // calc frequency if possible and display it
-    void drawFrequency(Graphics g) {
-	// try to get frequency
-	// get average
-	double avg = 0;
-	ScopePlot plot = visiblePlots.firstElement();
-	ScopeDataIterator sdi = new ScopeDataIterator(this, plot);
-	for (int i : sdi)
-	    avg += sdi.getMin()+sdi.getMax();
-	avg /= sdi.validCount*2;
-	int state = 0;
-	double thresh = avg*.05;
-	int oi = 0;
-	double avperiod = 0;
-	int periodct = -1;
-	double avperiod2 = 0;
-	// count period lengths
-	for (int i : sdi) {
-	    double q = sdi.getMax()-avg;
-	    int os = state;
-	    if (q < thresh)
-		state = 1;
-	    else if (q > -thresh)
-		state = 2;
-	    if (state == 2 && os == 1) {
-		int pd = i-oi;
-		oi = i;
-		// short periods can't be counted properly
-		if (pd < 12)
-		    continue;
-		// skip first period, it might be too short
-		if (periodct >= 0) {
-		    avperiod += pd;
-		    avperiod2 += pd*pd;
-		}
-		periodct++;
-	    }
-	}
-	avperiod /= periodct;
-	avperiod2 /= periodct;
-	double periodstd = Math.sqrt(avperiod2-avperiod*avperiod);
-	double freq = 1/(avperiod*sim.maxTimeStep*speed);
-	// don't show freq if standard deviation is too great
-	if (periodct < 1 || periodstd > 2)
-	    freq = 0;
-	// System.out.println(freq + " " + periodstd + " " + periodct);
-	if (freq != 0)
-	    drawInfoText(g, CircuitElm.getUnitText(freq, "Hz"));
-    }
-
-    void drawElmInfo(Graphics g) {
-	String info[] = new String[1];
-	getElm().getInfo(info);
-	int i;
-	for (i = 0; info[i] != null; i++)
-	    drawInfoText(g, info[i]);
-    }
-
-    // show phase angle between voltage and current using FFT, when exactly one of each is present
-    void drawPhaseAngle(Graphics g) {
-	ScopePlot vPlot = null, iPlot = null;
-	for (ScopePlot p : visiblePlots) {
-	    if (p.units == UNITS_V) {
-		if (vPlot != null) return;
-		vPlot = p;
-	    } else if (p.units == UNITS_A) {
-		if (iPlot != null) return;
-		iPlot = p;
-	    } else
-		return;
-	}
-	if (vPlot == null || iPlot == null)
-	    return;
-	if (fft == null || fft.getSize() != scopePointCount)
-	    fft = new FFT(scopePointCount);
-	double[] vReal = new double[scopePointCount];
-	double[] vImag = new double[scopePointCount];
-	double[] iReal = new double[scopePointCount];
-	double[] iImag = new double[scopePointCount];
-	int ipa = displayStartIndex(vPlot, rect.width);
-	int validCount = validDataCount(vPlot, ipa, rect.width);
-	for (int i = 0; i < validCount; i++) {
-	    int ip = (i + ipa) & (scopePointCount - 1);
-	    vReal[i] = .5 * (vPlot.maxValues[ip] + vPlot.minValues[ip]);
-	    iReal[i] = .5 * (iPlot.maxValues[ip] + iPlot.minValues[ip]);
-	}
-	fft.fft(vReal, vImag, true);
-	fft.fft(iReal, iImag, true);
-	// find fundamental: bin with largest voltage magnitude (skip DC at bin 0)
-	int fund = 1;
-	double maxM = 0;
-	for (int i = 1; i < scopePointCount / 2; i++) {
-	    double m = fft.magnitude(vReal[i], vImag[i]);
-	    if (m > maxM) { maxM = m; fund = i; }
-	}
-	if (maxM < 1e-8)
-	    return;
-	double angleV = Math.atan2(vImag[fund], vReal[fund]);
-	double angleI = Math.atan2(iImag[fund], iReal[fund]);
-	double angle = (angleV - angleI) * 180 / Math.PI;
-	while (angle > 180) angle -= 360;
-	while (angle < -180) angle += 360;
-	drawInfoText(g, Locale.LS("Phase angle: ") + CircuitElm.showFormat.format(angle) + "°");
-    }
-    
-    int textY;
-    
     void drawInfoText(Graphics g, String text) {
-	if (rect.y + rect.height <= textY+5)
-	    return;
-	g.drawString(text, 0, textY);
-	textY += 15;
-    }
-    
-    void drawInfoTexts(Graphics g) {
-    	g.setColor(CircuitElm.whiteColor);
-    	textY = 10;
-    	
-    	if (visiblePlots.size() == 0) {
-    	    if (showElmInfo)
-    		drawElmInfo(g);
-    	    return;
-    	}
-    	ScopePlot plot = visiblePlots.firstElement();
-    	if (showScale) 
-    	    drawScale(plot, g);
-//    	if (showMax || showMin)
-//    	    calcMaxAndMin(plot.units);
-    	if (showMax)
-    	    drawInfoText(g, "Max="+plot.getUnitText(maxValue));
-    	if (showMin) {
-    	    int ym=rect.height-5;
-    	    g.drawString("Min="+plot.getUnitText(minValue), 0, ym);
-    	}
-    	if (showP2P)
-    	    drawInfoText(g, "P-P="+plot.getUnitText(maxValue-minValue));
-    	if (showRMS)
-    	    drawRMS(g);
-    	if (showAverage)
-    	    drawAverage(g);
-    	if (showDutyCycle)
-    	    drawDutyCycle(g);
-    	String t = getScopeLabelOrText(true);
-    	if (t != null &&  t!= "") 
-    	    drawInfoText(g, t);
-    	if (showFreq)
-    	    drawFrequency(g);
-    	if (showElmInfo)
-    	    drawElmInfo(g);
-    	if (showPhaseAngle)
-    	    drawPhaseAngle(g);
+	overlays.drawInfoText(g, text);
     }
 
     String getScopeText() {
@@ -1635,10 +1249,10 @@ class Scope {
 			(isManualScale() ? (FLAG_MAN_SCALE | FLAG_PERPLOT_MAN_SCALE): 0) |
 			(plot2d.enabled ? 64 : 0) |
 			(plot2d.plotXY ? 128 : 0) | (showMin ? 256 : 0) | (showScale? 512:0) |
-			(showFFT ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
-			(showDutyCycle ? 32768 : 0) | (logSpectrum ? 65536 : 0) |
+			(fftPlot.enabled ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
+			(showDutyCycle ? 32768 : 0) | (fftPlot.logSpectrum ? 65536 : 0) |
 			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
-			(showP2P ? (1<<22) : 0) | (showPhaseAngle ? (1<<23) : 0);
+			(showP2P ? (1<<22) : 0) | (fftPlot.showPhaseAngle ? (1<<23) : 0);
 	flags |= FLAG_PLOTS; // 4096
 	int allPlotFlags = 0;
 	for (ScopePlot p : plots) {
@@ -1869,15 +1483,15 @@ class Scope {
     	plot2d.plotXY = (flags & 128) != 0;
     	showMin = (flags & 256) != 0;
     	showScale = (flags & 512) !=0;
-    	showFFT((flags & 1024) != 0);
+    	fftPlot.show((flags & 1024) != 0);
     	maxScale = (flags & 8192) != 0;
     	showRMS = (flags & 16384) != 0;
     	showDutyCycle = (flags & 32768) != 0;
-    	logSpectrum = (flags & 65536) != 0;
+    	fftPlot.logSpectrum = (flags & 65536) != 0;
     	showAverage = (flags & (1<<17)) != 0;
     	showElmInfo = (flags & (1<<20)) != 0;
     	showP2P = (flags & (1<<22)) != 0;
-    	showPhaseAngle = (flags & (1<<23)) != 0;
+    	fftPlot.showPhaseAngle = (flags & (1<<23)) != 0;
     }
     
     void saveAsDefault() {
@@ -1929,9 +1543,9 @@ class Scope {
     	if (mi == "showfreq")
     		showFreq(state);
     	if (mi == "showfft")
-    		showFFT(state);
+    		fftPlot.show(state);
     	if (mi == "logspectrum")
-    	    	logSpectrum = state;
+    	    	fftPlot.logSpectrum = state;
     	if (mi == "showrms")
     	    	showRMS = state;
     	if (mi == "showaverage")
@@ -1939,7 +1553,7 @@ class Scope {
     	if (mi == "showduty")
     	    	showDutyCycle = state;
     	if (mi == "showphaseangle")
-    	    	showPhaseAngle = state;
+    	    	fftPlot.showPhaseAngle = state;
     	if (mi == "showelminfo")
 	    	showElmInfo = state;
     	if (mi == "showpower")

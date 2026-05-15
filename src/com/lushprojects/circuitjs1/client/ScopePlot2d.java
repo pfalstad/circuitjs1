@@ -142,7 +142,7 @@ class ScopePlot2d {
 		g.drawLine(0, (int)(gridPx * i) + scope.rect.height / 2, scope.rect.width, (int)(gridPx * i) + scope.rect.height / 2);
 	    }
 	}
-	scope.textY = 10;
+	scope.overlays.textY = 10;
 	g.setColor(CircuitElm.whiteColor);
 	if (scope.text != null)
 	    scope.drawInfoText(g, scope.text);
