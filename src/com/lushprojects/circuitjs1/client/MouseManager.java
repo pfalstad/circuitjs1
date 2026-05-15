@@ -679,7 +679,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		Scope s = sim.scopeManager.scopes[i];
     		if (s.rect.contains(sx, sy)) {
     		    newMouseElm=s.getElm();
-    		    if (s.plotXY) {
+    		    if (s.plot2d.plotXY) {
     			plotXElm = s.getXElm();
     			plotYElm = s.getYElm();
     		    }

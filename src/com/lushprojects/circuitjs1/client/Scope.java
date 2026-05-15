@@ -27,8 +27,6 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 import java.util.Vector;
 
-import com.google.gwt.canvas.client.Canvas;
-import com.google.gwt.canvas.dom.client.Context2d;
 
 class Scope {
     final int FLAG_YELM = 32;
@@ -75,8 +73,7 @@ class Scope {
     Rectangle rect;
     private boolean manualScale;
     boolean showI, showV, showScale, showMax, showMin, showP2P, showFreq;
-    boolean plot2d;
-    boolean plotXY;
+    ScopePlot2d plot2d;
     boolean maxScale;
 
     boolean logSpectrum;
@@ -84,17 +81,12 @@ class Scope {
     double fftMaxMagnitude; // peak FFT magnitude, saved for cursor dB readout
     double[] fftReal, fftImag; // saved FFT results for cursor readout
     Vector<ScopePlot> plots, visiblePlots;
-    int draw_ox, draw_oy;
     CirSim app;
     SimulationManager sim;
-    Canvas imageCanvas;
-    Context2d imageContext;
-    int alphaCounter =0;
     // scopeTimeStep to check if sim timestep has changed from previous value when redrawing
     double scopeTimeStep;
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
     boolean reduceRange[];
-    double scaleX, scaleY;  // for X-Y plots
     double wheelDeltaY;
     int selectedPlot;
     ScopePropertiesDialog properties;
@@ -122,9 +114,7 @@ class Scope {
 	manDivisions = lastManDivisions;
 
     	rect = new Rectangle(0, 0, 1, 1);
-   	imageCanvas=Canvas.createIfSupported();
-   	imageContext=imageCanvas.getContext2d();
-	allocImage();
+	plot2d = new ScopePlot2d(this);
     	initialize();
     }
     
@@ -184,7 +174,7 @@ class Scope {
     
     void setManualScale(boolean value, boolean roundup) { 
 	if (value!=manualScale)
-	    clear2dView();
+	    plot2d.clearView();
 	manualScale = value; 
 	for (ScopePlot p : plots) {
 	    if (!p.manScaleSet) {
@@ -212,14 +202,14 @@ class Scope {
     	    plots.get(i).reset(scopePointCount, speed, full);
 	calcVisiblePlots();
     	scopeTimeStep = sim.maxTimeStep;
-    	allocImage();
+    	plot2d.allocImage();
     	trigger.reset(scopePointCount);
     }
     
     void setManualScaleValue(int plotId, double d) {
 	if (plotId >= visiblePlots.size() )
 	    return; // Shouldn't happen, but just in case...
-	clear2dView();
+	plot2d.clearView();
 	visiblePlots.get(plotId).manScale=d;
 	visiblePlots.get(plotId).manScaleSet=true;
     }
@@ -264,7 +254,7 @@ class Scope {
 	return trigger.validDataCount(plot, ipa, w, scopePointCount);
     }
 
-    void checkTrigger() { trigger.check(visiblePlots, plot2d, sim, scopePointCount, rect.width); }
+    void checkTrigger() { trigger.check(visiblePlots, plot2d.enabled, sim, scopePointCount, rect.width); }
 
     void setTriggerMode(int mode) {
 	trigger.mode = mode;
@@ -277,14 +267,14 @@ class Scope {
     	resetGraph();
     	scale[UNITS_W] = scale[UNITS_OHMS] = scale[UNITS_V] = scale[UNITS_C] = 5;
     	scale[UNITS_A] = .1;
-    	scaleX = 5;
-    	scaleY = .1;
+    	plot2d.scaleX = 5;
+    	plot2d.scaleY = .1;
+    	plot2d.enabled = false;
     	speed = 64;
     	showMax = true;
     	showV = showI = false;
     	showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     	showFFT = false;
-    	plot2d = false;
     	if (!loadDefaults()) {
     	    // set showV and showI appropriately depending on what plots are present
     	    int i;
@@ -302,7 +292,7 @@ class Scope {
 	visiblePlots = new Vector<ScopePlot>();
 	int i;
 	int vc = 0, ac = 0, oc = 0;
-	if (!plot2d) {
+	if (!plot2d.enabled) {
         	for (i = 0; i != plots.size(); i++) {
         	    ScopePlot plot = plots.get(i);
         	    if (plot.units == UNITS_V) {
@@ -331,7 +321,7 @@ class Scope {
 	int w = this.rect.width;
 	int h = this.rect.height;
 	this.rect = r;
-	if (this.rect.width != w || (plotXY && this.rect.height != h))
+	if (this.rect.width != w || (plot2d.plotXY && this.rect.height != h))
 	    resetGraph();
     }
     
@@ -361,7 +351,7 @@ class Scope {
 	CircuitElm ce = plots.firstElement().elm;
 	if (plots.size() == 2 && plots.get(1).elm != ce)
 	    return;
-	plot2d = plotXY = false;
+	plot2d.enabled = plot2d.plotXY = false;
 	setValue(val, ce);
     }
     
@@ -499,76 +489,11 @@ class Scope {
 
 	checkTrigger();
 
-	int x=0;
-	int y=0;
-	
 	// For 2d plots we draw here rather than in the drawing routine
-    	if (plot2d && imageContext!=null && plots.size()>=2) {
-    	    double v = plots.get(0).lastValue;
-    	    double yval = plots.get(1).lastValue;
-    	    if (!isManualScale()) {
-        	    boolean newscale = false;
-        	    while (v > scaleX || v < -scaleX) {
-        		scaleX *= 2;
-        		newscale = true;
-        	    }
-        	    while (yval > scaleY || yval < -scaleY) {
-        		scaleY *= 2;
-        		newscale = true;
-        	    }
-        	    if (newscale)
-        		clear2dView();
-        	    double xa = v   /scaleX;
-        	    double ya = yval/scaleY;
-        	    x = (int) (rect.width *(1+xa)*.499);
-        	    y = (int) (rect.height*(1-ya)*.499);
-    	    } else {
-    		double gridPx = calc2dGridPx(rect.width, rect.height);
-    		x=(int)(rect.width*.499+(v/plots.get(0).manScale)*gridPx+gridPx*manDivisions*(double)(plots.get(0).manVPosition)/(double)(V_POSITION_STEPS));
-    		y=(int)(rect.height*.499-(yval/plots.get(1).manScale)*gridPx-gridPx*manDivisions*(double)(plots.get(1).manVPosition)/(double)(V_POSITION_STEPS));
-
-    	    }
-    	    drawTo(x, y);
-    	}
+	if (plot2d.enabled)
+	    plot2d.timeStep();
     }
 
-    double calc2dGridPx(int width, int height) {
-	int m = width<height?width:height;
-	return ((double)(m)/2)/((double)(manDivisions)/2+0.05);
-	
-    }
-    
-    
-    void drawTo(int x2, int y2) {
-    	if (draw_ox == -1) {
-    		draw_ox = x2;
-    		draw_oy = y2;
-    	}
-		if (app.isPrintable()) {
-			imageContext.setStrokeStyle("#000000");
-		} else {
-			imageContext.setStrokeStyle("#ffffff");
-		}
-		imageContext.beginPath();
-		imageContext.moveTo(draw_ox, draw_oy);
-		imageContext.lineTo(x2,y2);
-		imageContext.stroke();
-    	draw_ox = x2;
-    	draw_oy = y2;
-    }
-	
-    void clear2dView() {
-    	if (imageContext!=null) {
-    		if (app.isPrintable()) {
-    			imageContext.setFillStyle("#eee");
-    		} else {
-    			imageContext.setFillStyle("#111");
-    		}
-    		imageContext.fillRect(0, 0, rect.width-1, rect.height-1);
-    	}
-    	draw_ox = draw_oy = -1;
-    }
-	
     /*
     void adjustScale(double x) {
 	scale[UNITS_V] *= x;
@@ -588,15 +513,8 @@ class Scope {
     }
     
     void maxScale() {
-	if (plot2d) {
-	    double x = 1e-8;
-	    scale[UNITS_V] *= x;
-	    scale[UNITS_A] *= x;
-	    scale[UNITS_OHMS] *= x;
-	    scale[UNITS_W] *= x;
-	    scale[UNITS_C] *= x;
-	    scaleX *= x; // For XY plots
-	    scaleY *= x;
+	if (plot2d.enabled) {
+	    plot2d.maxScale();
 	    return;
 	}
 	// toggle max scale.  This isn't on by default because, for the examples, we sometimes want two plots
@@ -734,83 +652,6 @@ class Scope {
 	}
     }
 
-    void draw2d(Graphics g) {
-    	if (imageContext==null)
-    		return;
-    	g.context.save();
-    	g.context.translate(rect.x, rect.y);
-    	g.clipRect(0, 0, rect.width, rect.height);
-    	
-    	alphaCounter++;
-    	
-    	if (alphaCounter>2) {
-    		// fade out plot
-    		alphaCounter=0;
-    		imageContext.setGlobalAlpha(0.01);
-    		if (app.isPrintable()) {
-    			imageContext.setFillStyle("#ffffff");
-    		} else {
-    			imageContext.setFillStyle("#000000");
-    		}
-    		imageContext.fillRect(0,0,rect.width,rect.height);
-    		imageContext.setGlobalAlpha(1.0);
-    	}
-    	
-    	g.context.drawImage(imageContext.getCanvas(), 0.0, 0.0);
-//    	g.drawImage(image, r.x, r.y, null);
-    	g.setColor(CircuitElm.whiteColor);
-    	g.fillOval(draw_ox-2, draw_oy-2, 5, 5);
-    	// Axis
-    	g.setColor(CircuitElm.positiveColor);
-    	g.drawLine(0, rect.height/2, rect.width-1, rect.height/2);
-    	if (!plotXY)
-    		g.setColor(Color.yellow);
-    	g.drawLine(rect.width/2, 0, rect.width/2, rect.height-1);
-    	if (isManualScale()) {
-    	    double gridPx=calc2dGridPx(rect.width, rect.height);
-    	    g.setColor("#404040");
-    	    for(int i=-manDivisions; i<=manDivisions; i++) {
-    		if (i!=0)
-    		    g.drawLine((int)(gridPx*i)+rect.width/2, 0,(int)(gridPx*i)+rect.width/2, rect.height);
-    		    g.drawLine(0, (int)(gridPx*i)+rect.height/2,rect.width, (int)(gridPx*i)+rect.height/2);
-    	    }
-    	}
-	textY=10;
-	g.setColor(CircuitElm.whiteColor);
-    	if (text != null) {
-    	    drawInfoText(g, text);
-	}
-    	if (showScale && plots.size()>=2 && isManualScale()) {
-    	    ScopePlot px = plots.get(0);
-    	    String sx=px.getUnitText(px.manScale);
-    	    ScopePlot py = plots.get(1);
-    	    String sy=py.getUnitText(py.manScale);
-    	    drawInfoText(g,"X="+sx+"/div, Y="+sy+"/div");
-    	}
-    	g.context.restore();
-    	drawSettingsWheel(g);
-    	if ( !app.dialogIsShowing() && rect.contains(app.mouse.mouseCursorX, app.mouse.mouseCursorY) && plots.size()>=2) {
-    	    double gridPx=calc2dGridPx(rect.width, rect.height);
-    	    String info[] = new String [2];
-    	    ScopePlot px = plots.get(0);
-    	    ScopePlot py = plots.get(1);
-    	    double xValue;
-    	    double yValue;
-    	    if (isManualScale()) {
-    		xValue = px.manScale*((double)(app.mouse.mouseCursorX-rect.x-rect.width/2)/gridPx-manDivisions*px.manVPosition/(double)(V_POSITION_STEPS));
-    		yValue = py.manScale*((double)(-app.mouse.mouseCursorY+rect.y+rect.height/2)/gridPx-manDivisions*py.manVPosition/(double)(V_POSITION_STEPS));
-    	    } else {
-    		xValue = ((double)(app.mouse.mouseCursorX-rect.x)/(0.499*(double)(rect.width))-1.0)*scaleX;
-    		yValue = -((double)(app.mouse.mouseCursorY-rect.y)/(0.499*(double)(rect.height))-1.0)*scaleY;
-    	    }
- 	    info[0]=px.getUnitText(xValue);
-    	    info[1]=py.getUnitText(yValue);
-    	    
-    	    drawCursorInfo(g, info, 2, app.mouse.mouseCursorX, true);
-    	    
-    	}
-    }
-	
   
     
     boolean showSettingsWheel() {
@@ -861,8 +702,8 @@ class Scope {
     	}
     	
     	
-    	if (plot2d) {
-    		draw2d(g);
+    	if (plot2d.enabled) {
+    		plot2d.draw(g);
     		return;
     	}
 
@@ -1196,7 +1037,7 @@ class Scope {
     void selectScope(int mouseX, int mouseY) {
 	if (!rect.contains(mouseX, mouseY))
 	    return;
-	if (plot2d || visiblePlots.size() == 0)
+	if (plot2d.enabled || visiblePlots.size() == 0)
 	    cursorTime = -1;
 	else
 	    cursorTime = mouseXToTime(mouseX);
@@ -1207,7 +1048,7 @@ class Scope {
     void mousePressed(int mouseX, int mouseY) {
 	if (!rect.contains(mouseX, mouseY))
 	    return;
-	if (plot2d || showFFT || visiblePlots.size() == 0)
+	if (plot2d.enabled || showFFT || visiblePlots.size() == 0)
 	    return;
 	dragStartTime = mouseXToTime(mouseX);
     }
@@ -1305,7 +1146,7 @@ class Scope {
             return;
 
 	// draw drag-start cursor and delta readout
-	if (dragStartTime >= 0 && cursorScope == this && plot != null && !plot2d && !showFFT) {
+	if (dragStartTime >= 0 && cursorScope == this && plot != null && !plot2d.enabled && !showFFT) {
 	    int dragX = timeToX(dragStartTime);
 	    if (dragX >= rect.x && dragX < rect.x+rect.width) {
 		g.setColor(CircuitElm.lightGrayColor);
@@ -1783,7 +1624,7 @@ class Scope {
     }
 
     boolean isShowingVceAndIc() {
-	return plot2d && plots.size() == 2 && plots.get(0).value == VAL_VCE && plots.get(1).value == VAL_IC;
+	return plot2d.enabled && plots.size() == 2 && plots.get(0).value == VAL_VCE && plots.get(1).value == VAL_IC;
     }
 
     int getFlags() {
@@ -1792,8 +1633,8 @@ class Scope {
 			(showFreq ? 8 : 0) |
 			// In this version we always dump manual settings using the PERPLOT format
 			(isManualScale() ? (FLAG_MAN_SCALE | FLAG_PERPLOT_MAN_SCALE): 0) |
-			(plot2d ? 64 : 0) |
-			(plotXY ? 128 : 0) | (showMin ? 256 : 0) | (showScale? 512:0) |
+			(plot2d.enabled ? 64 : 0) |
+			(plot2d.plotXY ? 128 : 0) | (showMin ? 256 : 0) | (showScale? 512:0) |
 			(showFFT ? 1024 : 0) | (maxScale ? 8192 : 0) | (showRMS ? 16384 : 0) |
 			(showDutyCycle ? 32768 : 0) | (logSpectrum ? 65536 : 0) |
 			(showAverage ? (1<<17) : 0) | (showElmInfo ? (1<<20) : 0) |
@@ -1822,9 +1663,9 @@ class Scope {
     	if (elm == null)
     	    return;
     	// sync scale[] from scaleX/scaleY for 2d plots so they get saved correctly
-    	if (plot2d && plots.size() >= 2) {
-    	    scale[plots.get(0).units] = scaleX;
-    	    scale[plots.get(1).units] = scaleY;
+    	if (plot2d.enabled && plots.size() >= 2) {
+    	    scale[plots.get(0).units] = plot2d.scaleX;
+    	    scale[plots.get(1).units] = plot2d.scaleY;
     	}
     	int flags = getFlags();
     	int eno = app.locateElm(elm);
@@ -1904,9 +1745,9 @@ class Scope {
 	}
 
     	// restore scaleX/scaleY for 2d plots
-    	if (plot2d && plots.size() >= 2) {
-    	    scaleX = scale[plots.get(0).units];
-    	    scaleY = scale[plots.get(1).units];
+    	if (plot2d.enabled && plots.size() >= 2) {
+    	    plot2d.scaleX = scale[plots.get(0).units];
+    	    plot2d.scaleY = scale[plots.get(1).units];
     	}
     }
 
@@ -1931,11 +1772,11 @@ class Scope {
     	    scale[UNITS_V] = .5;
     	if (scale[UNITS_A] == 0)
     	    scale[UNITS_A] = 1;
-    	scaleX = scale[UNITS_V];
-    	scaleY = scale[UNITS_A];
+    	plot2d.scaleX = scale[UNITS_V];
+    	plot2d.scaleY = scale[UNITS_A];
     	scale[UNITS_OHMS] = scale[UNITS_W] = scale[UNITS_C] = scale[UNITS_V];
     	text = null;
-    	boolean plot2dFlag = (flags & 64) != 0;
+	boolean plot2dFlag = (flags & 64) != 0;
     	boolean hasPlotFlags = (flags & FLAG_PERPLOTFLAGS) != 0;
     	if ((flags & FLAG_PLOTS) != 0) {
     	    // new-style dump
@@ -2014,7 +1855,7 @@ class Scope {
     	}
     	if (text != null)
     	    text = CustomLogicModel.unescape(text);
-    	plot2d = plot2dFlag;
+    	plot2d.enabled = plot2dFlag;
     	setFlags(flags);
     }
     
@@ -2024,8 +1865,8 @@ class Scope {
     	showMax = (flags & 4) == 0;
     	showFreq = (flags & 8) != 0;
     	manualScale = (flags & FLAG_MAN_SCALE) != 0;
-    	plot2d = (flags & 64) != 0;
-    	plotXY = (flags & 128) != 0;
+    	plot2d.enabled = (flags & 64) != 0;
+    	plot2d.plotXY = (flags & 128) != 0;
     	showMin = (flags & 256) != 0;
     	showScale = (flags & 512) !=0;
     	showFFT((flags & 1024) != 0);
@@ -2068,16 +1909,6 @@ class Scope {
         if (arr.length > 3 && (flags & FLAG_TRIGGER) != 0)
             trigger.level = Double.parseDouble(arr[3]);
         return true;
-    }
-    
-    void allocImage() {
-	if (imageCanvas != null) {
-	    imageCanvas.setWidth(rect.width + "PX");
-	    imageCanvas.setHeight(rect.height + "PX");
-	    imageCanvas.setCoordinateSpaceWidth(rect.width);
-	    imageCanvas.setCoordinateSpaceHeight(rect.height);
-	    clear2dView();
-	}
     }
     
     void handleMenu(String mi, boolean state) {
@@ -2126,24 +1957,24 @@ class Scope {
     	if (mi == "showvce")
     		setValue(VAL_VCE);
     	if (mi == "showvcevsic") {
-    		plot2d = true;
-    		plotXY = false;
+    		plot2d.enabled = true;
+    		plot2d.plotXY = false;
     		setValues(VAL_VCE, VAL_IC, getElm(), null);
     		resetGraph();
     	}
 
     	if (mi == "showvvsi") {
-    		plot2d = state;
-    		plotXY = false;
+    		plot2d.enabled = state;
+    		plot2d.plotXY = false;
     		resetGraph();
     	}
     	if (mi == "manualscale")
 		setManualScale(state, true);
     	if (mi == "plotxy") {
-    		plotXY = plot2d = state;
-    		if (plot2d)
+    		plot2d.plotXY = plot2d.enabled = state;
+    		if (plot2d.enabled)
     		    plots = visiblePlots;
-    		if (plot2d && plots.size() == 1)
+    		if (plot2d.enabled && plots.size() == 1)
     		    selectY();
     		resetGraph();
     	}

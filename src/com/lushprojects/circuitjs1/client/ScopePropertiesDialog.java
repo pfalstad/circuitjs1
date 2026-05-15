@@ -668,8 +668,8 @@ labelledGridManager gridLabels;
 	    phaseAngleBox.setValue(scope.showPhaseAngle);
 	    elmInfoBox.setValue(scope.showElmInfo);
 	    rmsBox.setEnabled(scope.canShowRMS());
-	    viBox.setValue(scope.plot2d && !scope.plotXY);
-	    xyBox.setValue(scope.plotXY);
+	    viBox.setValue(scope.plot2d.enabled && !scope.plot2d.plotXY);
+	    xyBox.setValue(scope.plot2d.plotXY);
 	    resistanceBox.setValue(scope.showingValue(Scope.VAL_R));
 	    resistanceBox.setEnabled(scope.canShowResistance());
 	    if (chargeBox != null)
