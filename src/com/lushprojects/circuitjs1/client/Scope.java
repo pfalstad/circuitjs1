@@ -1369,13 +1369,33 @@ void showPlotValue(int val, boolean b) {
 	return false;
     }
     
-    CircuitElm getXElm() {
-	return getElm();
+    // Populate roles map with all elements involved in this scope's display.
+    // In XY mode each element is labelled by its axis role; in normal mode all
+    // visible plot elements get an empty label (highlighted but unlabelled).
+    void addScopePlotRoles(java.util.HashMap<CircuitElm, String> roles) {
+	if (plot2d.plotXY) {
+	    addPlotRole(roles, plot2d.plotX,          "X");
+	    addPlotRole(roles, plot2d.plotY,          "Y");
+	    addPlotRole(roles, plot2d.plotBrightness, "Br");
+	    addPlotRole(roles, plot2d.plotColorR,     "R");
+	    addPlotRole(roles, plot2d.plotColorG,     "G");
+	    addPlotRole(roles, plot2d.plotColorB,     "B");
+	} else {
+	    for (ScopePlot p : visiblePlots)
+		if (p.elm != null)
+		    addElmRole(roles, p.elm, "");
+	}
     }
-    CircuitElm getYElm() {
-	if (plots.size() == 2)
-	    return plots.get(1).elm;
-	return null;
+
+    private void addPlotRole(java.util.HashMap<CircuitElm, String> roles, int idx, String role) {
+	if (idx < 0 || idx >= plots.size()) return;
+	addElmRole(roles, plots.get(idx).elm, role);
+    }
+
+    private void addElmRole(java.util.HashMap<CircuitElm, String> roles, CircuitElm elm, String role) {
+	if (elm == null) return;
+	String existing = roles.get(elm);
+	roles.put(elm, existing == null ? role : existing + "/" + role);
     }
     
     boolean needToRemove() {

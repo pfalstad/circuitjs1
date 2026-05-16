@@ -19,6 +19,7 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import java.util.HashMap;
 import com.google.gwt.canvas.client.Canvas;
 import com.google.gwt.event.dom.client.MouseDownEvent;
 import com.google.gwt.event.dom.client.MouseDownHandler;
@@ -87,7 +88,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public int mousePost = -1;
     public CircuitNode highlightedNode = null;
     public boolean netHighlightKeyHeld = false;
-    public CircuitElm plotXElm, plotYElm;
+    public HashMap<CircuitElm, String> scopePlotRoles = new HashMap<CircuitElm, String>();
     public int draggingPost;
     public SwitchElm heldSwitchElm;
     private boolean mouseDragging;
@@ -650,7 +651,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	//	CircuitElm origMouse = mouseElm;
 
     	mousePost = -1;
-    	plotXElm = plotYElm = null;
+    	scopePlotRoles.clear();
 
     	if (mouseIsOverSplitter(sx, sy)) {
     		setMouseElm(null);
@@ -679,10 +680,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		Scope s = sim.scopeManager.scopes[i];
     		if (s.rect.contains(sx, sy)) {
     		    newMouseElm=s.getElm();
-    		    if (s.plot2d.plotXY) {
-    			plotXElm = s.getXElm();
-    			plotYElm = s.getYElm();
-    		    }
+    		    s.addScopePlotRoles(scopePlotRoles);
     		    sim.scopeManager.scopeSelected = i;
     		}
     	    }
@@ -911,7 +909,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     void clearMouseElm() {
     	sim.scopeManager.scopeSelected = -1;
     	setMouseElm(null);
-    	plotXElm = plotYElm = null;
+    	scopePlotRoles.clear();
     }
 
     public void onMouseDown(MouseDownEvent e) {

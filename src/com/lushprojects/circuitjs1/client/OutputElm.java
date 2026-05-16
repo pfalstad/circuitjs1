@@ -65,10 +65,9 @@ class OutputElm extends CircuitElm {
 	    g.setColor(selected ? selectColor : lightGrayColor);
 	    String s = showVoltage() ? getUnitTextWithScale(volts[0], "V", scale, isFixed()) : Locale.LS("out");
 //	    FontMetrics fm = g.getFontMetrics();
-	    if (this == app.mouse.plotXElm)
-		s = "X";
-	    if (this == app.mouse.plotYElm)
-		s = "Y";
+	    String role = app.mouse.scopePlotRoles.get(this);
+	    if (role != null && !role.isEmpty())
+		s = role;
 	    interpPoint(point1, point2, lead1, 1-((int)g.context.measureText(s).getWidth()/2+8)/dn);
 	    setBbox(point1, lead1, 0);
 	    drawCenteredText(g, s, x2, y2, true);
