@@ -867,8 +867,8 @@ void showPlotValue(int val, boolean b) {
 	int i;
 	for (i = 0; i != drawWidth; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
-	    int minvy = (int)(plot.gridMult*(minV[ip]+plot.plotOffset));
-	    int maxvy = (int)(plot.gridMult*(maxV[ip]+plot.plotOffset));
+	    int minvy = (int)Math.round(plot.gridMult*(minV[ip]+plot.plotOffset));
+	    int maxvy = (int)Math.round(plot.gridMult*(maxV[ip]+plot.plotOffset));
 	    if (minvy <= maxy) {
 		if (minvy < minRangeLo || maxvy > minRangeHi) {
 		    // value outside min range; no need to rescale later
