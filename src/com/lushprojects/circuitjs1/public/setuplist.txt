@@ -92,7 +92,6 @@ ladder.txt LC Ladder
 -
 phaseseq.txt Phase-Sequence Network
 3phasewye.txt 3-Phase Wye-Wye Balanced Load
-lissa.txt Lissajous Figures
 -
 +Diodes
 diodevar.txt Diode
@@ -462,5 +461,11 @@ ujtosc.txt Unijunction Oscillator
 3motor.txt 3-Phase Motor
 latchingrelay.txt Latching Relay
 gyratorelm.txt Gyrator
+-
++2-D Scope
+lissa.txt Lissajous Figures
+plot2d-checker.txt Checkerboard
+plot2d-color.txt Color Checkerboard
+plot2d-smile.txt Smiley
 -
 blank.txt Blank Circuit
