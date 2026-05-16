@@ -520,11 +520,11 @@ labelledGridManager gridLabels;
 		addItemToGrid(grid, xyBox = new ScopeCheckBox(Locale.LS("Plot X/Y"), "plotxy"));
 		xyBox.addValueChangeHandler(this);
 		Grid trailGrid = new Grid(1, 3);
-		trailGrid.setWidget(0, 0, new Label(Locale.LS("Trail Persistence (ms)")));
-		// Range 0..2000 ms; step 50; 0 = instant erase (no trail)
-		trailBar = new Scrollbar(Scrollbar.HORIZONTAL, scope.trailPersistence, 1, 0, 2050, new Command() {
+		trailGrid.setWidget(0, 0, new Label(Locale.LS("Trail Persistence (time steps)")));
+		// Logarithmic: slider 0 = old default; slider n -> round(10^(n/10)) timesteps
+		trailBar = new Scrollbar(Scrollbar.HORIZONTAL, trailStepsToSlider(scope.trailPersistence), 1, 0, 61, new Command() {
 		    public void execute() {
-			scope.trailPersistence = trailBar.getValue();
+			scope.trailPersistence = trailSliderToSteps(trailBar.getValue());
 			setTrailLabel();
 		    }
 		});
@@ -641,11 +641,21 @@ labelledGridManager gridLabels;
 	    scopeSpeedLabel.setText(CircuitElm.getUnitText(scope.calcGridStepX(), "s")+"/div");
 	}
 
+	// Logarithmic mapping: slider 0 = old default (0 steps); slider n -> round(10^(n/10))
+	static int trailSliderToSteps(int v) {
+	    if (v <= 0) return 0;
+	    return (int) Math.round(Math.pow(10, v / 10.0));
+	}
+	static int trailStepsToSlider(int steps) {
+	    if (steps <= 0) return 0;
+	    return (int) Math.round(Math.log10(steps) * 10);
+	}
+
 	void setTrailLabel() {
 	    if (scope.trailPersistence <= 0)
-		trailLabel.setText(Locale.LS("none"));
+		trailLabel.setText(Locale.LS("default"));
 	    else
-		trailLabel.setText(scope.trailPersistence + " ms");
+		trailLabel.setText(CircuitElm.getUnitText(scope.trailPersistence * sim.sim.maxTimeStep, "s"));
 	}
 
 	void addItemToGrid(Grid g, FocusWidget scb) {

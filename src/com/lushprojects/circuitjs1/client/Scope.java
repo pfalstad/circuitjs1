@@ -261,11 +261,11 @@ class Scope {
     SimulationManager sim;
     Canvas imageCanvas;
     Context2d imageContext;
-    int alphaCounter =0;
-    // XY-plot trail persistence (wall-clock ms). 0 = instant erase (no trail).
-    int trailPersistence = 200;
-    static final int DEFAULT_TRAIL_PERSISTENCE = 200;
-    long lastTrailTime;
+    int alphaCounter = 0;
+    // XY-plot trail persistence in timesteps. 0 = original alphaCounter behavior.
+    int trailPersistence = 0;
+    static final int DEFAULT_TRAIL_PERSISTENCE = 0;
+    double lastTrailSimTime = -1;
     // scopeTimeStep to check if sim timestep has changed from previous value when redrawing
     double scopeTimeStep;
     double scale[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
@@ -1058,27 +1058,33 @@ class Scope {
     	g.context.translate(rect.x, rect.y);
     	g.clipRect(0, 0, rect.width, rect.height);
     	
-    	// Wall-clock-based exponential fade. alpha = 1 - exp(-elapsed/persistence)
-    	// makes the trail look the same across simulation speeds: at 60fps a 200ms
-    	// persistence drops a pixel by 1-exp(-16/200) = 7.7% per frame; at 30fps
-    	// the same persistence drops by 1-exp(-33/200) = 15% per frame, so total
-    	// decay over a fixed wall-clock interval is constant.
-    	long now = System.currentTimeMillis();
-    	long elapsed = (lastTrailTime == 0) ? 16 : (now - lastTrailTime);
-    	lastTrailTime = now;
-    	double fadeAlpha;
-    	if (trailPersistence <= 0)
-    		fadeAlpha = 1.0; // instant erase = no trail
-    	else
-    		fadeAlpha = 1.0 - Math.exp(-elapsed / (double) trailPersistence);
-    	if (fadeAlpha > 0) {
+    	alphaCounter++;
+    	if (alphaCounter > 2) {
+    	    alphaCounter = 0;
+    	    double fadeAlpha;
+    	    if (trailPersistence <= 0) {
+    		fadeAlpha = 0.01; // original behavior
+    	    } else {
+    		// Sim-time exponential fade; time constant = trailPersistence * maxTimeStep (seconds).
+    		// Don't advance lastTrailSimTime until fadeAlpha is large enough; otherwise sub-pixel
+    		// alphas have no effect on an 8-bit canvas and the trail never fades at low speed.
+    		if (lastTrailSimTime < 0 || sim.t < lastTrailSimTime)
+    		    lastTrailSimTime = sim.t;
+    		double elapsed = sim.t - lastTrailSimTime;
+    		double timeConst = trailPersistence * sim.maxTimeStep;
+    		fadeAlpha = 1.0 - Math.exp(-elapsed / timeConst);
+    		if (fadeAlpha >= 3.0 / 255)
+    		    lastTrailSimTime = sim.t;
+    	    }
+    	    if (fadeAlpha > 0) {
     		imageContext.setGlobalAlpha(fadeAlpha);
     		if (app.isPrintable())
-    			imageContext.setFillStyle("#ffffff");
+    		    imageContext.setFillStyle("#ffffff");
     		else
-    			imageContext.setFillStyle("#000000");
-    		imageContext.fillRect(0,0,rect.width,rect.height);
+    		    imageContext.setFillStyle("#000000");
+    		imageContext.fillRect(0, 0, rect.width, rect.height);
     		imageContext.setGlobalAlpha(1.0);
+    	    }
     	}
     	
     	g.context.drawImage(imageContext.getCanvas(), 0.0, 0.0);
