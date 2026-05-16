@@ -110,15 +110,23 @@ class Scope {
     
     void showCurrent(boolean b) {
 	showI = b;
-	if (b && !showingVoltageAndMaybeCurrent())
-	    setValue(0);
+	if (b && !hasPlotValue(VAL_CURRENT)) {
+	    CircuitElm ce = getElm();
+	    if (ce != null)
+		plots.add(new ScopePlot(ce, UNITS_A, VAL_CURRENT, getManScaleFromMaxScale(UNITS_A, false)));
+	}
 	calcVisiblePlots();
+	resetGraph();
     }
     void showVoltage(boolean b) {
 	showV = b;
-	if (b && !showingVoltageAndMaybeCurrent())
-	    setValue(0);
+	if (b && !hasPlotValue(VAL_VOLTAGE)) {
+	    CircuitElm ce = getElm();
+	    if (ce != null)
+		plots.add(new ScopePlot(ce, UNITS_V, VAL_VOLTAGE, getManScaleFromMaxScale(UNITS_V, false)));
+	}
 	calcVisiblePlots();
+	resetGraph();
     }
 
     // check if any plot has the given value (unlike showingValue which checks ALL plots)
@@ -130,26 +138,27 @@ class Scope {
 	return false;
     }
 
-    void showCharge(boolean b) {
+void showPlotValue(int val, boolean b) {
 	if (b) {
-	    // add a charge plot if not already present
-	    if (!hasPlotValue(VAL_CHARGE)) {
+	    if (!hasPlotValue(val)) {
 		CircuitElm ce = getElm();
 		if (ce != null) {
-		    int u = ce.getScopeUnits(VAL_CHARGE);
-		    plots.add(new ScopePlot(ce, u, VAL_CHARGE, getManScaleFromMaxScale(u, false)));
+		    int u = ce.getScopeUnits(val);
+		    plots.add(new ScopePlot(ce, u, val, getManScaleFromMaxScale(u, false)));
 		}
 	    }
 	} else {
-	    // remove any charge plots
 	    for (int i = plots.size() - 1; i >= 0; i--) {
-		if (plots.get(i).value == VAL_CHARGE)
+		if (plots.get(i).value == val && plots.size() > 1)
 		    plots.remove(i);
 	    }
 	}
 	calcVisiblePlots();
 	resetGraph();
     }
+
+    void showCharge(boolean b) { showPlotValue(VAL_CHARGE, b); }
+    void showPower(boolean b)  { showPlotValue(VAL_POWER,  b); }
 
     void showMax    (boolean b) { showMax = b; }
     void showScale    (boolean b) { showScale = b; }
@@ -279,12 +288,12 @@ class Scope {
 	if (!plot2d.enabled) {
         	for (i = 0; i != plots.size(); i++) {
         	    ScopePlot plot = plots.get(i);
-        	    if (plot.units == UNITS_V) {
+        	    if (plot.value == VAL_VOLTAGE) {
         		if (showV) {
         		    visiblePlots.add(plot);
         		    plot.assignColor(vc++);
         		}
-        	    } else if (plot.units == UNITS_A) {
+        	    } else if (plot.value == VAL_CURRENT) {
         		if (showI) {
         		    visiblePlots.add(plot);
         		    plot.assignColor(ac++);
@@ -1249,19 +1258,19 @@ class Scope {
     	if (mi == "showelminfo")
 	    	showElmInfo = state;
     	if (mi == "showpower")
-    		setValue(VAL_POWER);
+    		showPower(state);
     	if (mi == "showib")
-    		setValue(VAL_IB);
+    		showPlotValue(VAL_IB, state);
     	if (mi == "showic")
-    		setValue(VAL_IC);
+    		showPlotValue(VAL_IC, state);
     	if (mi == "showie")
-    		setValue(VAL_IE);
+    		showPlotValue(VAL_IE, state);
     	if (mi == "showvbe")
-    		setValue(VAL_VBE);
+    		showPlotValue(VAL_VBE, state);
     	if (mi == "showvbc")
-    		setValue(VAL_VBC);
+    		showPlotValue(VAL_VBC, state);
     	if (mi == "showvce")
-    		setValue(VAL_VCE);
+    		showPlotValue(VAL_VCE, state);
     	if (mi == "showvcevsic") {
     		plot2d.enabled = true;
     		plot2d.plotXY = false;
@@ -1285,7 +1294,7 @@ class Scope {
     		resetGraph();
     	}
     	if (mi == "showresistance")
-    		setValue(VAL_R);
+    		showPlotValue(VAL_R, state);
     	if (mi == "showcharge")
     		showCharge(state);
     }

@@ -47,8 +47,8 @@ class ScopeSerializer {
     }
 
     void setFlags(int flags) {
-	scope.showI = (flags & 1) != 0;
-	scope.showV = (flags & 2) != 0;
+	scope.showI = (flags & 1) != 0 && scope.hasPlotValue(Scope.VAL_CURRENT);
+	scope.showV = (flags & 2) != 0 && scope.hasPlotValue(Scope.VAL_VOLTAGE);
 	scope.showMax = (flags & 4) == 0;
 	scope.showFreq = (flags & 8) != 0;
 	scope.manualScale = (flags & FLAG_MAN_SCALE) != 0;
@@ -124,7 +124,6 @@ class ScopeSerializer {
 	scope.position = xml.parseIntAttr("p", 0);
 	scope.manDivisions = xml.parseIntAttr("md", 8);
 	scope.text = xml.parseStringAttr("x", (String) null);
-	setFlags(flags);
 	// override any stale trigger bits from old files with explicit XML attrs;
 	// must be called before parseChildElement() changes XML context
 	scope.trigger.undumpXml(xml);
@@ -147,6 +146,8 @@ class ScopeSerializer {
 		p.manVPosition = xml.parseIntAttr("mp", 0);
 	    }
 	}
+	// setFlags after plots are loaded so hasPlotValue checks work correctly
+	setFlags(flags);
 	// restore scaleX/scaleY for 2d plots
 	if (scope.plot2d.enabled && scope.plots.size() >= 2) {
 	    scope.plot2d.scaleX = scope.scale[scope.plots.get(0).units];
