@@ -47,8 +47,8 @@ class ScopeSerializer {
     }
 
     void setFlags(int flags) {
-	scope.showI = (flags & 1) != 0 && scope.hasPlotValue(Scope.VAL_CURRENT);
-	scope.showV = (flags & 2) != 0 && scope.hasPlotValue(Scope.VAL_VOLTAGE);
+	scope.showI = (flags & 1) != 0;
+	scope.showV = (flags & 2) != 0;
 	scope.showMax = (flags & 4) == 0;
 	scope.showFreq = (flags & 8) != 0;
 	scope.manualScale = (flags & FLAG_MAN_SCALE) != 0;
