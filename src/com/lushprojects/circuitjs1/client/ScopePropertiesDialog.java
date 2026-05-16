@@ -61,7 +61,8 @@ CheckBox rmsBox, dutyBox, viBox, xyBox, resistanceBox, chargeBox, ibBox, icBox, 
 CheckBox elmInfoBox, phaseAngleBox;
 TextBox labelTextBox, manualScaleTextBox, divisionsTextBox;
 Button applyButton, scaleUpButton, scaleDownButton;
-Scrollbar speedBar,positionBar;
+Scrollbar speedBar, positionBar, trailBar;
+Label trailLabel;
 Scope scope;
 Grid grid, vScaleGrid, hScaleGrid;
 int nx, ny;
@@ -586,6 +587,20 @@ expandingLabel xyPlotsLabel;
 		viBox.addValueChangeHandler(this);
 		addItemToGrid(grid, xyBox = new ScopeCheckBox(Locale.LS("Plot X/Y"), "plotxy"));
 		xyBox.addValueChangeHandler(this);
+		Grid trailGrid = new Grid(1, 3);
+		trailGrid.setWidget(0, 0, new Label(Locale.LS("Trail Persistence (time steps)")));
+		// Logarithmic: slider 0 = old default; slider n -> round(10^(n/10)) timesteps
+		trailBar = new Scrollbar(Scrollbar.HORIZONTAL, trailStepsToSlider(scope.plot2d.trailPersistence), 1, 0, 61, new Command() {
+		    public void execute() {
+			scope.plot2d.trailPersistence = trailSliderToSteps(trailBar.getValue());
+			setTrailLabel();
+		    }
+		});
+		trailGrid.setWidget(0, 1, trailBar);
+		trailLabel = new Label("");
+		trailGrid.setWidget(0, 2, trailLabel);
+		fp.add(trailGrid);
+		setTrailLabel();
 		if (transistor) {
 		    addItemToGrid(grid, vceIcBox = new ScopeCheckBox(Locale.LS("Show Vce vs Ic"), "showvcevsic"));
 		    vceIcBox.addValueChangeHandler(this);
@@ -743,7 +758,24 @@ expandingLabel xyPlotsLabel;
 	void setScopeSpeedLabel() {
 	    scopeSpeedLabel.setText(CircuitElm.getUnitText(scope.calcGridStepX(), "s")+"/div");
 	}
-	
+
+	// Logarithmic mapping: slider 0 = old default (0 steps); slider n -> round(10^(n/10))
+	static int trailSliderToSteps(int v) {
+	    if (v <= 0) return 0;
+	    return (int) Math.round(Math.pow(10, v / 10.0));
+	}
+	static int trailStepsToSlider(int steps) {
+	    if (steps <= 0) return 0;
+	    return (int) Math.round(Math.log10(steps) * 10);
+	}
+
+	void setTrailLabel() {
+	    if (scope.plot2d.trailPersistence <= 0)
+		trailLabel.setText(Locale.LS("default"));
+	    else
+		trailLabel.setText(CircuitElm.getUnitText(scope.plot2d.trailPersistence * sim.sim.maxTimeStep, "s"));
+	}
+
 	void addItemToGrid(Grid g, FocusWidget scb) {
 	    g.setWidget(ny, nx, scb);
 	    if (++nx >= grid.getColumnCount()) {

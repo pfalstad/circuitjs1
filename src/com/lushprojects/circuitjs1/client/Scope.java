@@ -197,6 +197,7 @@ void showPlotValue(int val, boolean b) {
     	scopeTimeStep = sim.maxTimeStep;
     	plot2d.allocImage();
     	trigger.reset(scopePointCount);
+    	plot2d.lastTrailSimTime = -1;
     }
     
     void setManualScaleValue(int plotId, double d) {

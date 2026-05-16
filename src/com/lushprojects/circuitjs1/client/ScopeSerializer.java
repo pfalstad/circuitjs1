@@ -119,6 +119,8 @@ class ScopeSerializer {
 	}
 	if (scope.text != null)
 	    xmlElm.setAttribute("x", scope.text);
+	if (scope.plot2d.trailPersistence != ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE)
+	    XMLSerializer.dumpAttr(xmlElm, "tp", scope.plot2d.trailPersistence);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -134,6 +136,7 @@ class ScopeSerializer {
 	scope.position = xml.parseIntAttr("p", 0);
 	scope.manDivisions = xml.parseIntAttr("md", 8);
 	scope.text = xml.parseStringAttr("x", (String) null);
+	scope.plot2d.trailPersistence = xml.parseIntAttr("tp", ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE);
 	// All of these must be read before parseChildElement() changes the XML context
 	// to a child <p> element.
 	scope.trigger.undumpXml(xml);

@@ -20,6 +20,9 @@ class ScopePlot2d {
     private Context2d imageContext;
     private int draw_ox, draw_oy;
     private int alphaCounter;
+    int trailPersistence = 0;
+    static final int DEFAULT_TRAIL_PERSISTENCE = 0;
+    double lastTrailSimTime = -1;
 
     Scope scope;
 
@@ -193,14 +196,31 @@ class ScopePlot2d {
 	alphaCounter++;
 	if (alphaCounter > 2) {
 	    alphaCounter = 0;
-	    imageContext.setGlobalAlpha(0.01);
-	    if (scope.app.isPrintable()) {
-		imageContext.setFillStyle("#ffffff");
+	    double fadeAlpha;
+	    if (trailPersistence <= 0) {
+		fadeAlpha = 0.01;
 	    } else {
-		imageContext.setFillStyle("#000000");
+		// Sim-time exponential fade; time constant = trailPersistence * maxTimeStep (seconds).
+		// Don't advance lastTrailSimTime until fadeAlpha is large enough; otherwise sub-pixel
+		// alphas have no effect on an 8-bit canvas and the trail never fades at low speed.
+		if (lastTrailSimTime < 0 || scope.sim.t < lastTrailSimTime)
+		    lastTrailSimTime = scope.sim.t;
+		double elapsed = scope.sim.t - lastTrailSimTime;
+		double timeConst = trailPersistence * scope.sim.maxTimeStep;
+		fadeAlpha = 1.0 - Math.exp(-elapsed / timeConst);
+		if (fadeAlpha >= 3.0 / 255)
+		    lastTrailSimTime = scope.sim.t;
 	    }
-	    imageContext.fillRect(0, 0, scope.rect.width, scope.rect.height);
-	    imageContext.setGlobalAlpha(1.0);
+	    if (fadeAlpha > 0) {
+		imageContext.setGlobalAlpha(fadeAlpha);
+		if (scope.app.isPrintable()) {
+		    imageContext.setFillStyle("#ffffff");
+		} else {
+		    imageContext.setFillStyle("#000000");
+		}
+		imageContext.fillRect(0, 0, scope.rect.width, scope.rect.height);
+		imageContext.setGlobalAlpha(1.0);
+	    }
 	}
 
 	g.context.drawImage(imageContext.getCanvas(), 0.0, 0.0);
