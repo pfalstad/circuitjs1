@@ -210,6 +210,8 @@ class ScopePlot2d {
 		fadeAlpha = 1.0 - Math.exp(-elapsed / timeConst);
 		if (fadeAlpha >= 3.0 / 255)
 		    lastTrailSimTime = scope.sim.t;
+		else
+		    fadeAlpha = 0;
 	    }
 	    if (fadeAlpha > 0) {
 		imageContext.setGlobalAlpha(fadeAlpha);
