@@ -22,6 +22,9 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.RadioButton;
+import com.google.gwt.user.client.ui.ListBox;
+import com.google.gwt.event.dom.client.ChangeEvent;
+import com.google.gwt.event.dom.client.ChangeHandler;
 
 import java.util.Vector;
 
@@ -74,6 +77,11 @@ HorizontalPanel trigModep, trigEdgep;
 Vector <Button> chanButtons = new Vector <Button>();
 int plotSelection = 0;
 labelledGridManager gridLabels;
+// XY plot settings controls
+Grid xySettingsGrid;
+ListBox xyPlotXBox, xyPlotYBox, xyBrightnessBox, xyRedBox, xyGreenBox, xyBlueBox;
+int xySettingsRow = -1;
+expandingLabel xyPlotsLabel;
 	
     class PlotClickHandler implements ClickHandler {
 	int num;
@@ -470,13 +478,72 @@ labelledGridManager gridLabels;
 
 		fp.add(triggerGrid);
 
+		// *************** XY PLOT SETTINGS (embedded in main grid later) ***************
+		xySettingsGrid = new Grid(3, 4);
+		xyPlotXBox = new ListBox();
+		xyPlotXBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			int idx = getListBoxValue(xyPlotXBox);
+			if (idx >= 0) scope.plot2d.plotX = idx;
+			scope.resetGraph();
+		    }
+		});
+		xyPlotYBox = new ListBox();
+		xyPlotYBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			int idx = getListBoxValue(xyPlotYBox);
+			if (idx >= 0) scope.plot2d.plotY = idx;
+			scope.resetGraph();
+		    }
+		});
+		xyBrightnessBox = new ListBox();
+		xyBrightnessBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			scope.plot2d.plotBrightness = getListBoxValue(xyBrightnessBox);
+			scope.resetGraph();
+		    }
+		});
+		xyRedBox = new ListBox();
+		xyRedBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			scope.plot2d.plotColorR = getListBoxValue(xyRedBox);
+			scope.resetGraph();
+		    }
+		});
+		xyGreenBox = new ListBox();
+		xyGreenBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			scope.plot2d.plotColorG = getListBoxValue(xyGreenBox);
+			scope.resetGraph();
+		    }
+		});
+		xyBlueBox = new ListBox();
+		xyBlueBox.addChangeHandler(new ChangeHandler() {
+		    public void onChange(ChangeEvent e) {
+			scope.plot2d.plotColorB = getListBoxValue(xyBlueBox);
+			scope.resetGraph();
+		    }
+		});
+		xySettingsGrid.setWidget(0, 0, new Label(Locale.LS("X Axis:")));
+		xySettingsGrid.setWidget(0, 1, xyPlotXBox);
+		xySettingsGrid.setWidget(0, 2, new Label(Locale.LS("Y Axis:")));
+		xySettingsGrid.setWidget(0, 3, xyPlotYBox);
+		xySettingsGrid.setWidget(1, 0, new Label(Locale.LS("Brightness:")));
+		xySettingsGrid.setWidget(1, 1, xyBrightnessBox);
+		xySettingsGrid.setWidget(1, 2, new Label(Locale.LS("Red:")));
+		xySettingsGrid.setWidget(1, 3, xyRedBox);
+		xySettingsGrid.setWidget(2, 0, new Label(Locale.LS("Green:")));
+		xySettingsGrid.setWidget(2, 1, xyGreenBox);
+		xySettingsGrid.setWidget(2, 2, new Label(Locale.LS("Blue:")));
+		xySettingsGrid.setWidget(2, 3, xyBlueBox);
+
 		// *************** PLOTS ***********************************************************
 		
 		CircuitElm elm = scope.getSingleElm();
 		boolean transistor = elm != null && elm instanceof TransistorElm;
 		boolean capacitor = elm != null && elm instanceof CapacitorElm;
 		if (!transistor) {
-		    grid = new Grid(capacitor ? 13 : 12, 3);
+		    grid = new Grid(capacitor ? 14 : 13, 3);
 		    gridLabels = new labelledGridManager(grid);
 		    gridLabels.addLabel(Locale.LS("Plots"), displayAll);
 		    addItemToGrid(grid, voltageBox = new ScopeCheckBox(Locale.LS("Show Voltage"), "showvoltage"));
@@ -484,7 +551,7 @@ labelledGridManager gridLabels;
 		    addItemToGrid(grid, currentBox = new ScopeCheckBox(Locale.LS("Show Current"), "showcurrent"));
 		    currentBox.addValueChangeHandler(this);
 		} else {
-		    grid = new Grid(14,3);
+		    grid = new Grid(15,3);
 		    gridLabels = new labelledGridManager(grid);
 		    gridLabels.addLabel(Locale.LS("Plots"), displayAll);
 		    addItemToGrid(grid, ibBox = new ScopeCheckBox(Locale.LS("Show Ib"), "showib"));
@@ -514,14 +581,20 @@ labelledGridManager gridLabels;
 		logSpectrumBox.addValueChangeHandler(this);
 		
 		gridLabels.addLabel(Locale.LS("X-Y Plots"), displayAll);
+		xyPlotsLabel = gridLabels.labels.lastElement();
 		addItemToGrid(grid, viBox = new ScopeCheckBox(Locale.LS("Show V vs I"), "showvvsi"));
-		viBox.addValueChangeHandler(this); 
+		viBox.addValueChangeHandler(this);
 		addItemToGrid(grid, xyBox = new ScopeCheckBox(Locale.LS("Plot X/Y"), "plotxy"));
 		xyBox.addValueChangeHandler(this);
 		if (transistor) {
 		    addItemToGrid(grid, vceIcBox = new ScopeCheckBox(Locale.LS("Show Vce vs Ic"), "showvcevsic"));
 		    vceIcBox.addValueChangeHandler(this);
 		}
+		// Embed XY settings grid inside the X-Y Plots section
+		if (nx != 0) { nx = 0; ny++; }
+		grid.setWidget(ny, 0, xySettingsGrid);
+		xySettingsRow = ny;
+		ny++;
 		gridLabels.addLabel(Locale.LS("Show Info"), displayAll);
 		addItemToGrid(grid, scaleBox = new ScopeCheckBox(Locale.LS("Show Scale"), "showscale"));
 		scaleBox.addValueChangeHandler(this); 
@@ -624,6 +697,49 @@ labelledGridManager gridLabels;
 	}
 	
 	
+	// Get integer value from a ListBox (stored as the item's value string).
+	int getListBoxValue(ListBox lb) {
+	    int sel = lb.getSelectedIndex();
+	    if (sel < 0) return -1;
+	    try { return Integer.parseInt(lb.getValue(sel)); }
+	    catch (Exception e) { return -1; }
+	}
+
+	// Populate a ListBox with all current scope.plots; optionally prepend a "None" (-1) entry.
+	// Preserves the currently selected value if still present.
+	void populatePlotListBox(ListBox lb, int selectedIdx, boolean includeNone) {
+	    lb.clear();
+	    if (includeNone)
+		lb.addItem(Locale.LS("None"), "-1");
+	    for (int i = 0; i < scope.plots.size(); i++) {
+		ScopePlot p = scope.plots.get(i);
+		String name = (p.elm != null) ? p.elm.getScopeText(p.value) : ("Plot " + (i + 1));
+		lb.addItem(name + " (" + Scope.getScaleUnitsText(p.units) + ")", String.valueOf(i));
+	    }
+	    for (int i = 0; i < lb.getItemCount(); i++) {
+		if (Integer.parseInt(lb.getValue(i)) == selectedIdx) {
+		    lb.setSelectedIndex(i);
+		    return;
+		}
+	    }
+	    lb.setSelectedIndex(0);
+	}
+
+	void updateXYSettingsUi() {
+	    boolean xyActive = scope.plot2d.plotXY;
+	    // Show the row only when plotXY is on AND the "X-Y Plots" section is expanded.
+	    // This runs after gridLabels.updateRowVisibility() so it can override its result.
+	    if (xySettingsRow >= 0 && xyPlotsLabel != null)
+		grid.getRowFormatter().setVisible(xySettingsRow, xyActive && xyPlotsLabel.expanded);
+	    if (!xyActive) return;
+	    populatePlotListBox(xyPlotXBox,      scope.plot2d.plotX,          false);
+	    populatePlotListBox(xyPlotYBox,      scope.plot2d.plotY,          false);
+	    populatePlotListBox(xyBrightnessBox, scope.plot2d.plotBrightness, true);
+	    populatePlotListBox(xyRedBox,        scope.plot2d.plotColorR,     true);
+	    populatePlotListBox(xyGreenBox,      scope.plot2d.plotColorG,     true);
+	    populatePlotListBox(xyBlueBox,       scope.plot2d.plotColorB,     true);
+	}
+
 	void setScopeSpeedLabel() {
 	    scopeSpeedLabel.setText(CircuitElm.getUnitText(scope.calcGridStepX(), "s")+"/div");
 	}
@@ -717,6 +833,7 @@ labelledGridManager gridLabels;
 	    triggerGrid.getRowFormatter().setVisible(2, triggerLabel.expanded && trigActive);
 	    triggerGrid.getRowFormatter().setVisible(3, triggerLabel.expanded && trigActive);
 
+	    updateXYSettingsUi();
 	    // if you add more here, make sure it still works with transistor scopes
 	}
 	

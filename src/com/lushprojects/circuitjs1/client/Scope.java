@@ -303,10 +303,9 @@ void showPlotValue(int val, boolean b) {
         		plot.assignColor(oc++);
         	    }
         	}
-	} else { // In 2D mode the visible plots are the first two plots
-	    for(i =0; (i<2) && (i<plots.size()); i++) {
+	} else { // In 2D mode show all plots so scales can be adjusted for any
+	    for (i = 0; i < plots.size(); i++)
 		visiblePlots.add(plots.get(i));
-	    }
 	}
     }
     
@@ -1287,8 +1286,12 @@ void showPlotValue(int val, boolean b) {
 		setManualScale(state, true);
     	if (mi == "plotxy") {
     		plot2d.plotXY = plot2d.enabled = state;
-    		if (plot2d.enabled)
+    		if (plot2d.enabled) {
     		    plots = visiblePlots;
+    		    plot2d.plotX = 0;
+    		    plot2d.plotY = Math.min(1, plots.size() - 1);
+    		    plot2d.plotBrightness = plot2d.plotColorR = plot2d.plotColorG = plot2d.plotColorB = -1;
+    		}
     		if (plot2d.enabled && plots.size() == 1)
     		    selectY();
     		resetGraph();

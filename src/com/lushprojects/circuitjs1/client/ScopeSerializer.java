@@ -74,8 +74,10 @@ class ScopeSerializer {
 	    return;
 	// sync scale[] from scaleX/scaleY for 2d plots so they get saved correctly
 	if (scope.plot2d.enabled && scope.plots.size() >= 2) {
-	    scope.scale[scope.plots.get(0).units] = scope.plot2d.scaleX;
-	    scope.scale[scope.plots.get(1).units] = scope.plot2d.scaleY;
+	    int px = scope.plot2d.validPlotIndex(scope.plot2d.plotX, 0);
+	    int py = scope.plot2d.validPlotIndex(scope.plot2d.plotY, 1);
+	    scope.scale[scope.plots.get(px).units] = scope.plot2d.scaleX;
+	    scope.scale[scope.plots.get(py).units] = scope.plot2d.scaleY;
 	}
 	int flags = getFlags();
 	int eno = scope.app.locateElm(elm);
@@ -91,6 +93,14 @@ class ScopeSerializer {
 	if (scope.manDivisions != 8)
 	    XMLSerializer.dumpAttr(xmlElm, "md", scope.manDivisions);
 	scope.trigger.dumpXml(xmlElm);
+	if (scope.plot2d.plotXY) {
+	    if (scope.plot2d.plotX != 0) XMLSerializer.dumpAttr(xmlElm, "xy2x", scope.plot2d.plotX);
+	    if (scope.plot2d.plotY != 1) XMLSerializer.dumpAttr(xmlElm, "xy2y", scope.plot2d.plotY);
+	    if (scope.plot2d.plotBrightness >= 0) XMLSerializer.dumpAttr(xmlElm, "xy2br", scope.plot2d.plotBrightness);
+	    if (scope.plot2d.plotColorR >= 0) XMLSerializer.dumpAttr(xmlElm, "xy2r", scope.plot2d.plotColorR);
+	    if (scope.plot2d.plotColorG >= 0) XMLSerializer.dumpAttr(xmlElm, "xy2g", scope.plot2d.plotColorG);
+	    if (scope.plot2d.plotColorB >= 0) XMLSerializer.dumpAttr(xmlElm, "xy2b", scope.plot2d.plotColorB);
+	}
 	root.appendChild(xmlElm);
 	for (int i = 0; i < scope.plots.size(); i++) {
 	    ScopePlot p = scope.plots.get(i);
@@ -124,9 +134,15 @@ class ScopeSerializer {
 	scope.position = xml.parseIntAttr("p", 0);
 	scope.manDivisions = xml.parseIntAttr("md", 8);
 	scope.text = xml.parseStringAttr("x", (String) null);
-	// override any stale trigger bits from old files with explicit XML attrs;
-	// must be called before parseChildElement() changes XML context
+	// All of these must be read before parseChildElement() changes the XML context
+	// to a child <p> element.
 	scope.trigger.undumpXml(xml);
+	int xy2x  = xml.parseIntAttr("xy2x",  0);
+	int xy2y  = xml.parseIntAttr("xy2y",  1);
+	int xy2br = xml.parseIntAttr("xy2br", -1);
+	int xy2r  = xml.parseIntAttr("xy2r",  -1);
+	int xy2g  = xml.parseIntAttr("xy2g",  -1);
+	int xy2b  = xml.parseIntAttr("xy2b",  -1);
 	for (Element elem : xml.getChildElements()) {
 	    xml.parseChildElement(elem);
 	    int plotFlags = Integer.parseInt(xml.parseStringAttr("f", "0"), 16);
@@ -148,10 +164,21 @@ class ScopeSerializer {
 	}
 	// setFlags after plots are loaded so hasPlotValue checks work correctly
 	setFlags(flags);
+	// restore XY plot indices (parsed above before child loop changed context)
+	if (scope.plot2d.plotXY) {
+	    scope.plot2d.plotX          = xy2x;
+	    scope.plot2d.plotY          = xy2y;
+	    scope.plot2d.plotBrightness = xy2br;
+	    scope.plot2d.plotColorR     = xy2r;
+	    scope.plot2d.plotColorG     = xy2g;
+	    scope.plot2d.plotColorB     = xy2b;
+	}
 	// restore scaleX/scaleY for 2d plots
-	if (scope.plot2d.enabled && scope.plots.size() >= 2) {
-	    scope.plot2d.scaleX = scope.scale[scope.plots.get(0).units];
-	    scope.plot2d.scaleY = scope.scale[scope.plots.get(1).units];
+	if (scope.plot2d.enabled && scope.plots.size() >= 1) {
+	    int px = scope.plot2d.validPlotIndex(scope.plot2d.plotX, 0);
+	    int py = scope.plot2d.validPlotIndex(scope.plot2d.plotY, Math.min(1, scope.plots.size() - 1));
+	    scope.plot2d.scaleX = scope.scale[scope.plots.get(px).units];
+	    scope.plot2d.scaleY = scope.scale[scope.plots.get(py).units];
 	}
     }
 
