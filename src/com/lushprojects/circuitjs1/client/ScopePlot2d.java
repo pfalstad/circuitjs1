@@ -99,11 +99,6 @@ class ScopePlot2d {
 	draw_oy = y2;
     }
 
-    // Map a value in [-scale, +scale] to [0, 255] (bipolar).
-    int mapBipolar(double value, double scale) {
-	return (int) Math.max(0, Math.min(255, (value / scale + 1) * 127.5));
-    }
-
     // Compute the draw color from R/G/B modulator plots.
     String computeColor() {
 	if (plotColorR < 0 && plotColorG < 0 && plotColorB < 0)
@@ -111,18 +106,18 @@ class ScopePlot2d {
 	int r = 0, g = 0, b = 0;
 	if (plotColorR >= 0 && plotColorR < scope.plots.size()) {
 	    double rv = scope.plots.get(plotColorR).lastValue;
-	    while (Math.abs(rv) > scaleR) scaleR *= 2;
-	    r = mapBipolar(rv, scaleR);
+	    while (rv > scaleR) scaleR *= 2;
+	    r = (int) Math.max(0, Math.min(255, (rv / scaleR) * 255));
 	}
 	if (plotColorG >= 0 && plotColorG < scope.plots.size()) {
 	    double gv = scope.plots.get(plotColorG).lastValue;
-	    while (Math.abs(gv) > scaleG) scaleG *= 2;
-	    g = mapBipolar(gv, scaleG);
+	    while (gv > scaleG) scaleG *= 2;
+	    g = (int) Math.max(0, Math.min(255, (gv / scaleG) * 255));
 	}
 	if (plotColorB >= 0 && plotColorB < scope.plots.size()) {
 	    double bv = scope.plots.get(plotColorB).lastValue;
-	    while (Math.abs(bv) > scaleB) scaleB *= 2;
-	    b = mapBipolar(bv, scaleB);
+	    while (bv > scaleB) scaleB *= 2;
+	    b = (int) Math.max(0, Math.min(255, (bv / scaleB) * 255));
 	}
 	return "rgb(" + r + "," + g + "," + b + ")";
     }
