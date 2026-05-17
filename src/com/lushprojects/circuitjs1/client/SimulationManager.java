@@ -1052,9 +1052,12 @@ public class SimulationManager {
 		    if ( ce instanceof GraphicElm )
 			continue;
 
-		    // routed wire's bounding box is too big
-		    if ( ce instanceof RoutedWireElm )
+		    // routed wire: check path directly instead of bounding box (which is too big)
+		    if (ce instanceof RoutedWireElm) {
+			if (((RoutedWireElm) ce).pointOnPath(cn))
+			    bad = true;
 			continue;
+		    }
 
 		    // does this post intersect elm's bounding box?
 		    if (!ce.boundingBox.contains(cn.x, cn.y))
