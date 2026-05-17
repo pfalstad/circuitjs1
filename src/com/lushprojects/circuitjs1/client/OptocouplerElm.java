@@ -45,13 +45,13 @@ public class OptocouplerElm extends CompositeElm {
 	    model.dumpXml(doc);
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "ctr", ctr);
-	XMLSerializer.dumpAttr(elem, "mo", diode.modelName);
+	XMLSerializer.dumpAttr(elem, "dmo", diode.modelName);
     }
 
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
 	ctr = xml.parseDoubleAttr("ctr", ctr);
-	diode.modelName = xml.parseStringAttr("mo", "default");
+	diode.modelName = xml.parseStringAttr("dmo", "default");
 	initOptocoupler();
 	diode.setup();
     }
