@@ -1,5 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
+import java.util.Vector;
+
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 
@@ -14,11 +16,14 @@ public class OptocouplerElm extends CompositeElm {
 
     DiodeElm diode;
     TransistorElm transistor;
+    Vector<DiodeModel> models;
 
     public OptocouplerElm(int xx, int yy) {
 	super(xx, yy, modelString, modelExternalNodes);
 	noDiagonal = true;
 	initOptocoupler();
+	diode.modelName = "default-optocoupler-led";
+	diode.setup();
     }
 
     public OptocouplerElm(int xa, int ya, int xb, int yb, int f, StringTokenizer st) {
@@ -28,15 +33,27 @@ public class OptocouplerElm extends CompositeElm {
 	initOptocoupler();
     }
 
+    void dumpXmlModel(Document doc) {
+	DiodeModel model = diode.model;
+	if (!(model.builtIn || model.dumped))
+	    model.dumpXml(doc);
+    }
+
     void dumpXml(Document doc, Element elem) {
+	DiodeModel model = diode.model;
+	if (!(model.builtIn || model.dumped))
+	    model.dumpXml(doc);
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "ctr", ctr);
+	XMLSerializer.dumpAttr(elem, "mo", diode.modelName);
     }
 
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
 	ctr = xml.parseDoubleAttr("ctr", ctr);
+	diode.modelName = xml.parseStringAttr("mo", "default");
 	initOptocoupler();
+	diode.setup();
     }
 
 
@@ -198,13 +215,34 @@ public class OptocouplerElm extends CompositeElm {
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo("CTR Scale", ctr, 0, 0).setDimensionless();
+	if (n == 1) {
+	    EditInfo ei = new EditInfo("LED Model", 0, -1, -1);
+	    models = DiodeModel.getModelList(false);
+	    ei.choice = new Choice();
+	    for (int i = 0; i != models.size(); i++) {
+		DiodeModel dm = models.get(i);
+		ei.choice.add(dm.getDescription());
+		if (dm == diode.model)
+		    ei.choice.select(i);
+	    }
+	    return ei;
+	}
 	return null;
+    }
+
+    public void updateModels() {
+	diode.setup();
     }
 
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0 && ei.value > 0) {
 	    ctr = ei.value;
 	    initOptocoupler();
+	}
+	if (n == 1) {
+	    diode.model = models.get(ei.choice.getSelectedIndex());
+	    diode.modelName = diode.model.name;
+	    diode.setup();
 	}
     }
 }

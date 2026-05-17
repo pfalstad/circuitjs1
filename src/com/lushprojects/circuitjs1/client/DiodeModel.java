@@ -89,6 +89,8 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	// default for newly created LEDs, https://www.diyaudio.com/forums/software-tools/25884-spice-models-led.html
 	addDefaultModel("default-led", new DiodeModel(93.2e-12, .042, 3.73, 0, null));
 
+	addDefaultModel("default-optocoupler-led", new DiodeModel(1.714e-7, 0., 4.077, 0., null));
+
 	// https://www.allaboutcircuits.com/textbook/semiconductors/chpt-3/spice-models/
 	addDefaultModel("1N5711", new DiodeModel(315e-9, 2.8, 2.03, 70, "Schottky"));
 	addDefaultModel("1N5712", new DiodeModel(680e-12, 12, 1.003, 20, "Schottky"));
