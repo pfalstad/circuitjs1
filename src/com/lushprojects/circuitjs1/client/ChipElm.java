@@ -214,10 +214,6 @@ abstract class ChipElm extends CircuitElm {
 	
 	void addRoutingObstacle(WireRouter router) {
 	    router.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
-	    for (int i = 0; i != getPostCount(); i++) {
-		Point p = getPost(i);
-		router.addObstacle(p.x, p.y, p.x, p.y);
-	    }
 	}
 
 	// see if we can move pin to position xp, yp, and return the new position.
