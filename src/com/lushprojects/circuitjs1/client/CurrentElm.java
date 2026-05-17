@@ -100,7 +100,7 @@ class CurrentElm extends CircuitElm {
 
 	// analyzeCircuit determines if current source has a path or if it's broken
 	void setBroken(boolean b) {
-	    broken = b;
+	    broken = b && !isVoltageLimited();
 	}
 
 	// we defer stamping current sources until we can tell if they have a current path or not
@@ -120,40 +120,59 @@ class CurrentElm extends CircuitElm {
 	    }
 	}
 
-	// Smooth voltage compliance via tanh-shaped saturation. Newton-Raphson
-	// gets an exact Jacobian so it converges even when the load is open:
-	// as |vd| approaches maxVoltage, the source rolls off to zero current
-	// rather than slamming between full-on and full-off.
-	//
-	// vt (transition width) is 20% of maxVoltage so the Jacobian slope
-	// varies gently across the knee; a tighter knee (e.g. 5%) causes
-	// Newton to ping-pong between linear and saturated iterations when
-	// vd hovers near the compliance voltage.
+	// Smooth voltage compliance via tanh-shaped saturation.
+	// Transition starts at 0.95*maxVoltage and ends at maxVoltage:
+	//   vd < 0.95*Vmax  ->  i ~= currentValue  (tanh arg ~= -2.5)
+	//   vd > Vmax       ->  i ~= 0              (tanh arg ~= +2.5)
+	// tanh is centered at 0.975*Vmax with scale vt = vWidth/5.
 	void doStep() {
 	    if (broken || !isVoltageLimited())
 		return;
+
 	    double vd = volts[1] - volts[0];
+
+	    double vStart = 0.95 * maxVoltage;           // transition begins here
+	    double vWidth = maxVoltage - vStart;          // = 0.05 * maxVoltage
+	    double vMid   = (vStart + maxVoltage) / 2.0; // = 0.975 * maxVoltage
+	    double vt     = Math.max(vWidth / 5.0, 1e-3);
+
+	    // Step-size limit: prevent crossing the transition region in one Newton step.
+	    if (lastVoltDiff < vStart && vd > vStart) {
+		// Approaching transition from low side — stop at entry boundary.
+		vd = vStart;
+		sim.converged = false;
+	    } else if (lastVoltDiff > maxVoltage && vd < maxVoltage) {
+		// Approaching transition from high side — stop at exit boundary.
+		vd = maxVoltage;
+		sim.converged = false;
+	    } else if (lastVoltDiff >= vStart && lastVoltDiff <= maxVoltage) {
+		// Inside the transition: fine-step so we don't skip out the other side.
+		double maxStep = Math.max(vWidth / 4.0, 0.01);
+		if (vd > lastVoltDiff + maxStep) {
+		    vd = lastVoltDiff + maxStep;
+		    sim.converged = false;
+		} else if (vd < lastVoltDiff - maxStep) {
+		    vd = lastVoltDiff - maxStep;
+		    sim.converged = false;
+		}
+	    }
 	    lastVoltDiff = vd;
 
-	    double absVd = Math.abs(vd);
-	    double signVd = (vd >= 0) ? 1.0 : -1.0;
-	    double vt = Math.max(maxVoltage * 0.2, 0.1);
-
-	    // i(vd) = currentValue * 0.5 * (1 - tanh((|vd| - maxVoltage)/vt))
-	    double arg = (absVd - maxVoltage) / vt;
+	    double arg     = (vd - vMid) / vt;
 	    double tanhArg = Math.tanh(arg);
-	    double i = currentValue * 0.5 * (1.0 - tanhArg);
-	    // di/dvd = -currentValue * 0.5 * sech^2(arg) / vt * sign(vd)
-	    double sech2 = 1.0 - tanhArg * tanhArg;
-	    double g = -currentValue * 0.5 * sech2 / vt * signVd;
+
+	    double i       = currentValue * 0.5 * (1.0 - tanhArg);
+	    double sech2   = 1.0 - tanhArg * tanhArg;
+	    double g       = -currentValue * 0.5 * sech2 / vt * vd;
 
 	    // Norton companion: parallel resistor (1/|g|) + adjusted current source.
-	    // Gmin floor keeps the Norton resistance finite when sech^2 is
-	    // vanishing (well inside or well outside compliance) so the matrix
-	    // stays non-singular and Newton steps remain bounded.
+            // Gmin floor keeps the Norton resistance finite when sech^2 is
+            // vanishing (well inside or well outside compliance) so the matrix
+            // stays non-singular and Newton steps remain bounded.
 	    double absG = Math.abs(g) + 1e-6;
 	    sim.stampResistor(nodes[0], nodes[1], 1.0 / absG);
 	    sim.stampCurrentSource(nodes[0], nodes[1], i - g * vd);
+	    //CirSim.console("cursource vd=" + vd + " g=" + g + " i=" + i + " arg=" + arg);
 	    current = i;
 	}
 
