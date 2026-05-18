@@ -27,6 +27,7 @@ class BusLogicInputElm extends SwitchElm {
     int value = 0;
     double hiV = 5, loV = 0;
     VoltageSource voltageSources[];
+    double currents[];
 
     public BusLogicInputElm(int xx, int yy) {
 	super(xx, yy);
@@ -62,17 +63,23 @@ class BusLogicInputElm extends SwitchElm {
     }
 
     void setVoltageSource(int n, VoltageSource v) {
-	if (voltageSources == null || voltageSources.length != busWidth)
+	if (voltageSources == null || voltageSources.length != busWidth) {
 	    voltageSources = new VoltageSource[busWidth];
+	    currents = new double[busWidth];
+	}
 	voltageSources[n] = v;
     }
 
     void setCurrent(VoltageSource vs, double c) {
 	for (int i = 0; i < busWidth; i++)
 	    if (voltageSources[i] == vs) {
-		current = c;
+		currents[i] = current = c;
 		break;
 	    }
+    }
+
+    double getCurrentIntoNode(int n) {
+	return currents[n];
     }
 
     void setPoints() {
@@ -91,6 +98,13 @@ class BusLogicInputElm extends SwitchElm {
 	drawCenteredText(g, s, x2, y2, true);
 	setVoltageColor(g, volts[0]);
 	drawThickLine(g, point1, lead1, 5);
+	if (currents != null) {
+	    current = 0;
+	    for (int i = 0; i < currents.length; i++)
+		current += currents[i];
+	}
+	updateDotCount();
+	drawDots(g, point1, lead1, -curcount);
 	drawPosts(g);
 	g.restore();
     }
