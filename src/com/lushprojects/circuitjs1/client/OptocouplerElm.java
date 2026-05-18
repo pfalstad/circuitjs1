@@ -51,7 +51,10 @@ public class OptocouplerElm extends CompositeElm {
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
 	ctr = xml.parseDoubleAttr("ctr", ctr);
-	diode.modelName = xml.parseStringAttr("dmo", "default");
+	// "ix" is set on state-restore calls (from CompositeElm.dumpXmlState); absent on
+	// definition/top-level loads where a missing "dmo" should fall back to "default".
+	String defaultDmo = (xml.parseStringAttr("ix", null) != null) ? diode.modelName : "default";
+	diode.modelName = xml.parseStringAttr("dmo", defaultDmo);
 	initOptocoupler();
 	diode.setup();
     }

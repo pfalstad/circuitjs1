@@ -185,10 +185,10 @@ class RelayElm extends CircuitElm {
 	    modelName = mo;
 	    model = RelayModel.getModelWithNameOrCopy(modelName, model);
 	    modelName = model.name;
-	} else if (xml.parseStringAttr("in", null) != null) {
+	} else if (xml.parseStringAttr("ix", null) == null) {
 	    // old format: read per-element params and create a model from them.
-	    // only run if the model-param attributes are present; a state-restore call
-	    // (from CompositeElm.undumpXml) only has "i" and "ip" and should not touch the model.
+	    // "ix" is present on state-restore calls (CompositeElm.dumpXmlState); skip model
+	    // creation then so the model set by the definition load is not overwritten.
 	    RelayModel defaults = new RelayModel();
 	    double inductance    = xml.parseDoubleAttr("in",   defaults.inductance);
 	    double r_on          = xml.parseDoubleAttr("ron",  defaults.r_on);
