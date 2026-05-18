@@ -214,6 +214,11 @@ import com.google.gwt.xml.client.Element;
 	    setVoltageColor(g, volts[0]);
 	    for (int i = 0; i < routePoints.size() - 1; i++)
 		drawThickLine(g, routePoints.get(i), routePoints.get(i + 1), busWidth > 1 ? 5 : 3);
+	    if (currents != null) {
+		current = 0;
+		for (int i = 0; i < currents.length; i++)
+		    current += currents[i];
+	    }
 	    doDots(g);
 
 	    final int m = 5;
