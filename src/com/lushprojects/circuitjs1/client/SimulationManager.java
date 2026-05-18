@@ -741,6 +741,7 @@ public class SimulationManager {
 	    m.nodeCount++;
 	    cn.row = m.nodeCount;  // 1-based
 	    cn.matrix = m;
+	    m.nodeList.add(cn);
 	}
 
 	// ground node: row=0, no matrix
@@ -888,6 +889,7 @@ public class SimulationManager {
 		if (matrices[j] == m) { mi = j; break; }
 	    vsPerMatrix[mi]++;
 	    vs.row = m.nodeCount + vsPerMatrix[mi];  // 1-based, after node rows
+	    m.voltageSourceList.add(vs);
 	}
 	// set matrix sizes
 	for (i = 0; i != matrices.length; i++) {
@@ -1430,13 +1432,11 @@ public class SimulationManager {
 	    }
 	}
 	// set currents for voltage sources in this matrix
-	for (j = 0; j != voltageSourceCount; j++) {
-	    VoltageSource vs = voltageSources[j];
-	    if (vs.matrix == m) {
-		double res = m.rightSide[vs.row-1];
-		if (!Double.isNaN(res))
-		    vs.elm.setCurrent(vs, res);
-	    }
+	for (j = 0; j != m.voltageSourceList.size(); j++) {
+	    VoltageSource vs = m.voltageSourceList.get(j);
+	    double res = m.rightSide[vs.row-1];
+	    if (!Double.isNaN(res))
+		vs.elm.setCurrent(vs, res);
 	}
 	setNodeVoltages(m, m.nodeVoltages);
     }
@@ -1444,10 +1444,8 @@ public class SimulationManager {
     // set node voltages in each element given an array of node voltages for one matrix
     void setNodeVoltages(CircuitMatrix m, double nv[]) {
 	int j, k;
-	for (j = 1; j != nodeList.size(); j++) {
-	    CircuitNode cn = getCircuitNode(j);
-	    if (cn.matrix != m)
-		continue;
+	for (j = 0; j != m.nodeList.size(); j++) {
+	    CircuitNode cn = m.nodeList.get(j);
 	    double res = nv[cn.row-1];
 	    for (k = 0; k != cn.links.size(); k++) {
 		CircuitNodeLink cnl = cn.links.elementAt(k);
