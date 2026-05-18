@@ -185,8 +185,10 @@ class RelayElm extends CircuitElm {
 	    modelName = mo;
 	    model = RelayModel.getModelWithNameOrCopy(modelName, model);
 	    modelName = model.name;
-	} else {
-	    // old format: read per-element params and create a model from them
+	} else if (xml.parseStringAttr("in", null) != null) {
+	    // old format: read per-element params and create a model from them.
+	    // only run if the model-param attributes are present; a state-restore call
+	    // (from CompositeElm.undumpXml) only has "i" and "ip" and should not touch the model.
 	    RelayModel defaults = new RelayModel();
 	    double inductance    = xml.parseDoubleAttr("in",   defaults.inductance);
 	    double r_on          = xml.parseDoubleAttr("ron",  defaults.r_on);
@@ -379,6 +381,7 @@ class RelayElm extends CircuitElm {
 	ind.stamp(nodes[nCoil1], nodes[nCoil3]);
 	// resistor from internal node to coil post 2
 	sim.stampResistor(nodes[nCoil3], nodes[nCoil2], coilR());
+
 
 	int i;
 	for (i = 0; i != poleCount*3; i++)
