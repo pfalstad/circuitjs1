@@ -62,6 +62,7 @@ class RelayElm extends CircuitElm {
     double offCurrent()    { return model.offCurrent; }
     double coilR()         { return model.coilR; }
     double switchingTime() { return model.switchingTime; }
+    int poleCount()        { return model == null ? 1 : model.poleCount; }
 
     Inductor ind;
     Point coilPosts[], coilLeads[], swposts[][], swpoles[][], ptSwitch[];
@@ -75,7 +76,6 @@ class RelayElm extends CircuitElm {
     // integer position, can be 0 (off), 1 (on), 2 (in between)
     int i_position;
     
-    int poleCount;
     int openhs, dflip;
     boolean onState;
     final int nSwitch0 = 0;
@@ -92,7 +92,6 @@ class RelayElm extends CircuitElm {
 	ind.setup(inductance(), 0, Inductor.FLAG_BACK_EULER);
 	noDiagonal = true;
 	coilCurrent = coilCurCount = 0;
-	poleCount = 1;
 	setupPoles();
     }
 
@@ -100,7 +99,7 @@ class RelayElm extends CircuitElm {
     public RelayElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
-	poleCount = new Integer(st.nextToken()).intValue();
+	int poleCount = new Integer(st.nextToken()).intValue();
 	double inductance = new Double(st.nextToken()).doubleValue();
 	coilCurrent = new Double(st.nextToken()).doubleValue();
 	double r_on = new Double(st.nextToken()).doubleValue();
@@ -115,7 +114,7 @@ class RelayElm extends CircuitElm {
 	    d_position = i_position = Integer.parseInt(st.nextToken());
 	} catch (Exception e) {}
 	model = RelayModel.getModelWithParameters(inductance, r_on, r_off, onCurrent, offCurrent, coilR, switchingTime,
-	    coilStyleFromFlags(f), (f & FLAG_SHOW_BOX) != 0, (f & FLAG_PULLDOWN) != 0);
+	    coilStyleFromFlags(f), (f & FLAG_SHOW_BOX) != 0, (f & FLAG_PULLDOWN) != 0, poleCount);
 	modelName = model.name;
 	postUndump();
     }
@@ -148,15 +147,16 @@ class RelayElm extends CircuitElm {
 	modelName = model.name;
 	lastModelName = modelName;
 	ind.setup(inductance(), coilCurrent, Inductor.FLAG_BACK_EULER);
+	setPoints();
     }
     
     void setupPoles() {
-	nCoil1 = 3*poleCount;
+	nCoil1 = 3*poleCount();
 	nCoil2 = nCoil1+1;
 	nCoil3 = nCoil1+2;
-	if (switchCurrent == null || switchCurrent.length != poleCount) {
-	    switchCurrent = new double[poleCount];
-	    switchCurCount = new double[poleCount];
+	if (switchCurrent == null || switchCurrent.length != poleCount()) {
+	    switchCurrent = new double[poleCount()];
+	    switchCurCount = new double[poleCount()];
 	}
     }
     
@@ -167,7 +167,6 @@ class RelayElm extends CircuitElm {
 	if (!(model.builtIn || model.dumped))
 	    model.dumpXml(doc);
 	super.dumpXml(doc, elem);
-	XMLSerializer.dumpAttr(elem, "po", poleCount);
 	XMLSerializer.dumpAttr(elem, "mo", modelName);
     }
 
@@ -178,10 +177,9 @@ class RelayElm extends CircuitElm {
 
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
-	poleCount = xml.parseIntAttr("po", poleCount);
 	String mo = xml.parseStringAttr("mo", null);
 	if (mo != null) {
-	    // new format: model name present
+	    // new format: model name present; poleCount comes from the model
 	    modelName = mo;
 	    model = RelayModel.getModelWithNameOrCopy(modelName, model);
 	    modelName = model.name;
@@ -189,6 +187,7 @@ class RelayElm extends CircuitElm {
 	    // old format: read per-element params and create a model from them.
 	    // "ix" is present on state-restore calls (CompositeElm.dumpXmlState); skip model
 	    // creation then so the model set by the definition load is not overwritten.
+	    int poleCount = xml.parseIntAttr("po", 1);
 	    RelayModel defaults = new RelayModel();
 	    double inductance    = xml.parseDoubleAttr("in",   defaults.inductance);
 	    double r_on          = xml.parseDoubleAttr("ron",  defaults.r_on);
@@ -201,7 +200,7 @@ class RelayElm extends CircuitElm {
 	    boolean showBox      = (flags & FLAG_SHOW_BOX) != 0;
 	    boolean pulldown     = (flags & FLAG_PULLDOWN) != 0;
 	    model = RelayModel.getModelWithParameters(inductance, r_on, r_off, onCurrent, offCurrent, coilR, switchingTime,
-		coilStyle, showBox, pulldown);
+		coilStyle, showBox, pulldown, poleCount);
 	    modelName = model.name;
 	}
 	coilCurrent = xml.parseDoubleAttr("i", coilCurrent);
@@ -231,7 +230,7 @@ class RelayElm extends CircuitElm {
 
 	// draw lines
 	g.setColor(Color.darkGray);
-	for (i = 0; i != poleCount; i++) {
+	for (i = 0; i != poleCount(); i++) {
 	    if (i == 0) {
 		int off = (model.coilStyle == 0) ? 4 : 0;
 		interpPoint(point1, point2, lines[i*2  ], .5,
@@ -246,7 +245,7 @@ class RelayElm extends CircuitElm {
 	    g.setLineDash(0,  0);
 	}
 	
-	for (p = 0; p != poleCount; p++) {
+	for (p = 0; p != poleCount(); p++) {
 	    int po = p*3;
 	    for (i = 0; i != 3; i++) {
 		// draw lead
@@ -282,7 +281,7 @@ class RelayElm extends CircuitElm {
     }
 	
     double getCurrentIntoNode(int n) {
-	if (n < 3*poleCount) {
+	if (n < 3*poleCount()) {
 	    int p = n/3;
 	    int k = n%3;
 	    if (k == 0)
@@ -291,7 +290,7 @@ class RelayElm extends CircuitElm {
 		return switchCurrent[p];
 	    return 0;
 	}
-	if (n == 3*poleCount)
+	if (n == 3*poleCount())
 	    return -coilCurrent;
 	return coilCurrent;
     }
@@ -305,10 +304,10 @@ class RelayElm extends CircuitElm {
 
 	// switch
 	calcLeads(32);
-	swposts = new Point[poleCount][3];
-	swpoles = new Point[poleCount][3];
+	swposts = new Point[poleCount()][3];
+	swpoles = new Point[poleCount()][3];
 	int i, j;
-	for (i = 0; i != poleCount; i++) {
+	for (i = 0; i != poleCount(); i++) {
 	    for (j = 0; j != 3; j++) {
 		swposts[i][j] = new Point();
 		swpoles[i][j] = new Point();
@@ -324,7 +323,7 @@ class RelayElm extends CircuitElm {
 	// coil
 	coilPosts = newPointArray(2);
 	coilLeads   = newPointArray(2);
-	ptSwitch = newPointArray(poleCount);
+	ptSwitch = newPointArray(poleCount());
 
 	int x = (model.coilStyle == 2) ? 1 : 0;
 	int boxSize;
@@ -343,32 +342,32 @@ class RelayElm extends CircuitElm {
 	}
 
 	// lines
-	lines = newPointArray(poleCount*2);
+	lines = newPointArray(poleCount()*2);
 	
 	// outline
 	double boxWScale = Math.min(0.4, 25.0 / dn);
 	interpPoint(point1, point2, outline[0], 0.5 - boxWScale, -boxSize * dflip);
 	interpPoint(point1, point2, outline[1], 0.5 + boxWScale, -boxSize * dflip);
-	interpPoint(point1, point2, outline[2], 0.5 + boxWScale, -(openhs*3*poleCount) - (24.0 * dflip));
-	interpPoint(point1, point2, outline[3], 0.5 - boxWScale, -(openhs*3*poleCount) - (24.0 * dflip));
+	interpPoint(point1, point2, outline[2], 0.5 + boxWScale, -(openhs*3*poleCount()) - (24.0 * dflip));
+	interpPoint(point1, point2, outline[3], 0.5 - boxWScale, -(openhs*3*poleCount()) - (24.0 * dflip));
 	
 	currentOffset1 = distance(coilPosts[0], coilLeads[0]);
 	currentOffset2 = currentOffset1 + distance(coilLeads[0], coilLeads[1]);
     }
     
     Point getPost(int n) {
-	if (n < 3*poleCount)
+	if (n < 3*poleCount())
 	    return swposts[n / 3][n % 3];
-	return coilPosts[n-3*poleCount];
+	return coilPosts[n-3*poleCount()];
     }
-    int getPostCount() { return 2+poleCount*3; }
+    int getPostCount() { return 2+poleCount()*3; }
     int getInternalNodeCount() { return 1; }
     void reset() {
 	super.reset();
 	ind.reset();
 	coilCurrent = coilCurCount = 0;
 	int i;
-	for (i = 0; i != poleCount; i++)
+	for (i = 0; i != poleCount(); i++)
 	    switchCurrent[i] = switchCurCount[i] = 0;
 	d_position = i_position = 0;
 
@@ -384,13 +383,13 @@ class RelayElm extends CircuitElm {
 
 
 	int i;
-	for (i = 0; i != poleCount*3; i++)
+	for (i = 0; i != poleCount()*3; i++)
 	    sim.stampNonLinear(nodes[nSwitch0+i]);
 
 	// stamp pulldown resistors from switch contacts to ground using r_off,
 	// matching the analog switch approach
 	if (needsPulldown()) {
-	    for (i = 0; i < poleCount; i++) {
+	    for (i = 0; i < poleCount(); i++) {
 		sim.stampResistor(nodes[nSwitch1+i*3], CircuitNode.ground, r_off());
 		sim.stampResistor(nodes[nSwitch2+i*3], CircuitNode.ground, r_off());
 	    }
@@ -461,7 +460,7 @@ class RelayElm extends CircuitElm {
 	double voltdiff = volts[nCoil1]-volts[nCoil3];
 	ind.doStep(voltdiff);
 	int p;
-	for (p = 0; p != poleCount*3; p += 3) {
+	for (p = 0; p != poleCount()*3; p += 3) {
 	    if (i_position == 0) {
 		sim.stampResistor(nodes[nSwitch0+p], nodes[nSwitch1+p], r_on());
 		if (!needsPulldown())
@@ -485,7 +484,7 @@ class RelayElm extends CircuitElm {
 	// actually this isn't correct, since there is a small amount
 	// of current through the switch when off
 	int p;
-	for (p = 0; p != poleCount; p++) {
+	for (p = 0; p != poleCount(); p++) {
 	    if (i_position == 2)
 		switchCurrent[p] = 0;
 	    else
@@ -504,7 +503,7 @@ class RelayElm extends CircuitElm {
 	    arr[0] += " (" + Locale.LS("old model") + ")";
 	int i;
 	int ln = 1;
-	for (i = 0; i != poleCount; i++)
+	for (i = 0; i != poleCount(); i++)
 	    arr[ln++] = "I" + (i+1) + " = " + getCurrentDText(switchCurrent[i]);
 	arr[ln++] = Locale.LS("coil I") + " = " + getCurrentDText(coilCurrent);
 	arr[ln++] = Locale.LS("coil Vd") + " = " +
@@ -525,14 +524,12 @@ class RelayElm extends CircuitElm {
 	    }
 	    return ei;
 	}
-	if (n == 1)
-	    return new EditInfo("Number of Poles", poleCount, 1, 4).setDimensionless();
-	if (n == 2) {
+	if (n == 1) {
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
 	    ei.button = new Button(Locale.LS("Create New Model"));
 	    return ei;
 	}
-	if (n == 3) {
+	if (n == 2) {
 	    if (model.readOnly)
 		return null;
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
@@ -553,20 +550,13 @@ class RelayElm extends CircuitElm {
 	    return;
 	}
 	if (n == 1) {
-	    if (ei.value >= 1) {
-		poleCount = (int) ei.value;
-		setPoints();
-	    } else
-		ei.setError("must be >= 1");
-	}
-	if (n == 2) {
 	    RelayModel newModel = new RelayModel(model);
 	    EditDialog editDialog = new EditRelayModelDialog(newModel, app, this);
 	    CirSim.relayModelEditDialog = editDialog;
 	    editDialog.show();
 	    return;
 	}
-	if (n == 3) {
+	if (n == 2) {
 	    if (!model.readOnly) {
 		EditDialog editDialog = new EditRelayModelDialog(model, app, null);
 		CirSim.relayModelEditDialog = editDialog;

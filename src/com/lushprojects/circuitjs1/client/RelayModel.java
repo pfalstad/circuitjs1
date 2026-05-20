@@ -18,6 +18,7 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
     String name, description;
     double inductance, r_on, r_off, onCurrent, offCurrent, coilR, switchingTime;
     int coilStyle;   // 0=both sides, 1=side1, 2=side2
+    int poleCount = 1;
     boolean showBox;
     boolean pulldown;
 
@@ -49,6 +50,7 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	coilR = copy.coilR;
 	switchingTime = copy.switchingTime;
 	coilStyle = copy.coilStyle;
+	poleCount = copy.poleCount;
 	showBox = copy.showBox;
 	pulldown = copy.pulldown;
     }
@@ -84,6 +86,12 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	    return;
 	modelMap = new HashMap<String, RelayModel>();
 	addDefaultModel("default", new RelayModel());
+	RelayModel m2 = new RelayModel();
+	m2.poleCount = 2;
+	addDefaultModel("default-2-poles", m2);
+	RelayModel m3 = new RelayModel();
+	m3.poleCount = 3;
+	addDefaultModel("default-3-poles", m3);
     }
 
     static void addDefaultModel(String name, RelayModel rm) {
@@ -99,7 +107,7 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
     // Create (or find) a model from old-style per-element parameters for backward compatibility.
     static RelayModel getModelWithParameters(double inductance, double r_on, double r_off,
 	    double onCurrent, double offCurrent, double coilR, double switchingTime,
-	    int coilStyle, boolean showBox, boolean pulldown) {
+	    int coilStyle, boolean showBox, boolean pulldown, int poleCount) {
 	createModelMap();
 	Iterator it = modelMap.entrySet().iterator();
 	while (it.hasNext()) {
@@ -114,7 +122,8 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 		Math.abs(rm.switchingTime - switchingTime) < 1e-15 &&
 		rm.coilStyle == coilStyle &&
 		rm.showBox == showBox &&
-		rm.pulldown == pulldown)
+		rm.pulldown == pulldown &&
+		rm.poleCount == poleCount)
 		return rm;
 	}
 	String baseName = "old-relay";
@@ -140,6 +149,7 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	rm.coilStyle = coilStyle;
 	rm.showBox = showBox;
 	rm.pulldown = pulldown;
+	rm.poleCount = poleCount;
 	rm.oldStyle = true;
 	return rm;
     }
@@ -205,6 +215,8 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	XMLSerializer.dumpAttr(elem, "coR", coilR);
 	XMLSerializer.dumpAttr(elem, "sw", switchingTime);
 	XMLSerializer.dumpAttr(elem, "cs", coilStyle);
+	if (poleCount != 1)
+	    XMLSerializer.dumpAttr(elem, "po", poleCount);
 	if (showBox)
 	    XMLSerializer.dumpAttr(elem, "sb", 1);
 	if (pulldown)
@@ -229,6 +241,7 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	coilR = xml.parseDoubleAttr("coR", coilR);
 	switchingTime = xml.parseDoubleAttr("sw", switchingTime);
 	coilStyle = xml.parseIntAttr("cs", coilStyle);
+	poleCount = xml.parseIntAttr("po", poleCount);
 	showBox = xml.parseIntAttr("sb", showBox ? 1 : 0) != 0;
 	pulldown = xml.parseIntAttr("pd", pulldown ? 1 : 0) != 0;
     }
@@ -250,10 +263,12 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	if (n == 5)
 	    return new EditInfo("Off Current (A)", offCurrent, 0, 0).setPositive();
 	if (n == 6)
-	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0).setPositive();
+	    return new EditInfo("Number of Poles", poleCount, 1, 4).setDimensionless();
 	if (n == 7)
+	    return new EditInfo("Coil Resistance (ohms)", coilR, 0, 0).setPositive();
+	if (n == 8)
 	    return new EditInfo("Switching Time (s)", switchingTime, 0, 0).setPositive();
-	if (n == 8) {
+	if (n == 9) {
 	    EditInfo ei = new EditInfo("Coil Style", coilStyle, -1, -1);
 	    ei.choice = new Choice();
 	    ei.choice.add("Both Sides");
@@ -262,9 +277,9 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	    ei.choice.select(coilStyle);
 	    return ei;
 	}
-	if (n == 9)
-	    return EditInfo.createCheckbox("Show Box", showBox);
 	if (n == 10)
+	    return EditInfo.createCheckbox("Show Box", showBox);
+	if (n == 11)
 	    return EditInfo.createCheckbox("Pulldown Resistor", pulldown);
 	return null;
     }
@@ -280,11 +295,12 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	if (n == 3 && ei.value > 0) r_off = ei.value;
 	if (n == 4 && ei.value > 0) onCurrent = ei.value;
 	if (n == 5 && ei.value > 0) offCurrent = ei.value;
-	if (n == 6 && ei.value > 0) coilR = ei.value;
-	if (n == 7 && ei.value > 0) switchingTime = ei.value;
-	if (n == 8) coilStyle = ei.choice.getSelectedIndex();
-	if (n == 9) showBox = ei.checkbox.getState();
-	if (n == 10) pulldown = ei.checkbox.getState();
+	if (n == 6 && ei.value >= 1) poleCount = (int) ei.value;
+	if (n == 7 && ei.value > 0) coilR = ei.value;
+	if (n == 8 && ei.value > 0) switchingTime = ei.value;
+	if (n == 9) coilStyle = ei.choice.getSelectedIndex();
+	if (n == 10) showBox = ei.checkbox.getState();
+	if (n == 11) pulldown = ei.checkbox.getState();
 	CirSim.theApp.updateModels();
     }
 }
