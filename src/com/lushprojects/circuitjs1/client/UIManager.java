@@ -805,18 +805,19 @@ public class UIManager {
 		    info[0] = Locale.LS(info[0]);
 		    if (info[1] != null)
 			info[1] = Locale.LS(info[1]);
-/*
-		    // show node numbers for debugging
-		    int ni;
-		    for (ni = 0; info[ni] != null && ni < info.length-1; ni++)
-			;
-		    try {
-			String nodeStr = "nodes:";
-			for (int nn = 0; nn < mouse.getMouseElm().getNodeCount(); nn++)
-			    nodeStr += " " + mouse.getMouseElm().getNode(nn).index;
-			info[ni] = nodeStr;
-		    } catch (Exception e) {}
-*/
+
+		    if (app.developerMode) {
+			// show node numbers for debugging
+			int ni;
+			for (ni = 0; info[ni] != null && ni < info.length-1; ni++)
+			    ;
+			try {
+			    String nodeStr = "nodes:";
+			    for (int nn = 0; nn < mouse.getMouseElm().getNodeCount(); nn++)
+				nodeStr += " " + mouse.getMouseElm().getNode(nn).index;
+			    info[ni] = nodeStr;
+			} catch (Exception e) {}
+		    }
 		} else
 		    info[0] = "V = " +
 			CircuitElm.getUnitText(mouse.getMouseElm().getPostVoltage(mouse.mousePost), "V");
