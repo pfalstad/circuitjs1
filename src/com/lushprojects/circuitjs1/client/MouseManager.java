@@ -401,7 +401,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		    if (conns == null)
     			continue;
     		    for (SimulationManager.RoutedWireConnection conn : conns) {
-    			if (!conn.wire.isSelected())
+    			if (!conn.wire.isSelected() && conn.wire.getPost(conn.wirePost).z == 0)
     			    conn.wire.movePoint(conn.wirePost, dx, dy);
     		    }
     		}
@@ -450,7 +450,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		ArrayList<SimulationManager.RoutedWireConnection> conns = sim.sim.routedWireMap.get(mouseElm);
     		if (conns != null) {
     		    for (SimulationManager.RoutedWireConnection conn : conns) {
-    			if (conn.elmPost == draggingPost)
+    			if (conn.elmPost == draggingPost && conn.wire.getPost(conn.wirePost).z == 0)
     			    conn.wire.movePoint(conn.wirePost, dx, dy);
     		    }
     		}
