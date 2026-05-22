@@ -128,7 +128,7 @@ public class ScopeManager {
 
     void drawHoverScope(Graphics g, int canvasWidth, int canvasHeight) {
 	CircuitElm mouseElm = sim.mouse.getMouseElm();
-	if (mouseElm == null || mouseElm.isWireEquivalent()) {
+	if (mouseElm == null || mouseElm.isWireEquivalent() || mouseElm instanceof SwitchElm) {
 	    hoverScope = null;
 	    return;
 	}
@@ -158,15 +158,17 @@ public class ScopeManager {
 	if (canvasWidth < w)
 	    return;
 	Rectangle scopeRect = new Rectangle(canvasWidth - w, y, w, h);
-	Rectangle bb = mouseElm.getBoundingBox();
-	int ex1 = sim.mouse.transformX(bb.x);
-	int ey1 = sim.mouse.transformY(bb.y);
-	int ex2 = sim.mouse.transformX(bb.x + bb.width);
-	int ey2 = sim.mouse.transformY(bb.y + bb.height);
-	Rectangle elmRect = new Rectangle(Math.min(ex1, ex2), Math.min(ey1, ey2),
-		Math.abs(ex2 - ex1) + 1, Math.abs(ey2 - ey1) + 1);
-	if (scopeRect.intersects(elmRect))
-	    return;
+	for (CircuitElm ce : sim.elmList) {
+	    Rectangle bb = ce.getBoundingBox();
+	    int ex1 = sim.mouse.transformX(bb.x);
+	    int ey1 = sim.mouse.transformY(bb.y);
+	    int ex2 = sim.mouse.transformX(bb.x + bb.width);
+	    int ey2 = sim.mouse.transformY(bb.y + bb.height);
+	    Rectangle elmRect = new Rectangle(Math.min(ex1, ex2), Math.min(ey1, ey2),
+		    Math.abs(ex2 - ex1) + 1, Math.abs(ey2 - ey1) + 1);
+	    if (scopeRect.intersects(elmRect))
+		return;
+	}
 	hoverScope.setRect(scopeRect);
 	g.setColor(sim.menus.printableCheckItem.getState() ? Color.white : Color.black);
 	g.fillRect(canvasWidth - w, y, w, h);
