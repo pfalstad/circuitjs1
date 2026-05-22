@@ -241,14 +241,12 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
                 hp.add(okButton = new Button(Locale.LS("OK")));
                 hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
                 Button cancelButton;
-		if (model.name == null) {
-		    hp.add(cancelButton = new Button(Locale.LS("Cancel")));
-		    cancelButton.addClickHandler(new ClickHandler() {
-			public void onClick(ClickEvent event) {
-			    closeDialog();
-			}
-		    });
-		}
+		hp.add(cancelButton = new Button(Locale.LS("Cancel")));
+		cancelButton.addClickHandler(new ClickHandler() {
+		    public void onClick(ClickEvent event) {
+			closeDialog();
+		    }
+		});
 		okButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
 			    enterPressed();
@@ -690,5 +688,97 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	public void show() {
 	    super.show();
 	    drawChip();
+	}
+
+	// Preserve pin positions/sides from existingModel in newModel, matching by name.
+	// New pins (no match) are placed in free slots on their assigned side.
+	// Chip size is expanded only if new pins require it.
+	static void preservePinLayout(CustomCompositeModel newModel, CustomCompositeModel existingModel) {
+	    int n = newModel.extList.size();
+	    boolean[] matched = new boolean[n];
+
+	    // Pass 1: copy pos/side from existing model for matched busZ==0 pins; collect placed list
+	    boolean anyPreserved = false;
+	    Vector<int[]> placed = new Vector<int[]>();
+	    for (int i = 0; i < n; i++) {
+		ExtListEntry ent = newModel.extList.get(i);
+		if (ent.busZ != 0) continue;
+		for (ExtListEntry old : existingModel.extList) {
+		    if (old.busZ == 0 && old.name.equals(ent.name)) {
+			ent.pos = old.pos;
+			ent.side = old.side;
+			matched[i] = true;
+			anyPreserved = true;
+			break;
+		    }
+		}
+		if (matched[i])
+		    placed.add(new int[]{ent.pos, ent.side});
+	    }
+	    if (!anyPreserved)
+		return;
+
+	    // Start from existing model's size
+	    newModel.sizeX = existingModel.sizeX;
+	    newModel.sizeY = existingModel.sizeY;
+
+	    // Pass 2: place unmatched busZ==0 pins in free slots using grid-aware overlap detection.
+	    // Iterate over expansion amounts in the outer loop, positions in the inner loop.
+	    // This correctly handles corner conflicts: e.g. with SIDE_E pos=0 placed, pos=p at
+	    // testSizeX=p+1 is always blocked (corner shifts with expansion), but pos=p at
+	    // testSizeX=p+2 is free. A single pos++ loop would miss this and loop forever.
+	    for (int i = 0; i < n; i++) {
+		if (matched[i]) continue;
+		ExtListEntry ent = newModel.extList.get(i);
+		if (ent.busZ != 0) continue;
+		int side = ent.side;
+		boolean ns = (side == ChipElm.SIDE_N || side == ChipElm.SIDE_S);
+		int foundPos = -1;
+		for (int expansion = 0; expansion <= n && foundPos < 0; expansion++) {
+		    int curSizeX = newModel.sizeX + (ns ? expansion : 0);
+		    int curSizeY = newModel.sizeY + (ns ? 0 : expansion);
+		    int maxPos = ns ? curSizeX : curSizeY;
+		    for (int p = 0; p < maxPos; p++) {
+			if (!pinIsOccupied(p, side, placed, curSizeX, curSizeY)) {
+			    foundPos = p;
+			    newModel.sizeX = curSizeX;
+			    newModel.sizeY = curSizeY;
+			    break;
+			}
+		    }
+		}
+		ent.pos = (foundPos >= 0) ? foundPos : 0;
+		placed.add(new int[]{ent.pos, side});
+	    }
+
+	    // Pass 3: propagate pos/side from busZ==0 anchor to bus sub-entries
+	    for (ExtListEntry ent : newModel.extList) {
+		if (ent.busZ == 0) continue;
+		for (ExtListEntry anchor : newModel.extList) {
+		    if (anchor.busZ == 0 && anchor.name.equals(ent.name)) {
+			ent.pos = anchor.pos;
+			ent.side = anchor.side;
+			break;
+		    }
+		}
+	    }
+	}
+
+	// Mirror of ChipElm.Pin.toGrid(), parameterised so it can be called without a chip instance.
+	private static int pinToGrid(int pos, int side, int sizeX, int sizeY) {
+	    if (side == ChipElm.SIDE_N) return pos;
+	    if (side == ChipElm.SIDE_S) return pos + sizeX * (sizeY - 1);
+	    if (side == ChipElm.SIDE_W) return pos * sizeX;
+	    if (side == ChipElm.SIDE_E) return pos * sizeX + sizeX - 1;
+	    return -1;
+	}
+
+	private static boolean pinIsOccupied(int pos, int side, Vector<int[]> placed, int sizeX, int sizeY) {
+	    int g = pinToGrid(pos, side, sizeX, sizeY);
+	    if (g < 0) return true;
+	    for (int[] p : placed) {
+		if (pinToGrid(p[0], p[1], sizeX, sizeY) == g) return true;
+	    }
+	    return false;
 	}
 }
