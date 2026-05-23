@@ -85,23 +85,27 @@ class CCVSElm extends VCCSElm {
 	}
 
 	double lastCurrents[];
+	double lastOutput;
 	
         void doStep() {
-            // converged yet?
-            double convergeLimit = getConvergeLimit()*.1;
-            
             int i;
             if (isSpiceStyle()) {
                 for (i = 0; i != inputPairCount; i++)
                     pins[i*2+1].current = voltageSources[i].getCurrent();
             }
             
+            // converged yet?
+            double convergeLimitCurrent = getConvergeLimit()*.1;
             for (i = 0; i != inputPairCount; i++) {
         	double cur = pins[i*2+1].current;
-        	if (Math.abs(cur-lastCurrents[i]) > convergeLimit)
+        	if (Math.abs(cur-lastCurrents[i]) > convergeLimitCurrent)
         	    sim.converged = false;
             }
             
+            double convergeLimitVoltage = getConvergeLimit();
+	    if (Math.abs((volts[inputCount]-volts[inputCount+1])-lastOutput) > convergeLimitVoltage)
+		sim.converged = false;
+
             VoltageSource vno = outputVS;
             if (expr != null) {
         	// calculate output
@@ -117,6 +121,7 @@ class CCVSElm extends VCCSElm {
                     VoltageSource vni = pins[i*2+1].voltSource;
         	    if (Math.abs(dv) < 1e-6)
         		dv = 1e-6;
+		    dv = 1e-9;
         	    setCurrentExprValue(i, cur);
         	    double v = expr.eval(exprState);
         	    setCurrentExprValue(i, cur-dv);
@@ -132,14 +137,18 @@ class CCVSElm extends VCCSElm {
         	    setCurrentExprValue(i, cur);
         	}
         	sim.stampRightSide(vno, rs);
+		//sim.console("stamping rs=" + rs + " dx=" + dx + " iter=" + sim.subIterations + " " + sim.converged + " " + lastOutput);
             }
 
             for (i = 0; i != inputPairCount; i++)
         	lastCurrents[i] = pins[i*2+1].current;
+	    lastOutput = volts[inputCount]-volts[inputCount+1];
         }
 	
         void stepFinished() {
             exprState.updateLastValues(volts[inputCount]-volts[inputCount+1]);
+	    for (int i = 0; i != inputPairCount; i++)
+		    exprState.lastValues[i] = pins[i*2+1].current;
         }
 
         void setCurrentExprValue(int n, double cur) {

@@ -188,7 +188,7 @@ import com.google.gwt.xml.client.Document;
 	    	return ei;
 	    }*/
 	    if (n == 1)
-	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless().disallowSliders();
+	    	return new EditInfo("Group Number (for linking)", link, 0, 100).setDimensionless().disallowSliders();
 	    if (n == 2)
 	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless().disallowSliders();
 	    return super.getEditInfo(n);
@@ -249,4 +249,15 @@ import com.google.gwt.xml.client.Document;
 	    positionFlipped = !positionFlipped;
 	}       
 
+	boolean validate() {
+	    if (position == 2 && hasCenterOff())
+		return true;
+
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
+	    if (fpi.findPath(getNode(1+position))) {
+		sim.stop("Voltage source/wire loop with no resistance!", this);
+		return false;
+	    }
+	    return true;
+	}
     }

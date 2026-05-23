@@ -92,7 +92,6 @@ ladder.txt LC Ladder
 -
 phaseseq.txt Phase-Sequence Network
 3phasewye.txt 3-Phase Wye-Wye Balanced Load
-lissa.txt Lissajous Figures
 -
 +Diodes
 diodevar.txt Diode
@@ -238,6 +237,7 @@ crystalosc.txt CMOS Crystal Oscillator
 555sequencer.txt Pulse Sequencer
 555schmitt.txt Schmitt Trigger (inverting)
 555missing.txt Missing Pulse Detector
+555dutycycle.txt Adjustable Duty Cycle Oscillator
 -
 +Active Filters
 filt-vcvs-lopass.txt VCVS Low-Pass Filter
@@ -461,5 +461,11 @@ ujtosc.txt Unijunction Oscillator
 3motor.txt 3-Phase Motor
 latchingrelay.txt Latching Relay
 gyratorelm.txt Gyrator
+-
++2-D Scope
+lissa.txt Lissajous Figures
+plot2d-checker.txt Checkerboard
+plot2d-color.txt Color Checkerboard
+plot2d-smile.txt Smiley
 -
 blank.txt Blank Circuit

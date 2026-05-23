@@ -350,6 +350,10 @@ public class Menus {
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Outputs and Labels")), outputMenuBar);
     	
+	// need this to avoid warnings when setting up unijunction
+	sim.register("CCVSElm", new CCVSElm(0, 0));
+	sim.register("VCCSElm", new VCCSElm(0, 0));
+
     	MenuBar activeMenuBar = new MenuBar(true);
 	makeClassCheckItems(activeMenuBar, new String[] {
 		"Add Diode", "DiodeElm",

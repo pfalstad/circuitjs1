@@ -54,6 +54,7 @@ class LatchElm extends ChipElm {
 	    flags |= FLAG_STATE;
 	    setupPins();
 	}
+	restoreOutputValues();
     }
     String getChipName() { return "Latch"; }
     boolean needsBits() { return true; }
@@ -109,6 +110,22 @@ class LatchElm extends ChipElm {
 	if (outputValues == null)
 	    outputValues = new boolean[bits];
 	return outputValues;
+    }
+
+    void restoreOutputValues() {
+	boolean[] ov = lastOutputValues();
+	for (int i = 0; i != bits; i++)
+	    ov[i] = pins[i + bits].value;
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	restoreOutputValues();
+    }
+
+    void reset() {
+	super.reset();
+	outputValues = null;
     }
 
     // execute() is used by ChipElm.doStep() when there's no output enable.

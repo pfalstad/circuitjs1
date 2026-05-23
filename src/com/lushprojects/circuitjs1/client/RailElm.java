@@ -108,10 +108,11 @@ class RailElm extends VoltageElm {
     }
 
     int getShortcut() { return 'V'; }
-    
+    boolean validate() { return validateRailNode(0); }
+
 //    void drawHandles(Graphics g, Color c) {
 //    	g.setColor(c);
 //		g.fillRect(x-3, y-3, 7, 7);
 //    }
-    
+
 }

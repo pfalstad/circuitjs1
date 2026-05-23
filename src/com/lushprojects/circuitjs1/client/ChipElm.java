@@ -214,40 +214,56 @@ abstract class ChipElm extends CircuitElm {
 	
 	void addRoutingObstacle(WireRouter router) {
 	    router.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
-	    for (int i = 0; i != getPostCount(); i++) {
-		Point p = getPost(i);
-		router.addObstacle(p.x, p.y, p.x, p.y);
-	    }
 	}
 
-	// see if we can move pin to position xp, yp, and return the new position
-	boolean getPinPos(int xp, int yp, int pin, int pos[]) {
+	// see if we can move pin to position xp, yp, and return the new position.
+	// currentSide is the pin's present side; we stay on it while the cursor is inside the
+	// chip body and only switch when the cursor moves past the chip boundary.
+	boolean getPinPos(int xp, int yp, int currentSide, int pos[]) {
 	    int x0 = x+cspc2; int y0 = y;
 	    int xr = x0-cspc;
 	    int yr = y0-cspc;
 	    double xd = (xp-xr)/(double)cspc2 - .5;
 	    double yd = (yp-yr)/(double)cspc2 - .5;
-	    if (xd < .25 && yd > 0 && yd < sizeY-1) {
-		pos[0] = (int) Math.max(Math.round(yd), 0);
-		pos[1] = SIDE_W;
-	    } else if (xd > sizeX-.75) {
-		pos[0] = (int) Math.min(Math.round(yd), sizeY-1);
-		pos[1] = SIDE_E;
-	    } else if (yd < .25) {
-		pos[0] = (int) Math.max(Math.round(xd), 0);
+	    if (xd >= 0 && xd <= sizeX && yd >= 0 && yd <= sizeY) {
+		// Inside chip: use hysteresis of 1 slot.  Only switch sides when the nearest
+		// edge is more than 1 slot closer than the current side's edge.
+		double dW = xd, dE = sizeX - xd, dN = yd, dS = sizeY - yd;
+		double curDist = (currentSide == SIDE_N) ? dN : (currentSide == SIDE_S) ? dS :
+				 (currentSide == SIDE_W) ? dW : dE;
+		double minDist = Math.min(Math.min(dW, dE), Math.min(dN, dS));
+		int side;
+		if (curDist <= minDist + 1.0) {
+		    side = currentSide;
+		} else {
+		    side = (minDist == dN) ? SIDE_N : (minDist == dS) ? SIDE_S :
+			   (minDist == dW) ? SIDE_W : SIDE_E;
+		}
+		pos[0] = (side == SIDE_N || side == SIDE_S)
+			? Math.max(0, Math.min((int)Math.round(xd), sizeX-1))
+			: Math.max(0, Math.min((int)Math.round(yd), sizeY-1));
+		pos[1] = side;
+		return true;
+	    }
+	    // Cursor is outside the chip: snap to whichever side the cursor crossed.
+	    double distW = xd < 0      ? -xd          : Double.MAX_VALUE;
+	    double distE = xd > sizeX  ? xd - sizeX   : Double.MAX_VALUE;
+	    double distN = yd < 0      ? -yd          : Double.MAX_VALUE;
+	    double distS = yd > sizeY  ? yd - sizeY   : Double.MAX_VALUE;
+	    double minDist = Math.min(Math.min(distW, distE), Math.min(distN, distS));
+	    if (minDist == distN) {
+		pos[0] = Math.max(0, Math.min((int)Math.round(xd), sizeX-1));
 		pos[1] = SIDE_N;
-	    } else if (yd > sizeY-.75) {
-		pos[0] = (int) Math.min(Math.round(xd), sizeX-1);
+	    } else if (minDist == distS) {
+		pos[0] = Math.max(0, Math.min((int)Math.round(xd), sizeX-1));
 		pos[1] = SIDE_S;
-	    } else
-		return false;
-	    
-	    if (pos[0] < 0)
-		return false;
-	    if ((pos[1] == SIDE_N || pos[1] == SIDE_S) && pos[0] >= sizeX)
-		return false;
-	    if ((pos[1] == SIDE_W || pos[1] == SIDE_E) && pos[0] >= sizeY)
-		return false;
+	    } else if (minDist == distW) {
+		pos[0] = Math.max(0, Math.min((int)Math.round(yd), sizeY-1));
+		pos[1] = SIDE_W;
+	    } else {
+		pos[0] = Math.max(0, Math.min((int)Math.round(yd), sizeY-1));
+		pos[1] = SIDE_E;
+	    }
 	    return true;
 	}
 	
@@ -415,6 +431,12 @@ abstract class ChipElm extends CircuitElm {
 	    for (i = 0; i != getPostCount(); i++)
 		if (pins[i].output && pins[i].voltSource == vs)
 		    pins[i].current = c;
+	}
+	boolean validate() {
+	    for (int i = 0; i != getPostCount(); i++)
+		if (pins[i].output && !validateRailNode(i))
+		    return false;
+	    return true;
 	}
 	String getChipName() { return "chip"; }
 	boolean getConnection(int n1, int n2) { return false; }

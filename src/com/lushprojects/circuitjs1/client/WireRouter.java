@@ -67,6 +67,13 @@ public class WireRouter {
 	addObstacle(minX, minY, maxX, maxY);
     }
 
+    public void addObstaclePoint(int px, int py) {
+	int r = (py - originY) / gridSize;
+	int c = (px - originX) / gridSize;
+	if (isValid(r, c))
+	    grid[r][c] |= OBSTACLE;
+    }
+
     public void addWire(int px1, int py1, int px2, int py2) {
 	int r1 = (py1 - originY) / gridSize;
 	int c1 = (px1 - originX) / gridSize;
@@ -118,6 +125,10 @@ public class WireRouter {
 	    if (wire == ce)
 		continue;
 	    ce.addRoutingObstacle(this);
+	    for (int i = 0; i < ce.getPostCount(); i++) {
+		Point p = ce.getPost(i);
+		addObstaclePoint(p.x, p.y);
+	    }
 	}
 	// clear start and end cells so routing can reach them
 	grid[(wire.y  - originY) / gridSize][(wire.x  - originX) / gridSize] = 0;

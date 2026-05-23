@@ -19,7 +19,7 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 class DPDTSwitchElm extends SwitchElm {
@@ -251,4 +251,16 @@ class DPDTSwitchElm extends SwitchElm {
 	    flip();
 	    super.flipXY(c2, count);
 	}
+
+        boolean validate() {
+            int i;
+	    for (i = 0; i != poleCount; i++) {
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(i*3), sim);
+		if (fpi.findPath(getNode(i*3+1+position))) {
+		    sim.stop("Voltage source/wire loop with no resistance!", this);
+		    return false;
+		}
+	    }
+	    return true;
+        }
     }

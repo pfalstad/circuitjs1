@@ -43,6 +43,7 @@ public class CircuitLoader {
             ce.delete();
         }
         sim.resetTime();
+	sim.solverType = SimulationManager.SOLVER_AUTO;
         app.elmList.removeAllElements();
         app.hintType = -1;
         sim.maxTimeStep = 5e-6;

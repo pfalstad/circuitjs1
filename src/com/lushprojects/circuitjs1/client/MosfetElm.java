@@ -35,7 +35,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int FLAG_HIDE_BULK = 16;
 	int FLAG_BODY_DIODE = 32;
 	int FLAG_BODY_TERMINAL = 64;
-	int FLAGS_GLOBAL = (FLAG_HIDE_BULK|FLAG_DIGITAL);
+	int FLAG_SHOW_BODY_DIODE = 128;
+	int FLAGS_GLOBAL = (FLAG_HIDE_BULK|FLAG_DIGITAL|FLAG_SHOW_BODY_DIODE);
 	int bodyTerminal;
 	
 	double vt;
@@ -98,6 +99,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean showBulk() { return (flags & (FLAG_DIGITAL|FLAG_HIDE_BULK)) == 0; }
 	boolean hasBodyTerminal() { return (flags & FLAG_BODY_TERMINAL) != 0 && doBodyDiode(); }
 	boolean doBodyDiode() { return (flags & FLAG_BODY_DIODE) != 0 && showBulk(); }
+	boolean showBodyDiode() { return (flags & FLAG_SHOW_BODY_DIODE) != 0 && doBodyDiode(); }
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
 	    curcount_body1 = curcount_body2 = 0;
@@ -180,7 +182,37 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			drawThickLine(g, pnp == -1 ? drn[0] : src[0], body[0]);
 		    drawThickLine(g, body[0], body[1]);
 		}
-		
+
+		// draw body diode symbol(s)
+		if (showBodyDiode()) {
+		    if (!hasBodyTerminal()) {
+			// single offset diode with L-shaped leads
+			setVoltageColor(g, volts[1]);
+			g.fillPolygon(bodyDiodePoly);
+			drawThickLine(g, src[0], bodyDiodeLeads[0]);
+			drawThickLine(g, bodyDiodeLeads[0], bodyDiodeLeads[1]);
+			setVoltageColor(g, volts[2]);
+			drawThickLine(g, bodyDiodeCathode[0], bodyDiodeCathode[1]);
+			drawThickLine(g, bodyDiodeLeads[2], bodyDiodeLeads[3]);
+			drawThickLine(g, drn[0], bodyDiodeLeads[3]);
+			adjustBbox(bodyDiodeLeads[0], bodyDiodeLeads[3]);
+		    } else {
+			// two inline diodes: src↔body and body↔drn
+			int anode1 = (pnp == 1) ? bodyTerminal : 1;
+			int cathode1 = (pnp == 1) ? 1 : bodyTerminal;
+			setVoltageColor(g, volts[anode1]);
+			g.fillPolygon(bodyDiodePoly);
+			setVoltageColor(g, volts[cathode1]);
+			g.drawLine(bodyDiodeCathode[0], bodyDiodeCathode[1]);
+			int anode2 = (pnp == 1) ? bodyTerminal : 2;
+			int cathode2 = (pnp == 1) ? 2 : bodyTerminal;
+			setVoltageColor(g, volts[anode2]);
+			g.fillPolygon(bodyDiodePoly2);
+			setVoltageColor(g, volts[cathode2]);
+			g.drawLine(bodyDiodeCathode2[0], bodyDiodeCathode2[1]);
+		    }
+		}
+
 		// draw arrow
 		if (!drawDigital()) {
 		    setVoltageColor(g, volts[bodyTerminal]);
@@ -210,8 +242,15 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		if (showBulk()) {
 		    curcount_body1 = updateDotCount(diodeCurrent1, curcount_body1);
 		    curcount_body2 = updateDotCount(diodeCurrent2, curcount_body2);
-		    drawDots(g, src [0], body[0], -curcount_body1);
-		    drawDots(g, body[0], drn [0],  curcount_body2);
+		    if (showBodyDiode() && !hasBodyTerminal()) {
+			double cur = -curcount_body1 + curcount_body2;
+			drawDots(g, src [0], bodyDiodeLeads[0], cur);
+			drawDots(g, bodyDiodeLeads[0], bodyDiodeLeads[3], cur);
+			drawDots(g, bodyDiodeLeads[3], drn [0],  cur);
+		    } else {
+			drawDots(g, src [0], body[0], -curcount_body1);
+			drawDots(g, body[0], drn [0],  curcount_body2);
+		    }
 		}
 		
 		// label pins when highlighted
@@ -225,8 +264,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		    int dsyn = dy == 0 ? 0 : 1;
 
 		    g.drawString("G", gate[1].x - (dx < 0 ? -2 : 12), gate[1].y + ((dy > 0) ? -5 : 12));
-		    g.drawString(pnp == -1 ? "D" : "S", src[0].x-3+9*(dsx-dsyn*pnp), src[0].y+4);
-		    g.drawString(pnp == -1 ? "S" : "D", drn[0].x-3+9*(dsx-dsyn*pnp), drn[0].y+4);
+		    int extra = showBodyDiode() && !hasBodyTerminal() && dy == 0 ? 16*dsign : 0;
+		    g.drawString(pnp == -1 ? "D" : "S", src[0].x-3+9*(dsx-dsyn*pnp)+extra, src[0].y+4);
+		    g.drawString(pnp == -1 ? "S" : "D", drn[0].x-3+9*(dsx-dsyn*pnp)+extra, drn[0].y+4);
 		    if (hasBodyTerminal())
 			g.drawString("B",  body[0].x-3+9*(dsx-dsyn*pnp),  body[0].y+4);
 		}	    
@@ -260,6 +300,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	// points for gate, body, and the little circle on PNP mosfets
 	Point gate[], body[], pcircle;
 	Polygon arrowPoly;
+	Polygon bodyDiodePoly, bodyDiodePoly2;
+	Point bodyDiodeCathode[], bodyDiodeCathode2[];
+	Point bodyDiodeLeads[];
 	
 	void setPoints() {
 	    super.setPoints();
@@ -306,6 +349,46 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		int dist = (dsign < 0) ? 32 : 31;
 		pcircle = interpPoint(point1, point2, 1-dist/dn);
 		pcircler = 3;
+	    }
+
+	    if (showBodyDiode()) {
+		Point pa[] = newPointArray(2);
+		if (!hasBodyTerminal()) {
+		    // single diode offset from body line, with L-shaped leads
+		    int diodeHs = 6;
+		    bodyDiodeCathode = newPointArray(2);
+		    bodyDiodeLeads   = newPointArray(4);
+		    Point dp1 = interpPoint(src[0], drn[0], .5-(diodeHs/2.)/hs, -hs2);
+		    Point dp2 = interpPoint(src[0], drn[0], .5+(diodeHs/2.)/hs, -hs2);
+		    interpPoint2(dp1, dp2, pa[0], pa[1], 0, diodeHs);
+		    interpPoint2(dp1, dp2, bodyDiodeCathode[0], bodyDiodeCathode[1], 1, diodeHs);
+		    bodyDiodePoly = createPolygon(pa[0], pa[1], dp2);
+		    bodyDiodeLeads[0] = interpPoint(src[0], drn[0], 0, -hs2);
+		    bodyDiodeLeads[1] = dp1;
+		    bodyDiodeLeads[2] = dp2;
+		    bodyDiodeLeads[3] = interpPoint(src[0], drn[0], 1, -hs2);
+		} else {
+		    // two inline diodes: src[0]↔body[0] and body[0]↔drn[0], no offset
+		    // NPN: anode=body, cathode=src/drn;  PNP: anode=src/drn, cathode=body
+		    int diodeHs = 3;
+		    bodyDiodeCathode  = newPointArray(2);
+		    bodyDiodeCathode2 = newPointArray(2);
+		    Point a1  = (pnp == 1) ? body[0] : src[0];
+		    Point b1  = (pnp == 1) ? src[0]  : body[0];
+		    Point dp1 = interpPoint(a1, b1, .3);
+		    Point dp2 = interpPoint(a1, b1, .7);
+		    interpPoint2(dp1, dp2, pa[0], pa[1], 0, diodeHs);
+		    interpPoint2(dp1, dp2, bodyDiodeCathode[0], bodyDiodeCathode[1], 1, diodeHs);
+		    bodyDiodePoly = createPolygon(pa[0], pa[1], dp2);
+		    pa = newPointArray(2);
+		    Point a2 = (pnp == 1) ? body[0] : drn[0];
+		    Point b2 = (pnp == 1) ? drn[0]  : body[0];
+		    dp1 = interpPoint(a2, b2, .3);
+		    dp2 = interpPoint(a2, b2, .7);
+		    interpPoint2(dp1, dp2, pa[0], pa[1], 0, diodeHs);
+		    interpPoint2(dp1, dp2, bodyDiodeCathode2[0], bodyDiodeCathode2[1], 1, diodeHs);
+		    bodyDiodePoly2 = createPolygon(pa[0], pa[1], dp2);
+		}
 	    }
 	}
 
@@ -525,6 +608,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
 			return ei;
 		}
+		if (n == 6 && doBodyDiode()) {
+			EditInfo ei = new EditInfo("", 0, -1, -1);
+			ei.checkbox = new Checkbox("Show Body Diode", showBodyDiode());
+			return ei;
+		}
 
 		return null;
 	}
@@ -555,6 +643,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		}
 		if (n == 5) {
 		    flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
+		}
+		if (n == 6) {
+		    globalFlags = ei.changeFlag(globalFlags, FLAG_SHOW_BODY_DIODE);
 		}
 
 		// lots of different cases where the body terminal might have gotten removed/added so just do this all the time

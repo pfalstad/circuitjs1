@@ -19,6 +19,7 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import java.util.HashMap;
 import com.google.gwt.canvas.client.Canvas;
 import com.google.gwt.event.dom.client.MouseDownEvent;
 import com.google.gwt.event.dom.client.MouseDownHandler;
@@ -87,7 +88,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public int mousePost = -1;
     public CircuitNode highlightedNode = null;
     public boolean netHighlightKeyHeld = false;
-    public CircuitElm plotXElm, plotYElm;
+    public HashMap<CircuitElm, String> scopePlotRoles = new HashMap<CircuitElm, String>();
     public int draggingPost;
     public SwitchElm heldSwitchElm;
     private boolean mouseDragging;
@@ -230,8 +231,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
     	int gx = inverseTransformX(e.getX());
     	int gy = inverseTransformY(e.getY());
-    	if (!sim.circuitArea.contains(e.getX(), e.getY()))
+    	if (!sim.circuitArea.contains(e.getX(), e.getY())) {
+    	    sim.repaint();
     	    return;
+    	}
     	boolean changed = false;
     	if (dragElm != null)
     	    dragElm.drag(gx, gy);
@@ -398,7 +401,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		    if (conns == null)
     			continue;
     		    for (SimulationManager.RoutedWireConnection conn : conns) {
-    			if (!conn.wire.isSelected())
+    			if (!conn.wire.isSelected() && conn.wire.getPost(conn.wirePost).z == 0)
     			    conn.wire.movePoint(conn.wirePost, dx, dy);
     		    }
     		}
@@ -447,7 +450,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		ArrayList<SimulationManager.RoutedWireConnection> conns = sim.sim.routedWireMap.get(mouseElm);
     		if (conns != null) {
     		    for (SimulationManager.RoutedWireConnection conn : conns) {
-    			if (conn.elmPost == draggingPost)
+    			if (conn.elmPost == draggingPost && conn.wire.getPost(conn.wirePost).z == 0)
     			    conn.wire.movePoint(conn.wirePost, dx, dy);
     		    }
     		}
@@ -648,7 +651,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	//	CircuitElm origMouse = mouseElm;
 
     	mousePost = -1;
-    	plotXElm = plotYElm = null;
+    	scopePlotRoles.clear();
 
     	if (mouseIsOverSplitter(sx, sy)) {
     		setMouseElm(null);
@@ -677,10 +680,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		Scope s = sim.scopeManager.scopes[i];
     		if (s.rect.contains(sx, sy)) {
     		    newMouseElm=s.getElm();
-    		    if (s.plotXY) {
-    			plotXElm = s.getXElm();
-    			plotYElm = s.getYElm();
-    		    }
+    		    s.addScopePlotRoles(scopePlotRoles);
     		    sim.scopeManager.scopeSelected = i;
     		}
     	    }
@@ -909,7 +909,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     void clearMouseElm() {
     	sim.scopeManager.scopeSelected = -1;
     	setMouseElm(null);
-    	plotXElm = plotYElm = null;
+    	scopePlotRoles.clear();
     }
 
     public void onMouseDown(MouseDownEvent e) {
@@ -974,6 +974,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    clearSelection();
 	    mouseDragging=false;
 	    return;
+	}
+
+	// start drag-to-measure if clicking inside a scope
+	if (!sim.dialogIsShowing()) {
+	    int i;
+	    for (i = 0; i != sim.scopeManager.scopeCount; i++)
+		sim.scopeManager.scopes[i].mousePressed(e.getX(), e.getY());
+	    if (sim.scopeElmArr != null)
+		for (i = 0; i != sim.scopeElmArr.length; i++)
+		    sim.scopeElmArr[i].elmScope.mousePressed(e.getX(), e.getY());
 	}
 
 	int gx = inverseTransformX(e.getX());
@@ -1074,6 +1084,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public void onMouseUp(MouseUpEvent e) {
     	e.preventDefault();
     	mouseDragging=false;
+    	Scope.dragStartTime = -1;
 
     	// click to clear selection
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)

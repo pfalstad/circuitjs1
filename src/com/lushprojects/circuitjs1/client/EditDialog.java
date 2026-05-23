@@ -37,6 +37,7 @@ import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
+import com.google.gwt.core.client.Scheduler;
 
 interface Editable {
     EditInfo getEditInfo(int n);
@@ -53,6 +54,7 @@ class EditDialog extends Dialog {
 	VerticalPanel mainPanel;
 	HorizontalPanel bottomButtonPanel;
 	Label errorLabel;
+	TextBox firstTextBox;
 	static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
 
 	EditDialog(Editable ce, CirSim f) {
@@ -110,6 +112,15 @@ class EditDialog extends Dialog {
 		errorLabel.setVisible(false);
 		mainPanel.insert(errorLabel, mainPanel.getWidgetIndex(bottomButtonPanel));
 		this.center();
+		if (firstTextBox != null) {
+		    final TextBox ftb = firstTextBox;
+		    Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+			public void execute() {
+			    ftb.setFocus(true);
+			    ftb.selectAll();
+			}
+		    });
+		}
 	}
 	
 	void buildDialog() {
@@ -181,6 +192,8 @@ class EditDialog extends Dialog {
 			    vp.add(ei.widget);
 			} else {
 			    vp.add(ei.textf = new TextBox());
+			    if (firstTextBox == null)
+				firstTextBox = ei.textf;
 			    if (ei.text != null) {
 				ei.textf.setText(ei.text);
 				if (ei.isColor)

@@ -130,6 +130,7 @@ class FMElm extends CircuitElm {
     
     double getVoltageDiff() { return volts[0]; }
    
+    boolean validate() { return validateRailNode(0); }
     boolean hasGroundConnection(int n1) { return true; }
 	
     int getVoltageSourceCount() {

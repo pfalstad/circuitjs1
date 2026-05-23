@@ -39,6 +39,9 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	Scrollbar slider;
 	Label label;
 	String sliderText;
+	int link;
+	boolean sliderOwner;
+	boolean deleted;
 	public PotElm(int xx, int yy) {
 		super(xx, yy);
 		setup();
@@ -71,14 +74,13 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	return (n == 0) ? point1 : (n == 1) ? point2 : post3;
     }
     
-    String dump() { return super.dump() + " " + maxResistance + " " +
-    		position + " " + sliderText; }
-
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "ma", maxResistance);
         XMLSerializer.dumpAttr(elem, "po", position);
         XMLSerializer.dumpAttr(elem, "sl", sliderText);
+        if (link != 0)
+            XMLSerializer.dumpAttr(elem, "li", link);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -86,9 +88,47 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
         maxResistance = xml.parseDoubleAttr("ma", maxResistance);
         position = xml.parseDoubleAttr("po", position);
         sliderText = xml.parseStringAttr("sl", sliderText);
+        setLink(xml.parseIntAttr("li", 0));
 	int value = calcSliderValue();
 	slider.setValue(value);
 	label.setText(sliderText);
+    }
+
+    // detach from slider, transferring ownership to another linked pot if possible;
+    // if no transfer, removes the widgets from the panel
+    void detachSlider() {
+        if (!sliderOwner)
+            return;
+        boolean transferred = false;
+        if (link != 0) {
+            for (CircuitElm ce : app.elmList) {
+                if (ce instanceof PotElm && ce != this) {
+                    PotElm pe = (PotElm) ce;
+                    if (pe.link == link && !pe.deleted) {
+                        pe.sliderOwner = true;
+                        slider.command = pe;
+                        slider.attachedElm = pe;
+                        transferred = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!transferred) {
+            app.removeWidgetFromVerticalPanel(label);
+            app.removeWidgetFromVerticalPanel(slider);
+        }
+        slider = null;
+        label = null;
+        sliderOwner = false;
+    }
+
+    void setLink(int newLink) {
+        if (newLink == link)
+            return;
+        detachSlider();
+        link = newLink;
+        createSlider();
     }
     
     int calcSliderValue() {
@@ -97,22 +137,43 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     }
 
     void createSlider() {
+        if (link != 0) {
+            for (CircuitElm ce : app.elmList) {
+                if (ce instanceof PotElm && ce != this) {
+                    PotElm pe = (PotElm) ce;
+                    if (pe.link == link && pe.slider != null) {
+                        slider = pe.slider;
+                        label = pe.label;
+                        sliderOwner = false;
+                        return;
+                    }
+                }
+            }
+        }
     	app.addWidgetToVerticalPanel(label = new Label(sliderText));
     	label.addStyleName("topSpace");
 	int value = calcSliderValue();
     	app.addWidgetToVerticalPanel(slider = new Scrollbar(Scrollbar.HORIZONTAL, value, 1, 0, 101, this, this));
-   // 	sim.verticalPanel.validate();
-   // 	slider.addAdjustmentListener(this);
+        sliderOwner = true;
     }
     
     public void execute() {
 	app.analyzeFlag = true;
 	setPoints();
+	if (link != 0) {
+	    for (CircuitElm ce : app.elmList) {
+		if (ce instanceof PotElm && ce != this) {
+		    PotElm pe = (PotElm) ce;
+		    if (pe.link == link)
+			pe.setPoints();
+		}
+	    }
+	}
     }
     
     void delete() {
-	app.removeWidgetFromVerticalPanel(label);
-	app.removeWidgetFromVerticalPanel(slider);
+	deleted = true;
+	detachSlider();
         super.delete();
     }
     
@@ -328,6 +389,8 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
             ei.checkbox = new Checkbox("Show Values", (flags & FLAG_SHOW_VALUES) != 0);
             return ei;
 	}
+	if (n == 3)
+	    return new EditInfo("Group Number (for linking)", link, -1, -1);
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -340,6 +403,10 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	}
 	if (n == 2)
 	    flags = ei.changeFlag(flags, FLAG_SHOW_VALUES);
+	if (n == 3) {
+	    setLink((int) ei.value);
+	    slider.setValue(calcSliderValue());
+	}
     }
     void setMouseElm(boolean v) {
     	super.setMouseElm(v);

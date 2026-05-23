@@ -177,4 +177,5 @@ class LogicInputElm extends SwitchElm {
 	double getCurrentIntoNode(int n) {
 	    return current;
 	}
+	boolean validate() { return validateRailNode(0); }
     }
