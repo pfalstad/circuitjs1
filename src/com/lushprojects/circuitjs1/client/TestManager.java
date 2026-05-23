@@ -18,8 +18,10 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 
 class TestManager {
 
-    static final boolean enabled = false;
+    static final boolean enabled = true;
+    static boolean loadingTestCircuit;
     static TestManager theManager;
+
     void createUI(VerticalPanel vp) {}
     double clampTimeStep(double t, double timeStep) { return 0; }
     boolean checkTime() { return false; }
@@ -29,7 +31,6 @@ class TestManager {
     TestManager(CirSim app) {}
     static void recordSwitchToggle(SwitchElm se) {}
     static void init(CirSim app) {}
-    static boolean loadingTestCircuit;
 
 /*
     static class ScopeDataRef {
@@ -52,6 +53,12 @@ class TestManager {
     Vector<SwitchEvent> switchEvents = new Vector<SwitchEvent>();
     int nextEventIdx;
 
+    // test list mode
+    Vector<String> testList;
+    int testListIdx;
+    Vector<String> testResults;
+    String currentTestName;
+
     static final double TOLERANCE = 1e-3;
 
     TestManager(CirSim app) {
@@ -64,10 +71,16 @@ class TestManager {
 	    return;
 	QueryParameters qp = new QueryParameters();
 	String testFile = qp.getValue("test");
-	if (testFile == null)
+	if (testFile != null) {
+	    theManager.loadTestCircuit(testFile);
+	    loadingTestCircuit = true;
 	    return;
-	theManager.loadTestCircuit(testFile);
-	loadingTestCircuit = true;
+	}
+	String testListFile = qp.getValue("testlist");
+	if (testListFile != null) {
+	    theManager.loadTestList(testListFile);
+	    loadingTestCircuit = true;
+	}
     }
 
     void loadTestCircuit(String filename) {
@@ -90,6 +103,62 @@ class TestManager {
 	} catch (RequestException e) {
 	    Window.alert("Error loading test circuit: " + e.getMessage());
 	}
+    }
+
+    void loadTestList(String filename) {
+	String url = "http://127.0.0.1:5001/" + filename;
+	RequestBuilder rb = new RequestBuilder(RequestBuilder.GET, url);
+	try {
+	    rb.sendRequest(null, new RequestCallback() {
+		public void onResponseReceived(Request req, Response resp) {
+		    if (resp.getStatusCode() == Response.SC_OK) {
+			testList = new Vector<String>();
+			testResults = new Vector<String>();
+			String[] lines = resp.getText().split("\n");
+			for (String line : lines) {
+			    line = line.trim();
+			    if (!line.isEmpty())
+				testList.add(line);
+			}
+			testListIdx = 0;
+			runNextTest();
+		    } else {
+			Window.alert("Could not load test list: " + resp.getStatusText());
+		    }
+		}
+		public void onError(Request req, Throwable ex) {
+		    Window.alert("Error loading test list: " + ex.getMessage());
+		}
+	    });
+	} catch (RequestException e) {
+	    Window.alert("Error loading test list: " + e.getMessage());
+	}
+    }
+
+    void runNextTest() {
+	if (testListIdx >= testList.size()) {
+	    showTestListSummary();
+	    return;
+	}
+	currentTestName = testList.get(testListIdx++);
+	loadTestCircuit(currentTestName);
+    }
+
+    void showTestListSummary() {
+	int passed = 0, failed = 0;
+	StringBuilder sb = new StringBuilder();
+	for (String r : testResults) {
+	    if (r.startsWith("PASS")) {
+		passed++;
+	    } else {
+		failed++;
+		sb.append(r).append("\n");
+	    }
+	}
+	String msg = "Tests: " + testList.size() + ", Passed: " + passed + ", Failed: " + failed;
+	if (sb.length() > 0)
+	    msg += "\n\nFailures:\n" + sb.toString();
+	Window.alert(msg);
     }
 
     void startTest() {
@@ -228,10 +297,19 @@ class TestManager {
 		failures.append("scope ").append(ref.si).append(" plot ").append(ref.pi)
 			.append(": ").append(mismatch).append(" mismatches, max diff=").append(maxDiff).append("\n");
 	}
-	if (failures.length() == 0)
-	    Window.alert("Test PASSED");
-	else
-	    Window.alert("Test FAILED:\n" + failures.toString());
+	if (testList != null) {
+	    String name = currentTestName != null ? currentTestName : "test";
+	    if (failures.length() == 0)
+		testResults.add("PASS: " + name);
+	    else
+		testResults.add("FAIL: " + name + "\n" + failures.toString());
+	    runNextTest();
+	} else {
+	    if (failures.length() == 0)
+		Window.alert("Test PASSED");
+	    else
+		Window.alert("Test FAILED:\n" + failures.toString());
+	}
     }
 
     void createUI(VerticalPanel vp) {
