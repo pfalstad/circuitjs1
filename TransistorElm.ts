@@ -26,6 +26,8 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
+import { Checkbox } from "./Checkbox";
+import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { XMLSerializer } from "./XMLSerializer";
 import { XMLDeserializer } from "./XMLDeserializer";
@@ -624,7 +626,7 @@ export class TransistorElm extends CircuitElm {
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
             const state = (this.flags & TransistorElm.FLAG_FLIP) !== 0;
-            ei.checkbox = { label: "Swap E/C", state, getState: () => state };
+            ei.checkbox = new Checkbox("Swap E/C", state);
             return ei;
         }
         if (n === 2)
@@ -632,7 +634,7 @@ export class TransistorElm extends CircuitElm {
         if (n === 3) {
             const ei = new EditInfo("Model", 0, -1, -1);
             this.models = TransistorModel.getModelList();
-            ei.choice = { items: [] as string[], selectedIndex: 0, add: (s: string) => ei.choice.items.push(s), select: (i: number) => { ei.choice.selectedIndex = i; }, getSelectedIndex: () => ei.choice.selectedIndex };
+            ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const dm = this.models[i];
                 ei.choice.add(dm.getDescription());

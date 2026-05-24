@@ -17,7 +17,9 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Stub — to be implemented from EditInfo.java
+import { Checkbox } from "./Checkbox";
+import { Choice } from "./Choice";
+
 export class EditInfo {
     name: string = "";
     text: string | null = null;
@@ -31,8 +33,8 @@ export class EditInfo {
     maxVal: number = 0;
     error: string | null = null;
     errorFieldName: string | null = null;
-    checkbox: any = null;
-    choice: any = null;
+    checkbox: Checkbox | null = null;
+    choice: Choice | null = null;
     button: any = null;
     textArea: any = null;
     widget: any = null;
@@ -61,7 +63,7 @@ export class EditInfo {
 
     static createCheckbox(name: string, flag: boolean): EditInfo {
         const ei = new EditInfo("", 0, -1, -1);
-        ei.checkbox = { name, state: flag, getState: () => flag };
+        ei.checkbox = new Checkbox(name, flag);
         return ei;
     }
 

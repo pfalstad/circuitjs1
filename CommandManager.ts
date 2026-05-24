@@ -24,6 +24,11 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
+import { EditDialog } from "./EditDialog";
+import { EditOptions } from "./EditOptions";
+import { ExportAsTextDialog } from "./ExportAsTextDialog";
+import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { SearchDialog } from "./SearchDialog";
 
 export class CommandManager {
 
@@ -48,7 +53,7 @@ export class CommandManager {
             if (CirSim.isElectron())
                 CommandManager.electronOpenFile();
             else
-                this.app.ui?.loadFileInput?.click();
+                this.app.ui?.loadFileInput?.element.click();
         }
         if (item == "newwindow")
             CommandManager.newElectronWindow();
@@ -101,11 +106,10 @@ export class CommandManager {
             CirSim.dialogShowing.show();
         }
         if (item == "search") {
-            CirSim.dialogShowing = new (window as any).SearchDialog(this.app);
-            CirSim.dialogShowing.show();
+            new SearchDialog(this.app).show();
         }
         if (menu == "options" && item == "other")
-            this.doEdit(new (window as any).EditOptions(this.app, this.app.sim));
+            this.doEdit(new EditOptions(this.app, this.app.sim));
         if (item == "devtools")
             CommandManager.toggleDevTools();
         if (item == "undo")
@@ -336,7 +340,7 @@ export class CommandManager {
             CirSim.editDialog.setVisible(false);
             CirSim.editDialog = null;
         }
-        CirSim.editDialog = new (window as any).EditDialog(eable, this.app);
+        CirSim.editDialog = new EditDialog(eable, this.app);
         CirSim.editDialog.show();
     }
 
@@ -355,7 +359,7 @@ export class CommandManager {
 
     doExportAsText(): void {
         const dump = this.app.dumpCircuit();
-        CirSim.dialogShowing = new (window as any).ExportAsTextDialog(this.app, dump);
+        CirSim.dialogShowing = new ExportAsTextDialog(this.app, dump);
         CirSim.dialogShowing.show();
     }
 
@@ -370,7 +374,7 @@ export class CommandManager {
 
     doExportAsLocalFile(): void {
         const dump = this.app.dumpCircuit();
-        CirSim.dialogShowing = new (window as any).ExportAsLocalFileDialog(dump);
+        CirSim.dialogShowing = new ExportAsLocalFileDialog(dump);
         CirSim.dialogShowing.show();
     }
 

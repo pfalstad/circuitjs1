@@ -299,8 +299,7 @@ export class Menus {
         } else {
             fileMenu.addMenuItem(this.exportAsLocalFileItem,
                 shortcutHtml("floppy", "Save As...", Locale.LS(ck + "S")), "file", "exportaslocalfile");
-            // alias saveFileItem so UIManager can always call saveFileItem.isEnabled()
-            this.saveFileItem = this.exportAsLocalFileItem;
+            this.exportAsLocalFileItem.setEnabled("download" in document.createElement("a"));
         }
 
         fileMenu.addMenuItem(this.exportAsUrlItem,

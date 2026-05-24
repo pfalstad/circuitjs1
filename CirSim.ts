@@ -33,6 +33,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
+import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 
 // GWT Timer equivalent — drives the simulation/render loop via setInterval
 class CirSimTimer {
@@ -414,7 +415,7 @@ export class CirSim {
             this.resetEditingContext();
         if (circuitText != null) {
             this.loader.readCircuit(circuitText, flags);
-            (window as any).ExportAsLocalFileDialog?.setLastFileName(null);
+            ExportAsLocalFileDialog.setLastFileName(null);
             this.allowSave(false);
         }
     }

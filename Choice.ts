@@ -17,14 +17,14 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Stub — GWT Choice widget
 export class Choice {
-    private items: string[] = [];
-    private selectedIndex: number = 0;
+    items: string[] = [];
+    selectedIndex: number = 0;
+    element: HTMLSelectElement | null = null;
 
     add(item: string): void { this.items.push(item); }
     select(index: number): void { this.selectedIndex = index; }
-    getSelectedIndex(): number { return this.selectedIndex; }
+    getSelectedIndex(): number { return this.element ? this.element.selectedIndex : this.selectedIndex; }
     getItemCount(): number { return this.items.length; }
     getItem(index: number): string { return this.items[index]; }
 }

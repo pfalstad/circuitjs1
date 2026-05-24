@@ -41,12 +41,16 @@ export class InductorElm extends CircuitElm {
             super(xa, ya);
             this.ind = new Inductor(CircuitElm.sim);
             this.inductance = 1;
+            this.initialCurrent = 0;
+            this.saturationCurrent = 0;
             this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
         } else {
             super(xa, ya, xb, yb!, f!);
             this.ind = new Inductor(CircuitElm.sim);
             this.inductance = parseFloat(st!.nextToken());
             this.current = parseFloat(st!.nextToken());
+            this.initialCurrent = 0;
+            this.saturationCurrent = 0;
             try {
                 this.initialCurrent = parseFloat(st!.nextToken());
                 this.saturationCurrent = parseFloat(st!.nextToken());

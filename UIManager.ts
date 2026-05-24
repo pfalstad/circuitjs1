@@ -28,6 +28,7 @@ import { Rectangle } from "./Rectangle";
 import { Point } from "./Point";
 import { SwitchElm } from "./SwitchElm";
 import { Locale } from "./Locale";
+import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -99,12 +100,38 @@ class SubcircuitBar {
 
 class LoadFile {
     element: HTMLInputElement;
-    static isSupported(): boolean { return typeof window.FileReader !== 'undefined'; }
+    static isSupported(): boolean { return !!(window.File && window.FileReader); }
 
     constructor(app: CirSim) {
         this.element = document.createElement('input');
         this.element.type = 'file';
+        this.element.setAttribute('name', 'Import');
+        this.element.id = 'LoadFileElement';
         this.element.accept = '.txt,.circuitjs';
+        this.element.className = 'offScreen';
+        this.element.addEventListener('change', () => LoadFile.doLoad(app));
+    }
+
+    static doLoad(app: CirSim): void {
+        const input = document.getElementById('LoadFileElement') as HTMLInputElement;
+        if (!input || !input.files || input.files.length < 1) return;
+        const file = input.files[0];
+        if (file.size >= 1280000) {
+            alert('File too large!');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const text = reader.result as string;
+            app.undoManager?.pushUndo();
+            app.resetEditingContext();
+            app.loader.readCircuit(text);
+            app.createNewLoadFile();
+            app.setCircuitTitle(file.name);
+            ExportAsLocalFileDialog.setLastFileName(file.name);
+            app.unsavedChanges = false;
+        };
+        reader.readAsText(file);
     }
 }
 

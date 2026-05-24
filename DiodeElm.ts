@@ -27,6 +27,7 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
+import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { XMLSerializer } from "./XMLSerializer";
 import { XMLDeserializer } from "./XMLDeserializer";
@@ -206,8 +207,8 @@ export class DiodeElm extends CircuitElm {
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);
-            this.models = DiodeModel.getModelList(this instanceof ZenerElm);
-            ei.choice = { items: [] as string[], selectedIndex: 0, add: (s: string) => ei.choice.items.push(s), select: (i: number) => { ei.choice.selectedIndex = i; }, getSelectedIndex: () => ei.choice.selectedIndex };
+            this.models = DiodeModel.getModelList(this.isZenerElm());
+            ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const dm = this.models[i];
                 ei.choice.add(dm.getDescription());
@@ -271,6 +272,8 @@ export class DiodeElm extends CircuitElm {
         }
     }
 
+    isZenerElm(): boolean { return false; }
+
     getShortcut(): number { return 'd'.charCodeAt(0); }
 
     setLastModelName(n: string): void {
@@ -283,7 +286,3 @@ export class DiodeElm extends CircuitElm {
             CircuitElm.sim.stop("max current exceeded", this);
     }
 }
-
-// Forward declaration to allow instanceof check in getEditInfo
-// ZenerElm extends DiodeElm and will be defined in ZenerElm.ts
-declare class ZenerElm extends DiodeElm {}

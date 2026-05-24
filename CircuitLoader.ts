@@ -29,6 +29,7 @@ import { Locale } from "./Locale";
 import { Scope } from "./Scope";
 import { DiodeModel } from "./DiodeModel";
 import { TransistorModel } from "./TransistorModel";
+import { CustomLogicModel } from "./CustomLogicModel";
 
 /**
  * Handles all circuit loading, parsing, clearing, setup-file fetching,
@@ -160,7 +161,7 @@ export class CircuitLoader {
                         break;
                     }
                     if (tint === '!'.charCodeAt(0)) {
-                        // CustomLogicModel.undumpModel(st) // TODO
+                        CustomLogicModel.undumpModel(st);
                         break;
                     }
                     if (tint === '%'.charCodeAt(0) || tint === '?'.charCodeAt(0) || tint === 'B'.charCodeAt(0)) {

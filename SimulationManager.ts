@@ -254,7 +254,13 @@ export class SimulationManager {
     // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
     // The actual node we map to is not assigned yet.  Instead we map to the same NodeMapEntry.
     calculateWireClosure(): void {
-	// TODO: LabeledNodeElm.resetNodeList()
+	// reset labeled node list before wire closure
+	for (let i = 0; i < this.elmList.length; i++) {
+	    if (this.elmList[i].isLabeledNodeElm()) {
+		(this.elmList[i] as any).constructor.resetNodeList();
+		break;
+	    }
+	}
 	// TODO: GroundElm.resetNodeList()
 	this.calculateWireClosureForList(this.elmList, false);
     }
@@ -1731,7 +1737,11 @@ export class SimulationManager {
     }
 
     getLabeledNodeVoltage(name: string): number {
-	// TODO: LabeledNodeElm.getByName(name) not yet implemented
+	for (let i = 0; i < this.elmList.length; i++) {
+	    const ce = this.elmList[i];
+	    if (ce.isLabeledNodeElm() && (ce as any).getName() === name)
+		return ce.volts[0];
+	}
 	return 0;
     }
 
