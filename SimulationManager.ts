@@ -1306,7 +1306,7 @@ export class SimulationManager {
 
     // stamp value x on the right side of row i, representing an
     // independent current source flowing into node i
-    stampRightSide(n: CircuitNode, x: number): void {
+    stampRightSide(n: CircuitNode, x?: number): void {
 	if (x === undefined)
 	    return;
 	if (n.row > 0)

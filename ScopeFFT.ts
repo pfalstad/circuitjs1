@@ -35,4 +35,5 @@ export class ScopeFFT {
     draw(g: Graphics): void {}
     drawVerticalGridLines(g: Graphics): void {}
     addCursorInfo(info: string[], ct: number, x: number): number { return ct; }
+    drawPhaseAngle(g: Graphics): void {}
 }
