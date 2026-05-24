@@ -1,0 +1,336 @@
+/* Ported from circuitjs.html inline <style> and war/circuitjs1/style.css */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ---- Utility classes (from circuitjs.html) ---- */
+
+.disabled {
+    color: lightgray;
+}
+
+.topSpace {
+    margin-top: 12px;
+}
+
+.offScreen {
+    position: absolute;
+    right: 101%;
+    overflow: hidden;
+}
+
+/* ---- Cursor styles (applied to the canvas element) ---- */
+
+.cursorPointer {
+    cursor: default;
+}
+
+.cursorCross {
+    cursor: crosshair;
+}
+
+.cursorSplitter {
+    cursor: row-resize;
+}
+
+/* ---- Buttons (from circuitjs.html) ---- */
+
+.topButton {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    margin-left: 5px;
+    padding: 5px 7px;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: small;
+    background-color: #e7e7e7;
+    border: 1px solid #bbb;
+    border-bottom: 1px solid #a0a0a0;
+    border-radius: 3px;
+}
+
+.topButton-red {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    margin-left: 5px;
+    padding: 5px 7px;
+    text-decoration: none;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: small;
+    background-color: #ff0000;
+    border: 1px solid #bbb;
+    border-bottom: 1px solid #a0a0a0;
+    border-radius: 3px;
+}
+
+/* expand/collapse button used in scope/subcircuit panels */
+.expand-but {
+    line-height: 0;
+    font-size: 13px;
+    margin-right: 5px;
+    border-radius: 0;
+    display: inline-block;
+    text-align: center;
+    width: 15px;
+    height: 15px;
+    padding: 0 0 1px 0;
+    margin-bottom: 1px;
+    background: gray;
+    color: white;
+}
+
+.radioPanel label {
+    margin-right: 15px;
+}
+
+/* ---- Menu bar and dropdown menus ---- */
+
+/* Horizontal menu bar strip at the top */
+.menuBar {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    background: #e8e8e8;
+    border-bottom: 1px solid #bbb;
+    height: 30px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+/* Each top-level menu entry (e.g. "File", "Edit") */
+.topMenuItem {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* The clickable label for a top-level menu */
+.topMenuLabel {
+    padding: 0 10px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: small;
+}
+
+.topMenuLabel:hover,
+.topMenuItem.open > .topMenuLabel {
+    background: #c8d8f8;
+}
+
+/* Dropdown panel — hidden by default, shown when parent has .open */
+.menuDropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    background: #f8f8f8;
+    border: 1px solid #bbb;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    min-width: 180px;
+    list-style: none;
+    margin: 0;
+    padding: 2px 0;
+}
+
+.topMenuItem.open > .menuDropdown {
+    display: block;
+}
+
+/* Submenu: positioned to the right of its parent item */
+.menuDropdown .menuDropdown,
+.elmContextMenu .menuDropdown {
+    top: 0;
+    left: 100%;
+}
+
+/* Items that trigger a submenu need relative positioning so the child ul anchors to them */
+.hasSubmenu {
+    position: relative;
+}
+
+/* Show submenu on hover */
+.hasSubmenu:hover > .menuDropdown {
+    display: block;
+}
+
+/* Keep submenu open when the mouse moves from the arrow into the submenu */
+.hasSubmenu:hover {
+    background: #c8d8f8;
+}
+
+/* Individual menu item row */
+.menuItem {
+    display: flex;
+    align-items: center;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: small;
+    white-space: nowrap;
+}
+
+.menuItem:hover {
+    background: #c8d8f8;
+}
+
+.menuItem.menuItemDisabled,
+.menuItem.menuItemDisabled:hover {
+    color: #aaa;
+    background: none;
+    cursor: default;
+}
+
+/* Horizontal divider between menu groups */
+.menuSeparator {
+    height: 1px;
+    background: #ccc;
+    margin: 3px 0;
+}
+
+/* Check-mark column — always rendered, visibility toggled */
+.checkMark {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+/* Keyboard shortcut hint shown on the right side of an item */
+.shortcutHint {
+    margin-left: auto;
+    padding-left: 20px;
+    color: #666;
+    font-size: 11px;
+}
+
+/* Arrow indicating a submenu */
+.submenuArrow {
+    margin-left: auto;
+    padding-left: 8px;
+    font-size: 10px;
+}
+
+/* Sub-heading row (non-clickable category label inside a menu) */
+.menuSubhead {
+    padding: 2px 6px;
+    color: #555;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: default;
+}
+
+/* Right-click element context menu (absolutely positioned) */
+.elmContextMenu {
+    position: absolute;
+    z-index: 200;
+    background: #f8f8f8;
+    border: 1px solid #bbb;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    list-style: none;
+    margin: 0;
+    padding: 2px 0;
+    min-width: 160px;
+}
+
+/* ---- Layout panels ---- */
+
+.verticalPanel {
+    background: #f0f0f0;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+/* iFrame inside sidebar (component info panel) */
+.verticalPanel iframe {
+    border: 0;
+    display: block;
+}
+
+/* ---- Mobile hamburger triggers (hidden on desktop) ---- */
+/* From war/circuitjs1/style.css                          */
+
+.trigger, .toptrigger, .triggerLabel, .toptriggerlabel {
+    display: none;
+}
+
+@media only screen and (max-width: 600px) {
+    /* sidebar toggle tab — floats over the right edge of the canvas */
+    .triggerLabel {
+        display: initial;
+        border-radius: 10px 0 0 10px;
+        background: white;
+        width: 20px;
+        height: 50px;
+        position: absolute;
+        top: 50px;
+        right: 0;
+        z-index: 1;
+        transition: right 1s;
+    }
+    .triggerLabel::before {
+        content: "‖";
+        font-size: 32px;
+        padding-left: 3px;
+        position: absolute;
+        padding-top: 5px;
+    }
+
+    /* top-menu hamburger icon */
+    .toptriggerlabel {
+        z-index: 1;
+        top: 5px;
+        right: 5px;
+        width: 20px;
+        height: 20px;
+        position: absolute;
+        display: block;
+    }
+    .toptriggerlabel::before {
+        content: "☰";
+        font-size: 16px;
+        padding-left: 2px;
+        pointer-events: none;
+    }
+
+    /* checked top-trigger covers the screen so a tap outside closes the menu */
+    .toptrigger:checked {
+        display: block;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        position: absolute;
+    }
+
+    /* when sidebar trigger is checked, slide the tab left */
+    .trigger:checked + .triggerLabel {
+        right: 128px;
+    }
+
+    /* sidebar panel: collapsed by default, expands on trigger:checked */
+    .verticalPanel {
+        width: 0 !important;
+        background: white;
+        z-index: 1;
+        transition: width 1s;
+        overflow: hidden;
+    }
+    .trigger:checked ~ .contentRow .verticalPanel {
+        width: 128px !important;
+    }
+
+    /* canvas takes full width on mobile */
+    .canvasWrapper {
+        width: 100% !important;
+    }
+}
