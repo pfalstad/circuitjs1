@@ -29,6 +29,7 @@ import { EditOptions } from "./EditOptions";
 import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SearchDialog } from "./SearchDialog";
+import { ImportFromTextDialog } from "./ImportFromTextDialog";
 
 export class CommandManager {
 
@@ -62,7 +63,7 @@ export class CommandManager {
         if (item == "saveas")
             CommandManager.electronSaveAs(this.app.dumpCircuit());
         if (item == "importfromtext")
-            CirSim.dialogShowing = new (window as any).ImportFromTextDialog(this.app);
+            new ImportFromTextDialog(this.app);
         if (item == "importfromdropbox")
             CirSim.dialogShowing = new (window as any).ImportFromDropboxDialog(this.app);
         if (item == "exportasurl") {

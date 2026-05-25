@@ -45,7 +45,7 @@ const KEY_O = 79, KEY_P = 80, KEY_S = 83, KEY_V = 86;
 const KEY_X = 88, KEY_Y = 89, KEY_Z = 90;
 
 // Simple range-input based scrollbar
-class Scrollbar {
+export class Scrollbar {
     static readonly HORIZONTAL = 0;
     element: HTMLInputElement;
 
@@ -64,6 +64,7 @@ class Scrollbar {
     enable(): void  { this.element.disabled = false; }
     disable(): void { this.element.disabled = true;  }
     addChangeHandler(fn: () => void): void { this.element.addEventListener('input', fn); }
+    draw(): void {}
 }
 
 // Stubs for classes not yet translated from Java
