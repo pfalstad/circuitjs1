@@ -24,8 +24,8 @@ import { Rectangle } from "./Rectangle";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { WireRouter } from "./WireRouter";
 
 // SPST switch
@@ -79,16 +79,16 @@ export class SwitchElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.position !== 0)
-            XMLSerializer.dumpAttr(elem, "p", this.position);
+            CircuitXMLSerializer.dumpAttr(elem, "p", this.position);
         if (this.momentary)
-            XMLSerializer.dumpAttr(elem, "mm", this.momentary);
+            CircuitXMLSerializer.dumpAttr(elem, "mm", this.momentary);
         if (this.label !== null)
-            XMLSerializer.dumpAttr(elem, "lab", this.label);
+            CircuitXMLSerializer.dumpAttr(elem, "lab", this.label);
         if (this.keyShortcut !== null)
-            XMLSerializer.dumpAttr(elem, "key", this.keyShortcut);
+            CircuitXMLSerializer.dumpAttr(elem, "key", this.keyShortcut);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.position = xml.parseIntAttr("p", this.position);
         this.momentary = xml.parseBooleanAttr("mm", this.momentary);

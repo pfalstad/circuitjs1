@@ -23,8 +23,8 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class MultiplexerElm extends ChipElm {
     static readonly FLAG_INVERTED_OUTPUT = 1 << 1;
@@ -70,14 +70,14 @@ export class MultiplexerElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "se", this.selectBitCount);
+        CircuitXMLSerializer.dumpAttr(elem, "se", this.selectBitCount);
         if (this.inputMode !== 0)
-            XMLSerializer.dumpAttr(elem, "im", this.inputMode);
+            CircuitXMLSerializer.dumpAttr(elem, "im", this.inputMode);
         if (this.dataBusWidth !== 4)
-            XMLSerializer.dumpAttr(elem, "dw", this.dataBusWidth);
+            CircuitXMLSerializer.dumpAttr(elem, "dw", this.dataBusWidth);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.selectBitCount = xml.parseIntAttr("se", this.selectBitCount);
         this.inputMode = xml.parseIntAttr("im", 0);

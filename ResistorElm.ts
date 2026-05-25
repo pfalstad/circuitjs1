@@ -24,8 +24,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class ResistorElm extends CircuitElm {
     resistance: number;
@@ -51,10 +51,10 @@ export class ResistorElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "r", this.resistance);
+        CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.resistance = xml.parseDoubleAttr("r", this.resistance);
     }

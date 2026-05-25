@@ -22,7 +22,7 @@ import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { ScopePlot } from "./ScopePlot";
 import { SimulationManager } from "./SimulationManager";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class ScopeTrigger {
     mode: number = 0;
@@ -37,5 +37,5 @@ export class ScopeTrigger {
     validDataCount(plot: ScopePlot, ipa: number, w: number, scopePointCount: number): number { return Math.min(w, plot.scopePointCount); }
     drawIndicator(g: Graphics, visiblePlots: ScopePlot[], rect: Rectangle): void {}
     dumpXml(elem: Element): void {}
-    undumpXml(xml: XMLDeserializer): void {}
+    undumpXml(xml: CircuitXMLDeserializer): void {}
 }

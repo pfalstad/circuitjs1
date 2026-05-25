@@ -24,8 +24,8 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Color } from "./Color";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 
 export class TransLineElm extends CircuitElm {
@@ -80,12 +80,12 @@ export class TransLineElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "de", this.delay);
-        XMLSerializer.dumpAttr(elem, "im", this.imped);
-        XMLSerializer.dumpAttr(elem, "wi", this.width);
+        CircuitXMLSerializer.dumpAttr(elem, "de", this.delay);
+        CircuitXMLSerializer.dumpAttr(elem, "im", this.imped);
+        CircuitXMLSerializer.dumpAttr(elem, "wi", this.width);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.delay = xml.parseDoubleAttr("de", this.delay);
         this.imped = xml.parseDoubleAttr("im", this.imped);

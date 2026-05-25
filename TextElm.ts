@@ -26,8 +26,8 @@ import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { CustomLogicModel } from "./CustomLogicModel";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class TextElm extends GraphicElm {
     text: string;
@@ -84,11 +84,11 @@ export class TextElm extends GraphicElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "si", this.size);
-        XMLSerializer.dumpAttr(elem, "te", this.text);
+        CircuitXMLSerializer.dumpAttr(elem, "si", this.size);
+        CircuitXMLSerializer.dumpAttr(elem, "te", this.text);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.size = xml.parseIntAttr("si", this.size);
         this.text = xml.parseStringAttr("te", this.text) ?? this.text;

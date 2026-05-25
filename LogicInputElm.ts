@@ -27,8 +27,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { Rectangle } from "./Rectangle";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class LogicInputElm extends SwitchElm {
     static readonly FLAG_TERNARY = 1;
@@ -69,12 +69,12 @@ export class LogicInputElm extends SwitchElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.hiV !== 5)
-            XMLSerializer.dumpAttr(elem, "hi", this.hiV);
+            CircuitXMLSerializer.dumpAttr(elem, "hi", this.hiV);
         if (this.loV !== 0)
-            XMLSerializer.dumpAttr(elem, "lo", this.loV);
+            CircuitXMLSerializer.dumpAttr(elem, "lo", this.loV);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.hiV = xml.parseDoubleAttr("hi", this.hiV);
         this.loV = xml.parseDoubleAttr("lo", this.loV);

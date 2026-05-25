@@ -25,8 +25,8 @@ import { ResistorElm } from "./ResistorElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Color } from "./Color";
@@ -89,13 +89,13 @@ export class CrystalElm extends CompositeElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "pc", this.parallelCapacitance);
-        XMLSerializer.dumpAttr(elem, "sc", this.seriesCapacitance);
-        XMLSerializer.dumpAttr(elem, "in", this.inductance);
-        XMLSerializer.dumpAttr(elem, "r",  this.resistance);
+        CircuitXMLSerializer.dumpAttr(elem, "pc", this.parallelCapacitance);
+        CircuitXMLSerializer.dumpAttr(elem, "sc", this.seriesCapacitance);
+        CircuitXMLSerializer.dumpAttr(elem, "in", this.inductance);
+        CircuitXMLSerializer.dumpAttr(elem, "r",  this.resistance);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.resistance          = xml.parseDoubleAttr("r",  this.resistance);
         this.inductance          = xml.parseDoubleAttr("in", this.inductance);

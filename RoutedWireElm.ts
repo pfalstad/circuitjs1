@@ -23,7 +23,7 @@ import { CircuitElm } from "./CircuitElm";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { UIManager } from "./UIManager";
 
@@ -56,7 +56,7 @@ export class RoutedWireElm extends WireElm {
         }
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         try {
             const contents = xml.parseContents();

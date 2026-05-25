@@ -23,8 +23,8 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Polygon } from "./Polygon";
 import { Point } from "./Point";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { FindPathInfo } from "./FindPathInfo";
 import { SimulationManager } from "./SimulationManager";
 
@@ -72,12 +72,12 @@ export class CurrentElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "cu", this.currentValue);
+        CircuitXMLSerializer.dumpAttr(elem, "cu", this.currentValue);
         if (this.maxVoltage > 0)
-            XMLSerializer.dumpAttr(elem, "mv", this.maxVoltage);
+            CircuitXMLSerializer.dumpAttr(elem, "mv", this.maxVoltage);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.currentValue = xml.parseDoubleAttr("cu", this.currentValue);
         this.maxVoltage   = xml.parseDoubleAttr("mv", 0);

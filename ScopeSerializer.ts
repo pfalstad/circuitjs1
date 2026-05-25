@@ -20,8 +20,8 @@
 import { Scope } from "./Scope";
 import { ScopePlot } from "./ScopePlot";
 import { ScopePlot2d } from "./ScopePlot2d";
-import { XMLSerializer as CircuitXMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import {
@@ -145,7 +145,7 @@ export class ScopeSerializer {
             CircuitXMLSerializer.dumpAttr(xmlElm, "tp", this.scope.plot2d.trailPersistence);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         const e = xml.parseIntAttr("en", -1);
         if (e === -1)
             return;

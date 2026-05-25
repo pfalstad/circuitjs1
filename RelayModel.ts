@@ -21,8 +21,8 @@ import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { Locale } from "./Locale";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 
 interface Comparable<T> {
@@ -223,33 +223,33 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
     dumpXml(doc: Document): void {
         this.dumped = true;
         const elem = doc.createElement("rlm");
-        XMLSerializer.dumpAttr(elem, "nm", this.name);
-        XMLSerializer.dumpAttr(elem, "f",   this.flags);
-        XMLSerializer.dumpAttr(elem, "in",  this.inductance);
-        XMLSerializer.dumpAttr(elem, "ron", this.r_on);
-        XMLSerializer.dumpAttr(elem, "rof", this.r_off);
-        XMLSerializer.dumpAttr(elem, "on",  this.onCurrent);
-        XMLSerializer.dumpAttr(elem, "of",  this.offCurrent);
-        XMLSerializer.dumpAttr(elem, "coR", this.coilR);
-        XMLSerializer.dumpAttr(elem, "sw",  this.switchingTime);
-        XMLSerializer.dumpAttr(elem, "cs",  this.coilStyle);
+        CircuitXMLSerializer.dumpAttr(elem, "nm", this.name);
+        CircuitXMLSerializer.dumpAttr(elem, "f",   this.flags);
+        CircuitXMLSerializer.dumpAttr(elem, "in",  this.inductance);
+        CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);
+        CircuitXMLSerializer.dumpAttr(elem, "rof", this.r_off);
+        CircuitXMLSerializer.dumpAttr(elem, "on",  this.onCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "of",  this.offCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "coR", this.coilR);
+        CircuitXMLSerializer.dumpAttr(elem, "sw",  this.switchingTime);
+        CircuitXMLSerializer.dumpAttr(elem, "cs",  this.coilStyle);
         if (this.poleCount !== 1)
-            XMLSerializer.dumpAttr(elem, "po", this.poleCount);
+            CircuitXMLSerializer.dumpAttr(elem, "po", this.poleCount);
         if (this.showBox)
-            XMLSerializer.dumpAttr(elem, "sb", 1);
+            CircuitXMLSerializer.dumpAttr(elem, "sb", 1);
         if (this.pulldown)
-            XMLSerializer.dumpAttr(elem, "pd", 1);
+            CircuitXMLSerializer.dumpAttr(elem, "pd", 1);
         doc.documentElement.appendChild(elem);
     }
 
-    static undumpModelXml(xml: XMLDeserializer): RelayModel {
+    static undumpModelXml(xml: CircuitXMLDeserializer): RelayModel {
         const name = xml.parseStringAttr("nm", null);
         const rm = RelayModel.getModelWithName(name);
         rm.undumpXml(xml);
         return rm;
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags         = xml.parseIntAttr("f",   this.flags);
         this.inductance    = xml.parseDoubleAttr("in",  this.inductance);
         this.r_on          = xml.parseDoubleAttr("ron", this.r_on);

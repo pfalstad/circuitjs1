@@ -19,8 +19,8 @@
 
 import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 
 export class CustomLogicModel implements Editable {
@@ -104,13 +104,13 @@ export class CustomLogicModel implements Editable {
         this.parseRules(null);
     }
 
-    static undumpModelXml(xml: XMLDeserializer): void {
+    static undumpModelXml(xml: CircuitXMLDeserializer): void {
         const name = xml.parseStringAttr("nm", null);
         const model = CustomLogicModel.getModelWithName(name!);
         model.undumpXml(xml);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags   = xml.parseIntAttr("f", this.flags);
         this.inputs  = this.listToArray(xml.parseStringAttr("in", null) ?? "");
         this.outputs = this.listToArray(xml.parseStringAttr("o", null) ?? "");
@@ -247,11 +247,11 @@ export class CustomLogicModel implements Editable {
     dumpXml(doc: Document): void {
         this.dumped = true;
         const elem = doc.createElement("clm");
-        XMLSerializer.dumpAttr(elem, "nm", this.name);
-        XMLSerializer.dumpAttr(elem, "f",  this.flags);
-        XMLSerializer.dumpAttr(elem, "in", this.arrayToList(this.inputs));
-        XMLSerializer.dumpAttr(elem, "o",  this.arrayToList(this.outputs));
-        XMLSerializer.dumpAttr(elem, "if", this.infoText);
+        CircuitXMLSerializer.dumpAttr(elem, "nm", this.name);
+        CircuitXMLSerializer.dumpAttr(elem, "f",  this.flags);
+        CircuitXMLSerializer.dumpAttr(elem, "in", this.arrayToList(this.inputs));
+        CircuitXMLSerializer.dumpAttr(elem, "o",  this.arrayToList(this.outputs));
+        CircuitXMLSerializer.dumpAttr(elem, "if", this.infoText);
         elem.appendChild(doc.createTextNode(this.rules));
         doc.documentElement.appendChild(elem);
     }

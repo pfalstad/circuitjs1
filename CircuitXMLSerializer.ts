@@ -25,7 +25,7 @@
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
 
-export class XMLSerializer {
+export class CircuitXMLSerializer {
     app: CirSim;
 
     constructor(app: CirSim) { this.app = app; }
@@ -38,7 +38,7 @@ export class XMLSerializer {
     }
 
     static prettyPrint(doc: Document): string {
-        return XMLSerializer.prettyPrintNode(doc.documentElement, 0);
+        return CircuitXMLSerializer.prettyPrintNode(doc.documentElement, 0);
     }
 
     private static prettyPrintNode(node: Node, indent: number): string {
@@ -53,7 +53,7 @@ export class XMLSerializer {
             const elem = node as Element;
             for (let i = 0; i < elem.attributes.length; i++) {
                 const attr = elem.attributes[i];
-                sb += " " + attr.name + "=\"" + XMLSerializer.escapeXml(attr.value) + "\"";
+                sb += " " + attr.name + "=\"" + CircuitXMLSerializer.escapeXml(attr.value) + "\"";
             }
         }
 
@@ -72,11 +72,11 @@ export class XMLSerializer {
                     if (!hasElementChildren)
                         sb += "\n";
                     hasElementChildren = true;
-                    sb += XMLSerializer.prettyPrintNode(child, indent + 1);
+                    sb += CircuitXMLSerializer.prettyPrintNode(child, indent + 1);
                 } else if (child.nodeType === Node.TEXT_NODE) {
                     const text = (child.nodeValue ?? "").trim();
                     if (text !== "")
-                        sb += XMLSerializer.escapeXml(text);
+                        sb += CircuitXMLSerializer.escapeXml(text);
                 }
             }
 
@@ -103,16 +103,16 @@ export class XMLSerializer {
         const sim = this.app.sim;
         f |= sim.adjustTimeStep ? 64 : 0;
         f |= this.app.autoDCOnReset ? 128 : 0;
-        XMLSerializer.dumpAttr(root, "f", f);
-        XMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
-        XMLSerializer.dumpAttr(root, "ic", this.app.getIterCount());
+        CircuitXMLSerializer.dumpAttr(root, "f", f);
+        CircuitXMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
+        CircuitXMLSerializer.dumpAttr(root, "ic", this.app.getIterCount());
         const ui = this.app.ui;
-        XMLSerializer.dumpAttr(root, "cb", ui.currentBar.getValue());
-        XMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
-        XMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
-        XMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
+        CircuitXMLSerializer.dumpAttr(root, "cb", ui.currentBar.getValue());
+        CircuitXMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
+        CircuitXMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
+        CircuitXMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
         if (sim.solverType !== 0)
-            XMLSerializer.dumpAttr(root, "st", sim.solverType);
+            CircuitXMLSerializer.dumpAttr(root, "st", sim.solverType);
 
         for (const ce of this.app.elmList) {
             const elem = doc.createElement(ce.getXmlDumpType());
@@ -127,12 +127,12 @@ export class XMLSerializer {
             this.app.adjustables[i].dumpXml(doc, root, this.app);
         if (this.app.hintType !== -1) {
             const h = doc.createElement("h");
-            XMLSerializer.dumpAttr(h, "t", this.app.hintType);
-            XMLSerializer.dumpAttr(h, "i1", this.app.hintItem1);
-            XMLSerializer.dumpAttr(h, "i2", this.app.hintItem2);
+            CircuitXMLSerializer.dumpAttr(h, "t", this.app.hintType);
+            CircuitXMLSerializer.dumpAttr(h, "i1", this.app.hintItem1);
+            CircuitXMLSerializer.dumpAttr(h, "i2", this.app.hintItem2);
             root.appendChild(h);
         }
-        return XMLSerializer.prettyPrint(doc);
+        return CircuitXMLSerializer.prettyPrint(doc);
     }
 
     static checkAttr(elem: Element, name: string): void {
@@ -141,7 +141,7 @@ export class XMLSerializer {
     }
 
     static dumpAttr(elem: Element, name: string, value: string | number | boolean): void {
-        XMLSerializer.checkAttr(elem, name);
+        CircuitXMLSerializer.checkAttr(elem, name);
         if (typeof value === "string") {
             value = value.replace(/&/g, "&amp;")
                          .replace(/"/g, "&quot;")

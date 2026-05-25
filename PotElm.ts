@@ -23,8 +23,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Scrollbar } from "./UIManager";
 import { Locale } from "./Locale";
 import { SimulationManager } from "./SimulationManager";
@@ -92,14 +92,14 @@ export class PotElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ma", this.maxResistance);
-        XMLSerializer.dumpAttr(elem, "po", this.position);
-        XMLSerializer.dumpAttr(elem, "sl", this.sliderText);
+        CircuitXMLSerializer.dumpAttr(elem, "ma", this.maxResistance);
+        CircuitXMLSerializer.dumpAttr(elem, "po", this.position);
+        CircuitXMLSerializer.dumpAttr(elem, "sl", this.sliderText);
         if (this.link !== 0)
-            XMLSerializer.dumpAttr(elem, "li", this.link);
+            CircuitXMLSerializer.dumpAttr(elem, "li", this.link);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.maxResistance = xml.parseDoubleAttr("ma", this.maxResistance);
         this.position      = xml.parseDoubleAttr("po", this.position);

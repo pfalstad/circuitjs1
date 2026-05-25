@@ -24,8 +24,8 @@ import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class DecimalDisplayElm extends ChipElm {
     bitCount: number;
@@ -86,11 +86,11 @@ export class DecimalDisplayElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "bc", this.bitCount);
-        XMLSerializer.dumpAttr(elem, "dm", this.displayMode);
+        CircuitXMLSerializer.dumpAttr(elem, "bc", this.bitCount);
+        CircuitXMLSerializer.dumpAttr(elem, "dm", this.displayMode);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.bitCount    = xml.parseIntAttr("bc", this.bitCount);
         this.displayMode = xml.parseIntAttr("dm", this.displayMode);

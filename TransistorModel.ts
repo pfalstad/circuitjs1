@@ -22,8 +22,8 @@ import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitElm } from "./CircuitElm";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
@@ -375,45 +375,45 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
     dumpXml(doc: Document): void {
         this.dumped = true;
         const elem = doc.createElement("tm");
-        XMLSerializer.dumpAttr(elem, "nm", this.name);
-        XMLSerializer.dumpAttr(elem, "f", this.flags);
-        XMLSerializer.dumpAttr(elem, "is", this.satCur);
-        XMLSerializer.dumpAttr(elem, "ikf", this.invRollOffF);
-        XMLSerializer.dumpAttr(elem, "ise", this.BEleakCur);
-        XMLSerializer.dumpAttr(elem, "ne", this.leakBEemissionCoeff);
-        XMLSerializer.dumpAttr(elem, "ikr", this.invRollOffR);
-        XMLSerializer.dumpAttr(elem, "isc", this.BCleakCur);
-        XMLSerializer.dumpAttr(elem, "nc", this.leakBCemissionCoeff);
-        XMLSerializer.dumpAttr(elem, "nf", this.emissionCoeffF);
-        XMLSerializer.dumpAttr(elem, "nr", this.emissionCoeffR);
-        XMLSerializer.dumpAttr(elem, "vaf", this.invEarlyVoltF);
-        XMLSerializer.dumpAttr(elem, "var", this.invEarlyVoltR);
-        XMLSerializer.dumpAttr(elem, "br", this.betaR);
+        CircuitXMLSerializer.dumpAttr(elem, "nm", this.name);
+        CircuitXMLSerializer.dumpAttr(elem, "f", this.flags);
+        CircuitXMLSerializer.dumpAttr(elem, "is", this.satCur);
+        CircuitXMLSerializer.dumpAttr(elem, "ikf", this.invRollOffF);
+        CircuitXMLSerializer.dumpAttr(elem, "ise", this.BEleakCur);
+        CircuitXMLSerializer.dumpAttr(elem, "ne", this.leakBEemissionCoeff);
+        CircuitXMLSerializer.dumpAttr(elem, "ikr", this.invRollOffR);
+        CircuitXMLSerializer.dumpAttr(elem, "isc", this.BCleakCur);
+        CircuitXMLSerializer.dumpAttr(elem, "nc", this.leakBCemissionCoeff);
+        CircuitXMLSerializer.dumpAttr(elem, "nf", this.emissionCoeffF);
+        CircuitXMLSerializer.dumpAttr(elem, "nr", this.emissionCoeffR);
+        CircuitXMLSerializer.dumpAttr(elem, "vaf", this.invEarlyVoltF);
+        CircuitXMLSerializer.dumpAttr(elem, "var", this.invEarlyVoltR);
+        CircuitXMLSerializer.dumpAttr(elem, "br", this.betaR);
         if (this.junctionCapBE !== 0) {
-            XMLSerializer.dumpAttr(elem, "cje", this.junctionCapBE);
-            XMLSerializer.dumpAttr(elem, "vje", this.junctionPotBE);
-            XMLSerializer.dumpAttr(elem, "mje", this.junctionExpBE);
+            CircuitXMLSerializer.dumpAttr(elem, "cje", this.junctionCapBE);
+            CircuitXMLSerializer.dumpAttr(elem, "vje", this.junctionPotBE);
+            CircuitXMLSerializer.dumpAttr(elem, "mje", this.junctionExpBE);
         }
         if (this.junctionCapBC !== 0) {
-            XMLSerializer.dumpAttr(elem, "cjc", this.junctionCapBC);
-            XMLSerializer.dumpAttr(elem, "vjc", this.junctionPotBC);
-            XMLSerializer.dumpAttr(elem, "mjc", this.junctionExpBC);
+            CircuitXMLSerializer.dumpAttr(elem, "cjc", this.junctionCapBC);
+            CircuitXMLSerializer.dumpAttr(elem, "vjc", this.junctionPotBC);
+            CircuitXMLSerializer.dumpAttr(elem, "mjc", this.junctionExpBC);
         }
         if (this.transitTimeF !== 0)
-            XMLSerializer.dumpAttr(elem, "tf", this.transitTimeF);
+            CircuitXMLSerializer.dumpAttr(elem, "tf", this.transitTimeF);
         if (this.transitTimeR !== 0)
-            XMLSerializer.dumpAttr(elem, "tr", this.transitTimeR);
+            CircuitXMLSerializer.dumpAttr(elem, "tr", this.transitTimeR);
         doc.documentElement.appendChild(elem);
     }
 
-    static undumpModelXml(xml: XMLDeserializer): TransistorModel {
+    static undumpModelXml(xml: CircuitXMLDeserializer): TransistorModel {
         const name = xml.parseStringAttr("nm", null);
         const tm = TransistorModel.getModelWithName(name);
         tm.undumpXml(xml);
         return tm;
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = xml.parseIntAttr("f", this.flags);
         this.satCur = xml.parseDoubleAttr("is", this.satCur);
         this.invRollOffF = xml.parseDoubleAttr("ikf", this.invRollOffF);

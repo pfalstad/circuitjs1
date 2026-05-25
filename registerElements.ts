@@ -2,6 +2,7 @@
 
 import { ElementFactory } from "./ElementFactory";
 import { CirSim } from "./CirSim";
+import { JfetElm } from "./JfetElm";
 import { MosfetElm } from "./MosfetElm";
 import { TransistorElm } from "./TransistorElm";
 import { ACVoltageElm } from "./ACVoltageElm";
@@ -16,6 +17,7 @@ import { ClockElm } from "./ClockElm";
 import { CounterElm } from "./CounterElm";
 import { CrystalElm } from "./CrystalElm";
 import { CurrentElm } from "./CurrentElm";
+import { CustomCompositeElm } from "./CustomCompositeElm";
 import { CustomLogicElm } from "./CustomLogicElm";
 import { DACElm } from "./DACElm";
 import { DCVoltageElm } from "./DCVoltageElm";
@@ -34,14 +36,17 @@ import { LabeledNodeElm } from "./LabeledNodeElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { LogicOutputElm } from "./LogicOutputElm";
 import { MultiplexerElm } from "./MultiplexerElm";
+import { NJfetElm } from "./NJfetElm";
 import { NMosfetElm } from "./NMosfetElm";
 import { NTransistorElm } from "./NTransistorElm";
 import { NandGateElm } from "./NandGateElm";
+import { NoiseElm } from "./NoiseElm";
 import { NorGateElm } from "./NorGateElm";
 import { OpAmpElm } from "./OpAmpElm";
 import { OptocouplerElm } from "./OptocouplerElm";
 import { OrGateElm } from "./OrGateElm";
 import { OutputElm } from "./OutputElm";
+import { PJfetElm } from "./PJfetElm";
 import { PMosfetElm } from "./PMosfetElm";
 import { PTransistorElm } from "./PTransistorElm";
 import { PhaseCompElm } from "./PhaseCompElm";
@@ -52,6 +57,7 @@ import { RelayElm } from "./RelayElm";
 import { ResistorElm } from "./ResistorElm";
 import { RingCounterElm } from "./RingCounterElm";
 import { RoutedWireElm } from "./RoutedWireElm";
+import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
 import { SevenSegElm } from "./SevenSegElm";
 import { SweepElm } from "./SweepElm";
 import { Switch2Elm } from "./Switch2Elm";
@@ -71,6 +77,7 @@ import { XorGateElm } from "./XorGateElm";
 import { ZenerElm } from "./ZenerElm";
 
 export function registerElements(): void {
+    ElementFactory.registerClass("JfetElm", JfetElm as any);
     ElementFactory.registerClass("MosfetElm", MosfetElm as any);
     ElementFactory.registerClass("TransistorElm", TransistorElm as any);
     ElementFactory.registerClass("ACVoltageElm", ACVoltageElm as any);
@@ -85,6 +92,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("CounterElm", CounterElm as any);
     ElementFactory.registerClass("CrystalElm", CrystalElm as any);
     ElementFactory.registerClass("CurrentElm", CurrentElm as any);
+    ElementFactory.registerClass("CustomCompositeElm", CustomCompositeElm as any);
     ElementFactory.registerClass("CustomLogicElm", CustomLogicElm as any);
     ElementFactory.registerClass("DACElm", DACElm as any);
     ElementFactory.registerClass("DCVoltageElm", DCVoltageElm as any);
@@ -103,14 +111,17 @@ export function registerElements(): void {
     ElementFactory.registerClass("LogicInputElm", LogicInputElm as any);
     ElementFactory.registerClass("LogicOutputElm", LogicOutputElm as any);
     ElementFactory.registerClass("MultiplexerElm", MultiplexerElm as any);
+    ElementFactory.registerClass("NJfetElm", NJfetElm as any);
     ElementFactory.registerClass("NMosfetElm", NMosfetElm as any);
     ElementFactory.registerClass("NTransistorElm", NTransistorElm as any);
     ElementFactory.registerClass("NandGateElm", NandGateElm as any);
+    ElementFactory.registerClass("NoiseElm", NoiseElm as any);
     ElementFactory.registerClass("NorGateElm", NorGateElm as any);
     ElementFactory.registerClass("OpAmpElm", OpAmpElm as any);
     ElementFactory.registerClass("OptocouplerElm", OptocouplerElm as any);
     ElementFactory.registerClass("OrGateElm", OrGateElm as any);
     ElementFactory.registerClass("OutputElm", OutputElm as any);
+    ElementFactory.registerClass("PJfetElm", PJfetElm as any);
     ElementFactory.registerClass("PMosfetElm", PMosfetElm as any);
     ElementFactory.registerClass("PTransistorElm", PTransistorElm as any);
     ElementFactory.registerClass("PhaseCompElm", PhaseCompElm as any);
@@ -121,6 +132,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("ResistorElm", ResistorElm as any);
     ElementFactory.registerClass("RingCounterElm", RingCounterElm as any);
     ElementFactory.registerClass("RoutedWireElm", RoutedWireElm as any);
+    ElementFactory.registerClass("SevenSegDecoderElm", SevenSegDecoderElm as any);
     ElementFactory.registerClass("SevenSegElm", SevenSegElm as any);
     ElementFactory.registerClass("SweepElm", SweepElm as any);
     ElementFactory.registerClass("Switch2Elm", Switch2Elm as any);
@@ -169,14 +181,17 @@ export function registerElements(): void {
     CirSim.theApp.register("LogicInputElm", new LogicInputElm(0, 0));
     CirSim.theApp.register("LogicOutputElm", new LogicOutputElm(0, 0));
     CirSim.theApp.register("MultiplexerElm", new MultiplexerElm(0, 0));
+    CirSim.theApp.register("NJfetElm", new NJfetElm(0, 0));
     CirSim.theApp.register("NMosfetElm", new NMosfetElm(0, 0));
     CirSim.theApp.register("NTransistorElm", new NTransistorElm(0, 0));
     CirSim.theApp.register("NandGateElm", new NandGateElm(0, 0));
+    CirSim.theApp.register("NoiseElm", new NoiseElm(0, 0));
     CirSim.theApp.register("NorGateElm", new NorGateElm(0, 0));
     CirSim.theApp.register("OpAmpElm", new OpAmpElm(0, 0));
     CirSim.theApp.register("OptocouplerElm", new OptocouplerElm(0, 0));
     CirSim.theApp.register("OrGateElm", new OrGateElm(0, 0));
     CirSim.theApp.register("OutputElm", new OutputElm(0, 0));
+    CirSim.theApp.register("PJfetElm", new PJfetElm(0, 0));
     CirSim.theApp.register("PMosfetElm", new PMosfetElm(0, 0));
     CirSim.theApp.register("PTransistorElm", new PTransistorElm(0, 0));
     CirSim.theApp.register("PhaseCompElm", new PhaseCompElm(0, 0));
@@ -187,6 +202,7 @@ export function registerElements(): void {
     CirSim.theApp.register("ResistorElm", new ResistorElm(0, 0));
     CirSim.theApp.register("RingCounterElm", new RingCounterElm(0, 0));
     CirSim.theApp.register("RoutedWireElm", new RoutedWireElm(0, 0));
+    CirSim.theApp.register("SevenSegDecoderElm", new SevenSegDecoderElm(0, 0));
     CirSim.theApp.register("SevenSegElm", new SevenSegElm(0, 0));
     CirSim.theApp.register("SweepElm", new SweepElm(0, 0));
     CirSim.theApp.register("Switch2Elm", new Switch2Elm(0, 0));
@@ -204,4 +220,7 @@ export function registerElements(): void {
     CirSim.theApp.register("XnorGateElm", new XnorGateElm(0, 0));
     CirSim.theApp.register("XorGateElm", new XorGateElm(0, 0));
     CirSim.theApp.register("ZenerElm", new ZenerElm(0, 0));
+
+    // registered last — constructor triggers model loading which requires other elements
+    CirSim.theApp.register("CustomCompositeElm", new CustomCompositeElm(0, 0));
 }

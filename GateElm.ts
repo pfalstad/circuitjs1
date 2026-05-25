@@ -25,8 +25,8 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
@@ -90,19 +90,19 @@ export abstract class GateElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.highVoltage !== 5)
-            XMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
+            CircuitXMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
         if (this.inputCount !== 2)
-            XMLSerializer.dumpAttr(elem, "in", this.inputCount);
+            CircuitXMLSerializer.dumpAttr(elem, "in", this.inputCount);
         if (this.propagationDelay !== 0)
-            XMLSerializer.dumpAttr(elem, "pd", this.propagationDelay);
+            CircuitXMLSerializer.dumpAttr(elem, "pd", this.propagationDelay);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
         if (this.volts[this.inputCount] !== 0)
-            XMLSerializer.dumpAttr(elem, "o", this.volts[this.inputCount]);
+            CircuitXMLSerializer.dumpAttr(elem, "o", this.volts[this.inputCount]);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0; // SMALL might have gotten set
         super.undumpXml(xml);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);

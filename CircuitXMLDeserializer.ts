@@ -25,8 +25,9 @@ import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { Scope } from "./Scope";
+import { HookRegistry } from "./HookRegistry";
 
-export class XMLDeserializer {
+export class CircuitXMLDeserializer {
     app: CirSim;
     currentXmlElement: Element;
     currentElm: CircuitElm | null = null;
@@ -109,7 +110,7 @@ export class XMLDeserializer {
             }
             if (tagName === "ccm") {
                 this.currentXmlElement = elem;
-                // (window as any).CustomCompositeModel?.undumpModelXml(this); TODO
+                HookRegistry.undumpCustomCompositeModel?.(this);
                 continue;
             }
             if (tagName === "h") {

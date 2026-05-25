@@ -36,8 +36,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { Locale } from "./Locale";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 
 export class RelayElm extends CircuitElm {
@@ -185,15 +185,15 @@ export class RelayElm extends CircuitElm {
         if (!(this.model.builtIn || this.model.dumped))
             this.model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "mo", this.modelName);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "i",  this.coilCurrent);
-        XMLSerializer.dumpAttr(elem, "ip", this.i_position);
+        CircuitXMLSerializer.dumpAttr(elem, "i",  this.coilCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "ip", this.i_position);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         const mo = xml.parseStringAttr("mo", null);
         if (mo != null) {

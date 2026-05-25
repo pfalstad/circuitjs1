@@ -35,8 +35,8 @@ import { NumberFormat } from "./NumberFormat";
 import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 // circuit element class
 export abstract class CircuitElm implements Editable {
@@ -1378,12 +1378,12 @@ export abstract class CircuitElm implements Editable {
     getClassName(): string { return this.constructor.name; }
 
     dumpXml(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "x", this.x + " " + this.y + " " + this.x2 + " " + this.y2);
+        CircuitXMLSerializer.dumpAttr(elem, "x", this.x + " " + this.y + " " + this.x2 + " " + this.y2);
         //if (flags != 0)   // can't do this because some elements set flags to a nonzero value in constructor
-        XMLSerializer.dumpAttr(elem, "f", this.flags);
+        CircuitXMLSerializer.dumpAttr(elem, "f", this.flags);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = xml.parseIntAttr("f", this.flags);
     }
 

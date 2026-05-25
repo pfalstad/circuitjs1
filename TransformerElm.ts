@@ -24,8 +24,8 @@ import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class TransformerElm extends CircuitElm {
     inductance: number;
@@ -92,20 +92,20 @@ export class TransformerElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "in", this.inductance);
-        XMLSerializer.dumpAttr(elem, "ra", this.ratio);
-        XMLSerializer.dumpAttr(elem, "co", this.couplingCoef);
-        XMLSerializer.dumpAttr(elem, "wi", this.width);
+        CircuitXMLSerializer.dumpAttr(elem, "in", this.inductance);
+        CircuitXMLSerializer.dumpAttr(elem, "ra", this.ratio);
+        CircuitXMLSerializer.dumpAttr(elem, "co", this.couplingCoef);
+        CircuitXMLSerializer.dumpAttr(elem, "wi", this.width);
         if (this.saturationCurrent !== 0)
-            XMLSerializer.dumpAttr(elem, "isat", this.saturationCurrent);
+            CircuitXMLSerializer.dumpAttr(elem, "isat", this.saturationCurrent);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "c0", this.currents[0]);
-        XMLSerializer.dumpAttr(elem, "c1", this.currents[1]);
+        CircuitXMLSerializer.dumpAttr(elem, "c0", this.currents[0]);
+        CircuitXMLSerializer.dumpAttr(elem, "c1", this.currents[1]);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
 
         if (this.hasFlag(TransformerElm.FLAG_VERTICAL))

@@ -24,8 +24,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { EditDialog } from "./EditDialog";
 import { CustomLogicModel } from "./CustomLogicModel";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
@@ -64,10 +64,10 @@ export class CustomLogicElm extends ChipElm {
         if (!this.model.dumped)
             this.model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "mo", this.modelName);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.modelName = xml.parseStringAttr("mo", null) ?? this.modelName;
         this.updateModels();

@@ -29,6 +29,7 @@ import { Point } from "./Point";
 import { SwitchElm } from "./SwitchElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { CustomCompositeModel } from "./CustomCompositeModel";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -582,7 +583,16 @@ export class UIManager {
     // ---- Canvas/Layout ----
 
     checkCanvasSize(): void {
-        if (this.cv.width !== Math.round(this.canvasWidth * UIManager.devicePixelRatio()))
+        let expectedWidth  = window.innerWidth;
+        let expectedHeight = window.innerHeight;
+        expectedHeight -= (this.hideMenu ? 0 : UIManager.MENUBARHEIGHT);
+        if (!this.app.isMobile(this.sidePanelCheckboxLabel))
+            expectedWidth -= UIManager.VERTICALPANELWIDTH;
+        if (this.menus.toolbarCheckItem.getState())
+            expectedHeight -= UIManager.TOOLBARHEIGHT;
+        expectedWidth  = Math.max(expectedWidth,  0);
+        expectedHeight = Math.max(expectedHeight, 0);
+        if (this.canvasWidth !== expectedWidth || this.canvasHeight !== expectedHeight)
             this.setCanvasSize();
     }
 
@@ -1496,13 +1506,13 @@ export class UIManager {
         for (let mi = 0; mi !== 2; mi++) {
             const menu = this.menus.subcircuitMenuBar[mi];
             menu.clearItems();
-            const list: any[] = (window as any).CustomCompositeModel?.getModelList() ?? [];
+            const list = CustomCompositeModel.getModelList();
             for (let i = 0; i !== list.length; i++) {
                 const name: string = list[i].name;
                 menu.addCheckboxItem(this.getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name));
             }
         }
-        MouseManager.lastSubcircuitMenuUpdate = (window as any).CustomCompositeModel?.sequenceNumber ?? 0;
+        MouseManager.lastSubcircuitMenuUpdate = CustomCompositeModel.sequenceNumber;
     }
 
     getClassCheckItem(s: string, t: string): CheckboxMenuItem {

@@ -25,8 +25,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class GroundElm extends CircuitElm {
     static lastSymbolType: number = 0;
@@ -58,10 +58,10 @@ export class GroundElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.symbolType != 0)
-            XMLSerializer.dumpAttr(elem, "sy", this.symbolType);
+            CircuitXMLSerializer.dumpAttr(elem, "sy", this.symbolType);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.symbolType = xml.parseIntAttr("sy", 0);
     }

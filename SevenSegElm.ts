@@ -27,8 +27,8 @@ import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class SevenSegElm extends ChipElm {
     // base segment count not including decimal point or colon
@@ -78,12 +78,12 @@ export class SevenSegElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ba", this.baseSegmentCount);
-        XMLSerializer.dumpAttr(elem, "ex", this.extraSegment);
-        XMLSerializer.dumpAttr(elem, "di", this.diodeDirection);
+        CircuitXMLSerializer.dumpAttr(elem, "ba", this.baseSegmentCount);
+        CircuitXMLSerializer.dumpAttr(elem, "ex", this.extraSegment);
+        CircuitXMLSerializer.dumpAttr(elem, "di", this.diodeDirection);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.baseSegmentCount = xml.parseIntAttr("ba", this.baseSegmentCount);
         this.extraSegment     = xml.parseIntAttr("ex", this.extraSegment);

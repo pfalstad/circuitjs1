@@ -25,8 +25,8 @@ import { Diode } from "./Diode";
 import { DiodeModel } from "./DiodeModel";
 import { Graphics } from "./Graphics";
 import { Color } from "./Color";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class LEDArrayElm extends ChipElm {
     diodes: Diode[] | null = null;
@@ -58,11 +58,11 @@ export class LEDArrayElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "sx", this.sizeX);
-        XMLSerializer.dumpAttr(elem, "sy", this.sizeY);
+        CircuitXMLSerializer.dumpAttr(elem, "sx", this.sizeX);
+        CircuitXMLSerializer.dumpAttr(elem, "sy", this.sizeY);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.sizeX = xml.parseIntAttr("sx", this.sizeX);
         this.sizeY = xml.parseIntAttr("sy", this.sizeY);

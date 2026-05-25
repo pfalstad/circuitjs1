@@ -21,8 +21,8 @@ import { RailElm } from "./RailElm";
 import { VoltageElm } from "./VoltageElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Scrollbar } from "./UIManager";
 import { Locale } from "./Locale";
 import { CircuitElm } from "./CircuitElm";
@@ -52,10 +52,10 @@ export class VarRailElm extends RailElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "st", this.sliderText);
+        CircuitXMLSerializer.dumpAttr(elem, "st", this.sliderText);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.sliderText = xml.parseStringAttr("st", this.sliderText);
         if (this.labelEl != null)

@@ -25,8 +25,8 @@ import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class LEDElm extends DiodeElm {
     colorR: number;
@@ -71,13 +71,13 @@ export class LEDElm extends DiodeElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "cr", this.colorR);
-        XMLSerializer.dumpAttr(elem, "cg", this.colorG);
-        XMLSerializer.dumpAttr(elem, "cb", this.colorB);
-        XMLSerializer.dumpAttr(elem, "mbc", this.maxBrightnessCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "cr", this.colorR);
+        CircuitXMLSerializer.dumpAttr(elem, "cg", this.colorG);
+        CircuitXMLSerializer.dumpAttr(elem, "cb", this.colorB);
+        CircuitXMLSerializer.dumpAttr(elem, "mbc", this.maxBrightnessCurrent);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.colorR = xml.parseDoubleAttr("cr", this.colorR);
         this.colorG = xml.parseDoubleAttr("cg", this.colorG);

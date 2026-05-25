@@ -27,8 +27,8 @@ import { EditInfo } from "./EditInfo";
 import { VoltageSource } from "./VoltageSource";
 import { WireRouter } from "./WireRouter";
 import { FindPathInfo } from "./FindPathInfo";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 // SPDT switch
 export class Switch2Elm extends SwitchElm {
@@ -60,11 +60,11 @@ export class Switch2Elm extends SwitchElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "li", this.link);
-        XMLSerializer.dumpAttr(elem, "th", this.throwCount);
+        CircuitXMLSerializer.dumpAttr(elem, "li", this.link);
+        CircuitXMLSerializer.dumpAttr(elem, "th", this.throwCount);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.link = xml.parseIntAttr("li", this.link);
         this.throwCount = xml.parseIntAttr("th", this.throwCount);

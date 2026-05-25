@@ -27,8 +27,8 @@ import { VoltageSource } from "./VoltageSource";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class Pin {
     chip: ChipElm;
@@ -491,20 +491,20 @@ export abstract class ChipElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.bits > 0)
-            XMLSerializer.dumpAttr(elem, "bi", this.bits);
+            CircuitXMLSerializer.dumpAttr(elem, "bi", this.bits);
         if (this.highVoltage !== 5)
-            XMLSerializer.dumpAttr(elem, "hv", this.highVoltage);
+            CircuitXMLSerializer.dumpAttr(elem, "hv", this.highVoltage);
         if (this.bitOrder !== 0)
-            XMLSerializer.dumpAttr(elem, "bo", this.bitOrder);
+            CircuitXMLSerializer.dumpAttr(elem, "bo", this.bitOrder);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
         for (let i = 0; i !== this.getPostCount(); i++)
             if (this.pins[i].state && this.volts[i] > 0)
-                XMLSerializer.dumpAttr(elem, "v" + i, this.volts[i]);
+                CircuitXMLSerializer.dumpAttr(elem, "v" + i, this.volts[i]);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0; // might get set by setSize() in constructor
         super.undumpXml(xml);
         this.bits        = xml.parseIntAttr("bi", this.bits);

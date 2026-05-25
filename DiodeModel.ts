@@ -22,8 +22,8 @@ import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitElm } from "./CircuitElm";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
@@ -259,14 +259,14 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.updateModel();
     }
 
-    static undumpModelXml(xml: XMLDeserializer): DiodeModel {
+    static undumpModelXml(xml: CircuitXMLDeserializer): DiodeModel {
         const name = xml.parseStringAttr("nm", null);
         const dm = DiodeModel.getModelWithName(name);
         dm.undumpXml(xml);
         return dm;
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = xml.parseIntAttr("f", this.flags);
         this.saturationCurrent = xml.parseDoubleAttr("is", this.saturationCurrent);
         this.seriesResistance = xml.parseDoubleAttr("rs", this.seriesResistance);
@@ -354,14 +354,14 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     dumpXml(doc: Document): void {
         this.dumped = true;
         const elem = doc.createElement("dm");
-        XMLSerializer.dumpAttr(elem, "nm", this.name);
-        XMLSerializer.dumpAttr(elem, "f", this.flags);
-        XMLSerializer.dumpAttr(elem, "is", this.saturationCurrent);
-        XMLSerializer.dumpAttr(elem, "rs", this.seriesResistance);
-        XMLSerializer.dumpAttr(elem, "n", this.emissionCoefficient);
-        XMLSerializer.dumpAttr(elem, "bv", this.breakdownVoltage);
+        CircuitXMLSerializer.dumpAttr(elem, "nm", this.name);
+        CircuitXMLSerializer.dumpAttr(elem, "f", this.flags);
+        CircuitXMLSerializer.dumpAttr(elem, "is", this.saturationCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "rs", this.seriesResistance);
+        CircuitXMLSerializer.dumpAttr(elem, "n", this.emissionCoefficient);
+        CircuitXMLSerializer.dumpAttr(elem, "bv", this.breakdownVoltage);
         if (this.forwardCurrent > 0)
-            XMLSerializer.dumpAttr(elem, "fi", this.forwardCurrent);
+            CircuitXMLSerializer.dumpAttr(elem, "fi", this.forwardCurrent);
         doc.documentElement.appendChild(elem);
     }
 

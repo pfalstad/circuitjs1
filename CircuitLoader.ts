@@ -23,13 +23,14 @@ import { ScopeManager } from "./ScopeManager";
 import { Menus } from "./Menus";
 import { CircuitElm } from "./CircuitElm";
 import { StringTokenizer } from "./StringTokenizer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { WireRouter } from "./WireRouter";
 import { Locale } from "./Locale";
 import { Scope } from "./Scope";
 import { DiodeModel } from "./DiodeModel";
 import { TransistorModel } from "./TransistorModel";
 import { CustomLogicModel } from "./CustomLogicModel";
+import { CustomCompositeModel } from "./CustomCompositeModel";
 
 /**
  * Handles all circuit loading, parsing, clearing, setup-file fetching,
@@ -97,7 +98,7 @@ export class CircuitLoader {
         if (text.startsWith("<")) {
 	    if ((flags & CircuitLoader.RC_RETAIN) == 0)
 		this.clearCircuit();
-            const xml = new XMLDeserializer(this.app);
+            const xml = new CircuitXMLDeserializer(this.app);
             xml.readCircuit(text, flags);
             return;
         }
@@ -185,7 +186,7 @@ export class CircuitLoader {
                         break;
                     }
                     if (tint === '.'.charCodeAt(0)) {
-                        // CustomCompositeModel.undumpModel(st) // TODO
+                        CustomCompositeModel.undumpModel(st);
                         break;
                     }
 
@@ -204,6 +205,7 @@ export class CircuitLoader {
                     this.app.elmList.push(newce);
                 } catch (ee) {
                     CirSim.console("exception while undumping " + ee);
+		    debugger;
                     break;
                 }
                 break;

@@ -23,8 +23,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 import { FindPathInfo } from "./FindPathInfo";
 import { Expr, ExprState, ExprParser } from "./Expr";
@@ -59,11 +59,11 @@ export class VCCSElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ic", this.inputCount);
-        XMLSerializer.dumpAttr(elem, "ex", this.exprString);
+        CircuitXMLSerializer.dumpAttr(elem, "ic", this.inputCount);
+        CircuitXMLSerializer.dumpAttr(elem, "ex", this.exprString);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.inputCount = xml.parseIntAttr("ic", this.inputCount);
         this.exprString = xml.parseStringAttr("ex", this.exprString);

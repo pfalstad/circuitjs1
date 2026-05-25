@@ -25,8 +25,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class SweepElm extends CircuitElm {
     maxV: number;
@@ -64,13 +64,13 @@ export class SweepElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "mi", this.minF);
-        XMLSerializer.dumpAttr(elem, "ma", this.maxF);
-        XMLSerializer.dumpAttr(elem, "mv", this.maxV);
-        XMLSerializer.dumpAttr(elem, "sw", this.sweepTime);
+        CircuitXMLSerializer.dumpAttr(elem, "mi", this.minF);
+        CircuitXMLSerializer.dumpAttr(elem, "ma", this.maxF);
+        CircuitXMLSerializer.dumpAttr(elem, "mv", this.maxV);
+        CircuitXMLSerializer.dumpAttr(elem, "sw", this.sweepTime);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.minF = xml.parseDoubleAttr("mi", this.minF);
         this.maxF = xml.parseDoubleAttr("ma", this.maxF);

@@ -24,7 +24,7 @@ import { Graphics } from "./Graphics";
 import { Color } from "./Color";
 import { Rectangle } from "./Rectangle";
 import { StringTokenizer } from "./StringTokenizer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { ScopePlot } from "./ScopePlot";
 import { ScopeDataIterator } from "./ScopeDataIterator";
 import { ScopeSerializer } from "./ScopeSerializer";
@@ -1262,7 +1262,7 @@ export class Scope {
     }
 
     dumpXml(doc: Document, root: Element): void { this.serializer.dumpXml(doc, root); }
-    undumpXml(xml: XMLDeserializer): void { this.serializer.undumpXml(xml); }
+    undumpXml(xml: CircuitXMLDeserializer): void { this.serializer.undumpXml(xml); }
     undump(st: StringTokenizer): void { this.serializer.undump(st); }
     saveAsDefault(): void { this.serializer.saveAsDefault(); }
 

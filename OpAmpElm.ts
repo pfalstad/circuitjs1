@@ -25,8 +25,8 @@ import { Font } from "./Font";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class OpAmpElm extends CircuitElm {
     opsize: number;
@@ -86,13 +86,13 @@ export class OpAmpElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ma", this.maxOut);
-        XMLSerializer.dumpAttr(elem, "mi", this.minOut);
-        //XMLSerializer.dumpAttr(elem, "gb", this.gbw);
-        XMLSerializer.dumpAttr(elem, "ga", this.gain);
+        CircuitXMLSerializer.dumpAttr(elem, "ma", this.maxOut);
+        CircuitXMLSerializer.dumpAttr(elem, "mi", this.minOut);
+        //CircuitXMLSerializer.dumpAttr(elem, "gb", this.gbw);
+        CircuitXMLSerializer.dumpAttr(elem, "ga", this.gain);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0; // size might have changed
         super.undumpXml(xml);
         this.maxOut = xml.parseDoubleAttr("ma", this.maxOut);

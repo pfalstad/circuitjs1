@@ -26,8 +26,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { GateElm } from "./GateElm";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class InverterElm extends CircuitElm {
     slewRate: number; // V/ns
@@ -62,11 +62,11 @@ export class InverterElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "sl", this.slewRate);
-        XMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
+        CircuitXMLSerializer.dumpAttr(elem, "sl", this.slewRate);
+        CircuitXMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.slewRate = xml.parseDoubleAttr("sl", this.slewRate);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);

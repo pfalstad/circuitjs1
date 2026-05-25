@@ -28,8 +28,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class MosfetElm extends CircuitElm {
     pnp: number;
@@ -138,11 +138,11 @@ export class MosfetElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "vt", this.vt);
-        XMLSerializer.dumpAttr(elem, "be", this.beta);
+        CircuitXMLSerializer.dumpAttr(elem, "vt", this.vt);
+        CircuitXMLSerializer.dumpAttr(elem, "be", this.beta);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0;
         super.undumpXml(xml);
         this.vt = xml.parseDoubleAttr("vt", this.vt);

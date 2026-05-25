@@ -31,7 +31,7 @@ import { CircuitNode } from "./CircuitNode";
 import { CircuitNodeLink } from "./CircuitNodeLink";
 import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Point } from "./Point";
 
@@ -109,7 +109,7 @@ export abstract class CompositeElm extends CircuitElm {
     }
 
     loadCompositeXml(elmEntries: Element[], externalNodes: number[]): void {
-        const xml = new XMLDeserializer(CirSim.theApp);
+        const xml = new CircuitXMLDeserializer(CirSim.theApp);
         this.compElmList = [];
         const nodeInfoList: string[] = [];
 
@@ -257,7 +257,7 @@ export abstract class CompositeElm extends CircuitElm {
         }
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         const state = xml.currentXmlElement;
 

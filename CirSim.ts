@@ -28,12 +28,13 @@ import { ElementFactory } from "./ElementFactory";
 import { StringTokenizer } from "./StringTokenizer";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
-import { XMLSerializer as CircuitXMLSerializer } from "./XMLSerializer";
+import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { HookRegistry } from "./HookRegistry";
 
 // GWT Timer equivalent — drives the simulation/render loop via setInterval
 class CirSimTimer {
@@ -225,7 +226,7 @@ export class CirSim {
         this.ui.setWheelSensitivity();
 
         try {
-            (window as any).CustomCompositeModel?.loadModelsFromStorage();
+            HookRegistry.loadCustomCompositeModelsFromStorage?.();
         } catch (e) {
             CirSim.console("Exception: " + e);
         }
@@ -438,7 +439,7 @@ export class CirSim {
 
     dumpCircuit(): string {
         CustomLogicModel.clearDumpedFlags();
-        (window as any).CustomCompositeModel?.clearDumpedFlags();
+        HookRegistry.clearCustomCompositeModelDumpedFlags?.();
         DiodeModel.clearDumpedFlags();
         (window as any).TransistorModel?.clearDumpedFlags();
         (window as any).RelayModel?.clearDumpedFlags();

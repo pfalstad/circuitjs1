@@ -25,8 +25,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class LogicOutputElm extends CircuitElm {
     static readonly FLAG_TERNARY = 1;
@@ -58,10 +58,10 @@ export class LogicOutputElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.threshold !== 2.5)
-            XMLSerializer.dumpAttr(elem, "th", this.threshold);
+            CircuitXMLSerializer.dumpAttr(elem, "th", this.threshold);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.threshold = xml.parseDoubleAttr("th", this.threshold);
     }

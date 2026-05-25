@@ -21,8 +21,8 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 
 export class CounterElm extends ChipElm {
@@ -53,11 +53,11 @@ export class CounterElm extends ChipElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "in", this.invertreset);
-        XMLSerializer.dumpAttr(elem, "mo", this.modulus);
+        CircuitXMLSerializer.dumpAttr(elem, "in", this.invertreset);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modulus);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.invertreset = xml.parseBooleanAttr("in", this.invertreset);
         this.modulus = xml.parseIntAttr("mo", this.modulus);

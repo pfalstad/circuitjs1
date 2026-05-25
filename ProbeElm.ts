@@ -28,8 +28,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { Locale } from "./Locale";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class ProbeElm extends CircuitElm {
     static readonly FLAG_SHOWVOLTAGE = 1;
@@ -105,12 +105,12 @@ export class ProbeElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "me", this.meter);
-        XMLSerializer.dumpAttr(elem, "sc", this.scale);
-        XMLSerializer.dumpAttr(elem, "re", this.resistance);
+        CircuitXMLSerializer.dumpAttr(elem, "me", this.meter);
+        CircuitXMLSerializer.dumpAttr(elem, "sc", this.scale);
+        CircuitXMLSerializer.dumpAttr(elem, "re", this.resistance);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0;
         super.undumpXml(xml);
         this.meter      = xml.parseIntAttr("me", this.meter);

@@ -26,8 +26,8 @@ import { ChipElm } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 
@@ -82,11 +82,11 @@ export class OptocouplerElm extends CompositeElm {
         if (!(model.builtIn || model.dumped))
             model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ctr", this.ctr);
-        XMLSerializer.dumpAttr(elem, "dmo", this.diode.modelName);
+        CircuitXMLSerializer.dumpAttr(elem, "ctr", this.ctr);
+        CircuitXMLSerializer.dumpAttr(elem, "dmo", this.diode.modelName);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.ctr = xml.parseDoubleAttr("ctr", this.ctr);
         // "ix" is set on state-restore calls (from CompositeElm.dumpXmlState); absent on

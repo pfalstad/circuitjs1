@@ -27,8 +27,8 @@ import { Choice } from "./Choice";
 import { Checkbox } from "./Checkbox";
 import { FindPathInfo } from "./FindPathInfo";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 // RailElm not imported here — it extends VoltageElm, so importing it would create a cycle.
 // Use 'getRailText' in this as a duck-type check for instanceof RailElm.
@@ -118,21 +118,21 @@ export class VoltageElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "wf", this.waveform);
+        CircuitXMLSerializer.dumpAttr(elem, "wf", this.waveform);
 	if (this.waveform != VoltageElm.WF_DC)
-	    XMLSerializer.dumpAttr(elem, "fr", this.frequency);
-        XMLSerializer.dumpAttr(elem, "maxv", this.maxVoltage);
+	    CircuitXMLSerializer.dumpAttr(elem, "fr", this.frequency);
+        CircuitXMLSerializer.dumpAttr(elem, "maxv", this.maxVoltage);
 	if (this.bias != 0)
-            XMLSerializer.dumpAttr(elem, "bias", this.bias);
+            CircuitXMLSerializer.dumpAttr(elem, "bias", this.bias);
 	if (this.phaseShift != 0)
-            XMLSerializer.dumpAttr(elem, "phaseShift", this.phaseShift);
+            CircuitXMLSerializer.dumpAttr(elem, "phaseShift", this.phaseShift);
 	if (this.dutyCycle != .5)
-            XMLSerializer.dumpAttr(elem, "dutyCycle", this.dutyCycle);
+            CircuitXMLSerializer.dumpAttr(elem, "dutyCycle", this.dutyCycle);
 	if (this.riseTime != 0)
-            XMLSerializer.dumpAttr(elem, "riseTime", this.riseTime);
+            CircuitXMLSerializer.dumpAttr(elem, "riseTime", this.riseTime);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
 	super.undumpXml(xml);
 	this.waveform = xml.parseIntAttr("wf", this.waveform);
 	this.frequency = xml.parseDoubleAttr("fr", this.frequency);

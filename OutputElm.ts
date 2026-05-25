@@ -26,8 +26,8 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { Locale } from "./Locale";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class OutputElm extends CircuitElm {
     static readonly FLAG_VALUE = 1;
@@ -51,10 +51,10 @@ export class OutputElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "sc", this.scale);
+        CircuitXMLSerializer.dumpAttr(elem, "sc", this.scale);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.scale = xml.parseIntAttr("sc", this.scale);
     }

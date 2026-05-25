@@ -24,8 +24,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { SimulationManager } from "./SimulationManager";
 
 export class AnalogSwitchElm extends CircuitElm {
@@ -76,12 +76,12 @@ export class AnalogSwitchElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "ron", this.r_on);
-        XMLSerializer.dumpAttr(elem, "roff", this.r_off);
-        XMLSerializer.dumpAttr(elem, "th", this.threshold);
+        CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);
+        CircuitXMLSerializer.dumpAttr(elem, "roff", this.r_off);
+        CircuitXMLSerializer.dumpAttr(elem, "th", this.threshold);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.r_on      = xml.parseDoubleAttr("ron", this.r_on);
         this.r_off     = xml.parseDoubleAttr("roff", this.r_off);

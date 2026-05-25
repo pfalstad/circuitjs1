@@ -509,7 +509,7 @@ export class CommandManager {
                 root.appendChild(elem);
             }
         }
-        return new XMLSerializer().serializeToString(doc);
+        return new window.XMLSerializer().serializeToString(doc);
     }
 
     doCopy(): void {

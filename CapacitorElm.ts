@@ -29,8 +29,8 @@ import { Scope } from "./Scope";
 import { FindPathInfo } from "./FindPathInfo";
 import { CirSim } from "./CirSim";
 import { Color } from "./Color";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class CapacitorElm extends CircuitElm {
     capacitance: number;
@@ -98,17 +98,17 @@ export class CapacitorElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "c", this.capacitance);
-        XMLSerializer.dumpAttr(elem, "iv", this.initialVoltage);
-        XMLSerializer.dumpAttr(elem, "sr", this.seriesResistance);
+        CircuitXMLSerializer.dumpAttr(elem, "c", this.capacitance);
+        CircuitXMLSerializer.dumpAttr(elem, "iv", this.initialVoltage);
+        CircuitXMLSerializer.dumpAttr(elem, "sr", this.seriesResistance);
         // PolarCapacitorElm uses mv
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "vd", this.voltdiff);
+        CircuitXMLSerializer.dumpAttr(elem, "vd", this.voltdiff);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.capacitance = xml.parseDoubleAttr("c", this.capacitance);
         this.initialVoltage = xml.parseDoubleAttr("iv", this.initialVoltage);

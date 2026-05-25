@@ -28,8 +28,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { SimulationManager } from "./SimulationManager";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 class LabelEntry {
     point!: Point;
@@ -74,10 +74,10 @@ export class LabeledNodeElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "te", this.text);
+        CircuitXMLSerializer.dumpAttr(elem, "te", this.text);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.text = xml.parseStringAttr("te", this.text) ?? this.text;
     }

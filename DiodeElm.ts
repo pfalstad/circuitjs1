@@ -29,8 +29,8 @@ import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class DiodeElm extends CircuitElm {
     diode: Diode;
@@ -112,10 +112,10 @@ export class DiodeElm extends CircuitElm {
         if (!(this.model.builtIn || this.model.dumped))
             this.model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "mo", this.modelName);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.modelName = xml.parseStringAttr("mo", this.modelName);
         this.setup();

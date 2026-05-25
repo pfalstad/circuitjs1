@@ -29,8 +29,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Scope } from "./Scope";
 import { Color } from "./Color";
 import { CirSim } from "./CirSim";
@@ -105,17 +105,17 @@ export class TransistorElm extends CircuitElm {
         if (!(this.model.builtIn || this.model.dumped))
             this.model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "pn", this.pnp);
-        XMLSerializer.dumpAttr(elem, "be", this.beta);
-        XMLSerializer.dumpAttr(elem, "mo", this.modelName);
+        CircuitXMLSerializer.dumpAttr(elem, "pn", this.pnp);
+        CircuitXMLSerializer.dumpAttr(elem, "be", this.beta);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "vbe", this.volts[0] - this.volts[1]);
-        XMLSerializer.dumpAttr(elem, "vbc", this.volts[0] - this.volts[2]);
+        CircuitXMLSerializer.dumpAttr(elem, "vbe", this.volts[0] - this.volts[1]);
+        CircuitXMLSerializer.dumpAttr(elem, "vbc", this.volts[0] - this.volts[2]);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.pnp = xml.parseIntAttr("pn", this.pnp);
         this.beta = xml.parseDoubleAttr("be", this.beta);

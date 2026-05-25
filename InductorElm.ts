@@ -25,8 +25,8 @@ import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { FindPathInfo } from "./FindPathInfo";
-import { XMLSerializer } from "./XMLSerializer";
-import { XMLDeserializer } from "./XMLDeserializer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class InductorElm extends CircuitElm {
     ind: Inductor;
@@ -65,17 +65,17 @@ export class InductorElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        XMLSerializer.dumpAttr(elem, "l", this.inductance);
-        XMLSerializer.dumpAttr(elem, "ic", this.initialCurrent);
+        CircuitXMLSerializer.dumpAttr(elem, "l", this.inductance);
+        CircuitXMLSerializer.dumpAttr(elem, "ic", this.initialCurrent);
         if (this.saturationCurrent !== 0)
-            XMLSerializer.dumpAttr(elem, "isat", this.saturationCurrent);
+            CircuitXMLSerializer.dumpAttr(elem, "isat", this.saturationCurrent);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        XMLSerializer.dumpAttr(elem, "i", this.current);
+        CircuitXMLSerializer.dumpAttr(elem, "i", this.current);
     }
 
-    undumpXml(xml: XMLDeserializer): void {
+    undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.inductance = xml.parseDoubleAttr("l", this.inductance);
         this.initialCurrent = xml.parseDoubleAttr("ic", this.initialCurrent);
