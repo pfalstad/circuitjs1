@@ -32,8 +32,9 @@ import { ScopePlot2d } from "./ScopePlot2d";
 import { ScopeFFT } from "./ScopeFFT";
 import { ScopeOverlays } from "./ScopeOverlays";
 import { ScopeTrigger } from "./ScopeTrigger";
-import { ScopePropertiesDialog } from "./ScopePropertiesDialog";
+import type { ScopePropertiesDialog } from "./ScopePropertiesDialog";
 import { Locale } from "./Locale";
+import { HookRegistry } from "./HookRegistry";
 import {
     VAL_POWER, VAL_POWER_OLD, VAL_VOLTAGE, VAL_CURRENT,
     VAL_IB, VAL_IC, VAL_IE, VAL_VBE, VAL_VBC, VAL_VCE,
@@ -212,7 +213,7 @@ export class Scope {
         }
     }
 
-    resetGraph(): void { this.resetGraphFull(false); }
+    resetGraph(full: boolean = false): void { this.resetGraphFull(full); }
 
     resetGraphFull(full: boolean): void {
         this.scopePointCount = 1;
@@ -1168,7 +1169,7 @@ export class Scope {
     }
 
     showProperties(): void {
-        this.properties = new ScopePropertiesDialog(this.app, this);
+        this.properties = HookRegistry.createScopePropertiesDialog!(this.app, this);
         CirSim.dialogShowing = this.properties;
     }
 
@@ -1469,7 +1470,7 @@ export class Scope {
         if (units > UNITS_A)
             s = 0.5 * s;
         if (roundUp)
-            return ScopePropertiesDialog.nextHighestScale((2 * s) / (this.manDivisions));
+            return HookRegistry.scopeNextHighestScale!((2 * s) / (this.manDivisions));
         else
             return (2 * s) / (this.manDivisions);
     }

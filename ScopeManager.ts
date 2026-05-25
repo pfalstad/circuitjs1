@@ -56,7 +56,7 @@ export class ScopeManager {
 
     init(): void {
         // GWT MenuBar/DOM browser event handling skipped
-        this.scopePopupMenu = new ScopePopupMenu();
+        this.scopePopupMenu = new ScopePopupMenu(this.sim);
     }
 
     composeSelectScopeMenu(sb: any): void {

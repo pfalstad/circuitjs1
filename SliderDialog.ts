@@ -235,7 +235,7 @@ export class SliderDialog extends Dialog {
                     const d = EditDialog.parseUnits(ei.stepBox.value);
                     adj.sliderStep = d;
                     if (adj.slider != null && adj.maxValue !== adj.minValue)
-                        adj.slider.element.step = String(d * 100 / (adj.maxValue - adj.minValue));
+                        adj.slider.setStepSize(d * 100 / (adj.maxValue - adj.minValue));
                 }
                 if (this.logCheckboxes[i] != null)
                     adj.logarithmic = this.logCheckboxes[i]!.getState();

@@ -46,27 +46,215 @@ const KEY_A = 65, KEY_C = 67, KEY_D = 68, KEY_N = 78;
 const KEY_O = 79, KEY_P = 80, KEY_S = 83, KEY_V = 86;
 const KEY_X = 88, KEY_Y = 89, KEY_Z = 90;
 
-// Simple range-input based scrollbar
 export class Scrollbar {
-    static readonly HORIZONTAL = 0;
-    element: HTMLInputElement;
+    static readonly HORIZONTAL = 1;
+    private static readonly HMARGIN    = 2;
+    private static readonly SCROLLHEIGHT = 14;
+    private static readonly BARMARGIN  = 3;
 
-    constructor(orientation: number, value: number, step: number, min: number, max: number) {
-        this.element = document.createElement('input');
-        this.element.type = 'range';
-        this.element.min = String(min);
-        this.element.max = String(max);
-        this.element.step = String(step);
-        this.element.value = String(value);
-        this.element.style.width = '100%';
+    element: HTMLCanvasElement;
+    private g: CanvasRenderingContext2D;
+    private min: number;
+    private max: number;
+    private val: number;
+    private stepSize: number = 0;
+    private dragging: boolean = false;
+    private enabled: boolean = true;
+    private command: (() => void) | null = null;
+    attachedElm: any = null;
+    private vpw: number;
+
+    constructor(orientation: number, value: number, visible: number, min: number, max: number,
+                cmd?: () => void, elm?: any) {
+        this.vpw = UIManager.VERTICALPANELWIDTH;
+        this.min = min;
+        this.max = max - 1;
+        this.val = value;
+        if (cmd) this.command = cmd;
+        if (elm)  this.attachedElm = elm;
+
+        const can = document.createElement('canvas');
+        can.width  = this.vpw;
+        can.height = Scrollbar.SCROLLHEIGHT;
+        can.style.width   = this.vpw + 'px';
+        can.style.height  = Scrollbar.SCROLLHEIGHT + 'px';
+        can.style.display = 'block';
+        can.style.cursor  = 'default';
+        this.element = can;
+        this.g = can.getContext('2d')!;
+
+        can.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.doMouseDown(e.offsetX, true);
+        });
+        can.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            if (this.dragging && e.buttons === 0) { this.dragging = false; return; }
+            this.doMouseMove(e.offsetX);
+        });
+        can.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            if (this.enabled && this.dragging) {
+                this.val = this.calcValueFromPos(e.offsetX);
+                this.dragging = false;
+                this.draw();
+                if (this.command) this.command();
+            }
+        });
+        can.addEventListener('mouseout', () => {
+            if (this.dragging) return;
+            if (this.enabled && this.attachedElm?.isMouseElm())
+                CirSim.theApp.mouse.setMouseElm(null);
+        });
+        can.addEventListener('mouseover', () => {
+            if (this.enabled && this.attachedElm)
+                CirSim.theApp.mouse.setMouseElm(this.attachedElm);
+        });
+        can.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (this.enabled) this.setValue(this.val + Math.round(e.deltaY / 3));
+        }, { passive: false });
+
+        can.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.dragging = false;
+            const t = e.touches[0];
+            this.doMouseDown(t.clientX - can.getBoundingClientRect().left, false);
+        }, { passive: false });
+        can.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            this.doMouseMove(t.clientX - can.getBoundingClientRect().left);
+        }, { passive: false });
+        can.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (this.enabled && this.dragging) {
+                this.dragging = false;
+                this.draw();
+                if (this.command) this.command();
+            }
+        });
+        can.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            this.dragging = false;
+        });
+
+        this.draw();
     }
 
-    getValue(): number { return Number(this.element.value); }
-    setValue(v: number): void { this.element.value = String(v); }
-    enable(): void  { this.element.disabled = false; }
-    disable(): void { this.element.disabled = true;  }
-    addChangeHandler(fn: () => void): void { this.element.addEventListener('input', fn); }
-    draw(): void {}
+    private doMouseDown(x: number, mouse: boolean): void {
+        if (!this.enabled) return;
+        const vpw = this.vpw;
+        const hm = Scrollbar.HMARGIN;
+        const sh = Scrollbar.SCROLLHEIGHT;
+        const bm = Scrollbar.BARMARGIN;
+        const step = this.stepSize > 0 ? Math.max(1, Math.round(this.stepSize)) : 1;
+        if (x < hm + sh) {
+            this.val = this.snapToStep(Math.max(this.min, this.val - step));
+        } else if (x > vpw - hm - sh) {
+            this.val = this.snapToStep(Math.min(this.max, this.val + step));
+        } else {
+            this.val = this.calcValueFromPos(x);
+            this.dragging = true;
+        }
+        this.draw();
+        if (this.command) this.command();
+    }
+
+    private doMouseMove(x: number): void {
+        if (!this.enabled || !this.dragging) return;
+        this.val = this.calcValueFromPos(x);
+        this.draw();
+        if (this.command) this.command();
+    }
+
+    private calcValueFromPos(x: number): number {
+        const vpw = this.vpw;
+        const hm = Scrollbar.HMARGIN;
+        const sh = Scrollbar.SCROLLHEIGHT;
+        const bm = Scrollbar.BARMARGIN;
+        let v = this.min + (this.max - this.min) * (x - hm - sh - bm) / (vpw - 2 * (hm + sh + bm));
+        v = Math.max(this.min, Math.min(this.max, v));
+        return this.snapToStep(Math.round(v));
+    }
+
+    private snapToStep(v: number): number {
+        if (this.stepSize > 0) {
+            v = Math.round((v - this.min) / this.stepSize) * this.stepSize + this.min;
+            v = Math.max(this.min, Math.min(this.max, v));
+        }
+        return Math.round(v);
+    }
+
+    setStepSize(step: number): void { this.stepSize = step; }
+
+    draw(): void {
+        const g = this.g;
+        const vpw = this.vpw;
+        const sh  = Scrollbar.SCROLLHEIGHT;
+        const hm  = Scrollbar.HMARGIN;
+        const bm  = Scrollbar.BARMARGIN;
+
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, vpw, sh);
+
+        g.strokeStyle = this.enabled ? '#000000' : 'lightgrey';
+        g.lineWidth = 1.0;
+
+        // left arrow
+        g.beginPath();
+        g.moveTo(hm + sh - 3, 0);
+        g.lineTo(hm, sh / 2);
+        g.lineTo(hm + sh - 3, sh);
+        // right arrow
+        g.moveTo(vpw - hm - sh + 3, 0);
+        g.lineTo(vpw - hm, sh / 2);
+        g.lineTo(vpw - hm - sh + 3, sh);
+        g.stroke();
+
+        if (this.enabled) {
+            // grey track
+            g.strokeStyle = 'grey';
+            g.lineWidth = 5.0;
+            g.beginPath();
+            g.moveTo(hm + sh + bm, sh / 2);
+            g.lineTo(vpw - hm - sh - bm, sh / 2);
+            g.stroke();
+
+            const p = hm + sh + bm +
+                (vpw - 2 * (hm + sh + bm)) * (this.val - this.min) / (this.max - this.min);
+
+            // red (or highlight) filled portion
+            g.strokeStyle = (this.attachedElm?.needsHighlight())
+                ? (CircuitElm.selectColor?.getHexValue() ?? 'red') : 'red';
+            g.beginPath();
+            g.moveTo(hm + sh + bm, sh / 2);
+            g.lineTo(p, sh / 2);
+            g.stroke();
+
+            // handle: white fill with black border
+            g.strokeStyle = '#000000';
+            g.lineWidth = 1.0;
+            g.fillStyle = '#ffffff';
+            g.fillRect(p - 2, 2, 5, sh - 4);
+            g.strokeRect(p - 2, 2, 5, sh - 4);
+        }
+    }
+
+    getValue(): number { return this.val; }
+
+    setValue(v: number): void {
+        if (v < this.min) v = this.min;
+        else if (v > this.max) v = this.max;
+        this.val = v;
+        this.draw();
+        if (this.command) this.command();
+    }
+
+    enable():  void { this.enabled = true;  this.draw(); }
+    disable(): void { this.enabled = false; this.dragging = false; this.draw(); }
+
+    addChangeHandler(fn: () => void): void { this.command = fn; }
 }
 
 // Stubs for classes not yet translated from Java
@@ -617,6 +805,7 @@ export class UIManager {
 
     layoutPanel: HTMLElement;
     verticalPanel: HTMLElement;
+    canvasWrapper: HTMLElement;
     buttonPanel: HTMLElement;
     mainMenuItems: CheckboxMenuItem[] = [];
     mainMenuItemNames: string[] = [];
@@ -703,7 +892,7 @@ export class UIManager {
         // build main layout container
         this.layoutPanel = document.createElement('div');
         this.layoutPanel.className = 'layoutPanel';
-        this.layoutPanel.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;';
+        this.layoutPanel.style.cssText = 'position:absolute;inset:0;overflow:hidden;';
 
         this.app.ui = this;
         this.app.menus = this.menus = new Menus(this.app);
@@ -724,7 +913,7 @@ export class UIManager {
         this.verticalPanel.className = 'verticalPanel';
         this.verticalPanel.id = 'painel';
         this.verticalPanel.style.cssText =
-            `width:${UIManager.VERTICALPANELWIDTH}px;overflow-y:auto;flex-shrink:0;`;
+            `position:absolute;top:${UIManager.MENUBARHEIGHT}px;right:0;bottom:0;width:${UIManager.VERTICALPANELWIDTH}px;overflow-x:hidden;overflow-y:auto;`;
 
         // mobile hamburger-style checkbox toggles for sidebar and top panel
         const sidePanelCheckbox = document.createElement('input');
@@ -805,41 +994,43 @@ export class UIManager {
         this.toolbar = new Toolbar();
         this.toolbar.setEuroResistors(euroSetting);
         const menuBar = this.menus.menuBar;
+        const vpw = hideSidebar ? 0 : UIManager.VERTICALPANELWIDTH;
+        const mbh = this.hideMenu ? 0 : UIManager.MENUBARHEIGHT;
+        if (hideSidebar) UIManager.VERTICALPANELWIDTH = 0;
+
         if (!this.hideMenu) {
-            menuBar.style.height = UIManager.MENUBARHEIGHT + 'px';
-            menuBar.style.flexShrink = '0';
+            menuBar.style.cssText = `position:absolute;left:0;top:0;right:0;height:${UIManager.MENUBARHEIGHT}px;`;
             this.layoutPanel.appendChild(menuBar);
         }
 
-        this.toolbar.element.style.height = UIManager.TOOLBARHEIGHT + 'px';
-        this.toolbar.element.style.flexShrink = '0';
-        this.layoutPanel.appendChild(this.toolbar.element);
-
-        // content row: canvas on the left (flex:1), sidebar on the right (fixed width)
-        const contentRow = document.createElement('div');
-        contentRow.className = 'contentRow';
-        contentRow.style.cssText = 'flex:1;display:flex;flex-direction:row;overflow:hidden;min-height:0;';
-        this.layoutPanel.appendChild(contentRow);
-
-        // main canvas area wrapper
-        const canvasWrapper = document.createElement('div');
-        canvasWrapper.className = 'canvasWrapper';
-        canvasWrapper.style.cssText = 'flex:1;position:relative;overflow:hidden;';
-        contentRow.appendChild(canvasWrapper);
-
-        if (hideSidebar) {
-            UIManager.VERTICALPANELWIDTH = 0;
-        } else {
+        // sidebar: right strip from below menu bar to bottom
+        if (!hideSidebar) {
             this.layoutPanel.appendChild(sidePanelCheckbox);
             this.layoutPanel.appendChild(this.sidePanelCheckboxLabel);
-            contentRow.appendChild(this.verticalPanel);
+            this.layoutPanel.appendChild(this.verticalPanel);
         }
+
+        // toolbar: left of sidebar, below menu bar
+        this.toolbar.element.style.position = 'absolute';
+        this.toolbar.element.style.left = '0';
+        this.toolbar.element.style.top = mbh + 'px';
+        this.toolbar.element.style.right = vpw + 'px';
+        this.toolbar.element.style.height = UIManager.TOOLBARHEIGHT + 'px';
+        this.toolbar.element.style.overflow = 'hidden';
+        this.layoutPanel.appendChild(this.toolbar.element);
+
+        // canvas wrapper: fills space below toolbar, left of sidebar
+        this.canvasWrapper = document.createElement('div');
+        this.canvasWrapper.className = 'canvasWrapper';
+        this.canvasWrapper.style.cssText =
+            `position:absolute;top:${mbh + UIManager.TOOLBARHEIGHT}px;right:${vpw}px;bottom:0;left:0;overflow:hidden;`;
+        this.layoutPanel.appendChild(this.canvasWrapper);
 
         document.body.appendChild(this.layoutPanel);
 
         this.cv = document.createElement('canvas');
-        this.cv.style.cssText = 'display:block;';
-        canvasWrapper.appendChild(this.cv);
+        this.cv.style.cssText = 'position:absolute;';
+        this.canvasWrapper.appendChild(this.cv);
 
         window.addEventListener('resize', () => {
             // canvas hasn't been laid out yet, so we can't recenter here
@@ -1503,8 +1694,13 @@ export class UIManager {
     }
 
     setToolbar(): void {
-        this.toolbar.element.style.display =
-            this.menus.toolbarCheckItem.getState() ? 'flex' : 'none';
+        const showing = this.menus.toolbarCheckItem.getState();
+        this.toolbar.element.style.display = showing ? 'flex' : 'none';
+        if (this.canvasWrapper) {
+            const mbh = this.hideMenu ? 0 : UIManager.MENUBARHEIGHT;
+            const tbh = showing ? UIManager.TOOLBARHEIGHT : 0;
+            this.canvasWrapper.style.top = (mbh + tbh) + 'px';
+        }
         this.setCanvasSize();
     }
 

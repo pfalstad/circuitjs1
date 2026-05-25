@@ -80,7 +80,11 @@ export class MenuItem {
 // ---- Internal menu-building helpers ----
 
 function closeAllMenus(): void {
-    document.querySelectorAll('.topMenuItem.open').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('.gwt-MenuItem.open, .topMenuItem.open').forEach(el => el.classList.remove('open'));
+}
+
+function anyMenuOpen(): boolean {
+    return document.querySelector('.gwt-MenuItem.open, .topMenuItem.open') !== null;
 }
 
 // Build "<i class='cirjsicon-X'></i>&nbsp;Label" HTML for icon menu items.
@@ -742,6 +746,13 @@ export class Menus {
             const wasOpen = td.classList.contains('open');
             closeAllMenus();
             if (!wasOpen) td.classList.add('open');
+        });
+
+        td.addEventListener('mouseover', e => {
+            if (anyMenuOpen()) {
+                closeAllMenus();
+                td.classList.add('open');
+            }
         });
 
         td.appendChild(menu.ul);

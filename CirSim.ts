@@ -185,6 +185,7 @@ export class CirSim {
 
         await import('./Adjustable');
         await import('./SliderDialog');
+        await import('./ScopePropertiesDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;

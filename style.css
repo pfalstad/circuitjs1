@@ -8,6 +8,11 @@ html, body {
     overflow: hidden;
 }
 
+body, table td, select, button {
+    font-family: Arial Unicode MS, Arial, sans-serif;
+    font-size: small;
+}
+
 /* ---- Utility classes (from circuitjs.html) ---- */
 
 .disabled {
@@ -15,6 +20,7 @@ html, body {
 }
 
 .topSpace {
+    display: block;
     margin-top: 12px;
 }
 
@@ -248,7 +254,6 @@ td.gwt-MenuItem.open > .menuDropdown {
 /* ---- Layout panels ---- */
 
 .verticalPanel {
-    background: #f0f0f0;
     overflow-y: auto;
     flex-shrink: 0;
 }
@@ -336,4 +341,27 @@ td.gwt-MenuItem.open > .menuDropdown {
     .canvasWrapper {
         width: 100% !important;
     }
+}
+
+/* ---- Scope Properties Dialog channel buttons ---- */
+
+.chbut {
+    padding: 2px 6px;
+    font-size: small;
+    cursor: pointer;
+    border: 1px solid #aaa;
+    background: #e7e7e7;
+    border-radius: 3px;
+}
+
+.chbut-black { color: #000; }
+.chbut-white { color: #fff; background: #555; }
+
+.chbut.chsel {
+    outline: 2px solid #4488ff;
+    outline-offset: 1px;
+}
+
+.scalebox {
+    width: 80px;
 }

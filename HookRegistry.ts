@@ -24,4 +24,6 @@ export const HookRegistry = {
     undumpCustomCompositeModel:        null as ((xml: any) => void) | null,
     loadCustomCompositeModelsFromStorage: null as (() => void) | null,
     clearCustomCompositeModelDumpedFlags: null as (() => void) | null,
+    createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
+    scopeNextHighestScale:       null as ((d: number) => number) | null,
 };

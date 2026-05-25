@@ -142,7 +142,7 @@ export class Adjustable {
         const intValue = this.valueToSliderPosition(value);
         this.slider = new Scrollbar(Scrollbar.HORIZONTAL, intValue, 1, 0, 100);
         if (this.sliderStep > 0 && this.maxValue !== this.minValue)
-            this.slider.element.step = String(this.sliderStep * 100 / (this.maxValue - this.minValue));
+            this.slider.setStepSize(this.sliderStep * 100 / (this.maxValue - this.minValue));
         this.slider.addChangeHandler(() => this.execute());
         sim.addWidgetToVerticalPanel(this.slider.element);
     }

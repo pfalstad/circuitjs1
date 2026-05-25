@@ -25,7 +25,14 @@ import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class ScopeTrigger {
-    mode: number = 0;
+    static readonly TRIGGER_FREERUN = 0;
+    static readonly TRIGGER_NORMAL  = 1;
+    static readonly TRIGGER_AUTO    = 2;
+    static readonly TRIGGER_EDGE_RISING  = 0;
+    static readonly TRIGGER_EDGE_FALLING = 1;
+
+    mode: number = ScopeTrigger.TRIGGER_FREERUN;
+    edge: number = ScopeTrigger.TRIGGER_EDGE_RISING;
     level: number = 0;
     time: number = 0;
 
