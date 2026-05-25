@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out  = join(root, "registerElements.ts");
 
-const SKIP = new Set(["ScopeElm", "GateElm", "ChipElm", "CompositeElm", "CustomCompositeChipElm", "JfetElm"]);
+const SKIP = new Set(["GateElm", "ChipElm", "CompositeElm", "CustomCompositeChipElm", "JfetElm", "GraphicElm"]);
 
 // Classes that must be registered last (after all other elements).
 const REGISTER_LAST = new Set(["CustomCompositeElm"]);

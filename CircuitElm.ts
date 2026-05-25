@@ -167,6 +167,7 @@ export abstract class CircuitElm implements Editable {
         }
         CircuitElm.setDecimalDigits(CircuitElm.decimalDigits, false, false);
         CircuitElm.setDecimalDigits(CircuitElm.shortDecimalDigits, true, false);
+	CircuitElm.currentMult = 0;
     }
 
     static setDecimalDigits(num: number, sf: boolean, save: boolean): void {

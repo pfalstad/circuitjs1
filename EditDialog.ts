@@ -175,7 +175,8 @@ export class EditDialog extends Dialog {
                 this.activeCol.appendChild(cbLabel);
 
             } else if (ei.button !== null) {
-                const btn = ei.button as HTMLButtonElement;
+                const btn = document.createElement("button");
+                btn.textContent = ei.button.label ?? ei.button.textContent ?? String(ei.button);
                 btn.onclick = () => this.itemStateChanged(idx);
                 this.activeCol.appendChild(btn);
 

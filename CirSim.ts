@@ -35,6 +35,7 @@ import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { HookRegistry } from "./HookRegistry";
+import { UndoManager } from "./UndoManager";
 
 // GWT Timer equivalent — drives the simulation/render loop via setInterval
 class CirSimTimer {
@@ -83,7 +84,7 @@ export class CirSim {
     mouse: MouseManager;
     ui: any = null;          // UIManager — set during UIManager.init()
     sim: any = null;         // SimulationManager
-    undoManager: any = null; // UndoManager
+    undoManager: UndoManager = null!;
     imageExporter: any = null;
     commands: any = null;    // CommandManager
     scopeManager: ScopeManager = null;
@@ -176,8 +177,8 @@ export class CirSim {
 
         const { UIManager } = await import('./UIManager');
         this.ui = new UIManager(this);
-        // undoManager = new UndoManager(this);  // not yet ported
-        // undoManager.readRecovery();
+        this.undoManager = new UndoManager(this);
+        this.undoManager.readRecovery();
         // imageExporter = new ImageExporter(this);  // not yet ported
         const { CommandManager } = await import('./CommandManager');
         this.commands = new CommandManager(this);

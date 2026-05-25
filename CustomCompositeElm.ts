@@ -301,14 +301,12 @@ export class CustomCompositeElm extends CompositeElm {
         }
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
-            ei.button = document.createElement("button");
-            ei.button.textContent = Locale.LS("Edit Pin Layout");
+            ei.button = { label: Locale.LS("Edit Pin Layout") };
             return ei;
         }
         if (n === 2 && this.canViewComponents()) {
             const ei = new EditInfo("", 0, -1, -1);
-            ei.button = document.createElement("button");
-            ei.button.textContent = Locale.LS("View Components");
+            ei.button = { label: Locale.LS("View Components") };
             return ei;
         }
         const hvIdx = this.canViewComponents() ? 3 : 2;
@@ -316,8 +314,7 @@ export class CustomCompositeElm extends CompositeElm {
             return new EditInfo("High Logic Voltage (0=default)", this.highVoltage, 0, 10);
         if (n === hvIdx + 1 && this.model.canLoadModelCircuit()) {
             const ei = new EditInfo("", 0, -1, -1);
-            ei.button = document.createElement("button");
-            ei.button.textContent = Locale.LS("Edit Model");
+            ei.button = { label: Locale.LS("Edit Model") };
             return ei;
         }
         return null;

@@ -30,6 +30,7 @@ import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SearchDialog } from "./SearchDialog";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
+import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
 
 export class CommandManager {
 
@@ -365,7 +366,7 @@ export class CommandManager {
     }
 
     doCreateSubcircuit(): void {
-        const dlg = new (window as any).EditCompositeModelDialog();
+        const dlg = new EditCompositeModelDialog();
         if (!dlg.createModel())
             return;
         dlg.createDialog();
