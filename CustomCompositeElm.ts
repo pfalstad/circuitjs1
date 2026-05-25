@@ -246,6 +246,8 @@ export class CustomCompositeElm extends CompositeElm {
         return false;
     }
 
+    isCustomCompositeElm(): boolean { return true; }
+
     onDoubleClick(): void {
         if (this.canViewComponents())
             CircuitElm.app.ui.pushSubcircuit(this, this.buildDisplayElmList());

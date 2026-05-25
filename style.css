@@ -91,38 +91,36 @@ html, body {
 
 /* ---- Menu bar and dropdown menus ---- */
 
-/* Horizontal menu bar strip at the top */
-.menuBar {
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
-    background: #e8e8e8;
-    border-bottom: 1px solid #bbb;
-    height: 30px;
-    flex-shrink: 0;
+/* Wrapper div — sized by UIManager (height + flexShrink) */
+.gwt-MenuBar {
     user-select: none;
 }
 
-/* Each top-level menu entry (e.g. "File", "Edit") */
-.topMenuItem {
-    position: relative;
-    display: flex;
-    align-items: center;
+/* Inner bar fills the wrapper absolutely, matching Java's gwt-MenuBar-horizontal */
+.gwt-MenuBar-horizontal {
+    background: #e3e8f3 url(images/hborder.png) repeat-x 0px -2003px;
+    border: 1px solid #e0e0e0;
 }
 
-/* The clickable label for a top-level menu */
-.topMenuLabel {
-    padding: 0 10px;
+.gwt-MenuBar-horizontal table {
     height: 100%;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    white-space: nowrap;
-    font-size: small;
 }
 
-.topMenuLabel:hover,
-.topMenuItem.open > .topMenuLabel {
+/* Each top-level menu entry */
+td.gwt-MenuItem {
+    position: relative;
+    padding: 5px 10px;
+    vertical-align: bottom;
+    color: #000;
+    font-weight: bold;
+    cursor: default;
+    white-space: nowrap;
+    font-size: 12px !important;
+    font-family: Arial Unicode MS, Arial, sans-serif;
+}
+
+td.gwt-MenuItem:hover,
+td.gwt-MenuItem.open {
     background: #c8d8f8;
 }
 
@@ -142,7 +140,7 @@ html, body {
     padding: 2px 0;
 }
 
-.topMenuItem.open > .menuDropdown {
+td.gwt-MenuItem.open > .menuDropdown {
     display: block;
 }
 
@@ -166,6 +164,11 @@ html, body {
 /* Keep submenu open when the mouse moves from the arrow into the submenu */
 .hasSubmenu:hover {
     background: #c8d8f8;
+}
+
+/* Close-all click target on the table (matches Java's onclick) */
+.gwt-MenuBar-horizontal table {
+    cursor: default;
 }
 
 /* Individual menu item row */

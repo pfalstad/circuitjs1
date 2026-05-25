@@ -265,14 +265,42 @@ export class Menus {
         this.app = app as CirSim;
     }
 
+    private menuBarRow: HTMLTableRowElement = document.createElement('tr');
+
     init(): void {
         const os = navigator.platform;
         this.isMac = os.toLowerCase().includes("mac");
         this.ctrlMetaKey = this.isMac ? Locale.LS("Cmd-") : Locale.LS("Ctrl-");
 
-        const nav = document.createElement('nav');
-        nav.className = 'menuBar menuBar-horizontal';
-        this.menuBar = nav;
+        // Wrapper: sized by UIManager (height + flexShrink), holds the abs-positioned bar
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'relative';
+        this.menuBar = wrapper;
+
+        // Inner bar matches the Java gwt-MenuBar structure
+        const bar = document.createElement('div');
+        bar.setAttribute('tabindex', '0');
+        bar.setAttribute('role', 'menubar');
+        bar.className = 'gwt-MenuBar gwt-MenuBar-horizontal';
+        bar.style.cssText = 'outline: 0; position: absolute; inset: 0;';
+
+        const table = document.createElement('table');
+        table.addEventListener('click', () => closeAllMenus());
+        const tbody = document.createElement('tbody');
+        this.menuBarRow = document.createElement('tr');
+        tbody.appendChild(this.menuBarRow);
+        table.appendChild(tbody);
+        bar.appendChild(table);
+
+        // Hidden focus-trap input (matches Java)
+        const focusTrap = document.createElement('input');
+        focusTrap.type = 'text';
+        focusTrap.tabIndex = -1;
+        focusTrap.setAttribute('aria-hidden', 'true');
+        focusTrap.style.cssText = 'opacity:0;height:1px;width:1px;z-index:-1;overflow:hidden;position:absolute;';
+        bar.appendChild(focusTrap);
+
+        wrapper.appendChild(bar);
 
         const ck = this.ctrlMetaKey;
 
@@ -398,12 +426,12 @@ export class Menus {
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----
-        this.addTopItem(nav, Locale.LS("File"),    fileMenu);
-        this.addTopItem(nav, Locale.LS("Edit"),    editMenu);
-        this.addTopItem(nav, Locale.LS("Draw"),    drawMenu);
-        this.addTopItem(nav, Locale.LS("Scopes"),  scopesMenu);
-        this.addTopItem(nav, Locale.LS("Options"), optMenu);
-        this.addTopItem(nav, Locale.LS("Tools"),   toolsMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("File"),    fileMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Edit"),    editMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Draw"),    drawMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Scopes"),  scopesMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Options"), optMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Tools"),   toolsMenu);
 
         // ---- Element right-click context menu ----
         this.buildElmMenuBar();
@@ -651,7 +679,7 @@ export class Menus {
         const lines = text.split(/\r?\n/);
         const stack: Menu[] = [];
         let currentMenu = new Menu(this.app);
-        this.addTopItem(this.menuBar as HTMLElement, Locale.LS("Circuits"), currentMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS("Circuits"), currentMenu);
         stack.push(currentMenu);
 
         for (const line of lines) {
@@ -702,24 +730,23 @@ export class Menus {
     // ---- Private helpers ----
 
     // Add a top-level item to the horizontal menu bar (clicking toggles the dropdown).
-    private addTopItem(nav: HTMLElement, label: string, menu: Menu): HTMLElement {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'topMenuItem';
+    private addTopItem(row: HTMLTableRowElement, label: string, menu: Menu): HTMLElement {
+        const td = document.createElement('td');
+        td.className = 'gwt-MenuItem';
+        td.setAttribute('role', 'menuitem');
+        td.setAttribute('aria-haspopup', 'true');
+        td.textContent = label;
 
-        const span = document.createElement('span');
-        span.className = 'topMenuLabel';
-        span.textContent = label;
-        span.addEventListener('click', e => {
+        td.addEventListener('click', e => {
             e.stopPropagation();
-            const wasOpen = wrapper.classList.contains('open');
+            const wasOpen = td.classList.contains('open');
             closeAllMenus();
-            if (!wasOpen) wrapper.classList.add('open');
+            if (!wasOpen) td.classList.add('open');
         });
 
-        wrapper.appendChild(span);
-        wrapper.appendChild(menu.ul);
-        nav.appendChild(wrapper);
-        return wrapper;
+        td.appendChild(menu.ul);
+        row.appendChild(td);
+        return td;
     }
 
     // Build the element right-click context menu.

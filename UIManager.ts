@@ -88,6 +88,9 @@ class Toolbar {
         style.borderColor = '#ccc';
         style.display = 'flex';
         style.alignItems = 'center';
+        style.flexWrap = 'nowrap';
+        style.overflow = 'hidden';
+        style.boxSizing = 'border-box';
 
         this.element.appendChild(this.createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
         this.element.appendChild(this.createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
@@ -209,6 +212,8 @@ class Toolbar {
         paletteStyle.borderColor = '#ccc';
         paletteStyle.borderStyle = 'solid';
         paletteStyle.padding = '5px';
+        paletteStyle.display = 'none';
+        paletteStyle.flexDirection = 'column';
 
         for (let i = 0; i < info.length; i += 2) {
             // Create each variant button
@@ -245,7 +250,7 @@ class Toolbar {
 
         // Show palette on mouse-over
         iconLabel.addEventListener('mouseover', () => {
-            paletteContainer.style.display = '';
+            paletteContainer.style.display = 'flex';
 
             // Position the palette relative to the icon label
             const rect = iconLabel.getBoundingClientRect();
@@ -1499,7 +1504,7 @@ export class UIManager {
 
     setToolbar(): void {
         this.toolbar.element.style.display =
-            this.menus.toolbarCheckItem.getState() ? '' : 'none';
+            this.menus.toolbarCheckItem.getState() ? 'flex' : 'none';
         this.setCanvasSize();
     }
 
