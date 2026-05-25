@@ -183,6 +183,9 @@ export class CirSim {
         const { CommandManager } = await import('./CommandManager');
         this.commands = new CommandManager(this);
 
+        await import('./Adjustable');
+        await import('./SliderDialog');
+
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
         let negativeColor: string | null = null;

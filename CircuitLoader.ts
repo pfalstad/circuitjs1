@@ -182,7 +182,9 @@ export class CircuitLoader {
                         break;
                     }
                     if (tint === 38) {
-                        // Adjustable adj = new Adjustable(st, app) // TODO
+                        const adj = new (window as any).Adjustable(st, this.app);
+                        if (adj.elm != null)
+                            this.app.adjustables.push(adj);
                         break;
                     }
                     if (tint === '.'.charCodeAt(0)) {
