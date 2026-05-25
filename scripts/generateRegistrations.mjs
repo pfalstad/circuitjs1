@@ -11,7 +11,7 @@ import { fileURLToPath } from "url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out  = join(root, "registerElements.ts");
 
-const SKIP = new Set(["ScopeElm", "GateElm", "ChipElm"]);
+const SKIP = new Set(["ScopeElm", "GateElm", "ChipElm", "CompositeElm"]);
 
 // Classes to add to ElementFactory but not CirSim.register.
 // Used when another class's getDumpClass() causes the dump-type mapping,
