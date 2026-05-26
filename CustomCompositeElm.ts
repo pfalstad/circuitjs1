@@ -95,7 +95,7 @@ export class CustomCompositeElm extends CompositeElm {
 
     draw(g: Graphics): void {
         for (let i = 0; i < this.postCount; i++) {
-            this.chip.volts[i] = this.volts[i];
+            this.chip.volts[i] = this.nodes[i].v;
             this.chip.pins[i].current = this.getCurrentIntoNode(i);
         }
         this.chip.setSelected(this.needsHighlight());
@@ -274,11 +274,11 @@ export class CustomCompositeElm extends CompositeElm {
             if (ent.busWidth > 1) {
                 let value = 0;
                 for (let j = 0; j < ent.busWidth; j++)
-                    if (this.volts[i + j] > this.chip.getThreshold())
+                    if (this.nodes[i + j].v > this.chip.getThreshold())
                         value |= 1 << j;
                 arr[a] = ent.name + " = " + value + " / 0x" + value.toString(16).toUpperCase();
             } else {
-                arr[a] = ent.name + " = " + CircuitElm.getVoltageText(this.volts[i]);
+                arr[a] = ent.name + " = " + CircuitElm.getVoltageText(this.nodes[i].v);
             }
             a++;
         }

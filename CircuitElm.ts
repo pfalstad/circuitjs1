@@ -251,8 +251,7 @@ export abstract class CircuitElm implements Editable {
 
         // preserve voltages if possible
         if (this.nodes == null || this.nodes.length !== n) {
-            this.nodes = new Array(n);
-            this.volts = new Array(n).fill(0);
+            this.nodes = new Array(n).fill(CircuitNode.ground);
         }
     }
 
@@ -265,8 +264,6 @@ export abstract class CircuitElm implements Editable {
 
     // handle reset button
     reset(): void {
-        for (let i = 0; i !== this.getNodeCount(); i++)
-            this.volts[i] = 0;
         this.curcount = 0;
     }
 
@@ -325,13 +322,7 @@ export abstract class CircuitElm implements Editable {
     startIteration(): void {}
 
     // get voltage of x'th node
-    getPostVoltage(x: number): number { return this.volts[x]; }
-
-    // set voltage of x'th node, called by simulator logic
-    setNodeVoltage(n: number, c: number): void {
-        this.volts[n] = c;
-        this.calculateCurrent();
-    }
+    getPostVoltage(x: number): number { return this.nodes[x].v; }
 
     // calculate current in response to node voltages changing
     calculateCurrent(): void {}
@@ -452,11 +443,11 @@ export abstract class CircuitElm implements Editable {
 
     draw2Leads(g: Graphics): void {
         // draw first lead
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
 
         // draw second lead
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.lead2!, this.point2);
     }
 
@@ -719,7 +710,7 @@ export abstract class CircuitElm implements Editable {
 //    getVoltageSource(): number { return voltSource; } // Never used except for debug code which is commented out
 
     getVoltageDiff(): number {
-        return this.volts[0] - this.volts[1];
+        return this.nodes[0].v - this.nodes[1].v;
     }
 
     nonLinear(): boolean { return false; }
@@ -1402,9 +1393,9 @@ export abstract class CircuitElm implements Editable {
     }
 
     getVoltageJS(n: number): number {
-        if (n >= this.volts.length)
+        if (n >= this.nodes.length)
             return 0;
-        return this.volts[n];
+        return this.nodes[n].v;
     }
 
     addJSMethods(): void {

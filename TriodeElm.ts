@@ -62,7 +62,6 @@ export class TriodeElm extends CircuitElm {
     nonLinear(): boolean { return true; }
 
     reset(): void {
-        this.volts[0] = this.volts[1] = this.volts[2] = 0;
         this.curcount = 0;
     }
 
@@ -123,17 +122,17 @@ export class TriodeElm extends CircuitElm {
         this.setBbox(this.point1, this.plate[0], 16);
         this.adjustBbox(this.cath[0].x, this.cath[1].y, this.point2.x + this.circler, this.point2.y + this.circler);
         // draw plate
-        this.setVoltageColor(g, this.volts[0]);
-        this.setPowerColor(g, this.currentp * (this.volts[0] - this.volts[2]));
+        this.setVoltageColor(g, this.nodes[0].v);
+        this.setPowerColor(g, this.currentp * (this.nodes[0].v - this.nodes[2].v));
         CircuitElm.drawThickLine(g, this.plate[0], this.plate[1]);
         CircuitElm.drawThickLine(g, this.plate[2], this.plate[3]);
         // draw grid
-        this.setVoltageColor(g, this.volts[1]);
-        this.setPowerColor(g, this.currentg * (this.volts[1] - this.volts[2]));
+        this.setVoltageColor(g, this.nodes[1].v);
+        this.setPowerColor(g, this.currentg * (this.nodes[1].v - this.nodes[2].v));
         for (let i = 0; i !== 8; i += 2)
             CircuitElm.drawThickLine(g, this.grid[i], this.grid[i + 1]);
         // draw cathode
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         this.setPowerColor(g, 0);
         for (let i = 0; i !== 3; i++)
             CircuitElm.drawThickLine(g, this.cath[i], this.cath[i + 1]);
@@ -164,8 +163,8 @@ export class TriodeElm extends CircuitElm {
     getPostCount(): number { return 3; }
 
     getPower(): number {
-        return (this.volts[this.plateN] - this.volts[this.cathN]) * this.currentc +
-            (this.volts[this.gridN] - this.volts[this.cathN]) * this.currentg;
+        return (this.nodes[this.plateN].v - this.nodes[this.cathN].v) * this.currentc +
+            (this.nodes[this.gridN].v - this.nodes[this.cathN].v) * this.currentg;
     }
 
     getCurrent(): number { return this.currentc; }
@@ -179,7 +178,7 @@ export class TriodeElm extends CircuitElm {
     lastv2: number = 0;
 
     doStep(): void {
-        const vs = [this.volts[0], this.volts[1], this.volts[2]];
+        const vs = [this.nodes[0].v, this.nodes[1].v, this.nodes[2].v];
         if (vs[1] > this.lastv1 + .5) vs[1] = this.lastv1 + .5;
         if (vs[1] < this.lastv1 - .5) vs[1] = this.lastv1 - .5;
         if (vs[2] > this.lastv2 + .5) vs[2] = this.lastv2 + .5;
@@ -233,9 +232,9 @@ export class TriodeElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = "triode";
-        const vac = this.volts[this.plateN] - this.volts[this.cathN];
-        const vgc = this.volts[this.gridN]  - this.volts[this.cathN];
-        const vag = this.volts[this.plateN] - this.volts[this.gridN];
+        const vac = this.nodes[this.plateN].v - this.nodes[this.cathN].v;
+        const vgc = this.nodes[this.gridN].v  - this.nodes[this.cathN].v;
+        const vag = this.nodes[this.plateN].v - this.nodes[this.gridN].v;
         arr[1] = "Vac = " + CircuitElm.getVoltageText(vac);
         arr[2] = "Vgc = " + CircuitElm.getVoltageText(vgc);
         arr[3] = "Vag = " + CircuitElm.getVoltageText(vag);
@@ -261,7 +260,7 @@ export class TriodeElm extends CircuitElm {
     }
 
     canViewInScope(): boolean { return true; }
-    getVoltageDiff(): number { return this.volts[this.plateN] - this.volts[this.cathN]; }
+    getVoltageDiff(): number { return this.nodes[this.plateN].v - this.nodes[this.cathN].v; }
 
     flipX(c2: number, count: number): void {
         if (this.x === this.x2)

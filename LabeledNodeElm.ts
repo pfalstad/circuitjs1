@@ -198,7 +198,7 @@ export class LabeledNodeElm extends CircuitElm {
     }
 
     draw(g: Graphics): void {
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!, (this.busWidth > 1) ? 5 : 3);
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.whiteColor);
         this.setPowerColor(g, false);
@@ -232,13 +232,13 @@ export class LabeledNodeElm extends CircuitElm {
     }
 
     getShortcut(): number { return 'b'.charCodeAt(0); }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     getElmType(): string { return "Labeled Node"; }
 
     getBusValue(): number {
         let value = 0;
         for (let i = 0; i < this.busWidth; i++)
-            if (this.volts[i] > 2.5)
+            if (this.nodes[i].v > 2.5)
                 value |= 1 << i;
         return value;
     }
@@ -251,7 +251,7 @@ export class LabeledNodeElm extends CircuitElm {
             arr[2] = "hex = 0x" + value.toString(16).toUpperCase();
         } else {
             arr[1] = "I = " + CircuitElm.getCurrentText(this.getCurrent());
-            arr[2] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+            arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
         }
     }
 

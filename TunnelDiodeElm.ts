@@ -59,8 +59,8 @@ export class TunnelDiodeElm extends CircuitElm {
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.hs);
 
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
 
         this.draw2Leads(g);
 
@@ -80,7 +80,7 @@ export class TunnelDiodeElm extends CircuitElm {
     }
 
     reset(): void {
-        this.lastvoltdiff = this.volts[0] = this.volts[1] = this.curcount = 0;
+        this.lastvoltdiff = this.curcount = 0;
     }
 
     lastvoltdiff: number = 0;
@@ -107,7 +107,7 @@ export class TunnelDiodeElm extends CircuitElm {
     static readonly piv  = 370e-6;
 
     doStep(): void {
-        let voltdiff = this.volts[0] - this.volts[1];
+        let voltdiff = this.nodes[0].v - this.nodes[1].v;
         if (Math.abs(voltdiff - this.lastvoltdiff) > .01)
             CircuitElm.sim.converged = false;
         voltdiff = this.limitStep(voltdiff, this.lastvoltdiff);
@@ -129,7 +129,7 @@ export class TunnelDiodeElm extends CircuitElm {
     }
 
     calculateCurrent(): void {
-        const voltdiff = this.volts[0] - this.volts[1];
+        const voltdiff = this.nodes[0].v - this.nodes[1].v;
         const { pvp, pip, pvv, pvt, pvpp, piv } = TunnelDiodeElm;
         const i0 = piv * Math.exp(-pvv);
         this.current = pip * Math.exp(-pvpp / pvt) * (Math.exp(voltdiff / pvt) - 1) +

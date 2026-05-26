@@ -90,13 +90,13 @@ export class OTAElm extends CompositeElm {
 
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, 3 * this.opheight / 2);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.in1p[0], this.in1p[1]);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.in2p[0], this.in2p[1]);
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.in3p[0], this.in3p[1]);
-        this.setVoltageColor(g, this.volts[3]);
+        this.setVoltageColor(g, this.nodes[3].v);
         CircuitElm.drawThickLine(g, this.in4p[0], this.in4p[1]);
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         this.setPowerColor(g, true);
@@ -191,7 +191,7 @@ export class OTAElm extends CompositeElm {
     getInfo(arr: string[]): void {
         arr[0] = "OTA (LM13700 style)";
         arr[1] = "Iabc = " + CircuitElm.getCurrentText(-this.getCurrentIntoNode(3));
-        arr[2] = "V+ - V- = " + CircuitElm.getVoltageText(this.volts[0] - this.volts[1]);
+        arr[2] = "V+ - V- = " + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[1].v);
     }
 
     getEditInfo(n: number): EditInfo | null {

@@ -75,7 +75,7 @@ export class WireElm extends CircuitElm {
     getBusValue(): number {
         let value = 0;
         for (let i = 0; i < this.busWidth; i++)
-            if (this.volts[i] > 2.5)
+            if (this.nodes[i].v > 2.5)
                 value |= 1 << i;
         return value;
     }
@@ -86,7 +86,7 @@ export class WireElm extends CircuitElm {
             for (let i = 0; i < this.currents.length; i++)
                 this.current += this.currents[i];
         }
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.point2, (this.busWidth > 1) ? 5 : 3);
         this.doDots(g);
         this.setBbox(this.point1, this.point2, 3);
@@ -101,7 +101,7 @@ export class WireElm extends CircuitElm {
             if (this.mustShowCurrent())
                 s = CircuitElm.getShortUnitText(Math.abs(this.getCurrent()), "A");
             if (this.mustShowVoltage())
-                s = (s.length > 0 ? s + " " : "") + CircuitElm.getShortUnitText(this.volts[0], "V");
+                s = (s.length > 0 ? s + " " : "") + CircuitElm.getShortUnitText(this.nodes[0].v, "V");
         }
         this.drawValues(g, s, 4);
         this.drawPosts(g);
@@ -130,12 +130,12 @@ export class WireElm extends CircuitElm {
             arr[2] = "hex = 0x" + value.toString(16).toUpperCase();
         } else {
             arr[1] = "I = " + CircuitElm.getCurrentDText(this.getCurrent());
-            arr[2] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+            arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
         }
     }
     getDumpType(): number { return 'w'.charCodeAt(0); }
     getPower(): number { return 0; }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     isWireEquivalent(): boolean { return true; }
     isRemovableWire(): boolean { return true; }
     isWireElm(): boolean { return true; }

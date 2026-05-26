@@ -84,21 +84,21 @@ export class LogicOutputElm extends CircuitElm {
         g.setFont(f);
         //g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         g.setColor(CircuitElm.lightGrayColor);
-        let s = (this.volts[0] < this.threshold) ? "L" : "H";
+        let s = (this.nodes[0].v < this.threshold) ? "L" : "H";
         if (this.isTernary()) {
             // we don't have 2 separate thresholds for ternary inputs so we do this instead
-            if (this.volts[0] > this.threshold * 1.5)   // 3.75 V
+            if (this.nodes[0].v > this.threshold * 1.5)   // 3.75 V
                 s = "2";
-            else if (this.volts[0] > this.threshold * .5)  // 1.25 V
+            else if (this.nodes[0].v > this.threshold * .5)  // 1.25 V
                 s = "1";
             else
                 s = "0";
         } else if (this.isNumeric())
-            s = (this.volts[0] < this.threshold) ? "0" : "1";
+            s = (this.nodes[0].v < this.threshold) ? "0" : "1";
         this.value = s;
         this.setBbox(this.point1, this.lead1!, 0);
         this.drawCenteredText(g, s, this.x2, this.y2, true);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         this.drawPosts(g);
         g.restore();
@@ -109,14 +109,14 @@ export class LogicOutputElm extends CircuitElm {
             CircuitElm.sim.stampResistor(this.nodes[0], CircuitNode.ground, 1e6);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "logic output";
-        arr[1] = (this.volts[0] < this.threshold) ? "low" : "high";
+        arr[1] = (this.nodes[0].v < this.threshold) ? "low" : "high";
         if (this.isNumeric())
             arr[1] = this.value;
-        arr[2] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+        arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
     }
 
     getEditInfo(n: number): EditInfo | null {

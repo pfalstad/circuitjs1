@@ -92,7 +92,7 @@ export class SweepElm extends CircuitElm {
 
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.circleSize);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : Color.gray);
         this.setPowerColor(g, false);
@@ -196,7 +196,7 @@ export class SweepElm extends CircuitElm {
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource, this.v);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     getVoltageSourceCount(): number { return 1; }
     hasGroundConnection(n1: number): boolean { return true; }
     isSweepElm(): boolean { return true; }
@@ -205,7 +205,7 @@ export class SweepElm extends CircuitElm {
     getInfo(arr: string[]): void {
         arr[0] = "sweep " + (((this.flags & SweepElm.FLAG_LOG) === 0) ? "(linear)" : "(log)");
         arr[1] = "I = " + CircuitElm.getCurrentDText(this.getCurrent());
-        arr[2] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+        arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
         arr[3] = "f = " + CircuitElm.getUnitText(this.frequency, "Hz");
         arr[4] = "range = " + CircuitElm.getUnitText(this.minF, "Hz") + " .. " +
             CircuitElm.getUnitText(this.maxF, "Hz");

@@ -161,7 +161,7 @@ export class TestPointElm extends CircuitElm {
         this.setBbox(this.point1, this.lead1!, 0);
 
         switch (this.meter) {
-            case TestPointElm.TP_VOL: s = CircuitElm.getUnitText(this.volts[0], "V"); break;
+            case TestPointElm.TP_VOL: s = CircuitElm.getUnitText(this.nodes[0].v, "V"); break;
             case TestPointElm.TP_RMS: s = CircuitElm.getUnitText(this.rmsV, "V(rms)"); break;
             case TestPointElm.TP_MAX: s = CircuitElm.getUnitText(this.lastMaxV, "Vpk"); break;
             case TestPointElm.TP_MIN: s = CircuitElm.getUnitText(this.lastMinV, "Vmin"); break;
@@ -174,7 +174,7 @@ export class TestPointElm extends CircuitElm {
         }
         this.drawText(g, this.label, s, this.point1, this.lead1!);
 
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
@@ -187,26 +187,26 @@ export class TestPointElm extends CircuitElm {
             return;
         this.lastStepCount = CircuitElm.sim.timeStepCount;
         this.count++;
-        this.total += this.volts[0] * this.volts[0];
+        this.total += this.nodes[0].v * this.nodes[0].v;
 
-        if (this.volts[0] < 2.5)
+        if (this.nodes[0].v < 2.5)
             this.binaryLevel = 0;
         else
             this.binaryLevel = 1;
 
-        if (this.volts[0] > this.maxV && this.increasingV) {
-            this.maxV = this.volts[0];
+        if (this.nodes[0].v > this.maxV && this.increasingV) {
+            this.maxV = this.nodes[0].v;
             this.increasingV = true;
             this.decreasingV = false;
         }
-        if (this.volts[0] < this.maxV && this.increasingV) {
+        if (this.nodes[0].v < this.maxV && this.increasingV) {
             this.lastMaxV = this.maxV;
             this.periodLength = Date.now() - this.periodStart;
             this.periodStart  = Date.now();
             this.period = this.periodLength;
             this.pulseWidth = Date.now() - this.pulseStart;
             this.dutyCycle = this.pulseWidth / this.periodLength;
-            this.minV = this.volts[0];
+            this.minV = this.nodes[0].v;
             this.increasingV = false;
             this.decreasingV = true;
 
@@ -216,15 +216,15 @@ export class TestPointElm extends CircuitElm {
             this.count = 0;
             this.total = 0;
         }
-        if (this.volts[0] < this.minV && this.decreasingV) {
-            this.minV = this.volts[0];
+        if (this.nodes[0].v < this.minV && this.decreasingV) {
+            this.minV = this.nodes[0].v;
             this.increasingV = false;
             this.decreasingV = true;
         }
-        if (this.volts[0] > this.minV && this.decreasingV) {
+        if (this.nodes[0].v > this.minV && this.decreasingV) {
             this.lastMinV = this.minV;
             this.pulseStart   = Date.now();
-            this.maxV = this.volts[0];
+            this.maxV = this.nodes[0].v;
             this.increasingV = true;
             this.decreasingV = false;
 
@@ -234,7 +234,7 @@ export class TestPointElm extends CircuitElm {
             this.count = 0;
             this.total = 0;
         }
-        if (this.volts[0] === 0) {
+        if (this.nodes[0].v === 0) {
             this.zerocount++;
             if (this.zerocount > 5) {
                 this.total = 0;
@@ -246,7 +246,7 @@ export class TestPointElm extends CircuitElm {
             this.zerocount = 0;
         }
         switch (this.meter) {
-        case TestPointElm.TP_VOL: this.selectedValue = this.volts[0]; break;
+        case TestPointElm.TP_VOL: this.selectedValue = this.nodes[0].v; break;
         case TestPointElm.TP_RMS: this.selectedValue = this.rmsV; break;
         case TestPointElm.TP_MAX: this.selectedValue = this.lastMaxV; break;
         case TestPointElm.TP_MIN: this.selectedValue = this.lastMinV; break;
@@ -261,12 +261,12 @@ export class TestPointElm extends CircuitElm {
 
     getScopeValue(x: number): number { return this.selectedValue; }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "Test Point";
         switch (this.meter) {
-        case TestPointElm.TP_VOL: arr[1] = "V = "          + CircuitElm.getUnitText(this.volts[0], "V"); break;
+        case TestPointElm.TP_VOL: arr[1] = "V = "          + CircuitElm.getUnitText(this.nodes[0].v, "V"); break;
         case TestPointElm.TP_RMS: arr[1] = "V(rms) = "     + CircuitElm.getUnitText(this.rmsV, "V"); break;
         case TestPointElm.TP_MAX: arr[1] = "Vmax = "        + CircuitElm.getUnitText(this.lastMaxV, "Vpk"); break;
         case TestPointElm.TP_MIN: arr[1] = "Vmin = "        + CircuitElm.getUnitText(this.lastMinV, "Vmin"); break;

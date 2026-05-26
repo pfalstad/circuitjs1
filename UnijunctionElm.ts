@@ -78,13 +78,13 @@ export class UnijunctionElm extends CompositeElm {
 
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.b1[0], 0);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.b1[0], this.b1[1]);
         CircuitElm.drawThickLine(g, this.b1[1], this.b1[2]);
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.b2[0], this.b2[1]);
         CircuitElm.drawThickLine(g, this.b2[1], this.b2[2]);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.emitter[0], this.emitter[1]);
         CircuitElm.drawThickLine(g, this.emitter[1], this.emitter[2]);
         g.fillPolygon(this.arrowPoly);
@@ -140,8 +140,8 @@ export class UnijunctionElm extends CompositeElm {
         arr[0] = "unijunction transistor";
         arr[1] = "Ie = "    + CircuitElm.getCurrentText(-this.getCurrentIntoNode(0));
         arr[2] = "Ib2 = "   + CircuitElm.getCurrentText(-this.getCurrentIntoNode(2));
-        arr[3] = "Veb1 = "  + CircuitElm.getVoltageText(this.volts[0] - this.volts[1]);
-        arr[4] = "Vb2b1 = " + CircuitElm.getVoltageText(this.volts[2] - this.volts[1]);
+        arr[3] = "Veb1 = "  + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[1].v);
+        arr[4] = "Vb2b1 = " + CircuitElm.getVoltageText(this.nodes[2].v - this.nodes[1].v);
         arr[5] = "P = "     + CircuitElm.getUnitText(this.getPower(), "W");
     }
 

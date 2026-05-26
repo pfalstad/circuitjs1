@@ -290,11 +290,11 @@ export class VoltageElm extends CircuitElm {
 	    this.interpPoint2(this.lead1!, this.lead2!, CircuitElm.ps1, CircuitElm.ps2, minusPos, signSize);
 	    CircuitElm.drawThickLine(g, CircuitElm.ps1, CircuitElm.ps2);
 	} else if (this.waveform == VoltageElm.WF_DC) {
-	    this.setVoltageColor(g, this.volts[0]);
+	    this.setVoltageColor(g, this.nodes[0].v);
 	    this.setPowerColor(g, false);
 	    this.interpPoint2(this.lead1!, this.lead2!, CircuitElm.ps1, CircuitElm.ps2, 0, 10);
 	    CircuitElm.drawThickLine(g, CircuitElm.ps1, CircuitElm.ps2);
-	    this.setVoltageColor(g, this.volts[1]);
+	    this.setVoltageColor(g, this.nodes[1].v);
 	    this.setPowerColor(g, false);
 	    const hs = 16;
 	    this.setBbox(this.point1, this.point2, hs);
@@ -473,7 +473,7 @@ export class VoltageElm extends CircuitElm {
 	return 1;
     }
     getPower(): number { return -this.getVoltageDiff()*this.current; }
-    getVoltageDiff(): number { return this.volts[1] - this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[1].v - this.nodes[0].v; }
     getInfo(arr: string[]): void {
 	switch (this.waveform) {
 	case VoltageElm.WF_DC: case VoltageElm.WF_VAR:

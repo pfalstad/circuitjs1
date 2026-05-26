@@ -55,10 +55,10 @@ export class DACElm extends ChipElm {
     doStep(): void {
         let ival = 0;
         for (let i = 0; i !== this.bits; i++)
-            if (this.volts[i] > this.getThreshold())
+            if (this.nodes[i].v > this.getThreshold())
                 ival |= 1 << i;
         const ivalmax = (1 << this.bits) - 1;
-        const v = ival * this.volts[this.bits + 1] / ivalmax;
+        const v = ival * this.nodes[this.bits + 1].v / ivalmax;
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.bits], this.pins[this.bits].voltSource, v);
     }
 

@@ -98,9 +98,9 @@ export class LEDElm extends DiodeElm {
             super.draw(g);
             return;
         }
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         DiodeElm.drawThickLine(g, this.point1, this.ledLead1);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         DiodeElm.drawThickLine(g, this.ledLead2, this.point2);
 
         g.setColor(Color.gray);

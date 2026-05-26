@@ -248,7 +248,7 @@ export class SevenSegElm extends ChipElm {
             return;
 
         for (let i = 0; i !== this.segmentCount; i++)
-            this.diodes[i].doStep(this.diodeDirection * (this.volts[i] - this.volts[this.commonPin]));
+            this.diodes[i].doStep(this.diodeDirection * (this.nodes[i].v - this.nodes[this.commonPin].v));
     }
 
     nonLinear(): boolean { return this.diodeDirection !== 0; }
@@ -310,7 +310,7 @@ export class SevenSegElm extends ChipElm {
         // calculate diode currents
         this.pins[this.commonPin].current = 0;
         for (let i = 0; i !== this.segmentCount; i++) {
-            this.pins[i].current = -this.diodeDirection * this.diodes[i].calculateCurrent(this.diodeDirection * (this.volts[i] - this.volts[this.commonPin]));
+            this.pins[i].current = -this.diodeDirection * this.diodes[i].calculateCurrent(this.diodeDirection * (this.nodes[i].v - this.nodes[this.commonPin].v));
             this.pins[this.commonPin].current -= this.pins[i].current;
         }
     }

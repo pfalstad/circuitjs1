@@ -130,7 +130,7 @@ export class AnalogSwitchElm extends CircuitElm {
         this.interpPoint(this.lead1!, this.lead2!, this.ps, 1, hs);
         CircuitElm.drawThickLine(g, this.lead1!, this.ps);
 
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.point3, this.lead3);
 
         if (!this.open)
@@ -144,7 +144,7 @@ export class AnalogSwitchElm extends CircuitElm {
         if (this.needsPulldown() && this.open)
             this.current = 0;
         else
-            this.current = (this.volts[0] - this.volts[1]) / this.resistance;
+            this.current = (this.nodes[0].v - this.nodes[1].v) / this.resistance;
     }
 
     nonLinear(): boolean { return true; }
@@ -163,7 +163,7 @@ export class AnalogSwitchElm extends CircuitElm {
 
     doStep(): void {
         const sim = SimulationManager.theSim;
-        this.open = (this.volts[2] < this.threshold);
+        this.open = (this.nodes[2].v < this.threshold);
         if (this.hasFlag(this.FLAG_INVERT))
             this.open = !this.open;
         if (!(this.needsPulldown() && this.open)) {
@@ -183,7 +183,7 @@ export class AnalogSwitchElm extends CircuitElm {
         arr[1] = this.open ? "open" : "closed";
         arr[2] = "Vd = " + CircuitElm.getVoltageDText(this.getVoltageDiff());
         arr[3] = "I = "  + CircuitElm.getCurrentDText(this.getCurrent());
-        arr[4] = "Vc = " + CircuitElm.getVoltageText(this.volts[2]);
+        arr[4] = "Vc = " + CircuitElm.getVoltageText(this.nodes[2].v);
     }
 
     getConnection(n1: number, n2: number): boolean {

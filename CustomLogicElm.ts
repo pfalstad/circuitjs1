@@ -53,8 +53,8 @@ export class CustomLogicElm extends ChipElm {
             this.updateModels();
             for (let i = 0; i !== this.getPostCount(); i++) {
                 if (this.pins[i].output) {
-                    this.volts[i] = parseFloat(st!.nextToken());
-                    this.pins[i].value = this.volts[i] > this.getThreshold();
+                    const v = parseFloat(st!.nextToken()); // this.volts
+                    this.pins[i].value = this.nodes[i].v > this.getThreshold();
                 }
             }
         }
@@ -143,7 +143,7 @@ export class CustomLogicElm extends ChipElm {
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
             if (!p.output)
-                p.value = this.volts[i] > this.getThreshold();
+                p.value = this.nodes[i].v > this.getThreshold();
         }
         this.execute();
         const add = this.hasTriState() ? this.outputCount : 0;

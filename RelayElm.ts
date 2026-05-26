@@ -228,13 +228,13 @@ export class RelayElm extends CircuitElm {
 
     draw(g: Graphics): void {
         for (let i = 0; i !== 2; i++) {
-            this.setVoltageColor(g, this.volts[this.nCoil1 + i]);
+            this.setVoltageColor(g, this.nodes[this.nCoil1 + i].v);
             CircuitElm.drawThickLine(g, this.coilLeads[i], this.coilPosts[i]);
         }
         const x = (this.model.coilStyle === 2) ? 1 : 0;
-        this.setPowerColor(g, this.coilCurrent * (this.volts[this.nCoil1] - this.volts[this.nCoil2]));
+        this.setPowerColor(g, this.coilCurrent * (this.nodes[this.nCoil1].v - this.nodes[this.nCoil2].v));
         this.drawCoil(g, this.dflip * 6, this.coilLeads[x], this.coilLeads[1 - x],
-            this.volts[this.nCoil1 + x], this.volts[this.nCoil2 - x]);
+            this.nodes[this.nCoil1 + x].v, this.nodes[this.nCoil2 - x].v);
 
         // draw rectangle
         if (this.model.showBox) {
@@ -266,7 +266,7 @@ export class RelayElm extends CircuitElm {
             const po = p * 3;
             for (let i = 0; i !== 3; i++) {
                 // draw lead
-                this.setVoltageColor(g, this.volts[this.nSwitch0 + po + i]);
+                this.setVoltageColor(g, this.nodes[this.nSwitch0 + po + i].v);
                 CircuitElm.drawThickLine(g, this.swposts[p][i], this.swpoles[p][i]);
             }
 
@@ -413,7 +413,7 @@ export class RelayElm extends CircuitElm {
             this.startIterationOld();
             return;
         }
-        this.ind.startIteration(this.volts[this.nCoil1] - this.volts[this.nCoil3]);
+        this.ind.startIteration(this.nodes[this.nCoil1].v - this.nodes[this.nCoil3].v);
         const absCurrent = Math.abs(this.coilCurrent);
 
         if (this.onState) {
@@ -442,7 +442,7 @@ export class RelayElm extends CircuitElm {
     }
 
     startIterationOld(): void {
-        this.ind.startIteration(this.volts[this.nCoil1] - this.volts[this.nCoil3]);
+        this.ind.startIteration(this.nodes[this.nCoil1].v - this.nodes[this.nCoil3].v);
 
         // magic value to balance operate speed with reset speed not at all realistically
         const magic  = 1.3;
@@ -466,7 +466,7 @@ export class RelayElm extends CircuitElm {
     nonLinear(): boolean { return true; }
 
     doStep(): void {
-        const voltdiff = this.volts[this.nCoil1] - this.volts[this.nCoil3];
+        const voltdiff = this.nodes[this.nCoil1].v - this.nodes[this.nCoil3].v;
         this.ind.doStep(voltdiff);
         for (let p = 0; p !== this.poleCount() * 3; p += 3) {
             if (this.i_position === 0) {
@@ -487,7 +487,7 @@ export class RelayElm extends CircuitElm {
     }
 
     calculateCurrent(): void {
-        const voltdiff = this.volts[this.nCoil1] - this.volts[this.nCoil3];
+        const voltdiff = this.nodes[this.nCoil1].v - this.nodes[this.nCoil3].v;
         this.coilCurrent = this.ind.calculateCurrent(voltdiff);
 
         // actually this isn't correct, since there is a small amount
@@ -497,7 +497,7 @@ export class RelayElm extends CircuitElm {
                 this.switchCurrent[p] = 0;
             else
                 this.switchCurrent[p] =
-                    (this.volts[this.nSwitch0 + p * 3] - this.volts[this.nSwitch1 + p * 3 + this.i_position]) / this.r_on();
+                    (this.nodes[this.nSwitch0 + p * 3].v - this.nodes[this.nSwitch1 + p * 3 + this.i_position].v) / this.r_on();
         }
     }
 
@@ -516,7 +516,7 @@ export class RelayElm extends CircuitElm {
             arr[ln++] = "I" + (i + 1) + " = " + CircuitElm.getCurrentDText(this.switchCurrent[i]);
         arr[ln++] = Locale.LS("coil I") + " = " + CircuitElm.getCurrentDText(this.coilCurrent);
         arr[ln++] = Locale.LS("coil Vd") + " = " +
-            CircuitElm.getVoltageDText(this.volts[this.nCoil1] - this.volts[this.nCoil2]);
+            CircuitElm.getVoltageDText(this.nodes[this.nCoil1].v - this.nodes[this.nCoil2].v);
     }
 
     models: RelayModel[];

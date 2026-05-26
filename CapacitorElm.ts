@@ -138,7 +138,7 @@ export class CapacitorElm extends CircuitElm {
         this.setBbox(this.point1, this.point2, hs);
 
         // draw first lead and plate
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1);
         this.setPowerColor(g, false);
         CircuitElm.drawThickLine(g, this.plate1[0], this.plate1[1]);
@@ -146,7 +146,7 @@ export class CapacitorElm extends CircuitElm {
             g.setColor(Color.gray);
 
         // draw second lead and plate
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.point2, this.lead2);
         this.setPowerColor(g, false);
         if (this.platePoints == null)
@@ -206,19 +206,12 @@ export class CapacitorElm extends CircuitElm {
     }
 
     stepFinished(): void {
-        this.voltdiff = this.volts[0]-this.volts[this.capNode2];
+        this.voltdiff = this.nodes[0].v-this.nodes[this.capNode2].v;
         this.calculateCurrent();
     }
 
-    setNodeVoltage(n: number, c: number): void {
-        // do not calculate current, that only gets done in stepFinished().  otherwise calculateCurrent() may get
-        // called while stamping the circuit, which might discharge the cap (since we use that current to calculate
-        // curSourceValue in startIteration)
-        this.volts[n] = c;
-    }
-
     calculateCurrent(): void {
-        const voltdiff = this.volts[0] - this.volts[this.capNode2];
+        const voltdiff = this.nodes[0].v - this.nodes[this.capNode2].v;
         if (this.doDcAnalysis()) {
             this.current = voltdiff/1e8;
             return;

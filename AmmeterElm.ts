@@ -160,14 +160,14 @@ export class AmmeterElm extends CircuitElm {
 
     draw(g: Graphics): void {
         super.draw(g);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         let width = 4;
         if (!this.drawAsCircle()) {
             CircuitElm.drawThickLine(g, this.point1, this.point2);
             g.fillPolygon(this.arrowPoly);
         } else {
             this.calcLeads(this.circleSize * 2);
-            this.setVoltageColor(g, this.volts[0]);
+            this.setVoltageColor(g, this.nodes[0].v);
             CircuitElm.drawThickLine(g, this.point1, this.lead1!);
             CircuitElm.drawThickLine(g, this.lead2!, this.point2);
 
@@ -224,7 +224,7 @@ export class AmmeterElm extends CircuitElm {
     }
 
     getPower(): number { return 0; }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     // do not optimize out, even though isWireEquivalent() is true
     // (because we need current calculated every timestep)

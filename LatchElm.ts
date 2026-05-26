@@ -186,7 +186,7 @@ export class LatchElm extends ChipElm {
         for (let i = 0; i < this.getPostCount(); i++) {
             const p = this.pins[i];
             if (!p.output)
-                p.value = this.volts[i] > this.getThreshold();
+                p.value = this.nodes[i].v > this.getThreshold();
         }
 
         this.doLoad();

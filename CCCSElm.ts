@@ -216,8 +216,8 @@ export class CCCSElm extends VCCSElm {
         let j = 0;
         for (j = 0; j !== this.inputCount; j += 2)
             arr[i++] = this.pins[j].text + " = " + CCCSElm.getCurrentText(-this.pins[j].current);
-        arr[i++] = this.pins[j].text + " = " + CCCSElm.getVoltageText(this.volts[j]) + "; " +
-                   this.pins[j + 1].text + " = " + CCCSElm.getVoltageText(this.volts[j + 1]);
+        arr[i++] = this.pins[j].text + " = " + CCCSElm.getVoltageText(this.nodes[j].v) + "; " +
+                   this.pins[j + 1].text + " = " + CCCSElm.getVoltageText(this.nodes[j + 1].v);
         arr[i++] = "I = " + CCCSElm.getCurrentText(this.pins[j].current);
         arr[i] = null!;
     }

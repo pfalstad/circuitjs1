@@ -98,8 +98,8 @@ export abstract class GateElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        if (this.volts[this.inputCount] !== 0)
-            CircuitXMLSerializer.dumpAttr(elem, "o", this.volts[this.inputCount]);
+        if (this.nodes[this.inputCount].v !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "o", this.nodes[this.inputCount].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -172,8 +172,8 @@ export abstract class GateElm extends CircuitElm {
     }
 
     setupVolts(): void {
-        for (let i = 0; i !== this.inputCount; i++)
-            this.volts[i] = (this.lastOutput !== this.isInverting()) ? this.highVoltage : 0;
+        //for (let i = 0; i !== this.inputCount; i++)
+        //    this.volts[i] = (this.lastOutput !== this.isInverting()) ? this.highVoltage : 0;
     }
 
     getLeadAdjustment(ix: number): number { return 0; }
@@ -194,10 +194,10 @@ export abstract class GateElm extends CircuitElm {
 
     draw(g: Graphics): void {
         for (let i = 0; i !== this.inputCount; i++) {
-            this.setVoltageColor(g, this.volts[i]);
+            this.setVoltageColor(g, this.nodes[i].v);
             CircuitElm.drawThickLine(g, this.inPosts[i], this.inGates[i]);
         }
-        this.setVoltageColor(g, this.volts[this.inputCount]);
+        this.setVoltageColor(g, this.nodes[this.inputCount].v);
         CircuitElm.drawThickLine(g, this.lead2!, this.point2);
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         if (GateElm.useEuroGates()) {
@@ -242,7 +242,7 @@ export abstract class GateElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = this.getGateName();
-        arr[1] = "Vout = " + CircuitElm.getVoltageText(this.volts[this.inputCount]);
+        arr[1] = "Vout = " + CircuitElm.getVoltageText(this.nodes[this.inputCount].v);
         arr[2] = "Iout = " + CircuitElm.getCurrentText(this.getCurrent());
         if (this.propagationDelay > 0)
             arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelay, "s");
@@ -259,8 +259,8 @@ export abstract class GateElm extends CircuitElm {
     getInput(x: number): boolean {
         const high = !this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
         if (!this.hasSchmittInputs())
-            return (this.volts[x] > this.highVoltage * .5) ? high : !high;
-        const res = this.volts[x] > this.highVoltage * (this.inputStates[x] ? .35 : .55);
+            return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
+        const res = this.nodes[x].v > this.highVoltage * (this.inputStates[x] ? .35 : .55);
         this.inputStates[x] = res;
         return res ? high : !high;
     }

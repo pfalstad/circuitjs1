@@ -287,13 +287,13 @@ export class SRAMElm extends ChipElm {
     }
 
     doStep(): void {
-        const writeEnabled = this.volts[0] < this.getThreshold();
-        const outputEnabled = (this.volts[1] < this.getThreshold()) && !writeEnabled;
+        const writeEnabled = this.nodes[0].v < this.getThreshold();
+        const outputEnabled = (this.nodes[1].v < this.getThreshold()) && !writeEnabled;
 
         // get address
         this.address = 0;
         for (let i = 0; i !== this.addressBits; i++) {
-            this.address |= (this.volts[this.addressNodes + i] > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
+            this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
         }
 
         const dataObj = this.map.get(this.address);
@@ -314,13 +314,13 @@ export class SRAMElm extends ChipElm {
 
     stepFinished(): void {
         let data = 0;
-        const writeEnabled = this.volts[0] < this.getThreshold();
+        const writeEnabled = this.nodes[0].v < this.getThreshold();
         if (!writeEnabled)
             return;
 
         // store data in RAM
         for (let i = 0; i !== this.dataBits; i++) {
-            data |= (this.volts[this.dataNodes + i] > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
+            data |= (this.nodes[this.dataNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
         }
         this.map.set(this.address, data);
     }

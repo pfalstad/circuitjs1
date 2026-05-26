@@ -74,7 +74,7 @@ export class OutputElm extends CircuitElm {
         const f = new Font("SansSerif", selected ? Font.BOLD : 0, 14);
         g.setFont(f);
         g.setColor(selected ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
-        let s = this.showVoltage() ? CircuitElm.getUnitTextWithScale(this.volts[0], "V", this.scale, this.isFixed()) : Locale.LS("out");
+        let s = this.showVoltage() ? CircuitElm.getUnitTextWithScale(this.nodes[0].v, "V", this.scale, this.isFixed()) : Locale.LS("out");
 //      FontMetrics fm = g.getFontMetrics();
         const role = CircuitElm.app.mouse.scopePlotRoles.get(this);
         if (role != null && role !== "")
@@ -82,7 +82,7 @@ export class OutputElm extends CircuitElm {
         this.interpPoint(this.point1, this.point2, this.lead1!, 1 - (Math.trunc(g.context.measureText(s).width / 2) + 8) / this.dn);
         this.setBbox(this.point1, this.lead1!, 0);
         this.drawCenteredText(g, s, this.x2, this.y2, true);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
@@ -95,11 +95,11 @@ export class OutputElm extends CircuitElm {
         router.addObstacle(this.x2 - 10, this.y2 - 10, this.x2 + 10, this.y2 + 10);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "output";
-        arr[1] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+        arr[1] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
     }
 
     getEditInfo(n: number): EditInfo | null {

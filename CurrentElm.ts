@@ -98,7 +98,7 @@ export class CurrentElm extends CircuitElm {
     draw(g: Graphics): void {
         const cr = 12;
         this.draw2Leads(g);
-        this.setVoltageColor(g, (this.volts[0] + this.volts[1]) / 2);
+        this.setVoltageColor(g, (this.nodes[0].v + this.nodes[1].v) / 2);
         this.setPowerColor(g, false);
 
         CircuitElm.drawThickCircle(g, this.center!.x, this.center!.y, cr);
@@ -148,7 +148,7 @@ export class CurrentElm extends CircuitElm {
             return;
 
         const sim = SimulationManager.theSim;
-        let vd = this.volts[1] - this.volts[0];
+        let vd = this.nodes[1].v - this.nodes[0].v;
 
         const vStart = 0.95 * this.maxVoltage;
         const vWidth = this.maxVoltage - vStart;
@@ -215,7 +215,7 @@ export class CurrentElm extends CircuitElm {
     }
 
     getVoltageDiff(): number {
-        return this.volts[1] - this.volts[0];
+        return this.nodes[1].v - this.nodes[0].v;
     }
 
     getPower(): number { return -this.getVoltageDiff() * this.current; }

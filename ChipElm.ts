@@ -210,11 +210,12 @@ export abstract class ChipElm extends CircuitElm {
             this.setupPins();
             this.setSize((f! & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
             for (let i = 0; i !== this.getPostCount(); i++) {
-                if (this.pins == null)
-                    this.volts[i] = parseFloat(st!.nextToken());
-                else if (this.pins[i].state) {
-                    this.volts[i] = parseFloat(st!.nextToken());
-                    this.pins[i].value = this.volts[i] > this.getThreshold();
+                //if (this.pins == null)
+                //    this.volts[i] = parseFloat(st!.nextToken());
+                //else
+                if (this.pins[i].state) {
+                    const v = parseFloat(st!.nextToken());
+                    this.pins[i].value = v > this.getThreshold();
                 }
             }
         }
@@ -255,7 +256,7 @@ export abstract class ChipElm extends CircuitElm {
             const p = this.pins[i];
             if (p.busZ > 0)
                 continue;
-            this.setVoltageColor(g, this.volts[i]);
+            this.setVoltageColor(g, this.nodes[i].v);
             const a = p.post;
             const b = p.stub;
             CircuitElm.drawThickLine(g, a, b, p.busWidth > 1 ? 5 : 3);
@@ -452,7 +453,7 @@ export abstract class ChipElm extends CircuitElm {
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
             if (!p.output)
-                p.value = this.volts[i] > this.getThreshold();
+                p.value = this.nodes[i].v > this.getThreshold();
         }
         this.execute();
         for (let i = 0; i !== this.getPostCount(); i++) {
@@ -467,7 +468,6 @@ export abstract class ChipElm extends CircuitElm {
         for (let i = 0; i !== this.getPostCount(); i++) {
             this.pins[i].value    = false;
             this.pins[i].curcount = 0;
-            this.volts[i]         = 0;
         }
         this.lastClock = false;
     }
@@ -484,7 +484,7 @@ export abstract class ChipElm extends CircuitElm {
             s += " " + this.highVoltage;
         for (let i = 0; i !== this.getPostCount(); i++)
             if (this.pins[i].state)
-                s += " " + this.volts[i];
+                s += " " + this.nodes[i].v;
         return s;
     }
 
@@ -500,8 +500,8 @@ export abstract class ChipElm extends CircuitElm {
 
     dumpXmlState(doc: Document, elem: Element): void {
         for (let i = 0; i !== this.getPostCount(); i++)
-            if (this.pins[i].state && this.volts[i] > 0)
-                CircuitXMLSerializer.dumpAttr(elem, "v" + i, this.volts[i]);
+            if (this.pins[i].state && this.nodes[i].v > 0)
+                CircuitXMLSerializer.dumpAttr(elem, "v" + i, this.nodes[i].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -513,9 +513,9 @@ export abstract class ChipElm extends CircuitElm {
         this.setupPins();
         this.setSize((this.flags & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
         for (let i = 0; i !== this.getPostCount(); i++) {
-            this.volts[i] = xml.parseDoubleAttr("v" + i, 0);
+            const v = xml.parseDoubleAttr("v" + i, 0);
             if (this.pins != null)
-                this.pins[i].value = this.volts[i] > this.getThreshold();
+                this.pins[i].value = v > this.getThreshold();
         }
     }
 
@@ -540,12 +540,12 @@ export abstract class ChipElm extends CircuitElm {
             if (p.busWidth > 1) {
                 let value = 0;
                 for (let j = 0; j < p.busWidth; j++)
-                    if (this.volts[i + j] > this.getThreshold())
+                    if (this.nodes[i + j].v > this.getThreshold())
                         value |= 1 << this.pins[i + j].busZ;
                 arr[a] += t + " = " + value + " / 0x" + value.toString(16).toUpperCase();
                 i += p.busWidth - 1;
             } else
-                arr[a] += t + " = " + CircuitElm.getVoltageText(this.volts[i]);
+                arr[a] += t + " = " + CircuitElm.getVoltageText(this.nodes[i].v);
             if (++shown % 2 === 0)
                 a++;
         }

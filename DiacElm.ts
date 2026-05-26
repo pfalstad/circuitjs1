@@ -108,8 +108,8 @@ export class DiacElm extends CircuitElm {
     }
 
     draw(g: Graphics): void {
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
         this.setBbox(this.point1, this.point2, 6);
         this.draw2Leads(g);
         this.setVoltageColor(g, v1);
@@ -129,11 +129,11 @@ export class DiacElm extends CircuitElm {
 
     calculateCurrent(): void {
         const r = this.state ? this.onresistance : this.offresistance;
-        this.current = (this.volts[0] - this.volts[2]) / r + (this.volts[0] - this.volts[3]) / r;
+        this.current = (this.nodes[0].v - this.nodes[2].v) / r + (this.nodes[0].v - this.nodes[3].v) / r;
     }
 
     startIteration(): void {
-        const vd = this.volts[0] - this.volts[1];
+        const vd = this.nodes[0].v - this.nodes[1].v;
         if (Math.abs(this.current) < this.holdcurrent) this.state = false;
         if (Math.abs(vd) > this.breakdown) this.state = true;
     }
@@ -142,8 +142,8 @@ export class DiacElm extends CircuitElm {
         const r = this.state ? this.onresistance : this.offresistance;
         CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[2], r);
         CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[3], r);
-        this.diode1.doStep(this.volts[2] - this.volts[1]);
-        this.diode2.doStep(this.volts[1] - this.volts[3]);
+        this.diode1.doStep(this.nodes[2].v - this.nodes[1].v);
+        this.diode2.doStep(this.nodes[1].v - this.nodes[3].v);
     }
 
     stamp(): void {

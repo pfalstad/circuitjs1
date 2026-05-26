@@ -142,7 +142,7 @@ export class InstructionDisplayElm extends CircuitElm {
     readInputValue(): number {
         let value = 0;
         for (let i = 0; i !== this.busWidth; i++)
-            if (this.volts[i] > this.threshold)
+            if (this.nodes[i].v > this.threshold)
                 value |= 1 << i;
         return value;
     }
@@ -168,7 +168,7 @@ export class InstructionDisplayElm extends CircuitElm {
             1 - (Math.floor(g.context.measureText(s).width) / 2 + 8) / this.dn);
         this.setBbox(this.point1, this.lead1, 0);
         this.drawCenteredText(g, s, this.x2, this.y2, true);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!, 5);
@@ -181,7 +181,7 @@ export class InstructionDisplayElm extends CircuitElm {
         router.addObstacle(this.x2 - 10, this.y2 - 10, this.x2 + 10, this.y2 + 10);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "instruction display";

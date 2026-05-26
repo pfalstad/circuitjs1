@@ -57,7 +57,7 @@ export class RailElm extends VoltageElm {
             w = this.dn*.8;
         this.lead1 = this.interpPoint(this.point1, this.point2, 1-w/this.dn);
         this.setBbox(this.point1, this.point2, this.circleSize);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         this.drawRail(g);
         this.drawPosts(g);
@@ -92,7 +92,7 @@ export class RailElm extends VoltageElm {
         this.drawLabeledNode(g, s, this.point1, this.lead1!);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     stamp(): void {
         if (this.waveform == VoltageElm.WF_DC)
             CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource, this.getVoltage());

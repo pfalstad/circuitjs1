@@ -75,8 +75,8 @@ export class ResistorElm extends CircuitElm {
         const ox = 0;
         //int hs = showEuroResistors() ? 6 : 8;
         let hs = 6;
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
         this.setBbox(this.point1, this.point2, hs);
         this.draw2Leads(g);
 
@@ -120,7 +120,7 @@ export class ResistorElm extends CircuitElm {
     addRoutingObstacle(wr: WireRouter): void { this.addRoutingObstacleWithLeads(wr, 6); }
 
     calculateCurrent(): void {
-        this.current = (this.volts[0] - this.volts[1]) / this.resistance;
+        this.current = (this.nodes[0].v - this.nodes[1].v) / this.resistance;
         //System.out.print(this + " res current set to " + current + "\n");
     }
 

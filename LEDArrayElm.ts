@@ -104,7 +104,7 @@ export class LEDArrayElm extends ChipElm {
         let i = 0;
         for (let iy = 0; iy !== this.sizeY; iy++)
             for (let ix = 0; ix !== this.sizeX; ix++, i++)
-                this.diodes![i].doStep(this.volts[this.sizeX + iy] - this.volts[ix]);
+                this.diodes![i].doStep(this.nodes[this.sizeX + iy].v - this.nodes[ix].v);
     }
 
     nonLinear(): boolean { return true; }
@@ -143,7 +143,7 @@ export class LEDArrayElm extends ChipElm {
         for (let iy = 0; iy !== this.sizeY; iy++) {
             let cur = 0;
             for (let ix = 0; ix !== this.sizeX; ix++, i++) {
-                this.currents[i] = this.diodes[i].calculateCurrent(this.volts[this.sizeX + iy] - this.volts[ix]);
+                this.currents[i] = this.diodes[i].calculateCurrent(this.nodes[this.sizeX + iy].v - this.nodes[ix].v);
                 cur += this.currents[i];
                 this.pins[ix].current += this.currents[i];
             }

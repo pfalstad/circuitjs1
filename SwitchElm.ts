@@ -219,7 +219,7 @@ export class SwitchElm extends CircuitElm {
             arr[2] = "Vd = " + CircuitElm.getVoltageDText(this.getVoltageDiff());
         } else {
             arr[1] = "closed";
-            arr[2] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+            arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
             arr[3] = "I = " + CircuitElm.getCurrentDText(this.getCurrent());
         }
     }

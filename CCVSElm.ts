@@ -108,7 +108,7 @@ export class CCVSElm extends VCCSElm {
 
         // check convergence on output voltage
         const convergeLimitVoltage = this.getConvergeLimit();
-        if (Math.abs((this.volts[this.inputCount] - this.volts[this.inputCount + 1]) - this.lastOutput) > convergeLimitVoltage)
+        if (Math.abs((this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v) - this.lastOutput) > convergeLimitVoltage)
             sim.converged = false;
 
         const vno = this.outputVS!;
@@ -140,11 +140,11 @@ export class CCVSElm extends VCCSElm {
 
         for (let i = 0; i !== this.inputPairCount; i++)
             this.lastCurrents[i] = this.pins[i * 2 + 1].current;
-        this.lastOutput = this.volts[this.inputCount] - this.volts[this.inputCount + 1];
+        this.lastOutput = this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v;
     }
 
     stepFinished(): void {
-        this.exprState.updateLastValues(this.volts[this.inputCount] - this.volts[this.inputCount + 1]);
+        this.exprState.updateLastValues(this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v);
         for (let i = 0; i !== this.inputPairCount; i++)
             this.exprState.lastValues[i] = this.pins[i * 2 + 1].current;
     }
@@ -234,8 +234,8 @@ export class CCVSElm extends VCCSElm {
         let j = 0;
         for (j = 0; j !== this.inputCount; j += 2)
             arr[i++] = this.pins[j].text + " = " + CCVSElm.getCurrentText(-this.pins[j].current);
-        arr[i++] = this.pins[j].text + " = " + CCVSElm.getVoltageText(this.volts[j]) + "; " +
-                   this.pins[j + 1].text + " = " + CCVSElm.getVoltageText(this.volts[j + 1]);
+        arr[i++] = this.pins[j].text + " = " + CCVSElm.getVoltageText(this.nodes[j].v) + "; " +
+                   this.pins[j + 1].text + " = " + CCVSElm.getVoltageText(this.nodes[j + 1].v);
         arr[i++] = "I = " + CCVSElm.getCurrentText(this.pins[j].current);
         arr[i] = null!;
     }

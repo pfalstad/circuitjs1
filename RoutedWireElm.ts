@@ -183,7 +183,7 @@ export class RoutedWireElm extends WireElm {
             super.draw(g);
             return;
         }
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         for (let i = 0; i < this.routePoints.length - 1; i++)
             CircuitElm.drawThickLine(g, this.routePoints[i], this.routePoints[i + 1], this.busWidth > 1 ? 5 : 3);
 
@@ -210,7 +210,7 @@ export class RoutedWireElm extends WireElm {
             if (this.mustShowBusValueHex()) s = (s.length > 0 ? s + " " : "") + "0x" + value.toString(16).toUpperCase();
         } else if (this.busWidth === 1) {
             if (this.mustShowCurrent()) s = CircuitElm.getShortUnitText(Math.abs(this.getCurrent()), "A");
-            if (this.mustShowVoltage()) s = (s.length > 0 ? s + " " : "") + CircuitElm.getShortUnitText(this.volts[0], "V");
+            if (this.mustShowVoltage()) s = (s.length > 0 ? s + " " : "") + CircuitElm.getShortUnitText(this.nodes[0].v, "V");
         }
         if (s.length > 0)
             this.drawValuesOnLongestSegment(g, s);

@@ -156,7 +156,7 @@ export class TransLineElm extends CircuitElm {
                    this.inner[1].y - this.inner[2].y + 2);
 
         for (let i = 0; i !== 4; i++) {
-            this.setVoltageColor(g, this.volts[i]);
+            this.setVoltageColor(g, this.nodes[i].v);
             CircuitElm.drawThickLine(g, this.posts[i], this.inner[i]);
         }
 
@@ -174,7 +174,7 @@ export class TransLineElm extends CircuitElm {
             }
         }
 
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.inner[0], this.inner[1]);
         this.drawPosts(g);
 
@@ -217,8 +217,8 @@ export class TransLineElm extends CircuitElm {
             CircuitElm.sim.stop("Transmission line delay too large!", this);
             return;
         }
-        this.voltageL[this.ptr] = this.volts[2] - this.volts[0] + this.volts[2] - this.volts[4];
-        this.voltageR[this.ptr] = this.volts[3] - this.volts[1] + this.volts[3] - this.volts[5];
+        this.voltageL[this.ptr] = this.nodes[2].v - this.nodes[0].v + this.nodes[2].v - this.nodes[4].v;
+        this.voltageR[this.ptr] = this.nodes[3].v - this.nodes[1].v + this.nodes[3].v - this.nodes[5].v;
     }
 
     doStep(): void {
@@ -229,7 +229,7 @@ export class TransLineElm extends CircuitElm {
         const nextPtr = (this.ptr + 1) % this.lenSteps;
         CircuitElm.sim.updateVoltageSource(this.nodes[4], this.nodes[0], this.voltSource1, -this.voltageR![nextPtr]);
         CircuitElm.sim.updateVoltageSource(this.nodes[5], this.nodes[1], this.voltSource2, -this.voltageL[nextPtr]);
-        if (Math.abs(this.volts[0]) > 1e-5 || Math.abs(this.volts[1]) > 1e-5) {
+        if (Math.abs(this.nodes[0].v) > 1e-5 || Math.abs(this.nodes[1].v) > 1e-5) {
             CircuitElm.sim.stop("Need to ground transmission line!", this);
             return;
         }

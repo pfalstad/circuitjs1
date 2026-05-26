@@ -65,8 +65,8 @@ export class OpAmpElm extends CircuitElm {
                 this.maxOut = parseFloat(st!.nextToken());
                 this.minOut = parseFloat(st!.nextToken());
                 this.gbw = parseFloat(st!.nextToken());
-                this.volts[0] = parseFloat(st!.nextToken());
-                this.volts[1] = parseFloat(st!.nextToken());
+                const v0 = parseFloat(st!.nextToken()); // this.volts
+                const v1 = parseFloat(st!.nextToken()); // this.volts
                 this.gain = parseFloat(st!.nextToken());
             } catch (e) {}
             this.noDiagonal = true;
@@ -106,11 +106,11 @@ export class OpAmpElm extends CircuitElm {
 
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.opheight * 2);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.in1p[0], this.in1p[1]);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.in2p[0], this.in2p[1]);
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.lead2!, this.point2);
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         this.setPowerColor(g, true);
@@ -123,7 +123,7 @@ export class OpAmpElm extends CircuitElm {
         this.drawPosts(g);
     }
 
-    getPower(): number { return this.volts[2] * this.current; }
+    getPower(): number { return this.nodes[2].v * this.current; }
 
     in1p: Point[];
     in2p: Point[];
@@ -170,11 +170,11 @@ export class OpAmpElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = "op-amp";
-        arr[1] = "V+ = " + CircuitElm.getVoltageText(this.volts[1]);
-        arr[2] = "V- = " + CircuitElm.getVoltageText(this.volts[0]);
+        arr[1] = "V+ = " + CircuitElm.getVoltageText(this.nodes[1].v);
+        arr[2] = "V- = " + CircuitElm.getVoltageText(this.nodes[0].v);
         // sometimes the voltage goes slightly outside range, to make
         // convergence easier.  so we hide that here.
-        const vo = Math.max(Math.min(this.volts[2], this.maxOut), this.minOut);
+        const vo = Math.max(Math.min(this.nodes[2].v, this.maxOut), this.minOut);
         arr[3] = "Vout = " + CircuitElm.getVoltageText(vo);
         arr[4] = "Iout = " + CircuitElm.getCurrentText(-this.current);
         arr[5] = "range = " + CircuitElm.getVoltageText(this.minOut) + " to " +
@@ -189,11 +189,11 @@ export class OpAmpElm extends CircuitElm {
     }
 
     doStep(): void {
-        const vd = this.volts[1] - this.volts[0];
+        const vd = this.nodes[1].v - this.nodes[0].v;
         const midpoint = (this.maxOut + this.minOut) * .5;
         if (Math.abs(this.lastvd - vd) > .1)
             CircuitElm.sim.converged = false;
-        else if (this.volts[2] > this.maxOut + .1 || this.volts[2] < this.minOut - .1)
+        else if (this.nodes[2].v > this.maxOut + .1 || this.nodes[2].v < this.minOut - .1)
             CircuitElm.sim.converged = false;
         let x = 0;
         let dx = 0;
@@ -226,7 +226,7 @@ export class OpAmpElm extends CircuitElm {
     getConnection(n1: number, n2: number): boolean { return false; }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
     hasGroundConnection(n1: number): boolean { return (n1 === 2); }
-    getVoltageDiff(): number { return this.volts[2] - this.volts[1]; }
+    getVoltageDiff(): number { return this.nodes[2].v - this.nodes[1].v; }
     getDumpType(): number { return 'a'.charCodeAt(0); }
 
     getEditInfo(n: number): EditInfo | null {

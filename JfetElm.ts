@@ -61,13 +61,13 @@ export class JfetElm extends MosfetElm {
 
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.hs);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.src[0], this.src[1]);
         CircuitElm.drawThickLine(g, this.src[1], this.src[2]);
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.drn[0], this.drn[1]);
         CircuitElm.drawThickLine(g, this.drn[1], this.drn[2]);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.gatePt);
         g.fillPolygon(this.arrowPoly);
         this.setPowerColor(g, true);
@@ -126,11 +126,11 @@ export class JfetElm extends MosfetElm {
 
     doStep(): void {
         super.doStep();
-        this.diode.doStep(this.pnp * (this.volts[0] - this.volts[1]));
+        this.diode.doStep(this.pnp * (this.nodes[0].v - this.nodes[1].v));
     }
 
     calculateCurrent(): void {
-        this.gateCurrent = this.pnp * this.diode.calculateCurrent(this.pnp * (this.volts[0] - this.volts[1]));
+        this.gateCurrent = this.pnp * this.diode.calculateCurrent(this.pnp * (this.nodes[0].v - this.nodes[1].v));
     }
 
     showBulk(): boolean { return false; }

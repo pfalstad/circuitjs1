@@ -57,8 +57,8 @@ export class PhaseCompElm extends ChipElm {
     ff2: boolean = false;
 
     doStep(): void {
-        const v1 = this.volts[0] > this.getThreshold();
-        const v2 = this.volts[1] > this.getThreshold();
+        const v1 = this.nodes[0].v > this.getThreshold();
+        const v2 = this.nodes[1].v > this.getThreshold();
         if (v1 && !this.pins[0].value)
             this.ff1 = true;
         if (v2 && !this.pins[1].value)

@@ -63,7 +63,7 @@ export class VaractorElm extends DiodeElm {
     }
 
     stepFinished(): void {
-        this.capvoltdiff = this.volts[0] - this.volts[1];
+        this.capvoltdiff = this.nodes[0].v - this.nodes[1].v;
     }
 
     calculateCurrent(): void {
@@ -108,14 +108,14 @@ export class VaractorElm extends DiodeElm {
         this.drawDiode(g);
 
         // draw first plate
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         this.setPowerColor(g, false);
         CircuitElm.drawThickLine(g, this.plate1[0], this.plate1[1]);
         if (this.showPower())
             g.setColor("#888888");
 
         // draw second plate
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         this.setPowerColor(g, false);
         CircuitElm.drawThickLine(g, this.plate2[0], this.plate2[1]);
 

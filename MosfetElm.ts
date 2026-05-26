@@ -128,12 +128,10 @@ export class MosfetElm extends CircuitElm {
     showBodyDiode(): boolean { return (this.flags & this.FLAG_SHOW_BODY_DIODE) !== 0 && this.doBodyDiode(); }
 
     reset(): void {
-        this.lastv1 = this.lastv2 = this.volts[0] = this.volts[1] = this.volts[2] = this.curcount = 0;
+        this.lastv1 = this.lastv2 = this.curcount = 0;
         this.curcount_body1 = this.curcount_body2 = 0;
         this.diodeB1.reset();
         this.diodeB2.reset();
-        if (this.doBodyDiode())
-            this.volts[this.bodyTerminal] = 0;
     }
 
     dumpXml(doc: Document, elem: Element): void {
@@ -162,9 +160,9 @@ export class MosfetElm extends CircuitElm {
         this.setBbox(this.point1, this.point2, this.hs);
 
         // draw source/drain terminals
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.src[0], this.src[1]);
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.drn[0], this.drn[1]);
 
         // draw line connecting source and drain
@@ -177,7 +175,7 @@ export class MosfetElm extends CircuitElm {
         const ps2 = new Point(0, 0);
         for (let i = 0; i !== segments; i++) {
             if ((i === 1 || i === 4) && enhancement) continue;
-            const v = this.volts[1] + (this.volts[2] - this.volts[1]) * i / segments;
+            const v = this.nodes[1].v + (this.nodes[2].v - this.nodes[1].v) * i / segments;
             if (!power)
                 this.setVoltageColor(g, v);
             this.interpPoint(this.src[1], this.drn[1], ps1, i * segf);
@@ -187,15 +185,15 @@ export class MosfetElm extends CircuitElm {
 
         // draw little extensions of that line
         if (!power)
-            this.setVoltageColor(g, this.volts[1]);
+            this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.src[1], this.src[2]);
         if (!power)
-            this.setVoltageColor(g, this.volts[2]);
+            this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.drn[1], this.drn[2]);
 
         // draw bulk connection
         if (this.showBulk()) {
-            this.setVoltageColor(g, this.volts[this.bodyTerminal]);
+            this.setVoltageColor(g, this.nodes[this.bodyTerminal].v);
             if (!this.hasBodyTerminal())
                 CircuitElm.drawThickLine(g, this.pnp === -1 ? this.drn[0] : this.src[0], this.body[0]);
             CircuitElm.drawThickLine(g, this.body[0], this.body[1]);
@@ -205,11 +203,11 @@ export class MosfetElm extends CircuitElm {
         if (this.showBodyDiode()) {
             if (!this.hasBodyTerminal()) {
                 // single offset diode with L-shaped leads
-                this.setVoltageColor(g, this.volts[1]);
+                this.setVoltageColor(g, this.nodes[1].v);
                 g.fillPolygon(this.bodyDiodePoly);
                 CircuitElm.drawThickLine(g, this.src[0], this.bodyDiodeLeads[0]);
                 CircuitElm.drawThickLine(g, this.bodyDiodeLeads[0], this.bodyDiodeLeads[1]);
-                this.setVoltageColor(g, this.volts[2]);
+                this.setVoltageColor(g, this.nodes[2].v);
                 CircuitElm.drawThickLine(g, this.bodyDiodeCathode[0], this.bodyDiodeCathode[1]);
                 CircuitElm.drawThickLine(g, this.bodyDiodeLeads[2], this.bodyDiodeLeads[3]);
                 CircuitElm.drawThickLine(g, this.drn[0], this.bodyDiodeLeads[3]);
@@ -218,29 +216,29 @@ export class MosfetElm extends CircuitElm {
                 // two inline diodes: src↔body and body↔drn
                 const anode1 = (this.pnp === 1) ? this.bodyTerminal : 1;
                 const cathode1 = (this.pnp === 1) ? 1 : this.bodyTerminal;
-                this.setVoltageColor(g, this.volts[anode1]);
+                this.setVoltageColor(g, this.nodes[anode1].v);
                 g.fillPolygon(this.bodyDiodePoly);
-                this.setVoltageColor(g, this.volts[cathode1]);
+                this.setVoltageColor(g, this.nodes[cathode1].v);
                 g.drawLine(this.bodyDiodeCathode[0], this.bodyDiodeCathode[1]);
                 const anode2 = (this.pnp === 1) ? this.bodyTerminal : 2;
                 const cathode2 = (this.pnp === 1) ? 2 : this.bodyTerminal;
-                this.setVoltageColor(g, this.volts[anode2]);
+                this.setVoltageColor(g, this.nodes[anode2].v);
                 g.fillPolygon(this.bodyDiodePoly2);
-                this.setVoltageColor(g, this.volts[cathode2]);
+                this.setVoltageColor(g, this.nodes[cathode2].v);
                 g.drawLine(this.bodyDiodeCathode2[0], this.bodyDiodeCathode2[1]);
             }
         }
 
         // draw arrow
         if (!this.drawDigital()) {
-            this.setVoltageColor(g, this.volts[this.bodyTerminal]);
+            this.setVoltageColor(g, this.nodes[this.bodyTerminal].v);
             g.fillPolygon(this.arrowPoly);
         }
         if (power)
             g.setColor(Color.gray);
 
         // draw gate
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.gate[1]);
         CircuitElm.drawThickLine(g, this.gate[0], this.gate[2]);
         if (this.drawDigital() && this.pnp === -1)
@@ -300,9 +298,9 @@ export class MosfetElm extends CircuitElm {
 
     getCurrent(): number { return this.ids; }
     getPower(): number {
-        return this.ids * (this.volts[2] - this.volts[1])
-            - this.diodeCurrent1 * (this.volts[1] - this.volts[this.bodyTerminal])
-            - this.diodeCurrent2 * (this.volts[2] - this.volts[this.bodyTerminal]);
+        return this.ids * (this.nodes[2].v - this.nodes[1].v)
+            - this.diodeCurrent1 * (this.nodes[1].v - this.nodes[this.bodyTerminal].v)
+            - this.diodeCurrent2 * (this.nodes[2].v - this.nodes[this.bodyTerminal].v);
     }
     getPostCount(): number { return this.hasBodyTerminal() ? 4 : 3; }
 
@@ -462,10 +460,10 @@ export class MosfetElm extends CircuitElm {
     calculate(finished: boolean): void {
         let vs: number[];
         if (finished) {
-            vs = this.volts;
+            vs = [this.nodes[0].v, this.nodes[1].v, this.nodes[2].v];
         } else {
             // limit voltage changes to .5V
-            vs = [this.volts[0], this.volts[1], this.volts[2]];
+            vs = [this.nodes[0].v, this.nodes[1].v, this.nodes[2].v];
             if (vs[1] > this.lastv1 + .5) vs[1] = this.lastv1 + .5;
             if (vs[1] < this.lastv1 - .5) vs[1] = this.lastv1 - .5;
             if (vs[2] > this.lastv2 + .5) vs[2] = this.lastv2 + .5;
@@ -517,10 +515,10 @@ export class MosfetElm extends CircuitElm {
         }
 
         if (this.doBodyDiode()) {
-            this.diodeB1.doStep(this.pnp * (this.volts[this.bodyTerminal] - this.volts[1]));
-            this.diodeCurrent1 = this.diodeB1.calculateCurrent(this.pnp * (this.volts[this.bodyTerminal] - this.volts[1])) * this.pnp;
-            this.diodeB2.doStep(this.pnp * (this.volts[this.bodyTerminal] - this.volts[2]));
-            this.diodeCurrent2 = this.diodeB2.calculateCurrent(this.pnp * (this.volts[this.bodyTerminal] - this.volts[2])) * this.pnp;
+            this.diodeB1.doStep(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[1].v));
+            this.diodeCurrent1 = this.diodeB1.calculateCurrent(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[1].v)) * this.pnp;
+            this.diodeB2.doStep(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[2].v));
+            this.diodeCurrent2 = this.diodeB2.calculateCurrent(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[2].v)) * this.pnp;
         } else {
             this.diodeCurrent1 = this.diodeCurrent2 = 0;
         }
@@ -552,8 +550,8 @@ export class MosfetElm extends CircuitElm {
         arr[0] += " (Vt=" + CircuitElm.getVoltageText(this.pnp * this.vt);
         arr[0] += ", β=" + this.beta + ")";
         arr[1] = ((this.pnp === 1) ? "Ids = " : "Isd = ") + CircuitElm.getCurrentText(this.ids);
-        arr[2] = "Vgs = " + CircuitElm.getVoltageText(this.volts[0] - this.volts[this.pnp === -1 ? 2 : 1]);
-        arr[3] = ((this.pnp === 1) ? "Vds = " : "Vsd = ") + CircuitElm.getVoltageText(this.volts[2] - this.volts[1]);
+        arr[2] = "Vgs = " + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[this.pnp === -1 ? 2 : 1].v);
+        arr[3] = ((this.pnp === 1) ? "Vds = " : "Vsd = ") + CircuitElm.getVoltageText(this.nodes[2].v - this.nodes[1].v);
         arr[4] = (this.mode === 0) ? "off" : (this.mode === 1) ? "linear" : "saturation";
         arr[5] = "gm = " + CircuitElm.getUnitText(this.gm, "A/V");
         arr[6] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
@@ -575,7 +573,7 @@ export class MosfetElm extends CircuitElm {
     }
 
     canViewInScope(): boolean { return true; }
-    getVoltageDiff(): number { return this.volts[2] - this.volts[1]; }
+    getVoltageDiff(): number { return this.nodes[2].v - this.nodes[1].v; }
     getConnection(n1: number, n2: number): boolean { return !(n1 === 0 || n2 === 0); }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
 

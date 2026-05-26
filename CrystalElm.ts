@@ -131,7 +131,7 @@ export class CrystalElm extends CompositeElm {
         this.setBbox(this.point1, this.point2, hs);
 
         // draw first lead and plate
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         this.setPowerColor(g, false);
         CircuitElm.drawThickLine(g, this.plate1[0], this.plate1[1]);
@@ -139,12 +139,12 @@ export class CrystalElm extends CompositeElm {
             g.setColor(Color.gray);
 
         // draw second lead and plate
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.point2, this.lead2!);
         this.setPowerColor(g, false);
         CircuitElm.drawThickLine(g, this.plate2[0], this.plate2[1]);
 
-        this.setVoltageColor(g, 0.5 * (this.volts[0] + this.volts[1]));
+        this.setVoltageColor(g, 0.5 * (this.nodes[0].v + this.nodes[1].v));
         for (let i = 0; i !== 4; i++)
             CircuitElm.drawThickLine(g, this.sandwichPoints[i], this.sandwichPoints[(i + 1) % 4]);
 

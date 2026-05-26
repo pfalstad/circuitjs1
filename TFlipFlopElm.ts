@@ -64,7 +64,6 @@ export class TFlipFlopElm extends ChipElm {
     getVoltageSourceCount(): number { return 2; }
     reset(): void {
         super.reset();
-        this.volts[2] = this.highVoltage;
         this.pins[2].value = true;
     }
     execute(): void {

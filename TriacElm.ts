@@ -89,7 +89,6 @@ export class TriacElm extends CircuitElm {
     nonLinear(): boolean { return true; }
 
     reset(): void {
-        this.volts[this.mt1node] = this.volts[this.mt2node] = this.volts[this.gnode] = 0;
         this.diode03.reset();
         this.diode30.reset();
         this.curcount_1 = this.curcount_2 = this.curcount_g = 0;
@@ -167,8 +166,8 @@ export class TriacElm extends CircuitElm {
     }
 
     draw(g: Graphics): void {
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
         this.setBbox(this.point1, this.point2, 6);
         this.adjustBbox(this.gate[0], this.gate[1]);
 
@@ -183,7 +182,7 @@ export class TriacElm extends CircuitElm {
         this.setVoltageColor(g, v1);
         this.setPowerColor(g, true);
         g.fillPolygon(this.arrows[1]);
-        this.setVoltageColor(g, this.volts[this.gnode]);
+        this.setVoltageColor(g, this.nodes[this.gnode].v);
 
         CircuitElm.drawThickLine(g, this.lead2!, this.gate[0]);
         CircuitElm.drawThickLine(g, this.gate[0], this.gate[1]);
@@ -239,15 +238,15 @@ export class TriacElm extends CircuitElm {
     }
 
     doStep(): void {
-        this.diode03.doStep(this.volts[this.mt2node] - this.volts[this.mtinode]);
-        this.diode30.doStep(this.volts[this.mtinode] - this.volts[this.mt2node]);
+        this.diode03.doStep(this.nodes[this.mt2node].v - this.nodes[this.mtinode].v);
+        this.diode30.doStep(this.nodes[this.mtinode].v - this.nodes[this.mt2node].v);
         CircuitElm.sim.stampResistor(this.nodes[this.mtinode], this.nodes[this.mt1node], this.aresistance);
     }
 
     getInfo(arr: string[]): void {
         arr[0] = "TRIAC";
         arr[1] = this.state ? "on" : "off";
-        arr[2] = "Vmt2mt1 = " + CircuitElm.getVoltageText(this.volts[this.mt2node] - this.volts[this.mt1node]);
+        arr[2] = "Vmt2mt1 = " + CircuitElm.getVoltageText(this.nodes[this.mt2node].v - this.nodes[this.mt1node].v);
         arr[3] = "Imt1 = "    + CircuitElm.getCurrentText(this.i1);
         arr[4] = "Imt2 = "    + CircuitElm.getCurrentText(this.i2);
         arr[5] = "Ig = "      + CircuitElm.getCurrentText(this.ig);
@@ -258,14 +257,14 @@ export class TriacElm extends CircuitElm {
         if (this.aresistance === 0)
             this.i2 = 0;
         else
-            this.i2 = (this.volts[this.mtinode] - this.volts[this.mt1node]) / this.aresistance;
-        this.ig = -(this.volts[this.mt1node] - this.volts[this.gnode]) / this.cresistance;
+            this.i2 = (this.nodes[this.mtinode].v - this.nodes[this.mt1node].v) / this.aresistance;
+        this.ig = -(this.nodes[this.mt1node].v - this.nodes[this.gnode].v) / this.cresistance;
         this.i1 = -this.i2 - this.ig;
     }
 
     getPower(): number {
-        return (this.volts[this.mt2node] - this.volts[this.mt1node]) * this.i2 +
-            (this.volts[this.gnode] - this.volts[this.mt1node]) * this.ig;
+        return (this.nodes[this.mt2node].v - this.nodes[this.mt1node].v) * this.i2 +
+            (this.nodes[this.gnode].v - this.nodes[this.mt1node].v) * this.ig;
     }
 
     getEditInfo(n: number): EditInfo | null {
@@ -282,7 +281,7 @@ export class TriacElm extends CircuitElm {
     }
 
     canViewInScope(): boolean { return true; }
-    getVoltageDiff(): number { return this.volts[this.mt2node] - this.volts[this.mt1node]; }
+    getVoltageDiff(): number { return this.nodes[this.mt2node].v - this.nodes[this.mt1node].v; }
     getCurrent(): number { return this.i2; }
 
     getXmlDumpType(): string { return "triac"; }

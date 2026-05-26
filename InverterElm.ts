@@ -126,22 +126,22 @@ export class InverterElm extends CircuitElm {
     lastOutputVoltage: number = 0;
 
     startIteration(): void {
-        this.lastOutputVoltage = this.volts[1];
+        this.lastOutputVoltage = this.nodes[1].v;
     }
 
     doStep(): void {
-        let out = this.volts[0] > this.highVoltage * .5 ? 0 : this.highVoltage;
+        let out = this.nodes[0].v > this.highVoltage * .5 ? 0 : this.highVoltage;
         const maxStep = this.slewRate * CircuitElm.sim.timeStep * 1e9;
         out = Math.max(Math.min(this.lastOutputVoltage + maxStep, out), this.lastOutputVoltage - maxStep);
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[1], this.voltSource, out);
     }
 
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "inverter";
-        arr[1] = "Vi = " + CircuitElm.getVoltageText(this.volts[0]);
-        arr[2] = "Vo = " + CircuitElm.getVoltageText(this.volts[1]);
+        arr[1] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
+        arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
     }
 
     getEditInfo(n: number): EditInfo | null {

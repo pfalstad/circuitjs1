@@ -97,7 +97,7 @@ export class LogicInputElm extends SwitchElm {
             s = "" + this.position;
         this.setBbox(this.point1, this.lead1!, 0);
         this.drawCenteredText(g, s, this.x2, this.y2, true);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         this.updateDotCount();
         this.drawDots(g, this.point1, this.lead1!, -this.curcount);
@@ -127,7 +127,7 @@ export class LogicInputElm extends SwitchElm {
     }
 
     getVoltageSourceCount(): number { return 1; }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     getElmType(): string { return "logic input"; }
 
     getInfo(arr: string[]): void {
@@ -135,7 +135,7 @@ export class LogicInputElm extends SwitchElm {
         arr[1] = (this.position === 0) ? "low" : "high";
         if (this.isNumeric())
             arr[1] = "" + this.position;
-        arr[1] += " (" + CircuitElm.getVoltageText(this.volts[0]) + ")";
+        arr[1] += " (" + CircuitElm.getVoltageText(this.nodes[0].v) + ")";
         arr[2] = "I = " + CircuitElm.getCurrentText(this.getCurrent());
     }
 

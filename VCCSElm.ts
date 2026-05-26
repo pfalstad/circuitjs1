@@ -126,33 +126,33 @@ export class VCCSElm extends ChipElm {
         // check convergence
         const convergeLimit = this.getConvergeLimit();
         for (let i = 0; i !== this.inputCount; i++) {
-            if (Math.abs(this.volts[i] - this.lastVolts[i]) > convergeLimit)
+            if (Math.abs(this.nodes[i].v - this.lastVolts[i]) > convergeLimit)
                 sim.converged = false;
         }
 
         if (this.expr != null) {
             // load input voltages into expression state
             for (let i = 0; i !== this.inputCount; i++)
-                this.exprState.values[i] = this.volts[i];
+                this.exprState.values[i] = this.nodes[i].v;
             this.exprState.t = sim.t;
             const v0 = -this.expr.eval(this.exprState);
             let rs = v0;
 
             // stamp partial derivatives for linearization
             for (let i = 0; i !== this.inputCount; i++) {
-                let dv = this.volts[i] - this.lastVolts[i];
+                let dv = this.nodes[i].v - this.lastVolts[i];
                 if (Math.abs(dv) < 1e-6) dv = 1e-6;
-                this.exprState.values[i] = this.volts[i];
+                this.exprState.values[i] = this.nodes[i].v;
                 const v = -this.expr.eval(this.exprState);
-                this.exprState.values[i] = this.volts[i] - dv;
+                this.exprState.values[i] = this.nodes[i].v - dv;
                 const v2 = -this.expr.eval(this.exprState);
                 let dx = (v - v2) / dv;
                 if (Math.abs(dx) < 1e-6)
                     dx = this.sign(dx, 1e-6);
                 sim.stampVCCurrentSource(this.nodes[this.inputCount], this.nodes[this.inputCount + 1],
                     this.nodes[i], CircuitNode.ground, dx);
-                rs -= dx * this.volts[i];
-                this.exprState.values[i] = this.volts[i];
+                rs -= dx * this.nodes[i].v;
+                this.exprState.values[i] = this.nodes[i].v;
             }
             sim.stampCurrentSource(this.nodes[this.inputCount], this.nodes[this.inputCount + 1], rs);
             this.pins[this.inputCount].current     = -v0;
@@ -160,7 +160,7 @@ export class VCCSElm extends ChipElm {
         }
 
         for (let i = 0; i !== this.inputCount; i++)
-            this.lastVolts[i] = this.volts[i];
+            this.lastVolts[i] = this.nodes[i].v;
     }
 
     stepFinished(): void {

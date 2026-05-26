@@ -145,16 +145,14 @@ export class DiodeElm extends CircuitElm {
 
     reset(): void {
         this.diode.reset();
-        this.volts[0] = this.volts[1] = this.curcount = 0;
-        if (this.hasResistance)
-            this.volts[2] = 0;
+        this.curcount = 0;
     }
 
     drawDiode(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.hs);
 
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
 
         this.draw2Leads(g);
 
@@ -181,11 +179,11 @@ export class DiodeElm extends CircuitElm {
     }
 
     doStep(): void {
-        this.diode.doStep(this.volts[0] - this.volts[this.diodeEndNode]);
+        this.diode.doStep(this.nodes[0].v - this.nodes[this.diodeEndNode].v);
     }
 
     calculateCurrent(): void {
-        this.current = this.diode.calculateCurrent(this.volts[0] - this.volts[this.diodeEndNode]);
+        this.current = this.diode.calculateCurrent(this.nodes[0].v - this.nodes[this.diodeEndNode].v);
     }
 
     getElmType(): string { return "diode"; }

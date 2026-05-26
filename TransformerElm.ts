@@ -129,15 +129,15 @@ export class TransformerElm extends CircuitElm {
     draw(g: Graphics): void {
         let i: number;
         for (i = 0; i !== 4; i++) {
-            this.setVoltageColor(g, this.volts[i]);
+            this.setVoltageColor(g, this.nodes[i].v);
             CircuitElm.drawThickLine(g, this.ptEnds[i], this.ptCoil[i]);
         }
         for (i = 0; i !== 2; i++) {
-            this.setPowerColor(g, this.currents[i]*(this.volts[i]-this.volts[i+2]));
+            this.setPowerColor(g, this.currents[i]*(this.nodes[i].v-this.nodes[i+2].v));
             let csign = this.dsign*(i === 1 ? -6*this.polarity : 6)*this.flip;
             if (this.hasFlag(TransformerElm.FLAG_VERTICAL))
                 csign *= -1;
-            this.drawCoil(g, csign, this.ptCoil[i], this.ptCoil[i+2], this.volts[i], this.volts[i+2]);
+            this.drawCoil(g, csign, this.ptCoil[i], this.ptCoil[i+2], this.nodes[i].v, this.nodes[i+2].v);
         }
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         for (i = 0; i !== 2; i++) {
@@ -197,8 +197,7 @@ export class TransformerElm extends CircuitElm {
         // need to set current-source values here in case one of the nodes is node 0.  In that case
         // calculateCurrent() may get called (from setNodeVoltage()) when analyzing circuit, before
         // startIteration() gets called
-        this.currents[0] = this.currents[1] = this.volts[0] = this.volts[1] = this.volts[2] =
-            this.volts[3] = this.curcounts[0] = this.curcounts[1] = this.curSourceValue1 = this.curSourceValue2 = 0;
+        this.currents[0] = this.currents[1] = this.curcounts[0] = this.curcounts[1] = this.curSourceValue1 = this.curSourceValue2 = 0;
     }
 
     // compute effective inductance with saturation: L(I) = L0 / (1 + (I/Isat)^2)
@@ -278,8 +277,8 @@ export class TransformerElm extends CircuitElm {
             const m = this.couplingCoef*Math.sqrt(l1*l2);
             this.computeCoefficients(l1, l2, m);
         }
-        const voltdiff1 = this.volts[0]-this.volts[2];
-        const voltdiff2 = this.volts[1]-this.volts[3];
+        const voltdiff1 = this.nodes[0].v-this.nodes[2].v;
+        const voltdiff2 = this.nodes[1].v-this.nodes[3].v;
         if (this.isTrapezoidal()) {
             this.curSourceValue1 = voltdiff1*this.a1+voltdiff2*this.a2+this.currents[0];
             this.curSourceValue2 = voltdiff1*this.a3+voltdiff2*this.a4+this.currents[1];
@@ -302,8 +301,8 @@ export class TransformerElm extends CircuitElm {
     }
 
     calculateCurrent(): void {
-        const voltdiff1 = this.volts[0]-this.volts[2];
-        const voltdiff2 = this.volts[1]-this.volts[3];
+        const voltdiff1 = this.nodes[0].v-this.nodes[2].v;
+        const voltdiff2 = this.nodes[1].v-this.nodes[3].v;
         this.currents[0] = voltdiff1*this.a1 + voltdiff2*this.a2 + this.curSourceValue1;
         this.currents[1] = voltdiff1*this.a3 + voltdiff2*this.a4 + this.curSourceValue2;
     }
@@ -318,8 +317,8 @@ export class TransformerElm extends CircuitElm {
         arr[0] = (this.saturationCurrent > 0) ? "transformer (sat)" : "transformer";
         arr[1] = "L = " + CircuitElm.getUnitText(this.inductance, "H");
         arr[2] = "Ratio = 1:" + this.ratio;
-        arr[3] = "Vd1 = " + CircuitElm.getVoltageText(this.volts[0]-this.volts[2]);
-        arr[4] = "Vd2 = " + CircuitElm.getVoltageText(this.volts[1]-this.volts[3]);
+        arr[3] = "Vd1 = " + CircuitElm.getVoltageText(this.nodes[0].v-this.nodes[2].v);
+        arr[4] = "Vd2 = " + CircuitElm.getVoltageText(this.nodes[1].v-this.nodes[3].v);
         arr[5] = "I1 = " + CircuitElm.getCurrentText(this.currents[0]);
         arr[6] = "I2 = " + CircuitElm.getCurrentText(this.currents[1]);
         if (this.saturationCurrent > 0) {

@@ -69,12 +69,12 @@ export class ROMElm extends SRAMElm {
     }
 
     doStep(): void {
-        const outputEnabled = this.volts[0] < this.getThreshold();
+        const outputEnabled = this.nodes[0].v < this.getThreshold();
 
         // get address
         this.address = 0;
         for (let i = 0; i !== this.addressBits; i++)
-            this.address |= (this.volts[this.addressNodes + i] > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
+            this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
 
         const dataObj = this.map.get(this.address);
         const data = (dataObj === undefined) ? 0 : dataObj;

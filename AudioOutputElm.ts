@@ -129,17 +129,17 @@ export class AudioOutputElm extends CircuitElm {
         this.interpPoint(this.point1, this.point2, this.lead1, 1 - (textWidth / 2. + 8) / this.dn);
         this.setBbox(this.point1, this.lead1, 0);
         this.drawCenteredText(g, s, this.x2, this.y2, true);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
         this.drawPosts(g);
         g.restore();
     }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
     getInfo(arr: string[]): void {
         arr[0] = "audio output";
-        arr[1] = "V = " + CircuitElm.getVoltageText(this.volts[0]);
+        arr[1] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
         const ct = this.dataFull ? this.dataCount : this.dataPtr;
         const dur = this.sampleStep * ct;
         arr[2] = "start = " + CircuitElm.getUnitText(this.dataFull ? CircuitElm.sim.t - this.duration : this.dataStart, "s");
@@ -152,7 +152,7 @@ export class AudioOutputElm extends CircuitElm {
     dataSample: number = 0;
 
     stepFinished(): void {
-        this.dataSample += this.volts[0];
+        this.dataSample += this.nodes[0].v;
         this.dataSampleCount++;
         if (CircuitElm.sim.t >= this.nextDataSample) {
             this.nextDataSample += this.sampleStep;

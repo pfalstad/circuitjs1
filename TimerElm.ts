@@ -101,36 +101,36 @@ export class TimerElm extends ChipElm {
         // need current for V, discharge, control, ground; output current is
         // calculated for us, and other pins have no current.
         const N = TimerElm;
-        this.pins[N.N_VCC].current = (this.volts[N.N_CTL] - this.volts[N.N_VCC]) / 5000;
-        const groundVolts = this.hasGroundPin() ? this.volts[N.N_GND] : 0;
-        this.pins[N.N_CTL].current = -(this.volts[N.N_CTL] - groundVolts) / 10000 - this.pins[N.N_VCC].current;
-        this.pins[N.N_DIS].current = (!this.out) ? -(this.volts[N.N_DIS] - groundVolts) / 10 : 0;
-        this.pins[N.N_OUT].current = -(this.volts[N.N_OUT] - (this.out ? this.volts[N.N_VCC] : groundVolts));
+        this.pins[N.N_VCC].current = (this.nodes[N.N_CTL].v - this.nodes[N.N_VCC].v) / 5000;
+        const groundVolts = this.hasGroundPin() ? this.nodes[N.N_GND].v : 0;
+        this.pins[N.N_CTL].current = -(this.nodes[N.N_CTL].v - groundVolts) / 10000 - this.pins[N.N_VCC].current;
+        this.pins[N.N_DIS].current = (!this.out) ? -(this.nodes[N.N_DIS].v - groundVolts) / 10 : 0;
+        this.pins[N.N_OUT].current = -(this.nodes[N.N_OUT].v - (this.out ? this.nodes[N.N_VCC].v : groundVolts));
         if (this.out)
             this.pins[N.N_VCC].current -= this.pins[N.N_OUT].current;
         if (this.hasGroundPin()) {
-            this.pins[N.N_GND].current = (this.volts[N.N_CTL] - groundVolts) / 10000;
+            this.pins[N.N_GND].current = (this.nodes[N.N_CTL].v - groundVolts) / 10000;
             if (!this.out)
-                this.pins[N.N_GND].current += (this.volts[N.N_DIS] - groundVolts) / 10 + (this.volts[N.N_OUT] - groundVolts);
+                this.pins[N.N_GND].current += (this.nodes[N.N_DIS].v - groundVolts) / 10 + (this.nodes[N.N_OUT].v - groundVolts);
         }
     }
 
     startIteration(): void {
         const N = TimerElm;
-        const groundVolts = this.hasGroundPin() ? this.volts[N.N_GND] : 0;
-        this.out = this.volts[N.N_OUT] > (this.volts[N.N_VCC] + groundVolts) / 2;
+        const groundVolts = this.hasGroundPin() ? this.nodes[N.N_GND].v : 0;
+        this.out = this.nodes[N.N_OUT].v > (this.nodes[N.N_VCC].v + groundVolts) / 2;
         // check comparators
-        if (this.volts[N.N_THRES] > this.volts[N.N_CTL])
+        if (this.nodes[N.N_THRES].v > this.nodes[N.N_CTL].v)
             this.out = false;
 
         // trigger overrides threshold
         // (save triggered flag in case reset and trigger pins are tied together)
-        const triggered = ((this.volts[N.N_CTL] + groundVolts) / 2 > this.volts[N.N_TRIG]);
+        const triggered = ((this.nodes[N.N_CTL].v + groundVolts) / 2 > this.nodes[N.N_TRIG].v);
         if (triggered || this.triggerSuppressed)
             this.out = true;
 
         // reset overrides trigger
-        if (this.hasReset() && this.volts[N.N_RST] < .7 + groundVolts) {
+        if (this.hasReset() && this.nodes[N.N_RST].v < .7 + groundVolts) {
             this.out = false;
             // if trigger is overriden, save it
             this.triggerSuppressed = triggered;

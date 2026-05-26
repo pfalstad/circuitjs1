@@ -68,9 +68,9 @@ export class TransistorElm extends CircuitElm {
             try {
                 this.lastvbe = parseFloat(st!.nextToken());
                 this.lastvbc = parseFloat(st!.nextToken());
-                this.volts[0] = 0;
-                this.volts[1] = -this.lastvbe;
-                this.volts[2] = -this.lastvbc;
+                //this.volts[0] = 0;
+                //this.volts[1] = -this.lastvbe;
+                //this.volts[2] = -this.lastvbc;
                 this.beta = parseFloat(st!.nextToken());
                 this.modelName = CustomLogicModel.unescape(st!.nextToken());
             } catch (e) {
@@ -91,7 +91,6 @@ export class TransistorElm extends CircuitElm {
     nonLinear(): boolean { return true; }
 
     reset(): void {
-        this.volts[0] = this.volts[1] = this.volts[2] = 0;
         this.lastvbc = this.lastvbe = this.curcount_c = this.curcount_e = this.curcount_b = 0;
         this.capVoltBE = this.capVoltBC = this.capCurBE = this.capCurBC = 0;
         this.geqBE = this.geqBC = this.ceqBE = this.ceqBC = 0;
@@ -111,8 +110,8 @@ export class TransistorElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        CircuitXMLSerializer.dumpAttr(elem, "vbe", this.volts[0] - this.volts[1]);
-        CircuitXMLSerializer.dumpAttr(elem, "vbc", this.volts[0] - this.volts[2]);
+        CircuitXMLSerializer.dumpAttr(elem, "vbe", this.nodes[0].v - this.nodes[1].v);
+        CircuitXMLSerializer.dumpAttr(elem, "vbc", this.nodes[0].v - this.nodes[2].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -122,9 +121,9 @@ export class TransistorElm extends CircuitElm {
         this.modelName = xml.parseStringAttr("mo", this.modelName);
         this.lastvbe = xml.parseDoubleAttr("vbe", 0);
         this.lastvbc = xml.parseDoubleAttr("vbc", 0);
-        this.volts[0] = 0;
-        this.volts[1] = -this.lastvbe;
-        this.volts[2] = -this.lastvbc;
+        //this.volts[0] = 0;
+        //this.volts[1] = -this.lastvbe;
+        //this.volts[2] = -this.lastvbc;
         TransistorElm.globalFlags = this.flags & TransistorElm.FLAGS_GLOBAL;
         this.setup();
     }
@@ -173,16 +172,16 @@ export class TransistorElm extends CircuitElm {
         }
         this.setPowerColor(g, true);
         // draw collector
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.coll[0], this.coll[1]);
         // draw emitter
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.emit[0], this.emit[1]);
         // draw arrow
         g.setColor(CircuitElm.lightGrayColor);
         g.fillPolygon(this.arrowPoly);
         // draw base
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (this.showPower())
             g.setColor(Color.gray);
         CircuitElm.drawThickLine(g, this.point1, this.base);
@@ -194,7 +193,7 @@ export class TransistorElm extends CircuitElm {
         this.curcount_e = this.updateDotCountImpl(-this.ie, this.curcount_e);
         this.drawDots(g, this.emit[1], this.emit[0], this.curcount_e);
         // draw base rectangle
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         this.setPowerColor(g, true);
         g.fillPolygon(this.rectPoly);
 
@@ -217,7 +216,7 @@ export class TransistorElm extends CircuitElm {
     getPostCount(): number { return 3; }
 
     getPower(): number {
-        return (this.volts[0] - this.volts[2]) * this.ib + (this.volts[1] - this.volts[2]) * this.ic;
+        return (this.nodes[0].v - this.nodes[2].v) * this.ib + (this.nodes[1].v - this.nodes[2].v) * this.ic;
     }
 
     rect: Point[];
@@ -353,8 +352,8 @@ export class TransistorElm extends CircuitElm {
     }
 
     doStep(): void {
-        let vbc = this.pnp * (this.volts[0] - this.volts[1]); // typically negative
-        let vbe = this.pnp * (this.volts[0] - this.volts[2]); // typically positive
+        let vbc = this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
+        let vbe = this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
         const notConverged = Math.abs(vbc - this.lastvbc) > .01 ||
             Math.abs(vbe - this.lastvbe) > .01;
         if (notConverged)
@@ -558,9 +557,9 @@ export class TransistorElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = Locale.LS("transistor") + " (" + (this.pnp === -1 ? "PNP" : "NPN") + ", " + this.model.name + ", β=" + CircuitElm.showFormat.format(this.beta) + ")";
-        const vbc = this.volts[0] - this.volts[1];
-        const vbe = this.volts[0] - this.volts[2];
-        const vce = this.volts[1] - this.volts[2];
+        const vbc = this.nodes[0].v - this.nodes[1].v;
+        const vbe = this.nodes[0].v - this.nodes[2].v;
+        const vce = this.nodes[1].v - this.nodes[2].v;
         if (vbc*this.pnp > .2)
             arr[1] = vbe*this.pnp > .2 ? "saturation" : "reverse active";
         else
@@ -601,9 +600,9 @@ export class TransistorElm extends CircuitElm {
         case Scope.VAL_IB: return this.ib;
         case Scope.VAL_IC: return this.ic;
         case Scope.VAL_IE: return this.ie;
-        case Scope.VAL_VBE: return this.volts[0] - this.volts[2];
-        case Scope.VAL_VBC: return this.volts[0] - this.volts[1];
-        case Scope.VAL_VCE: return this.volts[1] - this.volts[2];
+        case Scope.VAL_VBE: return this.nodes[0].v - this.nodes[2].v;
+        case Scope.VAL_VBC: return this.nodes[0].v - this.nodes[1].v;
+        case Scope.VAL_VCE: return this.nodes[1].v - this.nodes[2].v;
         case Scope.VAL_POWER: return this.getPower();
         }
         return 0;
@@ -730,23 +729,23 @@ export class TransistorElm extends CircuitElm {
         // capVoltXX = node voltage difference across junction (circuit reference, not pnp-adjusted).
         // capCurXX  = actual capacitor current at end of this time step.
         if (this.geqBE > 0) {
-            this.capVoltBE = this.volts[0] - this.volts[2];
+            this.capVoltBE = this.nodes[0].v - this.nodes[2].v;
             this.capCurBE = this.geqBE * this.capVoltBE + this.ceqBE;
         }
         if (this.geqBC > 0) {
-            this.capVoltBC = this.volts[0] - this.volts[1];
+            this.capVoltBC = this.nodes[0].v - this.nodes[1].v;
             this.capCurBC = this.geqBC * this.capVoltBC + this.ceqBC;
         }
 
         // Add junction cap currents to terminal currents for display.
         // BE cap current flows base to emitter; BC cap current flows base to collector.
         if (this.geqBE > 0) {
-            const icapBE = this.geqBE * (this.volts[0] - this.volts[2]) + this.ceqBE;
+            const icapBE = this.geqBE * (this.nodes[0].v - this.nodes[2].v) + this.ceqBE;
             this.ib += icapBE;
             this.ie -= icapBE;
         }
         if (this.geqBC > 0) {
-            const icapBC = this.geqBC * (this.volts[0] - this.volts[1]) + this.ceqBC;
+            const icapBC = this.geqBC * (this.nodes[0].v - this.nodes[1].v) + this.ceqBC;
             this.ib += icapBC;
             this.ic -= icapBC;
         }

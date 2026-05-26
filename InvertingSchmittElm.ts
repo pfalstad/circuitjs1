@@ -124,11 +124,11 @@ export class InvertingSchmittElm extends CircuitElm {
         CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[1], this.voltSource!);
     }
     doStep(): void {
-        const v0 = this.volts[1];
+        const v0 = this.nodes[1].v;
         let out: number;
         if (this.state) {
             // Output is high
-            if (this.volts[0] > this.upperTrigger) {
+            if (this.nodes[0].v > this.upperTrigger) {
                 // Input voltage high enough to set output low
                 this.state = false;
                 out = this.logicOffLevel;
@@ -137,7 +137,7 @@ export class InvertingSchmittElm extends CircuitElm {
             }
         } else {
             // Output is low
-            if (this.volts[0] < this.lowerTrigger) {
+            if (this.nodes[0].v < this.lowerTrigger) {
                 // Input voltage low enough to set output high
                 this.state = true;
                 out = this.logicOnLevel;
@@ -150,12 +150,12 @@ export class InvertingSchmittElm extends CircuitElm {
         out = Math.max(Math.min(v0 + maxStep, out), v0 - maxStep);
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[1], this.voltSource, out);
     }
-    getVoltageDiff(): number { return this.volts[0]; }
+    getVoltageDiff(): number { return this.nodes[0].v; }
 
     getInfo(arr: string[]): void {
         arr[0] = "inverting Schmitt trigger";
-        arr[1] = "Vi = " + CircuitElm.getVoltageText(this.volts[0]);
-        arr[2] = "Vo = " + CircuitElm.getVoltageText(this.volts[1]);
+        arr[1] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
+        arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
     }
     dlt: number = 0;
     dut: number = 0;

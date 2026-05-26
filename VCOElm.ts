@@ -72,8 +72,8 @@ export class VCOElm extends ChipElm {
     cDir: number = 0;
 
     doStep(): void {
-        const vc = this.volts[3] - this.volts[2];
-        let vo = this.volts[1];
+        const vc = this.nodes[3].v - this.nodes[2].v;
+        let vo = this.nodes[1].v;
         let dir = (vo < 2.5) ? 1 : -1;
         // switch direction of current through cap as we oscillate
         if (vo < 2.5 && vc > 4.5) {
@@ -103,7 +103,7 @@ export class VCOElm extends ChipElm {
         if (this.cResistance === 0)
             return;
         const c = this.cDir * (this.pins[4].current + this.pins[5].current) +
-            (this.volts[3] - this.volts[2]) / this.cResistance;
+            (this.nodes[3].v - this.nodes[2].v) / this.cResistance;
         this.pins[2].current = -c;
         this.pins[3].current = c;
         this.pins[0].current = -this.pins[4].current;

@@ -153,11 +153,11 @@ export class ProbeElm extends CircuitElm {
         if (showCircle)
             len = ProbeElm.circleSize * 2;
         this.calcLeads(len);
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         if (selected)
             g.setColor(CircuitElm.selectColor);
         CircuitElm.drawThickLine(g, this.lead2!, this.point2);
@@ -261,7 +261,7 @@ export class ProbeElm extends CircuitElm {
     }
 
     calculateCurrent(): void {
-        this.current = (this.resistance === 0) ? 0 : (this.volts[0] - this.volts[1]) / this.resistance;
+        this.current = (this.resistance === 0) ? 0 : (this.nodes[0].v - this.nodes[1].v) / this.resistance;
     }
 
     stamp(): void {

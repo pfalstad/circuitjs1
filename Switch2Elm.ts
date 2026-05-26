@@ -95,12 +95,12 @@ export class Switch2Elm extends SwitchElm {
         this.adjustBbox(this.swposts[0], this.swposts[this.throwCount - 1]);
 
         // draw first lead
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
 
         // draw other leads
         for (let i = 0; i !== this.throwCount; i++) {
-            this.setVoltageColor(g, this.volts[i + 1]);
+            this.setVoltageColor(g, this.nodes[i + 1].v);
             CircuitElm.drawThickLine(g, this.swpoles[i], this.swposts[i]);
         }
 

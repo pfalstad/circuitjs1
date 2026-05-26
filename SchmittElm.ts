@@ -41,13 +41,13 @@ export class SchmittElm extends InvertingSchmittElm {
     lastOutputVoltage: number = 0;
 
     startIteration(): void {
-        this.lastOutputVoltage = this.volts[1];
+        this.lastOutputVoltage = this.nodes[1].v;
     }
     doStep(): void {
         let out: number;
         if (this.state) {
             // Output is high
-            if (this.volts[0] > this.upperTrigger) {
+            if (this.nodes[0].v > this.upperTrigger) {
                 // Input voltage high enough to set output high
                 this.state = false;
                 out = this.logicOnLevel;
@@ -56,7 +56,7 @@ export class SchmittElm extends InvertingSchmittElm {
             }
         } else {
             // Output is low
-            if (this.volts[0] < this.lowerTrigger) {
+            if (this.nodes[0].v < this.lowerTrigger) {
                 // Input voltage low enough to set output low
                 this.state = true;
                 out = this.logicOffLevel;

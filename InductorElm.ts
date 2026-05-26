@@ -89,8 +89,8 @@ export class InductorElm extends CircuitElm {
         this.calcLeads(32);
     }
     draw(g: Graphics): void {
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
         let i: number;
         const hs = 8;
         this.setBbox(this.point1, this.point2, hs);
@@ -105,21 +105,21 @@ export class InductorElm extends CircuitElm {
         this.drawPosts(g);
     }
     reset(): void {
-        this.volts[0] = this.volts[1] = this.curcount = 0;
+        this.curcount = 0;
         this.current = this.initialCurrent;
         this.ind.resetTo(this.initialCurrent);
     }
     stamp(): void { this.ind.stamp(this.nodes[0], this.nodes[1]); }
     startIteration(): void {
-        this.ind.startIteration(this.volts[0]-this.volts[1]);
+        this.ind.startIteration(this.nodes[0].v-this.nodes[1].v);
     }
     nonLinear(): boolean { return this.ind.nonLinear(); }
     calculateCurrent(): void {
-        const voltdiff = this.volts[0]-this.volts[1];
+        const voltdiff = this.nodes[0].v-this.nodes[1].v;
         this.current = this.ind.calculateCurrent(voltdiff);
     }
     doStep(): void {
-        const voltdiff = this.volts[0]-this.volts[1];
+        const voltdiff = this.nodes[0].v-this.nodes[1].v;
         this.ind.doStep(voltdiff);
     }
     getInfo(arr: string[]): void {

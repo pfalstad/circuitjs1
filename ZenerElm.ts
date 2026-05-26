@@ -72,8 +72,8 @@ export class ZenerElm extends DiodeElm {
     draw(g: Graphics): void {
         this.setBbox(this.point1, this.point2, this.hs);
 
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
 
         this.draw2Leads(g);
 

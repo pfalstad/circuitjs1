@@ -162,7 +162,6 @@ export abstract class CompositeElm extends CircuitElm {
                 // node = 0 means ground
                 if (nodeOfThisPost === 0) {
                     ce.setNode(thisPost, CircuitNode.ground);
-                    ce.setNodeVoltage(thisPost, 0);
                     thisPost++;
                     continue;
                 }

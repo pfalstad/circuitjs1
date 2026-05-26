@@ -226,9 +226,9 @@ export class PotElm extends CircuitElm {
     draw(g: Graphics): void {
         const segments = 16;
         const hs = this.showEuroResistors() ? 6 : 8;
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
-        const v3 = this.volts[2];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
+        const v3 = this.nodes[2].v;
         this.setBbox(this.point1, this.point2, hs);
         this.adjustBbox(this.post3, this.post3);
         this.draw2Leads(g);
@@ -317,8 +317,8 @@ export class PotElm extends CircuitElm {
 
     calculateCurrent(): void {
         if (this.resistance1 === 0) return;
-        this.current1 = (this.volts[0] - this.volts[2]) / this.resistance1;
-        this.current2 = (this.volts[1] - this.volts[2]) / this.resistance2;
+        this.current1 = (this.nodes[0].v - this.nodes[2].v) / this.resistance1;
+        this.current2 = (this.nodes[1].v - this.nodes[2].v) / this.resistance2;
         this.current3 = -this.current1 - this.current2;
     }
 

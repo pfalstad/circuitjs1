@@ -40,7 +40,6 @@ export class CustomCompositeChipElm extends ChipElm {
 
     allocPins(n: number): void {
         this.pins = new Array(n);
-        this.volts = new Array(n).fill(0);
     }
 
     setPin(n: number, p: number, s: number, t: string): void {

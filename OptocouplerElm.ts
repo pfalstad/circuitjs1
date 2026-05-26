@@ -127,7 +127,7 @@ export class OptocouplerElm extends CompositeElm {
         CircuitElm.drawThickPolygon(g, this.rectPointsX, this.rectPointsY, 4);
 
         for (let i = 0; i !== 4; i++) {
-            this.setVoltageColor(g, this.volts[i]);
+            this.setVoltageColor(g, this.nodes[i].v);
             const a = this.posts[i];
             const b = this.stubs[i];
             CircuitElm.drawThickLine(g, a, b);

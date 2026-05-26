@@ -80,7 +80,7 @@ export class DFlipFlopElm extends ChipElm {
 
     reset(): void {
         super.reset();
-        this.volts[2] = this.highVoltage;
+        //this.volts[2] = this.highVoltage;
         this.pins[2].value = true;
     }
 

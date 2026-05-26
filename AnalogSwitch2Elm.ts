@@ -56,15 +56,15 @@ export class AnalogSwitch2Elm extends AnalogSwitchElm {
         this.setBbox(this.point1, this.point2, this.openhs);
 
         // draw first lead
-        this.setVoltageColor(g, this.volts[0]);
+        this.setVoltageColor(g, this.nodes[0].v);
         CircuitElm.drawThickLine(g, this.point1, this.lead1!);
 
         // draw second lead
-        this.setVoltageColor(g, this.volts[1]);
+        this.setVoltageColor(g, this.nodes[1].v);
         CircuitElm.drawThickLine(g, this.swpoles[0], this.swposts[0]);
 
         // draw third lead
-        this.setVoltageColor(g, this.volts[2]);
+        this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.swpoles[1], this.swposts[1]);
 
         // draw switch arm
@@ -89,8 +89,8 @@ export class AnalogSwitch2Elm extends AnalogSwitchElm {
 
     calculateCurrent(): void {
         this.current = this.open
-            ? (this.volts[0] - this.volts[2]) / this.r_on
-            : (this.volts[0] - this.volts[1]) / this.r_on;
+            ? (this.nodes[0].v - this.nodes[2].v) / this.r_on
+            : (this.nodes[0].v - this.nodes[1].v) / this.r_on;
     }
 
     stamp(): void {
@@ -104,7 +104,7 @@ export class AnalogSwitch2Elm extends AnalogSwitchElm {
     }
 
     doStep(): void {
-        this.open = this.volts[3] < this.threshold;
+        this.open = this.nodes[3].v < this.threshold;
         if (this.hasFlag(this.FLAG_INVERT))
             this.open = !this.open;
         if (this.open) {

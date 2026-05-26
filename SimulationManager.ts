@@ -632,10 +632,6 @@ export class SimulationManager {
 		    cnl.elm = ce;
 		    cn2.links.push(cnl);
 		    ce.setNode(j, cn2);
-		    // if it's the ground node, make sure the node voltage is 0,
-		    // cause it may not get set later
-		    if (cn2 === CircuitNode.ground)
-			ce.setNodeVoltage(j, 0);
 		}
 	    }
 	    for (j = 0; j !== inodes; j++) {
@@ -676,9 +672,6 @@ export class SimulationManager {
 		cn.links.push(cnl);
 		// this is needed so findUnconnectedNodes() works
 		cn.internal = false;
-		// if it's the ground node, make sure the node voltage is 0
-		if (cn.index === 0)
-		    ce.setNodeVoltage(i, 0);
 	    }
 	}
     }
@@ -1528,9 +1521,10 @@ export class SimulationManager {
 	for (j = 0; j !== m.nodeList.length; j++) {
 	    const cn = m.nodeList[j];
 	    const res = nv[cn.row-1];
+	    cn.v = res;
 	    for (k = 0; k !== cn.links.length; k++) {
 		const cnl = cn.links[k];
-		cnl.elm.setNodeVoltage(cnl.num, res);
+		cnl.elm.calculateCurrent();
 	    }
 	}
     }

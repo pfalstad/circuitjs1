@@ -27,6 +27,7 @@ export class CircuitNode {
     index: number = 0;
     matrix: CircuitMatrix | null = null;
     row: number = 0;  // row in matrix (0 = ground/excluded)
+    v: number = 0;
 
     toString(): string { return "node " + this.index; }
 }

@@ -46,7 +46,7 @@ export class LampElm extends CircuitElm {
             this.nom_v    = 120;
             this.warmTime = .4;
             this.coolTime = .4;
-            this.startIteration(); // set resistance
+            this.updateResistance();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
             this.temp     = parseFloat(st!.nextToken());
@@ -56,7 +56,7 @@ export class LampElm extends CircuitElm {
             this.nom_v    = parseFloat(st!.nextToken());
             this.warmTime = parseFloat(st!.nextToken());
             this.coolTime = parseFloat(st!.nextToken());
-            this.startIteration(); // set resistance
+            this.updateResistance();
         }
     }
 
@@ -129,8 +129,8 @@ export class LampElm extends CircuitElm {
     }
 
     draw(g: Graphics): void {
-        const v1 = this.volts[0];
-        const v2 = this.volts[1];
+        const v1 = this.nodes[0].v;
+        const v2 = this.nodes[1].v;
         this.setBbox(this.point1, this.point2, 4);
         this.adjustBbox(this.bulb.x - this.bulbR, this.bulb.y - this.bulbR,
                         this.bulb.x + this.bulbR, this.bulb.y + this.bulbR);
@@ -162,7 +162,7 @@ export class LampElm extends CircuitElm {
     }
 
     calculateCurrent(): void {
-        this.current = (this.volts[0] - this.volts[1]) / this.resistance;
+        this.current = (this.nodes[0].v - this.nodes[1].v) / this.resistance;
         if (this.resistance === 0)
             this.current = 0;
     }
@@ -174,7 +174,7 @@ export class LampElm extends CircuitElm {
 
     nonLinear(): boolean { return true; }
 
-    startIteration(): void {
+    updateResistance(): void {
         // based on http://www.intusoft.com/nlpdf/nl11.pdf
         const nom_r = this.nom_v * this.nom_v / this.nom_pow;
         // this formula doesn't work for values over 5390
@@ -182,6 +182,10 @@ export class LampElm extends CircuitElm {
         this.resistance = nom_r * (1.26104 -
             4.90662 * Math.sqrt(17.1839 / tp - 0.00318794) -
             7.8569 / (tp - 187.56));
+    }
+
+    startIteration(): void {
+        this.updateResistance();
         const cap  = 1.57e-4 * this.nom_pow;
         const capw = cap * this.warmTime / .4;
         const capc = cap * this.coolTime / .4;

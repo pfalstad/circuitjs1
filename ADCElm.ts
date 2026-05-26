@@ -52,7 +52,7 @@ export class ADCElm extends ChipElm {
     execute(): void {
         const imax = (1 << this.bits) - 1;
         // if we round, the half-flash doesn't work
-        const val = imax * this.volts[this.bits] / this.volts[this.bits + 1]; // + .5;
+        const val = imax * this.nodes[this.bits].v / this.nodes[this.bits + 1].v; // + .5;
         let ival = Math.trunc(val);
         ival = Math.min(imax, Math.max(0, ival));
         for (let i = 0; i !== this.bits; i++)
