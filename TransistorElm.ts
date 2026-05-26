@@ -68,9 +68,7 @@ export class TransistorElm extends CircuitElm {
             try {
                 this.lastvbe = parseFloat(st!.nextToken());
                 this.lastvbc = parseFloat(st!.nextToken());
-                //this.volts[0] = 0;
-                //this.volts[1] = -this.lastvbe;
-                //this.volts[2] = -this.lastvbc;
+                this.justLoaded = true;
                 this.beta = parseFloat(st!.nextToken());
                 this.modelName = CustomLogicModel.unescape(st!.nextToken());
             } catch (e) {
@@ -121,9 +119,7 @@ export class TransistorElm extends CircuitElm {
         this.modelName = xml.parseStringAttr("mo", this.modelName);
         this.lastvbe = xml.parseDoubleAttr("vbe", 0);
         this.lastvbc = xml.parseDoubleAttr("vbc", 0);
-        //this.volts[0] = 0;
-        //this.volts[1] = -this.lastvbe;
-        //this.volts[2] = -this.lastvbc;
+        this.justLoaded = true;
         TransistorElm.globalFlags = this.flags & TransistorElm.FLAGS_GLOBAL;
         this.setup();
     }
@@ -271,6 +267,7 @@ export class TransistorElm extends CircuitElm {
     vcrit: number = 0;
     lastvbc: number = 0;
     lastvbe: number = 0;
+    justLoaded: boolean = false;
 
     limitStep(vnew: number, vold: number): number {
         let arg: number;
@@ -352,8 +349,9 @@ export class TransistorElm extends CircuitElm {
     }
 
     doStep(): void {
-        let vbc = this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
-        let vbe = this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
+        let vbc = this.justLoaded ? this.lastvbc : this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
+        let vbe = this.justLoaded ? this.lastvbe : this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
+        this.justLoaded = false;
         const notConverged = Math.abs(vbc - this.lastvbc) > .01 ||
             Math.abs(vbe - this.lastvbe) > .01;
         if (notConverged)

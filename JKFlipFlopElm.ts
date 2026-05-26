@@ -21,13 +21,10 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-
 export class JKFlipFlopElm extends ChipElm {
     static readonly FLAG_RESET         = 2;
     static readonly FLAG_POSITIVE_EDGE = 4;
     static readonly FLAG_INVERT_RESET  = 8;
-
-    justLoaded: boolean = false;
 
     hasReset():           boolean { return (this.flags & JKFlipFlopElm.FLAG_RESET        ) !== 0; }
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
@@ -41,7 +38,6 @@ export class JKFlipFlopElm extends ChipElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             this.pins[4].value = !this.pins[3].value;
-            this.justLoaded = true;
         }
     }
 
@@ -71,12 +67,6 @@ export class JKFlipFlopElm extends ChipElm {
     getVoltageSourceCount(): number { return 2; }
 
     execute(): void {
-        // defer first execution after load: volts[] may be all-zero and would force a spurious reset
-        if (this.justLoaded) {
-            this.justLoaded = false;
-            return;
-        }
-
         const transition = this.positiveEdgeTriggered()
             ?  this.pins[1].value && !this.lastClock
             : !this.pins[1].value &&  this.lastClock;

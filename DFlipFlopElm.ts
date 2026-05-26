@@ -21,7 +21,6 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-
 export class DFlipFlopElm extends ChipElm {
     static readonly FLAG_RESET            = 2;
     static readonly FLAG_SET              = 4;
@@ -30,8 +29,6 @@ export class DFlipFlopElm extends ChipElm {
     hasReset():       boolean { return (this.flags & DFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
-
-    justLoaded: boolean = false;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -42,7 +39,6 @@ export class DFlipFlopElm extends ChipElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             this.pins[2].value = !this.pins[1].value;
-            this.justLoaded = true;
         }
     }
 
@@ -78,19 +74,7 @@ export class DFlipFlopElm extends ChipElm {
 
     getVoltageSourceCount(): number { return 2; }
 
-    reset(): void {
-        super.reset();
-        //this.volts[2] = this.highVoltage;
-        this.pins[2].value = true;
-    }
-
     execute(): void {
-        // if we just loaded then the volts[] array is likely to be all zeroes, which might force us to do a reset, so defer execution until the next iteration
-        if (this.justLoaded) {
-            this.justLoaded = false;
-            return;
-        }
-
         let isSet   = false;
         let isReset = false;
 

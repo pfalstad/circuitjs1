@@ -65,8 +65,10 @@ export class OpAmpElm extends CircuitElm {
                 this.maxOut = parseFloat(st!.nextToken());
                 this.minOut = parseFloat(st!.nextToken());
                 this.gbw = parseFloat(st!.nextToken());
-                const v0 = parseFloat(st!.nextToken()); // this.volts
-                const v1 = parseFloat(st!.nextToken()); // this.volts
+                const v0 = parseFloat(st!.nextToken());
+                const v1 = parseFloat(st!.nextToken());
+                this.savedVd = v1 - v0;
+                this.justLoaded = true;
                 this.gain = parseFloat(st!.nextToken());
             } catch (e) {}
             this.noDiagonal = true;
@@ -182,6 +184,8 @@ export class OpAmpElm extends CircuitElm {
     }
 
     lastvd: number = 0;
+    savedVd: number = 0;
+    justLoaded: boolean = false;
 
     stamp(): void {
         CircuitElm.sim.stampNonLinearVS(this.voltSource!);
@@ -189,7 +193,8 @@ export class OpAmpElm extends CircuitElm {
     }
 
     doStep(): void {
-        const vd = this.nodes[1].v - this.nodes[0].v;
+        const vd = this.justLoaded ? this.savedVd : this.nodes[1].v - this.nodes[0].v;
+        this.justLoaded = false;
         const midpoint = (this.maxOut + this.minOut) * .5;
         if (Math.abs(this.lastvd - vd) > .1)
             CircuitElm.sim.converged = false;

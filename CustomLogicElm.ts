@@ -53,8 +53,8 @@ export class CustomLogicElm extends ChipElm {
             this.updateModels();
             for (let i = 0; i !== this.getPostCount(); i++) {
                 if (this.pins[i].output) {
-                    const v = parseFloat(st!.nextToken()); // this.volts
-                    this.pins[i].value = this.nodes[i].v > this.getThreshold();
+                    const v = parseFloat(st!.nextToken());
+                    this.pins[i].value = v > this.getThreshold();
                 }
             }
         }

@@ -52,10 +52,6 @@ export class Counter2Elm extends ChipElm {
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.modulus = xml.parseIntAttr("mo", this.modulus);
-
-        // avoid clearing on first iteration
-        this.pins[this.clr].value = true;
-        //this.volts[this.clr] = this.highVoltage;
     }
 
     needsBits(): boolean { return true; }

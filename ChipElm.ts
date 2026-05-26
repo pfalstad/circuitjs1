@@ -169,6 +169,7 @@ export abstract class ChipElm extends CircuitElm {
     flippedSizeX: number = 0;
     flippedSizeY: number = 0;
     lastClock: boolean = false;
+    justLoaded: boolean = false;
     labelX: number = 0;
     labelY: number = 0;
 
@@ -218,6 +219,7 @@ export abstract class ChipElm extends CircuitElm {
                     this.pins[i].value = v > this.getThreshold();
                 }
             }
+            this.justLoaded = true;
         }
     }
 
@@ -455,7 +457,10 @@ export abstract class ChipElm extends CircuitElm {
             if (!p.output)
                 p.value = this.nodes[i].v > this.getThreshold();
         }
-        this.execute();
+        if (this.justLoaded)
+            this.justLoaded = false;
+        else
+            this.execute();
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
             if (p.output)
@@ -517,6 +522,7 @@ export abstract class ChipElm extends CircuitElm {
             if (this.pins != null)
                 this.pins[i].value = v > this.getThreshold();
         }
+        this.justLoaded = true;
     }
 
     writeOutput(n: number, value: boolean): void {

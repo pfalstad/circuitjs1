@@ -21,9 +21,7 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-
 export class RingCounterElm extends ChipElm {
-    justLoaded: boolean = false;
     static readonly FLAG_CLOCK_INHIBIT = 2;
     static readonly FLAG_RESET_HIGH    = 4;
 
@@ -36,7 +34,6 @@ export class RingCounterElm extends ChipElm {
             this.setupPins();
         } else {
             super(xa, ya, xb, yb!, f!, st!);
-            this.justLoaded = true;
         }
     }
 
@@ -77,12 +74,6 @@ export class RingCounterElm extends ChipElm {
 
     execute(): void {
         let i: number;
-
-        // if we just loaded then the volts[] array is likely to be all zeroes, which might force us to do a reset, so defer execution until the next iteration
-        if (this.justLoaded) {
-            this.justLoaded = false;
-            return;
-        }
 
         let running = true;
         if (this.hasClockInhibit() && this.pins[this.clockInhibit].value)
