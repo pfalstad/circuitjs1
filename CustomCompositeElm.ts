@@ -95,7 +95,7 @@ export class CustomCompositeElm extends CompositeElm {
 
     draw(g: Graphics): void {
         for (let i = 0; i < this.postCount; i++) {
-            this.chip.volts[i] = this.nodes[i].v;
+            this.chip.nodes[i] = this.nodes[i];
             this.chip.pins[i].current = this.getCurrentIntoNode(i);
         }
         this.chip.setSelected(this.needsHighlight());
