@@ -302,7 +302,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.getText();
+            this.name = ei.textf.value;
             if (this.name.length > 0)
                 DiodeModel.modelMap.set(this.name, this);
         }

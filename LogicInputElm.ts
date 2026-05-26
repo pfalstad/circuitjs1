@@ -116,6 +116,7 @@ export class LogicInputElm extends SwitchElm {
         CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource);
     }
 
+    isLogicInputElm(): boolean { return true; }
     isWireEquivalent(): boolean { return false; }
     isRemovableWire(): boolean { return false; }
 

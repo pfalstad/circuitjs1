@@ -59,10 +59,11 @@ export class SwitchElm extends CircuitElm {
         } else {
             super(xa, ya, xbOrMm as number, yb, f!);
             const str = st!.nextToken();
+            const isLogicInput = this.isLogicInputElm();
             if (str === 'true')
-                this.position = 1;
+                this.position = isLogicInput ? 0 : 1;
             else if (str === 'false')
-                this.position = 0;
+                this.position = isLogicInput ? 1 : 0;
             else
                 this.position = parseInt(str);
             this.momentary = st!.nextToken() === 'true';
@@ -252,7 +253,7 @@ export class SwitchElm extends CircuitElm {
             this.setPoints();
         }
         if (n === 2) {
-            this.label = ei.textf!.getText();
+            this.label = ei.textf!.value;
             if (this.label.length === 0) {
                 this.label = null;
                 this.flags &= ~SwitchElm.FLAG_LABEL;
@@ -269,7 +270,7 @@ export class SwitchElm extends CircuitElm {
     }
 
     setKeyShortcutEditValue(ei: EditInfo): void {
-        const s = ei.textf!.getText().trim();
+        const s = ei.textf!.value.trim();
         if (s.length === 0)
             this.keyShortcut = null;
         else

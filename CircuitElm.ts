@@ -699,7 +699,16 @@ export abstract class CircuitElm implements Editable {
     getNodeCount(): number { return this.getPostCount() + this.getInternalNodeCount(); }
 
     // notify this element that its pth node is n.
-    setNode(p: number, n: CircuitNode): void { this.nodes[p] = n; }
+    setNode(p: number, n: CircuitNode): void {
+	let v = 0;
+
+	// preserve voltages if possible
+	if (this.nodes[p] !== undefined)
+	    v = this.nodes[p].v;
+	this.nodes[p] = n;
+	if (v != 0)
+	    this.nodes[p].v = v;
+    }
 
     // notify this element that its nth voltage source is v.  This value v can be passed to stampVoltageSource(), etc and will be passed back in calls to setCurrent()
     setVoltageSource(n: number, v: VoltageSource): void {

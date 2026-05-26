@@ -320,7 +320,7 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.getText();
+            this.name = ei.textf.value;
             if (this.name.length > 0)
                 TransistorModel.modelMap.set(this.name, this);
         }

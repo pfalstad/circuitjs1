@@ -34,6 +34,7 @@ export abstract class GateElm extends CircuitElm {
     static readonly FLAG_INVERT_INPUTS = 1<<2;
     inputCount: number = 2;
     lastOutput: boolean = false;
+    justLoaded: boolean = false;
     highVoltage: number;
     propagationDelay: number = 0; // seconds; 0 = instant (default)
     delayEndTime: number = 0;     // time at which pending output change takes effect
@@ -172,8 +173,8 @@ export abstract class GateElm extends CircuitElm {
     }
 
     setupVolts(): void {
-        //for (let i = 0; i !== this.inputCount; i++)
-        //    this.volts[i] = (this.lastOutput !== this.isInverting()) ? this.highVoltage : 0;
+        this.justLoaded = true;
+	console.log('setupvolts', this.lastOutput);
     }
 
     getLeadAdjustment(ix: number): number { return 0; }
@@ -262,6 +263,7 @@ export abstract class GateElm extends CircuitElm {
             return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
         const res = this.nodes[x].v > this.highVoltage * (this.inputStates[x] ? .35 : .55);
         this.inputStates[x] = res;
+	console.log('node', x, this.nodes[x].index, res);
         return res ? high : !high;
     }
 
@@ -269,6 +271,14 @@ export abstract class GateElm extends CircuitElm {
     lastTime: number = 0;
 
     doStep(): void {
+        if (this.justLoaded) {
+            this.justLoaded = false;
+            CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.inputCount], this.voltSource,
+                this.lastOutput ? this.highVoltage : 0);
+	    console.log('updated voltage', this.lastOutput, this);
+            return;
+        }
+
         let f = this.calcFunction();
         if (this.isInverting())
             f = !f;
@@ -309,6 +319,7 @@ export abstract class GateElm extends CircuitElm {
         }
 
         const res = this.lastOutput ? this.highVoltage : 0;
+	console.log('res = ', this, this.nodes[0].v, this.nodes[1].v, res);
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.inputCount], this.voltSource, res);
     }
 
