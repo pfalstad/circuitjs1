@@ -128,7 +128,7 @@ public class ScopeManager {
 
     void drawHoverScope(Graphics g, int canvasWidth, int canvasHeight) {
 	CircuitElm mouseElm = sim.mouse.getMouseElm();
-	if (mouseElm == null || mouseElm.isWireEquivalent() || mouseElm instanceof SwitchElm) {
+	if (!sim.simIsRunning() || mouseElm == null || mouseElm.isWireEquivalent() || mouseElm instanceof SwitchElm) {
 	    hoverScope = null;
 	    return;
 	}
