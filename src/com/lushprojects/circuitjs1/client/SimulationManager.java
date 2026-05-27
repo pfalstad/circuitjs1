@@ -339,7 +339,7 @@ public class SimulationManager {
 		    cnl.num = j;
 		    cnl.elm = ce;
 		    cn.links.addElement(cnl);
-		} else
+		} else if (!(ce instanceof LabeledNodeElm))
 		    console("missing node for " + pt);
 	    }
 	}
@@ -388,6 +388,13 @@ public class SimulationManager {
 	    WireSegment ws = wireInfoList.get(i);
 	    CircuitElm wire = ws.wire;
 	    CircuitNode cn1 = wire.getNode(ws.bit);
+	    if (cn1 == null) {
+		// dangling labeled node not connected to anything inside composite — no current
+		ws.neighbors = new Vector<CircuitElm>();
+		ws.labelNeighbors = new Vector<WireSegment>();
+		setWireInfoResolved(wire, ws.bit);
+		continue;
+	    }
 
 	    Vector<CircuitElm> neighbors0 = new Vector<CircuitElm>();
 	    Vector<CircuitElm> neighbors1 = new Vector<CircuitElm>();
