@@ -78,11 +78,10 @@ public class CustomCompositeElm extends CompositeElm {
 	int i;
 	for (i = 0; i != postCount; i++) {
 	    chip.volts[i] = volts[i];
-	    chip.pins[i].current = getCurrentIntoNode(i); 
+	    chip.pins[i].current = getCurrentIntoNode(i);
 	}
 	chip.setSelected(needsHighlight());
 	chip.draw(g);
-	boundingBox = chip.boundingBox;
     }
 
     void addRoutingObstacle(WireRouter router) {
@@ -111,6 +110,7 @@ public class CustomCompositeElm extends CompositeElm {
 	}
 
 	chip.setPoints();
+	boundingBox = chip.boundingBox;
 	for (i = 0; i != getPostCount(); i++)
 	    setPost(i, chip.getPost(i));
     }
@@ -333,7 +333,7 @@ public class CustomCompositeElm extends CompositeElm {
     String getElmType() { return "subcircuit"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
-	if (model.builtin)
+	if (model.builtin && model.name.startsWith("~"))
 	    arr[0] = model.name.substring(1);
 	else
 	    arr[0] = "subcircuit (" + model.name + ")";
