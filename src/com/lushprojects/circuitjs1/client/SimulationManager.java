@@ -626,62 +626,80 @@ public class SimulationManager {
     int nodesWithGroundConnectionCount;
     
     void findUnconnectedNodes() {
-	int i, j;
-	
+	int i, j, k;
+	int totalNodes = nodeList.size();
+
 	// determine nodes that are not connected indirectly to ground.
 	// all nodes must be connected to ground somehow, or else we
 	// will get a matrix error.
-	boolean closure[] = new boolean[nodeList.size()];
-	boolean changed = true;
+	boolean closure[] = new boolean[totalNodes];
 	unconnectedNodes = new Vector<Integer>();
 	nodesWithGroundConnection = new Vector<CircuitElm>();
 	closure[0] = true;
-	while (changed) {
-	    changed = false;
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (ce instanceof WireElm)
-		    continue;
-		// loop through all ce's nodes to see if they are connected
-		// to other nodes not in closure
-		boolean hasGround = false;
-		for (j = 0; j < ce.getPostCount(); j++) {
-		    boolean hg = ce.hasGroundConnection(j);
-		    if (hg)
-			hasGround = true;
-		    int jn = ce.getNode(j).index;
-		    if (!closure[jn]) {
-			if (hg)
-			    closure[jn] = changed = true;
-			continue;
-		    }
-		    int k;
+
+	// one pass over elements: seed closure with implicit ground connections
+	// and build nodesWithGroundConnection (one entry per element, no duplicates)
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    boolean hasGround = false;
+	    for (j = 0; j < ce.getPostCount(); j++) {
+		if (ce.hasGroundConnection(j)) {
+		    hasGround = true;
+		    closure[ce.getNode(j).index] = true;
+		}
+	    }
+	    if (hasGround)
+		nodesWithGroundConnection.add(ce);
+	}
+
+	// BFS via cn.links: propagate closure through element connections.
+	// when the queue drains, scan for an unconnected node and seed it so its
+	// whole component is absorbed before we flag the next one.
+	// use an index pointer into the vector as a queue to avoid O(n) shifts.
+	Vector<Integer> queue = new Vector<Integer>();
+	for (i = 0; i < totalNodes; i++)
+	    if (closure[i]) queue.add(i);
+	int qHead = 0;
+	int scanFrom = 1;
+	for (;;) {
+	    if (qHead < queue.size()) {
+		int n = queue.get(qHead++);
+		CircuitNode cn = getCircuitNode(n);
+		for (j = 0; j != cn.links.size(); j++) {
+		    CircuitNodeLink cnl = cn.links.get(j);
+		    CircuitElm ce = cnl.elm;
+		    int post1 = cnl.num;
 		    for (k = 0; k != ce.getPostCount(); k++) {
-			if (j == k)
+			if (k == post1)
 			    continue;
 			int kn = ce.getNode(k).index;
-			if (ce.getConnection(j, k) && !closure[kn]) {
+			if (!closure[kn] && ce.getConnection(post1, k)) {
 			    closure[kn] = true;
-			    changed = true;
+			    queue.add(kn);
 			}
 		    }
 		}
-		if (hasGround)
-		    nodesWithGroundConnection.add(ce);
-	    }
-	    if (changed)
-		continue;
-
-	    // connect one of the unconnected nodes to ground with a big resistor, then try again
-	    for (i = 0; i != nodeList.size(); i++)
-		if (!closure[i] && !getCircuitNode(i).internal) {
-		    unconnectedNodes.add(i);
-		    console("node " + i + " unconnected");
-//		    stampResistor(0, i, 1e8);   // do this later in connectUnconnectedNodes()
-		    closure[i] = true;
-		    changed = true;
-		    break;
+	    } else {
+		// queue drained; find next unconnected non-internal node
+		boolean found = false;
+		for (; scanFrom < totalNodes; scanFrom++) {
+		    if (!closure[scanFrom] && !getCircuitNode(scanFrom).internal) {
+			unconnectedNodes.add(scanFrom);
+			closure[scanFrom] = true;
+			queue.add(scanFrom++);
+			found = true;
+			break;
+		    }
 		}
+		if (!found)
+		    break;
+	    }
+	}
+	if (!unconnectedNodes.isEmpty()) {
+	    String s = "unconnected nodes:";
+	    for (i = 0; i != unconnectedNodes.size(); i++)
+		s += " " + unconnectedNodes.get(i);
+	    console(s);
 	}
     }
     
