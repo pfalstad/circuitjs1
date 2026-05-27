@@ -1534,13 +1534,13 @@ public class SimulationManager {
 	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	boolean sel = app.isSelection();
 	    
-	boolean used[] = new boolean[nodeList.size()];
-	boolean extnodes[] = new boolean[nodeList.size()];
-	    
 	// redo node allocation to avoid auto-assigning ground
 	if (!preStampCircuit(true))
 	    return null;
 
+	boolean used[] = new boolean[nodeList.size()];
+	boolean extnodes[] = new boolean[nodeList.size()];
+	    
 	// find all the labeled nodes, get a list of them, and create a node number map
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
