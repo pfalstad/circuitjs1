@@ -174,7 +174,6 @@ export abstract class GateElm extends CircuitElm {
 
     setupVolts(): void {
         this.justLoaded = true;
-	console.log('setupvolts', this.lastOutput);
     }
 
     getLeadAdjustment(ix: number): number { return 0; }
@@ -263,7 +262,6 @@ export abstract class GateElm extends CircuitElm {
             return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
         const res = this.nodes[x].v > this.highVoltage * (this.inputStates[x] ? .35 : .55);
         this.inputStates[x] = res;
-	console.log('node', x, this.nodes[x].index, res);
         return res ? high : !high;
     }
 
@@ -275,7 +273,6 @@ export abstract class GateElm extends CircuitElm {
             this.justLoaded = false;
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.inputCount], this.voltSource,
                 this.lastOutput ? this.highVoltage : 0);
-	    console.log('updated voltage', this.lastOutput, this);
             return;
         }
 
@@ -319,7 +316,6 @@ export abstract class GateElm extends CircuitElm {
         }
 
         const res = this.lastOutput ? this.highVoltage : 0;
-	console.log('res = ', this, this.nodes[0].v, this.nodes[1].v, res);
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.inputCount], this.voltSource, res);
     }
 
