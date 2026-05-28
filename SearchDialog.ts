@@ -45,7 +45,10 @@ export class SearchDialog extends Dialog {
         this.textBox.style.width = "100%";
         this.textBox.style.boxSizing = "border-box";
         this.dialogEl.appendChild(this.textBox);
-        this.textBox.addEventListener("keyup", () => this.search());
+        this.textBox.addEventListener("keyup", (e) => {
+            if (e.key === "Enter") this.apply();
+            else this.search();
+        });
 
         this.listBox = document.createElement("select");
         this.listBox.size = 10;
@@ -53,6 +56,7 @@ export class SearchDialog extends Dialog {
         this.listBox.style.marginTop = "6px";
         this.dialogEl.appendChild(this.listBox);
         this.listBox.addEventListener("dblclick", () => this.apply());
+        this.listBox.addEventListener("keydown", (e) => { if (e.key === "Enter") this.apply(); });
 
         // populate initial list (all items with shortcut length <= 1)
         const ui = sim.ui;

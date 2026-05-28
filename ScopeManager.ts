@@ -143,9 +143,13 @@ export class ScopeManager {
         // unused scopes/columns
         let pos = -1;
         for (i = 0; i < this.scopeCount; i++) {
+            if (!this.scopes[i]) {
+                this.scopeCount = i;
+                break;
+            }
             if (this.scopes[i].needToRemove()) {
                 let j;
-                for (j = i; j !== this.scopeCount; j++)
+                for (j = i; j < this.scopeCount; j++)
                     this.scopes[j] = this.scopes[j + 1];
                 this.scopeCount--;
                 i--;
@@ -155,7 +159,7 @@ export class ScopeManager {
                 this.scopes[i].position = pos + 1;
             pos = this.scopes[i].position;
         }
-        while (this.scopeCount > 0 && this.scopes[this.scopeCount - 1].getElm() === null)
+        while (this.scopeCount > 0 && this.scopes[this.scopeCount - 1]?.getElm() === null)
             this.scopeCount--;
         const ui = this.sim.ui;
         const h = ui.canvasHeight - this.sim.circuitArea.height;

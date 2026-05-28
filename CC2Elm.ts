@@ -95,8 +95,3 @@ export class CC2Elm extends ChipElm {
     getDumpType(): number { return 179; }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
 }
-
-export class CC2NegElm extends CC2Elm {
-    constructor(xx: number, yy: number) { super(xx, yy, -1); }
-    getDumpClass(): Function { return CC2Elm; }
-}

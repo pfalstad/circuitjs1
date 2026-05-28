@@ -31,6 +31,8 @@ import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SearchDialog } from "./SearchDialog";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import { Scope } from "./Scope";
+import { ScopeElm } from "./ScopeElm";
 
 export class CommandManager {
 
@@ -201,7 +203,7 @@ export class CommandManager {
                 if (this.app.scopeManager.scopeCount == this.app.scopeManager.scopes.length)
                     return;
                 this.app.scopeManager.scopeCount++;
-                this.app.scopeManager.scopes[i] = new (window as any).Scope(this.app, this.app.sim);
+                this.app.scopeManager.scopes[i] = new Scope(this.app, this.app.sim);
                 this.app.scopeManager.scopes[i].position = i;
             }
             this.app.scopeManager.scopes[i].setElm(this.app.mouse.menuElm);
@@ -210,7 +212,7 @@ export class CommandManager {
         }
 
         if (item == "viewInFloatScope" && this.app.mouse.menuElm != null) {
-            const newScope = new (window as any).ScopeElm(
+            const newScope = new ScopeElm(
                 this.app.snapGrid(this.app.mouse.menuElm.x + 50),
                 this.app.snapGrid(this.app.mouse.menuElm.y + 50));
             this.app.elmList.push(newScope);
@@ -251,7 +253,7 @@ export class CommandManager {
             }
             if (item == "undock") {
                 const elm = s.getElm();
-                const newScope = new (window as any).ScopeElm(
+                const newScope = new ScopeElm(
                     this.app.snapGrid(elm.x + 50),
                     this.app.snapGrid(elm.y + 50));
                 this.app.elmList.push(newScope);
