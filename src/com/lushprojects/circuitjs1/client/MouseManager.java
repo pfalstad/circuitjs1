@@ -484,6 +484,36 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	return split;
     }
 
+    // Split the lead stub of any non-wire element whose lead contains (px, py).
+    // Moves the element's post to the split point and inserts a wire for the remainder.
+    // Returns true if any lead was split.
+    boolean splitLeadsAt(int px, int py) {
+	boolean split = false;
+	for (int i = ui.elmList.size() - 1; i >= 0; i--) {
+	    CircuitElm ce = ui.elmList.get(i);
+	    if (ce instanceof WireElm)
+		continue;
+	    int post = ce.getLeadPost(px, py);
+	    if (post < 0)
+		continue;
+	    int ox = (post == 0) ? ce.x : ce.x2;
+	    int oy = (post == 0) ? ce.y : ce.y2;
+	    ce.movePoint(post, px - ox, py - oy);
+	    WireElm w = new WireElm(px, py);
+	    w.drag(ox, oy);
+	    ui.elmList.addElement(w);
+	    split = true;
+	}
+	return split;
+    }
+
+    // Split any wire or element lead whose interior contains (px, py).
+    boolean splitAt(int px, int py) {
+	boolean a = splitWireAt(px, py);
+	boolean b = splitLeadsAt(px, py);
+	return a || b;
+    }
+
     void selectArea(int x, int y, boolean add) {
     	int x1 = Math.min(x, initDragGridX);
     	int x2 = Math.max(x, initDragGridX);
@@ -1074,7 +1104,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	// auto-split wires when a post is dragged onto a wire's interior
     	if (draggingPost >= 0 && mouseElm != null) {
     	    Point p = mouseElm.getPost(draggingPost);
-    	    if (splitWireAt(p.x, p.y))
+    	    if (splitAt(p.x, p.y))
     		circuitChanged = true;
     	}
     	if (heldSwitchElm != null) {
@@ -1094,8 +1124,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		}
     		else {
     			// auto-split wires at the new element's endpoints before adding it
-    			splitWireAt(dragElm.x, dragElm.y);
-    			splitWireAt(dragElm.x2, dragElm.y2);
+    			splitAt(dragElm.x, dragElm.y);
+    			splitAt(dragElm.x2, dragElm.y2);
     			ui.elmList.addElement(dragElm);
     			dragElm.draggingDone();
     			circuitChanged = true;

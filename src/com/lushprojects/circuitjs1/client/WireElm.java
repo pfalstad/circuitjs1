@@ -198,17 +198,7 @@ import java.util.ArrayList;
 	    for (int i = 0; i < pts.size() - 1; i++) {
 		Point a = pts.get(i);
 		Point b = pts.get(i + 1);
-		if (px == a.x && py == a.y) continue;
-		if (px == b.x && py == b.y) continue;
-		if (a.x == b.x && px == a.x) {
-		    int miny = Math.min(a.y, b.y);
-		    int maxy = Math.max(a.y, b.y);
-		    if (py > miny && py < maxy) return true;
-		} else if (a.y == b.y && py == a.y) {
-		    int minx = Math.min(a.x, b.x);
-		    int maxx = Math.max(a.x, b.x);
-		    if (px > minx && px < maxx) return true;
-		}
+		if (pointOnSegmentInterior(a.x, a.y, b.x, b.y, px, py)) return true;
 	    }
 	    return false;
 	}

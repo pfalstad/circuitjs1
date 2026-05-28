@@ -334,6 +334,34 @@ public abstract class CircuitElm implements Editable {
 	lead2 = interpPoint(point1, point2, (dn+len)/(2*dn));
     }
 
+    // Returns true if (px,py) lies strictly inside the axis-aligned segment (ax,ay)-(bx,by).
+    static boolean pointOnSegmentInterior(int ax, int ay, int bx, int by, int px, int py) {
+	if (px == ax && py == ay || px == bx && py == by) return false;
+	if (ax == bx && px == ax) {
+	    int miny = Math.min(ay, by), maxy = Math.max(ay, by);
+	    return py > miny && py < maxy;
+	} else if (ay == by && py == ay) {
+	    int minx = Math.min(ax, bx), maxx = Math.max(ax, bx);
+	    return px > minx && px < maxx;
+	}
+	return false;
+    }
+
+    // Returns which post (0 or 1) has a lead stub containing (px,py), or -1 if neither.
+    int getLeadPost(int px, int py) {
+	if (lead1 != null && lead1 != point1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, lead1.x, lead1.y, px, py))
+	    return 0;
+	if (lead2 != null && lead2 != point2 &&
+	    pointOnSegmentInterior(lead2.x, lead2.y, point2.x, point2.y, px, py))
+	    return 1;
+	// 1-post elements with no explicit leads (e.g. GroundElm): the whole point1→point2 segment is the lead
+	if (lead1 == null && getPostCount() == 1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, point2.x, point2.y, px, py))
+	    return 0;
+	return -1;
+    }
+
     // adjust leads so that the point exactly between them is a grid point (so we can place a terminal there)
     void adjustLeadsToGrid(boolean flipX, boolean flipY) {
         int cx = (point1.x+point2.x)/2;
