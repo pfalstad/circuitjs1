@@ -408,7 +408,7 @@ public class Menus {
 		"Add Counter", "CounterElm",
 		"Add Counter w/ Load", "Counter2Elm",
 		"Add Ring Counter", "DecadeElm",
-		"Add Latch", "LatchElm",
+		"Add Latch/Register", "LatchElm",
 		"Add Sequence generator", "SeqGenElm",
 		"Add Adder", "FullAdderElm",
 		"Add Half Adder", "HalfAdderElm",
