@@ -184,6 +184,7 @@ export class CirSim {
         this.commands = new CommandManager(this);
 
         await import('./Adjustable');
+        await import('./AboutBox');
         await import('./SliderDialog');
         await import('./ScopePropertiesDialog');
 
