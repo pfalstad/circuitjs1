@@ -217,12 +217,12 @@ export class EditCompositeModelDialog extends Dialog {
         this.chip.allocPins(this.postCount);
         this.chip.sizeX = this.model.sizeX;
         this.chip.sizeY = this.model.sizeY;
+        this.chip.allocNodes();
         for (let i = 0; i < this.postCount; i++) {
             const pin = this.model.extList[i];
             this.chip.setPin(i, pin.pos, pin.side, pin.name);
             this.chip.pins[i].busWidth = pin.busWidth;
             this.chip.pins[i].busZ = pin.busZ;
-            this.chip.volts[i] = 0;
             if (this.selectedPins.has(i)) this.chip.pins[i].selected = true;
         }
         this.chip.setPoints();

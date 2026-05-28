@@ -27,6 +27,7 @@ import { Locale } from "./Locale";
 
 import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
+import { HookRegistry } from "./HookRegistry";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -1571,7 +1572,9 @@ export class SimulationManager {
     }
 
 
-    // TODO: getCircuitAsComposite() — depends on XML, CustomCompositeModel, LabeledNodeElm, ChipElm, ExtListEntry
+    getCircuitAsComposite(): any {
+	return HookRegistry.getCircuitAsComposite?.(this) ?? null;
+    }
 
     static invertMatrix(a: number[][], n: number): void {
 	const ipvt: number[] = new Array(n);

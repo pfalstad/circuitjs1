@@ -26,4 +26,5 @@ export const HookRegistry = {
     clearCustomCompositeModelDumpedFlags: null as (() => void) | null,
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
+    getCircuitAsComposite:       null as ((sim: any) => any) | null,
 };

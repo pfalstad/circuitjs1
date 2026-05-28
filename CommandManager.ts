@@ -31,6 +31,7 @@ import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SearchDialog } from "./SearchDialog";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import "./GetCircuitAsComposite";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
 
