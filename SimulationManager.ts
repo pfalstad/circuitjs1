@@ -25,7 +25,8 @@ import { VoltageSource } from "./VoltageSource";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
-// TODO: import DMatrixSparseCSC, SparseLU from sparse matrix library when implemented
+import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
+import { SparseLU } from "./matrix/SparseLU";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -1048,8 +1049,6 @@ export class SimulationManager {
 	    this.usingSparse = false;
 	else // SOLVER_AUTO
 	    this.usingSparse = (maxMatrixSize >= SimulationManager.SPARSE_THRESHOLD);
-	// TODO: sparseLU is per-matrix (CircuitMatrix.sparseLU), reset implicitly when matrices[] is recreated
-
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
 	for (let mi = 0; mi !== this.matrices.length; mi++) {
@@ -1596,7 +1595,12 @@ export class SimulationManager {
 
     // Dispatching lu_factor: uses sparse or dense solver based on solverType setting
     static lu_factor(a: number[][], n: number, ipvt: number[], cm: CircuitMatrix): boolean {
-	// TODO: sparse solver (DMatrixSparseCSC / SparseLU) not yet implemented; always use dense
+	const sm = SimulationManager.theSim;
+	if (sm !== null && sm.usingSparse) {
+	    const sparse = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
+	    if (cm.sparseLU === null) cm.sparseLU = new SparseLU();
+	    return cm.sparseLU.setA(sparse);
+	}
 	return SimulationManager.lu_factor_dense(a, n, ipvt);
     }
 
@@ -1686,7 +1690,11 @@ export class SimulationManager {
 
     // Dispatching lu_solve: uses sparse or dense solver based on solverType setting
     static lu_solve(a: number[][], n: number, ipvt: number[], b: number[], cm: CircuitMatrix): void {
-	// TODO: sparse solver (SparseLU.solve) not yet implemented; always use dense
+	const sm = SimulationManager.theSim;
+	if (sm !== null && sm.usingSparse && cm.sparseLU !== null) {
+	    cm.sparseLU.solve(b, b);
+	    return;
+	}
 	SimulationManager.lu_solve_dense(a, n, ipvt, b);
     }
 

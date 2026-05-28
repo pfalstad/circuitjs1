@@ -19,6 +19,7 @@
 
 import { CircuitNode } from "./CircuitNode";
 import { VoltageSource } from "./VoltageSource";
+import { SparseLU } from "./matrix/SparseLU";
 
 export class CircuitMatrix {
     matrix: number[][] = [];
@@ -31,7 +32,7 @@ export class CircuitMatrix {
     nonLinear: boolean = false;
     nodeVoltages: number[] = [];
     lastNodeVoltages: number[] | null = null;
-    // TODO: sparseLU: SparseLU — sparse solver, not yet implemented
+    sparseLU: SparseLU | null = null;
     nodeList: CircuitNode[] = [];
     voltageSourceList: VoltageSource[] = [];
 }
