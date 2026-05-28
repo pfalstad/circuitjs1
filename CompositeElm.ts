@@ -103,6 +103,7 @@ export abstract class CompositeElm extends CircuitElm {
         this.extNodeIds = externalNodes;
         this.numPosts = this.numNodes = externalNodes.length;
         this.posts = new Array(this.numPosts);
+        this.allocNodes();
 
         // dump new circuits with escape()
         this.flags |= CompositeElm.FLAG_ESCAPE;
