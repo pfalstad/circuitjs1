@@ -38,7 +38,7 @@ export class MultiplexerElm extends ChipElm {
     static readonly INPUT_MODE_BUS_BIT    = 1;
     static readonly INPUT_MODE_BUS_BUS    = 2;
 
-    selectBitCount: number = 2;
+    selectBitCount: number;
     outputCount: number = 0;
     inputMode: number = 0;
     dataBusWidth: number = 4;
@@ -86,7 +86,8 @@ export class MultiplexerElm extends ChipElm {
     }
 
     setupPins(): void {
-        if (!this.selectBitCount) return;
+        if (!this.selectBitCount)
+	    this.selectBitCount = 2;
         const M = MultiplexerElm;
         this.outputCount = 1 << this.selectBitCount;
         let i: number, n: number;
