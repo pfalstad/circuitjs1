@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import java.util.ArrayList;
+
     class WireElm extends CircuitElm {
 	int busWidth = 1;
 	double[] currents;
@@ -191,6 +193,39 @@ package com.lushprojects.circuitjs1.client;
 		flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE_HEX);
 	}
         int getShortcut() { return 'w'; }
+
+	static boolean pointOnWireInteriorForPoints(int px, int py, ArrayList<Point> pts) {
+	    for (int i = 0; i < pts.size() - 1; i++) {
+		Point a = pts.get(i);
+		Point b = pts.get(i + 1);
+		if (px == a.x && py == a.y) continue;
+		if (px == b.x && py == b.y) continue;
+		if (a.x == b.x && px == a.x) {
+		    int miny = Math.min(a.y, b.y);
+		    int maxy = Math.max(a.y, b.y);
+		    if (py > miny && py < maxy) return true;
+		} else if (a.y == b.y && py == a.y) {
+		    int minx = Math.min(a.x, b.x);
+		    int maxx = Math.max(a.x, b.x);
+		    if (px > minx && px < maxx) return true;
+		}
+	    }
+	    return false;
+	}
+
+	boolean pointOnWireInterior(int px, int py) {
+	    ArrayList<Point> pts = new ArrayList<Point>();
+	    pts.add(new Point(x, y));
+	    pts.add(new Point(x2, y2));
+	    return pointOnWireInteriorForPoints(px, py, pts);
+	}
+
+	WireElm split(int px, int py) {
+	    WireElm newWire = new WireElm(px, py);
+	    newWire.drag(x2, y2);
+	    drag(px, py);
+	    return newWire;
+	}
 
 	int getMouseDistance(int gx, int gy) {
 	    int thresh = 10;

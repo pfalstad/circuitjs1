@@ -464,35 +464,24 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	sim.needAnalyze();
     }
 
-    void doSplit(CircuitElm ce) {
-	int x = snapGrid(inverseTransformX(menuX));
-	int y = snapGrid(inverseTransformY(menuY));
-	if (ce == null || !(ce instanceof WireElm))
-	    return;
-
-	if (ce instanceof RoutedWireElm) {
-	    RoutedWireElm rw2 = ((RoutedWireElm) ce).split(x, y);
-	    if (rw2 != null) {
-		ui.elmList.addElement(rw2);
-		sim.needAnalyze();
+    // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
+    // Returns true if any wire was split.
+    boolean splitWireAt(int px, int py) {
+	boolean split = false;
+	for (int i = ui.elmList.size() - 1; i >= 0; i--) {
+	    CircuitElm ce = ui.elmList.get(i);
+	    if (!(ce instanceof WireElm))
+		continue;
+	    WireElm we = (WireElm) ce;
+	    if (!we.pointOnWireInterior(px, py))
+		continue;
+	    WireElm newWire = we.split(px, py);
+	    if (newWire != null) {
+		ui.elmList.addElement(newWire);
+		split = true;
 	    }
-	    return;
 	}
-
-	if (ce.x == ce.x2)
-	    x = ce.x;
-	else
-	    y = ce.y;
-
-	// don't create zero-length wire
-	if (x == ce.x && y == ce.y || x == ce.x2 && y == ce.y2)
-	    return;
-
-	WireElm newWire = new WireElm(x, y);
-	newWire.drag(ce.x2, ce.y2);
-	ce.drag(x, y);
-	ui.elmList.addElement(newWire);
-	sim.needAnalyze();
+	return split;
     }
 
     void selectArea(int x, int y, boolean add) {
@@ -807,10 +796,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    	    	sim.menus.elmAddScopeMenuItem.setEnabled(mouseElm.canViewInScope() );
     	    	    }
     	    	    sim.menus.elmEditMenuItem .setEnabled(mouseElm.getEditInfo(0) != null);
-    	    	    sim.menus.elmSplitMenuItem.setEnabled(canSplit(mouseElm));
     	    	    sim.menus.elmSliderMenuItem.setEnabled(sliderItemEnabled(mouseElm));
-		    sim.menus.elmSplitMenuItem.setEnabled(canSplit(mouseElm));
-
 		    boolean canFlipX = mouseElm.canFlipX();
 		    boolean canFlipY = mouseElm.canFlipY();
 		    boolean canFlipXY = mouseElm.canFlipXY();
@@ -845,15 +831,6 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		ui.contextPanel.add(sim.menus.mainMenuBar);
     		showContextPanel(menuClientX, menuClientY);
     	}
-    }
-
-    boolean canSplit(CircuitElm ce) {
-	if (!(ce instanceof WireElm))
-	    return false;
-	WireElm we = (WireElm) ce;
-	if (we.x == we.x2 || we.y == we.y2)
-	    return true;
-	return false;
     }
 
     // check if the user can create sliders for this element
@@ -1090,14 +1067,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)
     	    clearSelection();
 
-    	// cmd-click = split wire
-    	if (tempMouseMode == MODE_DRAG_POST && draggingPost == -1)
-    	    doSplit(mouseElm);
-
     	tempMouseMode = mouseMode;
     	selectedArea = null;
     	dragging = false;
     	boolean circuitChanged = false;
+    	// auto-split wires when a post is dragged onto a wire's interior
+    	if (draggingPost >= 0 && mouseElm != null) {
+    	    Point p = mouseElm.getPost(draggingPost);
+    	    if (splitWireAt(p.x, p.y))
+    		circuitChanged = true;
+    	}
     	if (heldSwitchElm != null) {
     		heldSwitchElm.mouseUp();
     		heldSwitchElm = null;
@@ -1114,6 +1093,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 			dragElm = null;
     		}
     		else {
+    			// auto-split wires at the new element's endpoints before adding it
+    			splitWireAt(dragElm.x, dragElm.y);
+    			splitWireAt(dragElm.x2, dragElm.y2);
     			ui.elmList.addElement(dragElm);
     			dragElm.draggingDone();
     			circuitChanged = true;

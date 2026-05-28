@@ -69,7 +69,7 @@ public class Menus {
     MenuItem elmScopeMenuItem;
     MenuItem elmFloatScopeMenuItem;
     MenuItem elmAddScopeMenuItem;
-    MenuItem elmSplitMenuItem;
+
     MenuItem elmSliderMenuItem;
     MenuItem elmFlipXMenuItem, elmFlipYMenuItem, elmFlipXYMenuItem;
     MenuItem elmSwapMenuItem;
@@ -265,7 +265,7 @@ public class Menus {
 	elmMenuBar.addItem(elmFlipXMenuItem =  new MenuItem(Locale.LS("Flip X"),new MyCommand("elm","flipx")));
 	elmMenuBar.addItem(elmFlipYMenuItem =  new MenuItem(Locale.LS("Flip Y"),new MyCommand("elm","flipy")));
 	elmMenuBar.addItem(elmFlipXYMenuItem =  new MenuItem(Locale.LS("Flip XY"),new MyCommand("elm","flipxy")));
-	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
+
 	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem(Locale.LS("Sliders..."),new MyCommand("elm","sliders")));
     }
 

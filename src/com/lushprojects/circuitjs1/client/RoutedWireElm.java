@@ -174,6 +174,13 @@ import com.google.gwt.xml.client.Element;
 	    return new RoutedWireElm(rp2);
 	}
 
+	@Override
+	boolean pointOnWireInterior(int px, int py) {
+	    if (routePoints == null || routePoints.size() < 2)
+		return false;
+	    return WireElm.pointOnWireInteriorForPoints(px, py, routePoints);
+	}
+
 	// reroute this wire through an intermediate point
 	void rerouteVia(int vx, int vy) {
 	    WireRouter router = new WireRouter();

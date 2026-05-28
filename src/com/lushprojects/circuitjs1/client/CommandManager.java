@@ -119,8 +119,7 @@ public class CommandManager {
     	}
     	if (item=="flip")
     	    app.mouse.doFlip();
-    	if (item=="split")
-    	    app.mouse.doSplit(app.mouse.menuElm);
+
     	if (item=="selectAll")
     		app.mouse.doSelectAll();
 
