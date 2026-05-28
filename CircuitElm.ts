@@ -706,7 +706,7 @@ export abstract class CircuitElm implements Editable {
 	if (this.nodes[p] !== undefined)
 	    v = this.nodes[p].v;
 	this.nodes[p] = n;
-	if (v != 0)
+	if (v != 0 && this.nodes[p].index > 0)
 	    this.nodes[p].v = v;
     }
 

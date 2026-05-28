@@ -1355,6 +1355,9 @@ export class SimulationManager {
 
 	const frameTimeLimit = Math.trunc(1000 / this.app.minFrameRate);
 
+	if (CircuitNode.ground.v != 0)
+	    this.stop("ground node at nonzero voltage");
+
 	for (iter = 1; ; iter++) {
 	    if (goodIterations >= 3 && this.timeStep < this.maxTimeStep) {
 		// things are going well, double the time step
