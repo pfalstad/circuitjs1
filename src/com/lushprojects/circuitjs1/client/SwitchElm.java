@@ -27,6 +27,7 @@ class SwitchElm extends CircuitElm {
     boolean momentary;
     // position 0 == closed, position 1 == open
     int position, posCount;
+    static final double COMPOSITE_CLOSED_R = 0.001;
     final int FLAG_IEC = 2;
     final int FLAG_LABEL = 4;
     String label;
@@ -166,6 +167,8 @@ class SwitchElm extends CircuitElm {
     void calculateCurrent() {
 	if (position == 1)
 	    current = 0;
+	else if (inComposite)
+	    current = (volts[0] - volts[1]) / COMPOSITE_CLOSED_R;
     }
     
     void mouseUp() {
@@ -207,8 +210,13 @@ class SwitchElm extends CircuitElm {
 	}
     }
     boolean getConnection(int n1, int n2) { return position == 0; }
-    boolean isWireEquivalent() { return position == 0; }
-    boolean isRemovableWire() { return position == 0; }
+    boolean isWireEquivalent() { return position == 0 && !inComposite; }
+    boolean isRemovableWire() { return position == 0 && !inComposite; }
+
+    void stamp() {
+	if (inComposite && position == 0)
+	    sim.stampResistor(nodes[0], nodes[1], COMPOSITE_CLOSED_R);
+    }
     boolean useIECSymbol() { return (flags & FLAG_IEC) != 0; }
     
     public EditInfo getEditInfo(int n) {

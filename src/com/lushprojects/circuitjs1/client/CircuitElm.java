@@ -97,6 +97,7 @@ public abstract class CircuitElm implements Editable {
     boolean noDiagonal;
     
     public boolean selected;
+    boolean inComposite;
     
     
 //    abstract int getDumpType();

@@ -1534,9 +1534,25 @@ public class SimulationManager {
 	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	boolean sel = app.isSelection();
 	    
+	// Temporarily open any closed switches so the model's nn node IDs reflect
+	// open topology.  buildCompNodeList() can then merge them when loaded closed.
+	Vector<SwitchElm> closedSwitches = new Vector<SwitchElm>();
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.elmList.get(i);
+	    if (ce instanceof SwitchElm && ((SwitchElm) ce).position == 0) {
+		closedSwitches.add((SwitchElm) ce);
+		((SwitchElm) ce).position = 1;
+	    }
+	}
+
 	// redo node allocation to avoid auto-assigning ground
-	if (!preStampCircuit(true))
+	if (!preStampCircuit(true)) {
+	    for (SwitchElm se : closedSwitches) se.position = 0;
 	    return null;
+	}
+
+	// restore switch positions
+	for (SwitchElm se : closedSwitches) se.position = 0;
 
 	boolean used[] = new boolean[nodeList.size()];
 	boolean extnodes[] = new boolean[nodeList.size()];
