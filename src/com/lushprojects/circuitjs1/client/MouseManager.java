@@ -464,6 +464,15 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	sim.needAnalyze();
     }
 
+    void doSplit(CircuitElm ce) {
+	if (!(ce instanceof WireElm))
+	    return;
+	int px = snapGrid(inverseTransformX(menuX));
+	int py = snapGrid(inverseTransformY(menuY));
+	if (splitWireAt(px, py))
+	    sim.needAnalyze();
+    }
+
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
     boolean splitWireAt(int px, int py) {
@@ -826,6 +835,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    	    	sim.menus.elmAddScopeMenuItem.setEnabled(mouseElm.canViewInScope() );
     	    	    }
     	    	    sim.menus.elmEditMenuItem .setEnabled(mouseElm.getEditInfo(0) != null);
+    	    	    sim.menus.elmSplitMenuItem.setEnabled(mouseElm instanceof WireElm);
     	    	    sim.menus.elmSliderMenuItem.setEnabled(sliderItemEnabled(mouseElm));
 		    boolean canFlipX = mouseElm.canFlipX();
 		    boolean canFlipY = mouseElm.canFlipY();
@@ -1096,6 +1106,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	// click to clear selection
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)
     	    clearSelection();
+
+    	// cmd-click = split wire
+    	if (tempMouseMode == MODE_DRAG_POST && draggingPost == -1)
+    	    doSplit(mouseElm);
 
     	tempMouseMode = mouseMode;
     	selectedArea = null;

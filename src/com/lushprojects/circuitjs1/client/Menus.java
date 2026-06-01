@@ -69,7 +69,7 @@ public class Menus {
     MenuItem elmScopeMenuItem;
     MenuItem elmFloatScopeMenuItem;
     MenuItem elmAddScopeMenuItem;
-
+    MenuItem elmSplitMenuItem;
     MenuItem elmSliderMenuItem;
     MenuItem elmFlipXMenuItem, elmFlipYMenuItem, elmFlipXYMenuItem;
     MenuItem elmSwapMenuItem;
@@ -265,7 +265,7 @@ public class Menus {
 	elmMenuBar.addItem(elmFlipXMenuItem =  new MenuItem(Locale.LS("Flip X"),new MyCommand("elm","flipx")));
 	elmMenuBar.addItem(elmFlipYMenuItem =  new MenuItem(Locale.LS("Flip Y"),new MyCommand("elm","flipy")));
 	elmMenuBar.addItem(elmFlipXYMenuItem =  new MenuItem(Locale.LS("Flip XY"),new MyCommand("elm","flipxy")));
-
+	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire Manually", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
 	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem(Locale.LS("Sliders..."),new MyCommand("elm","sliders")));
     }
 
@@ -492,7 +492,9 @@ public class Menus {
         final String edithtml="<div style=\"white-space:nowrap\"><div style=\"display:inline-block;width:100%;\"><i class=\"cirjsicon-";
         String nbsp = "&nbsp;";
         if (icon=="") nbsp="";
-        String sn=edithtml + icon + "\"></i>" + nbsp + Locale.LS(text) + "</div>" + shortcut + "</div>";
+        String schtml = shortcut.length() <= 1 ? "<div style=\"display:inline-block;width:20px;right:10px;text-align:center;position:absolute;\">" + shortcut + "</div>"
+            : "<div style=\"display:inline-block;right:10px;text-align:right;position:absolute;\">" + shortcut + "</div>";
+        String sn=edithtml + icon + "\"></i>" + nbsp + Locale.LS(text) + "</div>" + schtml + "</div>";
         return new MenuItem(SafeHtmlUtils.fromTrustedString(sn), cmd);
     }
     
