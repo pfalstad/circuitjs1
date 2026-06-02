@@ -47,6 +47,7 @@ export class RoutedWireElm extends WireElm {
 
     getDumpType(): number { return 0; }
     getXmlDumpType(): string { return "rw"; }
+    isRoutedWireElm(): boolean { return true; }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);

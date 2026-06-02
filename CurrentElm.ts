@@ -84,6 +84,7 @@ export class CurrentElm extends CircuitElm {
     }
 
     getDumpType(): number { return 'i'.charCodeAt(0); }
+    isCurrentElm(): boolean { return true; }
 
     setPoints(): void {
         super.setPoints();

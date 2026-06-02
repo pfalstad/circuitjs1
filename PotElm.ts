@@ -85,6 +85,7 @@ export class PotElm extends CircuitElm {
     getPostCount(): number { return 3; }
     getDumpType(): number { return 174; }
     getXmlDumpType(): string { return "pt"; }
+    isPotElm(): boolean { return true; }
 
     getPost(n: number): Point {
         return (n === 0) ? this.point1 : (n === 1) ? this.point2 : this.post3;

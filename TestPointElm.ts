@@ -308,4 +308,5 @@ export class TestPointElm extends CircuitElm {
     }
 
     getXmlDumpType(): string { return "tp"; }
+    isTestPointElm(): boolean { return true; }
 }

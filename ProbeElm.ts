@@ -98,6 +98,7 @@ export class ProbeElm extends CircuitElm {
     }
 
     getDumpType(): number { return 'p'.charCodeAt(0); }
+    isProbeElm(): boolean { return true; }
 
     dump(): string {
         return super.dump() + " " + this.meter + " " + this.scale + " " + this.resistance;

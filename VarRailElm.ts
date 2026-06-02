@@ -65,6 +65,7 @@ export class VarRailElm extends RailElm {
     }
 
     getDumpType(): number { return 172; }
+    isVarRailElm(): boolean { return true; }
 
     dump(): string {
         // encode '+' for the old text format tokenizer

@@ -102,6 +102,7 @@ export class AudioOutputElm extends CircuitElm {
 
     getDumpType(): number { return 211; }
     getXmlDumpType(): string { return "aout"; }
+    isAudioOutputElm(): boolean { return true; }
     getPostCount(): number { return 1; }
 
     reset(): void {

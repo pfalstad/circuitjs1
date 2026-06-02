@@ -59,6 +59,7 @@ export class InductorElm extends CircuitElm {
         }
     }
     getDumpType(): number { return 'l'.charCodeAt(0); }
+    isInductorElm(): boolean { return true; }
     dump(): string {
         return super.dump() + " " + this.inductance + " " + this.current + " " + this.initialCurrent + " " + this.saturationCurrent;
     }
