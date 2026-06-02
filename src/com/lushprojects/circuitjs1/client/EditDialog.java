@@ -314,6 +314,9 @@ class EditDialog extends Dialog {
 			if (ei.positive && ei.value <= 0) {
 			    ei.setError("must be > 0");
 			}
+			if (ei.nonNegative && ei.value < 0) {
+			    ei.setError("must be >= 0");
+			}
 			// don't press buttons.  also don't operate on choices becuase then they might happen
 			// twice.  (for square wave)
 			if (ei.button != null || ei.choice != null)

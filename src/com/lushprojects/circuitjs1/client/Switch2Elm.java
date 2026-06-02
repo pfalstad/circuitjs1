@@ -129,6 +129,8 @@ import com.google.gwt.xml.client.Document;
 	void calculateCurrent() {
 	    if (position == 2 && hasCenterOff())
 		current = 0;
+	    else if (resistance > 0)
+		current = (volts[0] - volts[position+1]) / resistance;
 	}
 	
 	void setVoltageSource(int n, VoltageSource v) {
@@ -136,13 +138,18 @@ import com.google.gwt.xml.client.Document;
 	    v.setNodes(nodes[0], nodes[position+1]);
 	}
 	void stamp() {
-	    if (position == 2 && hasCenterOff()) // in center?
+	    if (position == 2 && hasCenterOff())
 		return;
-	    sim.stampVoltageSource(nodes[0], nodes[position+1], voltSource, 0);
+	    if (resistance > 0)
+		sim.stampResistor(nodes[0], nodes[position+1], resistance);
+	    else
+		sim.stampVoltageSource(nodes[0], nodes[position+1], voltSource, 0);
 	}
-		
+
 	int getVoltageSourceCount() {
-	    return (position == 2 && hasCenterOff()) ? 0 : 1; 	    
+	    if (position == 2 && hasCenterOff())
+		return 0;
+	    return resistance > 0 ? 0 : 1;
 	}
 	
 	void toggle() {
@@ -170,7 +177,7 @@ import com.google.gwt.xml.client.Document;
 	    return comparePair(n1, n2, 0, 1+position);
 	}
 	
-	boolean isWireEquivalent() { return true; }
+	boolean isWireEquivalent() { return resistance == 0; }
 	
 	// optimizing out this element is too complicated to be worth it (see #646)
 	boolean isRemovableWire() { return false; }
@@ -252,10 +259,12 @@ import com.google.gwt.xml.client.Document;
 	boolean validate() {
 	    if (position == 2 && hasCenterOff())
 		return true;
-
+	    if (resistance > 0)
+		return true;
 	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
 	    if (fpi.findPath(getNode(1+position))) {
-		sim.stop("Voltage source/wire loop with no resistance!", this);
+		//sim.stop("Voltage source/wire loop with no resistance!", this);
+		resistance = .001;
 		return false;
 	    }
 	    return true;

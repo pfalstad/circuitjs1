@@ -176,6 +176,11 @@ package com.lushprojects.circuitjs1.client;
 	}
 	int getPostCount() { return 2*poleCount; }
 	void calculateCurrent() {
+	    if (resistance > 0)
+		for (int i = 0; i != poleCount; i++) {
+		    int dst = (position == 0) ? i*2+1 : 3-i*2;
+		    currents[i] = (volts[i*2] - volts[dst]) / resistance;
+		}
 	}
 	
         void setVoltageSource(int j, VoltageSource vs) {
@@ -186,16 +191,24 @@ package com.lushprojects.circuitjs1.client;
 	void stamp() {
 	    int i;
 	    if (position == 0) {
-		for (i = 0; i != poleCount; i++)
-		    sim.stampVoltageSource(nodes[i*2], nodes[i*2+1], voltageSources[i], 0);
+		for (i = 0; i != poleCount; i++) {
+		    if (resistance > 0)
+			sim.stampResistor(nodes[i*2], nodes[i*2+1], resistance);
+		    else
+			sim.stampVoltageSource(nodes[i*2], nodes[i*2+1], voltageSources[i], 0);
+		}
 	    } else {
-		for (i = 0; i != poleCount; i++)
-		    sim.stampVoltageSource(nodes[i*2], nodes[3-i*2], voltageSources[i], 0);
+		for (i = 0; i != poleCount; i++) {
+		    if (resistance > 0)
+			sim.stampResistor(nodes[i*2], nodes[3-i*2], resistance);
+		    else
+			sim.stampVoltageSource(nodes[i*2], nodes[3-i*2], voltageSources[i], 0);
+		}
 	    }
 	}
-		
+
 	int getVoltageSourceCount() {
-	    return poleCount;
+	    return resistance > 0 ? 0 : poleCount;
 	}
 	
 	boolean getConnection(int n1, int n2) {
@@ -205,7 +218,7 @@ package com.lushprojects.circuitjs1.client;
 		return comparePair(n1, n2, 0, 3) || comparePair(n1, n2, 2, 1);
 	}
 	
-	boolean isWireEquivalent() { return true; }
+	boolean isWireEquivalent() { return resistance == 0; }
 	
 	// optimizing out this element is too complicated to be worth it (see #646)
 	boolean isRemovableWire() { return false; }
@@ -218,6 +231,20 @@ package com.lushprojects.circuitjs1.client;
 		arr[i+1] = "I" + (i+1) + " = " + getCurrentDText(currents[i]);
 	}
 	
+	boolean validate() {
+	    if (resistance > 0)
+		return true;
+	    for (int i = 0; i != poleCount; i++) {
+		int dst = (position == 0) ? i*2+1 : 3-i*2;
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(i*2), sim);
+		if (fpi.findPath(getNode(dst))) {
+		    resistance = .001;
+		    return false;
+		}
+	    }
+	    return true;
+	}
+
 	int getShortcut() { return 0; }
 
 	public EditInfo getEditInfo(int n) {
@@ -225,6 +252,11 @@ package com.lushprojects.circuitjs1.client;
 		return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
 	    if (n == 1)
 		return getKeyShortcutEditInfo();
+	    if (n == 2) {
+		EditInfo ei = new EditInfo("On Resistance (ohms)", resistance);
+		ei.setNonNegative();
+		return ei;
+	    }
 	    return null;
 	}
 
@@ -235,6 +267,8 @@ package com.lushprojects.circuitjs1.client;
 	    }
 	    if (n == 1)
 		setKeyShortcutEditValue(ei);
+	    if (n == 2)
+		resistance = ei.value;
 	}
 
     }
