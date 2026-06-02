@@ -1095,7 +1095,7 @@ export class SimulationManager {
 	    const posts = ce.getPostCount();
 	    for (j = 0; j !== posts; j++) {
 		const pt = ce.getPost(j);
-		const key = pt.x + "," + pt.y;
+		const key = SimulationManager.pointKey(pt);
 		const entry = postCountMap.get(key);
 		if (entry == null)
 		    postCountMap.set(key, {pt, count: 1});

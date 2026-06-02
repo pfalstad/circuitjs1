@@ -33,6 +33,7 @@ import { Choice } from "./Choice";
 import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
 import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import { HookRegistry } from "./HookRegistry";
 
 export class CustomCompositeElm extends CompositeElm {
     modelName: string;
@@ -366,3 +367,5 @@ export class CustomCompositeElm extends CompositeElm {
 
     getNumHandles(): number { return 0; }
 }
+
+HookRegistry.createCustomCompositeElm = (x, y, name) => new CustomCompositeElm(x, y, name);

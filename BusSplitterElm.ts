@@ -65,6 +65,7 @@ export class BusSplitterElm extends ChipElm {
         return Math.abs(n1 - n2) === this.bits;
     }
 
+    isBusSplitterElm(): boolean { return true; }
     isWireEquivalent(): boolean { return true; }
     isRemovableWire(): boolean { return true; }
 

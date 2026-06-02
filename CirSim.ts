@@ -629,13 +629,10 @@ export class CirSim {
         if (n == "UserDefinedLogicElm" || n == "CustomLogicElm")
             return ElementFactory.create("CustomLogicElm", x1, y1 ?? 0);
 
-        // handle CustomCompositeElm:modelname
         if (n.startsWith("CustomCompositeElm:")) {
             const ix = n.indexOf(':') + 1;
-            const modelName = n.substring(ix);
-            // CustomCompositeElm needs the model name — pass via a stub StringTokenizer
-            const st = { nextToken: () => modelName, hasMoreTokens: () => false } as any;
-            return ElementFactory.create("CustomCompositeElm", x1, y1 ?? 0, x1, y1 ?? 0, 0, st);
+            const name = n.substring(ix);
+            return HookRegistry.createCustomCompositeElm!(x1, y1 ?? 0, name);
         }
         return null;
     }

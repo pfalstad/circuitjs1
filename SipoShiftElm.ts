@@ -37,7 +37,7 @@ export class SipoShiftElm extends ChipElm {
             const data = new Array<boolean>(this.bits).fill(false);
             ChipElm.readBits(st, data);
             for (let i = 0; i < this.bits; i++)
-                this.pins[this.DATA_PIN_INDEX + i].value = data[i];
+                this.pins[SipoShiftElm.DATA_PIN_INDEX + i].value = data[i];
         }
     }
 
@@ -47,7 +47,7 @@ export class SipoShiftElm extends ChipElm {
         super.dumpXmlState(doc, elem);
         const data = new Array<boolean>(this.bits).fill(false);
         for (let i = 0; i < this.bits; i++)
-            data[i] = this.pins[this.DATA_PIN_INDEX + i].value;
+            data[i] = this.pins[SipoShiftElm.DATA_PIN_INDEX + i].value;
         CircuitXMLSerializer.dumpAttr(elem, "dt", ChipElm.writeBitsToString(data));
     }
 
@@ -58,7 +58,7 @@ export class SipoShiftElm extends ChipElm {
             const data = new Array<boolean>(this.bits).fill(false);
             ChipElm.readBitsFromString(dt, data);
             for (let i = 0; i < this.bits; i++)
-                this.pins[this.DATA_PIN_INDEX + i].value = data[i];
+                this.pins[SipoShiftElm.DATA_PIN_INDEX + i].value = data[i];
         }
     }
 
@@ -77,8 +77,8 @@ export class SipoShiftElm extends ChipElm {
         this.pins[1].clock = true;
 
         for (let i = 0; i < this.bits; i++) {
-            const prevVal = this.pins[this.DATA_PIN_INDEX + i] ? this.pins[this.DATA_PIN_INDEX + i].value : false;
-            const pin = this.pins[this.DATA_PIN_INDEX + i] = new Pin(this, i + 1, ChipElm.SIDE_N, "Q" + i);
+            const prevVal = this.pins[SipoShiftElm.DATA_PIN_INDEX + i] ? this.pins[SipoShiftElm.DATA_PIN_INDEX + i].value : false;
+            const pin = this.pins[SipoShiftElm.DATA_PIN_INDEX + i] = new Pin(this, i + 1, ChipElm.SIDE_N, "Q" + i);
             pin.value = prevVal;
             pin.output = true;
         }
@@ -93,7 +93,7 @@ export class SipoShiftElm extends ChipElm {
             this.clockstate = this.pins[1].value;
             if (this.clockstate && this.bits > 0) {
                 for (let i = this.bits - 2; i >= 0; i--)
-                    this.pins[this.DATA_PIN_INDEX + i + 1].value = this.pins[this.DATA_PIN_INDEX + i].value;
+                    this.pins[SipoShiftElm.DATA_PIN_INDEX + i + 1].value = this.pins[SipoShiftElm.DATA_PIN_INDEX + i].value;
                 this.pins[2].value = this.pins[0].value;
             }
         }

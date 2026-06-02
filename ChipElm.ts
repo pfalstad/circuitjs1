@@ -201,6 +201,7 @@ export abstract class ChipElm extends CircuitElm {
             this.highVoltage = 5;
             this.noDiagonal = true;
             this.setupPins();
+            this.allocNodes();
             this.setSize(this.useSmallGrid() ? 1 : 2);
         } else {
             super(xa, ya, xb, yb!, f!);
@@ -209,6 +210,7 @@ export abstract class ChipElm extends CircuitElm {
             this.highVoltage = this.hasCustomVoltage() ? parseFloat(st!.nextToken()) : 5;
             this.noDiagonal = true;
             this.setupPins();
+            this.allocNodes();
             this.setSize((f! & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
             for (let i = 0; i !== this.getPostCount(); i++) {
                 //if (this.pins == null)
@@ -516,6 +518,7 @@ export abstract class ChipElm extends CircuitElm {
         this.highVoltage = xml.parseDoubleAttr("hv", this.highVoltage);
         this.bitOrder    = xml.parseIntAttr("bo", this.bitOrder);
         this.setupPins();
+        this.allocNodes();
         this.setSize((this.flags & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
         for (let i = 0; i !== this.getPostCount(); i++) {
             const v = xml.parseDoubleAttr("v" + i, 0);

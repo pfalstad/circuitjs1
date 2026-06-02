@@ -27,4 +27,5 @@ export const HookRegistry = {
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,
+    createCustomCompositeElm:    null as ((x: number, y: number, name: string) => any) | null,
 };

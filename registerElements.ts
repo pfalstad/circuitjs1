@@ -46,6 +46,7 @@ import { DataInputElm } from "./DataInputElm";
 import { DataRecorderElm } from "./DataRecorderElm";
 import { DeMultiplexerElm } from "./DeMultiplexerElm";
 import { DecimalDisplayElm } from "./DecimalDisplayElm";
+import { DelayBufferElm } from "./DelayBufferElm";
 import { DiacElm } from "./DiacElm";
 import { DiodeElm } from "./DiodeElm";
 import { ExtVoltageElm } from "./ExtVoltageElm";
@@ -193,6 +194,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("DataRecorderElm", DataRecorderElm as any);
     ElementFactory.registerClass("DeMultiplexerElm", DeMultiplexerElm as any);
     ElementFactory.registerClass("DecimalDisplayElm", DecimalDisplayElm as any);
+    ElementFactory.registerClass("DelayBufferElm", DelayBufferElm as any);
     ElementFactory.registerClass("DiacElm", DiacElm as any);
     ElementFactory.registerClass("DiodeElm", DiodeElm as any);
     ElementFactory.registerClass("ExtVoltageElm", ExtVoltageElm as any);
@@ -335,6 +337,7 @@ export function registerElements(): void {
     CirSim.theApp.register("DataRecorderElm", new DataRecorderElm(0, 0));
     CirSim.theApp.register("DeMultiplexerElm", new DeMultiplexerElm(0, 0));
     CirSim.theApp.register("DecimalDisplayElm", new DecimalDisplayElm(0, 0));
+    CirSim.theApp.register("DelayBufferElm", new DelayBufferElm(0, 0));
     CirSim.theApp.register("DiacElm", new DiacElm(0, 0));
     CirSim.theApp.register("DiodeElm", new DiodeElm(0, 0));
     CirSim.theApp.register("ExtVoltageElm", new ExtVoltageElm(0, 0));
