@@ -664,6 +664,28 @@ public abstract class CircuitElm implements Editable {
 	    Point p = getPost(i);
 	    drawPost(g, p);
 	}
+	drawScopeTerminalLabels(g);
+    }
+
+    void drawScopeTerminalLabels(Graphics g) {
+	if (getPostCount() != 2)
+	    return;
+	if (!app.mouse.scopePlotRoles.containsKey(this))
+	    return;
+	if (dn == 0)
+	    return;
+	g.setColor(selectColor);
+	g.setFont(unitsFont);
+	g.save();
+	g.context.setTextBaseline("middle");
+	g.context.setTextAlign("center");
+	int axOff = 10, perpOff = 8;
+	boolean swap = this instanceof VoltageElm;
+	Point pp = interpPoint(point1, point2, axOff / dn, perpOff);
+	g.drawString(swap ? "−" : "+", pp.x, pp.y);
+	Point mp = interpPoint(point1, point2, 1 - axOff / dn, perpOff);
+	g.drawString(swap ? "+" : "−", mp.x, mp.y);
+	g.restore();
     }
     
     int getNumHandles() {
