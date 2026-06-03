@@ -968,7 +968,7 @@ export class SimulationManager {
 	this.timeStep = this.maxTimeStep;
 	this.needsStamp = true;
 
-	this.app.jsInterface.callAnalyzeHook();
+	this.app.jsInterface?.callAnalyzeHook();
 	return true;
     }
 
@@ -1748,7 +1748,7 @@ export class SimulationManager {
 	for (let i = 0; i < this.elmList.length; i++) {
 	    const ce = this.elmList[i];
 	    if (ce.isLabeledNodeElm() && (ce as any).getName() === name)
-		return ce.volts[0];
+		return ce.nodes[0].v;
 	}
 	return 0;
     }

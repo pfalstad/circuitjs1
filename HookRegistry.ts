@@ -28,4 +28,5 @@ export const HookRegistry = {
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,
     createCustomCompositeElm:    null as ((x: number, y: number, name: string) => any) | null,
+    createJSInterface:           null as ((app: any) => any) | null,
 };

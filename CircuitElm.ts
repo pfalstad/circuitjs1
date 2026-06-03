@@ -1226,6 +1226,7 @@ export abstract class CircuitElm implements Editable {
     isRemovableWire(): boolean { return false; }
 
     isIdealCapacitor(): boolean { return false; }
+    isExtVoltageElm(): boolean { return false; }
     isVoltageElm(): boolean { return false; }
     isRailElm(): boolean { return false; }
     isSweepElm(): boolean { return false; }
@@ -1407,16 +1408,20 @@ export abstract class CircuitElm implements Editable {
         return this.nodes[n].v;
     }
 
+    _jsProxy: Record<string, any> | null = null;
+
     addJSMethods(): void {
-        const that = this as any;
-        that.getType = () => this.getClassName();
-        that.getInfo = () => this.getInfoJS();
-        that.getVoltageDiff = () => this.getVoltageDiff();
-        that.getVoltage = (n: number) => this.getVoltageJS(n);
-        that.getCurrent = () => this.getCurrent();
-        // that.getLabelName = () => (this as any).getName();  // LabeledNodeElm only
-        that.getPostCount = () => this.getPostCount();
+        if (!this._jsProxy)
+            this._jsProxy = {};
+        const p = this._jsProxy;
+        p['getType']        = () => this.getClassName();
+        p['getInfo']        = () => this.getInfoJS();
+        p['getVoltageDiff'] = () => this.getVoltageDiff();
+        p['getVoltage']     = (n: number) => this.getVoltageJS(n);
+        p['getCurrent']     = () => this.getCurrent();
+        p['getLabelName']   = () => (this as any).getName?.();  // LabeledNodeElm only
+        p['getPostCount']   = () => this.getPostCount();
     }
 
-    getJavaScriptObject(): object { return this; }
+    getJavaScriptObject(): object { return this._jsProxy ?? this; }
 }

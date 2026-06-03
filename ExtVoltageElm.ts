@@ -82,6 +82,7 @@ export class ExtVoltageElm extends RailElm {
             this.name = ei.textf!.value;
     }
 
+    isExtVoltageElm(): boolean { return true; }
     getElmType(): string { return "ext. voltage"; }
 
     getInfo(arr: string[]): void {

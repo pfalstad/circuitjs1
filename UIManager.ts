@@ -1531,7 +1531,7 @@ export class UIManager {
         }
 
         try {
-            this.app.jsInterface.callUpdateHook();
+            this.app.jsInterface?.callUpdateHook();
         } catch (e) {}
     }
 

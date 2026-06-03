@@ -89,7 +89,7 @@ export class CirSim {
     commands: any = null;    // CommandManager
     scopeManager: ScopeManager = null;
     loader: any = null;      // CircuitLoader
-    jsInterface: any = { callAnalyzeHook(): void {}, callUpdateHook(): void {}, callTimeStepHook(): void {}, setupJSInterface(): void {} }; // JSInterface stub
+    jsInterface: any = null;
 
     analyzeFlag: boolean = false;
     savedFlag: boolean = false;
@@ -271,11 +271,8 @@ export class CirSim {
 
         this.undoManager?.enableUndoRedo();
         this.commands?.enablePaste();
-        const JSInterfaceClass = (window as any).JSInterface;
-        if (JSInterfaceClass) {
-            this.jsInterface = new JSInterfaceClass(this);
-            this.jsInterface.setupJSInterface();
-        }
+        this.jsInterface = HookRegistry.createJSInterface?.(this);
+        this.jsInterface?.setupJSInterface();
 
         this.setSimRunning(running);
     }
@@ -314,7 +311,7 @@ export class CirSim {
 
     onTimeStep(): void {
         this.scopeManager.timeStep();
-        this.jsInterface.callTimeStepHook();
+        this.jsInterface?.callTimeStepHook();
     }
 
     needAnalyze(): void {
