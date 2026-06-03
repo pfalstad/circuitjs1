@@ -447,6 +447,7 @@ public class Menus {
 		"Add CCII-", "CC2NegElm",
 		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
 		"Add OTA (LM13700 style)", "OTAElm",
+		"Add Norton Amp (LM3900)", "NortonAmpElm",
 		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
 		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
 		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
