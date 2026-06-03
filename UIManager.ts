@@ -824,6 +824,7 @@ export class UIManager {
     // canvas width/height in px (before device pixel ratio scaling)
     canvasWidth: number = 0;
     canvasHeight: number = 0;
+    lastDevicePixelRatio: number = 0;
 
     static readonly MENUBARHEIGHT = 30;
     static readonly TOOLBARHEIGHT = 40;
@@ -1167,7 +1168,8 @@ export class UIManager {
             expectedHeight -= UIManager.TOOLBARHEIGHT;
         expectedWidth  = Math.max(expectedWidth,  0);
         expectedHeight = Math.max(expectedHeight, 0);
-        if (this.canvasWidth !== expectedWidth || this.canvasHeight !== expectedHeight)
+        const dpr = UIManager.devicePixelRatio();
+        if (this.canvasWidth !== expectedWidth || this.canvasHeight !== expectedHeight || this.lastDevicePixelRatio !== dpr)
             this.setCanvasSize();
     }
 
@@ -1190,6 +1192,7 @@ export class UIManager {
             this.canvasWidth  = width;
             this.canvasHeight = height;
             const scale = UIManager.devicePixelRatio();
+            this.lastDevicePixelRatio = scale;
             this.cv.width  = Math.round(width  * scale);
             this.cv.height = Math.round(height * scale);
         }
