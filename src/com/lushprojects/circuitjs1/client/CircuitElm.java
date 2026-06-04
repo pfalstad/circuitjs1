@@ -49,6 +49,8 @@ public abstract class CircuitElm implements Editable {
     static public Color whiteColor, lightGrayColor, selectColor;
     static public Color positiveColor, negativeColor, neutralColor, currentColor;
     static Font unitsFont;
+    static Font valueFont;
+    static int valueFontSize = 12;
 
     static NumberFormat showFormat, shortFormat, fixedFormat;
     static final double pi = 3.14159265358979323846;
@@ -123,16 +125,15 @@ public abstract class CircuitElm implements Editable {
     boolean hasFlag(int f) { return (flags & f) != 0; }
     
     static void initClass(CirSim app_, SimulationManager sim_) {
-	unitsFont = new Font("SansSerif", 0, 12);
 	sim = sim_;
 	app = app_;
-	
+
 	colorScale = new Color[colorScaleCount];
-	
-	
+
+
 	ps1 = new Point();
 	ps2 = new Point();
-	
+
 	Storage stor = Storage.getLocalStorageIfSupported();
 	decimalDigits = 3;
 	shortDecimalDigits = 1;
@@ -143,9 +144,14 @@ public abstract class CircuitElm implements Editable {
 		decimalDigits = Integer.parseInt(s1);
 	    if (s2 != null)
 		shortDecimalDigits = Integer.parseInt(s2);
+	    String sf = stor.getItem("valueFontSize");
+	    if (sf != null)
+		valueFontSize = Integer.parseInt(sf);
 	}
 	setDecimalDigits(decimalDigits, false, false);
 	setDecimalDigits(shortDecimalDigits, true, false);
+	unitsFont = new Font("SansSerif", 0, 12);
+	valueFont = new Font("SansSerif", 0, valueFontSize);
     }
 
     static void setDecimalDigits(int num, boolean sf, boolean save) {
@@ -179,6 +185,14 @@ public abstract class CircuitElm implements Editable {
 	}
     }
     
+    static void setValueFontSize(int size) {
+	valueFontSize = size;
+	valueFont = new Font("SansSerif", 0, valueFontSize);
+	Storage stor = Storage.getLocalStorageIfSupported();
+	if (stor != null)
+	    stor.setItem("valueFontSize", Integer.toString(valueFontSize));
+    }
+
     static void setColorScale() {
 
 	int i;
@@ -863,7 +877,8 @@ public abstract class CircuitElm implements Editable {
     void drawValues(Graphics g, String s, double hs) {
 	if (s == null)
 	    return;
-	g.setFont(unitsFont);
+	g.save();
+	g.setFont(valueFont);
 	//FontMetrics fm = g.getFontMetrics();
 	int w = (int)g.context.measureText(s).getWidth();
 	g.setColor(whiteColor);
@@ -886,10 +901,12 @@ public abstract class CircuitElm implements Editable {
 		xx = xc-(w+abs(dpx)+2);
 	    g.drawString(s, xx, yc+dpy+ya);
 	}
+	g.restore();
     }
     
     void drawLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
-	g.setFont(unitsFont);
+        g.save();
+	g.setFont(valueFont);
 	boolean lineOver = false;
 	if (str.startsWith("/")) {
 	    lineOver = true;
@@ -897,7 +914,6 @@ public abstract class CircuitElm implements Editable {
 	}
         int w=(int)g.context.measureText(str).getWidth();
         int h=(int)g.currentFontSize;
-        g.save();
         g.context.setTextBaseline("middle");
         int x = pt2.x, y = pt2.y;
         if (pt1.y != pt2.y) {
