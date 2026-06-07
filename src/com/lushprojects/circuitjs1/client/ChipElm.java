@@ -325,7 +325,7 @@ abstract class ChipElm extends CircuitElm {
 		CirSim.console("voltage source count does not match number of outputs");
 	}
 	void execute() {}
-	void doStep() {
+	void startIteration() {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
@@ -333,6 +333,9 @@ abstract class ChipElm extends CircuitElm {
 		    p.value = volts[i] > getThreshold();
 	    }
 	    execute();
+	}
+	void doStep() {
+	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
 		if (p.output)
