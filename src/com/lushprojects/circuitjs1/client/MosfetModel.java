@@ -146,16 +146,6 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	} catch (Exception e) {}
     }
 
-    String dump() {
-	dumped = true;
-	String s = "36 " + CustomLogicModel.escape(name) + " " + flags + " " + threshold + " " + beta;
-	if (lambda != 0 || capGS != 0 || capGD != 0)
-	    s += " " + lambda;
-	if (capGS != 0 || capGD != 0)
-	    s += " " + capGS + " " + capGD;
-	return s;
-    }
-
     void dumpXml(Document doc) {
 	dumped = true;
 	Element elem = doc.createElement("mm");

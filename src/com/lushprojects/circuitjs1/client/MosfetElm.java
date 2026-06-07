@@ -40,7 +40,6 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int FLAG_BODY_DIODE = 32;
 	int FLAG_BODY_TERMINAL = 64;
 	int FLAG_SHOW_BODY_DIODE = 128;
-	int FLAG_MODEL = 256;
 	int FLAGS_GLOBAL = (FLAG_HIDE_BULK|FLAG_DIGITAL|FLAG_SHOW_BODY_DIODE);
 	int bodyTerminal;
 
@@ -85,18 +84,14 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    pnp = ((f & FLAG_PNP) != 0) ? -1 : 1;
 	    noDiagonal = true;
 	    setupDiodes();
-	    if ((f & FLAG_MODEL) != 0) {
-		modelName = CustomLogicModel.unescape(st.nextToken());
-	    } else {
-		vt = getDefaultThreshold();
-		beta = getBackwardCompatibilityBeta();
-		try {
-		    vt = new Double(st.nextToken()).doubleValue();
-		    beta = new Double(st.nextToken()).doubleValue();
-		} catch (Exception e) {}
-		if (needsModel())
-		    modelName = "default";
-	    }
+	    vt = getDefaultThreshold();
+	    beta = getBackwardCompatibilityBeta();
+	    try {
+		vt = new Double(st.nextToken()).doubleValue();
+		beta = new Double(st.nextToken()).doubleValue();
+	    } catch (Exception e) {}
+	    if (needsModel())
+		modelName = "default";
 	    globalFlags = flags & (FLAGS_GLOBAL);
 	    if (modelName != null)
 		setup();
@@ -165,20 +160,6 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	}
 
 	int getDumpType() { return 'f'; }
-
-	String dump() {
-	    if (model != null) {
-		flags |= FLAG_MODEL;
-		return super.dump() + " " + CustomLogicModel.escape(modelName);
-	    }
-	    return super.dump() + " " + vt + " " + beta;
-	}
-
-	String dumpModel() {
-	    if (model == null || model.builtIn || model.dumped)
-		return null;
-	    return model.dump();
-	}
 
 	void dumpXml(Document doc, Element elem) {
 	    if (model != null && !(model.builtIn || model.dumped))
