@@ -52,6 +52,7 @@ public class SubcircuitBar extends FlowPanel {
 		app.ui.popSubcircuit();
 	    else
 		app.popContext();
+	    app.ui.repaint();
 	});
 	backButton.setVisible(false);
 	add(backButton);
@@ -63,7 +64,11 @@ public class SubcircuitBar extends FlowPanel {
 	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
 	    if (!dlg.createModel())
 		return;
+	    // Look up existing model before setName() inserts the new one under the same key
+	    CustomCompositeModel existingModel = CustomCompositeModel.getModelWithName(modelName);
 	    dlg.model.setName(modelName);
+	    if (existingModel != null)
+		EditCompositeModelDialog.preservePinLayout(dlg.model, existingModel);
 	    dlg.popContext = true;
 	    dlg.createDialog();
 	    app.dialogShowing = dlg;
@@ -74,12 +79,17 @@ public class SubcircuitBar extends FlowPanel {
 
 	// Context Save Copy button
 	contextSaveCopyButton = createButton("Save Copy", event -> {
+	    CirSim app = CirSim.theApp;
+	    String modelName = app.getEditingModelName();
 	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
 	    if (!dlg.createModel())
 		return;
+	    CustomCompositeModel existingModel = CustomCompositeModel.getModelWithName(modelName);
+	    if (existingModel != null)
+		EditCompositeModelDialog.preservePinLayout(dlg.model, existingModel);
 	    dlg.popContext = true;
 	    dlg.createDialog();
-	    CirSim.theApp.dialogShowing = dlg;
+	    app.dialogShowing = dlg;
 	    dlg.show();
 	});
 	contextSaveCopyButton.setVisible(false);

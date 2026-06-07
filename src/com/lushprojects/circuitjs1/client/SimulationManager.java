@@ -7,11 +7,14 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Vector;
 
+import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Node;
 import com.google.gwt.xml.client.XMLParser;
+import com.lushprojects.circuitjs1.client.matrix.DMatrixSparseCSC;
+import com.lushprojects.circuitjs1.client.matrix.SparseLU;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class SimulationManager {
@@ -35,6 +38,14 @@ public class SimulationManager {
     CircuitElm elmArr[];
     double t;
 
+    // Solver type: 0=Auto, 1=Dense, 2=Sparse
+    static final int SOLVER_AUTO = 0;
+    static final int SOLVER_DENSE = 1;
+    static final int SOLVER_SPARSE = 2;
+    int solverType = SOLVER_AUTO;
+    static final int SPARSE_THRESHOLD = 150;
+    boolean usingSparse;
+
     // current timestep (time between iterations)
     double timeStep;
 
@@ -56,7 +67,20 @@ public class SimulationManager {
     public static native void console(String text) /*-{ console.log(text) }-*/;
     public static native void debugger() /*-{ debugger; }-*/;
 
-    SimulationManager(CirSim app_) { theSim = this; app = app_; }
+    SimulationManager(CirSim app_) {
+	theSim = this; app = app_;
+
+	/*
+	// load solver preference from localStorage
+	try {
+	    Storage stor = Storage.getLocalStorageIfSupported();
+	    if (stor != null) {
+		String s = stor.getItem("solverType");
+		if (s != null) solverType = Integer.parseInt(s);
+	    }
+	} catch (Exception e) {}
+	*/
+    }
     
     void resetTime() {
     	t = timeStepAccum = 0;
@@ -315,7 +339,7 @@ public class SimulationManager {
 		    cnl.num = j;
 		    cnl.elm = ce;
 		    cn.links.addElement(cnl);
-		} else
+		} else if (!(ce instanceof LabeledNodeElm))
 		    console("missing node for " + pt);
 	    }
 	}
@@ -364,6 +388,13 @@ public class SimulationManager {
 	    WireSegment ws = wireInfoList.get(i);
 	    CircuitElm wire = ws.wire;
 	    CircuitNode cn1 = wire.getNode(ws.bit);
+	    if (cn1 == null) {
+		// dangling labeled node not connected to anything inside composite — no current
+		ws.neighbors = new Vector<CircuitElm>();
+		ws.labelNeighbors = new Vector<WireSegment>();
+		setWireInfoResolved(wire, ws.bit);
+		continue;
+	    }
 
 	    Vector<CircuitElm> neighbors0 = new Vector<CircuitElm>();
 	    Vector<CircuitElm> neighbors1 = new Vector<CircuitElm>();
@@ -424,6 +455,8 @@ public class SimulationManager {
 		if (moved > wireInfoList.size() * 2) {
 		    console("wire loop detected, " + wireInfoList.size() + " wires total, unresolved:");
 		    for (int k = i; k < wireInfoList.size(); k++) {
+			if (k < 0)
+			    continue;
 			WireSegment wk = wireInfoList.get(k);
 			console("  unresolved: " + wk.wire.getClass().getSimpleName()
 			    + " bit=" + wk.bit + " ep0=" + wk.endpoint0 + " ep1=" + wk.endpoint1
@@ -593,62 +626,80 @@ public class SimulationManager {
     int nodesWithGroundConnectionCount;
     
     void findUnconnectedNodes() {
-	int i, j;
-	
+	int i, j, k;
+	int totalNodes = nodeList.size();
+
 	// determine nodes that are not connected indirectly to ground.
 	// all nodes must be connected to ground somehow, or else we
 	// will get a matrix error.
-	boolean closure[] = new boolean[nodeList.size()];
-	boolean changed = true;
+	boolean closure[] = new boolean[totalNodes];
 	unconnectedNodes = new Vector<Integer>();
 	nodesWithGroundConnection = new Vector<CircuitElm>();
 	closure[0] = true;
-	while (changed) {
-	    changed = false;
-	    for (i = 0; i != elmList.size(); i++) {
-		CircuitElm ce = getElm(i);
-		if (ce instanceof WireElm)
-		    continue;
-		// loop through all ce's nodes to see if they are connected
-		// to other nodes not in closure
-		boolean hasGround = false;
-		for (j = 0; j < ce.getPostCount(); j++) {
-		    boolean hg = ce.hasGroundConnection(j);
-		    if (hg)
-			hasGround = true;
-		    int jn = ce.getNode(j).index;
-		    if (!closure[jn]) {
-			if (hg)
-			    closure[jn] = changed = true;
-			continue;
-		    }
-		    int k;
+
+	// one pass over elements: seed closure with implicit ground connections
+	// and build nodesWithGroundConnection (one entry per element, no duplicates)
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    boolean hasGround = false;
+	    for (j = 0; j < ce.getPostCount(); j++) {
+		if (ce.hasGroundConnection(j)) {
+		    hasGround = true;
+		    closure[ce.getNode(j).index] = true;
+		}
+	    }
+	    if (hasGround)
+		nodesWithGroundConnection.add(ce);
+	}
+
+	// BFS via cn.links: propagate closure through element connections.
+	// when the queue drains, scan for an unconnected node and seed it so its
+	// whole component is absorbed before we flag the next one.
+	// use an index pointer into the vector as a queue to avoid O(n) shifts.
+	Vector<Integer> queue = new Vector<Integer>();
+	for (i = 0; i < totalNodes; i++)
+	    if (closure[i]) queue.add(i);
+	int qHead = 0;
+	int scanFrom = 1;
+	for (;;) {
+	    if (qHead < queue.size()) {
+		int n = queue.get(qHead++);
+		CircuitNode cn = getCircuitNode(n);
+		for (j = 0; j != cn.links.size(); j++) {
+		    CircuitNodeLink cnl = cn.links.get(j);
+		    CircuitElm ce = cnl.elm;
+		    int post1 = cnl.num;
 		    for (k = 0; k != ce.getPostCount(); k++) {
-			if (j == k)
+			if (k == post1)
 			    continue;
 			int kn = ce.getNode(k).index;
-			if (ce.getConnection(j, k) && !closure[kn]) {
+			if (!closure[kn] && ce.getConnection(post1, k)) {
 			    closure[kn] = true;
-			    changed = true;
+			    queue.add(kn);
 			}
 		    }
 		}
-		if (hasGround)
-		    nodesWithGroundConnection.add(ce);
-	    }
-	    if (changed)
-		continue;
-
-	    // connect one of the unconnected nodes to ground with a big resistor, then try again
-	    for (i = 0; i != nodeList.size(); i++)
-		if (!closure[i] && !getCircuitNode(i).internal) {
-		    unconnectedNodes.add(i);
-		    console("node " + i + " unconnected");
-//		    stampResistor(0, i, 1e8);   // do this later in connectUnconnectedNodes()
-		    closure[i] = true;
-		    changed = true;
-		    break;
+	    } else {
+		// queue drained; find next unconnected non-internal node
+		boolean found = false;
+		for (; scanFrom < totalNodes; scanFrom++) {
+		    if (!closure[scanFrom] && !getCircuitNode(scanFrom).internal) {
+			unconnectedNodes.add(scanFrom);
+			closure[scanFrom] = true;
+			queue.add(scanFrom++);
+			found = true;
+			break;
+		    }
 		}
+		if (!found)
+		    break;
+	    }
+	}
+	if (!unconnectedNodes.isEmpty()) {
+	    String s = "unconnected nodes:";
+	    for (i = 0; i != unconnectedNodes.size(); i++)
+		s += " " + unconnectedNodes.get(i);
+	    console(s);
 	}
     }
     
@@ -715,6 +766,7 @@ public class SimulationManager {
 	    m.nodeCount++;
 	    cn.row = m.nodeCount;  // 1-based
 	    cn.matrix = m;
+	    m.nodeList.add(cn);
 	}
 
 	// ground node: row=0, no matrix
@@ -750,72 +802,8 @@ public class SimulationManager {
 	
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
-	    // look for inductors with no current path
-	    if (ce instanceof InductorElm) {
-		FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, ce,
-						    ce.getNode(1));
-		if (!fpi.findPath(ce.getNode(0))) {
-//		    console(ce + " no path");
-		    ce.reset();
-		}
-	    }
-	    // look for current sources with no current path
-	    if (ce instanceof CurrentElm) {
-		CurrentElm cur = (CurrentElm) ce;
-		FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, ce,
-						    ce.getNode(1));
-		cur.setBroken(!fpi.findPath(ce.getNode(0)));
-	    }
-	    if (ce instanceof VCCSElm) {
-		VCCSElm cur = (VCCSElm) ce;
-		FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, ce,
-						    cur.getOutputNode(0));
-		if (cur.hasCurrentOutput() && !fpi.findPath(cur.getOutputNode(1))) {
-		    cur.broken = true;
-		} else
-		    cur.broken = false;
-	    }
-	    
-	    // look for voltage source or wire loops.  we do this for voltage sources
-	    if (ce.getPostCount() == 2) {
-		if (ce instanceof VoltageElm) {
-		    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, ce,
-						    ce.getNode(1));
-		    if (fpi.findPath(ce.getNode(0))) {
-			stop("Voltage source/wire loop with no resistance!", ce);
-			return false;
-		    }
-		}
-	    }
-
-	    // look for path from rail to ground
-	    if (ce instanceof RailElm || ce instanceof LogicInputElm) {
-		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, ce, ce.getNode(0));
-		if (fpi.findPath(CircuitNode.ground)) {
-		    stop("Path to ground with no resistance!", ce);
-		    return false;
-		}
-	    }
-	    
-	    // look for shorted caps, or caps w/ voltage but no R
-	    if (ce.isIdealCapacitor()) {
-		FindPathInfo fpi = new FindPathInfo(FindPathInfo.SHORT, ce,
-						    ce.getNode(1));
-		if (fpi.findPath(ce.getNode(0))) {
-		    console(ce + " shorted");
-		    ((CapacitorElm) ce).shorted();
-		} else {
-		    fpi = new FindPathInfo(FindPathInfo.CAP_V, ce, ce.getNode(1));
-		    if (fpi.findPath(ce.getNode(0))) {
-			// loop of ideal capacitors; set a small series resistance to avoid
-			// oscillation in case one of them has voltage on it
-			((CapacitorElm) ce).setSeriesResistance(.1);
-
-			// return false to re-stamp the circuit
-			return false;
-		    }
-		}
-	    }
+	    if (!ce.validate())
+		return false;
 	}
 	return true;
     }
@@ -908,6 +896,9 @@ public class SimulationManager {
 	findUnconnectedNodes();
 	calculateClosures();
 
+	if (!validateCircuit())
+	    return false;
+	
 	// assign voltage sources to matrices
 	int vsPerMatrix[] = new int[matrices.length];
 	for (i = 0; i != voltageSourceCount; i++) {
@@ -923,6 +914,7 @@ public class SimulationManager {
 		if (matrices[j] == m) { mi = j; break; }
 	    vsPerMatrix[mi]++;
 	    vs.row = m.nodeCount + vsPerMatrix[mi];  // 1-based, after node rows
+	    m.voltageSourceList.add(vs);
 	}
 	// set matrix sizes
 	for (i = 0; i != matrices.length; i++) {
@@ -930,9 +922,6 @@ public class SimulationManager {
 	    //console("matrix " + i + ": size=" + matrices[i].size + " nodes=" + matrices[i].nodeCount + " vs=" + vsPerMatrix[i]);
 	}
 
-	if (!validateCircuit())
-	    return false;
-	
 	nodesWithGroundConnectionCount = nodesWithGroundConnection.size();
 	// only need this for validation
 	nodesWithGroundConnection = null;
@@ -1003,9 +992,11 @@ public class SimulationManager {
 	    return;
 
 	// save original matrices for restoring during nonlinear iterations
+	int maxMatrixSize = 0;
 	for (int mi = 0; mi != matrices.length; mi++) {
 	    CircuitMatrix m = matrices[mi];
 	    int sz = m.size;
+	    if (sz > maxMatrixSize) maxMatrixSize = sz;
 	    for (i = 0; i != sz; i++)
 		m.origRightSide[i] = m.rightSide[i];
 	    for (i = 0; i != sz; i++)
@@ -1013,13 +1004,21 @@ public class SimulationManager {
 		    m.origMatrix[i][j] = m.matrix[i][j];
 	    //CirSim.console("matrix " + mi + " size: " + sz);
 	}
+	// determine which solver to use (AUTO uses the largest matrix size to decide)
+	if (solverType == SOLVER_SPARSE)
+	    usingSparse = true;
+	else if (solverType == SOLVER_DENSE)
+	    usingSparse = false;
+	else // SOLVER_AUTO
+	    usingSparse = (maxMatrixSize >= SPARSE_THRESHOLD);
+	// sparseLU is per-matrix (CircuitMatrix.sparseLU), reset implicitly when matrices[] is recreated
 
 	// if a matrix is linear, we can do the lu_factor here instead of
 	// needing to do it every frame
 	for (int mi = 0; mi != matrices.length; mi++) {
 	    CircuitMatrix m = matrices[mi];
 	    if (!m.nonLinear) {
-		if (!lu_factor(m.matrix, m.size, m.permute)) {
+		if (!lu_factor(m.matrix, m.size, m.permute, m)) {
 		    stop("Singular matrix!", null);
 		    return;
 		}
@@ -1080,9 +1079,12 @@ public class SimulationManager {
 		    if ( ce instanceof GraphicElm )
 			continue;
 
-		    // routed wire's bounding box is too big
-		    if ( ce instanceof RoutedWireElm )
+		    // routed wire: check path directly instead of bounding box (which is too big)
+		    if (ce instanceof RoutedWireElm) {
+			if (((RoutedWireElm) ce).pointOnPath(cn))
+			    bad = true;
 			continue;
+		    }
 
 		    // does this post intersect elm's bounding box?
 		    if (!ce.boundingBox.contains(cn.x, cn.y))
@@ -1132,107 +1134,6 @@ public class SimulationManager {
 	}
     }
 
-    class FindPathInfo {
-	static final int INDUCT  = 1;
-	static final int VOLTAGE = 2;
-	static final int SHORT   = 3;
-	static final int CAP_V   = 4;
-	boolean visited[];
-	CircuitNode dest;
-	CircuitElm firstElm;
-	int type;
-
-	// State object to help find loops in circuit subject to various conditions (depending on type_)
-	// elm_ = source and destination element.  dest_ = destination node.
-	FindPathInfo(int type_, CircuitElm elm_, CircuitNode dest_) {
-	    dest = dest_;
-	    type = type_;
-	    firstElm = elm_;
-	    visited  = new boolean[nodeList.size()];
-	}
-
-	// look through circuit for loop starting at node n1 of firstElm, for a path back to
-	// dest node of firstElm
-	boolean findPath(CircuitNode n1) {
-	    if (n1 == dest)
-		return true;
-
-	    // depth first search, don't need to revisit already visited nodes!
-	    if (visited[n1.index])
-		return false;
-
-	    visited[n1.index] = true;
-	    int i;
-	    for (i = 0; i != n1.links.size(); i++) {
-		CircuitNodeLink cnl = n1.links.get(i);
-		CircuitElm ce = cnl.elm;
-		if (checkElm(n1, ce))
-		    return true;
-	    }
-	    if (n1 == CircuitNode.ground) {
-		for (i = 0; i != nodesWithGroundConnection.size(); i++)
-		    if (checkElm(CircuitNode.ground, nodesWithGroundConnection.get(i)))
-			return true;
-	    }
-	    return false;
-	}
-
-	boolean checkElm(CircuitNode n1, CircuitElm ce) {
-		if (ce == firstElm)
-		    return false;
-		if (type == INDUCT) {
-		    // inductors need a path free of current sources
-		    if (ce instanceof CurrentElm)
-			return false;
-		}
-		if (type == VOLTAGE) {
-		    // when checking for voltage loops, we only care about voltage sources/wires/ground
-		    if (!(ce.isWireEquivalent() || ce instanceof VoltageElm || ce instanceof GroundElm))
-			return false;
-		}
-		// when checking for shorts, just check wires
-		if (type == SHORT && !ce.isWireEquivalent())
-		    return false;
-		if (type == CAP_V) {
-		    // checking for capacitor/voltage source loops
-		    if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce instanceof VoltageElm))
-			return false;
-		}
-		if (n1 == CircuitNode.ground) {
-		    // look for posts which have a ground connection;
-		    // our path can go through ground
-		    int j;
-		    for (j = 0; j != ce.getPostCount(); j++)
-			if (ce.hasGroundConnection(j) && findPath(ce.getNode(j)))
-			    return true;
-		}
-		int j;
-		for (j = 0; j != ce.getPostCount(); j++) {
-		    if (ce.getNode(j) == n1) {
-			if (ce.hasGroundConnection(j) && findPath(CircuitNode.ground))
-			    return true;
-			if (type == INDUCT && ce instanceof InductorElm) {
-			    // inductors can use paths with other inductors of matching current
-			    double c = ce.getCurrent();
-			    if (j == 0)
-				c = -c;
-			    if (Math.abs(c-firstElm.getCurrent()) > 1e-10)
-				continue;
-			}
-			int k;
-			for (k = 0; k != ce.getPostCount(); k++) {
-			    if (j == k)
-				continue;
-			    if (ce.getConnection(j, k) && findPath(ce.getNode(k))) {
-				//System.out.println("got findpath " + n1);
-				return true;
-			    }
-			}
-		    }
-		}
-	    return false;
-	}
-    }
 
     void stop(String s, CircuitElm ce) {
 	app.setStopElm(ce, Locale.LS(s));
@@ -1467,12 +1368,12 @@ public class SimulationManager {
 		    if (m.nonLinear) {
 			if (converged && subiter > 0)
 			    continue;
-			if (!lu_factor(m.matrix, m.size, m.permute)) {
+			if (!lu_factor(m.matrix, m.size, m.permute, m)) {
 			    stop("Singular matrix!", null);
 			    return;
 			}
 		    }
-		    lu_solve(m.matrix, m.size, m.permute, m.rightSide);
+		    lu_solve(m.matrix, m.size, m.permute, m.rightSide, m);
 		    applySolvedRightSide(m);
 		}
 		if (printit)
@@ -1556,13 +1457,11 @@ public class SimulationManager {
 	    }
 	}
 	// set currents for voltage sources in this matrix
-	for (j = 0; j != voltageSourceCount; j++) {
-	    VoltageSource vs = voltageSources[j];
-	    if (vs.matrix == m) {
-		double res = m.rightSide[vs.row-1];
-		if (!Double.isNaN(res))
-		    vs.elm.setCurrent(vs, res);
-	    }
+	for (j = 0; j != m.voltageSourceList.size(); j++) {
+	    VoltageSource vs = m.voltageSourceList.get(j);
+	    double res = m.rightSide[vs.row-1];
+	    if (!Double.isNaN(res))
+		vs.elm.setCurrent(vs, res);
 	}
 	setNodeVoltages(m, m.nodeVoltages);
     }
@@ -1570,10 +1469,8 @@ public class SimulationManager {
     // set node voltages in each element given an array of node voltages for one matrix
     void setNodeVoltages(CircuitMatrix m, double nv[]) {
 	int j, k;
-	for (j = 1; j != nodeList.size(); j++) {
-	    CircuitNode cn = getCircuitNode(j);
-	    if (cn.matrix != m)
-		continue;
+	for (j = 0; j != m.nodeList.size(); j++) {
+	    CircuitNode cn = m.nodeList.get(j);
 	    double res = nv[cn.row-1];
 	    for (k = 0; k != cn.links.size(); k++) {
 		CircuitNodeLink cnl = cn.links.elementAt(k);
@@ -1638,13 +1535,29 @@ public class SimulationManager {
 	Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	boolean sel = app.isSelection();
 	    
+	// Temporarily open any closed switches so the model's nn node IDs reflect
+	// open topology.  buildCompNodeList() can then merge them when loaded closed.
+	Vector<SwitchElm> closedSwitches = new Vector<SwitchElm>();
+	for (i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.elmList.get(i);
+	    if (ce instanceof SwitchElm && ((SwitchElm) ce).position == 0) {
+		closedSwitches.add((SwitchElm) ce);
+		((SwitchElm) ce).position = 1;
+	    }
+	}
+
+	// redo node allocation to avoid auto-assigning ground
+	if (!preStampCircuit(true)) {
+	    for (SwitchElm se : closedSwitches) se.position = 0;
+	    return null;
+	}
+
+	// restore switch positions
+	for (SwitchElm se : closedSwitches) se.position = 0;
+
 	boolean used[] = new boolean[nodeList.size()];
 	boolean extnodes[] = new boolean[nodeList.size()];
 	    
-	// redo node allocation to avoid auto-assigning ground
-	if (!preStampCircuit(true))
-	    return null;
-
 	// find all the labeled nodes, get a list of them, and create a node number map
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
@@ -1760,31 +1673,42 @@ public class SimulationManager {
 	
 	static void invertMatrix(double a[][], int n) {
 	    int ipvt[] = new int[n];
-	    lu_factor(a, n, ipvt);
+	    lu_factor_dense(a, n, ipvt);
 	    int i, j;
 	    double b[] = new double[n];
 	    double inva[][] = new double[n][n];
-	    
+
 	    // solve for each column of identity matrix
 	    for (i = 0; i != n; i++) {
 		for (j = 0; j != n; j++)
 		    b[j] = 0;
 		b[i] = 1;
-		lu_solve(a, n, ipvt, b);
+		lu_solve_dense(a, n, ipvt, b);
 		for (j = 0; j != n; j++)
 		    inva[j][i] = b[j];
 	    }
-	    
+
 	    // return in original matrix
 	    for (i = 0; i != n; i++)
 		for (j = 0; j != n; j++)
 		    a[i][j] = inva[i][j];
 	}
+    // Dispatching lu_factor: uses sparse or dense solver based on solverType setting
+    static boolean lu_factor(double a[][], int n, int ipvt[], CircuitMatrix cm) {
+	SimulationManager sm = theSim;
+	if (sm != null && sm.usingSparse) {
+	    DMatrixSparseCSC csc = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
+	    if (cm.sparseLU == null) cm.sparseLU = new SparseLU();
+	    return cm.sparseLU.setA(csc);
+	}
+	return lu_factor_dense(a, n, ipvt);
+    }
+
     // factors a matrix into upper and lower triangular matrices by
     // gaussian elimination.  On entry, a[0..n-1][0..n-1] is the
     // matrix to be factored.  ipvt[] returns an integer vector of pivot
     // indices, used in the lu_solve() routine.
-    static boolean lu_factor(double a[][], int n, int ipvt[]) {
+    static boolean lu_factor_dense(double a[][], int n, int ipvt[]) {
 	int i,j,k;
 	
 	// check for a possible singular matrix by scanning for rows that
@@ -1864,10 +1788,20 @@ public class SimulationManager {
 	return true;
     }
 
+    // Dispatching lu_solve: uses sparse or dense solver based on solverType setting
+    static void lu_solve(double a[][], int n, int ipvt[], double b[], CircuitMatrix cm) {
+	SimulationManager sm = theSim;
+	if (sm != null && sm.usingSparse) {
+	    cm.sparseLU.solve(b, b);
+	    return;
+	}
+	lu_solve_dense(a, n, ipvt, b);
+    }
+
     // Solves the set of n linear equations using a LU factorization
     // previously performed by lu_factor.  On input, b[0..n-1] is the right
     // hand side of the equations, and on output, contains the solution.
-    static void lu_solve(double a[][], int n, int ipvt[], double b[]) {
+    static void lu_solve_dense(double a[][], int n, int ipvt[], double b[]) {
 	int i;
 
 	// find first nonzero b element

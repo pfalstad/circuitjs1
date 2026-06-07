@@ -98,6 +98,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    }
 	    if (newce instanceof GroundElm)
 		((GroundElm) newce).setOldStyle();
+	    newce.inComposite = true;
 	    compElmList.add(newce);
 	    nodeInfoList.add(nodeStr);
 	}
@@ -137,6 +138,7 @@ public abstract class CompositeElm extends CircuitElm {
 		((GroundElm) newce).setOldStyle();
 	    xml.parseChildElement(childElem);
 	    newce.undumpXml(xml);
+	    newce.inComposite = true;
 	    compElmList.add(newce);
 	    String nn = childElem.getAttribute("nn");
 	    nodeInfoList.add(nn != null ? nn : "");
@@ -203,8 +205,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    return;
 	}
 	for (Entry<Integer, CircuitNode> entry : compNodeHash.entrySet()) {
-	    int key = entry.getKey();
-	    compNodeList.add(compNodeHash.get(key));
+	    compNodeList.add(entry.getValue());
 	}
 
 	// allocate more nodes for sub-elements' internal nodes

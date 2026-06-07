@@ -237,5 +237,13 @@ class VCCSElm extends ChipElm {
             super.reset();
             exprState.reset();
         }
+        boolean validate() {
+            FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, this, getOutputNode(0), sim);
+            if (hasCurrentOutput() && !fpi.findPath(getOutputNode(1)))
+        	broken = true;
+            else
+        	broken = false;
+            return true;
+        }
     }
 

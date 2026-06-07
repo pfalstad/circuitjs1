@@ -19,7 +19,7 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 class DPDTSwitchElm extends SwitchElm {
@@ -164,8 +164,11 @@ class DPDTSwitchElm extends SwitchElm {
 	}
 	int getPostCount() { return 3*poleCount; }
 	void calculateCurrent() {
+	    if (resistance > 0)
+		for (int i = 0; i != poleCount; i++)
+		    currents[i] = (volts[i*3] - volts[i*3+1+position]) / resistance;
 	}
-	
+
         void setVoltageSource(int j, VoltageSource vs) {
             voltageSources[j] = vs;
             vs.setNodes(nodes[j*3], nodes[position+1+j*3]);
@@ -173,12 +176,16 @@ class DPDTSwitchElm extends SwitchElm {
 
 	void stamp() {
 	    int i;
-	    for (i = 0; i != poleCount; i++)
-		sim.stampVoltageSource(voltageSources[i], 0);
+	    for (i = 0; i != poleCount; i++) {
+		if (resistance > 0)
+		    sim.stampResistor(nodes[i*3], nodes[position+1+i*3], resistance);
+		else
+		    sim.stampVoltageSource(voltageSources[i], 0);
+	    }
 	}
-		
+
 	int getVoltageSourceCount() {
-	    return poleCount;
+	    return resistance > 0 ? 0 : poleCount;
 	}
 	
 	boolean getConnection(int n1, int n2) {
@@ -188,7 +195,7 @@ class DPDTSwitchElm extends SwitchElm {
 	    return false;
 	}
 	
-	boolean isWireEquivalent() { return true; }
+	boolean isWireEquivalent() { return resistance == 0; }
 	
 	// optimizing out this element is too complicated to be worth it (see #646)
 	boolean isRemovableWire() { return false; }
@@ -208,6 +215,11 @@ class DPDTSwitchElm extends SwitchElm {
 		return EditInfo.createCheckbox("IEC Symbol", useIECSymbol());
 	    if (n == 2)
 		return getKeyShortcutEditInfo();
+	    if (n == 3) {
+		EditInfo ei = new EditInfo("On Resistance (ohms)", resistance);
+		ei.setNonNegative();
+		return ei;
+	    }
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -225,6 +237,8 @@ class DPDTSwitchElm extends SwitchElm {
 	    }
 	    if (n == 2)
 		setKeyShortcutEditValue(ei);
+	    if (n == 3)
+		resistance = ei.value;
 	}
 	
 	int getShortcut() { return 0; }
@@ -251,4 +265,19 @@ class DPDTSwitchElm extends SwitchElm {
 	    flip();
 	    super.flipXY(c2, count);
 	}
+
+        boolean validate() {
+	    if (resistance > 0)
+		return true;
+            int i;
+	    for (i = 0; i != poleCount; i++) {
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(i*3), sim);
+		if (fpi.findPath(getNode(i*3+1+position))) {
+		    //sim.stop("Voltage source/wire loop with no resistance!", this);
+		    resistance = .001;
+		    return false;
+		}
+	    }
+	    return true;
+        }
     }

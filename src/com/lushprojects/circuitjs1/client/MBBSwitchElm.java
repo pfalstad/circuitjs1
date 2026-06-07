@@ -138,6 +138,11 @@ class MBBSwitchElm extends SwitchElm {
 		currents[1] = c;
 	}
 	void calculateCurrent() {
+	    if (resistance > 0) {
+		currents[0] = (both || position == 0) ? (volts[0] - volts[1]) / resistance : 0;
+		currents[1] = (both || position == 2) ? (volts[0] - volts[2]) / resistance : 0;
+		return;
+	    }
 	    // make sure current of unconnected pole is zero
 	    if (!both)
 		currents[1-(position/2)] = 0;
@@ -152,17 +157,26 @@ class MBBSwitchElm extends SwitchElm {
 		v.setNodes(nodes[0], nodes[2]);
 	}
 	void stamp() {
+	    if (resistance > 0) {
+		if (both || position == 0)
+		    sim.stampResistor(nodes[0], nodes[1], resistance);
+		if (both || position == 2)
+		    sim.stampResistor(nodes[0], nodes[2], resistance);
+		return;
+	    }
 	    int vs = 0;
 	    if (both || position == 0)
 		sim.stampVoltageSource(voltSources[vs++], 0);
 	    if (both || position == 2)
 		sim.stampVoltageSource(voltSources[vs++], 0);
 	}
-	
+
 	// connection is implemented by voltage source with voltage = 0.
 	// need two for both loads connected, otherwise one.
 	int getVoltageSourceCount() {
 	    both = (position == 1 || position == 3);
+	    if (resistance > 0)
+		return 0;
 	    return (both) ? 2 : 1;
 	}
 	void toggle() {
@@ -188,7 +202,7 @@ class MBBSwitchElm extends SwitchElm {
 	// do not optimize out, even though isWireEquivalent() is true (because it may have 3 nodes to merge
 	// and calcWireClosure() doesn't handle that case)
 	boolean isRemovableWire() { return false; }
-	boolean isWireEquivalent() { return true; }
+	boolean isWireEquivalent() { return resistance == 0; }
 	
 	String getElmType() { return "switch (SPDT, MBB)"; }
 	void getInfo(String arr[]) {
@@ -202,6 +216,11 @@ class MBBSwitchElm extends SwitchElm {
 		return super.getEditInfo(n);
 	    if (n == 2)
 		return getKeyShortcutEditInfo();
+	    if (n == 3) {
+		EditInfo ei = new EditInfo("On Resistance (ohms)", resistance);
+		ei.setNonNegative();
+		return ei;
+	    }
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -209,8 +228,31 @@ class MBBSwitchElm extends SwitchElm {
 	    	link = (int) ei.value;
 	    } else if (n == 2)
 	    	setKeyShortcutEditValue(ei);
+	    else if (n == 3)
+		resistance = ei.value;
 	    else
 	    	super.setEditValue(n, ei);
 	}
+	boolean validate() {
+	    if (resistance > 0)
+		return true;
+	    boolean b = (position == 1 || position == 3);
+	    if (b || position == 0) {
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
+		if (fpi.findPath(getNode(1))) {
+		    resistance = .001;
+		    return false;
+		}
+	    }
+	    if (b || position == 2) {
+		FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(0), sim);
+		if (fpi.findPath(getNode(2))) {
+		    resistance = .001;
+		    return false;
+		}
+	    }
+	    return true;
+	}
+
 	int getShortcut() { return 0; }
     }

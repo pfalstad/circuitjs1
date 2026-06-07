@@ -85,7 +85,7 @@ public class CirSim implements NativePreviewHandler {
     boolean simRunning;
     // public boolean useFrame;
     boolean showResistanceInVoltageSources;
-    static EditDialog editDialog, customLogicEditDialog, diodeModelEditDialog, mosfetModelEditDialog;
+    static EditDialog editDialog, customLogicEditDialog, diodeModelEditDialog, mosfetModelEditDialog, relayModelEditDialog;
     static ScrollValuePopup scrollValuePopup;
     static TypeScrollPopup typeScrollPopup;
     static Dialog dialogShowing;
@@ -441,6 +441,7 @@ public class CirSim implements NativePreviewHandler {
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
 	MosfetModel.clearDumpedFlags();
+	RelayModel.clearDumpedFlags();
 
 	//String dump = dumpOptions();
 	XMLSerializer xml = new XMLSerializer(this);

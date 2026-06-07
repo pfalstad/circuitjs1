@@ -135,11 +135,13 @@ class ProbeElm extends CircuitElm {
 
     void draw(Graphics g) {
 	g.save();
-	int hs = (drawAsCircle()) ? circleSize : 8;
+	String role = app.mouse.scopePlotRoles.get(this);
+	boolean showCircle = drawAsCircle() && (role == null || role.isEmpty());
+	int hs = showCircle ? circleSize : 8;
 	setBbox(point1, point2, hs);
 	boolean selected = needsHighlight();
 	double len = (selected || isCreating() || mustShowVoltage()) ? 16 : dn-32;
-	if (drawAsCircle())
+	if (showCircle)
 	    len = circleSize*2;
 	calcLeads((int) len);
 	setVoltageColor(g, volts[0]);
@@ -152,10 +154,8 @@ class ProbeElm extends CircuitElm {
 	drawThickLine(g, lead2, point2);
 	Font f = new Font("SansSerif", Font.BOLD, 14);
 	g.setFont(f);
-	if (this == app.mouse.plotXElm)
-	    drawCenteredText(g, "X", center.x, center.y, true);
-	if (this == app.mouse.plotYElm)
-	    drawCenteredText(g, "Y", center.x, center.y, true);
+	if (role != null && !role.isEmpty())
+	    drawCenteredText(g, role, center.x, center.y, true);
 	if (mustShowVoltage()) {
 	    String s = "";
 	        switch (meter) {
@@ -190,7 +190,7 @@ class ProbeElm extends CircuitElm {
 	                s = showFormat.format(dutyCycle);
 	                break;
 	        }
-	    drawValues(g, s, drawAsCircle() ? circleSize+3 : 4);
+	    drawValues(g, s, showCircle ? circleSize+3 : 4);
 	}
 	   g.setColor(whiteColor);
            g.setFont(unitsFont);
@@ -201,7 +201,7 @@ class ProbeElm extends CircuitElm {
 		plusPoint.y += 3;
            int w = (int)g.context.measureText("+").getWidth();
            g.drawString("+", plusPoint.x-w/2, plusPoint.y);
-           if (drawAsCircle()) {
+           if (showCircle) {
                g.setColor(lightGrayColor);
                drawThickCircle(g, center.x, center.y, circleSize);
                drawCenteredText(g, "V", center.x, center.y, true);

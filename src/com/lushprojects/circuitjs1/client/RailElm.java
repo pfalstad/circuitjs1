@@ -90,15 +90,26 @@ class RailElm extends VoltageElm {
     }
     
     double getVoltageDiff() { return volts[0]; }
-    void stamp() {
-	if (waveform == WF_DC)
-	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource, getVoltage());
+    void setVoltageSource(int n, VoltageSource v) {
+	super.setVoltageSource(n, v);
+	if (internalResistance > 0)
+	    v.setNodes(CircuitNode.ground, nodes[1]);
 	else
-	    sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
+	    v.setNodes(CircuitNode.ground, nodes[0]);
+    }
+    void stamp() {
+	CircuitNode vsNode = internalResistance > 0 ? nodes[1] : nodes[0];
+	if (waveform == WF_DC)
+	    sim.stampVoltageSource(CircuitNode.ground, vsNode, voltSource, getVoltage());
+	else
+	    sim.stampVoltageSource(CircuitNode.ground, vsNode, voltSource);
+	if (internalResistance > 0)
+	    sim.stampResistor(nodes[1], nodes[0], internalResistance);
     }
     void doStep() {
+	CircuitNode vsNode = internalResistance > 0 ? nodes[1] : nodes[0];
 	if (waveform != WF_DC)
-	    sim.updateVoltageSource(CircuitNode.ground, nodes[0], voltSource, getVoltage());
+	    sim.updateVoltageSource(CircuitNode.ground, vsNode, voltSource, getVoltage());
     }
     boolean hasGroundConnection(int n1) { return true; }
     void addRoutingObstacle(WireRouter router) {
@@ -108,10 +119,20 @@ class RailElm extends VoltageElm {
     }
 
     int getShortcut() { return 'V'; }
-    
+    boolean validateRailNode(int n) {
+	FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(n), sim);
+	if (fpi.findPath(CircuitNode.ground)) {
+	    //sim.stop("Path to ground with no resistance!", this);
+	    internalResistance = .001;
+	    return false;
+	}
+	return true;
+    }
+    boolean validate() { return internalResistance > 0 || validateRailNode(0); }
+
 //    void drawHandles(Graphics g, Color c) {
 //    	g.setColor(c);
 //		g.fillRect(x-3, y-3, 7, 7);
 //    }
-    
+
 }

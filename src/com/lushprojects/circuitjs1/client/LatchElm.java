@@ -54,8 +54,9 @@ class LatchElm extends ChipElm {
 	    flags |= FLAG_STATE;
 	    setupPins();
 	}
+	restoreOutputValues();
     }
-    String getChipName() { return "Latch"; }
+    String getChipName() { return isEdgeTriggered() ? "Register" : "Latch"; }
     boolean needsBits() { return true; }
     boolean allowBus() { return true; }
     boolean isEdgeTriggered() { return (flags & FLAG_NO_EDGE) == 0; }
@@ -76,7 +77,8 @@ class LatchElm extends ChipElm {
 	int leftPos = bitsY;
 	int rightPos = bitsY;
 
-	pins[loadPin = pinIndex++] = new Pin(leftPos++, SIDE_W, "Ld");
+	pins[loadPin = pinIndex++] = new Pin(leftPos++, SIDE_W, isEdgeTriggered() ? "" : "Ld");
+	pins[loadPin].clock = isEdgeTriggered();
 	if (hasReset())
 	    pins[resetPin = pinIndex++] = new Pin(leftPos++, SIDE_W, "R");
 	if (hasSet())
@@ -109,6 +111,22 @@ class LatchElm extends ChipElm {
 	if (outputValues == null)
 	    outputValues = new boolean[bits];
 	return outputValues;
+    }
+
+    void restoreOutputValues() {
+	boolean[] ov = lastOutputValues();
+	for (int i = 0; i != bits; i++)
+	    ov[i] = pins[i + bits].value;
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	restoreOutputValues();
+    }
+
+    void reset() {
+	super.reset();
+	outputValues = null;
     }
 
     // execute() is used by ChipElm.doStep() when there's no output enable.
@@ -257,8 +275,11 @@ class LatchElm extends ChipElm {
 	    } else if (ei.value < 2)
 		ei.setError("must be >= 2");
 	}
-	if (n == 1)
+	if (n == 1) {
 	    flags = ei.changeFlagInverted(flags, FLAG_NO_EDGE);
+	    setupPins();
+	    setPoints();
+	}
 	if (n == 2) {
 	    flags = ei.changeFlag(flags, FLAG_RESET);
 	    setupPins();

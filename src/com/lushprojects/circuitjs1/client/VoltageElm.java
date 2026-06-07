@@ -31,6 +31,10 @@ class VoltageElm extends CircuitElm {
     static final int FLAG_CIRCLE_SYMBOL = 8;
     static final int FLAG_SHOW_VOLTAGE = 16;
     static final int FLAG_TIME_SPEC = 32;
+
+    // this is separate because old RailElms may have FLAG_SHOW_VOLTAGE set even though it didn't do anything
+    static final int FLAG_SHOW_VOLTAGE_RAIL = 64;
+
     int waveform;
     static final int WF_DC = 0;
     static final int WF_AC = 1;
@@ -41,7 +45,8 @@ class VoltageElm extends CircuitElm {
     static final int WF_NOISE = 6;
     static final int WF_VAR = 7;
     double frequency, maxVoltage, freqTimeZero, bias,
-	phaseShift, dutyCycle, noiseValue, riseTime;
+	phaseShift, dutyCycle, noiseValue, riseTime, internalResistance;
+    int getInternalNodeCount() { return internalResistance > 0 ? 1 : 0; }
     
     static final double defaultPulseDuty = 1/(2*Math.PI);
     
@@ -100,6 +105,8 @@ class VoltageElm extends CircuitElm {
             XMLSerializer.dumpAttr(elem, "dutyCycle", dutyCycle);
 	if (riseTime != 0)
             XMLSerializer.dumpAttr(elem, "riseTime", riseTime);
+	if (internalResistance != 0)
+	    XMLSerializer.dumpAttr(elem, "ir", internalResistance);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -111,6 +118,7 @@ class VoltageElm extends CircuitElm {
 	phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);
 	dutyCycle = xml.parseDoubleAttr("dutyCycle", dutyCycle);
 	riseTime = xml.parseDoubleAttr("riseTime", riseTime);
+	internalResistance = xml.parseDoubleAttr("ir", 0);
     }
 
     void reset() {
@@ -126,20 +134,25 @@ class VoltageElm extends CircuitElm {
 
     void setVoltageSource(int n, VoltageSource v) {
 	super.setVoltageSource(n, v);
-	v.setNodes(nodes[0], nodes[1]);
+	if (internalResistance > 0)
+	    v.setNodes(nodes[0], nodes[2]);
+	else
+	    v.setNodes(nodes[0], nodes[1]);
     }
 
     void stamp() {
+	CircuitNode vsNode2 = internalResistance > 0 ? nodes[2] : nodes[1];
 	if (waveform == WF_DC)
-	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource,
-			       getVoltage());
+	    sim.stampVoltageSource(nodes[0], vsNode2, voltSource, getVoltage());
 	else
-	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource);
+	    sim.stampVoltageSource(nodes[0], vsNode2, voltSource);
+	if (internalResistance > 0)
+	    sim.stampResistor(nodes[2], nodes[1], internalResistance);
     }
     void doStep() {
+	CircuitNode vsNode2 = internalResistance > 0 ? nodes[2] : nodes[1];
 	if (waveform != WF_DC)
-	    sim.updateVoltageSource(nodes[0], nodes[1], voltSource,
-				getVoltage());
+	    sim.updateVoltageSource(nodes[0], vsNode2, voltSource, getVoltage());
     }
     void stepFinished() {
 	if (waveform == WF_NOISE)
@@ -291,8 +304,7 @@ class VoltageElm extends CircuitElm {
 	    boolean showF = showValues() && waveform != WF_DC && waveform != WF_NOISE;
 	    String s = null;
 	    if (showV && showF)
-		s = getShortVoltageText() + " " +
-		    getShortUnitText(frequency, "Hz");
+		s = getShortVoltageText() + " " + getShortUnitText(frequency, "Hz");
 	    else if (showV)
 		s = getShortVoltageText();
 	    else if (showF)
@@ -385,9 +397,17 @@ class VoltageElm extends CircuitElm {
 	    break;
 	}
 	}
-	if (this instanceof RailElm && showValues() && waveform != WF_NOISE) {
-	    String s = getShortUnitText(frequency, "Hz");
-	    if (dx == 0 || dy == 0)
+	if (this instanceof RailElm && (dx == 0 || dy == 0)) {
+	    boolean showV = (flags & FLAG_SHOW_VOLTAGE_RAIL) != 0;
+	    boolean showF = showValues() && waveform != WF_NOISE;
+	    String s = null;
+	    if (showV && showF)
+		s = getShortVoltageText() + " " + getShortUnitText(frequency, "Hz");
+	    else if (showV)
+		s = getShortVoltageText();
+	    else if (showF)
+		s = getShortUnitText(frequency, "Hz");
+	    if (s != null)
 		drawValues(g, s, circleSize);
 	}
     }
@@ -408,6 +428,8 @@ class VoltageElm extends CircuitElm {
 
     // return a short voltage string, using RMS if that's a rounder number
     String getShortVoltageText() {
+	if (bias != 0)
+	    return getShortUnitText(bias + maxVoltage, "V");
 	if (useRmsDisplay(maxVoltage))
 	    return getShortUnitText(maxVoltage * getRmsMultiplier(), "V") + "rms";
 	return getShortUnitText(maxVoltage, "V");
@@ -462,8 +484,7 @@ class VoltageElm extends CircuitElm {
 	    arr[i++] = "(R = " + getUnitText(maxVoltage/current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + getUnitText(getPower(), "W");
     }
-    // rails don't have Show Voltage or Circle Symbol options, so frequency starts earlier
-    int getFrequencyOffset() { return (this instanceof RailElm) ? 3 : 4; }
+    int getFrequencyOffset() { return 5; }
     boolean hasTimingOptions() { return waveform == WF_PULSE || waveform == WF_SQUARE; }
     boolean timeSpec() { return hasFlag(FLAG_TIME_SPEC) && hasTimingOptions(); }
 
@@ -506,12 +527,18 @@ class VoltageElm extends CircuitElm {
 	}
 	if (n == 2)
 	    return new EditInfo("DC Offset (V)", bias, -20, 20);
-	if (n == 3 && !(this instanceof RailElm)) {
-	    EditInfo ei = new EditInfo("", 0, -1, -1);
-	    ei.checkbox = new Checkbox("Show Voltage", (flags & FLAG_SHOW_VOLTAGE) != 0);
+	if (n == 3) {
+	    EditInfo ei = new EditInfo("Internal Resistance (ohms)", internalResistance);
+	    ei.setNonNegative();
 	    return ei;
 	}
-	if (n == 4 && waveform == WF_DC && !(this instanceof RailElm)) {
+	if (n == 4 && !(this instanceof RailElm && (waveform == WF_DC || waveform == WF_VAR))) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    int svFlag = (this instanceof RailElm) ? FLAG_SHOW_VOLTAGE_RAIL : FLAG_SHOW_VOLTAGE;
+	    ei.checkbox = new Checkbox("Show Voltage", (flags & svFlag) != 0);
+	    return ei;
+	}
+	if (n == 5 && waveform == WF_DC && !(this instanceof RailElm)) {
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
 	    ei.checkbox = new Checkbox("Circle Symbol", (flags & FLAG_CIRCLE_SYMBOL) != 0);
 	    return ei;
@@ -562,9 +589,13 @@ class VoltageElm extends CircuitElm {
 	    maxVoltage = ei.value;
 	if (n == 2)
 	    bias = ei.value;
-	if (n == 3 && ei.checkbox != null && !(this instanceof RailElm))
-	    flags = ei.changeFlag(flags, FLAG_SHOW_VOLTAGE);
-	if (n == 4 && waveform == WF_DC && ei.checkbox != null && !(this instanceof RailElm)) {
+	if (n == 3)
+	    internalResistance = ei.value;
+	if (n == 4 && ei.checkbox != null) {
+	    int svFlag = (this instanceof RailElm) ? FLAG_SHOW_VOLTAGE_RAIL : FLAG_SHOW_VOLTAGE;
+	    flags = ei.changeFlag(flags, svFlag);
+	}
+	if (n == 5 && waveform == WF_DC && ei.checkbox != null && !(this instanceof RailElm)) {
 	    flags = ei.changeFlag(flags, FLAG_CIRCLE_SYMBOL);
 	    setPoints();
 	}
@@ -633,6 +664,19 @@ class VoltageElm extends CircuitElm {
 		phaseShift = ((phaseShift % (2*pi)) + 2*pi) % (2*pi);
 	    }
 	}
+    }
+    boolean validate() {
+	if (internalResistance > 0)
+	    return true;
+	if (getPostCount() == 2) {
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(1), sim);
+	    if (fpi.findPath(getNode(0))) {
+		//sim.stop("Voltage source/wire loop with no resistance!", this);
+		internalResistance = .001;
+		return false;
+	    }
+	}
+	return true;
     }
 }
 

@@ -174,6 +174,13 @@ import com.google.gwt.xml.client.Element;
 	    return new RoutedWireElm(rp2);
 	}
 
+	@Override
+	boolean pointOnWireInterior(int px, int py) {
+	    if (routePoints == null || routePoints.size() < 2)
+		return false;
+	    return WireElm.pointOnWireInteriorForPoints(px, py, routePoints);
+	}
+
 	// reroute this wire through an intermediate point
 	void rerouteVia(int vx, int vy) {
 	    WireRouter router = new WireRouter();
@@ -214,6 +221,11 @@ import com.google.gwt.xml.client.Element;
 	    setVoltageColor(g, volts[0]);
 	    for (int i = 0; i < routePoints.size() - 1; i++)
 		drawThickLine(g, routePoints.get(i), routePoints.get(i + 1), busWidth > 1 ? 5 : 3);
+	    if (currents != null) {
+		current = 0;
+		for (int i = 0; i < currents.length; i++)
+		    current += currents[i];
+	    }
 	    doDots(g);
 
 	    final int m = 5;
@@ -321,6 +333,28 @@ import com.google.gwt.xml.client.Element;
 	    double py = ay + t * dy;
 	    double ex = gx - px, ey = gy - py;
 	    return (int)(ex * ex + ey * ey);
+	}
+
+	// return true if point p lies strictly on a segment of the wire path (not at an endpoint)
+	boolean pointOnPath(Point p) {
+	    if (routePoints == null || routePoints.size() < 2)
+		return false;
+	    if (p.equals(point1) || p.equals(point2))
+		return false;
+	    for (int i = 0; i < routePoints.size() - 1; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		if (a.x == b.x && p.x == a.x) {
+		    int lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+		    if (p.y >= lo && p.y <= hi)
+			return true;
+		} else if (a.y == b.y && p.y == a.y) {
+		    int lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+		    if (p.x >= lo && p.x <= hi)
+			return true;
+		}
+	    }
+	    return false;
 	}
 
 	// return the snapped point on the wire nearest to (mx, my), or null

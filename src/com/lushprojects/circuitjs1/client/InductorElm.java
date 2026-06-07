@@ -174,4 +174,10 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	double getSaturationCurrent() { return saturationCurrent; }
+	boolean validate() {
+	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, this, getNode(1), sim);
+	    if (!fpi.findPath(getNode(0)))
+		reset();
+	    return true;
+	}
     }

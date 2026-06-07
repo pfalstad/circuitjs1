@@ -122,6 +122,7 @@ class SweepElm extends CircuitElm {
 	    drawDots(g, point1, lead1, curcount);
     }
 	
+    boolean validate() { return validateRailNode(0); }
     void stamp() {
 	sim.stampVoltageSource(CircuitNode.ground, nodes[0], voltSource);
     }

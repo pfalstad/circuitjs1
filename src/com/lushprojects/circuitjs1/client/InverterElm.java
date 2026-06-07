@@ -146,6 +146,7 @@ class InverterElm extends CircuitElm {
 	}
 	// there is no current path through the inverter input, but there
 	// is an indirect path through the output to ground.
+	boolean validate() { return validateRailNode(1); }
 	boolean getConnection(int n1, int n2) { return false; }
 	boolean hasGroundConnection(int n1) {
 	    return (n1 == 1);

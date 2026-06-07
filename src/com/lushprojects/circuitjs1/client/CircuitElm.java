@@ -49,6 +49,8 @@ public abstract class CircuitElm implements Editable {
     static public Color whiteColor, lightGrayColor, selectColor;
     static public Color positiveColor, negativeColor, neutralColor, currentColor;
     static Font unitsFont;
+    static Font valueFont;
+    static int valueFontSize = 12;
 
     static NumberFormat showFormat, shortFormat, fixedFormat;
     static final double pi = 3.14159265358979323846;
@@ -97,6 +99,7 @@ public abstract class CircuitElm implements Editable {
     boolean noDiagonal;
     
     public boolean selected;
+    boolean inComposite;
     
     
 //    abstract int getDumpType();
@@ -122,16 +125,15 @@ public abstract class CircuitElm implements Editable {
     boolean hasFlag(int f) { return (flags & f) != 0; }
     
     static void initClass(CirSim app_, SimulationManager sim_) {
-	unitsFont = new Font("SansSerif", 0, 12);
 	sim = sim_;
 	app = app_;
-	
+
 	colorScale = new Color[colorScaleCount];
-	
-	
+
+
 	ps1 = new Point();
 	ps2 = new Point();
-	
+
 	Storage stor = Storage.getLocalStorageIfSupported();
 	decimalDigits = 3;
 	shortDecimalDigits = 1;
@@ -142,9 +144,14 @@ public abstract class CircuitElm implements Editable {
 		decimalDigits = Integer.parseInt(s1);
 	    if (s2 != null)
 		shortDecimalDigits = Integer.parseInt(s2);
+	    String sf = stor.getItem("valueFontSize");
+	    if (sf != null)
+		valueFontSize = Integer.parseInt(sf);
 	}
 	setDecimalDigits(decimalDigits, false, false);
 	setDecimalDigits(shortDecimalDigits, true, false);
+	unitsFont = new Font("SansSerif", 0, 12);
+	valueFont = new Font("SansSerif", 0, valueFontSize);
     }
 
     static void setDecimalDigits(int num, boolean sf, boolean save) {
@@ -178,6 +185,14 @@ public abstract class CircuitElm implements Editable {
 	}
     }
     
+    static void setValueFontSize(int size) {
+	valueFontSize = size;
+	valueFont = new Font("SansSerif", 0, valueFontSize);
+	Storage stor = Storage.getLocalStorageIfSupported();
+	if (stor != null)
+	    stor.setItem("valueFontSize", Integer.toString(valueFontSize));
+    }
+
     static void setColorScale() {
 
 	int i;
@@ -332,6 +347,34 @@ public abstract class CircuitElm implements Editable {
 	}
 	lead1 = interpPoint(point1, point2, (dn-len)/(2*dn));
 	lead2 = interpPoint(point1, point2, (dn+len)/(2*dn));
+    }
+
+    // Returns true if (px,py) lies strictly inside the axis-aligned segment (ax,ay)-(bx,by).
+    static boolean pointOnSegmentInterior(int ax, int ay, int bx, int by, int px, int py) {
+	if (px == ax && py == ay || px == bx && py == by) return false;
+	if (ax == bx && px == ax) {
+	    int miny = Math.min(ay, by), maxy = Math.max(ay, by);
+	    return py > miny && py < maxy;
+	} else if (ay == by && py == ay) {
+	    int minx = Math.min(ax, bx), maxx = Math.max(ax, bx);
+	    return px > minx && px < maxx;
+	}
+	return false;
+    }
+
+    // Returns which post (0 or 1) has a lead stub containing (px,py), or -1 if neither.
+    int getLeadPost(int px, int py) {
+	if (lead1 != null && lead1 != point1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, lead1.x, lead1.y, px, py))
+	    return 0;
+	if (lead2 != null && lead2 != point2 &&
+	    pointOnSegmentInterior(lead2.x, lead2.y, point2.x, point2.y, px, py))
+	    return 1;
+	// 1-post elements with no explicit leads (e.g. GroundElm): the whole point1→point2 segment is the lead
+	if (lead1 == null && getPostCount() == 1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, point2.x, point2.y, px, py))
+	    return 0;
+	return -1;
     }
 
     // adjust leads so that the point exactly between them is a grid point (so we can place a terminal there)
@@ -635,6 +678,28 @@ public abstract class CircuitElm implements Editable {
 	    Point p = getPost(i);
 	    drawPost(g, p);
 	}
+	drawScopeTerminalLabels(g);
+    }
+
+    void drawScopeTerminalLabels(Graphics g) {
+	if (getPostCount() != 2)
+	    return;
+	if (!app.mouse.scopePlotRoles.containsKey(this))
+	    return;
+	if (dn == 0)
+	    return;
+	g.setColor(selectColor);
+	g.setFont(unitsFont);
+	g.save();
+	g.context.setTextBaseline("middle");
+	g.context.setTextAlign("center");
+	int axOff = 10, perpOff = 8;
+	boolean swap = this instanceof VoltageElm;
+	Point pp = interpPoint(point1, point2, axOff / dn, perpOff);
+	g.drawString(swap ? "−" : "+", pp.x, pp.y);
+	Point mp = interpPoint(point1, point2, 1 - axOff / dn, perpOff);
+	g.drawString(swap ? "+" : "−", mp.x, mp.y);
+	g.restore();
     }
     
     int getNumHandles() {
@@ -812,7 +877,8 @@ public abstract class CircuitElm implements Editable {
     void drawValues(Graphics g, String s, double hs) {
 	if (s == null)
 	    return;
-	g.setFont(unitsFont);
+	g.save();
+	g.setFont(valueFont);
 	//FontMetrics fm = g.getFontMetrics();
 	int w = (int)g.context.measureText(s).getWidth();
 	g.setColor(whiteColor);
@@ -835,10 +901,12 @@ public abstract class CircuitElm implements Editable {
 		xx = xc-(w+abs(dpx)+2);
 	    g.drawString(s, xx, yc+dpy+ya);
 	}
+	g.restore();
     }
     
     void drawLabeledNode(Graphics g, String str, Point pt1, Point pt2) {
-	g.setFont(unitsFont);
+        g.save();
+	g.setFont(valueFont);
 	boolean lineOver = false;
 	if (str.startsWith("/")) {
 	    lineOver = true;
@@ -846,7 +914,6 @@ public abstract class CircuitElm implements Editable {
 	}
         int w=(int)g.context.measureText(str).getWidth();
         int h=(int)g.currentFontSize;
-        g.save();
         g.context.setTextBaseline("middle");
         int x = pt2.x, y = pt2.y;
         if (pt1.y != pt2.y) {
@@ -1194,7 +1261,7 @@ public abstract class CircuitElm implements Editable {
 	return ((x1 == y1 && x2 == y2) || (x1 == y2 && x2 == y1));
     }
     boolean needsHighlight() {
-	return mouseElmRef==this || selected || app.mouse.plotYElm == this ||
+	return mouseElmRef==this || selected || app.mouse.scopePlotRoles.containsKey(this) ||
 		// Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
 		(mouseElmRef instanceof ScopeElm && ((ScopeElm) mouseElmRef).elmScope.getElm()==this) ||
 		isOnHighlightedNet();
@@ -1237,6 +1304,17 @@ public abstract class CircuitElm implements Editable {
     boolean isPrintable() { return app.isPrintable(); }
 
     boolean isGraphicElmt() { return false; }
+
+    boolean validate() { return true; }
+
+    boolean validateRailNode(int n) {
+	FindPathInfo fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, getNode(n), sim);
+	if (fpi.findPath(CircuitNode.ground)) {
+	    sim.stop("Path to ground with no resistance!", this);
+	    return false;
+	}
+	return true;
+    }
     
     void setMouseElm(boolean v) {
 	if (v)
