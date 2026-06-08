@@ -139,6 +139,8 @@ tasks.register('makeSite', Copy) {
     from('war') {
         include '**/*.html'
         include '**/*.css'
+        include 'canvas2svg.js'
+        include 'lz-string.min.js'
         include '**/*.png', '**/*.jpg', '**/*.gif', '**/*.svg'
         include '**/*.txt', '**/*.xml'  // e.g. setuplist.txt if here
         include 'font/**'
