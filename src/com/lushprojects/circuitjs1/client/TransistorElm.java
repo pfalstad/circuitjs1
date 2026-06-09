@@ -537,21 +537,23 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	
 	String getElmType() { return "transistor"; }
 	void getInfo(String arr[]) {
-	    arr[0] = Locale.LS("transistor") + " (" + ((pnp == -1) ? "PNP" : "NPN") + ", " + model.name + ", \u03b2=" + showFormat.format(beta) + ")";
+	    arr[0] = Locale.LS("transistor") + ((pnp == -1) ? " (PNP)" : " (NPN)");
+            arr[1] = model.name + ", \u03b2=" + showFormat.format(beta);
 	    double vbc = volts[0]-volts[1];
 	    double vbe = volts[0]-volts[2];
 	    double vce = volts[1]-volts[2];
 	    if (vbc*pnp > .2)
-		arr[1] = vbe*pnp > .2 ? "saturation" : "reverse active";
+		arr[2] = vbe*pnp > .2 ? "saturation" : "reverse active";
 	    else
-		arr[1] = vbe*pnp > .2 ? "fwd active" : "cutoff";
-	    arr[1] = Locale.LS(arr[1]);
-	    arr[2] = "Ic = " + getCurrentText(ic);
-	    arr[3] = "Ib = " + getCurrentText(ib);
-	    arr[4] = "Vbe = " + getVoltageText(vbe);
-	    arr[5] = "Vbc = " + getVoltageText(vbc);
-	    arr[6] = "Vce = " + getVoltageText(vce);
-	    arr[7] = "P = " + getUnitText(getPower(), "W");
+		arr[2] = vbe*pnp > .2 ? "fwd active" : "cutoff";
+	    arr[2] = Locale.LS(arr[2]);
+	    arr[3] = "Ic = " + getCurrentText(ic);
+	    arr[4] = "Ib = " + getCurrentText(ib);
+	    arr[5] = "Vbe = " + getVoltageText(vbe);
+	    arr[6] = "Vbc = " + getVoltageText(vbc);
+	    arr[7] = "Vce = " + getVoltageText(vce);
+	    arr[8] = "P = " + getUnitText(getPower(), "W");
+/*
 	    if (model.junctionCapBE > 0 || model.junctionCapBC > 0 || model.transitTimeF > 0 || model.transitTimeR > 0) {
 		double cjeVal = calcJunctionCap(vbe*pnp, model.junctionCapBE, model.junctionPotBE, model.junctionExpBE);
 		double cjcVal = calcJunctionCap(vbc*pnp, model.junctionCapBC, model.junctionPotBC, model.junctionExpBC);
@@ -574,6 +576,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		    arr[8] = "ft = " + getUnitText(ft, "Hz");
 		}
 	    }
+*/
 	}
 	
 	double getScopeValue(int x) {
