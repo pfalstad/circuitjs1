@@ -444,6 +444,20 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		// element definition - import into elmDoc
 		Element imported = (Element) elmDoc.importNode(child, true);
 		root.appendChild(imported);
+
+		// model definitions need to be registered immediately (not just left in elmDoc),
+		// since elements like RelayElm look up their model by name as soon as they're
+		// instantiated from elmDoc (e.g. in CompositeElm.loadCompositeXml())
+		String tagName = child.getTagName();
+		xml.parseChildElement(child);
+		if (tagName.equals("dm"))
+		    DiodeModel.undumpModelXml(xml);
+		else if (tagName.equals("rlm"))
+		    RelayModel.undumpModelXml(xml);
+		else if (tagName.equals("tm"))
+		    TransistorModel.undumpModelXml(xml);
+		else if (tagName.equals("clm"))
+		    CustomLogicModel.undumpModelXml(xml);
 	    }
 	}
     }
