@@ -162,7 +162,12 @@ class RelayElm extends CircuitElm {
     
     int getDumpType() { return 178; }
     String getXmlDumpType() { return "rl"; }
-    
+
+    void dumpXmlModel(Document doc) {
+	if (!(model.builtIn || model.dumped))
+	    model.dumpXml(doc);
+    }
+
     void dumpXml(Document doc, Element elem) {
 	if (!(model.builtIn || model.dumped))
 	    model.dumpXml(doc);
