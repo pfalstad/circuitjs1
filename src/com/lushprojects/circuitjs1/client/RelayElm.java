@@ -495,14 +495,10 @@ class RelayElm extends CircuitElm {
     String getElmType() { return "relay"; }
     void getInfo(String arr[]) {
 	arr[0] = Locale.LS("relay");
-	if (i_position == 0)
-	    arr[0] += " (" + Locale.LS("off") + ")";
-	else if (i_position == 1)
-	    arr[0] += " (" + Locale.LS("on") + ")";
-	if (switchingTime() == 0)
-	    arr[0] += " (" + Locale.LS("old model") + ")";
+        arr[0] += " (" + (switchingTime() == 0 ? "old model" : modelName) + ")";
+        arr[1] = (i_position == 0) ? Locale.LS("off") : Locale.LS("on");
 	int i;
-	int ln = 1;
+	int ln = 2;
 	for (i = 0; i != poleCount(); i++)
 	    arr[ln++] = "I" + (i+1) + " = " + getCurrentDText(switchCurrent[i]);
 	arr[ln++] = Locale.LS("coil I") + " = " + getCurrentDText(coilCurrent);
