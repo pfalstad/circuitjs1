@@ -61,6 +61,7 @@ public class Menus {
     CheckboxMenuItem noEditCheckItem;
     CheckboxMenuItem mouseWheelEditCheckItem;
     CheckboxMenuItem toolbarCheckItem;
+    CheckboxMenuItem mouseModeCheckItem;
     MenuBar elmMenuBar;
     MenuItem elmEditMenuItem;
     MenuItem elmCutMenuItem;
@@ -215,12 +216,18 @@ public class Menus {
 		    sim.setToolbar();
 		}
 	}));
+	m.addItem(mouseModeCheckItem = new CheckboxMenuItem(Locale.LS("Show Mode"),
+		new Command() { public void execute(){
+			sim.setOptionInStorage("showMouseMode", mouseModeCheckItem.getState());
+		}
+	}));
+	mouseModeCheckItem.setState(sim.getOptionFromStorage("showMouseMode", true));
 	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Cross Hairs"),
 		new Command() { public void execute(){
 		    sim.setOptionInStorage("crossHair", crossHairCheckItem.getState());
 		}
 	}));
-	
+
 	m.addItem(euroResistorCheckItem = new CheckboxMenuItem(Locale.LS("European Resistors")));
 	m.addItem(euroGatesCheckItem = new CheckboxMenuItem(Locale.LS("IEC Gates")));
 	m.addItem(printableCheckItem = new CheckboxMenuItem(Locale.LS("White Background")));
