@@ -334,7 +334,13 @@ ledflasher.txt LED Flasher
 traffic.txt Traffic Light
 sram.txt Static RAM
 dram.txt Dynamic RAM
-td4.txt TD4 CPU
++TD4 CPU
+td4.txt TD4 LED Strobe
+td4-ctr.txt TD4 Counter
+td4-ctr-dn.txt TD4 Down Counter
+td4-ctr-up-dn.txt TD4 Up-Down Counter
+td4-add2.txt TD4 Add 2
+-
 -
 +Analog/Digital
 flashadc.txt Flash ADC
