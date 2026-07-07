@@ -455,6 +455,11 @@ wienbridge.txt Wien Bridge Oscillator
 varactor.txt Varactor
 varactorvco.txt VCO
 -
++Norton Amplifier
+norton-invert.txt Norton Inverting Amplifier
+norton-noninvert.txt Norton Noninverting Amplifier
+norton-saw.txt Norton Sawtooth Oscillator
+-
 ledarray.txt LED Array
 triacdimmer.txt DIAC/TRIAC Dimmer
 ujtosc.txt Unijunction Oscillator
