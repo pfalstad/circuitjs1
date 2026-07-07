@@ -40,13 +40,22 @@ public class ImageExporter {
 	}
 
 	native void printCanvas(CanvasElement cv) /*-{
-	    var img    = cv.toDataURL("image/png");
-	    var win = window.open("", "print", "height=500,width=500,status=yes,location=no");
-	    win.document.title = "Print Circuit";
-	    win.document.open();
-	    win.document.write('<img src="'+img+'"/>');
-	    win.document.close();
-	    setTimeout(function(){win.print();},1000);
+	    var img = cv.toDataURL("image/png");
+	    var style = $doc.createElement("style");
+	    style.id = "circuit-print-style";
+	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { #circuit-print-overlay { display: block !important; } }";
+	    $doc.head.appendChild(style);
+	    var overlay = $doc.createElement("div");
+	    overlay.id = "circuit-print-overlay";
+	    var imgEl = $doc.createElement("img");
+	    imgEl.src = img;
+	    overlay.appendChild(imgEl);
+	    $doc.body.appendChild(overlay);
+	    setTimeout(function() {
+	        $wnd.print();
+	        $doc.body.removeChild(overlay);
+	        $doc.head.removeChild(style);
+	    }, 500);
 	}-*/;
 
 	void doPrint() {

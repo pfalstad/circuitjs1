@@ -27,6 +27,8 @@ class SwitchElm extends CircuitElm {
     boolean momentary;
     // position 0 == closed, position 1 == open
     int position, posCount;
+    double resistance;
+    static final double COMPOSITE_CLOSED_R = 0.001;
     final int FLAG_IEC = 2;
     final int FLAG_LABEL = 4;
     String label;
@@ -76,6 +78,8 @@ class SwitchElm extends CircuitElm {
             XMLSerializer.dumpAttr(elem, "lab", label);
 	if (keyShortcut != null)
 	    XMLSerializer.dumpAttr(elem, "key", keyShortcut);
+	if (resistance != 0)
+	    XMLSerializer.dumpAttr(elem, "r", resistance);
     }
 
     void undumpXml(XMLDeserializer xml) {
@@ -84,6 +88,7 @@ class SwitchElm extends CircuitElm {
         momentary = xml.parseBooleanAttr("mm", momentary);
         label = xml.parseStringAttr("lab", label);
         keyShortcut = xml.parseStringAttr("key", keyShortcut);
+        resistance = xml.parseDoubleAttr("r", 0);
     }
 
     Point ps, ps2;
@@ -166,6 +171,10 @@ class SwitchElm extends CircuitElm {
     void calculateCurrent() {
 	if (position == 1)
 	    current = 0;
+	else if (resistance > 0)
+	    current = (volts[0] - volts[1]) / resistance;
+	else if (inComposite)
+	    current = (volts[0] - volts[1]) / COMPOSITE_CLOSED_R;
     }
     
     void mouseUp() {
@@ -207,8 +216,17 @@ class SwitchElm extends CircuitElm {
 	}
     }
     boolean getConnection(int n1, int n2) { return position == 0; }
-    boolean isWireEquivalent() { return position == 0; }
-    boolean isRemovableWire() { return position == 0; }
+    boolean isWireEquivalent() { return position == 0 && !inComposite && resistance == 0; }
+    boolean isRemovableWire() { return position == 0 && !inComposite && resistance == 0; }
+
+    void stamp() {
+	if (position == 0) {
+	    if (resistance > 0)
+		sim.stampResistor(nodes[0], nodes[1], resistance);
+	    else if (inComposite)
+		sim.stampResistor(nodes[0], nodes[1], COMPOSITE_CLOSED_R);
+	}
+    }
     boolean useIECSymbol() { return (flags & FLAG_IEC) != 0; }
     
     public EditInfo getEditInfo(int n) {
@@ -223,6 +241,11 @@ class SwitchElm extends CircuitElm {
             return new EditInfo("Label (for linking)", label == null ? "" : label);
 	if (n == 3)
 	    return getKeyShortcutEditInfo();
+	if (n == 4) {
+	    EditInfo ei = new EditInfo("On Resistance (ohms)", resistance);
+	    ei.setNonNegative();
+	    return ei;
+	}
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -242,6 +265,8 @@ class SwitchElm extends CircuitElm {
         }
 	if (n == 3)
 	    setKeyShortcutEditValue(ei);
+	if (n == 4)
+	    resistance = ei.value;
     }
 
     // helper methods for keyboard shortcut edit field, usable by subclasses

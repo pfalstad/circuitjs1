@@ -212,6 +212,19 @@ abstract class ChipElm extends CircuitElm {
 	    labelY = yr+ys/2;
 	}
 	
+	void initBoundingBox() {
+	    super.initBoundingBox();
+	    if (pins == null || cspc == 0)
+		return;
+	    int xr = x + cspc2 - cspc;
+	    int yr = y - cspc;
+	    int fsx = isFlippedXY() ? sizeY : sizeX;
+	    int fsy = isFlippedXY() ? sizeX : sizeY;
+	    int xs = fsx * cspc2;
+	    int ys = fsy * cspc2;
+	    setBbox(xr, yr, xr + xs, yr + ys);
+	}
+
 	void addRoutingObstacle(WireRouter router) {
 	    router.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
 	}
@@ -312,7 +325,7 @@ abstract class ChipElm extends CircuitElm {
 		CirSim.console("voltage source count does not match number of outputs");
 	}
 	void execute() {}
-	void doStep() {
+	void startIteration() {
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
@@ -320,6 +333,9 @@ abstract class ChipElm extends CircuitElm {
 		    p.value = volts[i] > getThreshold();
 	    }
 	    execute();
+	}
+	void doStep() {
+	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
 		Pin p = pins[i];
 		if (p.output)

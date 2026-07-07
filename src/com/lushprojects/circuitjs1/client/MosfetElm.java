@@ -553,17 +553,16 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	
 	void getFetInfo(String arr[], String n) {
 	    arr[0] = Locale.LS(((pnp == -1) ? "p-" : "n-") + n);
-	    arr[0] += " (Vt=" + getVoltageText(pnp*vt);
-	    arr[0] += ", \u03b2=" + beta + ")";
-	    arr[1] = ((pnp == 1) ? "Ids = " : "Isd = ") + getCurrentText(ids);
-	    arr[2] = "Vgs = " + getVoltageText(volts[0]-volts[pnp == -1 ? 2 : 1]);
-	    arr[3] = ((pnp == 1) ? "Vds = " : "Vsd = ") + getVoltageText(volts[2]-volts[1]);
-	    arr[4] = Locale.LS((mode == 0) ? "off" :
+	    arr[1] = "Vt=" + getVoltageText(pnp*vt) + ", \u03b2=" + beta;
+	    arr[2] = ((pnp == 1) ? "Ids = " : "Isd = ") + getCurrentText(ids);
+	    arr[3] = "Vgs = " + getVoltageText(volts[0]-volts[pnp == -1 ? 2 : 1]);
+	    arr[4] = ((pnp == 1) ? "Vds = " : "Vsd = ") + getVoltageText(volts[2]-volts[1]);
+	    arr[5] = Locale.LS((mode == 0) ? "off" :
 		(mode == 1) ? "linear" : "saturation");
-	    arr[5] = "gm = " + getUnitText(gm, "A/V");
-	    arr[6] = "P = " + getUnitText(getPower(), "W");
+	    arr[6] = "gm = " + getUnitText(gm, "A/V");
+	    arr[7] = "P = " + getUnitText(getPower(), "W");
 	    if (showBulk())
-		arr[7] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
+		arr[8] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
 	}
 	String getElmType() { return "MOSFET"; }
 	void getInfo(String arr[]) {

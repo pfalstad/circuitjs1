@@ -56,7 +56,7 @@ class LatchElm extends ChipElm {
 	}
 	restoreOutputValues();
     }
-    String getChipName() { return "Latch"; }
+    String getChipName() { return isEdgeTriggered() ? "Register" : "Latch"; }
     boolean needsBits() { return true; }
     boolean allowBus() { return true; }
     boolean isEdgeTriggered() { return (flags & FLAG_NO_EDGE) == 0; }
@@ -77,7 +77,8 @@ class LatchElm extends ChipElm {
 	int leftPos = bitsY;
 	int rightPos = bitsY;
 
-	pins[loadPin = pinIndex++] = new Pin(leftPos++, SIDE_W, "Ld");
+	pins[loadPin = pinIndex++] = new Pin(leftPos++, SIDE_W, isEdgeTriggered() ? "" : "Ld");
+	pins[loadPin].clock = isEdgeTriggered();
 	if (hasReset())
 	    pins[resetPin = pinIndex++] = new Pin(leftPos++, SIDE_W, "R");
 	if (hasSet())
@@ -161,20 +162,24 @@ class LatchElm extends ChipElm {
 	lastLoad = pins[loadPin].value;
     }
 
-    void doStep() {
+    void startIteration() {
 	if (!hasOutputEnable()) {
-	    super.doStep();
+	    super.startIteration();
 	    return;
 	}
-
-	// read inputs
 	for (int i = 0; i < getPostCount(); i++) {
 	    Pin p = pins[i];
 	    if (!p.output)
 		p.value = volts[i] > getThreshold();
 	}
-
 	doLoad();
+    }
+
+    void doStep() {
+	if (!hasOutputEnable()) {
+	    super.doStep();
+	    return;
+	}
 
 	boolean outputEnabled = true;
 	if (outputEnableCount() >= 1 && pins[oe1Pin].value)
@@ -274,8 +279,11 @@ class LatchElm extends ChipElm {
 	    } else if (ei.value < 2)
 		ei.setError("must be >= 2");
 	}
-	if (n == 1)
+	if (n == 1) {
 	    flags = ei.changeFlagInverted(flags, FLAG_NO_EDGE);
+	    setupPins();
+	    setPoints();
+	}
 	if (n == 2) {
 	    flags = ei.changeFlag(flags, FLAG_RESET);
 	    setupPins();

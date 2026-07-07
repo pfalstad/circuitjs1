@@ -334,7 +334,13 @@ ledflasher.txt LED Flasher
 traffic.txt Traffic Light
 sram.txt Static RAM
 dram.txt Dynamic RAM
-td4.txt TD4 CPU
++TD4 CPU
+td4.txt TD4 LED Strobe
+td4-ctr.txt TD4 Counter
+td4-ctr-dn.txt TD4 Down Counter
+td4-ctr-up-dn.txt TD4 Up-Down Counter
+td4-add2.txt TD4 Add 2
+-
 -
 +Analog/Digital
 flashadc.txt Flash ADC
@@ -454,6 +460,11 @@ wienbridge.txt Wien Bridge Oscillator
 +Varactor
 varactor.txt Varactor
 varactorvco.txt VCO
+-
++Norton Amplifier
+norton-invert.txt Norton Inverting Amplifier
+norton-noninvert.txt Norton Noninverting Amplifier
+norton-saw.txt Norton Sawtooth Oscillator
 -
 ledarray.txt LED Array
 triacdimmer.txt DIAC/TRIAC Dimmer

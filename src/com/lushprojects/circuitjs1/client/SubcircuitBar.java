@@ -52,6 +52,7 @@ public class SubcircuitBar extends FlowPanel {
 		app.ui.popSubcircuit();
 	    else
 		app.popContext();
+	    app.ui.repaint();
 	});
 	backButton.setVisible(false);
 	add(backButton);

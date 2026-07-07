@@ -265,7 +265,7 @@ public class Menus {
 	elmMenuBar.addItem(elmFlipXMenuItem =  new MenuItem(Locale.LS("Flip X"),new MyCommand("elm","flipx")));
 	elmMenuBar.addItem(elmFlipYMenuItem =  new MenuItem(Locale.LS("Flip Y"),new MyCommand("elm","flipy")));
 	elmMenuBar.addItem(elmFlipXYMenuItem =  new MenuItem(Locale.LS("Flip XY"),new MyCommand("elm","flipxy")));
-	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
+	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire Manually", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
 	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem(Locale.LS("Sliders..."),new MyCommand("elm","sliders")));
     }
 
@@ -408,7 +408,7 @@ public class Menus {
 		"Add Counter", "CounterElm",
 		"Add Counter w/ Load", "Counter2Elm",
 		"Add Ring Counter", "DecadeElm",
-		"Add Latch", "LatchElm",
+		"Add Latch/Register", "LatchElm",
 		"Add Sequence generator", "SeqGenElm",
 		"Add Adder", "FullAdderElm",
 		"Add Half Adder", "HalfAdderElm",
@@ -447,6 +447,7 @@ public class Menus {
 		"Add CCII-", "CC2NegElm",
 		"Add Comparator (Hi-Z/GND output)", "ComparatorElm",
 		"Add OTA (LM13700 style)", "OTAElm",
+		"Add Norton Amp (LM3900)", "NortonAmpElm",
 		"Add Voltage-Controlled Voltage Source (VCVS)", "VCVSElm",
 		"Add Voltage-Controlled Current Source (VCCS)", "VCCSElm",
 		"Add Current-Controlled Voltage Source (CCVS)", "CCVSElm",
@@ -492,7 +493,9 @@ public class Menus {
         final String edithtml="<div style=\"white-space:nowrap\"><div style=\"display:inline-block;width:100%;\"><i class=\"cirjsicon-";
         String nbsp = "&nbsp;";
         if (icon=="") nbsp="";
-        String sn=edithtml + icon + "\"></i>" + nbsp + Locale.LS(text) + "</div>" + shortcut + "</div>";
+        String schtml = shortcut.length() <= 1 ? "<div style=\"display:inline-block;width:20px;right:10px;text-align:center;position:absolute;\">" + shortcut + "</div>"
+            : "<div style=\"display:inline-block;right:10px;text-align:right;position:absolute;\">" + shortcut + "</div>";
+        String sn=edithtml + icon + "\"></i>" + nbsp + Locale.LS(text) + "</div>" + schtml + "</div>";
         return new MenuItem(SafeHtmlUtils.fromTrustedString(sn), cmd);
     }
     

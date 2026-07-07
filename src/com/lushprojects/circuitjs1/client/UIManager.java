@@ -745,6 +745,12 @@ public class UIManager {
             g.drawString("iterc: " + CircuitElm.showFormat.format(app.getIterCount()), 10, height += increment);
             g.drawString("Frames: " + frames, 10, height += increment);
 
+            if (mouse.mouseCursorX >= 0) {
+                int cx = mouse.inverseTransformX(mouse.mouseCursorX);
+                int cy = mouse.inverseTransformY(mouse.mouseCursorY);
+                g.drawString("Mouse: (" + cx + ", " + cy + ")", 10, height += increment);
+            }
+
             height += (increment * 2);
 
             String perfmonResult = PerfMonitor.buildString(perfmon).toString();
