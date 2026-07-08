@@ -111,13 +111,23 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	if (modelMap != null)
 	    return;
 	modelMap = new HashMap<String,MosfetModel>();
+
 	addDefaultModel("default", new MosfetModel("default", 1.5, .02));
+
 	MosfetModel noDiodeDefault = new MosfetModel("default-nodiode", 1.5, .02);
 	noDiodeDefault.bodyDiode = false;
 	addDefaultModel("default-nodiode", noDiodeDefault);
+
 	MosfetModel bodyTerminalDefault = new MosfetModel("default-body", 1.5, .02);
 	bodyTerminalDefault.bodyTerminal = true;
 	addDefaultModel("default-body", bodyTerminalDefault);
+
+	MosfetModel digitalDefault = new MosfetModel("default-digital", 1.5, .02);
+	digitalDefault.showBulk = false;
+	digitalDefault.digitalSymbol = true;
+	digitalDefault.bodyDiode = false;
+	addDefaultModel("default-digital", digitalDefault);
+
 	// values taken from Hayes+Horowitz p155.  JFETs never show a bulk/body terminal.
 	MosfetModel jfetDefault = new MosfetModel("default-jfet", -4, .00125).setJfet();
 	jfetDefault.showBulk = jfetDefault.bodyDiode = false;
