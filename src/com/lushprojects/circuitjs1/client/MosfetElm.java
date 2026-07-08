@@ -48,7 +48,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double vt;
 	// beta = 1/(RdsON*(Vgs-Vt))
 	double beta;
-	// junction capacitance state (trapezoidal companion model)
+	// junction capacitance state (backward euler companion model)
 	double capVoltGS, capVoltGD;
 	double capCurGS, capCurGD;
 	double geqGS, geqGD;
@@ -478,12 +478,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    if (sim.timeStep <= 0)
 		return;
 	    if (model.capGS > 0) {
-		geqGS = 2 * model.capGS / sim.timeStep;
-		ceqGS = -geqGS * capVoltGS - capCurGS;
+		geqGS = model.capGS / sim.timeStep;
+		ceqGS = -geqGS * capVoltGS;
 	    }
 	    if (model.capGD > 0) {
-		geqGD = 2 * model.capGD / sim.timeStep;
-		ceqGD = -geqGD * capVoltGD - capCurGD;
+		geqGD = model.capGD / sim.timeStep;
+		ceqGD = -geqGD * capVoltGD;
 	    }
 	}
 
@@ -655,7 +655,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    sim.stampRightSide(nodes[drain],  rs);
 	    sim.stampRightSide(nodes[source], -rs);
 
-	    // gate capacitance companion model stamps
+	    // gate capacitance companion model stamps (backward euler; avoids the
+	    // oscillatory behavior trapezoidal integration can cause when RC is
+	    // small relative to the timestep)
 	    // Cgs between gate (node 0) and node 1
 	    if (model.capGS > 0 && geqGS > 0) {
 		sim.stampMatrix(nodes[0], nodes[0],  geqGS);
