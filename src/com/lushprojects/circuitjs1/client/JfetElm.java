@@ -127,7 +127,7 @@ class JfetElm extends MosfetElm {
 
 	boolean showBulk() { return false; }
 	boolean isJfet() { return true; }
-	boolean hasMosfetOptions() { return false; }
+	boolean hasSwapDS() { return false; }
 
 	static String lastJfetModelName = "default-jfet";
 	String getLastModelName() { return lastJfetModelName; }

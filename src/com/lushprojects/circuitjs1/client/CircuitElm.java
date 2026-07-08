@@ -1151,6 +1151,13 @@ public abstract class CircuitElm implements Editable {
 	return info[0];
     }
 
+    public String getDialogTitle() {
+	String name = getElmType();
+	if (name == null)
+	    return "Edit Component";
+	return "Edit " + name.substring(0, 1).toUpperCase() + name.substring(1);
+    }
+
     int getBasicInfo(String arr[]) {
 	arr[1] = "I = " + getCurrentDText(getCurrent());
 	arr[2] = "Vd = " + getVoltageDText(getVoltageDiff());

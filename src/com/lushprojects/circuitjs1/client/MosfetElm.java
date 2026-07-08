@@ -34,13 +34,15 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int pnp;
 	int FLAG_PNP = 1;
 	int FLAG_SHOWVT = 2;
-	int FLAG_DIGITAL = 4;
 	int FLAG_FLIP = 8;
-	int FLAG_HIDE_BULK = 16;
-	int FLAG_BODY_DIODE = 32;
-	int FLAG_BODY_TERMINAL = 64;
-	int FLAG_SHOW_BODY_DIODE = 128;
-	int FLAGS_GLOBAL = (FLAG_HIDE_BULK|FLAG_DIGITAL|FLAG_SHOW_BODY_DIODE);
+	// these bits are no longer set on new elements (the settings they controlled now live on
+	// MosfetModel), but the values are still needed to decode old circuit files that have them
+	// packed into the element's own flags.
+	int FLAG_DIGITAL_LEGACY = 4;
+	int FLAG_HIDE_BULK_LEGACY = 16;
+	int FLAG_BODY_DIODE_LEGACY = 32;
+	int FLAG_BODY_TERMINAL_LEGACY = 64;
+	int FLAG_SHOW_BODY_DIODE_LEGACY = 128;
 	int bodyTerminal;
 
 	double vt;
@@ -51,7 +53,6 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double capCurGS, capCurGD;
 	double geqGS, geqGD;
 	double ceqGS, ceqGD;
-	static int globalFlags;
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
 	double curcount_body1, curcount_body2;
@@ -59,11 +60,16 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	MosfetModel model;
 	static String lastModelName = "default";
 
+	// cached copies of the model's drawing/behavior settings, refreshed in setup().  Cached
+	// (rather than read from model directly) because getPostCount() is called from the base
+	// CircuitElm constructor before our own "model" field is assigned; see DiodeElm.hasResistance
+	// for the same pattern.
+	boolean bulkShown, digitalSymbolShown, bodyDiodeSimulated, bodyTerminalShown, bodyDiodeSymbolShown;
+
 	MosfetElm(int xx, int yy, boolean pnpflag) {
 	    super(xx, yy);
 	    pnp = (pnpflag) ? -1 : 1;
 	    flags = (pnpflag) ? FLAG_PNP : 0;
-	    flags |= FLAG_BODY_DIODE;
 	    noDiagonal = true;
 	    setupDiodes();
 	    modelName = getLastModelName();
@@ -89,11 +95,27 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		vt0 = new Double(st.nextToken()).doubleValue();
 		beta0 = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
-	    model = MosfetModel.getModelWithParameters(vt0, beta0, isJfet());
+	    model = legacyModel(vt0, beta0, flags);
 	    modelName = model.name;
-	    globalFlags = flags & (FLAGS_GLOBAL);
 	    setup();
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
+	}
+
+	// build (or find) a model matching the drawing/behavior bits from a pre-model circuit
+	// file, where they were packed into the element's own flags instead of into a model.
+	// Used for both the old plain-text format (StringTokenizer constructor) and old XML saves
+	// (undumpXml, when there's no "mo" model-name attribute).  Also strips those bits out of
+	// our own flags field, since they're no longer meaningful there.
+	MosfetModel legacyModel(double vt0, double beta0, int legacyFlags) {
+	    boolean legacyShowBulk = (legacyFlags & (FLAG_DIGITAL_LEGACY|FLAG_HIDE_BULK_LEGACY)) == 0;
+	    boolean legacyDigital = (legacyFlags & FLAG_DIGITAL_LEGACY) != 0;
+	    boolean legacyBodyDiode = (legacyFlags & FLAG_BODY_DIODE_LEGACY) != 0;
+	    boolean legacyBodyTerminal = (legacyFlags & FLAG_BODY_TERMINAL_LEGACY) != 0;
+	    boolean legacyShowBodyDiode = (legacyFlags & FLAG_SHOW_BODY_DIODE_LEGACY) != 0;
+	    flags &= ~(FLAG_DIGITAL_LEGACY|FLAG_HIDE_BULK_LEGACY|FLAG_BODY_DIODE_LEGACY|
+		       FLAG_BODY_TERMINAL_LEGACY|FLAG_SHOW_BODY_DIODE_LEGACY);
+	    return MosfetModel.getModelWithParameters(vt0, beta0, isJfet(), legacyShowBulk,
+		    legacyBodyDiode, legacyBodyTerminal, legacyDigital, legacyShowBodyDiode);
 	}
 
 	void setup() {
@@ -101,6 +123,12 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    modelName = model.name;
 	    vt = model.threshold;
 	    beta = model.beta;
+	    bulkShown = model.showBulk;
+	    digitalSymbolShown = !bulkShown && model.digitalSymbol;
+	    bodyDiodeSimulated = bulkShown && model.bodyDiode;
+	    bodyTerminalShown = bodyDiodeSimulated && model.bodyTerminal;
+	    bodyDiodeSymbolShown = bodyDiodeSimulated && model.showBodyDiodeSymbol;
+	    allocNodes(); // post count may have changed (e.g. bodyTerminalShown)
 	}
 
 	boolean hasGateCaps() {
@@ -109,6 +137,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 
 	public void updateModels() {
 	    setup();
+	    setPoints();
 	}
 
 	// set up body diodes
@@ -129,11 +158,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double getBackwardCompatibilityBeta() { return .02; }
 	
 	boolean nonLinear() { return true; }
-	boolean drawDigital() { return (flags & FLAG_DIGITAL) != 0; }
-	boolean showBulk() { return (flags & (FLAG_DIGITAL|FLAG_HIDE_BULK)) == 0; }
-	boolean hasBodyTerminal() { return (flags & FLAG_BODY_TERMINAL) != 0 && doBodyDiode(); }
-	boolean doBodyDiode() { return (flags & FLAG_BODY_DIODE) != 0 && showBulk(); }
-	boolean showBodyDiode() { return (flags & FLAG_SHOW_BODY_DIODE) != 0 && doBodyDiode(); }
+	boolean drawDigital() { return digitalSymbolShown; }
+	boolean showBulk() { return bulkShown; }
+	boolean hasBodyTerminal() { return bodyTerminalShown; }
+	boolean doBodyDiode() { return bodyDiodeSimulated; }
+	boolean showBodyDiode() { return bodyDiodeSymbolShown; }
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
 	    curcount_body1 = curcount_body2 = 0;
@@ -171,19 +200,21 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void undumpXml(XMLDeserializer xml) {
 	    flags = 0;
 	    super.undumpXml(xml);
-	    modelName = xml.parseStringAttr("mo", getLastModelName());
+	    modelName = xml.parseStringAttr("mo", null);
+	    if (modelName == null) {
+		// pre-model circuit file: vt/be were dumped directly on the element, and the
+		// drawing/behavior options were packed into our own flags
+		double vt0 = xml.parseDoubleAttr("vt", getDefaultThreshold());
+		double beta0 = xml.parseDoubleAttr("be", getBackwardCompatibilityBeta());
+		model = legacyModel(vt0, beta0, flags);
+		modelName = model.name;
+	    }
 	    setup();
-	    globalFlags = flags & (FLAGS_GLOBAL);
             pnp = ((flags & FLAG_PNP) != 0) ? -1 : 1;
-	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
 	}
 	final int hs = 16;
-	
+
 	void draw(Graphics g) {
-	    // pick up global flags changes
-	    if ((flags & FLAGS_GLOBAL) != globalFlags)
-		setPoints();
-	    
 		setBbox(point1, point2, hs);
 		
 		// draw source/drain terminals
@@ -349,10 +380,6 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	void setPoints() {
 	    super.setPoints();
 
-	    // these two flags apply to all mosfets
-	    flags &= ~FLAGS_GLOBAL;
-	    flags |= globalFlags;
-	    
 	    // find the coordinates of the various points we need to draw
 	    // the MOSFET.
 	    int hs2 = hs*dsign;
@@ -679,9 +706,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean getMatrixConnection(int n1, int n2) { return true; }
 	Vector<MosfetModel> models;
 
-	// does this element expose the mosfet-only options (bulk terminal, D/S swap, digital
-	// symbol, body diode)?  JfetElm overrides this to false since it doesn't support them.
-	boolean hasMosfetOptions() { return true; }
+	// does this element support D/S swapping?  JfetElm overrides this to false since its
+	// setPoints() doesn't honor FLAG_FLIP.  (The rest of the mosfet-only options - bulk
+	// terminal, digital symbol, body diode - now live on MosfetModel, not here.)
+	boolean hasSwapDS() { return true; }
 
 	public EditInfo getEditInfo(int n) {
 		if (n == 0) {
@@ -697,36 +725,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		    return ei;
 		}
 		int idx = 1;
-		if (hasMosfetOptions()) {
-		    if (n == idx++) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Show Bulk", showBulk());
-			return ei;
-		    }
+		if (hasSwapDS()) {
 		    if (n == idx++) {
 			EditInfo ei = new EditInfo("", 0, -1, -1);
 			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
 			return ei;
-		    }
-		    if (n == idx++) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			if (!showBulk())
-			    ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
-			else
-			    ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
-			return ei;
-		    }
-		    if (doBodyDiode()) {
-			if (n == idx++) {
-			    EditInfo ei = new EditInfo("", 0, -1, -1);
-			    ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
-			    return ei;
-			}
-			if (n == idx++) {
-			    EditInfo ei = new EditInfo("", 0, -1, -1);
-			    ei.checkbox = new Checkbox("Show Body Diode", showBodyDiode());
-			    return ei;
-			}
 		    }
 		}
 		if (n == idx) {
@@ -757,47 +760,27 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		    setLastModelName(modelName);
 		    setup();
 		    ei.newDialog = true;
-		    return;
-		}
-		int idx = 1;
-		if (hasMosfetOptions()) {
-		    if (n == idx++) {
-			globalFlags = (!ei.checkbox.getState()) ? (globalFlags|FLAG_HIDE_BULK) :
-				    (globalFlags & ~(FLAG_HIDE_BULK|FLAG_DIGITAL));
-			ei.newDialog = true;
-		    } else if (n == idx++) {
+		} else {
+		    int idx = 1;
+		    if (hasSwapDS() && n == idx++) {
 			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
 				    (flags & ~FLAG_FLIP);
-		    } else if (n == idx++) {
-			if (!showBulk())
-			    globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
-					(globalFlags & ~FLAG_DIGITAL);
-			else {
-			    flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
-			    ei.newDialog = true;
+		    } else if (n == idx) {
+			MosfetModel newModel = new MosfetModel(model);
+			EditDialog editDialog = new EditMosfetModelDialog(newModel, app, this);
+			CirSim.mosfetModelEditDialog = editDialog;
+			editDialog.show();
+			return;
+		    } else if (n == idx+1) {
+			if (model.readOnly) {
+			    Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
+			    return;
 			}
-		    } else if (doBodyDiode() && n == idx++) {
-			flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
-		    } else if (doBodyDiode() && n == idx++) {
-			globalFlags = ei.changeFlag(globalFlags, FLAG_SHOW_BODY_DIODE);
-		    }
-		}
-		if (n == idx) {
-		    MosfetModel newModel = new MosfetModel(model);
-		    EditDialog editDialog = new EditMosfetModelDialog(newModel, app, this);
-		    CirSim.mosfetModelEditDialog = editDialog;
-		    editDialog.show();
-		    return;
-		}
-		if (n == idx+1) {
-		    if (model.readOnly) {
-			Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
+			EditDialog editDialog = new EditMosfetModelDialog(model, app, null);
+			CirSim.mosfetModelEditDialog = editDialog;
+			editDialog.show();
 			return;
 		    }
-		    EditDialog editDialog = new EditMosfetModelDialog(model, app, null);
-		    CirSim.mosfetModelEditDialog = editDialog;
-		    editDialog.show();
-		    return;
 		}
 
 		// lots of different cases where the body terminal might have gotten removed/added so just do this all the time

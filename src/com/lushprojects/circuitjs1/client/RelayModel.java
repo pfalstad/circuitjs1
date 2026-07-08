@@ -246,6 +246,8 @@ public class RelayModel implements Editable, Comparable<RelayModel> {
 	pulldown = xml.parseIntAttr("pd", pulldown ? 1 : 0) != 0;
     }
 
+    public String getDialogTitle() { return "Edit Relay Model"; }
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Model Name", 0);

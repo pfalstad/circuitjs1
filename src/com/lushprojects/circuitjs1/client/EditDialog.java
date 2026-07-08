@@ -42,6 +42,8 @@ import com.google.gwt.core.client.Scheduler;
 interface Editable {
     EditInfo getEditInfo(int n);
     void setEditValue(int n, EditInfo ei);
+    // title shown in the edit dialog's title bar, e.g. "Edit Resistor" or "Edit Diode Model"
+    String getDialogTitle();
 }
 
 class EditDialog extends Dialog {
@@ -60,14 +62,7 @@ class EditDialog extends Dialog {
 	EditDialog(Editable ce, CirSim f) {
 //		super(f, "Edit Component", false);
 		super(); // Do we need this?
-		String title = "Edit Component";
-		if (ce instanceof EditOptions) {
-		    title = "Other Options";
-		} else if (ce instanceof CircuitElm) {
-		    String name = ((CircuitElm) ce).getElmType();
-		    if (name != null)
-			title = "Edit " + name.substring(0, 1).toUpperCase() + name.substring(1);
-		}
+		String title = ce.getDialogTitle();
 		setText(Locale.LS(title));
 		cframe = f;
 		elm = ce;

@@ -125,6 +125,8 @@ public class CustomLogicModel implements Editable {
 	return arr.split(",");
     }
     
+    public String getDialogTitle() { return "Edit Custom Logic Model"; }
+
     public EditInfo getEditInfo(int n) {
         if (n == 0) {
             EditInfo ei = new EditInfo("Inputs", 0, -1, -1);

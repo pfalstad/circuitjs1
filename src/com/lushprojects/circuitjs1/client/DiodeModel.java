@@ -263,6 +263,8 @@ public class DiodeModel implements Editable, Comparable<DiodeModel> {
 	updateModel();
     }
 
+    public String getDialogTitle() { return "Edit Diode Model"; }
+
     public EditInfo getEditInfo(int n) {
 	if (n == 0) {
 	    EditInfo ei = new EditInfo("Model Name", 0);

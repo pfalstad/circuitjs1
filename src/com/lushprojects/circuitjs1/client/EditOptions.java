@@ -30,6 +30,8 @@ class EditOptions implements Editable {
 
 	public EditOptions(CirSim a, SimulationManager s) { app = a; sim = s; }
 
+	public String getDialogTitle() { return "Other Options"; }
+
 	public EditInfo getEditInfo(int n) {
 		if (n == 0)
 			return new EditInfo("Time step size (s)", sim.maxTimeStep, 0, 0).setPositive();
