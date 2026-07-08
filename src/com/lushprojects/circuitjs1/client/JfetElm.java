@@ -126,23 +126,22 @@ class JfetElm extends MosfetElm {
 	}
 
 	boolean showBulk() { return false; }
-	boolean needsModel() { return false; }
+	boolean isJfet() { return true; }
+	boolean hasMosfetOptions() { return false; }
+
+	static String lastJfetModelName = "default-jfet";
+	String getLastModelName() { return lastJfetModelName; }
+	void setLastModelName(String n) { lastJfetModelName = n; }
 
 	int getDumpType() { return 'j'; }
 	// these values are taken from Hayes+Horowitz p155
 	double getDefaultThreshold() { return -4; }
-	double getDefaultBeta() { return .00125; }
-	double getBackwardCompatibilityBeta() { return getDefaultBeta(); }
+	double getBackwardCompatibilityBeta() { return .00125; }
 	String getElmType() { return "JFET"; }
 	void getInfo(String arr[]) {
 	    getFetInfo(arr, "JFET");
 	}
-        public EditInfo getEditInfo(int n) {
-            if (n < 2)
-        	return super.getEditInfo(n);
-            return null;
-        }
-	
+
 	boolean getConnection(int n1, int n2) {
 	    return true;
 	}

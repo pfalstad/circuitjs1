@@ -55,11 +55,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
 	double curcount_body1, curcount_body2;
-	static double lastBeta;
 	String modelName;
 	MosfetModel model;
 	static String lastModelName = "default";
-	
+
 	MosfetElm(int xx, int yy, boolean pnpflag) {
 	    super(xx, yy);
 	    pnp = (pnpflag) ? -1 : 1;
@@ -67,51 +66,49 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    flags |= FLAG_BODY_DIODE;
 	    noDiagonal = true;
 	    setupDiodes();
-	    beta = getDefaultBeta();
-	    vt = getDefaultThreshold();
-	    if (needsModel()) {
-		modelName = lastModelName;
-		setup();
-	    }
+	    modelName = getLastModelName();
+	    setup();
 	}
 
-	// return true if this element uses MosfetModel.  JfetElm overrides this.
-	boolean needsModel() { return true; }
-	
+	// is this a JFET (vs. a MOSFET)?  Both share MosfetModel; this only affects
+	// which default model is used and which UI options are shown.
+	boolean isJfet() { return false; }
+
+	String getLastModelName() { return lastModelName; }
+	void setLastModelName(String n) { lastModelName = n; }
+
 	public MosfetElm(int xa, int ya, int xb, int yb, int f,
 			 StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
 	    pnp = ((f & FLAG_PNP) != 0) ? -1 : 1;
 	    noDiagonal = true;
 	    setupDiodes();
-	    vt = getDefaultThreshold();
-	    beta = getBackwardCompatibilityBeta();
+	    double vt0 = getDefaultThreshold();
+	    double beta0 = getBackwardCompatibilityBeta();
 	    try {
-		vt = new Double(st.nextToken()).doubleValue();
-		beta = new Double(st.nextToken()).doubleValue();
+		vt0 = new Double(st.nextToken()).doubleValue();
+		beta0 = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
-	    if (needsModel())
-		modelName = "default";
+	    model = MosfetModel.getModelWithParameters(vt0, beta0, isJfet());
+	    modelName = model.name;
 	    globalFlags = flags & (FLAGS_GLOBAL);
-	    if (modelName != null)
-		setup();
+	    setup();
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
 	}
 
 	void setup() {
-	    model = MosfetModel.getModelWithNameOrCopy(modelName, model);
+	    model = MosfetModel.getModelWithNameOrCopy(modelName, model, isJfet());
 	    modelName = model.name;
 	    vt = model.threshold;
 	    beta = model.beta;
 	}
 
 	boolean hasGateCaps() {
-	    return model != null && (model.capGS > 0 || model.capGD > 0);
+	    return model.capGS > 0 || model.capGD > 0;
 	}
 
 	public void updateModels() {
-	    if (model != null)
-		setup();
+	    setup();
 	}
 
 	// set up body diodes
@@ -124,11 +121,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    diodeB2.setupForDefaultModel();
 	}
 	
+	// fallback vt/beta for old files with no configurable beta.  JfetElm overrides these.
 	double getDefaultThreshold() { return 1.5; }
-	
-	// default beta for new elements
-	double getDefaultBeta() { return lastBeta == 0 ? getBackwardCompatibilityBeta() : lastBeta; }
-	
+
 	// default for elements in old files with no configurable beta.  JfetElm overrides this.
 	// Not sure where this value came from, but the ZVP3306A has a beta of about .027.  Power MOSFETs have much higher betas (like 80 or more)
 	double getBackwardCompatibilityBeta() { return .02; }
@@ -162,32 +157,22 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	int getDumpType() { return 'f'; }
 
 	void dumpXml(Document doc, Element elem) {
-	    if (model != null && !(model.builtIn || model.dumped))
+	    if (!(model.builtIn || model.dumped))
 		model.dumpXml(doc);
 	    super.dumpXml(doc, elem);
-	    if (model != null) {
-		XMLSerializer.dumpAttr(elem, "mo", modelName);
-	    } else {
-		XMLSerializer.dumpAttr(elem, "vt", vt);
-		XMLSerializer.dumpAttr(elem, "be", beta);
-	    }
+	    XMLSerializer.dumpAttr(elem, "mo", modelName);
 	}
 
 	void dumpXmlModel(Document doc) {
-	    if (model != null && !(model.builtIn || model.dumped))
+	    if (!(model.builtIn || model.dumped))
 		model.dumpXml(doc);
 	}
 
 	void undumpXml(XMLDeserializer xml) {
 	    flags = 0;
 	    super.undumpXml(xml);
-	    modelName = xml.parseStringAttr("mo", null);
-	    if (modelName != null) {
-		setup();
-	    } else {
-		vt = xml.parseDoubleAttr("vt", vt);
-		beta = xml.parseDoubleAttr("be", beta);
-	    }
+	    modelName = xml.parseStringAttr("mo", getLastModelName());
+	    setup();
 	    globalFlags = flags & (FLAGS_GLOBAL);
             pnp = ((flags & FLAG_PNP) != 0) ? -1 : 1;
 	    allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
@@ -455,7 +440,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	double gm = 0;
 	
 	void startIteration() {
-	    if (model == null || sim.timeStep <= 0)
+	    if (sim.timeStep <= 0)
 		return;
 	    if (model.capGS > 0) {
 		geqGS = 2 * model.capGS / sim.timeStep;
@@ -520,11 +505,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		diodeCurrent2 = -diodeCurrent1;
 
 	    // save gate cap state for next time step
-	    if (model != null && model.capGS > 0 && geqGS > 0) {
+	    if (model.capGS > 0 && geqGS > 0) {
 		capVoltGS = volts[0] - volts[1];
 		capCurGS = geqGS * capVoltGS + ceqGS;
 	    }
-	    if (model != null && model.capGD > 0 && geqGD > 0) {
+	    if (model.capGD > 0 && geqGD > 0) {
 		capVoltGD = volts[0] - volts[2];
 		capCurGD = geqGD * capVoltGD + ceqGD;
 	    }
@@ -589,14 +574,14 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		mode = 0;
 	    } else if (vds < vgs-vt) {
 		// linear
-		double lambda = (model != null) ? model.lambda : 0;
+		double lambda = model.lambda;
 		ids = beta*((vgs-vt)*vds - vds*vds*.5)*(1 + lambda*vds);
 		gm  = beta*vds*(1 + lambda*vds);
 		Gds = beta*((vgs-vds-vt)*(1 + lambda*vds) + lambda*((vgs-vt)*vds - vds*vds*.5));
 		mode = 1;
 	    } else {
 		// saturation; Gds = 0 without lambda
-		double lambda = (model != null) ? model.lambda : 0;
+		double lambda = model.lambda;
 		double vgs_vt = vgs - vt;
 		gm  = beta*vgs_vt*(1 + lambda*vds);
 		Gds = .5*beta*vgs_vt*vgs_vt*lambda;
@@ -637,7 +622,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 
 	    // gate capacitance companion model stamps
 	    // Cgs between gate (node 0) and node 1
-	    if (model != null && model.capGS > 0 && geqGS > 0) {
+	    if (model.capGS > 0 && geqGS > 0) {
 		sim.stampMatrix(nodes[0], nodes[0],  geqGS);
 		sim.stampMatrix(nodes[1], nodes[1],  geqGS);
 		sim.stampMatrix(nodes[0], nodes[1], -geqGS);
@@ -646,7 +631,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		sim.stampRightSide(nodes[1],  ceqGS);
 	    }
 	    // Cgd between gate (node 0) and node 2
-	    if (model != null && model.capGD > 0 && geqGD > 0) {
+	    if (model.capGD > 0 && geqGD > 0) {
 		sim.stampMatrix(nodes[0], nodes[0],  geqGD);
 		sim.stampMatrix(nodes[2], nodes[2],  geqGD);
 		sim.stampMatrix(nodes[0], nodes[2], -geqGD);
@@ -658,12 +643,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	
 	void getFetInfo(String arr[], String n) {
 	    arr[0] = Locale.LS(((pnp == -1) ? "p-" : "n-") + n);
-	    if (model != null)
+	    if (model.oldStyle)
+		arr[0] += " (Vt=" + getVoltageText(pnp*vt) + ", \u03b2=" + beta + ")";
+	    else
 		arr[0] += " (" + modelName + ")";
-	    else {
-		arr[0] += " (Vt=" + getVoltageText(pnp*vt);
-		arr[0] += ", \u03b2=" + beta + ")";
-	    }
 	    arr[1] = ((pnp == 1) ? "Ids = " : "Isd = ") + getCurrentText(ids);
 	    arr[2] = "Vgs = " + getVoltageText(volts[0]-volts[pnp == -1 ? 2 : 1]);
 	    arr[3] = ((pnp == 1) ? "Vds = " : "Vsd = ") + getVoltageText(volts[2]-volts[1]);
@@ -673,13 +656,11 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    arr[6] = "P = " + getUnitText(getPower(), "W");
 	    if (showBulk())
 		arr[7] = "Ib = " + getUnitText(bodyTerminal == 1 ? -diodeCurrent1 : bodyTerminal == 2 ? diodeCurrent2 : -pnp*(diodeCurrent1+diodeCurrent2), "A");
-	    if (model != null) {
-		int idx = (showBulk() && arr[7] != null) ? 8 : 7;
-		if (model.capGS > 0)
-		    arr[idx++] = "Cgs = " + getUnitText(model.capGS, "F");
-		if (model.capGD > 0)
-		    arr[idx] = "Cgd = " + getUnitText(model.capGD, "F");
-	    }
+	    int idx = (showBulk() && arr[7] != null) ? 8 : 7;
+	    if (model.capGS > 0)
+		arr[idx++] = "Cgs = " + getUnitText(model.capGS, "F");
+	    if (model.capGD > 0)
+		arr[idx] = "Cgd = " + getUnitText(model.capGD, "F");
 	}
 	String getElmType() { return "MOSFET"; }
 	void getInfo(String arr[]) {
@@ -698,99 +679,68 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean getMatrixConnection(int n1, int n2) { return true; }
 	Vector<MosfetModel> models;
 
+	// does this element expose the mosfet-only options (bulk terminal, D/S swap, digital
+	// symbol, body diode)?  JfetElm overrides this to false since it doesn't support them.
+	boolean hasMosfetOptions() { return true; }
 
 	public EditInfo getEditInfo(int n) {
-		if (needsModel()) {
-		    // model-based dialog
-		    if (n == 0) {
-			EditInfo ei = new EditInfo("Model", 0, -1, -1);
-			models = MosfetModel.getModelList();
-			ei.choice = new Choice();
-			for (int i = 0; i != models.size(); i++) {
-			    MosfetModel mm = models.get(i);
-			    ei.choice.add(mm.getDescription());
-			    if (mm == model)
-				ei.choice.select(i);
+		if (n == 0) {
+		    EditInfo ei = new EditInfo("Model", 0, -1, -1);
+		    models = MosfetModel.getModelList(isJfet());
+		    ei.choice = new Choice();
+		    for (int i = 0; i != models.size(); i++) {
+			MosfetModel mm = models.get(i);
+			ei.choice.add(mm.getDescription());
+			if (mm == model)
+			    ei.choice.select(i);
+		    }
+		    return ei;
+		}
+		int idx = 1;
+		if (hasMosfetOptions()) {
+		    if (n == idx++) {
+			EditInfo ei = new EditInfo("", 0, -1, -1);
+			ei.checkbox = new Checkbox("Show Bulk", showBulk());
+			return ei;
+		    }
+		    if (n == idx++) {
+			EditInfo ei = new EditInfo("", 0, -1, -1);
+			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
+			return ei;
+		    }
+		    if (n == idx++) {
+			EditInfo ei = new EditInfo("", 0, -1, -1);
+			if (!showBulk())
+			    ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
+			else
+			    ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
+			return ei;
+		    }
+		    if (doBodyDiode()) {
+			if (n == idx++) {
+			    EditInfo ei = new EditInfo("", 0, -1, -1);
+			    ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
+			    return ei;
 			}
-			return ei;
+			if (n == idx++) {
+			    EditInfo ei = new EditInfo("", 0, -1, -1);
+			    ei.checkbox = new Checkbox("Show Body Diode", showBodyDiode());
+			    return ei;
+			}
 		    }
-		    if (n == 1) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Show Bulk", showBulk());
-			return ei;
-		    }
-		    if (n == 2) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
-			return ei;
-		    }
-		    if (n == 3 && !showBulk()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
-			return ei;
-		    }
-		    if (n == 3 && showBulk()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
-			return ei;
-		    }
-		    if (n == 4 && doBodyDiode()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
-			return ei;
-		    }
-		    // model buttons after checkboxes
-		    int modelBase = doBodyDiode() ? 5 : 4;
-		    if (n == modelBase) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.button = new Button(Locale.LS("Create New Model"));
-			return ei;
-		    }
-		    if (n == modelBase + 1) {
-			if (model.readOnly)
-			    return null;
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.button = new Button(Locale.LS("Edit Model"));
-			return ei;
-		    }
-		    return null;
 		}
-		// no model (JfetElm or legacy)
-		if (n == 0)
-			return new EditInfo("Threshold Voltage", pnp*vt, .01, 5);
-		if (n == 1)
-			return new EditInfo(EditInfo.makeLink("mosfet-beta.html", "Beta"), beta, .01, 5).setPositive();
-		if (n == 2) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Show Bulk", showBulk());
-			return ei;
+		if (n == idx) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.button = new Button(Locale.LS("Create New Model"));
+		    return ei;
 		}
-		if (n == 3) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Swap D/S", (flags & FLAG_FLIP) != 0);
-			return ei;
+		if (n == idx+1) {
+		    if (model.readOnly)
+			return null;
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.button = new Button(Locale.LS("Edit Model"));
+		    return ei;
 		}
-		if (n == 4 && !showBulk()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Digital Symbol", drawDigital());
-			return ei;
-		}
-		if (n == 4 && showBulk()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Simulate Body Diode", (flags & FLAG_BODY_DIODE) != 0);
-			return ei;
-		}
-		if (n == 5 && doBodyDiode()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Body Terminal", (flags & FLAG_BODY_TERMINAL) != 0);
-			return ei;
-		}
-		if (n == 6 && doBodyDiode()) {
-			EditInfo ei = new EditInfo("", 0, -1, -1);
-			ei.checkbox = new Checkbox("Show Body Diode", showBodyDiode());
-			return ei;
-		}
-
 		return null;
 	}
 
@@ -800,88 +750,54 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    setup();
 	}
 
-	void setLastModelName(String n) {
-	    lastModelName = n;
-	}
 	public void setEditValue(int n, EditInfo ei) {
-		if (needsModel()) {
-		    // model-based dialog
-		    if (n == 0) {
-			model = models.get(ei.choice.getSelectedIndex());
-			modelName = model.name;
-			lastModelName = modelName;
-			setup();
-			ei.newDialog = true;
-			return;
-		    }
-		    if (n == 1) {
+		if (n == 0) {
+		    model = models.get(ei.choice.getSelectedIndex());
+		    modelName = model.name;
+		    setLastModelName(modelName);
+		    setup();
+		    ei.newDialog = true;
+		    return;
+		}
+		int idx = 1;
+		if (hasMosfetOptions()) {
+		    if (n == idx++) {
 			globalFlags = (!ei.checkbox.getState()) ? (globalFlags|FLAG_HIDE_BULK) :
 				    (globalFlags & ~(FLAG_HIDE_BULK|FLAG_DIGITAL));
 			ei.newDialog = true;
-		    }
-		    if (n == 2) {
+		    } else if (n == idx++) {
 			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
 				    (flags & ~FLAG_FLIP);
-		    }
-		    if (n == 3 && !showBulk()) {
-			globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
-				    (globalFlags & ~FLAG_DIGITAL);
-		    }
-		    if (n == 3 && showBulk()) {
-			flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
-			ei.newDialog = true;
-		    }
-		    if (n == 4 && doBodyDiode()) {
-			flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
-		    }
-		    // model buttons
-		    int modelBase = doBodyDiode() ? 5 : 4;
-		    if (n == modelBase) {
-			MosfetModel newModel = new MosfetModel(model);
-			EditDialog editDialog = new EditMosfetModelDialog(newModel, app, this);
-			CirSim.mosfetModelEditDialog = editDialog;
-			editDialog.show();
-			return;
-		    }
-		    if (n == modelBase + 1) {
-			if (model.readOnly) {
-			    Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
-			    return;
+		    } else if (n == idx++) {
+			if (!showBulk())
+			    globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
+					(globalFlags & ~FLAG_DIGITAL);
+			else {
+			    flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
+			    ei.newDialog = true;
 			}
-			EditDialog editDialog = new EditMosfetModelDialog(model, app, null);
-			CirSim.mosfetModelEditDialog = editDialog;
-			editDialog.show();
-			return;
-		    }
-		} else {
-		    // no model (JfetElm or legacy)
-		    if (n == 0)
-			vt = pnp*ei.value;
-		    if (n == 1 && ei.value > 0)
-			beta = lastBeta = ei.value;
-		    if (n == 2) {
-			globalFlags = (!ei.checkbox.getState()) ? (globalFlags|FLAG_HIDE_BULK) :
-				    (globalFlags & ~(FLAG_HIDE_BULK|FLAG_DIGITAL));
-			ei.newDialog = true;
-		    }
-		    if (n == 3) {
-			flags = (ei.checkbox.getState()) ? (flags | FLAG_FLIP) :
-				    (flags & ~FLAG_FLIP);
-		    }
-		    if (n == 4 && !showBulk()) {
-			globalFlags = (ei.checkbox.getState()) ? (globalFlags|FLAG_DIGITAL) :
-				    (globalFlags & ~FLAG_DIGITAL);
-		    }
-		    if (n == 4 && showBulk()) {
-			flags = ei.changeFlag(flags, FLAG_BODY_DIODE);
-			ei.newDialog = true;
-		    }
-		    if (n == 5) {
+		    } else if (doBodyDiode() && n == idx++) {
 			flags = ei.changeFlag(flags, FLAG_BODY_TERMINAL);
+		    } else if (doBodyDiode() && n == idx++) {
+			globalFlags = ei.changeFlag(globalFlags, FLAG_SHOW_BODY_DIODE);
 		    }
 		}
-		if (n == 6) {
-		    globalFlags = ei.changeFlag(globalFlags, FLAG_SHOW_BODY_DIODE);
+		if (n == idx) {
+		    MosfetModel newModel = new MosfetModel(model);
+		    EditDialog editDialog = new EditMosfetModelDialog(newModel, app, this);
+		    CirSim.mosfetModelEditDialog = editDialog;
+		    editDialog.show();
+		    return;
+		}
+		if (n == idx+1) {
+		    if (model.readOnly) {
+			Window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
+			return;
+		    }
+		    EditDialog editDialog = new EditMosfetModelDialog(model, app, null);
+		    CirSim.mosfetModelEditDialog = editDialog;
+		    editDialog.show();
+		    return;
 		}
 
 		// lots of different cases where the body terminal might have gotten removed/added so just do this all the time
@@ -892,20 +808,20 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    if (n == 0) {
 		// gate current from cap currents (cap current flows out of gate)
 		double gateCur = 0;
-		if (model != null && model.capGS > 0 && geqGS > 0)
+		if (model.capGS > 0 && geqGS > 0)
 		    gateCur -= geqGS * (volts[0] - volts[1]) + ceqGS;
-		if (model != null && model.capGD > 0 && geqGD > 0)
+		if (model.capGD > 0 && geqGD > 0)
 		    gateCur -= geqGD * (volts[0] - volts[2]) + ceqGD;
 		return gateCur;
 	    }
 	    if (n == 3)
 		return -diodeCurrent1 - diodeCurrent2;
 	    if (n == 1) {
-		double capCur = (model != null && model.capGS > 0 && geqGS > 0)
+		double capCur = (model.capGS > 0 && geqGS > 0)
 		    ? geqGS * (volts[0] - volts[1]) + ceqGS : 0;
 		return ids + diodeCurrent1 + capCur;
 	    }
-	    double capCur = (model != null && model.capGD > 0 && geqGD > 0)
+	    double capCur = (model.capGD > 0 && geqGD > 0)
 		? geqGD * (volts[0] - volts[2]) + ceqGD : 0;
 	    return -ids + diodeCurrent2 + capCur;
 	}

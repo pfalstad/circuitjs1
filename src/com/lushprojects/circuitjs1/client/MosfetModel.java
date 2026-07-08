@@ -14,6 +14,8 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     static HashMap<String, MosfetModel> modelMap;
 
+    static final int FLAG_JFET = 1;
+
     int flags;
     String name, description;
     double threshold;              // Vt: threshold voltage (V)
@@ -26,6 +28,9 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
     boolean readOnly;
     boolean builtIn;
     boolean internal;
+    // true if this model was synthesized from an old circuit file's inline per-element
+    // vt/beta values rather than picked/created by the user; see DiodeModel.oldStyle
+    boolean oldStyle;
 
     MosfetModel(String d, double vt, double b) {
 	description = d;
@@ -47,6 +52,16 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	capGD = copy.capGD;
     }
 
+    // is this a model meant for use by JfetElm (vs. MosfetElm)?  JFETs and MOSFETs share this
+    // one model class since the only real difference between them is which default parameter
+    // values make sense; this flag is just used to filter the model-picker dropdown per element type.
+    boolean isJfet() { return (flags & FLAG_JFET) != 0; }
+
+    MosfetModel setJfet() {
+	flags |= FLAG_JFET;
+	return this;
+    }
+
     static MosfetModel getModelWithName(String name) {
 	createModelMap();
 	MosfetModel lm = modelMap.get(name);
@@ -58,14 +73,14 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	return lm;
     }
 
-    static MosfetModel getModelWithNameOrCopy(String name, MosfetModel oldmodel) {
+    static MosfetModel getModelWithNameOrCopy(String name, MosfetModel oldmodel, boolean jfet) {
 	createModelMap();
 	MosfetModel lm = modelMap.get(name);
 	if (lm != null)
 	    return lm;
 	if (oldmodel == null) {
 	    CirSim.console("model not found: " + name);
-	    return getDefaultModel();
+	    return getDefaultModel(jfet);
 	}
 	lm = new MosfetModel(oldmodel);
 	lm.name = name;
@@ -77,8 +92,9 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	if (modelMap != null)
 	    return;
 	modelMap = new HashMap<String,MosfetModel>();
-	addDefaultModel("default",      new MosfetModel("default",    1.5, .02));
-	addDefaultModel("spice-default", new MosfetModel("spice-default", 1.5, .02));
+	addDefaultModel("default", new MosfetModel("default", 1.5, .02));
+	// values taken from Hayes+Horowitz p155
+	addDefaultModel("default-jfet", new MosfetModel("default-jfet", -4, .00125).setJfet());
     }
 
     static void addDefaultModel(String name, MosfetModel dm) {
@@ -87,8 +103,41 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	dm.name = name;
     }
 
-    static MosfetModel getDefaultModel() {
-	return getModelWithName("default");
+    static MosfetModel getDefaultModel(boolean jfet) {
+	return getModelWithName(jfet ? "default-jfet" : "default");
+    }
+
+    // Find (or create) a model matching the given legacy per-element vt/beta, for backward
+    // compatibility with old circuit files that stored vt/beta inline instead of by model name.
+    static MosfetModel getModelWithParameters(double vt, double beta, boolean jfet) {
+	createModelMap();
+	Iterator it = modelMap.entrySet().iterator();
+	while (it.hasNext()) {
+	    Map.Entry<String,MosfetModel> pair = (Map.Entry)it.next();
+	    MosfetModel mm = pair.getValue();
+	    if (mm.isJfet() == jfet && Math.abs(mm.threshold-vt) < 1e-15 && Math.abs(mm.beta-beta) < 1e-15 &&
+		mm.lambda == 0 && mm.capGS == 0 && mm.capGD == 0)
+		return mm;
+	}
+	String baseName = "old-" + (jfet ? "jfet" : "mosfet");
+	String name = baseName;
+	if (modelMap.get(name) != null) {
+	    int num = 2;
+	    for (; ; num++) {
+		String n = baseName + "-" + num;
+		if (modelMap.get(n) == null) {
+		    name = n;
+		    break;
+		}
+	    }
+	}
+	MosfetModel mm = getModelWithName(name);
+	mm.threshold = vt;
+	mm.beta = beta;
+	if (jfet)
+	    mm.setJfet();
+	mm.readOnly = mm.oldStyle = true;
+	return mm;
     }
 
     static void clearDumpedFlags() {
@@ -101,13 +150,15 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	}
     }
 
-    static Vector<MosfetModel> getModelList() {
+    // jfet selects whether to return models meant for JfetElm or for MosfetElm
+    static Vector<MosfetModel> getModelList(boolean jfet) {
+	createModelMap();
 	Vector<MosfetModel> vector = new Vector<MosfetModel>();
 	Iterator it = modelMap.entrySet().iterator();
 	while (it.hasNext()) {
 	    Map.Entry<String,MosfetModel> pair = (Map.Entry)it.next();
 	    MosfetModel mm = pair.getValue();
-	    if (mm.internal)
+	    if (mm.internal || mm.isJfet() != jfet)
 		continue;
 	    if (!vector.contains(mm))
 		vector.add(mm);
@@ -207,7 +258,7 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
     }
 
     void pickName() {
-	name = "mosfetmodel";
+	name = isJfet() ? "jfetmodel" : "mosfetmodel";
 	if (modelMap.get(name) != null) {
 	    int num = 2;
 	    for (; ; num++) {
