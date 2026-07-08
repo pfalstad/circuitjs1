@@ -343,14 +343,21 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	int idx = 3;
 	if (!isJfet()) {
 	    if (n == idx++) {
-		showBulk = ei.checkbox.getState();
-		ei.newDialog = true;
+		boolean newVal = ei.checkbox.getState();
+		if (newVal != showBulk)
+		    ei.newDialog = true;
+		showBulk = newVal;
 	    } else if (n == idx++) {
-		if (!showBulk)
-		    digitalSymbol = ei.checkbox.getState();
-		else
-		    bodyDiode = ei.checkbox.getState();
-		ei.newDialog = true;
+		boolean newVal = ei.checkbox.getState();
+		if (!showBulk) {
+		    if (newVal != digitalSymbol)
+			ei.newDialog = true;
+		    digitalSymbol = newVal;
+		} else {
+		    if (newVal != bodyDiode)
+			ei.newDialog = true;
+		    bodyDiode = newVal;
+		}
 	    } else if (showBulk && bodyDiode && n == idx++) {
 		bodyTerminal = ei.checkbox.getState();
 	    } else if (showBulk && bodyDiode && n == idx++) {
