@@ -162,20 +162,24 @@ class LatchElm extends ChipElm {
 	lastLoad = pins[loadPin].value;
     }
 
-    void doStep() {
+    void startIteration() {
 	if (!hasOutputEnable()) {
-	    super.doStep();
+	    super.startIteration();
 	    return;
 	}
-
-	// read inputs
 	for (int i = 0; i < getPostCount(); i++) {
 	    Pin p = pins[i];
 	    if (!p.output)
 		p.value = volts[i] > getThreshold();
 	}
-
 	doLoad();
+    }
+
+    void doStep() {
+	if (!hasOutputEnable()) {
+	    super.doStep();
+	    return;
+	}
 
 	boolean outputEnabled = true;
 	if (outputEnableCount() >= 1 && pins[oe1Pin].value)

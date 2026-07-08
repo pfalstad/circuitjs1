@@ -121,20 +121,13 @@ public class CustomLogicElm extends ChipElm {
     }
     
     void doStep() {
-	int i;
-	for (i = 0; i != getPostCount(); i++) {
-	    Pin p = pins[i];
-	    if (!p.output)
-		p.value = volts[i] > getThreshold();
-	}
-	execute();
 	int add = (hasTriState()) ? outputCount : 0;
-	for (i = 0; i != getPostCount(); i++) {
+	for (int i = 0; i != getPostCount(); i++) {
 	    Pin p = pins[i];
 	    if (p.output) {
 		// connect output voltage source (to internal node if tri-state, otherwise connect directly to output)
 		sim.updateVoltageSource(CircuitNode.ground, nodes[i+add], p.voltSource, p.value ? highVoltage : 0);
-		
+
 		// add resistor for tri-state if necessary
 		if (hasTriState())
 		    sim.stampResistor(nodes[i+add], nodes[i], highImpedance[i] ? 1e8 : 1e-3);

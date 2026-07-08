@@ -3,9 +3,9 @@ const fs = require('fs');
 
 var lastSavedFilePath = null;
 
-window.showSaveDialog = function () { return ipcRenderer.invoke('show-save-dialog'); }
+window.showSaveDialog = function (defaultPath) { return ipcRenderer.invoke('show-save-dialog', defaultPath); }
 
-window.saveFile = function (file, text) {
+window.saveFile = function (file, data, encoding) {
   var path;
   if (!file)
     path = lastSavedFilePath;
@@ -13,7 +13,7 @@ window.saveFile = function (file, text) {
     path = file.filePath.toString();
     lastSavedFilePath = path;
   }
-  fs.writeFile(path, text, function (err) { if (err) window.alert(err); });
+  fs.writeFile(path, data, { encoding: encoding || 'utf8' }, function (err) { if (err) window.alert(err); });
 }
 
 window.openFile = function (callback) {

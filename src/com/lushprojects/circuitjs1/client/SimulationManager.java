@@ -1528,6 +1528,7 @@ public class SimulationManager {
 	DiodeModel.clearDumpedFlags();
 	TransistorModel.clearDumpedFlags();
 	MosfetModel.clearDumpedFlags();
+	RelayModel.clearDumpedFlags();
         Vector<LabeledNodeElm> sideLabels[] = new Vector[] {
             new Vector<LabeledNodeElm>(), new Vector<LabeledNodeElm>(),
             new Vector<LabeledNodeElm>(), new Vector<LabeledNodeElm>()

@@ -1,12 +1,14 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.Arrays;
+import java.util.Date;
 
 import com.google.gwt.canvas.client.Canvas;
 import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.dom.client.CanvasElement;
 import com.google.gwt.core.client.Callback;
 import com.google.gwt.core.client.ScriptInjector;
+import com.google.gwt.i18n.client.DateTimeFormat;
 import com.google.gwt.user.client.Window;
 
 public class ImageExporter {
@@ -22,7 +24,35 @@ public class ImageExporter {
 		this.sim = sim;
 	}
 
+	static String defaultFileName(String ext) {
+		Date date = new Date();
+		DateTimeFormat dtf = DateTimeFormat.getFormat("yyyyMMdd-HHmm");
+		return "circuit-" + dtf.format(date) + ext;
+	}
+
+	private static native void electronSaveBinaryFile(String defaultName, String base64Data) /*-{
+		$wnd.showSaveDialog(defaultName).then(function (file) {
+			if (file.canceled)
+				return;
+			$wnd.saveFile(file, base64Data, 'base64');
+		});
+	}-*/;
+
+	private static native void electronSaveTextFile(String defaultName, String data) /*-{
+		$wnd.showSaveDialog(defaultName).then(function (file) {
+			if (file.canceled)
+				return;
+			$wnd.saveFile(file, data, 'utf8');
+		});
+	}-*/;
+
 	void doExportAsImage() {
+		if (sim.isElectron()) {
+			String dataURL = getCircuitAsCanvas(CAC_IMAGE).toDataUrl();
+			String base64 = dataURL.substring(dataURL.indexOf(',')+1);
+			electronSaveBinaryFile(defaultFileName(".png"), base64);
+			return;
+		}
 		sim.dialogShowing = new ExportAsImageDialog(CAC_IMAGE);
 		sim.dialogShowing.show();
 	}
@@ -40,13 +70,22 @@ public class ImageExporter {
 	}
 
 	native void printCanvas(CanvasElement cv) /*-{
-	    var img    = cv.toDataURL("image/png");
-	    var win = window.open("", "print", "height=500,width=500,status=yes,location=no");
-	    win.document.title = "Print Circuit";
-	    win.document.open();
-	    win.document.write('<img src="'+img+'"/>');
-	    win.document.close();
-	    setTimeout(function(){win.print();},1000);
+	    var img = cv.toDataURL("image/png");
+	    var style = $doc.createElement("style");
+	    style.id = "circuit-print-style";
+	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { #circuit-print-overlay { display: block !important; } }";
+	    $doc.head.appendChild(style);
+	    var overlay = $doc.createElement("div");
+	    overlay.id = "circuit-print-overlay";
+	    var imgEl = $doc.createElement("img");
+	    imgEl.src = img;
+	    overlay.appendChild(imgEl);
+	    $doc.body.appendChild(overlay);
+	    setTimeout(function() {
+	        $wnd.print();
+	        $doc.body.removeChild(overlay);
+	        $doc.head.removeChild(style);
+	    }, 500);
 	}-*/;
 
 	void doPrint() {
@@ -77,6 +116,10 @@ public class ImageExporter {
 
 	void doExportAsSVG() {
 		if (!initializeSVGScriptIfNecessary("doExportAsSVG")) {
+			return;
+		}
+		if (sim.isElectron()) {
+			electronSaveTextFile(defaultFileName(".svg"), getCircuitAsSVG());
 			return;
 		}
 		sim.dialogShowing = new ExportAsImageDialog(CAC_SVG);
