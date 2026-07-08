@@ -56,6 +56,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	Diode diodeB1, diodeB2;
 	double diodeCurrent1, diodeCurrent2, bodyCurrent;
 	double curcount_body1, curcount_body2;
+	double curcount_gate;
+	double curcount_source, curcount_drain;
 	String modelName;
 	MosfetModel model;
 	static String lastModelName = "default";
@@ -165,7 +167,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	boolean showBodyDiode() { return bodyDiodeSymbolShown; }
 	void reset() {
 	    lastv1 = lastv2 = volts[0] = volts[1] = volts[2] = curcount = 0;
-	    curcount_body1 = curcount_body2 = 0;
+	    curcount_body1 = curcount_body2 = curcount_gate = curcount_source = curcount_drain = 0;
 	    capVoltGS = capVoltGD = capCurGS = capCurGD = 0;
 	    geqGS = geqGD = ceqGS = ceqGD = 0;
 	    diodeB1.reset();
@@ -307,10 +309,16 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 			g.setFont(unitsFont);
 			drawCenteredText(g, s, x2+2, y2, false);
 		}
-		curcount = updateDotCount(-ids, curcount);
-		drawDots(g, src[0], src[1], curcount);
-		drawDots(g, src[1], drn[1], curcount);
-		drawDots(g, drn[1], drn[0], curcount);
+		curcount_source = updateDotCount(-(ids + capCurGS), curcount_source);
+		curcount_drain = updateDotCount(-ids + capCurGD, curcount_drain);
+		drawDots(g, src[0], src[1], curcount_source);
+		drawDots(g, src[1], drn[1], curcount_source);
+		drawDots(g, drn[1], drn[0], curcount_drain);
+
+		if (model.capGS > 0 || model.capGD > 0) {
+		    curcount_gate = updateDotCount(capCurGS + capCurGD, curcount_gate);
+		    drawDots(g, point1, gate[1], curcount_gate);
+		}
 		
 		if (showBulk()) {
 		    curcount_body1 = updateDotCount(diodeCurrent1, curcount_body1);
