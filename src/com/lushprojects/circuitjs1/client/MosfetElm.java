@@ -109,7 +109,10 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	// (undumpXml, when there's no "mo" model-name attribute).  Also strips those bits out of
 	// our own flags field, since they're no longer meaningful there.
 	MosfetModel legacyModel(double vt0, double beta0, int legacyFlags) {
-	    boolean legacyShowBulk = (legacyFlags & (FLAG_DIGITAL_LEGACY|FLAG_HIDE_BULK_LEGACY)) == 0;
+	    // JFETs never showed a bulk terminal, so FLAG_HIDE_BULK_LEGACY was never meaningfully
+	    // set/unset for them; force it false here so legacy JFETs match default-jfet (whose
+	    // showBulk is also false) instead of spawning a spurious "old-jfet" model.
+	    boolean legacyShowBulk = !isJfet() && (legacyFlags & (FLAG_DIGITAL_LEGACY|FLAG_HIDE_BULK_LEGACY)) == 0;
 	    boolean legacyDigital = (legacyFlags & FLAG_DIGITAL_LEGACY) != 0;
 	    boolean legacyBodyDiode = (legacyFlags & FLAG_BODY_DIODE_LEGACY) != 0;
 	    boolean legacyBodyTerminal = (legacyFlags & FLAG_BODY_TERMINAL_LEGACY) != 0;
