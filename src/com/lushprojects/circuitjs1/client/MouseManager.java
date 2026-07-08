@@ -1172,10 +1172,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	if (!zoomOnly)
     	    scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), e.getDeltaY());
 
-    	if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
-    		((MouseWheelHandler) mouseElm).onMouseWheel(e);
-    	else if (sim.scopeManager.scopeSelected != -1)
+    	if (sim.scopeManager.scopeSelected != -1)
     	    sim.scopeManager.scopes[sim.scopeManager.scopeSelected].onMouseWheel(e);
+    	else if (mouseElm instanceof MouseWheelHandler && !zoomOnly)
+    		((MouseWheelHandler) mouseElm).onMouseWheel(e);
     	else if (!sim.dialogIsShowing()) {
     	    mouseCursorX=e.getX();
     	    mouseCursorY=e.getY();
