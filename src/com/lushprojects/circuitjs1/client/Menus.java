@@ -128,9 +128,9 @@ public class Menus {
 	fileMenuBar.addItem(exportAsUrlItem);
 	exportAsTextItem = iconMenuItem("export", "Export As Text...", new MyCommand("file","exportastext"));
 	fileMenuBar.addItem(exportAsTextItem);
-	fileMenuBar.addItem(iconMenuItem("image", "Export As Image...", new MyCommand("file","exportasimage")));
+	fileMenuBar.addItem(iconMenuItem("image", "Save As Image...", new MyCommand("file","exportasimage")));
 	fileMenuBar.addItem(iconMenuItem("image", "Copy Circuit Image to Clipboard", new MyCommand("file","copypng")));
-	fileMenuBar.addItem(iconMenuItem("image", "Export As SVG...", new MyCommand("file","exportassvg")));    	
+	fileMenuBar.addItem(iconMenuItem("image", "Save As SVG...", new MyCommand("file","exportassvg")));    	
 	fileMenuBar.addItem(iconMenuItem("microchip", "Create Subcircuit...", new MyCommand("file","createsubcircuit")));
 	fileMenuBar.addItem(iconMenuItem("magic", "Find DC Operating Point", new MyCommand("file", "dcanalysis")));
 	recoverItem = iconMenuItem("back-in-time", "Recover Auto-Save", new MyCommand("file","recover"));

@@ -137,8 +137,11 @@ event.preventDefault();
   }
 });
 
-ipcMain.handle('show-save-dialog', async (event) => {
-  return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender));
+ipcMain.handle('show-save-dialog', async (event, defaultPath) => {
+  var opts = {};
+  if (defaultPath)
+    opts.defaultPath = defaultPath;
+  return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), opts);
 });
 
 ipcMain.handle('show-open-dialog', async (event) => {
