@@ -334,6 +334,13 @@ class EditDialog extends Dialog {
 			    if (adj != null)
 				adj.setSliderValue(ei.value);
 			}
+
+			// this row's change means the dialog's row layout is stale and about to be
+			// rebuilt (see itemStateChanged) - stop here instead of continuing to apply
+			// values to the remaining einfos, whose indices may no longer mean what they
+			// used to under the rebuilt layout
+			if (ei.newDialog)
+			    break;
 		}
 		errorLabel.setVisible(false);
 		cframe.needAnalyze();

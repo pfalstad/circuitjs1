@@ -326,7 +326,7 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 		    return EditInfo.createCheckbox("Show Body Diode", showBodyDiodeSymbol);
 	    }
 	}
-	if (n == idx++) return new EditInfo("Lambda", lambda).setDimensionless();
+	if (n == idx++) return new EditInfo("Lambda", lambda).setDimensionless().newColumn();
 	if (n == idx++) return new EditInfo("Gate-Source Capacitance (Cgs)", capGS);
 	if (n == idx) return new EditInfo("Gate-Drain Capacitance (Cgd)", capGD);
 	return null;
