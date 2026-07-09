@@ -169,6 +169,7 @@ public class UIManager {
 	menus.recoverItem.setEnabled(app.recovery != null);
 
 	int width=(int)RootLayoutPanel.get().getOffsetWidth();
+	int height=(int)RootLayoutPanel.get().getOffsetHeight();
 	VERTICALPANELWIDTH = width/5;
 	if (VERTICALPANELWIDTH > 166)
 	    VERTICALPANELWIDTH = 166;
@@ -200,8 +201,7 @@ public class UIManager {
 	menus.dotsCheckItem.setState(true);
 	menus.voltsCheckItem.setState(true);
 	menus.showValuesCheckItem.setState(true);
-	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar &&
-		app.startCircuit == null && app.startCircuitText == null && app.startCircuitLink == null);
+	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && height > 700);
 	menus.crossHairCheckItem.setState(getOptionFromStorage("crossHair", false));
 	menus.euroResistorCheckItem.setState(euroSetting);
 	menus.euroResistorCheckItem.setCommand(
