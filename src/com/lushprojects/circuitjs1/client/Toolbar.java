@@ -139,6 +139,14 @@ public class Toolbar extends FlowPanel {
         	if (mde.getNativeButton() == NativeEvent.BUTTON_LEFT)
         	    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
             });
+
+            // while hovering over an element-creation button, tell the user how to use it
+            iconLabel.addMouseOverHandler(event -> {
+        	String label = CirSim.theApp.getLabelTextForClass(command.getItemName());
+        	if (label != null)
+        	    setModeLabel(label + Locale.LS(": Drag And Drop To Create"));
+            });
+            iconLabel.addMouseOutHandler(event -> UIManager.theUI.updateToolbar());
         }
 
         return iconLabel;
@@ -210,6 +218,14 @@ public class Toolbar extends FlowPanel {
 		    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
 		}
 	    });
+
+	    // while hovering over a variant button, tell the user how to use it
+	    variantButton.addMouseOverHandler(event -> {
+		String label = app.getLabelTextForClass(command.getItemName());
+		if (label != null)
+		    setModeLabel(label + Locale.LS(": Drag And Drop To Create"));
+	    });
+	    variantButton.addMouseOutHandler(event -> UIManager.theUI.updateToolbar());
 
 	    // Append the variant button to the palette container
 	    paletteContainer.add(variantButton);
