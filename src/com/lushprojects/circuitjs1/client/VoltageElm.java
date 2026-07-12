@@ -90,6 +90,12 @@ class VoltageElm extends CircuitElm {
 	reset();
     }
     int getDumpType() { return 'v'; }
+    boolean getDragVertical(boolean requestedVertical) { return true; }
+    // point 2, not point 1, should track the mouse during toolbar drag-and-drop
+    void dragPlace(int xa, int ya, boolean vertical) {
+	super.dragPlace(xa, ya, vertical);
+	swapDragEndpoints();
+    }
     
     void dumpXml(Document doc, Element elem) {
         super.dumpXml(doc, elem);

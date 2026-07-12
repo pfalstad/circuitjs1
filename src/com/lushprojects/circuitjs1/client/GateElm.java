@@ -28,6 +28,7 @@ abstract class GateElm extends CircuitElm {
 	final int FLAG_INVERT_INPUTS = 1<<2;
 	int inputCount = 2;
 	boolean lastOutput;
+	int getDragLength() { return 96; }
 	double highVoltage;
 	double propagationDelay; // seconds; 0 = instant (default)
 	double delayEndTime;     // time at which pending output change takes effect

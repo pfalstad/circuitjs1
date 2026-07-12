@@ -568,6 +568,44 @@ public abstract class CircuitElm implements Editable {
 	setPoints();
     }
     
+    // Default length (in pixels) used when this element is placed via toolbar
+    // drag-and-drop, since there's no drag-to-size gesture to set the length by hand
+    // in that case.  Override for elements that look better a bit longer/shorter.
+    int getDragLength() {
+	return 64;
+    }
+
+    // Override (ignoring requestedVertical) for elements that should only ever be
+    // placed vertically via toolbar drag-and-drop, e.g. GroundElm, VoltageElm.
+    boolean getDragVertical(boolean requestedVertical) {
+	return requestedVertical;
+    }
+
+    // Positions this element for toolbar drag-and-drop placement: (xa,ya) is the
+    // anchor point that tracks the mouse, in circuit coordinates, already snapped to
+    // the grid.  Called repeatedly as the mouse moves and whenever the requested
+    // orientation changes (e.g. the shift key toggled without the mouse moving), so
+    // it must be idempotent given the same arguments.  Override for elements where a
+    // different point (rather than x,y) should track the mouse, e.g. RailElm, where
+    // the label should track the mouse rather than the connection post.
+    void dragPlace(int xa, int ya, boolean vertical) {
+	vertical = getDragVertical(vertical);
+	int len = getDragLength();
+	x = xa; y = ya;
+	x2 = xa + (vertical ? 0 : len);
+	y2 = ya + (vertical ? len : 0);
+	setPoints();
+    }
+
+    // swap the two endpoints in place; for use by dragPlace() overrides on elements
+    // where a different point (rather than x,y) should track the mouse anchor
+    void swapDragEndpoints() {
+	int tx = x, ty = y;
+	x = x2; y = y2;
+	x2 = tx; y2 = ty;
+	setPoints();
+    }
+
     void move(int dx, int dy) {
 	x += dx; y += dy; x2 += dx; y2 += dy;
 	boundingBox.translate(dx, dy);

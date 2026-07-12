@@ -33,6 +33,7 @@ class GroundElm extends CircuitElm {
 	    super(xx, yy);
 	    symbolType = lastSymbolType;
 	}
+	boolean getDragVertical(boolean requestedVertical) { return true; }
 	public GroundElm(int xa, int ya, int xb, int yb, int f,
 			 StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);

@@ -37,7 +37,7 @@ class RailElm extends VoltageElm {
     final int FLAG_CLOCK = 1;
     int getDumpType() { return 'R'; }
     int getPostCount() { return 1; }
-	
+
     void setPoints() {
 	super.setPoints();
 	lead1 = interpPoint(point1, point2, 1-circleSize/dn);
@@ -129,6 +129,10 @@ class RailElm extends VoltageElm {
 	return true;
     }
     boolean validate() { return internalResistance > 0 || validateRailNode(0); }
+
+    boolean getDragVertical(boolean requestedVertical) {
+        return requestedVertical;
+    }
 
 //    void drawHandles(Graphics g, Color c) {
 //    	g.setColor(c);
