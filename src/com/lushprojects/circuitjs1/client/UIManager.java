@@ -1116,6 +1116,7 @@ public class UIManager {
     		    }
     		}
     		if (code==KEY_ESCAPE){
+    			mouse.cancelAddDrag();
     			setMouseMode(MouseManager.MODE_SELECT);
     			mouseModeStr = "Select";
 			updateToolbar();

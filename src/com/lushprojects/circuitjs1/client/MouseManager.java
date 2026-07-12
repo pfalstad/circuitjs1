@@ -83,6 +83,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public boolean dragging;
     public double wheelSensitivity = 1;
     public CircuitElm dragElm, menuElm;
+    // set once mouseDragged() is called at all while placing dragElm in MODE_ADD_ELM, so we
+    // can tell a plain click (place at default size via dragPlace) apart from a real
+    // drag-out gesture (delete if it ends up back at zero size)
+    private boolean addDragActive;
     private CircuitElm mouseElm = null;
     public boolean didSwitch = false;
     public int mousePost = -1;
@@ -246,6 +250,18 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	dragging = false;
     }
 
+    // cancel an in-progress element placement (mouse still held down in MODE_ADD_ELM), e.g. on ESC
+    void cancelAddDrag() {
+	if (dragElm != null) {
+	    dragElm.delete();
+	    dragElm = null;
+	}
+	addDragActive = false;
+	tempMouseMode = mouseMode;
+	dragging = false;
+	mouseDragging = false;
+    }
+
     void toolbarDragMove(int clientX, int clientY, boolean vertical) {
 	if (toolbarDragClass == null)
 	    return;
@@ -346,8 +362,11 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    return;
     	}
     	boolean changed = false;
-    	if (dragElm != null)
+    	if (dragElm != null) {
     	    dragElm.drag(gx, gy);
+    	    if (tempMouseMode == MODE_ADD_ELM)
+    		addDragActive = true;
+    	}
     	boolean success = true;
     	switch (tempMouseMode) {
     	case MODE_DRAG_ALL:
@@ -1173,6 +1192,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	if (!sim.circuitArea.contains(e.getX(), e.getY()))
 	    return;
 
+	addDragActive = false;
 	try {
 	    dragElm = sim.constructElement(ui.mouseModeStr, x0, y0);
 	} catch (Exception ex) {
@@ -1237,6 +1257,12 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		circuitChanged = true;
     	}
     	if (dragElm != null) {
+    		// a plain click (no drag at all) in element-creation mode places the
+    		// element at its default drag size/orientation, like toolbar drag-and-drop;
+    		// but if the user actually dragged and ended up back at zero size, still
+    		// treat that as a cancel below
+    		if (tempMouseMode == MODE_ADD_ELM && !addDragActive && dragElm.creationFailed())
+    		    dragElm.dragPlace(dragElm.x, dragElm.y, false);
     		// if the element is zero size then don't create it
     		// IES - and disable any previous selection
     	    	if (dragElm.creationFailed()) {
