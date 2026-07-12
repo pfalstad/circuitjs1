@@ -996,17 +996,34 @@ public class UIManager {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
     	int code=e.getNativeEvent().getKeyCode();
+
+    	// Handle a press-and-drag gesture started on a toolbar icon, which may end up
+    	// anywhere on the page (not just over the canvas), so it needs to be tracked here.
+    	if (mouse.isToolbarDragPending()) {
+    	    if (t == Event.ONMOUSEMOVE) {
+    		e.getNativeEvent().preventDefault();
+    		mouse.toolbarDragMove(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(),
+    			e.getNativeEvent().getShiftKey());
+    	    } else if (t == Event.ONMOUSEUP) {
+    		mouse.toolbarDragEnd(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY());
+    	    } else if (t == Event.ONKEYDOWN && code == KEY_ESCAPE) {
+    		mouse.cancelToolbarDrag();
+    	    }
+    	}
+
     	// Handle Shift key for net highlighting (works regardless of dialog state)
     	if (code == 16) {
     	    if ((t & Event.ONKEYDOWN) != 0) {
     	    	mouse.netHighlightKeyHeld = true;
     	    	mouse.updateNetHighlight();
     	    	app.repaint();
+    	    	mouse.toolbarDragOrientationChanged(true);
     	    }
     	    if ((t & Event.ONKEYUP) != 0) {
     	    	mouse.netHighlightKeyHeld = false;
     	    	mouse.updateNetHighlight();
     	    	app.repaint();
+    	    	mouse.toolbarDragOrientationChanged(false);
     	    }
     	}
 

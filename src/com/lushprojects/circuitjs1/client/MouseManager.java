@@ -201,6 +201,128 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	return (x+sim.gridRound) & sim.gridMask;
     }
 
+    // ---- Toolbar drag-and-drop ----
+    // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
+    // instead of just switching the mouse mode the way a plain click does.
+    private static final int TOOLBAR_DRAG_THRESHOLD = 6;
+    private String toolbarDragClass;
+    private int toolbarDragStartX, toolbarDragStartY;
+    private boolean toolbarDragActive;
+    private boolean toolbarDragVertical;
+
+    boolean isToolbarDragPending() {
+	return toolbarDragClass != null;
+    }
+
+    // re-orient the element being dragged in place, e.g. when shift is pressed/released
+    // without any mouse movement
+    void toolbarDragOrientationChanged(boolean vertical) {
+	if (toolbarDragClass == null || dragElm == null)
+	    return;
+	toolbarDragVertical = vertical;
+	applyToolbarDragOrientation();
+	sim.repaint();
+    }
+
+    private void applyToolbarDragOrientation() {
+	int len = sim.gridSize*4;
+	if (toolbarDragVertical)
+	    dragElm.drag(dragElm.x, dragElm.y + len);
+	else
+	    dragElm.drag(dragElm.x + len, dragElm.y);
+    }
+
+    void beginToolbarDrag(String className, int clientX, int clientY) {
+	if (ui.isReadOnly() || sim.dialogIsShowing())
+	    return;
+	toolbarDragClass = className;
+	toolbarDragStartX = clientX;
+	toolbarDragStartY = clientY;
+	toolbarDragActive = false;
+	toolbarDragVertical = false;
+    }
+
+    void cancelToolbarDrag() {
+	if (dragElm != null) {
+	    dragElm.delete();
+	    dragElm = null;
+	}
+	toolbarDragClass = null;
+	toolbarDragActive = false;
+	tempMouseMode = mouseMode;
+	dragging = false;
+    }
+
+    void toolbarDragMove(int clientX, int clientY, boolean vertical) {
+	if (toolbarDragClass == null)
+	    return;
+	if (!toolbarDragActive) {
+	    int dx = clientX - toolbarDragStartX, dy = clientY - toolbarDragStartY;
+	    if (dx*dx + dy*dy < TOOLBAR_DRAG_THRESHOLD*TOOLBAR_DRAG_THRESHOLD)
+		return;
+	    toolbarDragActive = true;
+	    sim.undoManager.pushUndo();
+	}
+	int cx = clientX - ui.cv.getAbsoluteLeft();
+	int cy = clientY - ui.cv.getAbsoluteTop();
+	if (!sim.circuitArea.contains(cx, cy)) {
+	    if (dragElm != null)
+		sim.repaint();
+	    return;
+	}
+	int gx = snapGrid(inverseTransformX(cx));
+	int gy = snapGrid(inverseTransformY(cy));
+	if (dragElm == null) {
+	    try {
+		dragElm = sim.constructElement(toolbarDragClass, gx, gy);
+	    } catch (Exception ex) {
+		sim.debugger();
+	    }
+	    tempMouseMode = MODE_ADD_ELM;
+	    dragging = true;
+	} else {
+	    // keep the element rigid; slide the whole thing to follow the cursor
+	    dragElm.move(gx - dragElm.x, gy - dragElm.y);
+	}
+	if (dragElm != null) {
+	    // give the dropped element a fixed default length (a few grid squares), since
+	    // there's no drag-to-size gesture on the circuit area itself here; shift key
+	    // while dragging picks vertical instead of horizontal orientation
+	    toolbarDragVertical = vertical;
+	    applyToolbarDragOrientation();
+	}
+	sim.repaint();
+    }
+
+    void toolbarDragEnd(int clientX, int clientY) {
+	if (toolbarDragClass == null)
+	    return;
+	boolean wasActive = toolbarDragActive;
+	toolbarDragClass = null;
+	toolbarDragActive = false;
+	if (!wasActive)
+	    return; // no real drag happened; let the normal click switch modes as before
+	if (dragElm != null) {
+	    if (dragElm.creationFailed()) {
+		dragElm.delete();
+	    } else {
+		splitAt(dragElm.x, dragElm.y);
+		splitAt(dragElm.x2, dragElm.y2);
+		ui.elmList.addElement(dragElm);
+		dragElm.draggingDone();
+		sim.undoManager.writeRecoveryToStorage();
+		sim.unsavedChanges = true;
+		sim.needAnalyze();
+		sim.undoManager.pushUndo();
+	    }
+	    dragElm = null;
+	}
+	tempMouseMode = mouseMode;
+	dragging = false;
+	sim.updateToolbar();
+	sim.repaint();
+    }
+
     boolean doSwitch(int x, int y) {
 	if (mouseElm == null || !(mouseElm instanceof SwitchElm))
 	    return false;

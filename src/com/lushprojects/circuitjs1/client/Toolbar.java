@@ -4,6 +4,7 @@ import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.DivElement;
 import com.google.gwt.dom.client.Document;
+import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
@@ -129,8 +130,16 @@ public class Toolbar extends FlowPanel {
         });
 
         // Track buttons that belong to the "main" command group
-        if (command.getMenuName().equals("main"))
+        if (command.getMenuName().equals("main")) {
             highlightableButtons.put(command.getItemName(), iconLabel);
+
+            // pressing and dragging (rather than just clicking) drops a new element
+            // where the mouse is released, instead of switching modes
+            iconLabel.addMouseDownHandler(mde -> {
+        	if (mde.getNativeButton() == NativeEvent.BUTTON_LEFT)
+        	    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
+            });
+        }
 
         return iconLabel;
     }
@@ -178,15 +187,28 @@ public class Toolbar extends FlowPanel {
 	    final MyCommand command = new MyCommand("main", info[i+1]);
 	    final String smallSvg = makeSvg(info[i], 24);
 
-	    // Add click handler to update the main button and execute the command
-	    variantButton.addClickHandler(event -> {
-		// Change the icon of the main button to reflect the variant selected
+	    // Change the icon of the main button to reflect the variant selected
+	    final Runnable selectVariant = () -> {
 		iconLabel.getElement().setInnerHTML(smallSvg);
 		highlightableButtons.remove(mainCommand.getItemName());
                 highlightableButtons.put(command.getItemName(), iconLabel);
 		paletteContainer.setVisible(false);
 		mainCommand.setItemName(command.getItemName());
+	    };
+
+	    // Add click handler to update the main button and execute the command
+	    variantButton.addClickHandler(event -> {
+		selectVariant.run();
 		command.execute();  // Execute the corresponding command for the selected variant
+	    });
+
+	    // pressing and dragging (rather than just clicking) a variant drops that
+	    // variant directly, instead of switching modes
+	    variantButton.addMouseDownHandler(mde -> {
+		if (mde.getNativeButton() == NativeEvent.BUTTON_LEFT) {
+		    selectVariant.run();
+		    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
+		}
 	    });
 
 	    // Append the variant button to the palette container
