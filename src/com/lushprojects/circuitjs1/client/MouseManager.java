@@ -1141,6 +1141,13 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    return;
 	}
 
+	// clicking and dragging on the body of an existing element (not one of its terminal/
+	// resize handles) while in element-creation mode should drag that element around,
+	// like select mode, rather than construct a new element on top of it
+	if (tempMouseMode == MODE_ADD_ELM && mouseElm != null && !ui.isReadOnly() &&
+		mouseElm.getHandleGrabbedClose(gx, gy, POSTGRABSQ, MINPOSTGRABSIZE) < 0)
+	    tempMouseMode = MODE_SELECT;
+
 	// IES - Grab resize handles in select mode if they are far enough apart and you are on top of them
 	if (tempMouseMode == MODE_SELECT && mouseElm!=null && !ui.isReadOnly() &&
 		mouseElm.getHandleGrabbedClose(gx, gy, POSTGRABSQ, MINPOSTGRABSIZE) >=0 &&
