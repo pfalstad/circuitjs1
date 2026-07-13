@@ -180,7 +180,7 @@ class CurrentElm extends CircuitElm {
 	    if (n == 0)
 		return new EditInfo("Current (A)", currentValue, 0, .1);
 	    if (n == 1)
-		return new EditInfo("Max Voltage (V, 0=unlimited)", maxVoltage, 0, 0);
+		return new EditInfo("Max Voltage (V, 0=unlimited)", maxVoltage, 0, 0).setUnitStep();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {

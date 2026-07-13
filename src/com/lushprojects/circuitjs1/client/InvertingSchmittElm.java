@@ -170,9 +170,9 @@ import com.google.gwt.xml.client.Element;
 	    if (n == 2)
 		return new EditInfo("Slew Rate (V/ns)", slewRate, 0, 0);
 	    if (n == 3)
-		return new EditInfo("High Logic Voltage", logicOnLevel, 0, 0);
+		return new EditInfo("High Logic Voltage", logicOnLevel, 0, 0).setUnitStep();
 	    if (n == 4)
-		return new EditInfo("Low Voltage (V)", logicOffLevel, 0, 0);
+		return new EditInfo("Low Voltage (V)", logicOffLevel, 0, 0).setUnitStep();
 	    
 	    return null;
 	}

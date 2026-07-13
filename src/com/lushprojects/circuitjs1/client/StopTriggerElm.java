@@ -101,7 +101,7 @@ class StopTriggerElm extends CircuitElm {
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
 		EditInfo ei = new EditInfo("Voltage", triggerVoltage);
-		return ei;
+		return ei.setUnitStep();
 	    }
 	    if (n == 1) {
 		EditInfo ei =  new EditInfo("Trigger Type", type, -1, -1);

@@ -146,9 +146,9 @@ class BusLogicInputElm extends SwitchElm {
 	if (n == 1)
 	    return new EditInfo("Value", value).setDimensionless();
 	if (n == 2)
-	    return new EditInfo("High Voltage", hiV);
+	    return new EditInfo("High Voltage", hiV).setUnitStep();
 	if (n == 3)
-	    return new EditInfo("Low Voltage", loV);
+	    return new EditInfo("Low Voltage", loV).setUnitStep();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {

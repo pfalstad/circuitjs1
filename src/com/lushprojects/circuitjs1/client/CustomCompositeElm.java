@@ -230,7 +230,7 @@ public class CustomCompositeElm extends CompositeElm {
         }
 	int hvIdx = (canViewComponents()) ? 3 : 2;
         if (n == hvIdx)
-            return new EditInfo("High Logic Voltage (0=default)", highVoltage, 0, 10);
+            return new EditInfo("High Logic Voltage (0=default)", highVoltage, 0, 10).setUnitStep();
         if (n == hvIdx+1 && model.canLoadModelCircuit()) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Edit Model"));

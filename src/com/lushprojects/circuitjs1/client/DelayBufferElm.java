@@ -127,7 +127,7 @@ class DelayBufferElm extends CircuitElm {
 	    if (n == 1)
 		return new EditInfo("Threshold (V)", threshold, 0, 0);
 	    if (n == 2)
-		return new EditInfo("High Logic Voltage", highVoltage, 0, 0);
+		return new EditInfo("High Logic Voltage", highVoltage, 0, 0).setUnitStep();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {

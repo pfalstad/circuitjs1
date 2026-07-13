@@ -473,7 +473,7 @@ abstract class ChipElm extends CircuitElm {
 	public EditInfo getEditInfo(int n) {
 	    if (isDigitalChip()) {
 		if (n == 0)
-		    return new EditInfo("High Logic Voltage", highVoltage);
+		    return new EditInfo("High Logic Voltage", highVoltage).setUnitStep();
 		n--;
 	    }
 	    if (allowBus()) {

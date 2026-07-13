@@ -174,9 +174,9 @@ public class OTAElm extends CompositeElm {
 
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Positive Supply Voltage (5-20V)", posVolt, 5, 20);
+	    return new EditInfo("Positive Supply Voltage (5-20V)", posVolt, 5, 20).setUnitStep();
 	if (n == 1)
-	    return new EditInfo("Negative Supply Voltage (V)", negVolt, -20, -5);
+	    return new EditInfo("Negative Supply Voltage (V)", negVolt, -20, -5).setUnitStep();
 	return null;
     }
 

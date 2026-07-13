@@ -201,7 +201,7 @@ class SweepElm extends CircuitElm {
 	    return ei;
 	}
 	if (n == 4)
-	    return new EditInfo("Max Voltage", maxV, 0, 0);
+	    return new EditInfo("Max Voltage", maxV, 0, 0).setUnitStep();
 	if (n == 5) {
 	    EditInfo ei = new EditInfo("", 0, -1, -1);
 	    ei.checkbox = new Checkbox("Bidirectional", (flags & FLAG_BIDIR) != 0);

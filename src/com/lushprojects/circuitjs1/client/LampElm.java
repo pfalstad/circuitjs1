@@ -197,7 +197,7 @@ class LampElm extends CircuitElm {
 	    if (n == 0)
 		return new EditInfo("Nominal Power", nom_pow, 0, 0).setPositive();
 	    if (n == 1)
-		return new EditInfo("Nominal Voltage", nom_v, 0, 0).setPositive();
+		return new EditInfo("Nominal Voltage", nom_v, 0, 0).setPositive().setUnitStep();
 	    if (n == 2)
 		return new EditInfo("Warmup Time (s)", warmTime, 0, 0).setPositive();
 	    if (n == 3)

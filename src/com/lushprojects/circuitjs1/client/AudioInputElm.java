@@ -164,7 +164,7 @@ class AudioInputElm extends RailElm {
                 return ei;
             }
             if (n == 1)
-                return new EditInfo("Max Voltage", maxVoltage);
+                return new EditInfo("Max Voltage", maxVoltage).setUnitStep();
             if (n == 2)
                 return new EditInfo("Start Position (s)", startPosition);
 	    return null;

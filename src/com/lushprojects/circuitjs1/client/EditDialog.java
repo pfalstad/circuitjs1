@@ -37,7 +37,21 @@ import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
+import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.user.client.Timer;
+import com.google.gwt.event.dom.client.MouseDownHandler;
+import com.google.gwt.event.dom.client.MouseDownEvent;
+import com.google.gwt.event.dom.client.MouseUpHandler;
+import com.google.gwt.event.dom.client.MouseUpEvent;
+import com.google.gwt.event.dom.client.MouseOutHandler;
+import com.google.gwt.event.dom.client.MouseOutEvent;
+import com.google.gwt.event.dom.client.TouchStartHandler;
+import com.google.gwt.event.dom.client.TouchStartEvent;
+import com.google.gwt.event.dom.client.TouchEndHandler;
+import com.google.gwt.event.dom.client.TouchEndEvent;
+import com.google.gwt.event.dom.client.TouchCancelHandler;
+import com.google.gwt.event.dom.client.TouchCancelEvent;
 
 interface Editable {
     EditInfo getEditInfo(int n);
@@ -186,7 +200,7 @@ class EditDialog extends Dialog {
 			} else if (ei.widget != null) {
 			    vp.add(ei.widget);
 			} else {
-			    vp.add(ei.textf = new TextBox());
+			    ei.textf = new TextBox();
 			    if (firstTextBox == null)
 				firstTextBox = ei.textf;
 			    if (ei.text != null) {
@@ -195,13 +209,141 @@ class EditDialog extends Dialog {
 				    ei.textf.getElement().setAttribute("type", "color");
 				else
 				    ei.textf.setVisibleLength(50);
-			    }
-			    if (ei.text == null) {
+				vp.add(ei.textf);
+			    } else {
 				ei.textf.setText(unitString(ei));
+				vp.add(makeValueStepperRow(ei));
 			    }
 			}
 		}
 		einfocount = i;
+	}
+
+	// A text field with "-"/"+" buttons that step the value, so it can be tweaked without
+	// having to type on a mobile keyboard. Component values (R/L/C, etc.) step through the
+	// E12 preferred-value series (reusing the same table ScrollValuePopup uses for its
+	// scroll-to-adjust popup); dimensionless fields and voltage sources, which don't really
+	// have a "preferred value" series, just step by 1. Holding a button down repeats the step.
+	private HorizontalPanel makeValueStepperRow(final EditInfo ei) {
+	    HorizontalPanel row = new HorizontalPanel();
+	    row.setVerticalAlignment(HasVerticalAlignment.ALIGN_MIDDLE);
+	    Button minus = new Button("−");
+	    Button plus = new Button("+");
+	    minus.setWidth("2em");
+	    plus.setWidth("2em");
+	    // without this, holding the button down on iOS is treated as a long-press on
+	    // selectable text and pops up the Copy/Look Up/etc. callout instead of repeating
+	    disableTouchCallout(minus);
+	    disableTouchCallout(plus);
+	    addRepeatingStepHandler(minus, ei, -1);
+	    addRepeatingStepHandler(plus, ei, 1);
+	    row.add(minus);
+	    row.add(ei.textf);
+	    row.add(plus);
+	    return row;
+	}
+
+	private static void disableTouchCallout(Button button) {
+	    com.google.gwt.dom.client.Style style = button.getElement().getStyle();
+	    style.setProperty("webkitTouchCallout", "none");
+	    style.setProperty("webkitUserSelect", "none");
+	    style.setProperty("userSelect", "none");
+	    style.setProperty("touchAction", "manipulation");
+	}
+
+	// step once immediately on mouse/touch-down, then keep stepping at a fixed rate for as
+	// long as the button is held, like a native stepper control
+	private void addRepeatingStepHandler(Button button, final EditInfo ei, final int dir) {
+	    final Timer repeatTimer = new Timer() {
+		public void run() { stepValue(ei, dir); }
+	    };
+	    final Timer startRepeatTimer = new Timer() {
+		public void run() { repeatTimer.scheduleRepeating(120); }
+	    };
+	    button.addMouseDownHandler(new MouseDownHandler() {
+		public void onMouseDown(MouseDownEvent e) {
+		    stepValue(ei, dir);
+		    startRepeatTimer.schedule(400);
+		}
+	    });
+	    MouseUpHandler stop = new MouseUpHandler() {
+		public void onMouseUp(MouseUpEvent e) {
+		    startRepeatTimer.cancel();
+		    repeatTimer.cancel();
+		}
+	    };
+	    button.addMouseUpHandler(stop);
+	    button.addMouseOutHandler(new MouseOutHandler() {
+		public void onMouseOut(MouseOutEvent e) {
+		    startRepeatTimer.cancel();
+		    repeatTimer.cancel();
+		}
+	    });
+
+	    // On touch devices, mousedown/mouseup are synthesized from touchstart/touchend, but
+	    // only *after* touchend has already fired - so a mousedown-based repeat never gets a
+	    // chance to run while the finger is actually held down. Handle real touch events
+	    // directly instead, and preventDefault() on touchstart so the browser doesn't also
+	    // fire the (now redundant, badly-timed) synthetic mouse events afterward.
+	    button.addDomHandler(new TouchStartHandler() {
+		public void onTouchStart(TouchStartEvent e) {
+		    e.preventDefault();
+		    stepValue(ei, dir);
+		    startRepeatTimer.schedule(400);
+		}
+	    }, TouchStartEvent.getType());
+	    TouchEndHandler touchStop = new TouchEndHandler() {
+		public void onTouchEnd(TouchEndEvent e) {
+		    startRepeatTimer.cancel();
+		    repeatTimer.cancel();
+		}
+	    };
+	    button.addDomHandler(touchStop, TouchEndEvent.getType());
+	    button.addDomHandler(new TouchCancelHandler() {
+		public void onTouchCancel(TouchCancelEvent e) {
+		    startRepeatTimer.cancel();
+		    repeatTimer.cancel();
+		}
+	    }, TouchCancelEvent.getType());
+	}
+
+	void stepValue(EditInfo ei, int dir) {
+	    double cur;
+	    try {
+		cur = parseUnits(ei);
+	    } catch (Exception ex) {
+		cur = ei.value;
+	    }
+	    boolean linearStep = ei.dimensionless || ei.unitStep;
+	    double next = linearStep ? cur + dir : stepE12(cur, dir);
+	    // just update the displayed text, like typing a new value would; actually committing
+	    // it to the element happens on Apply/OK like normal, so Cancel still works correctly
+	    ei.textf.setText(unitString(ei, next));
+	}
+
+	// step to the next/previous value (in direction dir) in the E12 preferred-value series,
+	// which repeats every decade; preserves sign, and treats 0 as just below the first step
+	static double stepE12(double value, int dir) {
+	    double[] e12 = ScrollValuePopup.e12;
+	    if (value == 0)
+		return dir > 0 ? e12[0] : -e12[0];
+	    double sign = value < 0 ? -1 : 1;
+	    double av = Math.abs(value);
+	    int decade = (int) Math.floor(Math.log10(av));
+	    int idx = 0;
+	    for (int i = 0; i < e12.length; i++) {
+		if (e12[i] * Math.pow(10, decade) <= av * 1.0000001)
+		    idx = i;
+	    }
+	    idx += dir;
+	    if (idx < 0) {
+		idx = e12.length - 1;
+		decade--;
+	    } else if (idx >= e12.length) {
+		idx = 0;
+		decade++;
+	    }
+	    return sign * e12[idx] * Math.pow(10, decade);
 	}
 
 	static final double ROOT2 = 1.41421356237309504880;

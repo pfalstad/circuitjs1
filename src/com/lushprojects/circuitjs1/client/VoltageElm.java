@@ -517,7 +517,7 @@ class VoltageElm extends CircuitElm {
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
 	    return new EditInfo(waveform == WF_DC ? "Voltage" :
-				"Max Voltage", maxVoltage, -20, 20);
+				"Max Voltage", maxVoltage, -20, 20).setUnitStep();
 	if (n == 1) {
 	    EditInfo ei =  new EditInfo("Waveform", waveform, -1, -1);
 	    ei.choice = new Choice();
@@ -532,7 +532,7 @@ class VoltageElm extends CircuitElm {
 	    return ei;
 	}
 	if (n == 2)
-	    return new EditInfo("DC Offset (V)", bias, -20, 20);
+	    return new EditInfo("DC Offset (V)", bias, -20, 20).setUnitStep();
 	if (n == 3) {
 	    EditInfo ei = new EditInfo("Internal Resistance (ohms)", internalResistance);
 	    ei.setNonNegative();

@@ -79,9 +79,9 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 	}
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0)
-		return new EditInfo("Min Voltage", bias, -20, 20);
+		return new EditInfo("Min Voltage", bias, -20, 20).setUnitStep();
 	    if (n == 1)
-		return new EditInfo("Max Voltage", maxVoltage, -20, 20);
+		return new EditInfo("Max Voltage", maxVoltage, -20, 20).setUnitStep();
 	    if (n == 2) {
 		EditInfo ei = new EditInfo("Slider Text", 0, -1, -1);
 		ei.text = sliderText;

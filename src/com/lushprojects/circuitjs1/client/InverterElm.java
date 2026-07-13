@@ -135,7 +135,7 @@ class InverterElm extends CircuitElm {
 	    if (n == 0)
 		return new EditInfo("Slew Rate (V/ns)", slewRate, 0, 0);
 	    if (n == 1)
-		return new EditInfo("High Logic Voltage", highVoltage, 1, 10);
+		return new EditInfo("High Logic Voltage", highVoltage, 1, 10).setUnitStep();
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {

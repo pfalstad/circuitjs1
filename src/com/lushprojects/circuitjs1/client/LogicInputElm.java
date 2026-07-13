@@ -127,9 +127,9 @@ class LogicInputElm extends SwitchElm {
 		return ei;
 	    }
 	    if (n == 1)
-		return new EditInfo("High Logic Voltage", hiV, 10, -10);
+		return new EditInfo("High Logic Voltage", hiV, 10, -10).setUnitStep();
 	    if (n == 2)
-		return new EditInfo("Low Voltage", loV, 10, -10);
+		return new EditInfo("Low Voltage", loV, 10, -10).setUnitStep();
 	    if (n == 3) {
 		EditInfo ei = new EditInfo("", 0, 0, 0);
 		ei.checkbox = new Checkbox("Numeric", isNumeric());

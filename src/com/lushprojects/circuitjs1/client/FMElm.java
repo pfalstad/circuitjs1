@@ -150,7 +150,7 @@ class FMElm extends CircuitElm {
     }
     public EditInfo getEditInfo(int n) {
 	if (n == 0)
-	    return new EditInfo("Max Voltage", maxVoltage, -20, 20);
+	    return new EditInfo("Max Voltage", maxVoltage, -20, 20).setUnitStep();
 	if (n == 1)
 	    return new EditInfo("Carrier Frequency (Hz)", carrierfreq, 4, 500);
 	if (n == 2)
