@@ -110,6 +110,7 @@ public class Toolbar extends FlowPanel {
         style.setCursor(Style.Cursor.POINTER);
 	if (iconClass.startsWith("<svg"))
 	    style.setPaddingTop(5, Style.Unit.PX);
+	style.setProperty("touchAction", "none");
 
         // Add hover effect for the button
         iconLabel.addMouseOverHandler(event -> iconLabel.getElement().getStyle().setColor("#007bff"));
@@ -139,6 +140,7 @@ public class Toolbar extends FlowPanel {
         	if (mde.getNativeButton() == NativeEvent.BUTTON_LEFT)
         	    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
             });
+            addTouchDragSupport(iconLabel.getElement());
 
             // while hovering over an element-creation button, tell the user how to use it
             iconLabel.addMouseOverHandler(event -> {
@@ -151,6 +153,56 @@ public class Toolbar extends FlowPanel {
 
         return iconLabel;
     }
+
+    // Translate touch gestures on a toolbar button into the synthetic mouse events that
+    // beginToolbarDrag/toolbarDragMove/toolbarDragEnd already expect, since iOS/touch browsers
+    // don't emit real mousemove events during a touch-drag (they just pan the page instead).
+    // touchstart re-dispatches a "mousedown" on the button itself, which the existing
+    // MouseDownHandler picks up; touchmove/touchend dispatch "mousemove"/"mouseup" on the
+    // document so UIManager's global NativePreviewHandler (which drives the drag once it's
+    // pending) sees them just like it would for a real mouse drag.
+    private native void addTouchDragSupport(com.google.gwt.dom.client.Element el) /*-{
+	var startX, startY, moved;
+	var TAP_THRESHOLD = 6;
+	el.addEventListener('touchstart', function(e) {
+	    if (e.touches.length != 1)
+		return;
+	    var t = e.touches[0];
+	    startX = t.clientX;
+	    startY = t.clientY;
+	    moved = false;
+	    var me = new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true, button: 0 });
+	    el.dispatchEvent(me);
+	}, { passive: true });
+	el.addEventListener('touchmove', function(e) {
+	    if (e.touches.length != 1)
+		return;
+	    e.preventDefault();
+	    var t = e.touches[0];
+	    var dx = t.clientX - startX, dy = t.clientY - startY;
+	    if (dx*dx + dy*dy > TAP_THRESHOLD*TAP_THRESHOLD)
+		moved = true;
+	    var me = new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
+	    $doc.dispatchEvent(me);
+	}, { passive: false });
+	el.addEventListener('touchend', function(e) {
+	    e.preventDefault();
+	    var t = e.changedTouches[0];
+	    var me = new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
+	    $doc.dispatchEvent(me);
+	    // preventDefault() suppressed the browser's own synthetic click for this tap,
+	    // so re-create it ourselves when the touch didn't turn into a drag.
+	    if (!moved) {
+		var click = new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
+		el.dispatchEvent(click);
+	    }
+	}, { passive: false });
+	el.addEventListener('touchcancel', function(e) {
+	    var t = e.changedTouches[0];
+	    var me = new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
+	    $doc.dispatchEvent(me);
+	}, { passive: true });
+    }-*/;
 
     String makeSvg(String s, int size) {
 	double scale = size/24.0;
@@ -191,6 +243,7 @@ public class Toolbar extends FlowPanel {
 	    variantStyle.setColor("#333");
 	    //variantStyle.setPadding(5, Style.Unit.PX);
 	    variantStyle.setCursor(Style.Cursor.POINTER);
+	    variantStyle.setProperty("touchAction", "none");
 
 	    final MyCommand command = new MyCommand("main", info[i+1]);
 	    final String smallSvg = makeSvg(info[i], 24);
@@ -218,6 +271,7 @@ public class Toolbar extends FlowPanel {
 		    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.getClientX(), mde.getClientY());
 		}
 	    });
+	    addTouchDragSupport(variantButton.getElement());
 
 	    // while hovering over a variant button, tell the user how to use it
 	    variantButton.addMouseOverHandler(event -> {
