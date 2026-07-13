@@ -45,6 +45,7 @@ public class Menus {
     MenuItem importFromLocalFileItem, importFromTextItem, exportAsUrlItem, exportAsLocalFileItem, exportAsTextItem,
             printItem, recoverItem, saveFileItem;
     MenuItem importFromDropboxItem;
+    MenuItem importFromSchematicItem;
     MenuItem undoItem, redoItem, cutItem, copyItem, pasteItem, selectAllItem, optionsItem, flipXItem, flipYItem, flipXYItem;
     MenuBar optionsMenuBar;
     CheckboxMenuItem dotsCheckItem;
@@ -114,6 +115,8 @@ public class Menus {
 	fileMenuBar.addItem(importFromTextItem);
 	importFromDropboxItem = iconMenuItem("dropbox", "Import From Dropbox...", new MyCommand("file", "importfromdropbox"));
 	fileMenuBar.addItem(importFromDropboxItem);
+	importFromSchematicItem = iconMenuItem("image", "Import from Schematic Image...", new MyCommand("file", "importfromschematic"));
+	fileMenuBar.addItem(importFromSchematicItem);
 	if (isElectron()) {
 	    saveFileItem = fileMenuBar.addItem(menuItemWithShortcut("floppy", "Save", Locale.LS(ctrlMetaKey + "S"),
 		    new MyCommand("file", "save")));

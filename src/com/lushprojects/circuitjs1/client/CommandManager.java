@@ -45,6 +45,9 @@ public class CommandManager {
     	if (item=="importfromdropbox") {
     		app.dialogShowing = new ImportFromDropboxDialog(app);
     	}
+    	if (item=="importfromschematic") {
+    		app.dialogShowing = new ImportFromSchematicDialog(app);
+    	}
     	if (item=="exportasurl") {
     		doExportAsUrl();
     		app.unsavedChanges = false;
