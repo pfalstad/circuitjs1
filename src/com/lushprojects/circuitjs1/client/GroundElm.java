@@ -137,6 +137,7 @@ class GroundElm extends CircuitElm {
 	}
 
 	int getShortcut() { return 'g'; }
+	int getDragLength() { return 32; }
 	
 	public EditInfo getEditInfo(int n) {
 	    if (n == 0) {
