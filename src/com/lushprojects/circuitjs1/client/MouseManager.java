@@ -87,6 +87,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     // can tell a plain click (place at default size via dragPlace) apart from a real
     // drag-out gesture (delete if it ends up back at zero size)
     private boolean addDragActive;
+    // click point where dragElm was constructed in MODE_ADD_ELM, used to reset it if a
+    // real drag-out gesture follows the default-size preview (see mouseDragged)
+    private int addElmStartX, addElmStartY;
     private CircuitElm mouseElm = null;
     public boolean didSwitch = false;
     public int mousePost = -1;
@@ -363,9 +366,19 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
     	boolean changed = false;
     	if (dragElm != null) {
-    	    dragElm.drag(gx, gy);
-    	    if (tempMouseMode == MODE_ADD_ELM)
+    	    if (tempMouseMode == MODE_ADD_ELM && !addDragActive) {
+    		// this is the first real drag-out movement (as opposed to the
+    		// default-size preview placed at mouse-down); discard that preview
+    		// and reset to the click point, since some elements (e.g. RailElm,
+    		// via VoltageElm.dragPlace()) swap their endpoints when placed at
+    		// their default size/orientation, which would otherwise leave the
+    		// wrong endpoint anchored for the drag that follows
+    		dragElm.x = dragElm.x2 = addElmStartX;
+    		dragElm.y = dragElm.y2 = addElmStartY;
+    		dragElm.setPoints();
     		addDragActive = true;
+    	    }
+    	    dragElm.drag(gx, gy);
     	}
     	boolean success = true;
     	switch (tempMouseMode) {
@@ -1193,11 +1206,19 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    return;
 
 	addDragActive = false;
+	addElmStartX = x0;
+	addElmStartY = y0;
 	try {
 	    dragElm = sim.constructElement(ui.mouseModeStr, x0, y0);
 	} catch (Exception ex) {
 	    sim.debugger();
 	}
+
+	// place the element at its default drag size/orientation right away, so it's
+	// visible immediately rather than only appearing once the mouse is dragged or
+	// released; a real drag-out gesture (handled in mouseDragged) resets this
+	if (dragElm != null)
+	    dragElm.dragPlace(x0, y0, false);
 
 	sim.updateToolbar();
     }
