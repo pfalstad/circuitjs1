@@ -245,12 +245,14 @@ class MotorProtectionSwitchElm extends CircuitElm {
 	void setSwitchPositions() {
 	    int i;
 	    int switchPosition = (blown) ? 0 : 1;
+	    // motor protection switch transitions instantly (d_position is 0 or 1)
+	    double d = 1 - switchPosition;
 	    for (i = 0; i != sim.elmList.size(); i++) {
 		Object o = sim.elmList.elementAt(i);
 		if (o instanceof RelayContactElm) {
 		    RelayContactElm s2 = (RelayContactElm) o;
 		    if (s2.label.equals(label))
-			s2.setPosition(switchPosition, RelayCoilElm.TYPE_NORMAL);
+			s2.setPosition(switchPosition, d, RelayCoilElm.TYPE_NORMAL);
 		}
 	    }
 	}
