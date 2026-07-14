@@ -50,6 +50,9 @@ class LEDArrayElm extends ChipElm {
 	    super.undumpXml(xml);
             sizeX = xml.parseIntAttr("sx", sizeX);
             sizeY = xml.parseIntAttr("sy", sizeY);
+            allocNodes();
+            setupPins();
+            setPoints();
 	}
 	
 	String getChipName() { return "LED array"; }
