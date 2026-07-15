@@ -1387,3 +1387,5 @@
 "wattmeter"="Wattmeter"
 "write"="Schreiben"
 "Ćuk Converter"="Ćuk-Wandler"
+"Rotate"="Drehen"
+"Mirror"="Spiegeln"

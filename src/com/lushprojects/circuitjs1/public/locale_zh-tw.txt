@@ -1596,3 +1596,5 @@
 "Negative Edge Triggered"="負邊緣觸發"
 "Play Once"="播放一次"
 "Selection Color"="選擇顏色"
+"Rotate"="旋轉"
+"Mirror"="鏡像"

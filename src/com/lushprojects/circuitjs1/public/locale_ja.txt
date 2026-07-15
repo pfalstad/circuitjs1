@@ -1526,3 +1526,5 @@
 "text"="テキスト"
 "transformer (sat)"="変圧器 (飽和)"
 "viewport"="ビューポート"
+"Rotate"="回転"
+"Mirror"="反転"

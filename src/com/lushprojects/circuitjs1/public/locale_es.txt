@@ -1512,3 +1512,5 @@
 "switch (SPDT, MBB)"="interruptor (SPDT, MBB)"
 "text"="texto"
 "transformer (sat)"="transformador (sat)"
+"Rotate"="Rotar"
+"Mirror"="Invertir"

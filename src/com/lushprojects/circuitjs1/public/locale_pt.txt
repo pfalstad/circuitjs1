@@ -1552,3 +1552,5 @@
 "Type"="Tipo"
 "cross switch"="chave cruzada"
 "motor protection switch"="interruptor de proteção de motor"
+"Rotate"="Rotacionar"
+"Mirror"="Inverter"

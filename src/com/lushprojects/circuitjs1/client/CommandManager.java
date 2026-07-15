@@ -128,17 +128,13 @@ public class CommandManager {
     		app.undoManager.pushUndo();
     		app.centerCircuit();
     	}
-    	if (item=="flipx") {
+    	if (item=="rotate") {
 	    app.undoManager.pushUndo();
-	    flipX();
+	    rotate();
     	}
-    	if (item=="flipy") {
+    	if (item=="mirror") {
 	    app.undoManager.pushUndo();
-	    flipY();
-    	}
-    	if (item=="flipxy") {
-	    app.undoManager.pushUndo();
-	    flipXY();
+	    mirror();
     	}
     	if (item=="convertWires") {
 	    app.undoManager.pushUndo();
@@ -406,7 +402,8 @@ public class CommandManager {
 	return fi;
     }
 
-    void flipX() {
+    // mirror horizontally
+    void mirror() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cx*2;
 	for (CircuitElm ce : app.elmList) {
@@ -416,23 +413,16 @@ public class CommandManager {
 	app.needAnalyze();
     }
 
-    void flipY() {
+    // rotate 90 degrees: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
+    void rotate() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cy*2;
-	for (CircuitElm ce : app.elmList) {
-	    if (ce.isSelected() || fi.count == 0)
-		ce.flipY(center2, fi.count);
-    	}
-	app.needAnalyze();
-    }
-
-    void flipXY() {
-	FlipInfo fi = prepareFlip();
 	int xmy = app.snapGrid(fi.cx-fi.cy);
-	app.console("xmy " + xmy + " grid " + app.gridSize + " " + fi.cx + " " + fi.cy);
 	for (CircuitElm ce : app.elmList) {
-	    if (ce.isSelected() || fi.count == 0)
+	    if (ce.isSelected() || fi.count == 0) {
 		ce.flipXY(xmy, fi.count);
+		ce.flipY(center2, fi.count);
+	    }
     	}
 	app.needAnalyze();
     }

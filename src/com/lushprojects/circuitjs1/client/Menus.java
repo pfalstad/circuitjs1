@@ -45,7 +45,7 @@ public class Menus {
     MenuItem importFromLocalFileItem, importFromTextItem, exportAsUrlItem, exportAsLocalFileItem, exportAsTextItem,
             printItem, recoverItem, saveFileItem;
     MenuItem importFromDropboxItem;
-    MenuItem undoItem, redoItem, cutItem, copyItem, pasteItem, selectAllItem, optionsItem, flipXItem, flipYItem, flipXYItem;
+    MenuItem undoItem, redoItem, cutItem, copyItem, pasteItem, selectAllItem, optionsItem, rotateItem, mirrorItem;
     MenuBar optionsMenuBar;
     CheckboxMenuItem dotsCheckItem;
     CheckboxMenuItem voltsCheckItem;
@@ -71,7 +71,7 @@ public class Menus {
     MenuItem elmAddScopeMenuItem;
     MenuItem elmSplitMenuItem;
     MenuItem elmSliderMenuItem;
-    MenuItem elmFlipXMenuItem, elmFlipYMenuItem, elmFlipXYMenuItem;
+    MenuItem elmRotateMenuItem, elmMirrorMenuItem;
     MenuItem elmSwapMenuItem;
     MenuItem stackAllItem;
     MenuItem unstackAllItem;
@@ -166,9 +166,8 @@ public class Menus {
 	m.addItem(menuItemWithShortcut("zoom-11", "Zoom 100%", "0", new MyCommand("zoom", "zoom100")));
 	m.addItem(menuItemWithShortcut("zoom-in", "Zoom In", "+", new MyCommand("zoom", "zoomin")));
 	m.addItem(menuItemWithShortcut("zoom-out", "Zoom Out", "-", new MyCommand("zoom", "zoomout")));
-	m.addItem(flipXItem = iconMenuItem("flip-x", "Flip X", new MyCommand("edit", "flipx")));
-	m.addItem(flipYItem = iconMenuItem("flip-y", "Flip Y", new MyCommand("edit", "flipy")));
-	m.addItem(flipXYItem = iconMenuItem("flip-x-y", "Flip XY", new MyCommand("edit", "flipxy")));
+	m.addItem(rotateItem = iconMenuItem("cw", "Rotate", new MyCommand("edit", "rotate")));
+	m.addItem(mirrorItem = iconMenuItem("flip-x", "Mirror", new MyCommand("edit", "mirror")));
 	menuBar.addItem(Locale.LS("Edit"),m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
@@ -262,9 +261,8 @@ public class Menus {
 	elmMenuBar.addItem(elmDeleteMenuItem = new MenuItem(Locale.LS("Delete"),new MyCommand("elm","delete")));
 	elmMenuBar.addItem(                    new MenuItem(Locale.LS("Duplicate"),new MyCommand("elm","duplicate")));
 	elmMenuBar.addItem(elmSwapMenuItem = new MenuItem(Locale.LS("Swap Terminals"),new MyCommand("elm","flip")));
-	elmMenuBar.addItem(elmFlipXMenuItem =  new MenuItem(Locale.LS("Flip X"),new MyCommand("elm","flipx")));
-	elmMenuBar.addItem(elmFlipYMenuItem =  new MenuItem(Locale.LS("Flip Y"),new MyCommand("elm","flipy")));
-	elmMenuBar.addItem(elmFlipXYMenuItem =  new MenuItem(Locale.LS("Flip XY"),new MyCommand("elm","flipxy")));
+	elmMenuBar.addItem(elmRotateMenuItem =  new MenuItem(Locale.LS("Rotate"),new MyCommand("elm","rotate")));
+	elmMenuBar.addItem(elmMirrorMenuItem =  new MenuItem(Locale.LS("Mirror"),new MyCommand("elm","mirror")));
 	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire Manually", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
 	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem(Locale.LS("Sliders..."),new MyCommand("elm","sliders")));
     }

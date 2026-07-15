@@ -1488,3 +1488,5 @@
 "time"="czas"
 "varactor"="waraktor"
 "Ćuk Converter"="Konwerter Ćuk"
+"Rotate"="Obróć"
+"Mirror"="Odbij"

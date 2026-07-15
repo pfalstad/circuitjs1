@@ -1487,3 +1487,5 @@
 "unexpected end of input"="fine input inaspettata"
 "unijunction transistor"="transistor unigiunzione"
 "wattmeter"="wattmetro"
+"Rotate"="Ruota"
+"Mirror"="Inverti"

@@ -1490,3 +1490,5 @@
 "unijunction transistor"="unijunction-transistor"
 "viewport"="visningsvindu"
 "wattmeter"="wattmeter"
+"Rotate"="Roter"
+"Mirror"="Snu"

@@ -1502,3 +1502,5 @@
 "triode"="trioda"
 "unijunction transistor"="jednopřechodový tranzistor"
 "varactor"="varaktor"
+"Rotate"="Otočit"
+"Mirror"="Překlopit"

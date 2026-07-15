@@ -1354,3 +1354,5 @@
 "wattmeter"="wattmeter"
 "write"="skriv"
 "Ćuk Converter"="Ćuk konverter"
+"Rotate"="Rotér"
+"Mirror"="Vend"

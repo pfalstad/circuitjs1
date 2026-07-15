@@ -1384,3 +1384,5 @@
 "text"="텍스트"
 "transformer (sat)"="변압기 (포화)"
 "viewport"="뷰포트"
+"Rotate"="회전"
+"Mirror"="뒤집기"

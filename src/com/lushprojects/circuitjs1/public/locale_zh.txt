@@ -1502,3 +1502,5 @@
 "transformer (sat)"="变压器 (饱和)"
 "viewport"="视口"
 "Ćuk Converter"="Ćuk转换器"
+"Rotate"="旋转"
+"Mirror"="镜像"

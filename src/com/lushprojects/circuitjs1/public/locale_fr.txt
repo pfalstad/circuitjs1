@@ -1490,3 +1490,5 @@
 "View in New Scope"="Voir dans un nouvel oscilloscope"
 "View in New Undocked Scope"="Voir dans un nouvel oscilloscope détaché"
 "X-Y Plots"="Tracés X-Y"
+"Rotate"="Pivoter"
+"Mirror"="Inverser"
