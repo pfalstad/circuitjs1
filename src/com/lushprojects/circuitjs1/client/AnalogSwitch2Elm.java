@@ -104,16 +104,16 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	}
     }
 	
+    // we have to just assume current will flow either way (regardless of
+    // switch position), since getConnection() is used to determine the
+    // matrix closures, and that can't depend on "open," which changes
+    // every step -- see comment in AnalogSwitchElm.getConnection()
     boolean getConnection(int n1, int n2) {
-	if (n1 == 3 || n2 == 3)
-	    return false;
-	if (needsPulldown())
-	    return comparePair(n1, n2, 0, open ? 2 : 1);
-	return true;
+	return n1 != 3 && n2 != 3;
     }
 
     boolean hasGroundConnection(int n) {
-	return needsPulldown() && n != 3;
+	return needsPulldown() && (n == 1 || n == 2);
     }
 
     void getInfo(String arr[]) {
