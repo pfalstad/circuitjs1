@@ -28,15 +28,18 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	super(xa, ya, xb, yb, f, st);
     }
 
-    Point swposts[], swpoles[], ctlPoint;
+    Point swposts[], swpoles[], ctlPoint, labelPts[];
     void setPoints() {
 	super.setPoints();
 	calcLeads(32);
 	adjustLeadsToGrid(isFlippedX(), isFlippedY());
 	swposts = newPointArray(2);
 	swpoles = newPointArray(2);
+	labelPts = newPointArray(2);
 	interpPoint2(lead1,  lead2,  swpoles[0], swpoles[1], 1, openhs);
 	interpPoint2(point1, point2, swposts[0], swposts[1], 1, openhs);
+	interpPoint2(point1, point2, labelPts[0], labelPts[1], 1 - 10./dn,
+		     openhs + (openhs > 0 ? 10 : -10));
 	ctlPoint = interpPoint(lead1, lead2, .5, openhs);
     }
     int getPostCount() { return 4; }
@@ -65,6 +68,16 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
 	drawDots(g, point1, lead1, curcount);
 	drawDots(g, swpoles[position], swposts[position], curcount);
 	drawPosts(g);
+
+	// label the two throw terminals when selected. At rest (control
+	// below threshold) swposts[1] is connected, i.e. NC, and swposts[0]
+	// is NO -- unless FLAG_INVERT ("Swap NO/NC") swaps that.
+	if (needsHighlight()) {
+	    boolean inverted = hasFlag(FLAG_INVERT);
+	    g.setColor(selectColor);
+	    drawCenteredText(g, inverted ? "NC" : "NO", labelPts[0].x, labelPts[0].y, true);
+	    drawCenteredText(g, inverted ? "NO" : "NC", labelPts[1].x, labelPts[1].y, true);
+	}
     }
 	
     Point getPost(int n) {
@@ -119,6 +132,26 @@ class AnalogSwitch2Elm extends AnalogSwitchElm {
     void getInfo(String arr[]) {
 	arr[0] = "analog switch (SPDT)";
 	arr[1] = "I = " + getCurrentDText(getCurrent());
+    }
+
+    // for SPDT the switch is never fully open, so "Normally closed" doesn't
+    // apply; the flag instead swaps which throw terminal is NO vs NC
+    public EditInfo getEditInfo(int n) {
+	if (n == 0) {
+	    EditInfo ei = new EditInfo("", 0, -1, -1);
+	    ei.checkbox = new Checkbox("Swap NO/NC", hasFlag(FLAG_INVERT));
+	    return ei;
+	}
+	return super.getEditInfo(n);
+    }
+    public void setEditValue(int n, EditInfo ei) {
+	if (n == 0) {
+	    flags = (ei.checkbox.getState()) ?
+		(flags | FLAG_INVERT) :
+		(flags & ~FLAG_INVERT);
+	    return;
+	}
+	super.setEditValue(n, ei);
     }
     
     double getCurrentIntoNode(int n) {
