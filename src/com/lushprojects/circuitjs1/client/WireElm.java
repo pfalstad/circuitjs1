@@ -123,9 +123,23 @@ import java.util.ArrayList;
 		int value = getBusValue();
 		arr[1] = "value = " + value;
 		arr[2] = "hex = 0x" + Integer.toHexString(value).toUpperCase();
+		String label = LabeledNodeElm.getLabelForNode(getNode(0).index);
+		if (label != null) {
+		    for (int i = 1; i < busWidth; i++) {
+			if (!label.equals(LabeledNodeElm.getLabelForNode(getNode(i).index))) {
+			    label = null;
+			    break;
+			}
+		    }
+		}
+		if (label != null)
+		    arr[3] = label;
 	    } else {
 		arr[1] = "I = " + getCurrentDText(getCurrent());
 		arr[2] = "V = " + getVoltageText(volts[0]);
+		String label = LabeledNodeElm.getLabelForNode(getNode(0).index);
+		if (label != null)
+		    arr[3] = label;
 	    }
 	}
 	int getDumpType() { return 'w'; }
