@@ -1,6 +1,7 @@
 package com.lushprojects.circuitjs1.client;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Vector;
 import java.lang.Math;
 
@@ -996,6 +997,7 @@ public class UIManager {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
     	int code=e.getNativeEvent().getKeyCode();
+	app.console("code " + cc + " " + t + " " + code);
 
     	// Handle a press-and-drag gesture started on a toolbar icon, which may end up
     	// anywhere on the page (not just over the canvas), so it needs to be tracked here.
@@ -1073,7 +1075,7 @@ public class UIManager {
     		    app.commands.menuPerformed("key", "zoom100");
     		    e.cancel();
 		}
-		if (cc=='/' && app.shortcuts['/'] == null) {
+		if (cc=='/' && app.shortcuts.get((int)'/') == null) {
 		    app.commands.menuPerformed("key", "search");
 		    e.cancel();
 		}
@@ -1144,7 +1146,26 @@ public class UIManager {
     		    }
     		}
 
-    		if (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey()) {
+    		// check if any menu items have a user-assigned keyboard shortcut matching this key
+    		// (used for keys like F3, Home, Ctrl-<key>, etc. which don't generate a keypress
+    		// event). User-assigned shortcuts take precedence over the hardcoded Ctrl/Meta
+    		// combos below (e.g. a user-assigned Ctrl-D wins over the hardcoded "duplicate").
+    		boolean customShortcutHandled = false;
+    		int placeholder = KeyNames.keyCodeToPlaceholder(code, e.getNativeEvent().getShiftKey(),
+    			e.getNativeEvent().getCtrlKey(), e.getNativeEvent().getAltKey(), e.getNativeEvent().getMetaKey());
+    		if (placeholder >= 0 && !isRepeatEvent(e.getNativeEvent())) {
+    		    String c = app.shortcuts.get(placeholder);
+    		    if (c != null) {
+    			setMouseMode(MouseManager.MODE_ADD_ELM);
+    			mouseModeStr = c;
+    			updateToolbar();
+    			mouse.tempMouseMode = mouse.mouseMode;
+    			e.cancel();
+    			customShortcutHandled = true;
+    		    }
+    		}
+
+    		if (!customShortcutHandled && (e.getNativeEvent().getCtrlKey() || e.getNativeEvent().getMetaKey())) {
     			if (code==KEY_C) {
     				app.commands.menuPerformed("key", "copy");
     				e.cancel();
@@ -1217,7 +1238,7 @@ public class UIManager {
     			e.cancel();
     			app.repaint();
     		    } else {
-    			String c=app.shortcuts[cc];
+    			String c=app.shortcuts.get(cc);
     			e.cancel();
     			if (c==null)
     				return;
@@ -1342,9 +1363,9 @@ public class UIManager {
     	if ( elm!=null ) {
     		if (elm.needsShortcut() ) {
     			shortcut += (char)elm.getShortcut();
-    			if (app.shortcuts[elm.getShortcut()] != null && !app.shortcuts[elm.getShortcut()].equals(t))
+    			if (app.shortcuts.get(elm.getShortcut()) != null && !app.shortcuts.get(elm.getShortcut()).equals(t))
     			    app.console("already have shortcut for " + (char)elm.getShortcut() + " " + elm);
-    			app.shortcuts[elm.getShortcut()]=t;
+    			app.shortcuts.put(elm.getShortcut(), t);
     		}
     		elm.delete();
     	}
@@ -1450,13 +1471,8 @@ public class UIManager {
         if (stor == null)
             return;
         String str = "1";
-        int i;
-        for (i = 0; i != app.shortcuts.length; i++) {
-            String sh = app.shortcuts[i];
-            if (sh == null)
-        		continue;
-            str += ";" + i + "=" + sh;
-        }
+        for (Map.Entry<Integer,String> entry : app.shortcuts.entrySet())
+            str += ";" + entry.getKey() + "=" + entry.getValue();
         stor.setItem("shortcuts", str);
     }
 
@@ -1470,8 +1486,7 @@ public class UIManager {
         String keys[] = str.split(";");
 
         int i;
-        for (i = 0; i != app.shortcuts.length; i++)
-            app.shortcuts[i] = null;
+        app.shortcuts.clear();
 
         for (i = 0; i != mainMenuItems.size(); i++) {
             CheckboxMenuItem item = mainMenuItems.get(i);
@@ -1486,7 +1501,7 @@ public class UIManager {
         	continue;
             int c = Integer.parseInt(arr[0]);
             String className = arr[1];
-            app.shortcuts[c] = className;
+            app.shortcuts.put(c, className);
 
             int j;
             for (j = 0; j != mainMenuItems.size(); j++) {

@@ -92,7 +92,7 @@ public class CirSim implements NativePreviewHandler {
     static AboutBox aboutBox;
     // Class dumpTypes[], shortcuts[];
     static ElementFactory factory;
-    String shortcuts[];
+    HashMap<Integer,String> shortcuts;
     String recovery;
     Rectangle circuitArea;
     double transform[];
@@ -191,7 +191,7 @@ public class CirSim implements NativePreviewHandler {
 
 	transform = new double[6];
 
-	shortcuts = new String[127];
+	shortcuts = new HashMap<Integer,String>();
 	elmList = new Vector<CircuitElm>();
 
 	ui.init();
