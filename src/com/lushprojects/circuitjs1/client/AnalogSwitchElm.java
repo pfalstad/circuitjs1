@@ -79,12 +79,13 @@ class AnalogSwitchElm extends CircuitElm {
     boolean open;
     int openhs;
 	
-    Point ps, point3, lead3;
+    Point ps, ps1, point3, lead3;
     void setPoints() {
 	super.setPoints();
 	calcLeads(32);
 	adjustLeadsToGrid(isFlippedX(), isFlippedY());
 	ps = new Point();
+	ps1 = new Point();
 	openhs = (isFlippedX() != isFlippedY()) != isFlipped() ? -16 : 16;
 	point3 = interpPoint(lead1, lead2, .5, -openhs);
 	lead3  = interpPoint(lead1, lead2, .5, -openhs/2);
@@ -110,14 +111,16 @@ class AnalogSwitchElm extends CircuitElm {
     }
 
     void draw(Graphics g) {
-	int hs = (open) ? openhs : 0;
+	int hs1 = (open) ? 0 : 2;
+	int hs2 = (open) ? openhs : 2;
 	setBbox(point1, point2, openhs);
 
 	draw2Leads(g);
-	    
+
 	g.setColor(lightGrayColor);
-	interpPoint(lead1, lead2, ps, 1, hs);
-	drawThickLine(g, lead1, ps);
+	interpPoint(lead1, lead2, ps1, 0, hs1);
+	interpPoint(lead1, lead2, ps,  1, hs2);
+	drawThickLine(g, ps1, ps);
 
 	setVoltageColor(g, volts[2]);
 	drawThickLine(g, point3, lead3);
