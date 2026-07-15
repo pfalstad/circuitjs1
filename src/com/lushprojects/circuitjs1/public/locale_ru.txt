@@ -610,7 +610,7 @@
 "Show Bulk"="Показать основную массу"
 "Show Conductance"="Показать проводимость"
 "Show Current"="Показать ток"
-"Show Cursor Cross Hairs"="Включить проекцию курсора"
+"Show Cursor Crosshair"="Включить проекцию курсора"
 "Show Frequency"="Показать частоту"
 "Show Ib"="Показать Ib"
 "Show Ic"="Показать Ic"

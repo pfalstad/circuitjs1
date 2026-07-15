@@ -609,7 +609,7 @@
 "Show Bulk"="Afficher en vrac"
 "Show Conductance"="Afficher Conductance"
 "Show Current"="Afficher Courant"
-"Show Cursor Cross Hairs"="Afficher le Curseur en Croix"
+"Show Cursor Crosshair"="Afficher le Curseur en Croix"
 "Show Frequency"="Afficher Fréquence"
 "Show Ib"="Afficher Ib"
 "Show Ic"="Afficher Ic"

@@ -803,7 +803,7 @@
 "Show Average"="Show Average"
 "Show Bulk"="Show Bulk"
 "Show Current"="Show Current"
-"Show Cursor Cross Hairs"="Show Cursor Cross Hairs"
+"Show Cursor Crosshair"="Show Cursor Crosshair"
 "Show Duty Cycle"="Show Duty Cycle"
 "Show Frequency"="Show Frequency"
 "Show Ib"="Show Ib"

@@ -610,7 +610,7 @@
 "Show Bulk"="显示批量"
 "Show Conductance"="显示电导"
 "Show Current"="显示电流"
-"Show Cursor Cross Hairs"="显示光标十字准线"
+"Show Cursor Crosshair"="显示光标十字准线"
 "Show Frequency"="显示频率"
 "Show Ib"="显示Ib"
 "Show Ic"="显示Ic"

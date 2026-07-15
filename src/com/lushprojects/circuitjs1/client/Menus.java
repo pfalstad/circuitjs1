@@ -215,7 +215,7 @@ public class Menus {
 		    sim.setToolbar();
 		}
 	}));
-	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Cross Hairs"),
+	m.addItem(crossHairCheckItem = new CheckboxMenuItem(Locale.LS("Show Cursor Crosshair"),
 		new Command() { public void execute(){
 		    sim.setOptionInStorage("crossHair", crossHairCheckItem.getState());
 		}

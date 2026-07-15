@@ -840,7 +840,7 @@
 "Show Bulk"="Mostrar todo"
 "Show Conductance"="Mostrar conductancia"
 "Show Current"="Mostrar corriente"
-"Show Cursor Cross Hairs"="Mostrar cursor en cruz"
+"Show Cursor Crosshair"="Mostrar cursor en cruz"
 "Show Duty Cycle"="Mostrar ciclo activo (Duty Cycle)"
 "Show Extended Info"="Mostrar info extra"
 "Show Frequency"="Mostrar frecuencia"

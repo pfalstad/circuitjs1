@@ -607,7 +607,7 @@
 "Show Bulk"="Mostrar Tudo"
 "Show Conductance"="Mostrar Condutância"
 "Show Current"="Mostrar Corrente"
-"Show Cursor Cross Hairs"="Mostrar Cursor em Cruz"
+"Show Cursor Crosshair"="Mostrar Cursor em Cruz"
 "Show Frequency"="Mostrar Frequência"
 "Show Ib"="Mostrar Ib"
 "Show Ic"="Mostrar Ic"

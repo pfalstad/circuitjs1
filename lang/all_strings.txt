@@ -936,7 +936,7 @@
 "Show Bulk"
 "Show Charge"
 "Show Current"
-"Show Cursor Cross Hairs"
+"Show Cursor Crosshair"
 "Show Duty Cycle"
 "Show Extended Info"
 "Show Frequency"

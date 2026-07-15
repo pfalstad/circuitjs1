@@ -881,7 +881,7 @@
 "Show Box"="박스 표시"
 "Show Bulk"="벌크 표시"
 "Show Current"="전류 표시"
-"Show Cursor Cross Hairs"="커서 십자선 표시"
+"Show Cursor Crosshair"="커서 십자선 표시"
 "Show Duty Cycle"="듀티 사이클 표시"
 "Show Extended Info"="확장 정보 표시"
 "Show Frequency"="주파수 표시"

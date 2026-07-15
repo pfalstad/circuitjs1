@@ -527,7 +527,7 @@
 "Show Bulk"="Bulk-Anschluss anzeigen"
 "Show Conductance"="Leitfähigkeit anzeigen"
 "Show Current"="Strom anzeigen"
-"Show Cursor Cross Hairs"="Fadenkreuz anzeigen"
+"Show Cursor Crosshair"="Fadenkreuz anzeigen"
 "Show Frequency"="Frequenz anzeigen"
 "Show Ib"="Basisstrom (IB) anzeigen"
 "Show Ic"="Kollektorstrom (IC) anzeigen"

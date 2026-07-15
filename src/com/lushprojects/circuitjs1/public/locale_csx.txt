@@ -838,7 +838,7 @@
 "Show Bulk"="Zobrazit hromadně"
 "Show Conductance"="Ukažte vodivost"
 "Show Current"="Zobrazit proud I"
-"Show Cursor Cross Hairs"="Ukaž křížový kurzor"
+"Show Cursor Crosshair"="Ukaž křížový kurzor"
 "Show Duty Cycle"="Zobrazit pracovní cyklus"
 "Show Frequency"="Zobrazit frekvenci F"
 "Show Ib"="Zobrazit Ib"

@@ -393,7 +393,7 @@
 "Show Bulk"="Vis bulk"
 "Show Conductance"="Vis ledeevne"
 "Show Current"="Vis Strøm"
-"Show Cursor Cross Hairs"="Vis markørtrådkors"
+"Show Cursor Crosshair"="Vis markørtrådkors"
 "Show Frequency"="Vis Frekvens"
 "Show Ib"="Vis Ib"
 "Show Ic"="Vis Ic"

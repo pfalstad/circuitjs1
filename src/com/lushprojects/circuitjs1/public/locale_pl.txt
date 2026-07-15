@@ -633,7 +633,7 @@
 "Show Bulk"="Wyświetl podłoże"
 "Show Conductance"="Wyświetl przewodność"
 "Show Current"="Wyświetl natężenie"
-"Show Cursor Cross Hairs"="Wyświetl współrzędne kursora"
+"Show Cursor Crosshair"="Wyświetl współrzędne kursora"
 "Show Frequency"="Wyświetl częstotliwość"
 "Show Ib"="Wyświetl Ib"
 "Show Ic"="Wyświetl Ic"

@@ -615,7 +615,7 @@
 "Seven Segment LED Decoder"="七段LED解碼器"
 "Show Conductance"="顯示電導值"
 "Show Current"="顯示電流"
-"Show Cursor Cross Hairs"="顯示游標十字準心"
+"Show Cursor Crosshair"="顯示游標十字準心"
 "Show Frequency"="顯示頻率"
 "Show Ib"="顯示Ib"
 "Show Ic"="顯示Ic"

@@ -616,7 +616,7 @@
 "Seven Segment LED Decoder"="7セグLEDデコーダ"
 "Show Conductance"="コンダクタンスを表示"
 "Show Current"="電流を表示"
-"Show Cursor Cross Hairs"="十字カーソルを表示"
+"Show Cursor Crosshair"="十字カーソルを表示"
 "Show Frequency"="周波数を表示"
 "Show Ib"="Ibを表示"
 "Show Ic"="Icを表示"
