@@ -997,7 +997,6 @@ public class UIManager {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
     	int code=e.getNativeEvent().getKeyCode();
-	app.console("code " + cc + " " + t + " " + code);
 
     	// Handle a press-and-drag gesture started on a toolbar icon, which may end up
     	// anywhere on the page (not just over the canvas), so it needs to be tracked here.
