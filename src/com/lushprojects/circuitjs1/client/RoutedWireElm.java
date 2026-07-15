@@ -156,16 +156,25 @@ import com.google.gwt.xml.client.Element;
 	    if ((sx == x && sy == y) || (sx == x2 && sy == y2))
 		return null;
 
+	    // if the split point landed exactly on a bend vertex, avoid adding
+	    // a duplicate point for it on either half
+	    boolean atA = (sx == a.x && sy == a.y);
+	    boolean atB = (sx == b.x && sy == b.y);
+
 	    // build route points for the two halves
 	    ArrayList<Point> rp1 = new ArrayList<Point>();
 	    for (int i = 0; i <= bestSeg; i++)
 		rp1.add(routePoints.get(i));
-	    rp1.add(new Point(sx, sy));
+	    if (!atA)
+		rp1.add(new Point(sx, sy));
 
 	    ArrayList<Point> rp2 = new ArrayList<Point>();
 	    rp2.add(new Point(sx, sy));
-	    for (int i = bestSeg + 1; i < routePoints.size(); i++)
+	    for (int i = bestSeg + 1; i < routePoints.size(); i++) {
+		if (i == bestSeg + 1 && atB)
+		    continue;
 		rp2.add(routePoints.get(i));
+	    }
 
 	    // update this wire to be the first half
 	    setPoints(rp1);

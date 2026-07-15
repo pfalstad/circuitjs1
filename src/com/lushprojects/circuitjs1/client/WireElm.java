@@ -214,6 +214,12 @@ import java.util.ArrayList;
 		Point b = pts.get(i + 1);
 		if (pointOnSegmentInterior(a.x, a.y, b.x, b.y, px, py)) return true;
 	    }
+	    // an interior bend vertex (not the wire's overall endpoints) is also a valid split point,
+	    // even though it's not "interior" to either of its adjacent segments
+	    for (int i = 1; i < pts.size() - 1; i++) {
+		Point p = pts.get(i);
+		if (p.x == px && p.y == py) return true;
+	    }
 	    return false;
 	}
 
