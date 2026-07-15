@@ -184,6 +184,43 @@ import com.google.gwt.xml.client.Element;
 	}
 
 	@Override
+	void selectRect(Rectangle r, boolean add) {
+	    if (routePoints == null || routePoints.size() < 2) {
+		super.selectRect(r, add);
+		return;
+	    }
+	    boolean hit = false;
+	    for (int i = 0; i < routePoints.size() - 1 && !hit; i++) {
+		Point a = routePoints.get(i);
+		Point b = routePoints.get(i + 1);
+		if (segmentIntersectsRect(a, b, r))
+		    hit = true;
+	    }
+	    if (hit)
+		selected = true;
+	    else if (!add)
+		selected = false;
+	}
+
+	// test whether an axis-aligned segment (a-b) intersects rectangle r
+	static boolean segmentIntersectsRect(Point a, Point b, Rectangle r) {
+	    int rx1 = r.x, ry1 = r.y, rx2 = r.x + r.width, ry2 = r.y + r.height;
+	    if (a.y == b.y) {
+		// horizontal segment
+		if (a.y < ry1 || a.y > ry2)
+		    return false;
+		int lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+		return hi >= rx1 && lo <= rx2;
+	    } else {
+		// vertical segment
+		if (a.x < rx1 || a.x > rx2)
+		    return false;
+		int lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+		return hi >= ry1 && lo <= ry2;
+	    }
+	}
+
+	@Override
 	boolean pointOnWireInterior(int px, int py) {
 	    if (routePoints == null || routePoints.size() < 2)
 		return false;
