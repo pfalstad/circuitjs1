@@ -31,6 +31,7 @@ class TextElm extends GraphicElm {
     String text;
     Vector<String> lines;
     int size;
+    String color;
     TextArea editTextArea;
 //    final int FLAG_CENTER = 1;
     final int FLAG_BAR = 2;
@@ -88,12 +89,15 @@ class TextElm extends GraphicElm {
         super.dumpXml(doc, elem);
         XMLSerializer.dumpAttr(elem, "si", size);
         XMLSerializer.dumpAttr(elem, "te", text);
+        if (color != null)
+            XMLSerializer.dumpAttr(elem, "co", color);
     }
 
     void undumpXml(XMLDeserializer xml) {
         super.undumpXml(xml);
         size = xml.parseIntAttr("si", size);
         text = xml.parseStringAttr("te", text);
+        color = xml.parseStringAttr("co", color);
 	split();
     }
 
@@ -109,7 +113,7 @@ class TextElm extends GraphicElm {
 	//g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
 	//	RenderingHints.VALUE_ANTIALIAS_ON);
 	g.save();
-	g.setColor(needsHighlight() ? selectColor : lightGrayColor);
+	g.setColor(needsHighlight() ? selectColor : (color != null ? new Color(color) : lightGrayColor));
 	Font f = new Font("SansSerif", 0, size);
 	g.setFont(f);
 //	FontMetrics fm = g.getFontMetrics();
@@ -157,6 +161,8 @@ class TextElm extends GraphicElm {
 		new Checkbox("Draw Bar On Top", (flags & FLAG_BAR) != 0);
 	    return ei;
 	}
+	if (n == 3)
+	    return new EditInfo("Color", color != null ? color : lightGrayColor.getHexValue()).setIsColor();
 	return null;
     }
     public void setEditValue(int n, EditInfo ei) {
@@ -171,6 +177,10 @@ class TextElm extends GraphicElm {
 		flags |= FLAG_BAR;
 	    else
 		flags &= ~FLAG_BAR;
+	}
+	if (n == 3) {
+	    String c = ei.textf.getText();
+	    color = c.equals(lightGrayColor.getHexValue()) ? null : c;
 	}
     }
 //    boolean isCenteredText() { return (flags & FLAG_CENTER) != 0; }
