@@ -57,7 +57,7 @@ class FindPathInfo {
 	}
 	if (type == VOLTAGE) {
 	    // when checking for voltage loops, we only care about voltage sources/wires/ground
-	    if (!(ce.isWireEquivalent() || ce instanceof VoltageElm || ce instanceof GroundElm))
+	    if (!(ce.isWireEquivalent() || ce instanceof VoltageElm || ce instanceof LogicInputElm || ce instanceof GroundElm))
 		return false;
 	}
 	// when checking for shorts, just check wires
@@ -65,7 +65,7 @@ class FindPathInfo {
 	    return false;
 	if (type == CAP_V) {
 	    // checking for capacitor/voltage source loops
-	    if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce instanceof VoltageElm))
+	    if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce instanceof VoltageElm || ce instanceof LogicInputElm))
 		return false;
 	}
 	if (n1 == CircuitNode.ground) {
