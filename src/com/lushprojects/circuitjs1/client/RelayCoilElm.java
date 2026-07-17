@@ -59,10 +59,16 @@ class RelayCoilElm extends CircuitElm {
     int switchPosition;
     
     public static final int TYPE_NORMAL = 0;
-    public static final int TYPE_ON_DELAY = 1; 
+    public static final int TYPE_ON_DELAY = 1;
     public static final int TYPE_OFF_DELAY = 2;
     public static final int TYPE_LATCHING = 3;
+    public static final int TYPE_LATCHING_ON = 4;
+    public static final int TYPE_LATCHING_OFF = 5;
     int type;
+
+    static boolean isLatchingType(int t) {
+	return t == TYPE_LATCHING || t == TYPE_LATCHING_ON || t == TYPE_LATCHING_OFF;
+    }
     
     final int nSwitch0 = 0;
     final int nSwitch1 = 1;
@@ -162,9 +168,13 @@ class RelayCoilElm extends CircuitElm {
 	drawThickLine(g, outline[2], outline[3]);
 	drawThickLine(g, outline[3], outline[0]);
 
-	if (type == TYPE_LATCHING) {
+	if (isLatchingType(type)) {
 	    for (i = 0; i != 3; i++)
 		drawThickLine(g, extraPoints[i], extraPoints[i+1]);
+	    if (type == TYPE_LATCHING_ON || type == TYPE_LATCHING_OFF) {
+		g.setColor(needsHighlight() ? selectColor : whiteColor);
+		g.drawString(type == TYPE_LATCHING_ON ? "S" : "R", extraPoints[0].x+3, extraPoints[0].y+9);
+	    }
 	} else if (type == TYPE_ON_DELAY) {
 	    drawThickLine(g, extraPoints[1], extraPoints[2]);
 	    drawThickLine(g, extraPoints[0], extraPoints[2]);
@@ -234,7 +244,7 @@ class RelayCoilElm extends CircuitElm {
 
 	extraPoints = newPointArray(4);
 	
-	if (type == TYPE_LATCHING) {
+	if (isLatchingType(type)) {
 	    interpPoint(coilLeads[0], coilLeads[1], extraPoints[0], .3, 8);
 	    interpPoint(coilLeads[0], coilLeads[1], extraPoints[1], .3, 0);
 	    interpPoint(coilLeads[0], coilLeads[1], extraPoints[2], .7, 0);
@@ -280,16 +290,20 @@ class RelayCoilElm extends CircuitElm {
 	} else {
 	    switchingTimeOff = switchingTimeOn = switchingTime;
 	}
-	setSwitchPositions();
+	// set/reset coils only drive the contact when they actually fire (see
+	// startIteration); pushing their own switchPosition here on every
+	// re-stamp would let the reset coil's stale value fight the set coil's
+	if (type != TYPE_LATCHING_ON && type != TYPE_LATCHING_OFF)
+	    toggleSwitchPositions();
     }
-    
+
     void startIteration() {
 	ind.startIteration(volts[nCoil1]-volts[nCoil3]);
 	double absCurrent = Math.abs(coilCurrent);
 	double a = Math.exp(-sim.timeStep*1e3);
 	avgCurrent = a*avgCurrent + (1-a)*absCurrent;
 	int oldSwitchPosition = switchPosition;
-	
+
 	if (state == 0) {
 	    if (avgCurrent > onCurrent) {
 		lastTransition = sim.t;
@@ -300,10 +314,19 @@ class RelayCoilElm extends CircuitElm {
 		state = 0;
 	    else if (sim.t-lastTransition > switchingTimeOn) {
 		state = 2;
-		if (type == TYPE_LATCHING)
+		if (type == TYPE_LATCHING) {
 		    switchPosition = 1-switchPosition;
-		else
+		} else if (type == TYPE_LATCHING_ON) {
+		    // set coil: always drive the contact to the "on" position
 		    switchPosition = 1;
+		    setSwitchPositions(0);
+		} else if (type == TYPE_LATCHING_OFF) {
+		    // reset coil: always drive the contact to the "off" position
+		    switchPosition = 0;
+		    setSwitchPositions(1);
+		} else {
+		    switchPosition = 1;
+		}
 	    }
 	} else if (state == 2) {
 	    if (avgCurrent < offCurrent) {
@@ -311,23 +334,23 @@ class RelayCoilElm extends CircuitElm {
 		state = 3;
 	    }
 	} else if (state == 3) {
-	    if (avgCurrent > onCurrent) 
+	    if (avgCurrent > onCurrent)
 		state = 2;
 	    else if (sim.t-lastTransition > switchingTimeOff) {
 		state = 0;
-		if (type != TYPE_LATCHING)
+		if (!isLatchingType(type))
 		    switchPosition = 0;
 	    }
 	}
-	
-	if (oldSwitchPosition != switchPosition)
-	    setSwitchPositions();
+
+	if (type != TYPE_LATCHING_ON && type != TYPE_LATCHING_OFF && oldSwitchPosition != switchPosition)
+	    toggleSwitchPositions();
     }
     
     Vector<CircuitElm> elmList;
     void setParentList(Vector<CircuitElm> list) { elmList = list; }
 
-    void setSwitchPositions() {
+    void toggleSwitchPositions() {
 	int i;
 	for (i = 0; i != elmList.size(); i++) {
 	    Object o = elmList.elementAt(i);
@@ -335,6 +358,21 @@ class RelayCoilElm extends CircuitElm {
 		RelayContactElm s2 = (RelayContactElm) o;
 		if (s2.label.equals(label))
 		    s2.setPosition(1-switchPosition, type);
+	    }
+	}
+    }
+
+    // for set/reset coils: unconditionally drive matching contacts to an
+    // explicit position, since a set/reset coil may fire without its own
+    // switchPosition value actually changing
+    void setSwitchPositions(int position) {
+	int i;
+	for (i = 0; i != elmList.size(); i++) {
+	    Object o = elmList.elementAt(i);
+	    if (o instanceof RelayContactElm) {
+		RelayContactElm s2 = (RelayContactElm) o;
+		if (s2.label.equals(label))
+		    s2.setPosition(position, type);
 	    }
 	}
     }
@@ -368,6 +406,8 @@ class RelayCoilElm extends CircuitElm {
             ei.choice.add("On Delay");
             ei.choice.add("Off Delay");
             ei.choice.add("Latching");
+            ei.choice.add("Latching (Set Coil)");
+            ei.choice.add("Latching (Reset Coil)");
             ei.choice.select(type);
             return ei;
         }
