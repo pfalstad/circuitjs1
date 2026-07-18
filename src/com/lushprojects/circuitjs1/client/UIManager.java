@@ -649,6 +649,13 @@ public class UIManager {
 
             ce.draw(g);
         }
+
+        // draw stopElm on top of everything else so it's always visible
+        if (app.stopElm != null) {
+            if (menus.powerCheckItem.getState())
+                g.setColor(Color.gray);
+            app.stopElm.draw(g);
+        }
         perfmon.stopContext();
 
         if (mouse.mouseMode != MouseManager.MODE_DRAG_ROW && mouse.mouseMode != MouseManager.MODE_DRAG_COLUMN) {
