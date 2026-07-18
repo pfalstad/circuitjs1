@@ -1173,6 +1173,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
 	try {
 	    dragElm = sim.constructElement(ui.mouseModeStr, x0, y0);
+	    setMouseElm(null);
 	} catch (Exception ex) {
 	    sim.debugger();
 	}
