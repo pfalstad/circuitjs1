@@ -92,6 +92,10 @@ public class CirSim implements NativePreviewHandler {
     static AboutBox aboutBox;
     // Class dumpTypes[], shortcuts[];
     static ElementFactory factory;
+    // pseudo class name stored in shortcuts map for shortcuts that invoke a command
+    // (via CommandManager.menuPerformed) instead of placing an element on the circuit.
+    // format is "cmd:<menu>:<item>"
+    static final String RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
     HashMap<Integer,String> shortcuts;
     String recovery;
     Rectangle circuitArea;

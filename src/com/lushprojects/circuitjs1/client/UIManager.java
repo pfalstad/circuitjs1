@@ -1162,10 +1162,15 @@ public class UIManager {
     		if (placeholder >= 0 && !isRepeatEvent(e.getNativeEvent())) {
     		    String c = app.shortcuts.get(placeholder);
     		    if (c != null) {
-    			setMouseMode(MouseManager.MODE_ADD_ELM);
-    			mouseModeStr = c;
-    			updateToolbar();
-    			mouse.tempMouseMode = mouse.mouseMode;
+    			if (c.startsWith("cmd:")) {
+    			    String parts[] = c.split(":");
+    			    app.commands.menuPerformed(parts[1], parts[2]);
+    			} else {
+    			    setMouseMode(MouseManager.MODE_ADD_ELM);
+    			    mouseModeStr = c;
+    			    updateToolbar();
+    			    mouse.tempMouseMode = mouse.mouseMode;
+    			}
     			e.cancel();
     			customShortcutHandled = true;
     		    }
@@ -1248,6 +1253,11 @@ public class UIManager {
     			e.cancel();
     			if (c==null)
     				return;
+    			if (c.startsWith("cmd:")) {
+    			    String parts[] = c.split(":");
+    			    app.commands.menuPerformed(parts[1], parts[2]);
+    			    return;
+    			}
     			setMouseMode(MouseManager.MODE_ADD_ELM);
     			mouseModeStr=c;
 			updateToolbar();

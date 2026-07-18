@@ -35,6 +35,7 @@ import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyCodes;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Vector;
 
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -47,6 +48,8 @@ public class ShortcutsDialog extends Dialog {
 	TextArea textArea;
 	Vector<TextBox> textBoxes;
 	Vector<String> shortcuts;
+	// target each row applies to: a mainMenuItems index, or -1 for the run/stop row
+	Vector<Integer> rowMenuItemIndex;
 	Button okButton;
 	UIManager ui;
 
@@ -64,20 +67,41 @@ public class ShortcutsDialog extends Dialog {
 		setText(Locale.LS("Edit Shortcuts"));
 		textBoxes = new Vector<TextBox>();
 		shortcuts = new Vector<String>();
+		rowMenuItemIndex = new Vector<Integer>();
 
-		FlexTable table = new FlexTable();
-		sp.add(table);
+		// build the list of things we can assign a shortcut to: every menu item that
+		// accepts a shortcut, plus the "start/stop simulation" action
+		Vector<String> rowNames = new Vector<String>();
+		Vector<String> rowInitialShortcuts = new Vector<String>();
 		int i;
-		for (i = 0; i != asim.ui.mainMenuItems.size(); i++) {
+		for (i = 0; i != ui.mainMenuItems.size(); i++) {
 		    CheckboxMenuItem item = ui.mainMenuItems.get(i);
 		    if (item.getShortcut().length() > 1)
 			break;
-		    table.setText(i, 0, item.getName());
+		    rowNames.add(item.getName());
+		    rowInitialShortcuts.add(item.getShortcut());
+		    rowMenuItemIndex.add(i);
+		}
+		String runStopShortcut = "";
+		for (Map.Entry<Integer,String> entry : sim.shortcuts.entrySet()) {
+		    if (entry.getValue().equals(CirSim.RUNSTOP_SHORTCUT_ACTION)) {
+			runStopShortcut = String.valueOf((char)(int) entry.getKey());
+			break;
+		    }
+		}
+		rowNames.add(Locale.LS("Start/Stop Simulation"));
+		rowInitialShortcuts.add(runStopShortcut);
+		rowMenuItemIndex.add(-1);
+
+		FlexTable table = new FlexTable();
+		sp.add(table);
+		for (i = 0; i != rowNames.size(); i++) {
+		    table.setText(i, 0, rowNames.get(i));
 		    final int row = i;
 		    final TextBox text = new TextBox();
 		    text.setReadOnly(true);
-		    text.setText(KeyNames.displayText(item.getShortcut()));
-		    shortcuts.add(item.getShortcut());
+		    text.setText(KeyNames.displayText(rowInitialShortcuts.get(i)));
+		    shortcuts.add(rowInitialShortcuts.get(i));
 		    text.addKeyDownHandler(new KeyDownHandler() {
 			public void onKeyDown(KeyDownEvent ev) {
 			    int keyCode = ev.getNativeKeyCode();
@@ -147,10 +171,14 @@ public class ShortcutsDialog extends Dialog {
 	    // load new ones
 	    for (i = 0; i != shortcuts.size(); i++) {
 		String str = shortcuts.get(i);
-		CheckboxMenuItem item = ui.mainMenuItems.get(i);
-		item.setShortcut(str);
-		if (str.length() > 0)
-		    sim.shortcuts.put((int) str.charAt(0), ui.mainMenuItemNames.get(i));
+		int menuItemIndex = rowMenuItemIndex.get(i);
+		if (menuItemIndex >= 0) {
+		    CheckboxMenuItem item = ui.mainMenuItems.get(menuItemIndex);
+		    item.setShortcut(str);
+		    if (str.length() > 0)
+			sim.shortcuts.put((int) str.charAt(0), ui.mainMenuItemNames.get(menuItemIndex));
+		} else if (str.length() > 0)
+		    sim.shortcuts.put((int) str.charAt(0), CirSim.RUNSTOP_SHORTCUT_ACTION);
 	    }
 	    // save to local storage
 	    sim.saveShortcuts();

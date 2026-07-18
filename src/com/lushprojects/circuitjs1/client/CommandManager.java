@@ -97,6 +97,8 @@ public class CommandManager {
     		app.undoManager.doUndo();
     	if (item=="redo")
     		app.undoManager.doRedo();
+    	if (item=="runstop")
+    		app.setSimRunning(!app.simIsRunning());
 
     	// if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
     	if (menu == "key" && app.mouse.getMouseElm() != null) {
