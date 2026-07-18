@@ -1228,7 +1228,9 @@ public class UIManager {
     	}
     	if ((t&Event.ONKEYPRESS)!=0) {
     		// check if any switches have a keyboard shortcut matching this key
-    		if (cc>32 && cc<127) {
+    		// (cc==32 for spacebar is included so it can be assigned as a shortcut too;
+    		// it falls back to the hardcoded temporary-select-mode behavior below if unassigned)
+    		if (cc>=32 && cc<127) {
     		    String keyStr = String.valueOf((char)cc).toLowerCase();
     		    boolean toggled = false;
 		    if (!isRepeatEvent(e.getNativeEvent())) {
@@ -1250,26 +1252,25 @@ public class UIManager {
     			app.repaint();
     		    } else {
     			String c=app.shortcuts.get(cc);
-    			e.cancel();
-    			if (c==null)
+    			if (c != null) {
+    			    e.cancel();
+    			    if (c.startsWith("cmd:")) {
+    				String parts[] = c.split(":");
+    				app.commands.menuPerformed(parts[1], parts[2]);
     				return;
-    			if (c.startsWith("cmd:")) {
-    			    String parts[] = c.split(":");
-    			    app.commands.menuPerformed(parts[1], parts[2]);
-    			    return;
+    			    }
+    			    setMouseMode(MouseManager.MODE_ADD_ELM);
+    			    mouseModeStr=c;
+			    updateToolbar();
+    			    mouse.tempMouseMode = mouse.mouseMode;
+    			} else if (cc==32) {
+    			    setMouseMode(MouseManager.MODE_SELECT);
+    			    mouseModeStr = "Select";
+    			    updateToolbar();
+    			    mouse.tempMouseMode = mouse.mouseMode;
+    			    e.cancel();
     			}
-    			setMouseMode(MouseManager.MODE_ADD_ELM);
-    			mouseModeStr=c;
-			updateToolbar();
-    			mouse.tempMouseMode = mouse.mouseMode;
     		    }
-    		}
-    		if (cc==32) {
-		    setMouseMode(MouseManager.MODE_SELECT);
-		    mouseModeStr = "Select";
-		    updateToolbar();
-		    mouse.tempMouseMode = mouse.mouseMode;
-		    e.cancel();
     		}
     	}
     }

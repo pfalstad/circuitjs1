@@ -120,7 +120,7 @@ public class ShortcutsDialog extends Dialog {
 			public void onKeyPress(KeyPressEvent ev) {
 			    ev.preventDefault();
 			    char cc = ev.getCharCode();
-			    if (cc > 32 && cc < 127)
+			    if (cc >= 32 && cc < 127)
 				setRowShortcut(row, text, String.valueOf(cc));
 			}
 		    });

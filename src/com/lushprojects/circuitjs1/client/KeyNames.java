@@ -152,6 +152,8 @@ public class KeyNames {
     public static String displayText(String shortcut) {
 	if (shortcut == null || shortcut.length() != 1)
 	    return shortcut;
+	if (shortcut.charAt(0) == ' ')
+	    return "Space";
 	String name = displayName(shortcut.charAt(0));
 	return name != null ? name : shortcut;
     }
