@@ -91,7 +91,11 @@ class Scope {
     static double dragStartTime = -1;
     static int cursorUnits;
     static Scope cursorScope;
-    
+    static Scope draggingPlotYScope;
+    boolean draggingPlotY;
+    int dragPlotYMouseStart;
+    int dragPlotYInitialPosition;
+
     Scope(CirSim app_, SimulationManager sim_) {
     	sim = sim_;
     	app = app_;
@@ -563,7 +567,10 @@ void showPlotValue(int val, boolean b) {
 	// if mouse is here, then selection is already set by checkForSelection()
 	if (cursorScope == this)
 	    return;
-	
+	// don't hijack the plot being dragged
+	if (draggingPlotY)
+	    return;
+
 	if (cursorScope == null || visiblePlots.size() == 0) {
 	    selectedPlot = -1;
 	    return;
@@ -930,6 +937,8 @@ void showPlotValue(int val, boolean b) {
     void checkForSelection(int mouseX, int mouseY) {
 	if (app.dialogIsShowing())
 	    return;
+	if (draggingPlotY)
+	    return;
 	if (!rect.contains(mouseX, mouseY)) {
 	    selectedPlot = -1;
 	    return;
@@ -1195,6 +1204,35 @@ void showPlotValue(int val, boolean b) {
     
     void setPlotPosition(int plot, int v) {
 	visiblePlots.get(plot).manVPosition = v;
+    }
+
+    // start dragging the currently selected plot up/down (manual scale mode only)
+    boolean startDragPlotY(int mouseX, int mouseY) {
+	if (!rect.contains(mouseX, mouseY))
+	    return false;
+	if (!isManualScale() || selectedPlot < 0 || selectedPlot >= visiblePlots.size())
+	    return false;
+	draggingPlotY = true;
+	dragPlotYMouseStart = mouseY;
+	dragPlotYInitialPosition = visiblePlots.get(selectedPlot).manVPosition;
+	draggingPlotYScope = this;
+	return true;
+    }
+
+    void dragPlotY(int mouseY) {
+	if (selectedPlot < 0 || selectedPlot >= visiblePlots.size())
+	    return;
+	int maxy = Math.max(1, (rect.height-1)/2);
+	int dy = mouseY - dragPlotYMouseStart;
+	int newPos = dragPlotYInitialPosition - (int)Math.round(dy * (double)V_POSITION_STEPS / (2.0*maxy));
+	newPos = Math.max(-V_POSITION_STEPS, Math.min(V_POSITION_STEPS, newPos));
+	visiblePlots.get(selectedPlot).manVPosition = newPos;
+    }
+
+    static void endDragPlotY() {
+	if (draggingPlotYScope != null)
+	    draggingPlotYScope.draggingPlotY = false;
+	draggingPlotYScope = null;
     }
 	
     // get scope element, returning null if there's more than one

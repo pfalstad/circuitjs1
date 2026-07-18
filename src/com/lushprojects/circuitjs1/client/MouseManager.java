@@ -326,6 +326,11 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     }
 
     public void mouseDragged(MouseMoveEvent e) {
+    	if (Scope.draggingPlotYScope != null) {
+    	    Scope.draggingPlotYScope.dragPlotY(e.getY());
+    	    sim.repaint();
+    	    return;
+    	}
     	// ignore right mouse button with no modifiers (needed on PC)
     	if (e.getNativeButton()==NativeEvent.BUTTON_RIGHT) {
     		if (!(e.isMetaKeyDown() ||
@@ -1111,6 +1116,13 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 		    sim.scopeElmArr[i].elmScope.mousePressed(e.getX(), e.getY());
 	}
 
+	// alt-drag or middle-mouse-drag a scope's selected plot up/down while in manual scale mode
+	if (!sim.dialogIsShowing() && Scope.cursorScope != null &&
+		(e.getNativeButton() == NativeEvent.BUTTON_MIDDLE ||
+		 (e.getNativeButton() == NativeEvent.BUTTON_LEFT && e.isAltKeyDown())) &&
+		Scope.cursorScope.startDragPlotY(e.getX(), e.getY()))
+	    return;
+
 	int gx = inverseTransformX(e.getX());
 	int gy = inverseTransformY(e.getY());
 	if (doSwitch(gx, gy)) {
@@ -1211,6 +1223,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	e.preventDefault();
     	mouseDragging=false;
     	Scope.dragStartTime = -1;
+    	Scope.endDragPlotY();
 
     	// click to clear selection
     	if (tempMouseMode == MODE_SELECT && selectedArea == null)
