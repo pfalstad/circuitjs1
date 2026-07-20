@@ -1228,8 +1228,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	Scope.dragStartTime = -1;
     	Scope.endDragPlotY();
 
-    	// click to clear selection
-    	if (tempMouseMode == MODE_SELECT && selectedArea == null)
+    	// click to clear selection (but not on a right-click, e.g. from a context-menu mouseup)
+    	if (tempMouseMode == MODE_SELECT && selectedArea == null && e.getNativeButton() == NativeEvent.BUTTON_LEFT)
     	    clearSelection();
 
     	// cmd-click = split wire
