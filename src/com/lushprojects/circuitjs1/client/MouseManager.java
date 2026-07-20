@@ -351,8 +351,12 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    return;
     	}
     	boolean changed = false;
-    	if (dragElm != null)
+    	if (dragElm != null) {
     	    dragElm.drag(gx, gy);
+    	    // now that we're actually dragging out a new element, don't leave whatever
+    	    // was hovered before still looking highlighted underneath it
+    	    setMouseElm(null);
+    	}
     	boolean success = true;
     	switch (tempMouseMode) {
     	case MODE_DRAG_ALL:
@@ -1185,7 +1189,6 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
 	try {
 	    dragElm = sim.constructElement(ui.mouseModeStr, x0, y0);
-	    setMouseElm(null);
 	} catch (Exception ex) {
 	    sim.debugger();
 	}
