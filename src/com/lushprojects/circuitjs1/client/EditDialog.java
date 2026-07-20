@@ -29,6 +29,7 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
+import com.google.gwt.user.client.ui.TextBoxBase;
 import com.google.gwt.i18n.client.NumberFormat;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.dom.client.Style.Unit;
@@ -70,7 +71,7 @@ class EditDialog extends Dialog {
 	VerticalPanel mainPanel;
 	HorizontalPanel bottomButtonPanel;
 	Label errorLabel;
-	TextBox firstTextBox;
+	TextBoxBase firstTextBox;
 	static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
 
 	EditDialog(Editable ce, CirSim f) {
@@ -122,7 +123,7 @@ class EditDialog extends Dialog {
 		mainPanel.insert(errorLabel, mainPanel.getWidgetIndex(bottomButtonPanel));
 		this.center();
 		if (firstTextBox != null) {
-		    final TextBox ftb = firstTextBox;
+		    final TextBoxBase ftb = firstTextBox;
 		    Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
 			public void execute() {
 			    ftb.setFocus(true);
@@ -196,6 +197,8 @@ class EditDialog extends Dialog {
 			    }
 			} else if (ei.textArea != null) {
 			    vp.add(ei.textArea);
+			    if (firstTextBox == null)
+				firstTextBox = ei.textArea;
 			    closeOnEnter = false;
 			} else if (ei.widget != null) {
 			    vp.add(ei.widget);
