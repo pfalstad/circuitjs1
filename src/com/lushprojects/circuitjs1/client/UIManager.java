@@ -599,6 +599,7 @@ public class UIManager {
                 CirSim.debugger();
                 CirSim.console("exception in runCircuit " + e);
                 e.printStackTrace();
+                app.consoleExceptionOccurred = true;
             }
             perfmon.stopContext();
         }
@@ -643,11 +644,18 @@ public class UIManager {
         cvcontext.setTransform(app.transform[0] * scale, 0, 0, app.transform[3] * scale, app.transform[4] * scale, app.transform[5] * scale);
 
         perfmon.startContext("elm.draw()");
-        for (CircuitElm ce : elmList) {
-            if (menus.powerCheckItem.getState())
-                g.setColor(Color.gray);
+        try {
+            for (CircuitElm ce : elmList) {
+                if (menus.powerCheckItem.getState())
+                    g.setColor(Color.gray);
 
-            ce.draw(g);
+                ce.draw(g);
+            }
+        } catch (Exception e) {
+            CirSim.debugger();
+            CirSim.console("exception in elm.draw() " + e);
+            e.printStackTrace();
+            app.consoleExceptionOccurred = true;
         }
 
         // draw stopElm on top of everything else so it's always visible
@@ -771,6 +779,18 @@ public class UIManager {
 	try {
 	    app.jsInterface.callUpdateHook();
 	} catch (Exception e) {}
+    }
+
+    // called when updateCircuit() itself threw an exception, so drawBottomArea()
+    // was never reached to show the warning there.
+    void drawExceptionIndicator() {
+	double scale = devicePixelRatio();
+	cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
+	Graphics g = new Graphics(cvcontext);
+	int x = max(canvasWidth - CirSim.infoWidth, 0) + 5;
+	g.setFont(CircuitElm.unitsFont);
+	g.setColor(Color.yellow);
+	g.drawString("exception, see console!", x, canvasHeight-10);
     }
 
     void drawBottomArea(Graphics g) {
@@ -1328,6 +1348,7 @@ public class UIManager {
     }
 
     public void resetAction(){
+    	app.consoleExceptionOccurred = false;
     	app.analyzeFlag = true;
     	if (app.autoDCOnReset)
     	    app.dcAnalysisFlag = true;

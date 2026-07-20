@@ -64,6 +64,7 @@ public class CirSim implements NativePreviewHandler {
     int pause = 10;
     int hintType = -1, hintItem1, hintItem2;
     String stopMessage;
+    boolean consoleExceptionOccurred;
 
     double minFrameRate = 20;
     boolean developerMode;
@@ -106,7 +107,16 @@ public class CirSim implements NativePreviewHandler {
     static HashMap<String, String> xmlDumpTypeMap;
     final Timer timer = new Timer() {
         public void run() {
-            updateCircuit();
+            try {
+                updateCircuit();
+            } catch (Exception e) {
+                debugger();
+                console("exception in updateCircuit " + e);
+                e.printStackTrace();
+                consoleExceptionOccurred = true;
+            }
+	    if (consoleExceptionOccurred)
+                ui.drawExceptionIndicator();
         }
     };
     final int FASTTIMER = 16;

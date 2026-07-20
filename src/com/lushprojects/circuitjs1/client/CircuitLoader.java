@@ -207,6 +207,7 @@ public class CircuitLoader {
                 } catch (Exception ee) {
                     ee.printStackTrace();
                     app.console("exception while undumping " + ee);
+                    app.consoleExceptionOccurred = true;
                     break;
                 }
                 break;
