@@ -391,14 +391,23 @@ abstract class ChipElm extends CircuitElm {
 	}
 
 	void undumpXml(XMLDeserializer xml) {
-	    flags = 0;  // might get set by setSize() in constructor
+	    // "ix" is present on state-restore calls (from CompositeElm.dumpXmlState/undumpXml).
+	    // In that case this element already exists with correct flags/pins (set up when the
+	    // containing model was loaded), and the state element has no "f" attribute, so
+	    // zeroing flags here would wipe FLAG_FLIP_X/Y/XY and any subclass flags (e.g.
+	    // DFlipFlopElm's reset/set) instead of restoring them.
+	    boolean stateRestore = xml.parseStringAttr("ix", null) != null;
+	    if (!stateRestore)
+		flags = 0;  // might get set by setSize() in constructor
 	    super.undumpXml(xml);
 	    bits = xml.parseIntAttr("bi", bits);
 	    highVoltage = xml.parseDoubleAttr("hv", highVoltage);
 	    bitOrder = xml.parseIntAttr("bo", bitOrder);
 
-	    setupPins();
-	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+	    if (!stateRestore) {
+		setupPins();
+		setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+	    }
 
 	    int i;
 	    for (i = 0; i != getPostCount(); i++) {
@@ -461,6 +470,10 @@ abstract class ChipElm extends CircuitElm {
 	}
 	
 	double getCurrentIntoNode(int n) {
+	    // n may be out of range if this chip's pin count changed (e.g. via edit dialog)
+	    // after a containing CompositeElm/subcircuit recorded its node mapping.
+	    if (n < 0 || n >= pins.length)
+		return 0;
 	    return pins[n].current;
 	}
 	
