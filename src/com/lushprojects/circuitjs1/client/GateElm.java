@@ -91,11 +91,18 @@ abstract class GateElm extends CircuitElm {
 	}
 
 	void undumpXml(XMLDeserializer xml) {
-	    flags = 0; // SMALL might have gotten set
+	    // "ix" is present on state-restore calls (from CompositeElm.dumpXmlState/undumpXml).
+	    // In that case this element already exists with correct flags (set up when the
+	    // containing model was loaded), and the state element has no "f" attribute, so
+	    // zeroing flags here would wipe FLAG_SCHMITT/FLAG_INVERT_INPUTS/FLAG_SMALL instead
+	    // of restoring them.
+	    boolean stateRestore = xml.parseStringAttr("ix", null) != null;
+	    if (!stateRestore)
+		flags = 0; // SMALL might have gotten set
 	    super.undumpXml(xml);
 	    highVoltage = xml.parseDoubleAttr("hi", highVoltage);
 	    inputCount = xml.parseIntAttr("in", inputCount);
-	    propagationDelay = xml.parseDoubleAttr("pd", 0);
+	    propagationDelay = xml.parseDoubleAttr("pd", propagationDelay);
 	    double lastOutputVoltage = xml.parseDoubleAttr("o", 0);
 	    lastOutput = lastOutputVoltage > highVoltage*.5;
 	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
@@ -240,6 +247,10 @@ abstract class GateElm extends CircuitElm {
 	    boolean high = !hasFlag(FLAG_INVERT_INPUTS);
 	    if (!hasSchmittInputs())
 		return (volts[x] > highVoltage*.5) ? high : !high;
+	    // inputStates is normally allocated in setPoints(), but elements inside a
+	    // CompositeElm/subcircuit never get setPoints() called, so allocate lazily here too.
+	    if (inputStates == null || inputStates.length != inputCount)
+		inputStates = new boolean[inputCount];
 	    boolean res = volts[x] > highVoltage*(inputStates[x] ? .35 : .55);
 	    inputStates[x] = res;
 	    return res ? high : !high;

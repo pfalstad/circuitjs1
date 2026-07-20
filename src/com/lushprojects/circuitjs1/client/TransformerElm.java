@@ -109,7 +109,7 @@ class TransformerElm extends CircuitElm {
 	    ratio = xml.parseDoubleAttr("ra", ratio);
 	    couplingCoef = xml.parseDoubleAttr("co", couplingCoef);
 	    width = xml.parseIntAttr("wi", width);
-	    saturationCurrent = xml.parseDoubleAttr("isat", 0);
+	    saturationCurrent = xml.parseDoubleAttr("isat", saturationCurrent);
 	    current[0] = xml.parseDoubleAttr("c0", 0);
 	    current[1] = xml.parseDoubleAttr("c1", 0);
 	    polarity = (hasFlag(FLAG_REVERSE)) ? -1 : 1;

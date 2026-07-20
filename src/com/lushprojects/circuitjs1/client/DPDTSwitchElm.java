@@ -65,17 +65,25 @@ class DPDTSwitchElm extends SwitchElm {
         VoltageSource voltageSources[];
         double currents[], curcounts[];
 
+	// voltageSources/currents/curcounts are normally (re)allocated in setPoints(), but elements
+	// inside a CompositeElm/subcircuit never get setPoints() called, so allocate lazily here too.
+	void ensureArrays() {
+	    if (voltageSources == null || voltageSources.length != poleCount) {
+		voltageSources = new VoltageSource[poleCount];
+		currents = new double[poleCount];
+		curcounts = new double[poleCount];
+	    }
+	}
+
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);
-	    voltageSources = new VoltageSource[poleCount];
+	    ensureArrays();
 	    throwPosts = newPointArray(2*poleCount);
 	    throwLeads = newPointArray(4*poleCount);
 	    poleLeads = newPointArray(poleCount);
 	    polePosts = newPointArray(poleCount);
 	    linePoints = newPointArray(2);
-	    currents = new double[poleCount];
-	    curcounts = new double[poleCount];
 	    int i;
 	    for (i = 0; i != poleCount; i++) {
 		int offset = -i*openhs*3;
@@ -170,11 +178,13 @@ class DPDTSwitchElm extends SwitchElm {
 	}
 
         void setVoltageSource(int j, VoltageSource vs) {
+            ensureArrays();
             voltageSources[j] = vs;
             vs.setNodes(nodes[j*3], nodes[position+1+j*3]);
         }
 
 	void stamp() {
+	    ensureArrays();
 	    int i;
 	    for (i = 0; i != poleCount; i++) {
 		if (resistance > 0)

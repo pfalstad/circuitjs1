@@ -44,18 +44,26 @@ package com.lushprojects.circuitjs1.client;
         VoltageSource voltageSources[];
         double currents[], curcounts[];
 
+	// voltageSources/currents/curcounts are normally (re)allocated in setPoints(), but elements
+	// inside a CompositeElm/subcircuit never get setPoints() called, so allocate lazily here too.
+	void ensureArrays() {
+	    if (voltageSources == null) {
+		voltageSources = new VoltageSource[poleCount];
+		currents = new double[poleCount];
+		curcounts = new double[poleCount];
+	    }
+	}
+
 	void setPoints() {
 	    super.setPoints();
 	    calcLeads(32);
-	    voltageSources = new VoltageSource[poleCount];
+	    ensureArrays();
 	    throwPosts = newPointArray(2*poleCount);
 	    throwLeads = newPointArray(4*poleCount);
 	    poleLeads = newPointArray(poleCount);
 	    polePosts = newPointArray(poleCount);
 	    linePoints = newPointArray(2);
 	    crossPoints = newPointArray(6);
-	    currents = new double[poleCount];
-	    curcounts = new double[poleCount];
 	    int i;
 	    for (i = 0; i != poleCount; i++) {
 		int offset = -i*openhs*3;
@@ -184,11 +192,13 @@ package com.lushprojects.circuitjs1.client;
 	}
 	
         void setVoltageSource(int j, VoltageSource vs) {
+            ensureArrays();
             voltageSources[j] = vs;
             vs.setNodes(nodes[j*2], nodes[j*2+1]);
         }
 
 	void stamp() {
+	    ensureArrays();
 	    int i;
 	    if (position == 0) {
 		for (i = 0; i != poleCount; i++) {

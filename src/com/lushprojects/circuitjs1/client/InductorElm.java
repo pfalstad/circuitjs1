@@ -68,7 +68,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
             inductance = xml.parseDoubleAttr("l", inductance);
             initialCurrent = xml.parseDoubleAttr("ic", initialCurrent);
             current = xml.parseDoubleAttr("i", current);
-            saturationCurrent = xml.parseDoubleAttr("isat", 0);
+            saturationCurrent = xml.parseDoubleAttr("isat", saturationCurrent);
 	    ind.setup(inductance, current, flags, saturationCurrent);
         }
 
