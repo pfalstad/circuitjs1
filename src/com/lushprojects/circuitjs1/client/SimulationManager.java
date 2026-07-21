@@ -486,6 +486,7 @@ public class SimulationManager {
 	boolean gotGround = false;
 	boolean gotRail = false;
 	CircuitElm volt = null;
+	CircuitElm battery = null;
 
 	// allocate ground node
 	CircuitNode cn = new CircuitNode();
@@ -509,12 +510,15 @@ public class SimulationManager {
 	    	gotRail = true;
 	    if (volt == null && ce instanceof VoltageElm)
 	    	volt = ce;
+	    if (battery == null && ce instanceof BatteryElm)
+	    	battery = ce;
 	}
 
-	// if no ground, and no rails, then the voltage elm's first terminal
-	// is ground (but not for subcircuits)
-	if (!subcircuit && !gotGround && volt != null && !gotRail) {
-	    Point pt = volt.getPost(0);
+	// if no ground, and no rails, then the voltage elm's first terminal is ground;
+	// if there's no plain voltage elm, fall back to a battery's negative terminal
+	// (but not for subcircuits)
+	if (!subcircuit && !gotGround && (volt != null || battery != null) && !gotRail) {
+	    Point pt = (volt != null ? volt : battery).getPost(0);
 
 	    // update node map
 	    NodeMapEntry cln = nodeMap.get(pt);
