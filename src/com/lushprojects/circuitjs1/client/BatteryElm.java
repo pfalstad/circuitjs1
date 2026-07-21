@@ -51,6 +51,16 @@ class BatteryElm extends CircuitElm {
 	"0=1.75\n10=1.90\n20=1.95\n50=2.05\n80=2.10\n90=2.12\n100=2.15\n",                  // lead-acid
     };
 
+    // default capacity (Ah), R0 (ohms), R1 (ohms), C1 (F) for each preset battery type,
+    // applied when the user switches to that type in the edit dialog
+    static final double[][] batteryTypeDefaults = {
+	{ 2.5,  .15,   .25,  1500 },  // alkaline (AA)
+	{ 3.0,  .025,  .020, 2000 },  // lithium-ion (18650)
+	{ 2.0,  .030,  .040, 1800 },  // NiMH (AA)
+	{ 1.0,  .020,  .025, 1200 },  // NiCd (AA)
+	{ 10,   .008,  .012, 5000 },  // lead-acid (2V)
+    };
+
     int batteryType;
     double r0, r1, c1;
     double capacityAh;
@@ -372,9 +382,16 @@ class BatteryElm extends CircuitElm {
 	    int oldType = batteryType;
 	    int sel = ei.choice.getSelectedIndex();
 	    batteryType = (sel >= batteryTypeNames.length) ? BT_CUSTOM : sel;
-	    if (batteryType != BT_CUSTOM)
+	    if (batteryType != BT_CUSTOM) {
 		socVoltageTable = batteryTypeTables[batteryType];
-	    else if (oldType != BT_CUSTOM)
+		if (batteryType != oldType) {
+		    double[] d = batteryTypeDefaults[batteryType];
+		    capacityAh = d[0];
+		    r0 = d[1];
+		    r1 = d[2];
+		    c1 = d[3];
+		}
+	    } else if (oldType != BT_CUSTOM)
 		socVoltageTable = batteryTypeTables[oldType];
 	    parseSocTable(null);
 	    if (batteryType != oldType)
