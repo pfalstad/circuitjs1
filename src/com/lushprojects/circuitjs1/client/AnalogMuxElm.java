@@ -23,6 +23,8 @@ import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
 
 class AnalogMuxElm extends ChipElm {
+    final int FLAG_PULLDOWN = 2;
+
     int selectBitCount;
     int inputCount;
     int outputPin;
@@ -34,6 +36,7 @@ class AnalogMuxElm extends ChipElm {
 	r_on = 20;
 	r_off = 1e10;
 	threshold = 2.5;
+	flags |= FLAG_PULLDOWN;
 	setupPins();
     }
     public AnalogMuxElm(int xa, int ya, int xb, int yb, int f,
@@ -101,6 +104,8 @@ class AnalogMuxElm extends ChipElm {
     // No voltage sources -- purely resistive connections
     int getVoltageSourceCount() { return 0; }
 
+    boolean needsPulldown() { return hasFlag(FLAG_PULLDOWN); }
+
     void stamp() {
 	int i;
 	// mark all data nodes as nonlinear (selected input changes dynamically)
@@ -116,10 +121,17 @@ class AnalogMuxElm extends ChipElm {
 	    if (volts[inputCount + i] > threshold)
 		selectedInput |= 1 << i;
 
-	// stamp r_on between output and selected input, r_off to others
+	// stamp r_on between output and selected input.  For the others, if
+	// the pulldown flag is set, pull them to ground with r_off instead of
+	// connecting them to the output with r_off (better conditioned, and
+	// avoids leaving unselected inputs floating).
 	for (int i = 0; i != inputCount; i++) {
-	    double r = (i == selectedInput) ? r_on : r_off;
-	    sim.stampResistor(nodes[i], nodes[outputPin], r);
+	    if (i == selectedInput)
+		sim.stampResistor(nodes[i], nodes[outputPin], r_on);
+	    else if (needsPulldown())
+		sim.stampResistor(nodes[i], CircuitNode.ground, r_off);
+	    else
+		sim.stampResistor(nodes[i], nodes[outputPin], r_off);
 	}
     }
 
@@ -130,10 +142,17 @@ class AnalogMuxElm extends ChipElm {
 		selectedInput |= 1 << i;
 	double outputCurrent = 0;
 	for (int i = 0; i != inputCount; i++) {
-	    double r = (i == selectedInput) ? r_on : r_off;
-	    double c = (volts[i] - volts[outputPin]) / r;
-	    pins[i].current = -c;
-	    outputCurrent += c;
+	    if (i == selectedInput) {
+		double c = (volts[i] - volts[outputPin]) / r_on;
+		pins[i].current = -c;
+		outputCurrent += c;
+	    } else if (needsPulldown()) {
+		pins[i].current = -volts[i] / r_off;
+	    } else {
+		double c = (volts[i] - volts[outputPin]) / r_off;
+		pins[i].current = -c;
+		outputCurrent += c;
+	    }
 	}
 	pins[outputPin].current = outputCurrent;
 	// select pins carry no current
@@ -148,6 +167,10 @@ class AnalogMuxElm extends ChipElm {
 	if (n2 >= inputCount && n2 < outputPin)
 	    return false;
 	return true;
+    }
+
+    boolean hasGroundConnection(int n1) {
+	return needsPulldown() && n1 < inputCount;
     }
 
     void getInfo(String arr[]) {
@@ -169,6 +192,8 @@ class AnalogMuxElm extends ChipElm {
 	    return new EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
 	if (n == 3)
 	    return new EditInfo("Threshold Voltage", threshold, 0, 0);
+	if (n == 4)
+	    return EditInfo.createCheckbox("Pulldown Resistor", needsPulldown());
 	return super.getChipEditInfo(n);
     }
 
@@ -188,6 +213,8 @@ class AnalogMuxElm extends ChipElm {
 	    r_off = ei.value;
 	if (n == 3)
 	    threshold = ei.value;
+	if (n == 4)
+	    flags = ei.changeFlag(flags, FLAG_PULLDOWN);
 	super.setChipEditValue(n, ei);
     }
 }
