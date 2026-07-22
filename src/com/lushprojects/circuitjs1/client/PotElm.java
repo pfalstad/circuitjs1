@@ -294,8 +294,10 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	    boolean rev = (lead1.x == lead2.x && lead1.y < lead2.y) || (lead1.y == lead2.y && lead1.x > lead2.x);
 	    
 	    // draw units
-	    String s1 = getShortUnitText(rev ? resistance2 : resistance1, "");
-	    String s2 = getShortUnitText(rev ? resistance1 : resistance2, "");
+		//	Add Omega symbol to resistors
+	    String s1 = getShortUnitText(rev ? resistance2 : resistance1, showOhmSymbol() ? Locale.ohmString : "");
+	    String s2 = getShortUnitText(rev ? resistance1 : resistance2, showOhmSymbol() ? Locale.ohmString : "");
+
 	    g.save();
 	    g.setFont(valueFont);
 	    g.setColor(whiteColor);

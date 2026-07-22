@@ -55,6 +55,7 @@ public class Menus {
     CheckboxMenuItem showValuesCheckItem;
     CheckboxMenuItem conductanceCheckItem;
     CheckboxMenuItem euroResistorCheckItem;
+    CheckboxMenuItem showOhmCheckItem;
     CheckboxMenuItem euroGatesCheckItem;
     CheckboxMenuItem printableCheckItem;
     CheckboxMenuItem conventionCheckItem;
@@ -223,6 +224,7 @@ public class Menus {
 	}));
 	
 	m.addItem(euroResistorCheckItem = new CheckboxMenuItem(Locale.LS("European Resistors")));
+	m.addItem(showOhmCheckItem = new CheckboxMenuItem(Locale.LS("Show \u03a9 Unit")));
 	m.addItem(euroGatesCheckItem = new CheckboxMenuItem(Locale.LS("IEC Gates")));
 	m.addItem(printableCheckItem = new CheckboxMenuItem(Locale.LS("White Background")));
 

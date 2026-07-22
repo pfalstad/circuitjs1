@@ -1345,6 +1345,7 @@ public abstract class CircuitElm implements Editable {
     boolean showValues() { return app.menus.showValuesCheckItem.getState(); }
     boolean showPower() { return app.menus.powerCheckItem.getState(); }
     boolean showEuroResistors() { return app.menus.euroResistorCheckItem.getState(); }
+    boolean showOhmSymbol() { return app.menus.showOhmCheckItem.getState(); }
     boolean useSmallGrid() { return app.menus.smallGridCheckItem.getState(); }
     boolean doDcAnalysis() { return app.dcAnalysisFlag; }
     boolean isPrintable() { return app.isPrintable(); }

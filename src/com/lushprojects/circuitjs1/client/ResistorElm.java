@@ -96,13 +96,13 @@ import com.google.gwt.xml.client.Document;
 	    }
 	    g.context.restore();
 	    if (showValues()) {
-		String s = getShortUnitText(resistance, "");
+		//	Add Omega symbol to resistors
+		String s = getShortUnitText(resistance, showOhmSymbol() ? Locale.ohmString : "");
 		drawValues(g, s, hs+2);
 	    }
 	    doDots(g);
 	    drawPosts(g);
 	}
-
 	void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 6); }
 
 	void calculateCurrent() {
