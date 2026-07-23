@@ -84,6 +84,22 @@ class ProbeElm extends CircuitElm {
         resistance = xml.parseDoubleAttr("re", 0);
     }
 
+    void reset() {
+        super.reset();
+        zerocount = 0;
+        rmsV = total = count = 0;
+        maxV = lastMaxV = 0;
+        minV = lastMinV = 0;
+        binaryLevel = 0;
+        period = pulseWidth = dutyCycle = 0;
+        selectedValue = 0;
+        periodStart = periodLength = pulseStart = 0;
+        increasingV = true;
+        decreasingV = true;
+        started = false;
+        lastStepCount = 0;
+    }
+
     String getMeter(){
         switch (meter) {
         case TP_VOL:
@@ -122,7 +138,9 @@ class ProbeElm extends CircuitElm {
     double selectedValue=0;
 
     boolean increasingV=true, decreasingV=true;
-    long periodStart, periodLength, pulseStart;//time between consecutive max values
+    boolean started=false;
+    int lastStepCount;
+    double periodStart, periodLength, pulseStart;//simulated time between consecutive max values
 
     Point center;
 	
@@ -184,7 +202,7 @@ class ProbeElm extends CircuitElm {
 //	                s = "percent:"+period + " " + sim.timeStep + " " + sim.simTime + " " + sim.getIterCount();
 	                break;
 	            case TP_PWI:
-	                s = getUnitText(pulseWidth, "S");
+	                s = getUnitText(pulseWidth, "s");
 	                break;
 	            case TP_DUT:
 	                s = showFormat.format(dutyCycle);
@@ -218,17 +236,30 @@ class ProbeElm extends CircuitElm {
     boolean drawAsCircle() { return (flags & FLAG_CIRCLE) != 0; }
     
     void stepFinished(){
+	if (sim.timeStepCount == lastStepCount)
+	    return;
+	lastStepCount = sim.timeStepCount;
         count++;//how many counts are in a cycle
         double v = getVoltageDiff();
         total += v*v; //sum of squares
 
+        // binary threshold is a fixed 2.5V (assumes ~5V logic levels); not scaled to the circuit's actual voltage range
         if (v<2.5)
             binaryLevel = 0;
         else
             binaryLevel = 1;
-        
-        
-        //V going up, track maximum value with 
+
+        if (!started) {
+            // prime max/min tracking with the first sample instead of the stale defaults (0, increasingV==decreasingV==true),
+            // which could otherwise register a bogus transition on the first step
+            started = true;
+            maxV = minV = v;
+            increasingV = true;
+            decreasingV = false;
+            periodStart = pulseStart = sim.t;
+        }
+
+        //V going up, track maximum value with
         if (v>maxV && increasingV){
             maxV = v;
             increasingV = true;
@@ -237,10 +268,10 @@ class ProbeElm extends CircuitElm {
         if (v<maxV && increasingV){//change of direction V now going down - at start of waveform
             lastMaxV=maxV; //capture last maximum 
             //capture time between
-            periodLength = System.currentTimeMillis() - periodStart;
-            periodStart = System.currentTimeMillis();
+            periodLength = sim.t - periodStart;
+            periodStart = sim.t;
             period = periodLength;
-            pulseWidth = System.currentTimeMillis() - pulseStart;
+            pulseWidth = sim.t - pulseStart;
             dutyCycle = pulseWidth / periodLength;
             minV=v; //track minimum value with V
             increasingV=false;
@@ -263,7 +294,7 @@ class ProbeElm extends CircuitElm {
 
         if (v>minV && decreasingV){ //change of direction V now going up
             lastMinV=minV; //capture last minimum
-            pulseStart =  System.currentTimeMillis();
+            pulseStart =  sim.t;
             maxV = v;
             increasingV = true;
             decreasingV = false;
@@ -303,7 +334,45 @@ class ProbeElm extends CircuitElm {
 
     void getInfo(String arr[]) {
 	arr[0] = "voltmeter";
-	arr[1] = "Vd = " + getVoltageText(getVoltageDiff());
+        int i = 1;
+        arr[i++] = getMeterLine(meter);
+        // show the rest of the already-tracked values too, skipping whichever one is selected above.
+        // frequency is left out here because it isn't actually computed anywhere (see getMeterLine)
+        if (meter != TP_VOL) arr[i++] = getMeterLine(TP_VOL);
+        if (meter != TP_MAX) arr[i++] = getMeterLine(TP_MAX);
+        if (meter != TP_MIN) arr[i++] = getMeterLine(TP_MIN);
+        if (meter != TP_RMS) arr[i++] = getMeterLine(TP_RMS);
+        if (meter != TP_P2P) arr[i++] = getMeterLine(TP_P2P);
+        if (meter != TP_BIN) arr[i++] = getMeterLine(TP_BIN);
+        if (meter != TP_PER) arr[i++] = getMeterLine(TP_PER);
+        if (meter != TP_PWI) arr[i++] = getMeterLine(TP_PWI);
+        if (meter != TP_DUT) arr[i++] = getMeterLine(TP_DUT);
+    }
+
+    String getMeterLine(int m) {
+        switch (m) {
+            case TP_VOL:
+                return "Vd = " + getVoltageText(getVoltageDiff());
+            case TP_RMS:
+                return "V(rms) = " + getVoltageText(rmsV);
+            case TP_MAX:
+                return "Vmax = " + getVoltageText(lastMaxV);
+            case TP_MIN:
+                return "Vmin = " + getVoltageText(lastMinV);
+            case TP_P2P:
+                return "Vp2p = " + getVoltageText(lastMaxV-lastMinV);
+            case TP_BIN:
+                return "Binary = " + binaryLevel;
+            case TP_FRQ:
+                return "Freq = " + getUnitText(frequency, "Hz");
+            case TP_PER:
+                return "Period = " + getUnitText(period, "s");
+            case TP_PWI:
+                return "Pulse width = " + getUnitText(pulseWidth, "s");
+            case TP_DUT:
+                return "Duty cycle = " + showFormat.format(dutyCycle);
+        }
+        return "";
     }
     boolean getConnection(int n1, int n2) { return (resistance != 0); }
 

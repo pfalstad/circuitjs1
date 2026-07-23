@@ -52,7 +52,8 @@ class TestPointElm extends CircuitElm {
     
     double voltages[];
     boolean increasingV=true, decreasingV=true;
-    long periodStart, periodLength, pulseStart;//time between consecutive max values
+    boolean started=false;
+    double periodStart, periodLength, pulseStart;//simulated time between consecutive max values
     String label;
     
     public TestPointElm(int xx, int yy) { 
@@ -74,6 +75,22 @@ class TestPointElm extends CircuitElm {
     void setPoints() {
         super.setPoints();
         lead1 = new Point();
+    }
+
+    void reset() {
+        super.reset();
+        zerocount = 0;
+        rmsV = total = count = 0;
+        maxV = lastMaxV = 0;
+        minV = lastMinV = 0;
+        binaryLevel = 0;
+        period = pulseWidth = dutyCycle = 0;
+        selectedValue = 0;
+        periodStart = periodLength = pulseStart = 0;
+        increasingV = true;
+        decreasingV = true;
+        started = false;
+        lastStepCount = 0;
     }
 
     void dumpXml(Document doc, Element elem) {
@@ -180,7 +197,7 @@ class TestPointElm extends CircuitElm {
 //                s = "percent:"+period + " " + sim.timeStep + " " + sim.simTime + " " + sim.getIterCount();
                 break;
             case TP_PWI:
-                s = getUnitText(pulseWidth, "S");
+                s = getUnitText(pulseWidth, "s");
                 break;
             case TP_DUT:
                 s = showFormat.format(dutyCycle);
@@ -201,16 +218,26 @@ class TestPointElm extends CircuitElm {
 	if (sim.timeStepCount == lastStepCount)
 	    return;
 	lastStepCount = sim.timeStepCount;
-        count++;//how many counts are in a cycle    
+        count++;//how many counts are in a cycle
         total += volts[0]*volts[0]; //sum of squares
 
+        // binary threshold is a fixed 2.5V (assumes ~5V logic levels); not scaled to the circuit's actual voltage range
         if (volts[0]<2.5)
             binaryLevel = 0;
         else
             binaryLevel = 1;
-        
-        
-        //V going up, track maximum value with 
+
+        if (!started) {
+            // prime max/min tracking with the first sample instead of the stale defaults (0, increasingV==decreasingV==true),
+            // which could otherwise register a bogus transition on the first step
+            started = true;
+            maxV = minV = volts[0];
+            increasingV = true;
+            decreasingV = false;
+            periodStart = pulseStart = sim.t;
+        }
+
+        //V going up, track maximum value with
         if (volts[0]>maxV && increasingV){
             maxV = volts[0];
             increasingV = true;
@@ -219,10 +246,10 @@ class TestPointElm extends CircuitElm {
         if (volts[0]<maxV && increasingV){//change of direction V now going down - at start of waveform
             lastMaxV=maxV; //capture last maximum 
             //capture time between
-            periodLength = System.currentTimeMillis() - periodStart;
-            periodStart = System.currentTimeMillis();
+            periodLength = sim.t - periodStart;
+            periodStart = sim.t;
             period = periodLength;
-            pulseWidth = System.currentTimeMillis() - pulseStart;
+            pulseWidth = sim.t - pulseStart;
             dutyCycle = pulseWidth / periodLength;
             minV=volts[0]; //track minimum value with V
             increasingV=false;
@@ -245,7 +272,7 @@ class TestPointElm extends CircuitElm {
 
         if (volts[0]>minV && decreasingV){ //change of direction V now going up
             lastMinV=minV; //capture last minimum
-            pulseStart =  System.currentTimeMillis();
+            pulseStart =  sim.t;
             maxV = volts[0];
             increasingV = true;
             decreasingV = false;
@@ -320,39 +347,45 @@ class TestPointElm extends CircuitElm {
     
     void getInfo(String arr[]) {
         arr[0] = "Test Point";
-        switch (meter) {
+        int i = 1;
+        arr[i++] = getMeterLine(meter);
+        // show the rest of the already-tracked values too, skipping whichever one is selected above.
+        // frequency is left out here because it isn't actually computed anywhere (see getMeterLine)
+        if (meter != TP_VOL) arr[i++] = getMeterLine(TP_VOL);
+        if (meter != TP_MAX) arr[i++] = getMeterLine(TP_MAX);
+        if (meter != TP_MIN) arr[i++] = getMeterLine(TP_MIN);
+        if (meter != TP_RMS) arr[i++] = getMeterLine(TP_RMS);
+        if (meter != TP_P2P) arr[i++] = getMeterLine(TP_P2P);
+        if (meter != TP_BIN) arr[i++] = getMeterLine(TP_BIN);
+        if (meter != TP_PER) arr[i++] = getMeterLine(TP_PER);
+        if (meter != TP_PWI) arr[i++] = getMeterLine(TP_PWI);
+        if (meter != TP_DUT) arr[i++] = getMeterLine(TP_DUT);
+    }
+
+    String getMeterLine(int m) {
+        switch (m) {
             case TP_VOL:
-                arr[1] = "V = " + getUnitText(volts[0], "V");
-                break;
+                return "V = " + getUnitText(volts[0], "V");
             case TP_RMS:
-                arr[1] = "V(rms) = " + getUnitText(rmsV, "V");
-                break;
+                return "V(rms) = " + getUnitText(rmsV, "V");
             case TP_MAX:
-                arr[1] = "Vmax = " + getUnitText(lastMaxV, "Vpk");
-                break;
+                return "Vmax = " + getUnitText(lastMaxV, "Vpk");
             case TP_MIN:
-                arr[1] = "Vmin = " + getUnitText(lastMinV, "Vmin");
-                break;
+                return "Vmin = " + getUnitText(lastMinV, "Vmin");
             case TP_P2P:
-                arr[1] = "Vp2p = " + getUnitText(lastMaxV-lastMinV, "Vp2p");
-                break;
+                return "Vp2p = " + getUnitText(lastMaxV-lastMinV, "Vp2p");
             case TP_BIN:
-                arr[1] = "Binary:" + binaryLevel + "";
-                break;
+                return "Binary:" + binaryLevel;
             case TP_FRQ:
-                arr[1] = "Freq = " + getUnitText(frequency, "Hz");
-                break;
+                return "Freq = " + getUnitText(frequency, "Hz");
             case TP_PER:
-		// what is this???
-                arr[1] = "Period = " + getUnitText(period*sim.maxTimeStep/app.getIterCount(), "S");
-                break;
+                return "Period = " + getUnitText(period, "s");
             case TP_PWI:
-                arr[1] = "Pulse width = " + getUnitText(pulseWidth*sim.maxTimeStep*app.getIterCount(), "S");
-                break;
+                return "Pulse width = " + getUnitText(pulseWidth, "s");
             case TP_DUT:
-                arr[1] = "Duty cycle = " + showFormat.format(dutyCycle);
-                break;
-        }    
+                return "Duty cycle = " + showFormat.format(dutyCycle);
+        }
+        return "";
     }
         
 //    void drawHandles(Graphics g, Color c) {
