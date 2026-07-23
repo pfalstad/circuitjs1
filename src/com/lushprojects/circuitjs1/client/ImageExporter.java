@@ -73,7 +73,7 @@ public class ImageExporter {
 	    var img = cv.toDataURL("image/png");
 	    var style = $doc.createElement("style");
 	    style.id = "circuit-print-style";
-	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { #circuit-print-overlay { display: block !important; } }";
+	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { @page { size: auto; margin: 10mm; } #circuit-print-overlay { display: block !important; width: 100%; height: 100%; } #circuit-print-overlay img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; margin: 0 auto; page-break-inside: avoid; } }";
 	    $doc.head.appendChild(style);
 	    var overlay = $doc.createElement("div");
 	    overlay.id = "circuit-print-overlay";
