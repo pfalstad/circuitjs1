@@ -137,6 +137,12 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		model.dumpXml(doc);
 	}
 
+	
+
+
+
+
+
 	double ic, ie, ib, curcount_c, curcount_e, curcount_b;
 
 	// Junction capacitance state (trapezoidal companion model)
@@ -168,7 +174,6 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    setVoltageColor(g, volts[2]);
 	    drawThickLine(g, emit[0], emit[1]);
 	    // draw arrow
-	    g.setColor(lightGrayColor);
 	    g.fillPolygon(arrowPoly);
 	    // draw base
 	    setVoltageColor(g, volts[0]);
@@ -187,14 +192,19 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    setPowerColor(g, true);
 	    g.fillPolygon(rectPoly);
 
-	    if ((needsHighlight() || isCreating()) && dy == 0) {
+	    if (needsHighlight() || isCreating()) {
 		g.setColor(whiteColor);
 // IES
 //		g.setFont(unitsFont);
-		int ds = sign(dx);
-		g.drawString("B", base.x-10*ds, base.y-5);
-		g.drawString("C", coll[0].x-3+9*ds, coll[0].y+4); // x+6 if ds=1, -12 if -1
-		g.drawString("E", emit[0].x-3+9*ds, emit[0].y+4);
+			if (dy == 0){
+				g.drawString("B", base.x - (dx < 0 ? -2 : 10), base.y-4);
+				g.drawString("C", coll[0].x - (dx < 0 ? 13 : -6), coll[0].y+4);	
+				g.drawString("E", emit[0].x - (dx < 0 ? 13 : -6), emit[0].y+4);
+			} else if (dx == 0){
+				g.drawString("B", base.x+3, base.y - (dy < 0 ? -11 : 3));
+				g.drawString("C", coll[0].x-4, coll[0].y - (dy < 0 ? 7 : -14));	
+				g.drawString("E", emit[0].x-4, emit[0].y - (dy < 0 ? 7 : -14));
+			}
 	    }
 	    drawPosts(g);
 	}
@@ -235,11 +245,10 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    rectPoly = createPolygon(rect[0], rect[2], rect[3], rect[1]);
 
 	    // arrow
-	    if (pnp == 1)
+	    if (pnp == 1)		// npn
 		arrowPoly = calcArrow(emit[1], emit[0], 8, 4);
-	    else {
-		Point pt = interpPoint(point1, point2, 1-11/dn, -5*dsign*pnp);
-		arrowPoly = calcArrow(emit[0], pt, 8, 4);
+	    else {				// pnp
+			arrowPoly = calcArrow(emit[0], emit[1], 8, 4);
 	    }
 	    
 	    circleCenter = interpPoint(base, point2, .5);
