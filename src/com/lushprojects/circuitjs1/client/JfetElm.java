@@ -72,6 +72,27 @@ class JfetElm extends MosfetElm {
 		drawDots(g, drn[1], drn[2], -addCurCount(curcountd, 8));
 		drawDots(g, point1, gatePt, curcountg);
 	    }
+//	Copied from MosfetElm.java
+		// label pins when highlighted
+		if (needsHighlight()) {
+		    g.setColor(whiteColor);
+		    g.setFont(unitsFont);
+
+		    // make fiddly adjustments to pin label locations depending on orientation
+		    int dsx = sign(dx);
+		    int dsy = sign(dy);
+		    int dsyn = dy == 0 ? 0 : 1;
+			if (dy == 0){
+				g.drawString("G", gate[1].x - (dx < 0 ? -2 : 12), gate[1].y + ((dy > 0) ? -5 : 12));
+				g.drawString(pnp == -1 ? "D" : "S", src[0].x-3+9*(dsx-dsyn*pnp), src[0].y+4);
+				g.drawString(pnp == -1 ? "S" : "D", drn[0].x-3+9*(dsx-dsyn*pnp), drn[0].y+4);
+			} else if (dx == 0){
+				g.drawString("G", gate[1].x - (dx < 0 ? -2 : 12), gate[1].y + ((dy > 0) ? -5 : 12));
+				g.drawString(pnp == -1 ? "D" : "S", src[0].x-4, src[0].y-(dy < 0 ? 7 : -14));
+				g.drawString(pnp == -1 ? "S" : "D", drn[0].x-4, drn[0].y-(dy < 0 ? 7 : -14));
+			}
+		}	    
+		
 	    drawPosts(g);
 	}
 	
@@ -89,6 +110,8 @@ class JfetElm extends MosfetElm {
 	    // find the coordinates of the various points we need to draw
 	    // the JFET.
 	    int hs2 = hs*dsign;
+	    if ((flags & FLAG_FLIP) != 0)
+	    	hs2 = -hs2;
 	    src = newPointArray(3);
 	    drn = newPointArray(3);
 	    interpPoint2(point1, point2, src[0], drn[0], 1, -hs2);
@@ -103,9 +126,9 @@ class JfetElm extends MosfetElm {
 	    gatePoly = createPolygon(ra[0], ra[1], ra[3], ra[2]);
 	    if (pnp == -1) {
 		Point x = interpPoint(gatePt, point1, 18/dn);
-		arrowPoly = calcArrow(gatePt, x, 8, 3);
+			arrowPoly = calcArrow(gatePt, x, 12, 5);
 	    } else
-		arrowPoly = calcArrow(point1, gatePt, 8, 3);
+			arrowPoly = calcArrow(point1, gatePt, 12, 5);
 	}
 	
 	void stamp() {
@@ -127,7 +150,7 @@ class JfetElm extends MosfetElm {
 
 	boolean showBulk() { return false; }
 	boolean isJfet() { return true; }
-	boolean hasSwapDS() { return false; }
+	boolean hasSwapDS() { return true; }
 
 	static String lastJfetModelName = "default-jfet";
 	String getLastModelName() { return lastJfetModelName; }
@@ -141,7 +164,12 @@ class JfetElm extends MosfetElm {
 	void getInfo(String arr[]) {
 	    getFetInfo(arr, "JFET");
 	}
-
+        public EditInfo getEditInfo(int n) {
+		if (n < 3)
+				return super.getEditInfo(n);
+            return null;
+        }
+	
 	boolean getConnection(int n1, int n2) {
 	    return true;
 	}
