@@ -295,6 +295,8 @@ export class EditDialog extends Dialog {
             }
             if (ei.positive && ei.value <= 0)
                 ei.setError("must be > 0");
+            if (ei.nonNegative && ei.value < 0)
+                ei.setError("must be >= 0");
             // choices and buttons are handled via itemStateChanged, not apply
             if (ei.button !== null || ei.choice !== null)
                 continue;

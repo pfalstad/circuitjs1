@@ -20,6 +20,7 @@
 import { VoltageElm } from "./VoltageElm";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
+import { FindPathInfo } from "./FindPathInfo";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { WireRouter } from "./WireRouter";
@@ -93,15 +94,26 @@ export class RailElm extends VoltageElm {
     }
 
     getVoltageDiff(): number { return this.nodes[0].v; }
-    stamp(): void {
-        if (this.waveform == VoltageElm.WF_DC)
-            CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource, this.getVoltage());
+    setVoltageSource(n: number, v: any): void {
+        super.setVoltageSource(n, v);
+        if (this.internalResistance > 0)
+            v.setNodes(CircuitNode.ground, this.nodes[1]);
         else
-            CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource);
+            v.setNodes(CircuitNode.ground, this.nodes[0]);
+    }
+    stamp(): void {
+        const vsNode = this.internalResistance > 0 ? this.nodes[1] : this.nodes[0];
+        if (this.waveform == VoltageElm.WF_DC)
+            CircuitElm.sim.stampVoltageSource(CircuitNode.ground, vsNode, this.voltSource, this.getVoltage());
+        else
+            CircuitElm.sim.stampVoltageSource(CircuitNode.ground, vsNode, this.voltSource);
+        if (this.internalResistance > 0)
+            CircuitElm.sim.stampResistor(this.nodes[1], this.nodes[0], this.internalResistance);
     }
     doStep(): void {
+        const vsNode = this.internalResistance > 0 ? this.nodes[1] : this.nodes[0];
         if (this.waveform != VoltageElm.WF_DC)
-            CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[0], this.voltSource, this.getVoltage());
+            CircuitElm.sim.updateVoltageSource(CircuitNode.ground, vsNode, this.voltSource, this.getVoltage());
     }
     hasGroundConnection(n1: number): boolean { return true; }
     addRoutingObstacle(router: WireRouter): void {
@@ -111,7 +123,16 @@ export class RailElm extends VoltageElm {
     }
 
     getShortcut(): number { return 'V'.charCodeAt(0); }
-    validate(): boolean { return this.validateRailNode(0); }
+    validateRailNode(n: number): boolean {
+        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(n), CircuitElm.sim);
+        if (fpi.findPath(CircuitNode.ground)) {
+            //CircuitElm.sim.stop("Path to ground with no resistance!", this);
+            this.internalResistance = .001;
+            return false;
+        }
+        return true;
+    }
+    validate(): boolean { return this.internalResistance > 0 || this.validateRailNode(0); }
 
 //    void drawHandles(Graphics g, Color c) {
 //    	g.setColor(c);

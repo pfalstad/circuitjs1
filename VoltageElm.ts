@@ -60,6 +60,8 @@ export class VoltageElm extends CircuitElm {
     dutyCycle: number;
     noiseValue: number;
     riseTime: number;
+    internalResistance: number = 0;
+    getInternalNodeCount(): number { return this.internalResistance > 0 ? 1 : 0; }
 
     static readonly defaultPulseDuty = 1/(2*Math.PI);
 
@@ -130,6 +132,8 @@ export class VoltageElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "dutyCycle", this.dutyCycle);
 	if (this.riseTime != 0)
             CircuitXMLSerializer.dumpAttr(elem, "riseTime", this.riseTime);
+	if (this.internalResistance != 0)
+            CircuitXMLSerializer.dumpAttr(elem, "ir", this.internalResistance);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -141,6 +145,7 @@ export class VoltageElm extends CircuitElm {
 	this.phaseShift = xml.parseDoubleAttr("phaseShift", this.phaseShift);
 	this.dutyCycle = xml.parseDoubleAttr("dutyCycle", this.dutyCycle);
 	this.riseTime = xml.parseDoubleAttr("riseTime", this.riseTime);
+	this.internalResistance = xml.parseDoubleAttr("ir", 0);
     }
 
     reset(): void {
@@ -156,20 +161,25 @@ export class VoltageElm extends CircuitElm {
 
     setVoltageSource(n: number, v: any): void {
 	super.setVoltageSource(n, v);
-	v.setNodes(this.nodes[0], this.nodes[1]);
+	if (this.internalResistance > 0)
+	    v.setNodes(this.nodes[0], this.nodes[2]);
+	else
+	    v.setNodes(this.nodes[0], this.nodes[1]);
     }
 
     stamp(): void {
+	const vsNode2 = this.internalResistance > 0 ? this.nodes[2] : this.nodes[1];
 	if (this.waveform == VoltageElm.WF_DC)
-	    CircuitElm.sim.stampVoltageSource(this.nodes[0], this.nodes[1], this.voltSource,
-				       this.getVoltage());
+	    CircuitElm.sim.stampVoltageSource(this.nodes[0], vsNode2, this.voltSource, this.getVoltage());
 	else
-	    CircuitElm.sim.stampVoltageSource(this.nodes[0], this.nodes[1], this.voltSource);
+	    CircuitElm.sim.stampVoltageSource(this.nodes[0], vsNode2, this.voltSource);
+	if (this.internalResistance > 0)
+	    CircuitElm.sim.stampResistor(this.nodes[2], this.nodes[1], this.internalResistance);
     }
     doStep(): void {
+	const vsNode2 = this.internalResistance > 0 ? this.nodes[2] : this.nodes[1];
 	if (this.waveform != VoltageElm.WF_DC)
-	    CircuitElm.sim.updateVoltageSource(this.nodes[0], this.nodes[1], this.voltSource,
-					this.getVoltage());
+	    CircuitElm.sim.updateVoltageSource(this.nodes[0], vsNode2, this.voltSource, this.getVoltage());
     }
     stepFinished(): void {
 	if (this.waveform == VoltageElm.WF_NOISE)
@@ -504,7 +514,7 @@ export class VoltageElm extends CircuitElm {
 	    arr[i++] = "(R = " + VoltageElm.getUnitText(this.maxVoltage/this.current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + VoltageElm.getUnitText(this.getPower(), "W");
     }
-    getFrequencyOffset(): number { return 4; }
+    getFrequencyOffset(): number { return 5; }
     hasTimingOptions(): boolean { return this.waveform == VoltageElm.WF_PULSE || this.waveform == VoltageElm.WF_SQUARE; }
     timeSpec(): boolean { return this.hasFlag(VoltageElm.FLAG_TIME_SPEC) && this.hasTimingOptions(); }
 
@@ -547,13 +557,18 @@ export class VoltageElm extends CircuitElm {
 	}
 	if (n == 2)
 	    return new EditInfo("DC Offset (V)", this.bias, -20, 20);
-	if (n == 3 && !(this.isRailElm() && (this.waveform == VoltageElm.WF_DC || this.waveform == VoltageElm.WF_VAR))) {
+	if (n == 3) {
+	    const ei = new EditInfo("Internal Resistance (ohms)", this.internalResistance);
+	    ei.setNonNegative();
+	    return ei;
+	}
+	if (n == 4 && !(this.isRailElm() && (this.waveform == VoltageElm.WF_DC || this.waveform == VoltageElm.WF_VAR))) {
 	    const ei = new EditInfo("", 0, -1, -1);
 	    const svFlag = (this.isRailElm()) ? VoltageElm.FLAG_SHOW_VOLTAGE_RAIL : VoltageElm.FLAG_SHOW_VOLTAGE;
 	    ei.checkbox = new Checkbox("Show Voltage", (this.flags & svFlag) != 0);
 	    return ei;
 	}
-	if (n == 4 && this.waveform == VoltageElm.WF_DC && !(this.isRailElm())) {
+	if (n == 5 && this.waveform == VoltageElm.WF_DC && !(this.isRailElm())) {
 	    const ei = new EditInfo("", 0, -1, -1);
 	    ei.checkbox = new Checkbox("Circle Symbol", (this.flags & VoltageElm.FLAG_CIRCLE_SYMBOL) != 0);
 	    return ei;
@@ -604,11 +619,13 @@ export class VoltageElm extends CircuitElm {
 	    this.maxVoltage = ei.value;
 	if (n == 2)
 	    this.bias = ei.value;
-	if (n == 3 && ei.checkbox != null) {
+	if (n == 3)
+	    this.internalResistance = ei.value;
+	if (n == 4 && ei.checkbox != null) {
 	    const svFlag = (this.isRailElm()) ? VoltageElm.FLAG_SHOW_VOLTAGE_RAIL : VoltageElm.FLAG_SHOW_VOLTAGE;
 	    this.flags = ei.changeFlag(this.flags, svFlag);
 	}
-	if (n == 4 && this.waveform == VoltageElm.WF_DC && ei.checkbox != null && !(this.isRailElm())) {
+	if (n == 5 && this.waveform == VoltageElm.WF_DC && ei.checkbox != null && !(this.isRailElm())) {
 	    this.flags = ei.changeFlag(this.flags, VoltageElm.FLAG_CIRCLE_SYMBOL);
 	    this.setPoints();
 	}
@@ -679,10 +696,13 @@ export class VoltageElm extends CircuitElm {
 	}
     }
     validate(): boolean {
+	if (this.internalResistance > 0)
+	    return true;
 	if (this.getPostCount() == 2) {
 	    const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(1), CircuitElm.sim);
 	    if (fpi.findPath(this.getNode(0))) {
-		CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+		//CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+		this.internalResistance = .001;
 		return false;
 	    }
 	}

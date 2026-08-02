@@ -29,6 +29,7 @@ export class EditInfo {
     isColor: boolean = false;
     newColumn: boolean = false;
     positive: boolean = false;
+    nonNegative: boolean = false;
     minVal: number = 0;
     maxVal: number = 0;
     error: string | null = null;
@@ -84,6 +85,7 @@ export class EditInfo {
     setError(s: string): void { this.error = s; }
     setErrorFieldName(s: string): EditInfo { this.errorFieldName = s; return this; }
     setPositive(): EditInfo { this.positive = true; return this; }
+    setNonNegative(): EditInfo { this.nonNegative = true; return this; }
 
     canCreateAdjustable(): boolean {
         return this.choice == null && this.checkbox == null && this.button == null &&
