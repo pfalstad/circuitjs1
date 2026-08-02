@@ -295,7 +295,8 @@ export class PotElm extends CircuitElm {
                         (this.lead1!.y === this.lead2!.y && this.lead1!.x > this.lead2!.x);
             const s1 = CircuitElm.getShortUnitText(rev ? this.resistance2 : this.resistance1, "");
             const s2 = CircuitElm.getShortUnitText(rev ? this.resistance1 : this.resistance2, "");
-            g.setFont(CircuitElm.unitsFont);
+            g.save();
+            g.setFont(CircuitElm.valueFont);
             g.setColor(CircuitElm.whiteColor);
             const ya = g.currentFontSize / 2;
             let w = g.measureWidth(s1);
@@ -308,6 +309,7 @@ export class PotElm extends CircuitElm {
                 g.drawString(s2, !reverseY ? this.arrowPoint.x + 2 : this.arrowPoint.x - 2 - w, Math.min(this.arrow1.y, this.arrow2.y) - 3);
             else
                 g.drawString(s2, Math.max(this.arrow1.x, this.arrow2.x) + 2, !reverseX ? this.arrowPoint.y + 4 + ya : this.arrowPoint.y - 4);
+            g.restore();
         }
     }
 

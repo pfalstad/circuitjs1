@@ -555,21 +555,23 @@ export class TransistorElm extends CircuitElm {
     getElmType(): string { return "transistor"; }
 
     getInfo(arr: string[]): void {
-        arr[0] = Locale.LS("transistor") + " (" + (this.pnp === -1 ? "PNP" : "NPN") + ", " + this.model.name + ", β=" + CircuitElm.showFormat.format(this.beta) + ")";
+        arr[0] = Locale.LS("transistor") + (this.pnp === -1 ? " (PNP)" : " (NPN)");
+        arr[1] = this.model.name + ", β=" + CircuitElm.showFormat.format(this.beta);
         const vbc = this.nodes[0].v - this.nodes[1].v;
         const vbe = this.nodes[0].v - this.nodes[2].v;
         const vce = this.nodes[1].v - this.nodes[2].v;
         if (vbc*this.pnp > .2)
-            arr[1] = vbe*this.pnp > .2 ? "saturation" : "reverse active";
+            arr[2] = vbe*this.pnp > .2 ? "saturation" : "reverse active";
         else
-            arr[1] = vbe*this.pnp > .2 ? "fwd active" : "cutoff";
-        arr[1] = Locale.LS(arr[1]);
-        arr[2] = "Ic = " + CircuitElm.getCurrentText(this.ic);
-        arr[3] = "Ib = " + CircuitElm.getCurrentText(this.ib);
-        arr[4] = "Vbe = " + CircuitElm.getVoltageText(vbe);
-        arr[5] = "Vbc = " + CircuitElm.getVoltageText(vbc);
-        arr[6] = "Vce = " + CircuitElm.getVoltageText(vce);
-        arr[7] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
+            arr[2] = vbe*this.pnp > .2 ? "fwd active" : "cutoff";
+        arr[2] = Locale.LS(arr[2]);
+        arr[3] = "Ic = " + CircuitElm.getCurrentText(this.ic);
+        arr[4] = "Ib = " + CircuitElm.getCurrentText(this.ib);
+        arr[5] = "Vbe = " + CircuitElm.getVoltageText(vbe);
+        arr[6] = "Vbc = " + CircuitElm.getVoltageText(vbc);
+        arr[7] = "Vce = " + CircuitElm.getVoltageText(vce);
+        arr[8] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
+        /*
         if (this.model.junctionCapBE > 0 || this.model.junctionCapBC > 0 || this.model.transitTimeF > 0 || this.model.transitTimeR > 0) {
             let cjeVal = TransistorElm.calcJunctionCap(vbe*this.pnp, this.model.junctionCapBE, this.model.junctionPotBE, this.model.junctionExpBE);
             let cjcVal = TransistorElm.calcJunctionCap(vbc*this.pnp, this.model.junctionCapBC, this.model.junctionPotBC, this.model.junctionExpBC);
@@ -592,6 +594,7 @@ export class TransistorElm extends CircuitElm {
                 arr[8] = "ft = " + CircuitElm.getUnitText(ft, "Hz");
             }
         }
+        */
     }
 
     getScopeValue(x: number): number {

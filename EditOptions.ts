@@ -107,8 +107,15 @@ export class EditOptions implements Editable {
             ei.choice.select(this.sim.solverType);
             return ei;
         }
-        if (n === 17 && this.sim.adjustTimeStep)
+        if (n === 17)
+            return new EditInfo("Value Label Font Size", CircuitElm.valueFontSize);
+
+        // add new options here (before the adjustTimeStep conditional below)
+
+        if (n === 18 && this.sim.adjustTimeStep)
             return new EditInfo("Minimum time step size (s)", this.sim.minTimeStep, 0, 0).setPositive();
+
+        // do not add new options here because they will be hidden unless adjustTimeStep is set
 
         return null;
     }
@@ -212,7 +219,9 @@ export class EditOptions implements Editable {
                 this.app.needAnalyze();
             }
         }
-        if (n === 17 && ei.value > 0)
+        if (n === 17)
+            CircuitElm.setValueFontSize(ei.value > 0 ? Math.trunc(ei.value) : 12);
+        if (n === 18 && ei.value > 0)
             this.sim.minTimeStep = ei.value;
     }
 

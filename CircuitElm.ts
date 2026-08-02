@@ -60,6 +60,8 @@ export abstract class CircuitElm implements Editable {
     static neutralColor: Color;
     static currentColor: Color;
     static unitsFont: Font;
+    static valueFont: Font;
+    static valueFontSize: number = 12;
 
     static showFormat: NumberFormat;
     static shortFormat: NumberFormat;
@@ -146,7 +148,6 @@ export abstract class CircuitElm implements Editable {
     hasFlag(f: number): boolean { return (this.flags & f) !== 0; }
 
     static initClass(app_: CirSim, sim_: SimulationManager): void {
-        CircuitElm.unitsFont = new Font("SansSerif", 0, 12);
         CircuitElm.sim = sim_;
         CircuitElm.app = app_;
 
@@ -165,10 +166,23 @@ export abstract class CircuitElm implements Editable {
                 CircuitElm.decimalDigits = parseInt(s1);
             if (s2 != null)
                 CircuitElm.shortDecimalDigits = parseInt(s2);
+            const sf = stor.getItem("valueFontSize");
+            if (sf != null)
+                CircuitElm.valueFontSize = parseInt(sf);
         }
         CircuitElm.setDecimalDigits(CircuitElm.decimalDigits, false, false);
         CircuitElm.setDecimalDigits(CircuitElm.shortDecimalDigits, true, false);
+        CircuitElm.unitsFont = new Font("SansSerif", 0, 12);
+        CircuitElm.valueFont = new Font("SansSerif", 0, CircuitElm.valueFontSize);
 	CircuitElm.currentMult = 0;
+    }
+
+    static setValueFontSize(size: number): void {
+        CircuitElm.valueFontSize = size;
+        CircuitElm.valueFont = new Font("SansSerif", 0, CircuitElm.valueFontSize);
+        const stor = typeof localStorage !== 'undefined' ? localStorage : null;
+        if (stor != null)
+            stor.setItem("valueFontSize", String(CircuitElm.valueFontSize));
     }
 
     static setDecimalDigits(num: number, sf: boolean, save: boolean): void {
@@ -898,7 +912,8 @@ export abstract class CircuitElm implements Editable {
     drawValues(g: Graphics, s: string, hs: number): void {
         if (s == null)
             return;
-        g.setFont(CircuitElm.unitsFont);
+        g.save();
+        g.setFont(CircuitElm.valueFont);
         //FontMetrics fm = g.getFontMetrics();
         const w = Math.trunc(g.context.measureText(s).width);
         g.setColor(CircuitElm.whiteColor);
@@ -921,10 +936,12 @@ export abstract class CircuitElm implements Editable {
                 xx = xc - (w + CircuitElm.abs(dpx) + 2);
             g.drawString(s, xx, yc + dpy + ya);
         }
+        g.restore();
     }
 
     drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
-        g.setFont(CircuitElm.unitsFont);
+        g.save();
+        g.setFont(CircuitElm.valueFont);
         let lineOver = false;
         if (str.startsWith("/")) {
             lineOver = true;
@@ -932,7 +949,6 @@ export abstract class CircuitElm implements Editable {
         }
         const w = Math.trunc(g.context.measureText(str).width);
         const h = Math.trunc(g.currentFontSize);
-        g.save();
         g.context.textBaseline = "middle";
         let x = pt2.x, y = pt2.y;
         if (pt1.y !== pt2.y) {
