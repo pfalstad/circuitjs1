@@ -56,7 +56,7 @@ export class PhaseCompElm extends ChipElm {
     ff1: boolean = false;
     ff2: boolean = false;
 
-    doStep(): void {
+    startIteration(): void {
         const v1 = this.nodes[0].v > this.getThreshold();
         const v2 = this.nodes[1].v > this.getThreshold();
         if (v1 && !this.pins[0].value)
@@ -65,16 +65,18 @@ export class PhaseCompElm extends ChipElm {
             this.ff2 = true;
         if (this.ff1 && this.ff2)
             this.ff1 = this.ff2 = false;
+        this.pins[0].value = v1;
+        this.pins[1].value = v2;
+    }
+
+    doStep(): void {
         const out = (this.ff1) ? this.highVoltage : (this.ff2) ? 0 : -1;
-        //System.out.println(out + " " + v1 + " " + v2);
         if (out !== -1)
             CircuitElm.sim.stampVoltageSource(CircuitNode.ground, this.nodes[2], this.pins[2].voltSource, out);
         else {
             // tie current through output pin to 0
             CircuitElm.sim.stampMatrixVV(this.pins[2].voltSource!, this.pins[2].voltSource!, 1);
         }
-        this.pins[0].value = v1;
-        this.pins[1].value = v2;
     }
 
     getPostCount(): number { return 3; }

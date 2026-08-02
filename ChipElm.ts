@@ -466,7 +466,7 @@ export abstract class ChipElm extends CircuitElm {
 
     execute(): void {}
 
-    doStep(): void {
+    startIteration(): void {
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
             if (!p.output)
@@ -476,6 +476,9 @@ export abstract class ChipElm extends CircuitElm {
             this.justLoaded = false;
         else
             this.execute();
+    }
+
+    doStep(): void {
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
             if (p.output)

@@ -181,20 +181,24 @@ export class LatchElm extends ChipElm {
         this.lastLoad = this.pins[this.loadPin].value;
     }
 
-    doStep(): void {
+    startIteration(): void {
         if (!this.hasOutputEnable()) {
-            super.doStep();
+            super.startIteration();
             return;
         }
-
-        // read inputs
         for (let i = 0; i < this.getPostCount(); i++) {
             const p = this.pins[i];
             if (!p.output)
                 p.value = this.nodes[i].v > this.getThreshold();
         }
-
         this.doLoad();
+    }
+
+    doStep(): void {
+        if (!this.hasOutputEnable()) {
+            super.doStep();
+            return;
+        }
 
         let outputEnabled = true;
         if (this.outputEnableCount() >= 1 && this.pins[this.oe1Pin].value)

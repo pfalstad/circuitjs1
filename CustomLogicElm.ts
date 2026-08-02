@@ -140,12 +140,6 @@ export class CustomLogicElm extends ChipElm {
     }
 
     doStep(): void {
-        for (let i = 0; i !== this.getPostCount(); i++) {
-            const p = this.pins[i];
-            if (!p.output)
-                p.value = this.nodes[i].v > this.getThreshold();
-        }
-        this.execute();
         const add = this.hasTriState() ? this.outputCount : 0;
         for (let i = 0; i !== this.getPostCount(); i++) {
             const p = this.pins[i];
