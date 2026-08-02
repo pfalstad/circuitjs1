@@ -686,6 +686,28 @@ export abstract class CircuitElm implements Editable {
             const p = this.getPost(i);
             CircuitElm.drawPost(g, p!);
         }
+        this.drawScopeTerminalLabels(g);
+    }
+
+    drawScopeTerminalLabels(g: Graphics): void {
+        if (this.getPostCount() !== 2)
+            return;
+        if (!CircuitElm.app.mouse.scopePlotRoles.has(this))
+            return;
+        if (this.dn === 0)
+            return;
+        g.setColor(CircuitElm.selectColor);
+        g.setFont(CircuitElm.unitsFont);
+        g.save();
+        g.context.textBaseline = "middle";
+        g.context.textAlign = "center";
+        const axOff = 10, perpOff = 8;
+        const swap = this.isVoltageElm();
+        const pp = this.interpPoint(this.point1, this.point2, axOff / this.dn, perpOff);
+        g.drawString(swap ? "−" : "+", pp.x, pp.y);
+        const mp = this.interpPoint(this.point1, this.point2, 1 - axOff / this.dn, perpOff);
+        g.drawString(swap ? "+" : "−", mp.x, mp.y);
+        g.restore();
     }
 
     getNumHandles(): number {
