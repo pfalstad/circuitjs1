@@ -18,6 +18,7 @@
 */
 
 import { CircuitElm } from "./CircuitElm";
+import { CirSim } from "./CirSim";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
@@ -102,8 +103,10 @@ export class DataInputElm extends RailElm {
     doesRepeat(): boolean { return (this.flags & this.FLAG_REPEAT) !== 0; }
 
     getVoltage(): number {
-        if (this.data === null) return 0;
+        if (this.data === null || this.data.length === 0) return 0;
         let ptr = Math.trunc(this.timeOffset / this.sampleLength);
+        if (ptr < 0)
+            ptr = 0;
         if (ptr >= this.data.length) {
             if (this.doesRepeat()) { ptr = 0; this.timeOffset = 0; }
             else ptr = this.data.length - 1;
@@ -155,11 +158,28 @@ export class DataInputElm extends RailElm {
         this.fileName = name.replace(/\.[^.]*$/, "");
         const arr = s.split(/\r?\n/);
         this.data = [];
-        for (const line of arr) {
-            if (line.length === 0 || line[0] === '#') continue;
-            try {
-                this.data.push(parseFloat(line));
-            } catch (e) {}
+        let parseError = false;
+        for (let i = 0; i !== arr.length; i++) {
+            // skip blank lines
+            if (arr[i].length === 0) continue;
+            // skip comments
+            if (arr[i].charAt(0) === '#') continue;
+            const d = parseFloat(arr[i]);
+            if (isNaN(d)) {
+                CirSim.console("parse error on line " + i);
+                parseError = true;
+            } else {
+                this.data.push(d);
+            }
+        }
+        if (this.data.length === 0 || parseError) {
+            let msg = parseError ? "Error parsing data file.\n\n" : "No data found in file.\n\n";
+            msg += "Expected format:\n" +
+                "- One numeric voltage value per line\n" +
+                "- Lines starting with # are treated as comments\n" +
+                "- Blank lines are ignored\n\n" +
+                "Example:\n# my data\n1.5\n2.3\n-0.5";
+            window.alert(msg);
         }
     }
 
