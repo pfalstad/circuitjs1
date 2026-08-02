@@ -86,15 +86,18 @@ export class JfetElm extends MosfetElm {
     }
 
     getCurrentIntoNode(n: number): number {
-        if (n === 0) return -this.gateCurrent;
-        if (n === 1) return this.gateCurrent + this.ids;
+        if (n === 0)
+            return -this.gateCurrent;
+        if (n === 1)
+            return this.gateCurrent + this.ids;
         return -this.ids;
     }
 
     setPoints(): void {
         super.setPoints();
 
-        // find the coordinates of the various points we need to draw the JFET
+        // find the coordinates of the various points we need to draw
+        // the JFET.
         const hs2 = this.hs * this.dsign;
         this.src = this.newPointArray(3);
         this.drn = this.newPointArray(3);
@@ -111,9 +114,8 @@ export class JfetElm extends MosfetElm {
         if (this.pnp === -1) {
             const x = this.interpPoint(this.gatePt, this.point1, 18 / this.dn);
             this.arrowPoly = this.calcArrow(this.gatePt, x, 8, 3);
-        } else {
+        } else
             this.arrowPoly = this.calcArrow(this.point1, this.gatePt, 8, 3);
-        }
     }
 
     stamp(): void {
@@ -134,23 +136,21 @@ export class JfetElm extends MosfetElm {
     }
 
     showBulk(): boolean { return false; }
+    isJfet(): boolean { return true; }
+    hasSwapDS(): boolean { return false; }
+
+    static lastJfetModelName: string = "default-jfet";
+    getLastModelName(): string { return JfetElm.lastJfetModelName; }
+    setLastModelName(n: string): void { JfetElm.lastJfetModelName = n; }
 
     getDumpType(): number { return 'j'.charCodeAt(0); }
-
     // these values are taken from Hayes+Horowitz p155
     getDefaultThreshold(): number { return -4; }
-    getDefaultBeta(): number { return .00125; }
-    getBackwardCompatibilityBeta(): number { return this.getDefaultBeta(); }
+    getBackwardCompatibilityBeta(): number { return .00125; }
     getElmType(): string { return "JFET"; }
 
     getInfo(arr: string[]): void {
         this.getFetInfo(arr, "JFET");
-    }
-
-    getEditInfo(n: number): EditInfo | null {
-        if (n < 2)
-            return super.getEditInfo(n);
-        return null;
     }
 
     getConnection(n1: number, n2: number): boolean {

@@ -31,6 +31,7 @@ import { Locale } from "./Locale";
 import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
+import { MosfetModel } from "./MosfetModel";
 import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
@@ -446,6 +447,7 @@ export class CirSim {
         DiodeModel.clearDumpedFlags();
         (window as any).TransistorModel?.clearDumpedFlags();
         (window as any).RelayModel?.clearDumpedFlags();
+        MosfetModel.clearDumpedFlags();
 
         const xml = new CircuitXMLSerializer(this);
         return xml.dumpCircuit();

@@ -23,6 +23,7 @@ import { CircuitLoader } from "./CircuitLoader";
 import { DiodeModel } from "./DiodeModel";
 import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
+import { MosfetModel } from "./MosfetModel";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { Scope } from "./Scope";
 import { HookRegistry } from "./HookRegistry";
@@ -101,6 +102,11 @@ export class CircuitXMLDeserializer {
             if (tagName === "tm") {
                 this.currentXmlElement = elem;
                 TransistorModel.undumpModelXml(this);
+                continue;
+            }
+            if (tagName === "mm") {
+                this.currentXmlElement = elem;
+                MosfetModel.undumpModelXml(this);
                 continue;
             }
             if (tagName === "clm") {

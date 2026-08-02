@@ -24,29 +24,43 @@ import { Color } from "./Color";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { Diode } from "./Diode";
+import { MosfetModel } from "./MosfetModel";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
+import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { Locale } from "./Locale";
 
 export class MosfetElm extends CircuitElm {
     pnp: number;
     readonly FLAG_PNP = 1;
     readonly FLAG_SHOWVT = 2;
-    readonly FLAG_DIGITAL = 4;
     readonly FLAG_FLIP = 8;
-    readonly FLAG_HIDE_BULK = 16;
-    readonly FLAG_BODY_DIODE = 32;
-    readonly FLAG_BODY_TERMINAL = 64;
-    readonly FLAG_SHOW_BODY_DIODE = 128;
-    readonly FLAGS_GLOBAL: number;
+    // these bits are no longer set on new elements (the settings they controlled now live on
+    // MosfetModel), but the values are still needed to decode old circuit files that have them
+    // packed into the element's own flags.
+    readonly FLAG_DIGITAL_LEGACY = 4;
+    readonly FLAG_HIDE_BULK_LEGACY = 16;
+    readonly FLAG_BODY_DIODE_LEGACY = 32;
+    readonly FLAG_BODY_TERMINAL_LEGACY = 64;
+    readonly FLAG_SHOW_BODY_DIODE_LEGACY = 128;
     bodyTerminal: number;
 
     vt: number;
+    // beta = 1/(RdsON*(Vgs-Vt))
     beta: number;
-    static globalFlags: number = 0;
+    // junction capacitance state (backward euler companion model)
+    capVoltGS: number = 0;
+    capVoltGD: number = 0;
+    capCurGS: number = 0;
+    capCurGD: number = 0;
+    geqGS: number = 0;
+    geqGD: number = 0;
+    ceqGS: number = 0;
+    ceqGD: number = 0;
     diodeB1: Diode;
     diodeB2: Diode;
     diodeCurrent1: number = 0;
@@ -54,7 +68,22 @@ export class MosfetElm extends CircuitElm {
     bodyCurrent: number = 0;
     curcount_body1: number = 0;
     curcount_body2: number = 0;
-    static lastBeta: number = 0;
+    curcount_gate: number = 0;
+    curcount_source: number = 0;
+    curcount_drain: number = 0;
+    modelName: string;
+    model: MosfetModel;
+    static lastModelName: string = "default";
+
+    // cached copies of the model's drawing/behavior settings, refreshed in setup().  Cached
+    // (rather than read from model directly) because getPostCount() is called from the base
+    // CircuitElm constructor before our own "model" field is assigned; see DiodeElm.hasResistance
+    // for the same pattern.
+    bulkShown: boolean;
+    digitalSymbolShown: boolean;
+    bodyDiodeSimulated: boolean;
+    bodyTerminalShown: boolean;
+    bodyDiodeSymbolShown: boolean;
 
     readonly hs = 16;
 
@@ -81,29 +110,78 @@ export class MosfetElm extends CircuitElm {
             super(xa, ya);
             this.pnp = xbOrPnp ? -1 : 1;
             this.flags = xbOrPnp ? this.FLAG_PNP : 0;
-            this.flags |= this.FLAG_BODY_DIODE;
             this.noDiagonal = true;
-            this.FLAGS_GLOBAL = this.FLAG_HIDE_BULK | this.FLAG_DIGITAL | this.FLAG_SHOW_BODY_DIODE;
             this.setupDiodes();
-            this.beta = this.getDefaultBeta();
-            this.vt = this.getDefaultThreshold();
+            this.modelName = this.getLastModelName();
+            this.setup();
         } else {
             super(xa, ya, xbOrPnp!, yb!, f!);
             this.pnp = ((f! & this.FLAG_PNP) !== 0) ? -1 : 1;
             this.noDiagonal = true;
-            this.FLAGS_GLOBAL = this.FLAG_HIDE_BULK | this.FLAG_DIGITAL | this.FLAG_SHOW_BODY_DIODE;
             this.setupDiodes();
-            this.vt = this.getDefaultThreshold();
-            this.beta = this.getBackwardCompatibilityBeta();
+            let vt0 = this.getDefaultThreshold();
+            let beta0 = this.getBackwardCompatibilityBeta();
             try {
-                this.vt = parseFloat(st!.nextToken());
-                this.beta = parseFloat(st!.nextToken());
+                vt0 = parseFloat(st!.nextToken());
+                beta0 = parseFloat(st!.nextToken());
             } catch (e) {}
-            MosfetElm.globalFlags = this.flags & this.FLAGS_GLOBAL;
-            this.allocNodes(); // make sure volts[] has right number of elements when hasBodyTerminal() is true
+            this.model = this.legacyModel(vt0, beta0, this.flags);
+            this.modelName = this.model.name;
+            this.setup();
+            this.allocNodes(); // make sure volts[] has the right number of elements when hasBodyTerminal() is true
         }
     }
 
+    // is this a JFET (vs. a MOSFET)?  Both share MosfetModel; this only affects
+    // which default model is used and which UI options are shown.
+    isJfet(): boolean { return false; }
+
+    getLastModelName(): string { return MosfetElm.lastModelName; }
+    setLastModelName(n: string): void { MosfetElm.lastModelName = n; }
+
+    // build (or find) a model matching the drawing/behavior bits from a pre-model circuit
+    // file, where they were packed into the element's own flags instead of into a model.
+    // Used for both the old plain-text format (StringTokenizer constructor) and old XML saves
+    // (undumpXml, when there's no "mo" model-name attribute).  Also strips those bits out of
+    // our own flags field, since they're no longer meaningful there.
+    legacyModel(vt0: number, beta0: number, legacyFlags: number): MosfetModel {
+        // JFETs never showed a bulk terminal, so FLAG_HIDE_BULK_LEGACY was never meaningfully
+        // set/unset for them; force it false here so legacy JFETs match default-jfet (whose
+        // showBulk is also false) instead of spawning a spurious "old-jfet" model.
+        const legacyShowBulk = !this.isJfet() && (legacyFlags & (this.FLAG_DIGITAL_LEGACY | this.FLAG_HIDE_BULK_LEGACY)) === 0;
+        const legacyDigital = (legacyFlags & this.FLAG_DIGITAL_LEGACY) !== 0;
+        const legacyBodyDiode = (legacyFlags & this.FLAG_BODY_DIODE_LEGACY) !== 0;
+        const legacyBodyTerminal = (legacyFlags & this.FLAG_BODY_TERMINAL_LEGACY) !== 0;
+        const legacyShowBodyDiode = (legacyFlags & this.FLAG_SHOW_BODY_DIODE_LEGACY) !== 0;
+        this.flags &= ~(this.FLAG_DIGITAL_LEGACY | this.FLAG_HIDE_BULK_LEGACY | this.FLAG_BODY_DIODE_LEGACY |
+                   this.FLAG_BODY_TERMINAL_LEGACY | this.FLAG_SHOW_BODY_DIODE_LEGACY);
+        return MosfetModel.getModelWithParameters(vt0, beta0, this.isJfet(), legacyShowBulk,
+                legacyBodyDiode, legacyBodyTerminal, legacyDigital, legacyShowBodyDiode);
+    }
+
+    setup(): void {
+        this.model = MosfetModel.getModelWithNameOrCopy(this.modelName, this.model ?? null, this.isJfet());
+        this.modelName = this.model.name;
+        this.vt = this.model.threshold;
+        this.beta = this.model.beta;
+        this.bulkShown = this.model.showBulk;
+        this.digitalSymbolShown = !this.bulkShown && this.model.digitalSymbol;
+        this.bodyDiodeSimulated = this.bulkShown && this.model.bodyDiode;
+        this.bodyTerminalShown = this.bodyDiodeSimulated && this.model.bodyTerminal;
+        this.bodyDiodeSymbolShown = this.bodyDiodeSimulated && this.model.showBodyDiodeSymbol;
+        this.allocNodes(); // post count may have changed (e.g. bodyTerminalShown)
+    }
+
+    hasGateCaps(): boolean {
+        return this.model.capGS > 0 || this.model.capGD > 0;
+    }
+
+    updateModels(): void {
+        this.setup();
+        this.setPoints();
+    }
+
+    // set up body diodes
     setupDiodes(): void {
         // diode from node 1 to body terminal
         this.diodeB1 = new Diode(CircuitElm.sim);
@@ -113,50 +191,60 @@ export class MosfetElm extends CircuitElm {
         this.diodeB2.setupForDefaultModel();
     }
 
+    // fallback vt/beta for old files with no configurable beta.  JfetElm overrides these.
     getDefaultThreshold(): number { return 1.5; }
 
-    getDefaultBeta(): number { return MosfetElm.lastBeta === 0 ? this.getBackwardCompatibilityBeta() : MosfetElm.lastBeta; }
-
+    // default for elements in old files with no configurable beta.  JfetElm overrides this.
     // Not sure where this value came from, but the ZVP3306A has a beta of about .027.  Power MOSFETs have much higher betas (like 80 or more)
     getBackwardCompatibilityBeta(): number { return .02; }
 
     nonLinear(): boolean { return true; }
-    drawDigital(): boolean { return (this.flags & this.FLAG_DIGITAL) !== 0; }
-    showBulk(): boolean { return (this.flags & (this.FLAG_DIGITAL | this.FLAG_HIDE_BULK)) === 0; }
-    hasBodyTerminal(): boolean { return (this.flags & this.FLAG_BODY_TERMINAL) !== 0 && this.doBodyDiode(); }
-    doBodyDiode(): boolean { return (this.flags & this.FLAG_BODY_DIODE) !== 0 && this.showBulk(); }
-    showBodyDiode(): boolean { return (this.flags & this.FLAG_SHOW_BODY_DIODE) !== 0 && this.doBodyDiode(); }
+    drawDigital(): boolean { return this.digitalSymbolShown; }
+    showBulk(): boolean { return this.bulkShown; }
+    hasBodyTerminal(): boolean { return this.bodyTerminalShown; }
+    doBodyDiode(): boolean { return this.bodyDiodeSimulated; }
+    showBodyDiode(): boolean { return this.bodyDiodeSymbolShown; }
 
     reset(): void {
         this.lastv1 = this.lastv2 = this.curcount = 0;
-        this.curcount_body1 = this.curcount_body2 = 0;
+        this.curcount_body1 = this.curcount_body2 = this.curcount_gate = this.curcount_source = this.curcount_drain = 0;
+        this.capVoltGS = this.capVoltGD = this.capCurGS = this.capCurGD = 0;
+        this.geqGS = this.geqGD = this.ceqGS = this.ceqGD = 0;
         this.diodeB1.reset();
         this.diodeB2.reset();
     }
 
+    getDumpType(): number { return 'f'.charCodeAt(0); }
+
     dumpXml(doc: Document, elem: Element): void {
+        if (!(this.model.builtIn || this.model.dumped))
+            this.model.dumpXml(doc);
         super.dumpXml(doc, elem);
-        CircuitXMLSerializer.dumpAttr(elem, "vt", this.vt);
-        CircuitXMLSerializer.dumpAttr(elem, "be", this.beta);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
+    }
+
+    dumpXmlModel(doc: Document): void {
+        if (!(this.model.builtIn || this.model.dumped))
+            this.model.dumpXml(doc);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         this.flags = 0;
         super.undumpXml(xml);
-        this.vt = xml.parseDoubleAttr("vt", this.vt);
-        this.beta = xml.parseDoubleAttr("be", this.beta);
-        MosfetElm.globalFlags = this.flags & this.FLAGS_GLOBAL;
+        this.modelName = xml.parseStringAttr("mo", null);
+        if (this.modelName == null) {
+            // pre-model circuit file: vt/be were dumped directly on the element, and the
+            // drawing/behavior options were packed into our own flags
+            const vt0 = xml.parseDoubleAttr("vt", this.getDefaultThreshold());
+            const beta0 = xml.parseDoubleAttr("be", this.getBackwardCompatibilityBeta());
+            this.model = this.legacyModel(vt0, beta0, this.flags);
+            this.modelName = this.model.name;
+        }
+        this.setup();
         this.pnp = ((this.flags & this.FLAG_PNP) !== 0) ? -1 : 1;
-        this.allocNodes();
     }
 
-    getDumpType(): number { return 'f'.charCodeAt(0); }
-
     draw(g: Graphics): void {
-        // pick up global flags changes
-        if ((this.flags & this.FLAGS_GLOBAL) !== MosfetElm.globalFlags)
-            this.setPoints();
-
         this.setBbox(this.point1, this.point2, this.hs);
 
         // draw source/drain terminals
@@ -250,10 +338,16 @@ export class MosfetElm extends CircuitElm {
             g.setFont(CircuitElm.unitsFont);
             this.drawCenteredText(g, s, this.x2 + 2, this.y2, false);
         }
-        this.curcount = this.updateDotCountImpl(-this.ids, this.curcount);
-        this.drawDots(g, this.src[0], this.src[1], this.curcount);
-        this.drawDots(g, this.src[1], this.drn[1], this.curcount);
-        this.drawDots(g, this.drn[1], this.drn[0], this.curcount);
+        this.curcount_source = this.updateDotCountImpl(-(this.ids + this.capCurGS), this.curcount_source);
+        this.curcount_drain = this.updateDotCountImpl(-this.ids + this.capCurGD, this.curcount_drain);
+        this.drawDots(g, this.src[0], this.src[1], this.curcount_source);
+        this.drawDots(g, this.src[1], this.drn[1], this.curcount_source);
+        this.drawDots(g, this.drn[1], this.drn[0], this.curcount_drain);
+
+        if (this.model.capGS > 0 || this.model.capGD > 0) {
+            this.curcount_gate = this.updateDotCountImpl(this.capCurGS + this.capCurGD, this.curcount_gate);
+            this.drawDots(g, this.point1, this.gate[1], this.curcount_gate);
+        }
 
         if (this.showBulk()) {
             this.curcount_body1 = this.updateDotCountImpl(this.diodeCurrent1, this.curcount_body1);
@@ -274,6 +368,7 @@ export class MosfetElm extends CircuitElm {
             g.setColor(CircuitElm.whiteColor);
             g.setFont(CircuitElm.unitsFont);
 
+            // make fiddly adjustments to pin label locations depending on orientation
             const dsx = CircuitElm.sign(this.dx);
             const dsy = CircuitElm.sign(this.dy);
             const dsyn = this.dy === 0 ? 0 : 1;
@@ -312,12 +407,11 @@ export class MosfetElm extends CircuitElm {
     setPoints(): void {
         super.setPoints();
 
-        // these two flags apply to all mosfets
-        this.flags &= ~this.FLAGS_GLOBAL;
-        this.flags |= MosfetElm.globalFlags;
-
-        const hs2 = this.hs * this.dsign * ((this.flags & this.FLAG_FLIP) !== 0 ? -1 : 1);
-
+        // find the coordinates of the various points we need to draw
+        // the MOSFET.
+        let hs2 = this.hs * this.dsign;
+        if ((this.flags & this.FLAG_FLIP) !== 0)
+            hs2 = -hs2;
         this.src = this.newPointArray(3);
         this.drn = this.newPointArray(3);
         this.interpPoint2(this.point1, this.point2, this.src[0], this.drn[0], 1, -hs2);
@@ -325,7 +419,7 @@ export class MosfetElm extends CircuitElm {
         this.interpPoint2(this.point1, this.point2, this.src[2], this.drn[2], 1 - 22 / this.dn, -hs2 * 4 / 3);
 
         this.gate = this.newPointArray(3);
-        this.interpPoint2(this.point1, this.point2, this.gate[0], this.gate[2], 1 - 28 / this.dn, hs2 / 2);
+        this.interpPoint2(this.point1, this.point2, this.gate[0], this.gate[2], 1 - 28 / this.dn, hs2 / 2); // was 1-20/dn
         this.interpPoint(this.gate[0], this.gate[2], this.gate[1], .5);
 
         if (this.showBulk()) {
@@ -371,6 +465,7 @@ export class MosfetElm extends CircuitElm {
                 this.bodyDiodeLeads[3] = this.interpPoint(this.src[0], this.drn[0], 1, -hs2);
             } else {
                 // two inline diodes: src[0]↔body[0] and body[0]↔drn[0], no offset
+                // NPN: anode=body, cathode=src/drn;  PNP: anode=src/drn, cathode=body
                 const diodeHs = 3;
                 this.bodyDiodeCathode = this.newPointArray(2);
                 this.bodyDiodeCathode2 = this.newPointArray(2);
@@ -399,9 +494,24 @@ export class MosfetElm extends CircuitElm {
     mode: number = 0;
     gm: number = 0;
 
+    startIteration(): void {
+        if (CircuitElm.sim.timeStep <= 0)
+            return;
+        if (this.model.capGS > 0) {
+            this.geqGS = this.model.capGS / CircuitElm.sim.timeStep;
+            this.ceqGS = -this.geqGS * this.capVoltGS;
+        }
+        if (this.model.capGD > 0) {
+            this.geqGD = this.model.capGD / CircuitElm.sim.timeStep;
+            this.ceqGD = -this.geqGD * this.capVoltGD;
+        }
+    }
+
     stamp(): void {
         CircuitElm.sim.stampNonLinear(this.nodes[1]);
         CircuitElm.sim.stampNonLinear(this.nodes[2]);
+        if (this.hasGateCaps())
+            CircuitElm.sim.stampNonLinear(this.nodes[0]);
 
         if (this.hasBodyTerminal())
             this.bodyTerminal = 3;
@@ -448,6 +558,16 @@ export class MosfetElm extends CircuitElm {
             this.diodeCurrent1 = -this.diodeCurrent2;
         if (this.bodyTerminal === 2)
             this.diodeCurrent2 = -this.diodeCurrent1;
+
+        // save gate cap state for next time step
+        if (this.model.capGS > 0 && this.geqGS > 0) {
+            this.capVoltGS = this.nodes[0].v - this.nodes[1].v;
+            this.capCurGS = this.geqGS * this.capVoltGS + this.ceqGS;
+        }
+        if (this.model.capGD > 0 && this.geqGD > 0) {
+            this.capVoltGD = this.nodes[0].v - this.nodes[2].v;
+            this.capCurGD = this.geqGD * this.capVoltGD + this.ceqGD;
+        }
     }
 
     doStep(): void {
@@ -456,31 +576,36 @@ export class MosfetElm extends CircuitElm {
 
     lastv0: number = 0;
 
-    // called in doStep to stamp the matrix, and also in stepFinished() to calculate the current
+    // this is called in doStep to stamp the matrix, and also called in stepFinished() to calculate the current
     calculate(finished: boolean): void {
         let vs: number[];
-        if (finished) {
+        if (finished)
             vs = [this.nodes[0].v, this.nodes[1].v, this.nodes[2].v];
-        } else {
+        else {
             // limit voltage changes to .5V
             vs = [this.nodes[0].v, this.nodes[1].v, this.nodes[2].v];
-            if (vs[1] > this.lastv1 + .5) vs[1] = this.lastv1 + .5;
-            if (vs[1] < this.lastv1 - .5) vs[1] = this.lastv1 - .5;
-            if (vs[2] > this.lastv2 + .5) vs[2] = this.lastv2 + .5;
-            if (vs[2] < this.lastv2 - .5) vs[2] = this.lastv2 - .5;
+            if (vs[1] > this.lastv1 + .5)
+                vs[1] = this.lastv1 + .5;
+            if (vs[1] < this.lastv1 - .5)
+                vs[1] = this.lastv1 - .5;
+            if (vs[2] > this.lastv2 + .5)
+                vs[2] = this.lastv2 + .5;
+            if (vs[2] < this.lastv2 - .5)
+                vs[2] = this.lastv2 - .5;
         }
 
         let source = 1;
         let drain = 2;
 
-        // if source voltage > drain (for NPN), swap source and drain (opposite for PNP)
+        // if source voltage > drain (for NPN), swap source and drain
+        // (opposite for PNP)
         if (this.pnp * vs[1] > this.pnp * vs[2]) {
             source = 2;
             drain = 1;
         }
         const gateIdx = 0;
-        const vgs = vs[gateIdx] - vs[source];
-        const vds = vs[drain] - vs[source];
+        let vgs = vs[gateIdx] - vs[source];
+        let vds = vs[drain] - vs[source];
         if (!finished && (this.nonConvergence(this.lastv1, vs[1]) || this.nonConvergence(this.lastv2, vs[2]) || this.nonConvergence(this.lastv0, vs[0])))
             CircuitElm.sim.converged = false;
         this.lastv0 = vs[0];
@@ -488,29 +613,32 @@ export class MosfetElm extends CircuitElm {
         this.lastv2 = vs[2];
         const realvgs = vgs;
         const realvds = vds;
-        const vgsP = vgs * this.pnp;
-        const vdsP = vds * this.pnp;
+        vgs *= this.pnp;
+        vds *= this.pnp;
         this.ids = 0;
         this.gm = 0;
         let Gds = 0;
-        if (vgsP < this.vt) {
+        if (vgs < this.vt) {
             // should be all zero, but that causes a singular matrix,
             // so instead we treat it as a large resistor
             Gds = 1e-8;
-            this.ids = vdsP * Gds;
+            this.ids = vds * Gds;
             this.mode = 0;
-        } else if (vdsP < vgsP - this.vt) {
+        } else if (vds < vgs - this.vt) {
             // linear
-            this.ids = this.beta * ((vgsP - this.vt) * vdsP - vdsP * vdsP * .5);
-            this.gm = this.beta * vdsP;
-            Gds = this.beta * (vgsP - vdsP - this.vt);
+            const lambda = this.model.lambda;
+            this.ids = this.beta * ((vgs - this.vt) * vds - vds * vds * .5) * (1 + lambda * vds);
+            this.gm = this.beta * vds * (1 + lambda * vds);
+            Gds = this.beta * ((vgs - vds - this.vt) * (1 + lambda * vds) + lambda * ((vgs - this.vt) * vds - vds * vds * .5));
             this.mode = 1;
         } else {
-            // saturation; Gds = 0
-            this.gm = this.beta * (vgsP - this.vt);
-            // use very small Gds to avoid nonconvergence
-            Gds = 1e-8;
-            this.ids = .5 * this.beta * (vgsP - this.vt) * (vgsP - this.vt) + (vdsP - (vgsP - this.vt)) * Gds;
+            // saturation; Gds = 0 without lambda
+            const lambda = this.model.lambda;
+            const vgs_vt = vgs - this.vt;
+            this.gm = this.beta * vgs_vt * (1 + lambda * vds);
+            Gds = .5 * this.beta * vgs_vt * vgs_vt * lambda;
+            if (Gds < 1e-8) Gds = 1e-8;
+            this.ids = .5 * this.beta * vgs_vt * vgs_vt * (1 + lambda * vds);
             this.mode = 2;
         }
 
@@ -519,14 +647,14 @@ export class MosfetElm extends CircuitElm {
             this.diodeCurrent1 = this.diodeB1.calculateCurrent(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[1].v)) * this.pnp;
             this.diodeB2.doStep(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[2].v));
             this.diodeCurrent2 = this.diodeB2.calculateCurrent(this.pnp * (this.nodes[this.bodyTerminal].v - this.nodes[2].v)) * this.pnp;
-        } else {
+        } else
             this.diodeCurrent1 = this.diodeCurrent2 = 0;
-        }
 
         const ids0 = this.ids;
 
         // flip ids if we swapped source and drain above
-        if ((source === 2 && this.pnp === 1) || (source === 1 && this.pnp === -1))
+        if (source === 2 && this.pnp === 1 ||
+            source === 1 && this.pnp === -1)
             this.ids = -this.ids;
 
         if (finished)
@@ -543,105 +671,144 @@ export class MosfetElm extends CircuitElm {
 
         CircuitElm.sim.stampRightSide(this.nodes[drain], rs);
         CircuitElm.sim.stampRightSide(this.nodes[source], -rs);
+
+        // gate capacitance companion model stamps (backward euler; avoids the
+        // oscillatory behavior trapezoidal integration can cause when RC is
+        // small relative to the timestep)
+        // Cgs between gate (node 0) and node 1
+        if (this.model.capGS > 0 && this.geqGS > 0) {
+            CircuitElm.sim.stampMatrix(this.nodes[0], this.nodes[0], this.geqGS);
+            CircuitElm.sim.stampMatrix(this.nodes[1], this.nodes[1], this.geqGS);
+            CircuitElm.sim.stampMatrix(this.nodes[0], this.nodes[1], -this.geqGS);
+            CircuitElm.sim.stampMatrix(this.nodes[1], this.nodes[0], -this.geqGS);
+            CircuitElm.sim.stampRightSide(this.nodes[0], -this.ceqGS);
+            CircuitElm.sim.stampRightSide(this.nodes[1], this.ceqGS);
+        }
+        // Cgd between gate (node 0) and node 2
+        if (this.model.capGD > 0 && this.geqGD > 0) {
+            CircuitElm.sim.stampMatrix(this.nodes[0], this.nodes[0], this.geqGD);
+            CircuitElm.sim.stampMatrix(this.nodes[2], this.nodes[2], this.geqGD);
+            CircuitElm.sim.stampMatrix(this.nodes[0], this.nodes[2], -this.geqGD);
+            CircuitElm.sim.stampMatrix(this.nodes[2], this.nodes[0], -this.geqGD);
+            CircuitElm.sim.stampRightSide(this.nodes[0], -this.ceqGD);
+            CircuitElm.sim.stampRightSide(this.nodes[2], this.ceqGD);
+        }
     }
 
     getFetInfo(arr: string[], n: string): void {
-        arr[0] = ((this.pnp === -1) ? "p-" : "n-") + n;
-        arr[0] += " (Vt=" + CircuitElm.getVoltageText(this.pnp * this.vt);
-        arr[0] += ", β=" + this.beta + ")";
-        arr[1] = ((this.pnp === 1) ? "Ids = " : "Isd = ") + CircuitElm.getCurrentText(this.ids);
-        arr[2] = "Vgs = " + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[this.pnp === -1 ? 2 : 1].v);
-        arr[3] = ((this.pnp === 1) ? "Vds = " : "Vsd = ") + CircuitElm.getVoltageText(this.nodes[2].v - this.nodes[1].v);
-        arr[4] = (this.mode === 0) ? "off" : (this.mode === 1) ? "linear" : "saturation";
-        arr[5] = "gm = " + CircuitElm.getUnitText(this.gm, "A/V");
-        arr[6] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
+        arr[0] = Locale.LS(((this.pnp === -1) ? "p-" : "n-") + n) + " (" + this.modelName + ")";
+        arr[1] = "Vt=" + CircuitElm.getVoltageText(this.pnp * this.vt) + ", β=" + this.beta;
+        arr[2] = ((this.pnp === 1) ? "Ids = " : "Isd = ") + CircuitElm.getCurrentText(this.ids);
+        arr[3] = "Vgs = " + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[this.pnp === -1 ? 2 : 1].v);
+        arr[4] = ((this.pnp === 1) ? "Vds = " : "Vsd = ") + CircuitElm.getVoltageText(this.nodes[2].v - this.nodes[1].v);
+        arr[5] = Locale.LS((this.mode === 0) ? "off" :
+            (this.mode === 1) ? "linear" : "saturation");
+        arr[6] = "gm = " + CircuitElm.getUnitText(this.gm, "A/V");
+        arr[7] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
+        let idx = 8;
         if (this.showBulk())
-            arr[7] = "Ib = " + CircuitElm.getUnitText(
-                this.bodyTerminal === 1 ? -this.diodeCurrent1 :
-                this.bodyTerminal === 2 ? this.diodeCurrent2 :
-                -this.pnp * (this.diodeCurrent1 + this.diodeCurrent2), "A");
+            arr[idx++] = "Ib = " + CircuitElm.getUnitText(this.bodyTerminal === 1 ? -this.diodeCurrent1 : this.bodyTerminal === 2 ? this.diodeCurrent2 : -this.pnp * (this.diodeCurrent1 + this.diodeCurrent2), "A");
+        if (this.model.capGS > 0)
+            arr[idx++] = "Cgs = " + CircuitElm.getUnitText(this.model.capGS, "F");
+        if (this.model.capGD > 0)
+            arr[idx] = "Cgd = " + CircuitElm.getUnitText(this.model.capGD, "F");
     }
 
     getElmType(): string { return "MOSFET"; }
-
     getInfo(arr: string[]): void {
         this.getFetInfo(arr, "MOSFET");
     }
-
     getScopeText(v: number): string {
-        return ((this.pnp === -1) ? "p-" : "n-") + "MOSFET";
+        return Locale.LS(((this.pnp === -1) ? "p-" : "n-") + "MOSFET");
     }
-
     canViewInScope(): boolean { return true; }
     getVoltageDiff(): number { return this.nodes[2].v - this.nodes[1].v; }
-    getConnection(n1: number, n2: number): boolean { return !(n1 === 0 || n2 === 0); }
+    getConnection(n1: number, n2: number): boolean {
+        if (this.hasGateCaps())
+            return true;
+        return !(n1 === 0 || n2 === 0);
+    }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
+    models: MosfetModel[];
+
+    // does this element support D/S swapping?  JfetElm overrides this to false since its
+    // setPoints() doesn't honor FLAG_FLIP.  (The rest of the mosfet-only options - bulk
+    // terminal, digital symbol, body diode - now live on MosfetModel, not here.)
+    hasSwapDS(): boolean { return true; }
 
     getEditInfo(n: number): EditInfo | null {
-        if (n === 0)
-            return new EditInfo("Threshold Voltage", this.pnp * this.vt, .01, 5);
-        if (n === 1)
-            return new EditInfo(EditInfo.makeLink("mosfet-beta.html", "Beta"), this.beta, .01, 5).setPositive();
-        if (n === 2) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Show Bulk", this.showBulk());
+        if (n === 0) {
+            const ei = new EditInfo("Model", 0, -1, -1);
+            this.models = MosfetModel.getModelList(this.isJfet());
+            ei.choice = new Choice();
+            for (let i = 0; i !== this.models.length; i++) {
+                const mm = this.models[i];
+                ei.choice.add(mm.getDescription());
+                if (mm === this.model)
+                    ei.choice.select(i);
+            }
             return ei;
         }
-        if (n === 3) {
+        let idx = 1;
+        if (this.hasSwapDS()) {
+            if (n === idx++) {
+                const ei = new EditInfo("", 0, -1, -1);
+                ei.checkbox = new Checkbox("Swap D/S", (this.flags & this.FLAG_FLIP) !== 0);
+                return ei;
+            }
+        }
+        if (n === idx) {
             const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Swap D/S", (this.flags & this.FLAG_FLIP) !== 0);
+            ei.button = { label: Locale.LS("Create New Model") };
             return ei;
         }
-        if (n === 4 && !this.showBulk()) {
+        if (n === idx + 1) {
+            if (this.model.readOnly)
+                return null;
             const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Digital Symbol", this.drawDigital());
-            return ei;
-        }
-        if (n === 4 && this.showBulk()) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Simulate Body Diode", (this.flags & this.FLAG_BODY_DIODE) !== 0);
-            return ei;
-        }
-        if (n === 5 && this.doBodyDiode()) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Body Terminal", (this.flags & this.FLAG_BODY_TERMINAL) !== 0);
-            return ei;
-        }
-        if (n === 6 && this.doBodyDiode()) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Show Body Diode", this.showBodyDiode());
+            ei.button = { label: Locale.LS("Edit Model") };
             return ei;
         }
         return null;
     }
 
+    newModelCreated(mm: MosfetModel): void {
+        this.model = mm;
+        this.modelName = this.model.name;
+        this.setup();
+    }
+
     setEditValue(n: number, ei: EditInfo): void {
-        if (n === 0)
-            this.vt = this.pnp * ei.value;
-        if (n === 1 && ei.value > 0)
-            this.beta = MosfetElm.lastBeta = ei.value;
-        if (n === 2) {
-            MosfetElm.globalFlags = (!ei.checkbox.getState()) ? (MosfetElm.globalFlags | this.FLAG_HIDE_BULK) :
-                (MosfetElm.globalFlags & ~(this.FLAG_HIDE_BULK | this.FLAG_DIGITAL));
+        if (n === 0) {
+            this.model = this.models[ei.choice!.getSelectedIndex()];
+            this.modelName = this.model.name;
+            this.setLastModelName(this.modelName);
+            this.setup();
             ei.newDialog = true;
-        }
-        if (n === 3) {
-            this.flags = (ei.checkbox.getState()) ? (this.flags | this.FLAG_FLIP) :
-                (this.flags & ~this.FLAG_FLIP);
-        }
-        if (n === 4 && !this.showBulk()) {
-            MosfetElm.globalFlags = (ei.checkbox.getState()) ? (MosfetElm.globalFlags | this.FLAG_DIGITAL) :
-                (MosfetElm.globalFlags & ~this.FLAG_DIGITAL);
-        }
-        if (n === 4 && this.showBulk()) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_BODY_DIODE);
-            ei.newDialog = true;
-        }
-        if (n === 5) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_BODY_TERMINAL);
-        }
-        if (n === 6) {
-            MosfetElm.globalFlags = ei.changeFlag(MosfetElm.globalFlags, this.FLAG_SHOW_BODY_DIODE);
+        } else {
+            let idx = 1;
+            if (this.hasSwapDS() && n === idx++) {
+                this.flags = (ei.checkbox!.getState()) ? (this.flags | this.FLAG_FLIP) :
+                    (this.flags & ~this.FLAG_FLIP);
+            } else if (n === idx) {
+                const newModel = new MosfetModel(this.model);
+                // EditMosfetModelDialog not yet ported (matches DiodeModel/TransistorModel/RelayModel,
+                // whose "Create New Model"/"Edit Model" buttons are likewise stubbed out for now)
+                // const editDialog = new EditMosfetModelDialog(newModel, CirSim.theApp, this);
+                // CirSim.mosfetModelEditDialog = editDialog;
+                // editDialog.show();
+                return;
+            } else if (n === idx + 1) {
+                if (this.model.readOnly) {
+                    window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
+                    return;
+                }
+                // EditMosfetModelDialog not yet ported
+                // const editDialog = new EditMosfetModelDialog(this.model, CirSim.theApp, null);
+                // CirSim.mosfetModelEditDialog = editDialog;
+                // editDialog.show();
+                return;
+            }
         }
 
         // lots of different cases where the body terminal might have gotten removed/added so just do this all the time
@@ -650,10 +817,25 @@ export class MosfetElm extends CircuitElm {
     }
 
     getCurrentIntoNode(n: number): number {
-        if (n === 0) return 0;
-        if (n === 3) return -this.diodeCurrent1 - this.diodeCurrent2;
-        if (n === 1) return this.ids + this.diodeCurrent1;
-        return -this.ids + this.diodeCurrent2;
+        if (n === 0) {
+            // gate current from cap currents (cap current flows out of gate)
+            let gateCur = 0;
+            if (this.model.capGS > 0 && this.geqGS > 0)
+                gateCur -= this.geqGS * (this.nodes[0].v - this.nodes[1].v) + this.ceqGS;
+            if (this.model.capGD > 0 && this.geqGD > 0)
+                gateCur -= this.geqGD * (this.nodes[0].v - this.nodes[2].v) + this.ceqGD;
+            return gateCur;
+        }
+        if (n === 3)
+            return -this.diodeCurrent1 - this.diodeCurrent2;
+        if (n === 1) {
+            const capCur = (this.model.capGS > 0 && this.geqGS > 0)
+                ? this.geqGS * (this.nodes[0].v - this.nodes[1].v) + this.ceqGS : 0;
+            return this.ids + this.diodeCurrent1 + capCur;
+        }
+        const capCur = (this.model.capGD > 0 && this.geqGD > 0)
+            ? this.geqGD * (this.nodes[0].v - this.nodes[2].v) + this.ceqGD : 0;
+        return -this.ids + this.diodeCurrent2 + capCur;
     }
 
     flipX(c2: number, count: number): void {
