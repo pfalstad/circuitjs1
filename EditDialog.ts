@@ -49,6 +49,7 @@ export class EditDialog extends Dialog {
     private activeCol: HTMLDivElement;     // current column being filled
     private activeColCount: number = 0;
     private firstInput: HTMLInputElement | null = null;
+    protected applyButton: HTMLButtonElement;
 
     constructor(ce: Editable, f: CirSim) {
         super();
@@ -100,6 +101,7 @@ export class EditDialog extends Dialog {
         applyBtn.textContent = Locale.LS("Apply");
         applyBtn.onclick = () => this.apply();
         btnRow.appendChild(applyBtn);
+        this.applyButton = applyBtn;
 
         const okBtn = document.createElement("button");
         okBtn.textContent = Locale.LS("OK");

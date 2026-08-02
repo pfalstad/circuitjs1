@@ -25,6 +25,8 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { Diode } from "./Diode";
 import { MosfetModel } from "./MosfetModel";
+import { CirSim } from "./CirSim";
+import { EditMosfetModelDialog } from "./EditMosfetModelDialog";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
@@ -47,7 +49,7 @@ export class MosfetElm extends CircuitElm {
     readonly FLAG_BODY_DIODE_LEGACY = 32;
     readonly FLAG_BODY_TERMINAL_LEGACY = 64;
     readonly FLAG_SHOW_BODY_DIODE_LEGACY = 128;
-    bodyTerminal: number;
+    bodyTerminal: number = 0;
 
     vt: number;
     // beta = 1/(RdsON*(Vgs-Vt))
@@ -792,21 +794,18 @@ export class MosfetElm extends CircuitElm {
                     (this.flags & ~this.FLAG_FLIP);
             } else if (n === idx) {
                 const newModel = new MosfetModel(this.model);
-                // EditMosfetModelDialog not yet ported (matches DiodeModel/TransistorModel/RelayModel,
-                // whose "Create New Model"/"Edit Model" buttons are likewise stubbed out for now)
-                // const editDialog = new EditMosfetModelDialog(newModel, CirSim.theApp, this);
-                // CirSim.mosfetModelEditDialog = editDialog;
-                // editDialog.show();
+                const editDialog = new EditMosfetModelDialog(newModel, CirSim.theApp, this);
+                CirSim.mosfetModelEditDialog = editDialog;
+                editDialog.show();
                 return;
             } else if (n === idx + 1) {
                 if (this.model.readOnly) {
                     window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
                     return;
                 }
-                // EditMosfetModelDialog not yet ported
-                // const editDialog = new EditMosfetModelDialog(this.model, CirSim.theApp, null);
-                // CirSim.mosfetModelEditDialog = editDialog;
-                // editDialog.show();
+                const editDialog = new EditMosfetModelDialog(this.model, CirSim.theApp, null);
+                CirSim.mosfetModelEditDialog = editDialog;
+                editDialog.show();
                 return;
             }
         }

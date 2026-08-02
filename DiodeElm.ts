@@ -18,8 +18,10 @@
 */
 
 import { CircuitElm } from "./CircuitElm";
+import { CirSim } from "./CirSim";
 import { Diode } from "./Diode";
 import { DiodeModel } from "./DiodeModel";
+import { EditDiodeModelDialog } from "./EditDiodeModelDialog";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -254,7 +256,9 @@ export class DiodeElm extends CircuitElm {
             newModel.setSimple(n === 1);
             if (newModel.isSimple())
                 newModel.setForwardVoltage();
-            // EditDiodeModelDialog not yet implemented
+            const editDialog = new EditDiodeModelDialog(newModel, CirSim.theApp, this);
+            CirSim.diodeModelEditDialog = editDialog;
+            editDialog.show();
             return;
         }
         if (n === 3) {
@@ -265,7 +269,9 @@ export class DiodeElm extends CircuitElm {
             }
             if (this.model.isSimple())
                 this.model.setForwardVoltage();
-            // EditDiodeModelDialog not yet implemented
+            const editDialog = new EditDiodeModelDialog(this.model, CirSim.theApp, null);
+            CirSim.diodeModelEditDialog = editDialog;
+            editDialog.show();
             return;
         }
     }

@@ -29,6 +29,7 @@ import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
 import { Inductor } from "./Inductor";
 import { RelayModel } from "./RelayModel";
+import { EditRelayModelDialog } from "./EditRelayModelDialog";
 import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -561,12 +562,16 @@ export class RelayElm extends CircuitElm {
         }
         if (n === 1) {
             const newModel = new RelayModel(this.model);
-            // EditRelayModelDialog not yet implemented
+            const editDialog = new EditRelayModelDialog(newModel, CirSim.theApp, this);
+            CirSim.relayModelEditDialog = editDialog;
+            editDialog.show();
             return;
         }
         if (n === 2) {
             if (!this.model.readOnly) {
-                // EditRelayModelDialog not yet implemented
+                const editDialog = new EditRelayModelDialog(this.model, CirSim.theApp, null);
+                CirSim.relayModelEditDialog = editDialog;
+                editDialog.show();
             }
             return;
         }

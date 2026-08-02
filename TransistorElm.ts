@@ -19,6 +19,7 @@
 
 import { CircuitElm } from "./CircuitElm";
 import { TransistorModel } from "./TransistorModel";
+import { EditTransistorModelDialog } from "./EditTransistorModelDialog";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -686,10 +687,9 @@ export class TransistorElm extends CircuitElm {
         }
         if (n === 4) {
             const newModel = new TransistorModel(this.model);
-            // EditTransistorModelDialog not yet ported
-            // EditDialog editDialog = new EditTransistorModelDialog(newModel, app, this);
-            // CirSim.diodeModelEditDialog = editDialog;
-            // editDialog.show();
+            const editDialog = new EditTransistorModelDialog(newModel, CirSim.theApp, this);
+            CirSim.diodeModelEditDialog = editDialog;
+            editDialog.show();
             return;
         }
         if (n === 5) {
@@ -698,10 +698,9 @@ export class TransistorElm extends CircuitElm {
                 window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
                 return;
             }
-            // EditTransistorModelDialog not yet ported
-            // EditDialog editDialog = new EditTransistorModelDialog(model, app, null);
-            // CirSim.diodeModelEditDialog = editDialog;
-            // editDialog.show();
+            const editDialog = new EditTransistorModelDialog(this.model, CirSim.theApp, null);
+            CirSim.diodeModelEditDialog = editDialog;
+            editDialog.show();
             return;
         }
     }

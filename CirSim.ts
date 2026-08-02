@@ -143,6 +143,7 @@ export class CirSim {
     static customLogicEditDialog: any = null;
     static diodeModelEditDialog: any = null;
     static relayModelEditDialog: any = null;
+    static mosfetModelEditDialog: any = null;
     static scrollValuePopup: any = null;
     static typeScrollPopup: any = null;
     static dialogShowing: any = null;
