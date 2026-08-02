@@ -82,6 +82,7 @@ import { NTransistorElm } from "./NTransistorElm";
 import { NandGateElm } from "./NandGateElm";
 import { NoiseElm } from "./NoiseElm";
 import { NorGateElm } from "./NorGateElm";
+import { NortonAmpElm } from "./NortonAmpElm";
 import { OTAElm } from "./OTAElm";
 import { OhmMeterElm } from "./OhmMeterElm";
 import { OpAmpElm } from "./OpAmpElm";
@@ -230,6 +231,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("NandGateElm", NandGateElm as any);
     ElementFactory.registerClass("NoiseElm", NoiseElm as any);
     ElementFactory.registerClass("NorGateElm", NorGateElm as any);
+    ElementFactory.registerClass("NortonAmpElm", NortonAmpElm as any);
     ElementFactory.registerClass("OTAElm", OTAElm as any);
     ElementFactory.registerClass("OhmMeterElm", OhmMeterElm as any);
     ElementFactory.registerClass("OpAmpElm", OpAmpElm as any);
@@ -373,6 +375,7 @@ export function registerElements(): void {
     CirSim.theApp.register("NandGateElm", new NandGateElm(0, 0));
     CirSim.theApp.register("NoiseElm", new NoiseElm(0, 0));
     CirSim.theApp.register("NorGateElm", new NorGateElm(0, 0));
+    CirSim.theApp.register("NortonAmpElm", new NortonAmpElm(0, 0));
     CirSim.theApp.register("OTAElm", new OTAElm(0, 0));
     CirSim.theApp.register("OhmMeterElm", new OhmMeterElm(0, 0));
     CirSim.theApp.register("OpAmpElm", new OpAmpElm(0, 0));
