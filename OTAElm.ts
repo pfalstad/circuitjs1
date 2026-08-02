@@ -195,8 +195,8 @@ export class OTAElm extends CompositeElm {
     }
 
     getEditInfo(n: number): EditInfo | null {
-        if (n === 0) return new EditInfo("Positive Supply Voltage (5-20V)", this.posVolt, 5, 20);
-        if (n === 1) return new EditInfo("Negative Supply Voltage (V)",     this.negVolt, -20, -5);
+        if (n === 0) return new EditInfo("Positive Supply Voltage (5-20V)", this.posVolt, 5, 20).setUnitStep();
+        if (n === 1) return new EditInfo("Negative Supply Voltage (V)",     this.negVolt, -20, -5).setUnitStep();
         return null;
     }
 

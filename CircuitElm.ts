@@ -591,6 +591,44 @@ export abstract class CircuitElm implements Editable {
         this.setPoints();
     }
 
+    // Default length (in pixels) used when this element is placed via toolbar
+    // drag-and-drop, since there's no drag-to-size gesture to set the length by hand
+    // in that case.  Override for elements that look better a bit longer/shorter.
+    getDragLength(): number {
+        return 64;
+    }
+
+    // Override (ignoring requestedVertical) for elements that should only ever be
+    // placed vertically via toolbar drag-and-drop, e.g. GroundElm, VoltageElm.
+    getDragVertical(requestedVertical: boolean): boolean {
+        return requestedVertical;
+    }
+
+    // Positions this element for toolbar drag-and-drop placement: (xa,ya) is the
+    // anchor point that tracks the mouse, in circuit coordinates, already snapped to
+    // the grid.  Called repeatedly as the mouse moves and whenever the requested
+    // orientation changes (e.g. the shift key toggled without the mouse moving), so
+    // it must be idempotent given the same arguments.  Override for elements where a
+    // different point (rather than x,y) should track the mouse, e.g. RailElm, where
+    // the label should track the mouse rather than the connection post.
+    dragPlace(xa: number, ya: number, vertical: boolean): void {
+        vertical = this.getDragVertical(vertical);
+        const len = this.getDragLength();
+        this.x = xa; this.y = ya;
+        this.x2 = xa + (vertical ? 0 : len);
+        this.y2 = ya + (vertical ? len : 0);
+        this.setPoints();
+    }
+
+    // swap the two endpoints in place; for use by dragPlace() overrides on elements
+    // where a different point (rather than x,y) should track the mouse anchor
+    swapDragEndpoints(): void {
+        const tx = this.x, ty = this.y;
+        this.x = this.x2; this.y = this.y2;
+        this.x2 = tx; this.y2 = ty;
+        this.setPoints();
+    }
+
     move(dx: number, dy: number): void {
         this.x += dx; this.y += dy; this.x2 += dx; this.y2 += dy;
         this.boundingBox.translate(dx, dy);

@@ -138,7 +138,7 @@ export class AMElm extends CircuitElm {
     }
 
     getEditInfo(n: number): EditInfo | null {
-        if (n === 0) return new EditInfo("Max Voltage", this.maxVoltage, -20, 20);
+        if (n === 0) return new EditInfo("Max Voltage", this.maxVoltage, -20, 20).setUnitStep();
         if (n === 1) return new EditInfo("Carrier Frequency (Hz)", this.carrierfreq, 4, 500);
         if (n === 2) return new EditInfo("Signal Frequency (Hz)", this.signalfreq, 4, 500);
         return null;

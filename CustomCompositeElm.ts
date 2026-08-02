@@ -314,7 +314,7 @@ export class CustomCompositeElm extends CompositeElm {
         }
         const hvIdx = this.canViewComponents() ? 3 : 2;
         if (n === hvIdx)
-            return new EditInfo("High Logic Voltage (0=default)", this.highVoltage, 0, 10);
+            return new EditInfo("High Logic Voltage (0=default)", this.highVoltage, 0, 10).setUnitStep();
         if (n === hvIdx + 1 && this.model.canLoadModelCircuit()) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.button = { label: Locale.LS("Edit Model") };

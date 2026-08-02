@@ -225,7 +225,7 @@ export class SweepElm extends CircuitElm {
             return ei;
         }
         if (n === 4)
-            return new EditInfo("Max Voltage", this.maxV, 0, 0);
+            return new EditInfo("Max Voltage", this.maxV, 0, 0).setUnitStep();
         if (n === 5) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Bidirectional", (this.flags & SweepElm.FLAG_BIDIR) !== 0);

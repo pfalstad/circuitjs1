@@ -112,7 +112,7 @@ export class StopTriggerElm extends CircuitElm {
     }
 
     getEditInfo(n: number): EditInfo | null {
-        if (n === 0) return new EditInfo("Voltage", this.triggerVoltage);
+        if (n === 0) return new EditInfo("Voltage", this.triggerVoltage).setUnitStep();
         if (n === 1) {
             const ei = new EditInfo("Trigger Type", this.type, -1, -1);
             ei.choice = new Choice();

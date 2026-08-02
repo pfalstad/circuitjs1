@@ -196,7 +196,7 @@ export class CurrentElm extends CircuitElm {
         if (n === 0)
             return new EditInfo("Current (A)", this.currentValue, 0, 0.1);
         if (n === 1)
-            return new EditInfo("Max Voltage (V, 0=unlimited)", this.maxVoltage, 0, 0);
+            return new EditInfo("Max Voltage (V, 0=unlimited)", this.maxVoltage, 0, 0).setUnitStep();
         return null;
     }
 

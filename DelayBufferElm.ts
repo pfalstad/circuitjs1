@@ -143,7 +143,7 @@ export class DelayBufferElm extends CircuitElm {
         if (n === 1)
             return new EditInfo("Threshold (V)", this.threshold, 0, 0);
         if (n === 2)
-            return new EditInfo("High Logic Voltage", this.highVoltage, 0, 0);
+            return new EditInfo("High Logic Voltage", this.highVoltage, 0, 0).setUnitStep();
         return null;
     }
 

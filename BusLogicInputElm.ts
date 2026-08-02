@@ -161,9 +161,9 @@ export class BusLogicInputElm extends SwitchElm {
         if (n === 1)
             return new EditInfo("Value", this.value).setDimensionless();
         if (n === 2)
-            return new EditInfo("High Voltage", this.hiV);
+            return new EditInfo("High Voltage", this.hiV).setUnitStep();
         if (n === 3)
-            return new EditInfo("Low Voltage", this.loV);
+            return new EditInfo("Low Voltage", this.loV).setUnitStep();
         return null;
     }
     setEditValue(n: number, ei: EditInfo): void {

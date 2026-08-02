@@ -352,6 +352,7 @@ class Toolbar {
         style.cursor = 'pointer';
         if (iconClass.startsWith("<svg"))
             style.paddingTop = '5px';
+        style.touchAction = 'none';
 
         // Add hover effect for the button
         iconLabel.addEventListener('mouseover', () => iconLabel.style.color = '#007bff');
@@ -369,10 +370,71 @@ class Toolbar {
         });
 
         // Track buttons that belong to the "main" command group
-        if (command.getMenuName() === "main")
+        if (command.getMenuName() === "main") {
             this.highlightableButtons.set(command.getItemName(), iconLabel);
 
+            // pressing and dragging (rather than just clicking) drops a new element
+            // where the mouse is released, instead of switching modes
+            iconLabel.addEventListener('mousedown', (mde: MouseEvent) => {
+                if (mde.button === 0)
+                    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.clientX, mde.clientY);
+            });
+            this.addTouchDragSupport(iconLabel);
+
+            // while hovering over an element-creation button, tell the user how to use it
+            iconLabel.addEventListener('mouseover', () => {
+                const label = CirSim.theApp.getLabelTextForClass(command.getItemName());
+                if (label != null)
+                    this.setModeLabel(label + Locale.LS(": Drag And Drop To Create"));
+            });
+            iconLabel.addEventListener('mouseout', () => UIManager.theUI.updateToolbar());
+        }
+
         return iconLabel;
+    }
+
+    // Translate touch gestures on a toolbar button into the synthetic mouse events that
+    // beginToolbarDrag/toolbarDragMove/toolbarDragEnd already expect, since iOS/touch browsers
+    // don't emit real mousemove events during a touch-drag (they just pan the page instead).
+    // touchstart re-dispatches a "mousedown" on the button itself, which the existing
+    // mousedown handler picks up; touchmove/touchend dispatch "mousemove"/"mouseup" on the
+    // document so the document-level listeners (which drive the drag once it's pending)
+    // see them just like they would for a real mouse drag.
+    private addTouchDragSupport(el: HTMLElement): void {
+        let startX = 0, startY = 0, moved = false;
+        const TAP_THRESHOLD = 6;
+        el.addEventListener('touchstart', (e: TouchEvent) => {
+            if (e.touches.length !== 1)
+                return;
+            const t = e.touches[0];
+            startX = t.clientX;
+            startY = t.clientY;
+            moved = false;
+            el.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true, button: 0 }));
+        }, { passive: true });
+        el.addEventListener('touchmove', (e: TouchEvent) => {
+            if (e.touches.length !== 1)
+                return;
+            e.preventDefault();
+            const t = e.touches[0];
+            const dx = t.clientX - startX, dy = t.clientY - startY;
+            if (dx*dx + dy*dy > TAP_THRESHOLD*TAP_THRESHOLD)
+                moved = true;
+            document.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+        }, { passive: false });
+        el.addEventListener('touchend', (e: TouchEvent) => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+            // preventDefault() suppressed the browser's own synthetic click for this tap,
+            // so re-create it ourselves when the touch didn't turn into a drag.
+            if (!moved)
+                el.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+        }, { passive: false });
+        el.addEventListener('touchcancel', (e: TouchEvent) => {
+            const t = e.changedTouches[0];
+            document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+        }, { passive: true });
     }
 
     makeSvg(s: string, size: number): string {
@@ -414,20 +476,43 @@ class Toolbar {
             variantStyle.color = '#333';
             //variantStyle.padding = '5px';
             variantStyle.cursor = 'pointer';
+            variantStyle.touchAction = 'none';
 
             const command = new MyCommand("main", info[i + 1]);
             const smallSvg = this.makeSvg(info[i], 24);
 
-            // Add click handler to update the main button and execute the command
-            variantButton.addEventListener('click', () => {
-                // Change the icon of the main button to reflect the variant selected
+            // Change the icon of the main button to reflect the variant selected
+            const selectVariant = () => {
                 iconLabel.innerHTML = smallSvg;
                 this.highlightableButtons.delete(mainCommand.getItemName());
                 this.highlightableButtons.set(command.getItemName(), iconLabel);
                 paletteContainer.style.display = 'none';
                 mainCommand.setItemName(command.getItemName());
+            };
+
+            // Add click handler to update the main button and execute the command
+            variantButton.addEventListener('click', () => {
+                selectVariant();
                 command.execute();  // Execute the corresponding command for the selected variant
             });
+
+            // pressing and dragging (rather than just clicking) a variant drops that
+            // variant directly, instead of switching modes
+            variantButton.addEventListener('mousedown', (mde: MouseEvent) => {
+                if (mde.button === 0) {
+                    selectVariant();
+                    UIManager.theUI.mouse.beginToolbarDrag(command.getItemName(), mde.clientX, mde.clientY);
+                }
+            });
+            this.addTouchDragSupport(variantButton);
+
+            // while hovering over a variant button, tell the user how to use it
+            variantButton.addEventListener('mouseover', () => {
+                const label = app.getLabelTextForClass(command.getItemName());
+                if (label != null)
+                    this.setModeLabel(label + Locale.LS(": Drag And Drop To Create"));
+            });
+            variantButton.addEventListener('mouseout', () => UIManager.theUI.updateToolbar());
 
             // Append the variant button to the palette container
             paletteContainer.appendChild(variantButton);
@@ -1816,11 +1901,17 @@ export class UIManager {
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
 
+        // Handle a press-and-drag gesture started on a toolbar icon, which may end up
+        // anywhere on the page (not just over the canvas), so it needs to be tracked here.
+        if (this.mouse.isToolbarDragPending() && code === KEY_ESCAPE)
+            this.mouse.cancelToolbarDrag();
+
         // Handle Shift key for net highlighting (works regardless of dialog state)
         if (code === 16) {
             this.mouse.netHighlightKeyHeld = true;
             this.mouse.updateNetHighlight();
             this.app.repaint();
+            this.mouse.toolbarDragOrientationChanged(true);
         }
 
         if (this.dialogIsShowing()) {
@@ -1926,6 +2017,7 @@ export class UIManager {
             this.mouse.netHighlightKeyHeld = false;
             this.mouse.updateNetHighlight();
             this.app.repaint();
+            this.mouse.toolbarDragOrientationChanged(false);
         }
 
         if (this.dialogIsShowing())

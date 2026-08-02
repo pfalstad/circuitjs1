@@ -233,7 +233,7 @@ export class TriStateElm extends CircuitElm {
         if (n === 0) return new EditInfo("On Resistance (ohms)", this.r_on, 0, 0).setPositive();
         if (n === 1) return new EditInfo("Off Resistance (ohms)", this.r_off, 0, 0).setPositive();
         if (n === 2) return new EditInfo("Output Pulldown Resistance (ohms)", this.r_off_ground, 0, 0).setPositive();
-        if (n === 3) return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10);
+        if (n === 3) return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
         if (n === 4) return new EditInfo("Bus Width", this.busWidth, 1, 32).setDimensionless();
         return null;
     }

@@ -208,7 +208,7 @@ export class LampElm extends CircuitElm {
 
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Nominal Power",        this.nom_pow,  0, 0).setPositive();
-        if (n === 1) return new EditInfo("Nominal Voltage",      this.nom_v,    0, 0).setPositive();
+        if (n === 1) return new EditInfo("Nominal Voltage",      this.nom_v,    0, 0).setPositive().setUnitStep();
         if (n === 2) return new EditInfo("Warmup Time (s)",      this.warmTime, 0, 0).setPositive();
         if (n === 3) return new EditInfo("Cooldown Time (s)",    this.coolTime, 0, 0).setPositive();
         return null;

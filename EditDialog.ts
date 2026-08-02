@@ -199,20 +199,134 @@ export class EditDialog extends Dialog {
                 const inp = document.createElement("input");
                 inp.type = "text";
                 inp.style.width = "180px";
+                ei.textf = inp;
+                if (this.firstInput === null)
+                    this.firstInput = inp;
                 if (ei.text !== null) {
                     inp.value = ei.text;
                     if (ei.isColor)
                         inp.type = "color";
+                    this.activeCol.appendChild(inp);
                 } else {
                     inp.value = this.unitString(ei);
+                    this.activeCol.appendChild(this.makeValueStepperRow(ei));
                 }
-                ei.textf = inp;
-                if (this.firstInput === null)
-                    this.firstInput = inp;
-                this.activeCol.appendChild(inp);
             }
         }
         this.einfocount = i;
+    }
+
+    // preferred-value series used by stepE12(), repeating every decade (reused from the E12
+    // table circuitjs1's ScrollValuePopup uses for its scroll-to-adjust popup)
+    static readonly E12 = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+
+    // A text field with "-"/"+" buttons that step the value, so it can be tweaked without
+    // having to type on a mobile keyboard. Component values (R/L/C, etc.) step through the
+    // E12 preferred-value series (reusing the same table ScrollValuePopup uses for its
+    // scroll-to-adjust popup); dimensionless fields and voltage sources, which don't really
+    // have a "preferred value" series, just step by 1. Holding a button down repeats the step.
+    private makeValueStepperRow(ei: EditInfo): HTMLDivElement {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:2px;";
+        const minus = document.createElement("button");
+        minus.type = "button";
+        minus.textContent = "−";
+        const plus = document.createElement("button");
+        plus.type = "button";
+        plus.textContent = "+";
+        minus.style.width = "2em";
+        plus.style.width = "2em";
+        // without this, holding the button down on iOS is treated as a long-press on
+        // selectable text and pops up the Copy/Look Up/etc. callout instead of repeating
+        EditDialog.disableTouchCallout(minus);
+        EditDialog.disableTouchCallout(plus);
+        this.addRepeatingStepHandler(minus, ei, -1);
+        this.addRepeatingStepHandler(plus, ei, 1);
+        row.appendChild(minus);
+        row.appendChild(ei.textf as HTMLElement);
+        row.appendChild(plus);
+        return row;
+    }
+
+    private static disableTouchCallout(button: HTMLButtonElement): void {
+        const style = button.style as any;
+        style.webkitTouchCallout = "none";
+        style.webkitUserSelect = "none";
+        style.userSelect = "none";
+        style.touchAction = "manipulation";
+    }
+
+    // step once immediately on mouse/touch-down, then keep stepping at a fixed rate for as
+    // long as the button is held, like a native stepper control
+    private addRepeatingStepHandler(button: HTMLButtonElement, ei: EditInfo, dir: number): void {
+        let repeatTimer: ReturnType<typeof setInterval> | null = null;
+        let startRepeatTimer: ReturnType<typeof setTimeout> | null = null;
+        const stop = () => {
+            if (startRepeatTimer !== null) { clearTimeout(startRepeatTimer); startRepeatTimer = null; }
+            if (repeatTimer !== null) { clearInterval(repeatTimer); repeatTimer = null; }
+        };
+        button.addEventListener("mousedown", () => {
+            this.stepValue(ei, dir);
+            startRepeatTimer = setTimeout(() => {
+                repeatTimer = setInterval(() => this.stepValue(ei, dir), 120);
+            }, 400);
+        });
+        button.addEventListener("mouseup", stop);
+        button.addEventListener("mouseout", stop);
+
+        // On touch devices, mousedown/mouseup are synthesized from touchstart/touchend, but
+        // only *after* touchend has already fired - so a mousedown-based repeat never gets a
+        // chance to run while the finger is actually held down. Handle real touch events
+        // directly instead, and preventDefault() on touchstart so the browser doesn't also
+        // fire the (now redundant, badly-timed) synthetic mouse events afterward.
+        button.addEventListener("touchstart", (e: TouchEvent) => {
+            e.preventDefault();
+            this.stepValue(ei, dir);
+            startRepeatTimer = setTimeout(() => {
+                repeatTimer = setInterval(() => this.stepValue(ei, dir), 120);
+            }, 400);
+        }, { passive: false });
+        button.addEventListener("touchend", stop);
+        button.addEventListener("touchcancel", stop);
+    }
+
+    stepValue(ei: EditInfo, dir: number): void {
+        let cur: number;
+        try {
+            cur = this.parseUnitsEi(ei);
+        } catch (ex) {
+            cur = ei.value;
+        }
+        const linearStep = ei.dimensionless || ei.unitStep;
+        const next = linearStep ? cur + dir : EditDialog.stepE12(cur, dir);
+        // just update the displayed text, like typing a new value would; actually committing
+        // it to the element happens on Apply/OK like normal, so Cancel still works correctly
+        (ei.textf as HTMLInputElement).value = EditDialog.unitStringVal(ei, next);
+    }
+
+    // step to the next/previous value (in direction dir) in the E12 preferred-value series,
+    // which repeats every decade; preserves sign, and treats 0 as just below the first step
+    static stepE12(value: number, dir: number): number {
+        const e12 = EditDialog.E12;
+        if (value === 0)
+            return dir > 0 ? e12[0] : -e12[0];
+        const sign = value < 0 ? -1 : 1;
+        const av = Math.abs(value);
+        let decade = Math.floor(Math.log10(av));
+        let idx = 0;
+        for (let i = 0; i < e12.length; i++) {
+            if (e12[i] * Math.pow(10, decade) <= av * 1.0000001)
+                idx = i;
+        }
+        idx += dir;
+        if (idx < 0) {
+            idx = e12.length - 1;
+            decade--;
+        } else if (idx >= e12.length) {
+            idx = 0;
+            decade++;
+        }
+        return sign * e12[idx] * Math.pow(10, decade);
     }
 
     unitString(ei: EditInfo): string {

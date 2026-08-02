@@ -40,6 +40,7 @@ export abstract class GateElm extends CircuitElm {
     delayEndTime: number = 0;     // time at which pending output change takes effect
     static lastHighVoltage: number = 5;
     static lastSchmitt: boolean = false;
+    getDragLength(): number { return 96; }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -323,7 +324,7 @@ export abstract class GateElm extends CircuitElm {
         if (n === 0)
             return new EditInfo("# of Inputs", this.inputCount, 1, 8).setDimensionless();
         if (n === 1)
-            return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10);
+            return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
         if (n === 2)
             return EditInfo.createCheckbox("Schmitt Inputs", this.hasSchmittInputs());
         if (n === 3)

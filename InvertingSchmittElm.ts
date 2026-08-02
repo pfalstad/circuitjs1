@@ -171,9 +171,9 @@ export class InvertingSchmittElm extends CircuitElm {
         if (n === 2)
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);
         if (n === 3)
-            return new EditInfo("High Logic Voltage", this.logicOnLevel, 0, 0);
+            return new EditInfo("High Logic Voltage", this.logicOnLevel, 0, 0).setUnitStep();
         if (n === 4)
-            return new EditInfo("Low Voltage (V)", this.logicOffLevel, 0, 0);
+            return new EditInfo("Low Voltage (V)", this.logicOffLevel, 0, 0).setUnitStep();
 
         return null;
     }

@@ -148,7 +148,7 @@ export class InverterElm extends CircuitElm {
         if (n === 0)
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);
         if (n === 1)
-            return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10);
+            return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
         return null;
     }
 

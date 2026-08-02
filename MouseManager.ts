@@ -80,6 +80,18 @@ export class MouseManager {
     dragRowColElms: CircuitElm[] = [];
     dragRowColPosts: number[] = [];
 
+    // ---- Toolbar drag-and-drop ----
+    // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
+    // instead of just switching the mouse mode the way a plain click does.
+    private static readonly TOOLBAR_DRAG_THRESHOLD = 6;
+    private toolbarDragClass: string | null = null;
+    private toolbarDragStartX: number = 0;
+    private toolbarDragStartY: number = 0;
+    private toolbarDragActive: boolean = false;
+    private toolbarDragVertical: boolean = false;
+    private toolbarDragAnchorX: number = 0;
+    private toolbarDragAnchorY: number = 0;
+
     constructor(sim: CirSim, ui: any) {
 	this.sim = sim;
 	this.ui = ui;
@@ -95,6 +107,19 @@ export class MouseManager {
 	canvas.addEventListener("contextmenu",   (e: MouseEvent) => this.onContextMenu(e));
 	canvas.addEventListener("wheel",         (e: WheelEvent) => this.onMouseWheel(e), { passive: false });
 	this.doTouchHandlers(canvas);
+
+	// A press-and-drag gesture started on a toolbar icon may end up anywhere on the
+	// page (not just over the canvas), so it needs to be tracked at the document level.
+	document.addEventListener("mousemove", (e: MouseEvent) => {
+	    if (this.isToolbarDragPending()) {
+		e.preventDefault();
+		this.toolbarDragMove(e.clientX, e.clientY, e.shiftKey);
+	    }
+	});
+	document.addEventListener("mouseup", (e: MouseEvent) => {
+	    if (this.isToolbarDragPending())
+		this.toolbarDragEnd(e.clientX, e.clientY);
+	});
     }
 
     private getCanvasX(canvas: HTMLCanvasElement, clientX: number): number {
@@ -171,6 +196,107 @@ export class MouseManager {
 
     snapGrid(x: number): number {
 	return (x + this.sim.gridRound) & this.sim.gridMask;
+    }
+
+    isToolbarDragPending(): boolean {
+	return this.toolbarDragClass != null;
+    }
+
+    // re-place the element being dragged, e.g. when shift is pressed/released
+    // without any mouse movement
+    toolbarDragOrientationChanged(vertical: boolean): void {
+	if (this.toolbarDragClass == null || this.dragElm == null)
+	    return;
+	this.toolbarDragVertical = vertical;
+	this.dragElm.dragPlace(this.toolbarDragAnchorX, this.toolbarDragAnchorY, this.toolbarDragVertical);
+	this.sim.repaint();
+    }
+
+    beginToolbarDrag(className: string, clientX: number, clientY: number): void {
+	if (this.ui.isReadOnly() || this.sim.dialogIsShowing())
+	    return;
+	this.toolbarDragClass = className;
+	this.toolbarDragStartX = clientX;
+	this.toolbarDragStartY = clientY;
+	this.toolbarDragActive = false;
+	this.toolbarDragVertical = false;
+    }
+
+    cancelToolbarDrag(): void {
+	if (this.dragElm != null) {
+	    this.dragElm.delete();
+	    this.dragElm = null;
+	}
+	this.toolbarDragClass = null;
+	this.toolbarDragActive = false;
+	this.tempMouseMode = this.mouseMode;
+	this.dragging = false;
+    }
+
+    toolbarDragMove(clientX: number, clientY: number, vertical: boolean): void {
+	if (this.toolbarDragClass == null)
+	    return;
+	if (!this.toolbarDragActive) {
+	    const dx = clientX - this.toolbarDragStartX, dy = clientY - this.toolbarDragStartY;
+	    if (dx*dx + dy*dy < MouseManager.TOOLBAR_DRAG_THRESHOLD*MouseManager.TOOLBAR_DRAG_THRESHOLD)
+		return;
+	    this.toolbarDragActive = true;
+	    this.sim.undoManager?.pushUndo();
+	}
+	const canvas = this.ui.cv as HTMLCanvasElement;
+	const cx = this.getCanvasX(canvas, clientX);
+	const cy = this.getCanvasY(canvas, clientY);
+	if (!this.sim.circuitArea.contains(cx, cy)) {
+	    if (this.dragElm != null)
+		this.sim.repaint();
+	    return;
+	}
+	this.toolbarDragAnchorX = this.snapGrid(this.inverseTransformX(cx));
+	this.toolbarDragAnchorY = this.snapGrid(this.inverseTransformY(cy));
+	this.toolbarDragVertical = vertical;
+	if (this.dragElm == null) {
+	    try {
+		this.dragElm = this.sim.constructElement(this.toolbarDragClass, this.toolbarDragAnchorX, this.toolbarDragAnchorY);
+	    } catch (ex) {
+		CirSim.debugger();
+	    }
+	    this.tempMouseMode = MouseManager.MODE_ADD_ELM;
+	    this.dragging = true;
+	}
+	// (re)place the element at the anchor point; gives it a fixed default length/
+	// orientation since there's no drag-to-size gesture on the circuit area here
+	if (this.dragElm != null)
+	    this.dragElm.dragPlace(this.toolbarDragAnchorX, this.toolbarDragAnchorY, this.toolbarDragVertical);
+	this.sim.repaint();
+    }
+
+    toolbarDragEnd(clientX: number, clientY: number): void {
+	if (this.toolbarDragClass == null)
+	    return;
+	const wasActive = this.toolbarDragActive;
+	this.toolbarDragClass = null;
+	this.toolbarDragActive = false;
+	if (!wasActive)
+	    return; // no real drag happened; let the normal click switch modes as before
+	if (this.dragElm != null) {
+	    if (this.dragElm.creationFailed()) {
+		this.dragElm.delete();
+	    } else {
+		this.splitAt(this.dragElm.x, this.dragElm.y);
+		this.splitAt(this.dragElm.x2, this.dragElm.y2);
+		this.ui.elmList.push(this.dragElm);
+		this.dragElm.draggingDone();
+		this.sim.undoManager?.writeRecoveryToStorage();
+		this.sim.unsavedChanges = true;
+		this.sim.needAnalyze();
+		this.sim.undoManager?.pushUndo();
+	    }
+	    this.dragElm = null;
+	}
+	this.tempMouseMode = this.mouseMode;
+	this.dragging = false;
+	this.sim.updateToolbar();
+	this.sim.repaint();
     }
 
     private doSwitch(x: number, y: number): boolean {
@@ -578,6 +704,9 @@ export class MouseManager {
 
     private onMouseMove(e: MouseEvent): void {
 	e.preventDefault();
+	// a toolbar drag-and-drop in progress is tracked at the document level instead
+	if (this.isToolbarDragPending())
+	    return;
 	const canvas = this.ui.cv as HTMLCanvasElement;
 	this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
 	this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
@@ -1003,6 +1132,9 @@ export class MouseManager {
 
     private onMouseUp(e: MouseEvent): void {
 	e.preventDefault();
+	// a toolbar drag-and-drop in progress is finished by the document-level handler instead
+	if (this.isToolbarDragPending())
+	    return;
 	this.mouseDragging = false;
 	if ((window as any).Scope) (window as any).Scope.dragStartTime = -1;
 

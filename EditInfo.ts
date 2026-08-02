@@ -25,6 +25,9 @@ export class EditInfo {
     text: string | null = null;
     value: number = 0;
     dimensionless: boolean = false;
+    // use a plain +/-1 step (rather than the E12 preferred-value series) for the EditDialog
+    // stepper buttons; for quantities like voltage that aren't usually picked from E12 values
+    unitStep: boolean = false;
     noSliders: boolean = false;
     isColor: boolean = false;
     newColumn: boolean = false;
@@ -69,6 +72,7 @@ export class EditInfo {
     }
 
     setDimensionless(): EditInfo { this.dimensionless = true; return this; }
+    setUnitStep(): EditInfo { this.unitStep = true; return this; }
     disallowSliders(): EditInfo { this.noSliders = true; return this; }
     setIsColor(): EditInfo { this.isColor = true; return this; }
     newColumnMethod(): EditInfo { this.newColumn = true; return this; }

@@ -117,6 +117,12 @@ export class VoltageElm extends CircuitElm {
 	}
     }
     getDumpType(): number { return 'v'.charCodeAt(0); }
+    getDragVertical(requestedVertical: boolean): boolean { return true; }
+    // point 2, not point 1, should track the mouse during toolbar drag-and-drop
+    dragPlace(xa: number, ya: number, vertical: boolean): void {
+        super.dragPlace(xa, ya, vertical);
+        this.swapDragEndpoints();
+    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
@@ -541,7 +547,7 @@ export class VoltageElm extends CircuitElm {
     getEditInfo(n: number): EditInfo | null {
 	if (n == 0)
 	    return new EditInfo(this.waveform == VoltageElm.WF_DC ? "Voltage" :
-				"Max Voltage", this.maxVoltage, -20, 20);
+				"Max Voltage", this.maxVoltage, -20, 20).setUnitStep();
 	if (n == 1) {
 	    const ei = new EditInfo("Waveform", this.waveform, -1, -1);
 	    ei.choice = new Choice();
@@ -556,7 +562,7 @@ export class VoltageElm extends CircuitElm {
 	    return ei;
 	}
 	if (n == 2)
-	    return new EditInfo("DC Offset (V)", this.bias, -20, 20);
+	    return new EditInfo("DC Offset (V)", this.bias, -20, 20).setUnitStep();
 	if (n == 3) {
 	    const ei = new EditInfo("Internal Resistance (ohms)", this.internalResistance);
 	    ei.setNonNegative();

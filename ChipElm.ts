@@ -645,7 +645,7 @@ export abstract class ChipElm extends CircuitElm {
     getEditInfo(n: number): EditInfo | null {
         if (this.isDigitalChip()) {
             if (n === 0)
-                return new EditInfo("High Logic Voltage", this.highVoltage);
+                return new EditInfo("High Logic Voltage", this.highVoltage).setUnitStep();
             n--;
         }
         if (this.allowBus()) {

@@ -102,9 +102,9 @@ export class VarRailElm extends RailElm {
 
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("Min Voltage", this.bias, -20, 20);
+            return new EditInfo("Min Voltage", this.bias, -20, 20).setUnitStep();
         if (n === 1)
-            return new EditInfo("Max Voltage", this.maxVoltage, -20, 20);
+            return new EditInfo("Max Voltage", this.maxVoltage, -20, 20).setUnitStep();
         if (n === 2) {
             const ei = new EditInfo("Slider Text", 0, -1, -1);
             ei.text = this.sliderText;

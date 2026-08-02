@@ -35,6 +35,9 @@ export class GroundElm extends CircuitElm {
     // this is needed for old subcircuits which have GroundElm dumped
     readonly FLAG_OLD_STYLE = 1;
 
+    getDragVertical(requestedVertical: boolean): boolean { return true; }
+    getDragLength(): number { return 32; }
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {

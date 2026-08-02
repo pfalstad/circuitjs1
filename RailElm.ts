@@ -38,6 +38,11 @@ export class RailElm extends VoltageElm {
     }
 
     isRailElm(): boolean { return true; }
+    // unlike other VoltageElm subclasses, RailElm can be placed either horizontally or
+    // vertically via toolbar drag-and-drop, so this undoes VoltageElm's forced-vertical override
+    getDragVertical(requestedVertical: boolean): boolean {
+        return requestedVertical;
+    }
     readonly FLAG_CLOCK = 1;
     getDumpType(): number { return 'R'.charCodeAt(0); }
     getPostCount(): number { return 1; }
