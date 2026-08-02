@@ -66,6 +66,9 @@ export class LEDArrayElm extends ChipElm {
         super.undumpXml(xml);
         this.sizeX = xml.parseIntAttr("sx", this.sizeX);
         this.sizeY = xml.parseIntAttr("sy", this.sizeY);
+        this.allocNodes();
+        this.setupPins();
+        this.setPoints();
     }
 
     getChipName(): string { return "LED array"; }
