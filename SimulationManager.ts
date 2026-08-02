@@ -399,7 +399,7 @@ export class SimulationManager {
 		    cnl.num = j;
 		    cnl.elm = ce;
 		    cn.links.push(cnl);
-		} else {
+		} else if (!ce.isLabeledNodeElm()) {
 		    SimulationManager.console("missing node for " + pt);
 		}
 	    }
@@ -458,6 +458,13 @@ export class SimulationManager {
 	    const ws = this.wireInfoList[i];
 	    const wire = ws.wire;
 	    const cn1: CircuitNode = wire.getNode(ws.bit);
+	    if (cn1 == null) {
+		// dangling labeled node not connected to anything inside composite — no current
+		ws.neighbors = [];
+		ws.labelNeighbors = [];
+		this.setWireInfoResolved(wire, ws.bit);
+		continue;
+	    }
 
 	    const neighbors0: any[] = [];
 	    const neighbors1: any[] = [];
@@ -683,63 +690,80 @@ export class SimulationManager {
     nodesWithGroundConnectionCount: number = 0;
 
     findUnconnectedNodes(): void {
-	let i: number, j: number;
+	let i: number, j: number, k: number;
+	const totalNodes = this.nodeList.length;
 
 	// determine nodes that are not connected indirectly to ground.
 	// all nodes must be connected to ground somehow, or else we
 	// will get a matrix error.
-	const closure: boolean[] = new Array(this.nodeList.length).fill(false);
-	let changed = true;
+	const closure: boolean[] = new Array(totalNodes).fill(false);
 	this.unconnectedNodes = [];
 	this.nodesWithGroundConnection = [];
 	closure[0] = true;
-	while (changed) {
-	    changed = false;
-	    for (i = 0; i !== this.elmList.length; i++) {
-		const ce = this.getElm(i);
-		if (ce.isWireElm())
-		    continue;
-		// loop through all ce's nodes to see if they are connected
-		// to other nodes not in closure
-		let hasGround = false;
-		for (j = 0; j < ce.getPostCount(); j++) {
-		    const hg = ce.hasGroundConnection(j);
-		    if (hg)
-			hasGround = true;
-		    const jn = ce.getNode(j).index;
-		    if (!closure[jn]) {
-			if (hg)
-			    closure[jn] = changed = true;
-			continue;
-		    }
-		    let k;
+
+	// one pass over elements: seed closure with implicit ground connections
+	// and build nodesWithGroundConnection (one entry per element, no duplicates)
+	for (i = 0; i !== this.elmList.length; i++) {
+	    const ce = this.getElm(i);
+	    let hasGround = false;
+	    for (j = 0; j < ce.getPostCount(); j++) {
+		if (ce.hasGroundConnection(j)) {
+		    hasGround = true;
+		    closure[ce.getNode(j).index] = true;
+		}
+	    }
+	    if (hasGround)
+		this.nodesWithGroundConnection.push(ce);
+	}
+
+	// BFS via cn.links: propagate closure through element connections.
+	// when the queue drains, scan for an unconnected node and seed it so its
+	// whole component is absorbed before we flag the next one.
+	// use an index pointer into the array as a queue to avoid O(n) shifts.
+	const queue: number[] = [];
+	for (i = 0; i < totalNodes; i++)
+	    if (closure[i]) queue.push(i);
+	let qHead = 0;
+	let scanFrom = 1;
+	for (;;) {
+	    if (qHead < queue.length) {
+		const n = queue[qHead++];
+		const cn = this.getCircuitNode(n)!;
+		for (j = 0; j !== cn.links.length; j++) {
+		    const cnl = cn.links[j];
+		    const ce = cnl.elm;
+		    const post1 = cnl.num;
 		    for (k = 0; k !== ce.getPostCount(); k++) {
-			if (j === k)
+			if (k === post1)
 			    continue;
 			const kn = ce.getNode(k).index;
-			if (ce.getConnection(j, k) && !closure[kn]) {
+			if (!closure[kn] && ce.getConnection(post1, k)) {
 			    closure[kn] = true;
-			    changed = true;
+			    queue.push(kn);
 			}
 		    }
 		}
-		if (hasGround)
-		    this.nodesWithGroundConnection.push(ce);
-	    }
-	    if (changed)
-		continue;
-
-	    // connect one of the unconnected nodes to ground with a big resistor, then try again
-	    for (i = 0; i !== this.nodeList.length; i++) {
-		if (!closure[i] && !this.getCircuitNode(i)!.internal) {
-		    this.unconnectedNodes.push(i);
-		    SimulationManager.console("node " + i + " unconnected");
-//		    this.stampResistor(CircuitNode.ground, nodeList[i], 1e8);   // do this later in connectUnconnectedNodes()
-		    closure[i] = true;
-		    changed = true;
-		    break;
+	    } else {
+		// queue drained; find next unconnected non-internal node
+		let found = false;
+		for (; scanFrom < totalNodes; scanFrom++) {
+		    if (!closure[scanFrom] && !this.getCircuitNode(scanFrom)!.internal) {
+			this.unconnectedNodes.push(scanFrom);
+			closure[scanFrom] = true;
+			queue.push(scanFrom++);
+			found = true;
+			break;
+		    }
 		}
+		if (!found)
+		    break;
 	    }
+	}
+	if (this.unconnectedNodes.length !== 0) {
+	    let s = "unconnected nodes:";
+	    for (i = 0; i !== this.unconnectedNodes.length; i++)
+		s += " " + this.unconnectedNodes[i];
+	    SimulationManager.console(s);
 	}
     }
 

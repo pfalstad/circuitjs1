@@ -359,6 +359,19 @@ export abstract class ChipElm extends CircuitElm {
         this.labelY = yr + ys / 2;
     }
 
+    initBoundingBox(): void {
+        super.initBoundingBox();
+        if (this.pins == null || this.cspc === 0)
+            return;
+        const xr = this.x + this.cspc2 - this.cspc;
+        const yr = this.y - this.cspc;
+        const fsx = this.isFlippedXY() ? this.sizeY : this.sizeX;
+        const fsy = this.isFlippedXY() ? this.sizeX : this.sizeY;
+        const xs = fsx * this.cspc2;
+        const ys = fsy * this.cspc2;
+        this.setBbox(xr, yr, xr + xs, yr + ys);
+    }
+
     addRoutingObstacle(router: WireRouter): void {
         router.addObstacle(this.rectPointsX[0], this.rectPointsY[0], this.rectPointsX[2], this.rectPointsY[2]);
     }

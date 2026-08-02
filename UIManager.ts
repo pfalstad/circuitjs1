@@ -1522,6 +1522,12 @@ export class UIManager {
             g.drawString("iterc: " + CircuitElm.showFormat.format(this.app.getIterCount()), 10, height += increment);
             g.drawString("Frames: " + this.frames, 10, height += increment);
 
+            if (this.mouse.mouseCursorX >= 0) {
+                const cx = this.mouse.inverseTransformX(this.mouse.mouseCursorX);
+                const cy = this.mouse.inverseTransformY(this.mouse.mouseCursorY);
+                g.drawString("Mouse: (" + cx + ", " + cy + ")", 10, height += increment);
+            }
+
             height += (increment * 2);
 
             const perfmonResult = PerfMonitor.buildString(perfmon).toString();

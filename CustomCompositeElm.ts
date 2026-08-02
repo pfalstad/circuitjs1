@@ -101,7 +101,6 @@ export class CustomCompositeElm extends CompositeElm {
         }
         this.chip.setSelected(this.needsHighlight());
         this.chip.draw(g);
-        this.boundingBox = this.chip.boundingBox;
     }
 
     addRoutingObstacle(router: WireRouter): void {
@@ -129,6 +128,7 @@ export class CustomCompositeElm extends CompositeElm {
         }
 
         this.chip.setPoints();
+        this.boundingBox = this.chip.boundingBox;
         for (let i = 0; i < this.getPostCount(); i++)
             this.setPost(i, this.chip.getPost(i));
     }
@@ -263,7 +263,7 @@ export class CustomCompositeElm extends CompositeElm {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        if (this.model.builtin)
+        if (this.model.builtin && this.model.name.startsWith("~"))
             arr[0] = this.model.name.substring(1);
         else
             arr[0] = "subcircuit (" + this.model.name + ")";
