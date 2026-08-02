@@ -43,6 +43,7 @@ export class AnalogSwitchElm extends CircuitElm {
     openhs: number = 16;
 
     ps: Point = new Point();
+    ps1: Point = new Point();
     point3: Point = new Point();
     lead3: Point = new Point();
 
@@ -115,20 +116,23 @@ export class AnalogSwitchElm extends CircuitElm {
         this.calcLeads(32);
         this.adjustLeadsToGrid(this.isFlippedX(), this.isFlippedY());
         this.ps = new Point();
+        this.ps1 = new Point();
         this.openhs = (this.isFlippedX() !== this.isFlippedY()) !== this.isFlipped() ? -16 : 16;
         this.point3 = this.interpPoint(this.lead1!, this.lead2!, 0.5, -this.openhs);
         this.lead3  = this.interpPoint(this.lead1!, this.lead2!, 0.5, -this.openhs / 2);
     }
 
     draw(g: Graphics): void {
-        const hs = this.open ? this.openhs : 0;
+        const hs1 = this.open ? 0 : 2;
+        const hs2 = this.open ? this.openhs : 2;
         this.setBbox(this.point1, this.point2, this.openhs);
 
         this.draw2Leads(g);
 
         g.setColor(CircuitElm.lightGrayColor);
-        this.interpPoint(this.lead1!, this.lead2!, this.ps, 1, hs);
-        CircuitElm.drawThickLine(g, this.lead1!, this.ps);
+        this.interpPoint(this.lead1!, this.lead2!, this.ps1, 0, hs1);
+        this.interpPoint(this.lead1!, this.lead2!, this.ps,  1, hs2);
+        CircuitElm.drawThickLine(g, this.ps1, this.ps);
 
         this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.point3, this.lead3);

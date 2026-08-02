@@ -183,7 +183,11 @@ export class DPDTSwitchElm extends SwitchElm {
 
     getPostCount(): number { return 3 * this.poleCount; }
 
-    calculateCurrent(): void {}
+    calculateCurrent(): void {
+        if (this.resistance > 0)
+            for (let i = 0; i !== this.poleCount; i++)
+                this.currents[i] = (this.nodes[i*3].v - this.nodes[i*3+1+this.position].v) / this.resistance;
+    }
 
     setVoltageSource(j: number, vs: VoltageSource): void {
         this.voltageSources[j] = vs;
@@ -191,11 +195,15 @@ export class DPDTSwitchElm extends SwitchElm {
     }
 
     stamp(): void {
-        for (let i = 0; i !== this.poleCount; i++)
-            CircuitElm.sim.stampVoltageSourceVS(this.voltageSources[i], 0);
+        for (let i = 0; i !== this.poleCount; i++) {
+            if (this.resistance > 0)
+                CircuitElm.sim.stampResistor(this.nodes[i*3], this.nodes[this.position+1+i*3], this.resistance);
+            else
+                CircuitElm.sim.stampVoltageSourceVS(this.voltageSources[i], 0);
+        }
     }
 
-    getVoltageSourceCount(): number { return this.poleCount; }
+    getVoltageSourceCount(): number { return this.resistance > 0 ? 0 : this.poleCount; }
 
     getConnection(n1: number, n2: number): boolean {
         for (let i = 0; i !== this.poleCount; i++)
@@ -204,7 +212,9 @@ export class DPDTSwitchElm extends SwitchElm {
         return false;
     }
 
-    isWireEquivalent(): boolean { return true; }
+    isWireEquivalent(): boolean { return this.resistance === 0; }
+
+    // optimizing out this element is too complicated to be worth it (see #646)
     isRemovableWire(): boolean { return false; }
 
     getElmType(): string { return "switch (DPDT)"; }
@@ -222,6 +232,11 @@ export class DPDTSwitchElm extends SwitchElm {
             return EditInfo.createCheckbox("IEC Symbol", this.useIECSymbol());
         if (n === 2)
             return this.getKeyShortcutEditInfo();
+        if (n === 3) {
+            const ei = new EditInfo("On Resistance (ohms)", this.resistance);
+            ei.setNonNegative();
+            return ei;
+        }
         return null;
     }
 
@@ -240,6 +255,8 @@ export class DPDTSwitchElm extends SwitchElm {
         }
         if (n === 2)
             this.setKeyShortcutEditValue(ei);
+        if (n === 3)
+            this.resistance = ei.value;
     }
 
     getShortcut(): number { return 0; }
@@ -268,10 +285,13 @@ export class DPDTSwitchElm extends SwitchElm {
     }
 
     validate(): boolean {
+        if (this.resistance > 0)
+            return true;
         for (let i = 0; i !== this.poleCount; i++) {
             const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(i*3), CircuitElm.sim);
             if (fpi.findPath(this.getNode(i*3 + 1 + this.position))) {
-                CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+                //CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+                this.resistance = .001;
                 return false;
             }
         }

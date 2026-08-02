@@ -27,6 +27,7 @@ import { ExtListEntry } from "./ExtListEntry";
 import { HookRegistry } from "./HookRegistry";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { SimulationManager } from "./SimulationManager";
+import { SwitchElm } from "./SwitchElm";
 import { TransistorModel } from "./TransistorModel";
 
 function getCircuitAsComposite(sim: SimulationManager): CustomCompositeModel | null {
@@ -40,9 +41,25 @@ function getCircuitAsComposite(sim: SimulationManager): CustomCompositeModel | n
     const extList: ExtListEntry[] = [];
     const sel = sim.app.isSelection();
 
+    // Temporarily open any closed switches so the model's nn node IDs reflect
+    // open topology.  buildCompNodeList() can then merge them when loaded closed.
+    const closedSwitches: SwitchElm[] = [];
+    for (let i = 0; i !== sim.app.elmList.length; i++) {
+        const ce = sim.app.elmList[i];
+        if (ce.isSwitchElm() && (ce as SwitchElm).position === 0) {
+            closedSwitches.push(ce as SwitchElm);
+            (ce as SwitchElm).position = 1;
+        }
+    }
+
     // redo node allocation to avoid auto-assigning ground
-    if (!sim.preStampCircuit(true))
+    if (!sim.preStampCircuit(true)) {
+        for (const se of closedSwitches) se.position = 0;
         return null;
+    }
+
+    // restore switch positions
+    for (const se of closedSwitches) se.position = 0;
 
     const nodeCount = sim.nodeList.length;
     const used: boolean[] = new Array(nodeCount).fill(false);

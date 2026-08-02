@@ -19,6 +19,7 @@
 
 import { CircuitElm } from "./CircuitElm";
 import { EditInfo } from "./EditInfo";
+import { FindPathInfo } from "./FindPathInfo";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Rectangle } from "./Rectangle";
@@ -180,7 +181,14 @@ export class CrossSwitchElm extends SwitchElm {
     }
 
     getPostCount(): number { return 2 * this.poleCount; }
-    calculateCurrent(): void {}
+    calculateCurrent(): void {
+        if (this.resistance > 0) {
+            for (let i = 0; i !== this.poleCount; i++) {
+                const dst = (this.position === 0) ? i*2+1 : 3-i*2;
+                this.currents[i] = (this.nodes[i*2].v - this.nodes[dst].v) / this.resistance;
+            }
+        }
+    }
 
     setVoltageSource(j: number, vs: VoltageSource): void {
         this.voltageSources[j] = vs;
@@ -189,15 +197,23 @@ export class CrossSwitchElm extends SwitchElm {
 
     stamp(): void {
         if (this.position === 0) {
-            for (let i = 0; i !== this.poleCount; i++)
-                CircuitElm.sim.stampVoltageSource(this.nodes[i*2], this.nodes[i*2+1], this.voltageSources[i], 0);
+            for (let i = 0; i !== this.poleCount; i++) {
+                if (this.resistance > 0)
+                    CircuitElm.sim.stampResistor(this.nodes[i*2], this.nodes[i*2+1], this.resistance);
+                else
+                    CircuitElm.sim.stampVoltageSource(this.nodes[i*2], this.nodes[i*2+1], this.voltageSources[i], 0);
+            }
         } else {
-            for (let i = 0; i !== this.poleCount; i++)
-                CircuitElm.sim.stampVoltageSource(this.nodes[i*2], this.nodes[3-i*2], this.voltageSources[i], 0);
+            for (let i = 0; i !== this.poleCount; i++) {
+                if (this.resistance > 0)
+                    CircuitElm.sim.stampResistor(this.nodes[i*2], this.nodes[3-i*2], this.resistance);
+                else
+                    CircuitElm.sim.stampVoltageSource(this.nodes[i*2], this.nodes[3-i*2], this.voltageSources[i], 0);
+            }
         }
     }
 
-    getVoltageSourceCount(): number { return this.poleCount; }
+    getVoltageSourceCount(): number { return this.resistance > 0 ? 0 : this.poleCount; }
 
     getConnection(n1: number, n2: number): boolean {
         if (this.position === 0)
@@ -206,7 +222,9 @@ export class CrossSwitchElm extends SwitchElm {
             return this.comparePair(n1, n2, 0, 3) || this.comparePair(n1, n2, 2, 1);
     }
 
-    isWireEquivalent(): boolean { return true; }
+    isWireEquivalent(): boolean { return this.resistance === 0; }
+
+    // optimizing out this element is too complicated to be worth it (see #646)
     isRemovableWire(): boolean { return false; }
     getElmType(): string { return "cross switch"; }
 
@@ -216,11 +234,30 @@ export class CrossSwitchElm extends SwitchElm {
             arr[i + 1] = "I" + (i + 1) + " = " + CircuitElm.getCurrentDText(this.currents[i]);
     }
 
+    validate(): boolean {
+        if (this.resistance > 0)
+            return true;
+        for (let i = 0; i !== this.poleCount; i++) {
+            const dst = (this.position === 0) ? i*2+1 : 3-i*2;
+            const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(i*2), CircuitElm.sim);
+            if (fpi.findPath(this.getNode(dst))) {
+                this.resistance = .001;
+                return false;
+            }
+        }
+        return true;
+    }
+
     getShortcut(): number { return 0; }
 
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return EditInfo.createCheckbox("IEC Symbol", this.useIECSymbol());
         if (n === 1) return this.getKeyShortcutEditInfo();
+        if (n === 2) {
+            const ei = new EditInfo("On Resistance (ohms)", this.resistance);
+            ei.setNonNegative();
+            return ei;
+        }
         return null;
     }
 
@@ -230,5 +267,6 @@ export class CrossSwitchElm extends SwitchElm {
             this.setPoints();
         }
         if (n === 1) this.setKeyShortcutEditValue(ei);
+        if (n === 2) this.resistance = ei.value;
     }
 }

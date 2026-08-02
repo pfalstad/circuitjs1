@@ -143,6 +143,8 @@ export class Switch2Elm extends SwitchElm {
     calculateCurrent(): void {
         if (this.position === 2 && this.hasCenterOff())
             this.current = 0;
+        else if (this.resistance > 0)
+            this.current = (this.nodes[0].v - this.nodes[this.position + 1].v) / this.resistance;
     }
 
     setVoltageSource(n: number, v: VoltageSource): void {
@@ -151,13 +153,18 @@ export class Switch2Elm extends SwitchElm {
     }
 
     stamp(): void {
-        if (this.position === 2 && this.hasCenterOff()) // in center?
+        if (this.position === 2 && this.hasCenterOff())
             return;
-        CircuitElm.sim.stampVoltageSource(this.nodes[0], this.nodes[this.position + 1], this.voltSource!, 0);
+        if (this.resistance > 0)
+            CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[this.position + 1], this.resistance);
+        else
+            CircuitElm.sim.stampVoltageSource(this.nodes[0], this.nodes[this.position + 1], this.voltSource!, 0);
     }
 
     getVoltageSourceCount(): number {
-        return (this.position === 2 && this.hasCenterOff()) ? 0 : 1;
+        if (this.position === 2 && this.hasCenterOff())
+            return 0;
+        return this.resistance > 0 ? 0 : 1;
     }
 
     toggle(): void {
@@ -185,7 +192,7 @@ export class Switch2Elm extends SwitchElm {
         return this.comparePair(n1, n2, 0, 1 + this.position);
     }
 
-    isWireEquivalent(): boolean { return true; }
+    isWireEquivalent(): boolean { return this.resistance === 0; }
 
     // optimizing out this element is too complicated to be worth it (see #646)
     isRemovableWire(): boolean { return false; }
@@ -275,10 +282,12 @@ export class Switch2Elm extends SwitchElm {
     validate(): boolean {
         if (this.position === 2 && this.hasCenterOff())
             return true;
-
+        if (this.resistance > 0)
+            return true;
         const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(0), CircuitElm.sim);
         if (fpi.findPath(this.getNode(1 + this.position))) {
-            CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+            //CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
+            this.resistance = .001;
             return false;
         }
         return true;

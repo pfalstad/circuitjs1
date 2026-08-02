@@ -34,6 +34,8 @@ export class SwitchElm extends CircuitElm {
     // position 0 == closed, position 1 == open
     position: number;
     posCount: number;
+    resistance: number = 0;
+    static readonly COMPOSITE_CLOSED_R = 0.001;
     static readonly FLAG_IEC = 2;
     static readonly FLAG_LABEL = 4;
     label: string | null;
@@ -87,6 +89,8 @@ export class SwitchElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "lab", this.label);
         if (this.keyShortcut !== null)
             CircuitXMLSerializer.dumpAttr(elem, "key", this.keyShortcut);
+        if (this.resistance !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -95,6 +99,7 @@ export class SwitchElm extends CircuitElm {
         this.momentary = xml.parseBooleanAttr("mm", this.momentary);
         this.label = xml.parseStringAttr("lab", this.label);
         this.keyShortcut = xml.parseStringAttr("key", this.keyShortcut);
+        this.resistance = xml.parseDoubleAttr("r", 0);
     }
 
     ps: Point = new Point();
@@ -184,6 +189,10 @@ export class SwitchElm extends CircuitElm {
     calculateCurrent(): void {
         if (this.position === 1)
             this.current = 0;
+        else if (this.resistance > 0)
+            this.current = (this.nodes[0].v - this.nodes[1].v) / this.resistance;
+        else if (this.inComposite)
+            this.current = (this.nodes[0].v - this.nodes[1].v) / SwitchElm.COMPOSITE_CLOSED_R;
     }
 
     mouseUp(): void {
@@ -226,8 +235,18 @@ export class SwitchElm extends CircuitElm {
     }
 
     getConnection(n1: number, n2: number): boolean { return this.position === 0; }
-    isWireEquivalent(): boolean { return this.position === 0; }
-    isRemovableWire(): boolean { return this.position === 0; }
+    isWireEquivalent(): boolean { return this.position === 0 && !this.inComposite && this.resistance === 0; }
+    isRemovableWire(): boolean { return this.position === 0 && !this.inComposite && this.resistance === 0; }
+
+    stamp(): void {
+        if (this.position === 0) {
+            if (this.resistance > 0)
+                CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], this.resistance);
+            else if (this.inComposite)
+                CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], SwitchElm.COMPOSITE_CLOSED_R);
+        }
+    }
+
     useIECSymbol(): boolean { return (this.flags & SwitchElm.FLAG_IEC) !== 0; }
 
     getEditInfo(n: number): EditInfo | null {
@@ -242,6 +261,11 @@ export class SwitchElm extends CircuitElm {
             return new EditInfo("Label (for linking)", this.label === null ? "" : this.label);
         if (n === 3)
             return this.getKeyShortcutEditInfo();
+        if (n === 4) {
+            const ei = new EditInfo("On Resistance (ohms)", this.resistance);
+            ei.setNonNegative();
+            return ei;
+        }
         return null;
     }
 
@@ -262,6 +286,8 @@ export class SwitchElm extends CircuitElm {
         }
         if (n === 3)
             this.setKeyShortcutEditValue(ei);
+        if (n === 4)
+            this.resistance = ei.value;
     }
 
     // helper methods for keyboard shortcut edit field, usable by subclasses

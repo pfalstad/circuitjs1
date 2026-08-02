@@ -137,6 +137,12 @@ export class MBBSwitchElm extends SwitchElm {
     }
 
     calculateCurrent(): void {
+        if (this.resistance > 0) {
+            this.currents[0] = (this.both || this.position === 0) ? (this.nodes[0].v - this.nodes[1].v) / this.resistance : 0;
+            this.currents[1] = (this.both || this.position === 2) ? (this.nodes[0].v - this.nodes[2].v) / this.resistance : 0;
+            return;
+        }
+        // make sure current of unconnected pole is zero
         if (!this.both)
             this.currents[1 - Math.trunc(this.position / 2)] = 0;
     }
@@ -152,6 +158,13 @@ export class MBBSwitchElm extends SwitchElm {
     }
 
     stamp(): void {
+        if (this.resistance > 0) {
+            if (this.both || this.position === 0)
+                CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], this.resistance);
+            if (this.both || this.position === 2)
+                CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[2], this.resistance);
+            return;
+        }
         let vs = 0;
         if (this.both || this.position === 0)
             CircuitElm.sim.stampVoltageSourceVS(this.voltSources[vs++], 0);
@@ -159,8 +172,12 @@ export class MBBSwitchElm extends SwitchElm {
             CircuitElm.sim.stampVoltageSourceVS(this.voltSources[vs++], 0);
     }
 
+    // connection is implemented by voltage source with voltage = 0.
+    // need two for both loads connected, otherwise one.
     getVoltageSourceCount(): number {
         this.both = (this.position === 1 || this.position === 3);
+        if (this.resistance > 0)
+            return 0;
         return this.both ? 2 : 1;
     }
 
@@ -179,8 +196,10 @@ export class MBBSwitchElm extends SwitchElm {
         return this.comparePair(n1, n2, 0, 1 + Math.trunc(this.position / 2));
     }
 
+    // do not optimize out, even though isWireEquivalent() is true (because it may have 3 nodes to merge
+    // and calcWireClosure() doesn't handle that case)
     isRemovableWire(): boolean { return false; }
-    isWireEquivalent(): boolean { return true; }
+    isWireEquivalent(): boolean { return this.resistance === 0; }
 
     getElmType(): string { return "switch (SPDT, MBB)"; }
 
@@ -193,13 +212,40 @@ export class MBBSwitchElm extends SwitchElm {
         if (n === 0) return super.getEditInfo(0);
         if (n === 1) return new EditInfo("Switch Group", this.link, 0, 100).setDimensionless();
         if (n === 2) return this.getKeyShortcutEditInfo();
+        if (n === 3) {
+            const ei = new EditInfo("On Resistance (ohms)", this.resistance);
+            ei.setNonNegative();
+            return ei;
+        }
         return null;
     }
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 1) this.link = Math.trunc(ei.value);
         else if (n === 2) this.setKeyShortcutEditValue(ei);
+        else if (n === 3) this.resistance = ei.value;
         else super.setEditValue(n, ei);
+    }
+
+    validate(): boolean {
+        if (this.resistance > 0)
+            return true;
+        const b = (this.position === 1 || this.position === 3);
+        if (b || this.position === 0) {
+            const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(0), CircuitElm.sim);
+            if (fpi.findPath(this.getNode(1))) {
+                this.resistance = .001;
+                return false;
+            }
+        }
+        if (b || this.position === 2) {
+            const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(0), CircuitElm.sim);
+            if (fpi.findPath(this.getNode(2))) {
+                this.resistance = .001;
+                return false;
+            }
+        }
+        return true;
     }
 
     getShortcut(): number { return 0; }
