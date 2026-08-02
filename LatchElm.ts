@@ -35,9 +35,11 @@ export class LatchElm extends ChipElm {
     // enable mode stored in bits 5-6: 0=none, 1=one each, 2=two each
     readonly FLAG_ENABLE_MASK = 32 | 64;
     readonly FLAG_ENABLE_SHIFT = 5;
+    readonly FLAG_RESET_INVERT = 128;
 
     hasReset(): boolean { return (this.flags & this.FLAG_RESET) !== 0; }
     hasSet(): boolean { return (this.flags & this.FLAG_SET) !== 0; }
+    resetActiveLow(): boolean { return (this.flags & this.FLAG_RESET_INVERT) !== 0; }
     enableMode(): number { return (this.flags & this.FLAG_ENABLE_MASK) >> this.FLAG_ENABLE_SHIFT; }
     inputEnableCount(): number { return this.enableMode(); }
     outputEnableCount(): number { return this.enableMode(); }
@@ -71,7 +73,7 @@ export class LatchElm extends ChipElm {
             this.restoreOutputValues();
         }
     }
-    getChipName(): string { return "Latch"; }
+    getChipName(): string { return this.isEdgeTriggered() ? "Register" : "Latch"; }
     needsBits(): boolean { return true; }
     allowBus(): boolean { return true; }
     isEdgeTriggered(): boolean { return (this.flags & this.FLAG_NO_EDGE) === 0; }
@@ -92,9 +94,12 @@ export class LatchElm extends ChipElm {
         let leftPos = bitsY;
         let rightPos = bitsY;
 
-        this.pins[this.loadPin = pinIndex++] = new Pin(this, leftPos++, ChipElm.SIDE_W, "Ld");
-        if (this.hasReset())
+        this.pins[this.loadPin = pinIndex++] = new Pin(this, leftPos++, ChipElm.SIDE_W, this.isEdgeTriggered() ? "" : "Ld");
+        this.pins[this.loadPin].clock = this.isEdgeTriggered();
+        if (this.hasReset()) {
             this.pins[this.resetPin = pinIndex++] = new Pin(this, leftPos++, ChipElm.SIDE_W, "R");
+            this.pins[this.resetPin].lineOver = this.resetActiveLow();
+        }
         if (this.hasSet())
             this.pins[this.setPin = pinIndex++] = new Pin(this, leftPos++, ChipElm.SIDE_W, "S");
         rightPos = leftPos;
@@ -159,7 +164,7 @@ export class LatchElm extends ChipElm {
             this.lastLoad = this.pins[this.loadPin].value;
             return;
         }
-        if (this.hasReset() && this.pins[this.resetPin].value) {
+        if (this.hasReset() && (this.pins[this.resetPin].value !== this.resetActiveLow())) {
             for (let i = 0; i !== this.bits; i++)
                 this.outputValues![i] = false;
             this.lastLoad = this.pins[this.loadPin].value;
@@ -277,6 +282,8 @@ export class LatchElm extends ChipElm {
             ei.choice.select(this.enableMode());
             return ei;
         }
+        if (n === 5 && this.hasReset())
+            return EditInfo.createCheckbox("Invert Reset", this.resetActiveLow());
         return null;
     }
 
@@ -289,8 +296,12 @@ export class LatchElm extends ChipElm {
             } else if (ei.value < 2)
                 ei.setError("must be >= 2");
         }
-        if (n === 1)
+        if (n === 1) {
             this.flags = ei.changeFlagInverted(this.flags, this.FLAG_NO_EDGE);
+            this.setupPins();
+            this.setPoints();
+            ei.newDialog = true;
+        }
         if (n === 2) {
             this.flags = ei.changeFlag(this.flags, this.FLAG_RESET);
             this.setupPins();
@@ -308,6 +319,11 @@ export class LatchElm extends ChipElm {
             this.flags = (this.flags & ~this.FLAG_ENABLE_MASK) | (mode << this.FLAG_ENABLE_SHIFT);
             this.setupPins();
             this.allocNodes();
+            this.setPoints();
+        }
+        if (n === 5) {
+            this.flags = ei.changeFlag(this.flags, this.FLAG_RESET_INVERT);
+            this.setupPins();
             this.setPoints();
         }
     }
