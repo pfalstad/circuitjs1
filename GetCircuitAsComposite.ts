@@ -26,6 +26,7 @@ import { DiodeModel } from "./DiodeModel";
 import { ExtListEntry } from "./ExtListEntry";
 import { HookRegistry } from "./HookRegistry";
 import { LabeledNodeElm } from "./LabeledNodeElm";
+import { RelayModel } from "./RelayModel";
 import { SimulationManager } from "./SimulationManager";
 import { SwitchElm } from "./SwitchElm";
 import { TransistorModel } from "./TransistorModel";
@@ -36,6 +37,7 @@ function getCircuitAsComposite(sim: SimulationManager): CustomCompositeModel | n
     CustomLogicModel.clearDumpedFlags();
     DiodeModel.clearDumpedFlags();
     TransistorModel.clearDumpedFlags();
+    RelayModel.clearDumpedFlags();
 
     const sideLabels: LabeledNodeElm[][] = [[], [], [], []];
     const extList: ExtListEntry[] = [];

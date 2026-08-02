@@ -19,6 +19,9 @@
 
 import { ExtListEntry } from "./ExtListEntry";
 import { CustomLogicModel } from "./CustomLogicModel";
+import { DiodeModel } from "./DiodeModel";
+import { RelayModel } from "./RelayModel";
+import { TransistorModel } from "./TransistorModel";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
@@ -378,6 +381,20 @@ export class CustomCompositeModel {
                 // element definition - import into elmDoc
                 const imported = this.elmDoc.importNode(child, true) as Element;
                 root.appendChild(imported);
+
+                // model definitions need to be registered immediately (not just left in elmDoc),
+                // since elements like RelayElm look up their model by name as soon as they're
+                // instantiated from elmDoc (e.g. in CompositeElm.loadCompositeXml())
+                const tagName = child.tagName;
+                xml.parseChildElement(child);
+                if (tagName === "dm")
+                    DiodeModel.undumpModelXml(xml);
+                else if (tagName === "rlm")
+                    RelayModel.undumpModelXml(xml);
+                else if (tagName === "tm")
+                    TransistorModel.undumpModelXml(xml);
+                else if (tagName === "clm")
+                    CustomLogicModel.undumpModelXml(xml);
             }
         }
     }

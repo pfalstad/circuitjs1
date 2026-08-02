@@ -182,6 +182,11 @@ export class RelayElm extends CircuitElm {
     getDumpType(): number { return 178; }
     getXmlDumpType(): string { return "rl"; }
 
+    dumpXmlModel(doc: Document): void {
+        if (!(this.model.builtIn || this.model.dumped))
+            this.model.dumpXml(doc);
+    }
+
     dumpXml(doc: Document, elem: Element): void {
         if (!(this.model.builtIn || this.model.dumped))
             this.model.dumpXml(doc);
@@ -506,13 +511,9 @@ export class RelayElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = Locale.LS("relay");
-        if (this.i_position === 0)
-            arr[0] += " (" + Locale.LS("off") + ")";
-        else if (this.i_position === 1)
-            arr[0] += " (" + Locale.LS("on") + ")";
-        if (this.switchingTime() === 0)
-            arr[0] += " (" + Locale.LS("old model") + ")";
-        let ln = 1;
+        arr[0] += " (" + (this.switchingTime() === 0 ? "old model" : this.modelName) + ")";
+        arr[1] = (this.i_position === 0) ? Locale.LS("off") : Locale.LS("on");
+        let ln = 2;
         for (let i = 0; i !== this.poleCount(); i++)
             arr[ln++] = "I" + (i + 1) + " = " + CircuitElm.getCurrentDText(this.switchCurrent[i]);
         arr[ln++] = Locale.LS("coil I") + " = " + CircuitElm.getCurrentDText(this.coilCurrent);
