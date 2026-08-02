@@ -24,6 +24,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { CirSim } from "./CirSim";
+import { LabeledNodeElm } from "./LabeledNodeElm";
 
 export class WireElm extends CircuitElm {
     busWidth: number = 1;
@@ -129,9 +130,23 @@ export class WireElm extends CircuitElm {
             const value = this.getBusValue();
             arr[1] = "value = " + value;
             arr[2] = "hex = 0x" + value.toString(16).toUpperCase();
+            let label = LabeledNodeElm.getLabelForNode(this.getNode(0).index);
+            if (label != null) {
+                for (let i = 1; i < this.busWidth; i++) {
+                    if (label !== LabeledNodeElm.getLabelForNode(this.getNode(i).index)) {
+                        label = null;
+                        break;
+                    }
+                }
+            }
+            if (label != null)
+                arr[3] = label;
         } else {
             arr[1] = "I = " + CircuitElm.getCurrentDText(this.getCurrent());
             arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
+            const label = LabeledNodeElm.getLabelForNode(this.getNode(0).index);
+            if (label != null)
+                arr[3] = label;
         }
     }
     getDumpType(): number { return 'w'.charCodeAt(0); }

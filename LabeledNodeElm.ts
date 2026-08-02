@@ -157,6 +157,19 @@ export class LabeledNodeElm extends CircuitElm {
         return le.node;
     }
 
+    // find label text for the given node number, if any (used to show label in getInfo() for wires)
+    static getLabelForNode(node: number): string | null {
+        if (LabeledNodeElm.labelList == null)
+            return null;
+        for (const [key, le] of LabeledNodeElm.labelList) {
+            if (le.node === node) {
+                const ci = key.lastIndexOf(':');
+                return (ci < 0) ? key : key.substring(0, ci);
+            }
+        }
+        return null;
+    }
+
     drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
         if (this.isRotateText() && pt1.x === pt2.x) {
             this.drawRotatedLabeledNode(g, str, pt1, pt2);
