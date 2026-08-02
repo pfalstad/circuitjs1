@@ -119,6 +119,7 @@ export abstract class CircuitElm implements Editable {
     noDiagonal: boolean = false;
 
     selected: boolean = false;
+    inComposite: boolean = false;
 
 
 //    abstract getDumpType(): number;
@@ -348,6 +349,34 @@ export abstract class CircuitElm implements Editable {
         }
         this.lead1 = this.interpPoint(this.point1, this.point2, (this.dn-len)/(2*this.dn));
         this.lead2 = this.interpPoint(this.point1, this.point2, (this.dn+len)/(2*this.dn));
+    }
+
+    // Returns true if (px,py) lies strictly inside the axis-aligned segment (ax,ay)-(bx,by).
+    static pointOnSegmentInterior(ax: number, ay: number, bx: number, by: number, px: number, py: number): boolean {
+        if ((px === ax && py === ay) || (px === bx && py === by)) return false;
+        if (ax === bx && px === ax) {
+            const miny = Math.min(ay, by), maxy = Math.max(ay, by);
+            return py > miny && py < maxy;
+        } else if (ay === by && py === ay) {
+            const minx = Math.min(ax, bx), maxx = Math.max(ax, bx);
+            return px > minx && px < maxx;
+        }
+        return false;
+    }
+
+    // Returns which post (0 or 1) has a lead stub containing (px, py), or -1 if neither.
+    getLeadPost(px: number, py: number): number {
+        if (this.lead1 != null && this.lead1 !== this.point1 &&
+            CircuitElm.pointOnSegmentInterior(this.point1.x, this.point1.y, this.lead1.x, this.lead1.y, px, py))
+            return 0;
+        if (this.lead2 != null && this.lead2 !== this.point2 &&
+            CircuitElm.pointOnSegmentInterior(this.lead2.x, this.lead2.y, this.point2.x, this.point2.y, px, py))
+            return 1;
+        // 1-post elements with no explicit leads (e.g. GroundElm): the whole point1→point2 segment is the lead
+        if (this.lead1 == null && this.getPostCount() === 1 &&
+            CircuitElm.pointOnSegmentInterior(this.point1.x, this.point1.y, this.point2.x, this.point2.y, px, py))
+            return 0;
+        return -1;
     }
 
     // adjust leads so that the point exactly between them is a grid point (so we can place a terminal there)

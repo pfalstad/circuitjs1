@@ -419,35 +419,62 @@ export class MouseManager {
     }
 
     doSplit(ce: CircuitElm | null): void {
-	const x = this.snapGrid(this.inverseTransformX(this.menuX));
-	const y = this.snapGrid(this.inverseTransformY(this.menuY));
 	if (ce == null || !ce.isWireElm())
 	    return;
+	const px = this.snapGrid(this.inverseTransformX(this.menuX));
+	const py = this.snapGrid(this.inverseTransformY(this.menuY));
+	if (this.splitWireAt(px, py))
+	    this.sim.needAnalyze();
+    }
 
-	if (ce.isRoutedWireElm()) {
-	    const rw2 = (ce as any).split(x, y);
-	    if (rw2 != null) {
-		this.ui.elmList.push(rw2);
-		this.sim.needAnalyze();
+    // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
+    // Returns true if any wire was split.
+    private splitWireAt(px: number, py: number): boolean {
+	let split = false;
+	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
+	    const ce = this.ui.elmList[i];
+	    if (!ce.isWireElm())
+		continue;
+	    const we = ce as any;
+	    if (!we.pointOnWireInterior(px, py))
+		continue;
+	    const newWire = we.split(px, py);
+	    if (newWire != null) {
+		this.ui.elmList.push(newWire);
+		split = true;
 	    }
-	    return;
 	}
+	return split;
+    }
 
-	let fx = x, fy = y;
-	if (ce.x === ce.x2)
-	    fx = ce.x;
-	else
-	    fy = ce.y;
+    // Split the lead stub of any non-wire element whose lead contains (px, py).
+    // Moves the element's post to the split point and inserts a wire for the remainder.
+    // Returns true if any lead was split.
+    private splitLeadsAt(px: number, py: number): boolean {
+	let split = false;
+	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
+	    const ce = this.ui.elmList[i];
+	    if (ce.isWireElm())
+		continue;
+	    const post = ce.getLeadPost(px, py);
+	    if (post < 0)
+		continue;
+	    const ox = (post === 0) ? ce.x : ce.x2;
+	    const oy = (post === 0) ? ce.y : ce.y2;
+	    ce.movePoint(post, px - ox, py - oy);
+	    const w = this.sim.constructElement("WireElm", px, py) as any;
+	    w.drag(ox, oy);
+	    this.ui.elmList.push(w);
+	    split = true;
+	}
+	return split;
+    }
 
-	// don't create zero-length wire
-	if ((fx === ce.x && fy === ce.y) || (fx === ce.x2 && fy === ce.y2))
-	    return;
-
-	const newWire = this.sim.constructElement("WireElm", fx, fy) as any;
-	newWire.drag(ce.x2, ce.y2);
-	ce.drag(fx, fy);
-	this.ui.elmList.push(newWire);
-	this.sim.needAnalyze();
+    // Split any wire or element lead whose interior contains (px, py).
+    private splitAt(px: number, py: number): boolean {
+	const a = this.splitWireAt(px, py);
+	const b = this.splitLeadsAt(px, py);
+	return a || b;
     }
 
     private selectArea(x: number, y: number, add: boolean): void {
@@ -750,7 +777,7 @@ export class MouseManager {
 		    this.sim.menus.elmAddScopeMenuItem.setEnabled(this.mouseElm.canViewInScope());
 		}
 		this.sim.menus.elmEditMenuItem.setEnabled(this.mouseElm.getEditInfo(0) != null);
-		this.sim.menus.elmSplitMenuItem.setEnabled(this.canSplit(this.mouseElm));
+		this.sim.menus.elmSplitMenuItem.setEnabled(this.mouseElm.isWireElm());
 		this.sim.menus.elmSliderMenuItem.setEnabled(this.sliderItemEnabled(this.mouseElm));
 
 		let canFlipX  = this.mouseElm.canFlipX();
@@ -779,14 +806,6 @@ export class MouseManager {
 	    this.doMainMenuChecks();
 	    this.ui.showContextPanel(this.sim.menus.mainMenuBar, this.menuClientX, this.menuClientY);
 	}
-    }
-
-    private canSplit(ce: CircuitElm): boolean {
-	if (!ce.isWireElm())
-	    return false;
-	if (ce.x === ce.x2 || ce.y === ce.y2)
-	    return true;
-	return false;
     }
 
     // check if the user can create sliders for this element
@@ -999,6 +1018,12 @@ export class MouseManager {
 	this.selectedArea = null;
 	this.dragging = false;
 	let circuitChanged = false;
+	// auto-split wires when a post is dragged onto a wire's interior
+	if (this.draggingPost >= 0 && this.mouseElm != null) {
+	    const p = this.mouseElm.getPost(this.draggingPost);
+	    if (p != null && this.splitAt(p.x, p.y))
+		circuitChanged = true;
+	}
 	if (this.heldSwitchElm != null) {
 	    (this.heldSwitchElm as any).mouseUp();
 	    this.heldSwitchElm = null;
@@ -1014,6 +1039,9 @@ export class MouseManager {
 		this.ui.toolbar.setModeLabel(Locale.LS("Press and hold mouse to create circuit element"));
 		this.dragElm = null;
 	    } else {
+		// auto-split wires at the new element's endpoints before adding it
+		this.splitAt(this.dragElm.x, this.dragElm.y);
+		this.splitAt(this.dragElm.x2, this.dragElm.y2);
 		this.ui.elmList.push(this.dragElm);
 		this.dragElm.draggingDone();
 		circuitChanged = true;

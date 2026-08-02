@@ -26,6 +26,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { UIManager } from "./UIManager";
+import { Rectangle } from "./Rectangle";
 
 export class RoutedWireElm extends WireElm {
     routePoints: Point[] | null = null;
@@ -49,6 +50,10 @@ export class RoutedWireElm extends WireElm {
     getXmlDumpType(): string { return "rw"; }
     isRoutedWireElm(): boolean { return true; }
 
+    // RoutedWireElm routes around other elements' posts rather than splitting to
+    // connect to them, so don't auto-split like a plain WireElm would.
+    draggingDone(): void {}
+
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.routePoints !== null && this.routePoints.length > 0) {
@@ -71,6 +76,14 @@ export class RoutedWireElm extends WireElm {
                     this.routePoints = points;
             }
         } catch (e) {}
+    }
+
+    move(dx: number, dy: number): void {
+        if (this.routePoints !== null) {
+            for (const p of this.routePoints)
+                p.move(dx, dy);
+        }
+        super.move(dx, dy);
     }
 
     getShortcut(): number { return 'W'.charCodeAt(0); }
@@ -146,15 +159,67 @@ export class RoutedWireElm extends WireElm {
         if ((sx === this.x && sy === this.y) || (sx === this.x2 && sy === this.y2))
             return null;
 
+        // if the split point landed exactly on a bend vertex, avoid adding
+        // a duplicate point for it on either half
+        const atA = (sx === a.x && sy === a.y);
+        const atB = (sx === b.x && sy === b.y);
+
         const rp1: Point[] = [];
         for (let i = 0; i <= bestSeg; i++) rp1.push(this.routePoints[i]);
-        rp1.push(new Point(sx, sy));
+        if (!atA)
+            rp1.push(new Point(sx, sy));
 
         const rp2: Point[] = [new Point(sx, sy)];
-        for (let i = bestSeg + 1; i < this.routePoints.length; i++) rp2.push(this.routePoints[i]);
+        for (let i = bestSeg + 1; i < this.routePoints.length; i++) {
+            if (i === bestSeg + 1 && atB)
+                continue;
+            rp2.push(this.routePoints[i]);
+        }
 
         this.setPoints(rp1);
         return new RoutedWireElm(rp2);
+    }
+
+    selectRect(r: Rectangle, add: boolean): void {
+        if (this.routePoints === null || this.routePoints.length < 2) {
+            super.selectRect(r, add);
+            return;
+        }
+        let hit = false;
+        for (let i = 0; i < this.routePoints.length - 1 && !hit; i++) {
+            const a = this.routePoints[i];
+            const b = this.routePoints[i + 1];
+            if (RoutedWireElm.segmentIntersectsRect(a, b, r))
+                hit = true;
+        }
+        if (hit)
+            this.selected = true;
+        else if (!add)
+            this.selected = false;
+    }
+
+    // test whether an axis-aligned segment (a-b) intersects rectangle r
+    static segmentIntersectsRect(a: Point, b: Point, r: Rectangle): boolean {
+        const rx1 = r.x, ry1 = r.y, rx2 = r.x + r.width, ry2 = r.y + r.height;
+        if (a.y === b.y) {
+            // horizontal segment
+            if (a.y < ry1 || a.y > ry2)
+                return false;
+            const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+            return hi >= rx1 && lo <= rx2;
+        } else {
+            // vertical segment
+            if (a.x < rx1 || a.x > rx2)
+                return false;
+            const lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+            return hi >= ry1 && lo <= ry2;
+        }
+    }
+
+    pointOnWireInterior(px: number, py: number): boolean {
+        if (this.routePoints === null || this.routePoints.length < 2)
+            return false;
+        return WireElm.pointOnWireInteriorForPoints(px, py, this.routePoints);
     }
 
     rerouteVia(vx: number, vy: number): void {

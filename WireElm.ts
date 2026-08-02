@@ -23,6 +23,7 @@ import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
+import { CirSim } from "./CirSim";
 
 export class WireElm extends CircuitElm {
     busWidth: number = 1;
@@ -199,6 +200,109 @@ export class WireElm extends CircuitElm {
             this.flags = ei.changeFlag(this.flags, WireElm.FLAG_SHOW_BUS_VALUE_HEX);
     }
     getShortcut(): number { return 'w'.charCodeAt(0); }
+
+    static pointOnWireInteriorForPoints(px: number, py: number, pts: Point[]): boolean {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i];
+            const b = pts[i + 1];
+            if (CircuitElm.pointOnSegmentInterior(a.x, a.y, b.x, b.y, px, py)) return true;
+        }
+        // an interior bend vertex (not the wire's overall endpoints) is also a valid split point,
+        // even though it's not "interior" to either of its adjacent segments
+        for (let i = 1; i < pts.length - 1; i++) {
+            const p = pts[i];
+            if (p.x === px && p.y === py) return true;
+        }
+        return false;
+    }
+
+    pointOnWireInterior(px: number, py: number): boolean {
+        const pts: Point[] = [this.point1, this.point2];
+        return WireElm.pointOnWireInteriorForPoints(px, py, pts);
+    }
+
+    split(px: number, py: number): WireElm {
+        const newWire = new WireElm(px, py);
+        newWire.drag(this.x2, this.y2);
+        this.drag(px, py);
+        return newWire;
+    }
+
+    // True if some other 2-terminal element already connects (ax,ay) directly to
+    // (bx,by). Used to avoid laying a redundant parallel wire segment on top of
+    // an existing colinear element, which would create an electrical loop.
+    hasDirectConnection(ax: number, ay: number, bx: number, by: number): boolean {
+        for (const ce of CirSim.theApp.elmList) {
+            if (ce === this || ce.getPostCount() !== 2)
+                continue;
+            const p0 = ce.getPost(0)!;
+            const p1 = ce.getPost(1)!;
+            if ((p0.x === ax && p0.y === ay && p1.x === bx && p1.y === by) ||
+                (p0.x === bx && p0.y === by && p1.x === ax && p1.y === ay))
+                return true;
+        }
+        return false;
+    }
+
+    // After a plain wire is newly drawn, split it at any point where another
+    // element's post lies in its interior, so it connects there instead of just
+    // crossing over it. (RoutedWireElm overrides this to do nothing, since it
+    // routes around such posts instead of through them.) Any sub-segment that
+    // would duplicate an existing colinear element (both endpoints of that
+    // element lying on the new wire) is dropped instead of added, since adding
+    // it would just create a parallel loop.
+    draggingDone(): void {
+        // postDrawList holds the points (as of the last analysis, i.e. before this wire)
+        // where a dot is drawn: dead ends and real junctions, but not plain pass-through
+        // connections between two elements. Only split at those, so we don't tap into
+        // an already-connected pair that isn't meant to be a distinct node.
+        const splitPoints: Point[] = [];
+        for (const p of CirSim.theApp.postDrawList) {
+            if (CircuitElm.pointOnSegmentInterior(this.x, this.y, this.x2, this.y2, p.x, p.y))
+                splitPoints.push(p);
+        }
+        if (splitPoints.length === 0)
+            return;
+        const x0 = this.x, y0 = this.y;
+        splitPoints.sort((a, b) => {
+            const da = (a.x-x0)*(a.x-x0) + (a.y-y0)*(a.y-y0);
+            const db = (b.x-x0)*(b.x-x0) + (b.y-y0)*(b.y-y0);
+            return da - db;
+        });
+        // full ordered list of boundary points: original endpoints plus dedup'd splits
+        const pts: Point[] = [new Point(this.x, this.y)];
+        for (const p of splitPoints) {
+            const last = pts[pts.length - 1];
+            if (p.x !== last.x || p.y !== last.y)
+                pts.push(p);
+        }
+        const last = pts[pts.length - 1];
+        if (last.x !== this.x2 || last.y !== this.y2)
+            pts.push(new Point(this.x2, this.y2));
+
+        let first = true;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i];
+            const b = pts[i + 1];
+            if (this.hasDirectConnection(a.x, a.y, b.x, b.y))
+                continue;
+            if (first) {
+                this.x = a.x; this.y = a.y;
+                this.drag(b.x, b.y);
+                first = false;
+            } else {
+                const seg = new WireElm(a.x, a.y);
+                seg.drag(b.x, b.y);
+                CirSim.theApp.elmList.push(seg);
+            }
+        }
+        if (first) {
+            const idx = CirSim.theApp.elmList.indexOf(this);
+            if (idx >= 0)
+                CirSim.theApp.elmList.splice(idx, 1);
+            this.delete();
+        }
+    }
 
     getMouseDistance(gx: number, gy: number): number {
         const thresh = 10;

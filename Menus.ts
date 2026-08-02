@@ -781,7 +781,7 @@ export class Menus {
         m.addMenuItem(this.elmFlipXMenuItem,      Locale.LS("Flip X"),                   "elm", "flipx");
         m.addMenuItem(this.elmFlipYMenuItem,      Locale.LS("Flip Y"),                   "elm", "flipy");
         m.addMenuItem(this.elmFlipXYMenuItem,     Locale.LS("Flip XY"),                  "elm", "flipxy");
-        m.addMenuItem(this.elmSplitMenuItem,      shortcutHtml("", "Split Wire", Locale.LS(this.ctrlMetaKey + "click")), "elm", "split");
+        m.addMenuItem(this.elmSplitMenuItem,      shortcutHtml("", "Split Wire Manually", Locale.LS(this.ctrlMetaKey + "click")), "elm", "split");
         m.addMenuItem(this.elmSliderMenuItem,     Locale.LS("Sliders..."),               "elm", "sliders");
     }
 }
