@@ -150,17 +150,13 @@ export class CommandManager {
             this.app.undoManager?.pushUndo();
             this.app.centerCircuit();
         }
-        if (item == "flipx") {
+        if (item == "rotate") {
             this.app.undoManager?.pushUndo();
-            this.flipX();
+            this.rotate();
         }
-        if (item == "flipy") {
+        if (item == "mirror") {
             this.app.undoManager?.pushUndo();
-            this.flipY();
-        }
-        if (item == "flipxy") {
-            this.app.undoManager?.pushUndo();
-            this.flipXY();
+            this.mirror();
         }
         if (item == "convertWires") {
             this.app.undoManager?.pushUndo();
@@ -423,7 +419,8 @@ export class CommandManager {
         return { cx: (minx + maxx) / 2, cy: (miny + maxy) / 2, count };
     }
 
-    flipX(): void {
+    // mirror horizontally
+    mirror(): void {
         const fi = this.prepareFlip();
         const center2 = fi.cx * 2;
         for (const ce of this.app.elmList)
@@ -432,22 +429,17 @@ export class CommandManager {
         this.app.needAnalyze();
     }
 
-    flipY(): void {
+    // rotate 90 degrees: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
+    rotate(): void {
         const fi = this.prepareFlip();
         const center2 = fi.cy * 2;
-        for (const ce of this.app.elmList)
-            if (ce.isSelected() || fi.count == 0)
-                ce.flipY(center2, fi.count);
-        this.app.needAnalyze();
-    }
-
-    flipXY(): void {
-        const fi = this.prepareFlip();
         const xmy = this.app.snapGrid(fi.cx - fi.cy);
-        this.app.console("xmy " + xmy + " grid " + this.app.gridSize + " " + fi.cx + " " + fi.cy);
-        for (const ce of this.app.elmList)
-            if (ce.isSelected() || fi.count == 0)
+        for (const ce of this.app.elmList) {
+            if (ce.isSelected() || fi.count == 0) {
                 ce.flipXY(xmy, fi.count);
+                ce.flipY(center2, fi.count);
+            }
+        }
         this.app.needAnalyze();
     }
 

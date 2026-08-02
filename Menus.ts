@@ -215,9 +215,8 @@ export class Menus {
     pasteItem                = new MenuItem();
     selectAllItem            = new MenuItem();
     optionsItem              = new MenuItem();
-    flipXItem                = new MenuItem();
-    flipYItem                = new MenuItem();
-    flipXYItem               = new MenuItem();
+    rotateItem                = new MenuItem();
+    mirrorItem                = new MenuItem();
     stackAllItem             = new MenuItem();
     unstackAllItem           = new MenuItem();
     combineAllItem           = new MenuItem();
@@ -231,9 +230,8 @@ export class Menus {
     elmAddScopeMenuItem      = new MenuItem();
     elmSplitMenuItem         = new MenuItem();
     elmSliderMenuItem        = new MenuItem();
-    elmFlipXMenuItem         = new MenuItem();
-    elmFlipYMenuItem         = new MenuItem();
-    elmFlipXYMenuItem        = new MenuItem();
+    elmRotateMenuItem        = new MenuItem();
+    elmMirrorMenuItem        = new MenuItem();
     elmSwapMenuItem          = new MenuItem();
     scopeRemovePlotMenuItem  = new MenuItem();
     scopeSelectYMenuItem     = new MenuItem();
@@ -369,9 +367,8 @@ export class Menus {
         editMenu.addCommand(shortcutHtml("zoom-11",  "Zoom 100%", "0"), "zoom", "zoom100");
         editMenu.addCommand(shortcutHtml("zoom-in",  "Zoom In",   "+"), "zoom", "zoomin");
         editMenu.addCommand(shortcutHtml("zoom-out", "Zoom Out",  "-"), "zoom", "zoomout");
-        editMenu.addMenuItem(this.flipXItem,  iconHtml("flip-x",   "Flip X"),  "edit", "flipx");
-        editMenu.addMenuItem(this.flipYItem,  iconHtml("flip-y",   "Flip Y"),  "edit", "flipy");
-        editMenu.addMenuItem(this.flipXYItem, iconHtml("flip-x-y", "Flip XY"), "edit", "flipxy");
+        editMenu.addMenuItem(this.rotateItem, iconHtml("cw",     "Rotate"), "edit", "rotate");
+        editMenu.addMenuItem(this.mirrorItem, iconHtml("flip-x", "Mirror"), "edit", "mirror");
 
         // ---- Draw menu + right-click popup (same content, built twice) ----
         const drawMenu = new Menu(this.app);
@@ -779,9 +776,8 @@ export class Menus {
         m.addMenuItem(this.elmDeleteMenuItem,     Locale.LS("Delete"),                   "elm", "delete");
         m.addCommand(                             Locale.LS("Duplicate"),                "elm", "duplicate");
         m.addMenuItem(this.elmSwapMenuItem,       Locale.LS("Swap Terminals"),           "elm", "flip");
-        m.addMenuItem(this.elmFlipXMenuItem,      Locale.LS("Flip X"),                   "elm", "flipx");
-        m.addMenuItem(this.elmFlipYMenuItem,      Locale.LS("Flip Y"),                   "elm", "flipy");
-        m.addMenuItem(this.elmFlipXYMenuItem,     Locale.LS("Flip XY"),                  "elm", "flipxy");
+        m.addMenuItem(this.elmRotateMenuItem,     Locale.LS("Rotate"),                   "elm", "rotate");
+        m.addMenuItem(this.elmMirrorMenuItem,     Locale.LS("Mirror"),                   "elm", "mirror");
         m.addMenuItem(this.elmSplitMenuItem,      shortcutHtml("", "Split Wire Manually", Locale.LS(this.ctrlMetaKey + "click")), "elm", "split");
         m.addMenuItem(this.elmSliderMenuItem,     Locale.LS("Sliders..."),               "elm", "sliders");
     }
