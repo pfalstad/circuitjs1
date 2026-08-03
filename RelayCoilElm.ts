@@ -58,7 +58,13 @@ export class RelayCoilElm extends CircuitElm {
     static readonly TYPE_ON_DELAY = 1;
     static readonly TYPE_OFF_DELAY = 2;
     static readonly TYPE_LATCHING = 3;
+    static readonly TYPE_LATCHING_ON = 4;
+    static readonly TYPE_LATCHING_OFF = 5;
     type: number = 0;
+
+    static isLatchingType(t: number): boolean {
+        return t === RelayCoilElm.TYPE_LATCHING || t === RelayCoilElm.TYPE_LATCHING_ON || t === RelayCoilElm.TYPE_LATCHING_OFF;
+    }
 
     readonly nCoil1 = 0;
     readonly nCoil2 = 1;
@@ -150,9 +156,13 @@ export class RelayCoilElm extends CircuitElm {
         CircuitElm.drawThickLine(g, this.outline[2], this.outline[3]);
         CircuitElm.drawThickLine(g, this.outline[3], this.outline[0]);
 
-        if (this.type === RelayCoilElm.TYPE_LATCHING) {
+        if (RelayCoilElm.isLatchingType(this.type)) {
             for (let i = 0; i !== 3; i++)
                 CircuitElm.drawThickLine(g, this.extraPoints[i], this.extraPoints[i+1]);
+            if (this.type === RelayCoilElm.TYPE_LATCHING_ON || this.type === RelayCoilElm.TYPE_LATCHING_OFF) {
+                g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.whiteColor);
+                g.drawString(this.type === RelayCoilElm.TYPE_LATCHING_ON ? "S" : "R", this.extraPoints[0].x+3, this.extraPoints[0].y+9);
+            }
         } else if (this.type === RelayCoilElm.TYPE_ON_DELAY) {
             CircuitElm.drawThickLine(g, this.extraPoints[1], this.extraPoints[2]);
             CircuitElm.drawThickLine(g, this.extraPoints[0], this.extraPoints[2]);
@@ -206,7 +216,7 @@ export class RelayCoilElm extends CircuitElm {
         this.currentOffset1 = CircuitElm.distance(this.coilPosts[0], this.coilLeads[0]);
         this.currentOffset2 = this.currentOffset1 + CircuitElm.distance(this.coilLeads[0], this.coilLeads[1]);
         this.extraPoints = this.newPointArray(4);
-        if (this.type === RelayCoilElm.TYPE_LATCHING) {
+        if (RelayCoilElm.isLatchingType(this.type)) {
             this.interpPoint(this.coilLeads[0], this.coilLeads[1], this.extraPoints[0], 0.3, 8);
             this.interpPoint(this.coilLeads[0], this.coilLeads[1], this.extraPoints[1], 0.3, 0);
             this.interpPoint(this.coilLeads[0], this.coilLeads[1], this.extraPoints[2], 0.7, 0);
@@ -243,7 +253,11 @@ export class RelayCoilElm extends CircuitElm {
         } else {
             this.switchingTimeOff = this.switchingTimeOn = this.switchingTime;
         }
-        this.setSwitchPositions();
+        // set/reset coils only drive the contact when they actually fire (see
+        // startIteration); pushing their own switchPosition here on every
+        // re-stamp would let the reset coil's stale value fight the set coil's
+        if (this.type !== RelayCoilElm.TYPE_LATCHING_ON && this.type !== RelayCoilElm.TYPE_LATCHING_OFF)
+            this.toggleSwitchPositions();
     }
 
     get nCoil3(): number { return 2; }
@@ -260,8 +274,19 @@ export class RelayCoilElm extends CircuitElm {
             if (this.avgCurrent < this.offCurrent) this.state = 0;
             else if (CircuitElm.sim.t - this.lastTransition > this.switchingTimeOn) {
                 this.state = 2;
-                if (this.type === RelayCoilElm.TYPE_LATCHING) this.switchPosition = 1 - this.switchPosition;
-                else this.switchPosition = 1;
+                if (this.type === RelayCoilElm.TYPE_LATCHING) {
+                    this.switchPosition = 1 - this.switchPosition;
+                } else if (this.type === RelayCoilElm.TYPE_LATCHING_ON) {
+                    // set coil: always drive the contact to the "on" position
+                    this.switchPosition = 1;
+                    this.setSwitchPositions(0);
+                } else if (this.type === RelayCoilElm.TYPE_LATCHING_OFF) {
+                    // reset coil: always drive the contact to the "off" position
+                    this.switchPosition = 0;
+                    this.setSwitchPositions(1);
+                } else {
+                    this.switchPosition = 1;
+                }
             }
         } else if (this.state === 2) {
             if (this.avgCurrent < this.offCurrent) { this.lastTransition = CircuitElm.sim.t; this.state = 3; }
@@ -269,19 +294,29 @@ export class RelayCoilElm extends CircuitElm {
             if (this.avgCurrent > this.onCurrent) this.state = 2;
             else if (CircuitElm.sim.t - this.lastTransition > this.switchingTimeOff) {
                 this.state = 0;
-                if (this.type !== RelayCoilElm.TYPE_LATCHING) this.switchPosition = 0;
+                if (!RelayCoilElm.isLatchingType(this.type)) this.switchPosition = 0;
             }
         }
-        if (oldSwitchPosition !== this.switchPosition)
-            this.setSwitchPositions();
+        if (this.type !== RelayCoilElm.TYPE_LATCHING_ON && this.type !== RelayCoilElm.TYPE_LATCHING_OFF && oldSwitchPosition !== this.switchPosition)
+            this.toggleSwitchPositions();
     }
 
     setParentList(list: CircuitElm[]): void { this.elmList = list; }
 
-    setSwitchPositions(): void {
+    toggleSwitchPositions(): void {
         for (const ce of this.elmList) {
             if (ce instanceof RelayContactElm && (ce as RelayContactElm).label === this.label)
                 (ce as RelayContactElm).setPosition(1 - this.switchPosition, this.type);
+        }
+    }
+
+    // for set/reset coils: unconditionally drive matching contacts to an
+    // explicit position, since a set/reset coil may fire without its own
+    // switchPosition value actually changing
+    setSwitchPositions(position: number): void {
+        for (const ce of this.elmList) {
+            if (ce instanceof RelayContactElm && (ce as RelayContactElm).label === this.label)
+                (ce as RelayContactElm).setPosition(position, this.type);
         }
     }
 
@@ -311,6 +346,8 @@ export class RelayCoilElm extends CircuitElm {
             ei.choice.add("On Delay");
             ei.choice.add("Off Delay");
             ei.choice.add("Latching");
+            ei.choice.add("Latching (Set Coil)");
+            ei.choice.add("Latching (Reset Coil)");
             ei.choice.select(this.type);
             return ei;
         }
