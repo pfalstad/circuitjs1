@@ -37,15 +37,16 @@ export class WattmeterElm extends CircuitElm {
     readonly PM_INST = 0;
     readonly PM_AVG = 1;
     avgPower: number = 0;
-    totalPower: number = 0;
-    count: number = 0;
-    zerocount: number = 0;
-    maxP: number = 0;
-    lastMaxP: number = 0;
-    minP: number = 0;
-    lastMinP: number = 0;
-    increasingP: boolean = true;
-    decreasingP: boolean = true;
+    totalEnergy: number = 0;
+    cycleTime: number = 0;
+    lastCycleTime: number = 0;
+    runEnergy: number = 0;
+    runTime: number = 0;
+    zeroTime: number = 0;
+    peak: number = 0;
+    trough: number = 0;
+    wasAboveMid: boolean = false;
+    haveFullCycle: boolean = false;
 
     posts: Point[];
     inner: Point[];
@@ -137,41 +138,71 @@ export class WattmeterElm extends CircuitElm {
 
     stepFinished(): void {
         const p = this.getPower();
-        this.count++;
-        this.totalPower += p;
-        if (p > this.maxP && this.increasingP) {
-            this.maxP = p;
-            this.increasingP = true;
-            this.decreasingP = false;
+        const dt = CircuitElm.sim.timeStep;
+        this.cycleTime += dt;
+        this.totalEnergy += p * dt;
+        this.runTime += dt;
+        this.runEnergy += p * dt;
+
+        // Average over whole cycles, delimited by rising crossings of the long-run mean.
+        // The previous code delimited them by the local extremes of the power waveform,
+        // which is half a period for a sine wave, and for a waveform with a flat section -
+        // such as the output of a half-wave rectifier - gives a window that falls either
+        // side of the conducting part instead of spanning a period.
+        const mid = this.runEnergy / this.runTime;
+
+        // Compare against the threshold with hysteresis. While the power is constant it
+        // equals its own running mean, and a bare p > mid then chatters on rounding noise
+        // alone, manufacturing crossings a fraction of a timestep apart. Those leave a
+        // period estimate orders of magnitude too short behind, which the timeout and the
+        // zero check below would then act on.
+        if (p > this.peak)
+            this.peak = p;
+        if (p < this.trough)
+            this.trough = p;
+        const band = (this.peak - this.trough) * .05 + Math.abs(this.peak) * 1e-9;
+        const above = this.wasAboveMid ? p > mid - band : p > mid + band;
+
+        if (above && !this.wasAboveMid) {
+            if (this.haveFullCycle) {
+                this.avgPower = this.totalEnergy / this.cycleTime;
+                if (isNaN(this.avgPower))
+                    this.avgPower = 0;
+                this.lastCycleTime = this.cycleTime;
+            } else {
+                // The run up to the first crossing is a partial cycle. Measuring it would
+                // leave a period estimate far shorter than the real one.
+                this.haveFullCycle = true;
+            }
+            this.totalEnergy = 0;
+            this.cycleTime = 0;
+        } else if (this.lastCycleTime > 0 && this.cycleTime > this.lastCycleTime * 8) {
+            // the waveform stopped or changed shape; don't freeze on a stale reading
+            this.avgPower = this.totalEnergy / this.cycleTime;
+            if (isNaN(this.avgPower))
+                this.avgPower = 0;
+            this.totalEnergy = 0;
+            this.cycleTime = 0;
         }
-        if (p < this.maxP && this.increasingP) {
-            this.lastMaxP = this.maxP;
-            this.minP = p;
-            this.increasingP = false;
-            this.decreasingP = true;
-            this.avgPower = this.totalPower / this.count;
-            if (isNaN(this.avgPower)) this.avgPower = 0;
-            this.count = 0; this.totalPower = 0;
-        }
-        if (p < this.minP && this.decreasingP) {
-            this.minP = p;
-            this.increasingP = false;
-            this.decreasingP = true;
-        }
-        if (p > this.minP && this.decreasingP) {
-            this.lastMinP = this.minP;
-            this.maxP = p;
-            this.increasingP = true;
-            this.decreasingP = false;
-            this.avgPower = this.totalPower / this.count;
-            if (isNaN(this.avgPower)) this.avgPower = 0;
-            this.count = 0; this.totalPower = 0;
-        }
+        this.wasAboveMid = above;
+
+        // Constant power never crosses its own mean, so no period is ever measured. Report
+        // the running mean until one is, which is the right answer for DC anyway.
+        if (this.lastCycleTime === 0)
+            this.avgPower = mid;
+
+        // Clear the reading once the power has been off for longer than a period. The
+        // previous code cleared after five zero samples, which a rectified waveform reaches
+        // during every cycle; tying it to the measured period does not.
         if (p === 0) {
-            this.zerocount++;
-            if (this.zerocount > 5) { this.totalPower = 0; this.avgPower = 0; this.maxP = 0; this.minP = 0; }
+            this.zeroTime += dt;
+            if (this.lastCycleTime > 0 && this.zeroTime > this.lastCycleTime * 1.5) {
+                this.avgPower = 0;
+                this.totalEnergy = 0;
+                this.cycleTime = 0;
+            }
         } else {
-            this.zerocount = 0;
+            this.zeroTime = 0;
         }
     }
 
