@@ -33,7 +33,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 class LabelEntry {
     point!: Point;
-    node: number = 0;
+    node: CircuitNode | null = null;
 }
 
 export class LabeledNodeElm extends CircuitElm {
@@ -116,11 +116,11 @@ export class LabeledNodeElm extends CircuitElm {
     setNode(p: number, n: CircuitNode): void {
         super.setNode(p, n);
 
-        // save node number so we can return it in getByName()
+        // save node so we can return it in getByName()
         const key = (this.busWidth > 1) ? this.text + ":" + p : this.text;
         const le = LabeledNodeElm.labelList.get(key);
         if (le != null) // should never happen
-            le.node = n.index;
+            le.node = n;
     }
 
     getDumpType(): number { return 207; }
@@ -148,7 +148,7 @@ export class LabeledNodeElm extends CircuitElm {
     isRemovableWire(): boolean { return true; }
     getConnection(n1: number, n2: number): boolean { return n1 === n2; }
 
-    static getByName(n: string): number | null {
+    static getByName(n: string): CircuitNode | null {
         if (LabeledNodeElm.labelList == null)
             return null;
         const le = LabeledNodeElm.labelList.get(n);
@@ -157,12 +157,12 @@ export class LabeledNodeElm extends CircuitElm {
         return le.node;
     }
 
-    // find label text for the given node number, if any (used to show label in getInfo() for wires)
-    static getLabelForNode(node: number): string | null {
-        if (LabeledNodeElm.labelList == null)
+    // find label text for the given node, if any (used to show label in getInfo() for wires)
+    static getLabelForNode(cn: CircuitNode | null): string | null {
+        if (LabeledNodeElm.labelList == null || cn == null)
             return null;
         for (const [key, le] of LabeledNodeElm.labelList) {
-            if (le.node === node) {
+            if (le.node === cn) {
                 const ci = key.lastIndexOf(':');
                 return (ci < 0) ? key : key.substring(0, ci);
             }

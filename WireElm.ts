@@ -130,10 +130,10 @@ export class WireElm extends CircuitElm {
             const value = this.getBusValue();
             arr[1] = "value = " + value;
             arr[2] = "hex = 0x" + value.toString(16).toUpperCase();
-            let label = LabeledNodeElm.getLabelForNode(this.getNode(0).index);
+            let label = LabeledNodeElm.getLabelForNode(this.getNode(0));
             if (label != null) {
                 for (let i = 1; i < this.busWidth; i++) {
-                    if (label !== LabeledNodeElm.getLabelForNode(this.getNode(i).index)) {
+                    if (label !== LabeledNodeElm.getLabelForNode(this.getNode(i))) {
                         label = null;
                         break;
                     }
@@ -144,7 +144,7 @@ export class WireElm extends CircuitElm {
         } else {
             arr[1] = "I = " + CircuitElm.getCurrentDText(this.getCurrent());
             arr[2] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
-            const label = LabeledNodeElm.getLabelForNode(this.getNode(0).index);
+            const label = LabeledNodeElm.getLabelForNode(this.getNode(0));
             if (label != null)
                 arr[3] = label;
         }
