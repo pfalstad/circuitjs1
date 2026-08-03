@@ -981,6 +981,12 @@ export class MouseManager {
 
     private onMouseOut(e: MouseEvent): void {
 	this.mouseCursorX = -1;
+	// if the mouse leaves the canvas while dragging (e.g. dragged off the edge of the
+	// browser window), we may never get a mouseup event, so end the drag now instead of
+	// getting stuck thinking we're still dragging (which for MODE_DRAG_ALL would mean
+	// the view keeps panning as the mouse moves, even after the button is released).
+	if (this.mouseDragging)
+	    this.endDrag();
     }
 
     clearMouseElm(): void {
@@ -1150,9 +1156,6 @@ export class MouseManager {
 	// a toolbar drag-and-drop in progress is finished by the document-level handler instead
 	if (this.isToolbarDragPending())
 	    return;
-	this.mouseDragging = false;
-	Scope.dragStartTime = -1;
-	Scope.endDragPlotY();
 
 	// click to clear selection (but not on a right-click, e.g. from a context-menu mouseup)
 	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null && e.button === 0)
@@ -1161,6 +1164,15 @@ export class MouseManager {
 	// cmd-click = split wire
 	if (this.tempMouseMode === MouseManager.MODE_DRAG_POST && this.draggingPost === -1)
 	    this.doSplit(this.mouseElm);
+
+	this.endDrag();
+    }
+
+    // common cleanup for ending a drag, whether via mouseup or the mouse leaving the canvas
+    private endDrag(): void {
+	this.mouseDragging = false;
+	Scope.dragStartTime = -1;
+	Scope.endDragPlotY();
 
 	this.tempMouseMode = this.mouseMode;
 	this.selectedArea = null;
