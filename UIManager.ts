@@ -538,7 +538,7 @@ class Toolbar {
         iconLabel.addEventListener('mouseout', () => { paletteContainer.style.display = 'none'; });
 
         // Keep the palette visible when hovering over it
-        paletteContainer.addEventListener('mouseover', () => paletteContainer.style.display = '');
+        paletteContainer.addEventListener('mouseover', () => paletteContainer.style.display = 'flex');
         paletteContainer.addEventListener('mouseout', () => { paletteContainer.style.display = 'none'; });
 
         return iconLabel;
