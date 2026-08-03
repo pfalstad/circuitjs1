@@ -8,6 +8,7 @@ import { ScopeManager } from "./ScopeManager";
 import { CircuitLoader } from "./CircuitLoader";
 import { JSInterface } from "./JSInterface";
 import { HookRegistry } from "./HookRegistry";
+import { Locale } from "./Locale";
 import * as LZString from "lz-string";
 import "./canvas2svg.js";
 
@@ -16,6 +17,9 @@ import "./canvas2svg.js";
 // canvas2svg.js sets window.C2S; used by ImageExporter for SVG export
 
 HookRegistry.createJSInterface = (app: any) => new JSInterface(app);
+
+// loadLocale() launches the sim after determining the language (see circuitjs1.java)
+await Locale.load();
 
 const app = new CirSim();
 await app.init();
