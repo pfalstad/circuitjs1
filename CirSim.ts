@@ -126,7 +126,9 @@ export class CirSim {
     gridMask: number = ~15;
     gridRound: number = 7;
 
-    shortcuts: (string | null)[] = new Array(127).fill(null);
+    shortcuts: Map<number, string> = new Map();
+    // format is "cmd:<menu>:<item>"
+    static readonly RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
     classToLabelMap: Map<string, string> = new Map();
 
     random: { nextInt(): number; nextDouble(): number } = {
@@ -189,6 +191,7 @@ export class CirSim {
         await import('./AboutBox');
         await import('./SliderDialog');
         await import('./ScopePropertiesDialog');
+        await import('./ShortcutsDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
@@ -220,7 +223,7 @@ export class CirSim {
         } catch (e) {}
 
         this.transform = [0, 0, 0, 0, 0, 0];
-        this.shortcuts = new Array(127).fill(null);
+        this.shortcuts = new Map();
         this.elmList = [];
 
         const { registerElements } = await import('./registerElements');

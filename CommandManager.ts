@@ -122,6 +122,8 @@ export class CommandManager {
             this.app.undoManager?.doUndo();
         if (item == "redo")
             this.app.undoManager?.doRedo();
+        if (item == "runstop")
+            this.app.setSimRunning(!this.app.simIsRunning());
 
         // if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
         if (menu == "key" && this.app.mouse.getMouseElm() != null) {

@@ -31,6 +31,7 @@ import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { CustomCompositeModel } from "./CustomCompositeModel";
 import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import { KeyNames } from "./KeyNames";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -1985,7 +1986,30 @@ export class UIManager {
             }
         }
 
-        if (e.ctrlKey || e.metaKey) {
+        // check if any menu items have a user-assigned keyboard shortcut matching this key
+        // (used for keys like F3, Home, Ctrl-<key>, etc. which don't generate a keypress
+        // event). User-assigned shortcuts take precedence over the hardcoded Ctrl/Meta
+        // combos below (e.g. a user-assigned Ctrl-D wins over the hardcoded "duplicate").
+        let customShortcutHandled = false;
+        const placeholder = KeyNames.keyCodeToPlaceholder(code, e.shiftKey, e.ctrlKey, e.altKey, e.metaKey);
+        if (placeholder >= 0 && !e.repeat) {
+            const c = this.app.shortcuts.get(placeholder);
+            if (c != null) {
+                if (c.startsWith("cmd:")) {
+                    const parts = c.split(":");
+                    this.app.commands.menuPerformed(parts[1], parts[2]);
+                } else {
+                    this.setMouseMode(MouseManager.MODE_ADD_ELM);
+                    this.mouseModeStr = c;
+                    this.updateToolbar();
+                    this.mouse.tempMouseMode = this.mouse.mouseMode;
+                }
+                e.preventDefault();
+                customShortcutHandled = true;
+            }
+        }
+
+        if (!customShortcutHandled && (e.ctrlKey || e.metaKey)) {
             if (code === KEY_C) { this.app.commands.menuPerformed("key", "copy");              e.preventDefault(); }
             if (code === KEY_X) { this.app.commands.menuPerformed("key", "cut");               e.preventDefault(); }
             if (code === KEY_V) { this.app.commands.menuPerformed("key", "paste");             e.preventDefault(); }
@@ -2064,7 +2088,7 @@ export class UIManager {
             this.app.commands.menuPerformed("key", "zoom100");
             e.preventDefault();
         }
-        if (cc === 47 /* '/' */ && this.app.shortcuts[47] == null) {
+        if (cc === 47 /* '/' */ && this.app.shortcuts.get(47) == null) {
             this.app.commands.menuPerformed("key", "search");
             e.preventDefault();
         }
@@ -2073,7 +2097,9 @@ export class UIManager {
             return;
 
         // check if any switches have a keyboard shortcut matching this key
-        if (cc > 32 && cc < 127) {
+        // (cc==32 for spacebar is included so it can be assigned as a shortcut too;
+        // it falls back to the hardcoded temporary-select-mode behavior below if unassigned)
+        if (cc >= 32 && cc < 127) {
             const keyStr = String.fromCharCode(cc).toLowerCase();
             let toggled = false;
             if (!e.repeat) {
@@ -2090,25 +2116,30 @@ export class UIManager {
                     }
                 }
             }
-            e.preventDefault();
             if (toggled) {
+                e.preventDefault();
                 this.app.repaint();
             } else {
-                const c = this.app.shortcuts[cc];
-                if (c == null)
-                    return;
-                this.setMouseMode(MouseManager.MODE_ADD_ELM);
-                this.mouseModeStr = c;
-                this.updateToolbar();
-                this.mouse.tempMouseMode = this.mouse.mouseMode;
+                const c = this.app.shortcuts.get(cc);
+                if (c != null) {
+                    e.preventDefault();
+                    if (c.startsWith("cmd:")) {
+                        const parts = c.split(":");
+                        this.app.commands.menuPerformed(parts[1], parts[2]);
+                        return;
+                    }
+                    this.setMouseMode(MouseManager.MODE_ADD_ELM);
+                    this.mouseModeStr = c;
+                    this.updateToolbar();
+                    this.mouse.tempMouseMode = this.mouse.mouseMode;
+                } else if (cc === KEY_SPACE) {
+                    this.setMouseMode(MouseManager.MODE_SELECT);
+                    this.mouseModeStr = "Select";
+                    this.updateToolbar();
+                    this.mouse.tempMouseMode = this.mouse.mouseMode;
+                    e.preventDefault();
+                }
             }
-        }
-        if (cc === KEY_SPACE) {
-            this.setMouseMode(MouseManager.MODE_SELECT);
-            this.mouseModeStr = "Select";
-            this.updateToolbar();
-            this.mouse.tempMouseMode = this.mouse.mouseMode;
-            e.preventDefault();
         }
     }
 
@@ -2215,10 +2246,10 @@ export class UIManager {
         if (elm != null) {
             if (elm.needsShortcut()) {
                 shortcut += String.fromCharCode(elm.getShortcut());
-                if (this.app.shortcuts[elm.getShortcut()] != null &&
-                        this.app.shortcuts[elm.getShortcut()] !== t)
+                if (this.app.shortcuts.get(elm.getShortcut()) != null &&
+                        this.app.shortcuts.get(elm.getShortcut()) !== t)
                     this.app.console("already have shortcut for " + String.fromCharCode(elm.getShortcut()) + " " + elm);
-                this.app.shortcuts[elm.getShortcut()] = t;
+                this.app.shortcuts.set(elm.getShortcut(), t);
             }
             elm.delete();
         }
@@ -2323,11 +2354,8 @@ export class UIManager {
     saveShortcuts(): void {
         try {
             let str = "1";
-            for (let i = 0; i !== this.app.shortcuts.length; i++) {
-                const sh = this.app.shortcuts[i];
-                if (sh == null) continue;
-                str += ";" + i + "=" + sh;
-            }
+            for (const [key, sh] of this.app.shortcuts)
+                str += ";" + key + "=" + sh;
             localStorage.setItem("shortcuts", str);
         } catch (e) {}
     }
@@ -2338,8 +2366,7 @@ export class UIManager {
             if (str == null) return;
             const keys = str.split(";");
 
-            for (let i = 0; i !== this.app.shortcuts.length; i++)
-                this.app.shortcuts[i] = null;
+            this.app.shortcuts.clear();
 
             for (let i = 0; i !== this.mainMenuItems.length; i++) {
                 const item = this.mainMenuItems[i];
@@ -2352,7 +2379,7 @@ export class UIManager {
                 if (arr.length !== 2) continue;
                 const c = parseInt(arr[0]);
                 const className = arr[1];
-                this.app.shortcuts[c] = className;
+                this.app.shortcuts.set(c, className);
 
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
                     if (this.mainMenuItemNames[j] === className) {
