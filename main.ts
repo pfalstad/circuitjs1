@@ -8,6 +8,10 @@ import { ScopeManager } from "./ScopeManager";
 import { CircuitLoader } from "./CircuitLoader";
 import { JSInterface } from "./JSInterface";
 import { HookRegistry } from "./HookRegistry";
+import * as LZString from "lz-string";
+
+// used via the global (window.LZString) by CirSim.decompress() and ExportAsUrlDialog
+(window as any).LZString = LZString;
 
 HookRegistry.createJSInterface = (app: any) => new JSInterface(app);
 

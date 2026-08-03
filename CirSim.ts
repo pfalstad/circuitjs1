@@ -204,6 +204,7 @@ export class CirSim {
         await import('./SliderDialog');
         await import('./ScopePropertiesDialog');
         await import('./ShortcutsDialog');
+        await import('./ExportAsUrlDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
