@@ -20,6 +20,7 @@
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
+import { Scope } from "./Scope";
 import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
@@ -314,6 +315,12 @@ export class MouseManager {
     }
 
     private mouseDragged(e: MouseEvent): void {
+	if (Scope.draggingPlotYScope != null) {
+	    const canvas0 = this.ui.cv as HTMLCanvasElement;
+	    Scope.draggingPlotYScope.dragPlotY(this.getCanvasY(canvas0, e.clientY));
+	    this.sim.repaint();
+	    return;
+	}
 	// ignore right mouse button with no modifiers (needed on PC)
 	if (e.button === 2) {
 	    if (!(e.metaKey || e.shiftKey || e.ctrlKey || e.altKey))
@@ -1057,6 +1064,12 @@ export class MouseManager {
 	    }
 	}
 
+	// alt-drag or middle-mouse-drag a scope's selected plot up/down while in manual scale mode
+	if (!this.sim.dialogIsShowing() && Scope.cursorScope != null &&
+		(e.button === 1 || (e.button === 0 && e.altKey)) &&
+		Scope.cursorScope.startDragPlotY(ex, ey))
+	    return;
+
 	const gx = this.inverseTransformX(ex);
 	const gy = this.inverseTransformY(ey);
 	if (this.doSwitch(gx, gy)) {
@@ -1138,7 +1151,8 @@ export class MouseManager {
 	if (this.isToolbarDragPending())
 	    return;
 	this.mouseDragging = false;
-	if ((window as any).Scope) (window as any).Scope.dragStartTime = -1;
+	Scope.dragStartTime = -1;
+	Scope.endDragPlotY();
 
 	// click to clear selection
 	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null)

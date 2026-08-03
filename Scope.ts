@@ -122,6 +122,10 @@ export class Scope {
     static dragStartTime: number = -1;
     static cursorUnits: number = 0;
     static cursorScope: Scope | null = null;
+    static draggingPlotYScope: Scope | null = null;
+    draggingPlotY: boolean = false;
+    dragPlotYMouseStart: number = 0;
+    dragPlotYInitialPosition: number = 0;
 
     constructor(app_: CirSim, sim_: SimulationManager) {
         this.sim = sim_;
@@ -603,6 +607,9 @@ export class Scope {
         // if mouse is here, then selection is already set by checkForSelection()
         if (Scope.cursorScope === this)
             return;
+        // don't hijack the plot being dragged
+        if (this.draggingPlotY)
+            return;
 
         if (Scope.cursorScope === null || this.visiblePlots.length === 0) {
             this.selectedPlot = -1;
@@ -971,6 +978,8 @@ export class Scope {
     checkForSelection(mouseX: number, mouseY: number): void {
         if (this.app.dialogIsShowing())
             return;
+        if (this.draggingPlotY)
+            return;
         if (!this.rect.contains(mouseX, mouseY)) {
             this.selectedPlot = -1;
             return;
@@ -1236,6 +1245,35 @@ export class Scope {
 
     setPlotPosition(plot: number, v: number): void {
         this.visiblePlots[plot].manVPosition = v;
+    }
+
+    // start dragging the currently selected plot up/down (manual scale mode only)
+    startDragPlotY(mouseX: number, mouseY: number): boolean {
+        if (!this.rect.contains(mouseX, mouseY))
+            return false;
+        if (!this.isManualScale() || this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
+            return false;
+        this.draggingPlotY = true;
+        this.dragPlotYMouseStart = mouseY;
+        this.dragPlotYInitialPosition = this.visiblePlots[this.selectedPlot].manVPosition;
+        Scope.draggingPlotYScope = this;
+        return true;
+    }
+
+    dragPlotY(mouseY: number): void {
+        if (this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
+            return;
+        const maxy = Math.max(1, (this.rect.height - 1) / 2);
+        const dy = mouseY - this.dragPlotYMouseStart;
+        let newPos = this.dragPlotYInitialPosition - Math.round(dy * V_POSITION_STEPS / (2.0 * maxy));
+        newPos = Math.max(-V_POSITION_STEPS, Math.min(V_POSITION_STEPS, newPos));
+        this.visiblePlots[this.selectedPlot].manVPosition = newPos;
+    }
+
+    static endDragPlotY(): void {
+        if (Scope.draggingPlotYScope != null)
+            Scope.draggingPlotYScope.draggingPlotY = false;
+        Scope.draggingPlotYScope = null;
     }
 
     // get scope element, returning null if there's more than one
