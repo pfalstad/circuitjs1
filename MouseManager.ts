@@ -335,8 +335,12 @@ export class MouseManager {
 	    return;
 	}
 	let changed = false;
-	if (this.dragElm != null)
+	if (this.dragElm != null) {
 	    this.dragElm.drag(gx, gy);
+	    // now that we're actually dragging out a new element, don't leave whatever
+	    // was hovered before still looking highlighted underneath it
+	    this.setMouseElm(null);
+	}
 	let success = true;
 	switch (this.tempMouseMode) {
 	case MouseManager.MODE_DRAG_ALL:
