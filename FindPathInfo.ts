@@ -59,7 +59,7 @@ export class FindPathInfo {
         }
         if (this.type === FindPathInfo.VOLTAGE) {
             // when checking for voltage loops, we only care about voltage sources/wires/ground
-            if (!(ce.isWireEquivalent() || ce.isVoltageElm() || ce.isGroundElm()))
+            if (!(ce.isWireEquivalent() || ce.isVoltageElm() || ce.isLogicInputElm() || ce.isGroundElm()))
                 return false;
         }
         // when checking for shorts, just check wires
@@ -67,7 +67,7 @@ export class FindPathInfo {
             return false;
         if (this.type === FindPathInfo.CAP_V) {
             // checking for capacitor/voltage source loops
-            if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce.isVoltageElm()))
+            if (!(ce.isWireEquivalent() || ce.isIdealCapacitor() || ce.isVoltageElm() || ce.isLogicInputElm()))
                 return false;
         }
         if (n1 === CircuitNode.ground) {
