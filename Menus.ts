@@ -482,6 +482,7 @@ export class Menus {
         this.makeClassCheckItems(inputMenu, [
             "Add Ground",                           "GroundElm",
             "Add Voltage Source (2-terminal)",      "DCVoltageElm",
+            "Add Battery",                          "BatteryElm",
             "Add A/C Voltage Source (2-terminal)",  "ACVoltageElm",
             "Add Voltage Source (1-terminal)",      "RailElm",
             "Add A/C Voltage Source (1-terminal)",  "ACRailElm",

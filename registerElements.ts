@@ -17,6 +17,7 @@ import { AndGateElm } from "./AndGateElm";
 import { AntennaElm } from "./AntennaElm";
 import { AudioInputElm } from "./AudioInputElm";
 import { AudioOutputElm } from "./AudioOutputElm";
+import { BatteryElm } from "./BatteryElm";
 import { BoxElm } from "./BoxElm";
 import { BusLogicInputElm } from "./BusLogicInputElm";
 import { BusSplitterElm } from "./BusSplitterElm";
@@ -166,6 +167,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("AntennaElm", AntennaElm as any);
     ElementFactory.registerClass("AudioInputElm", AudioInputElm as any);
     ElementFactory.registerClass("AudioOutputElm", AudioOutputElm as any);
+    ElementFactory.registerClass("BatteryElm", BatteryElm as any);
     ElementFactory.registerClass("BoxElm", BoxElm as any);
     ElementFactory.registerClass("BusLogicInputElm", BusLogicInputElm as any);
     ElementFactory.registerClass("BusSplitterElm", BusSplitterElm as any);
@@ -311,6 +313,7 @@ export function registerElements(): void {
     CirSim.theApp.register("AntennaElm", new AntennaElm(0, 0));
     CirSim.theApp.register("AudioInputElm", new AudioInputElm(0, 0));
     CirSim.theApp.register("AudioOutputElm", new AudioOutputElm(0, 0));
+    CirSim.theApp.register("BatteryElm", new BatteryElm(0, 0));
     CirSim.theApp.register("BoxElm", new BoxElm(0, 0));
     CirSim.theApp.register("BusLogicInputElm", new BusLogicInputElm(0, 0));
     CirSim.theApp.register("BusSplitterElm", new BusSplitterElm(0, 0));

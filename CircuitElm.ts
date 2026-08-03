@@ -1333,6 +1333,7 @@ export abstract class CircuitElm implements Editable {
     isIdealCapacitor(): boolean { return false; }
     isExtVoltageElm(): boolean { return false; }
     isVoltageElm(): boolean { return false; }
+    isBatteryElm(): boolean { return false; }
     isRailElm(): boolean { return false; }
     isSweepElm(): boolean { return false; }
     isCurrentElm(): boolean { return false; }

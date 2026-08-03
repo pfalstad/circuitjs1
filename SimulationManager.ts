@@ -556,6 +556,7 @@ export class SimulationManager {
 	let gotGround = false;
 	let gotRail = false;
 	let volt: any = null;  // CircuitElm
+	let battery: any = null;  // CircuitElm
 
 	// allocate ground node
 	const cn = new CircuitNode();
@@ -580,12 +581,15 @@ export class SimulationManager {
     		gotRail = true;
 	    if (volt == null && ce.isVoltageElm())
     		volt = ce;
+	    if (battery == null && ce.isBatteryElm())
+    		battery = ce;
 	}
 
-	// if no ground, and no rails, then the voltage elm's first terminal
-	// is ground (but not for subcircuits)
-	if (!subcircuit && !gotGround && volt != null && !gotRail) {
-	    const pt = volt.getPost(0);
+	// if no ground, and no rails, then the voltage elm's first terminal is ground;
+	// if there's no plain voltage elm, fall back to a battery's negative terminal
+	// (but not for subcircuits)
+	if (!subcircuit && !gotGround && (volt != null || battery != null) && !gotRail) {
+	    const pt = (volt != null ? volt : battery).getPost(0);
 
 	    // update node map
 	    const cln = this.getFromPointMap(this.nodeMap, pt);
