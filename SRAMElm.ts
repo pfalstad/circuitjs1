@@ -213,10 +213,10 @@ export class SRAMElm extends ChipElm {
     parseNumber(str: string): number {
         if (str.startsWith("0x"))
             return parseInt(str.substring(2), 16);
-        if (str.startsWith("0b"))
-            return parseInt(str.substring(2), 2);
         if (this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY))
             return parseInt(str, 16);
+        if (str.startsWith("0b"))
+            return parseInt(str.substring(2), 2);
         return parseInt(str);
     }
 
