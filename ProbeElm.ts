@@ -69,6 +69,8 @@ export class ProbeElm extends CircuitElm {
     selectedValue: number = 0;
     increasingV: boolean = true;
     decreasingV: boolean = true;
+    started: boolean = false;
+    lastStepCount: number = 0;
     periodStart: number = 0;
     periodLength: number = 0;
     pulseStart: number = 0;
@@ -124,6 +126,22 @@ export class ProbeElm extends CircuitElm {
         this.center = this.interpPoint(this.point1, this.point2, .5) as Point;
     }
 
+    reset(): void {
+        super.reset();
+        this.zerocount = 0;
+        this.rmsV = this.total = this.count = 0;
+        this.maxV = this.lastMaxV = 0;
+        this.minV = this.lastMinV = 0;
+        this.binaryLevel = 0;
+        this.period = this.pulseWidth = this.dutyCycle = 0;
+        this.selectedValue = 0;
+        this.periodStart = this.periodLength = this.pulseStart = 0;
+        this.increasingV = true;
+        this.decreasingV = true;
+        this.started = false;
+        this.lastStepCount = 0;
+    }
+
     getMeter(): string {
         switch (this.meter) {
             case ProbeElm.TP_VOL: return "V";
@@ -177,7 +195,7 @@ export class ProbeElm extends CircuitElm {
                 case ProbeElm.TP_BIN: s = this.binaryLevel + ""; break;
                 case ProbeElm.TP_FRQ: s = CircuitElm.getUnitText(this.frequency, "Hz"); break;
                 case ProbeElm.TP_PER: break;
-                case ProbeElm.TP_PWI: s = CircuitElm.getUnitText(this.pulseWidth, "S"); break;
+                case ProbeElm.TP_PWI: s = CircuitElm.getUnitText(this.pulseWidth, "s"); break;
                 case ProbeElm.TP_DUT: s = CircuitElm.showFormat.format(this.dutyCycle); break;
             }
             this.drawValues(g, s, showCircle ? ProbeElm.circleSize + 3 : 4);
@@ -202,11 +220,25 @@ export class ProbeElm extends CircuitElm {
     }
 
     stepFinished(): void {
+        if (CircuitElm.sim.timeStepCount === this.lastStepCount)
+            return;
+        this.lastStepCount = CircuitElm.sim.timeStepCount;
         this.count++;
         const v = this.getVoltageDiff();
         this.total += v * v;
 
+        // binary threshold is a fixed 2.5V (assumes ~5V logic levels); not scaled to the circuit's actual voltage range
         this.binaryLevel = (v < 2.5) ? 0 : 1;
+
+        if (!this.started) {
+            // prime max/min tracking with the first sample instead of the stale defaults (0, increasingV==decreasingV==true),
+            // which could otherwise register a bogus transition on the first step
+            this.started = true;
+            this.maxV = this.minV = v;
+            this.increasingV = true;
+            this.decreasingV = false;
+            this.periodStart = this.pulseStart = CircuitElm.sim.t;
+        }
 
         if (v > this.maxV && this.increasingV) {
             this.maxV = v;
@@ -216,10 +248,10 @@ export class ProbeElm extends CircuitElm {
         if (v < this.maxV && this.increasingV) {
             // direction change: was going up, now going down
             this.lastMaxV     = this.maxV;
-            this.periodLength = Date.now() - this.periodStart;
-            this.periodStart  = Date.now();
+            this.periodLength = CircuitElm.sim.t - this.periodStart;
+            this.periodStart  = CircuitElm.sim.t;
             this.period       = this.periodLength;
-            this.pulseWidth   = Date.now() - this.pulseStart;
+            this.pulseWidth   = CircuitElm.sim.t - this.pulseStart;
             this.dutyCycle    = this.pulseWidth / this.periodLength;
             this.minV         = v;
             this.increasingV  = false;
@@ -238,7 +270,7 @@ export class ProbeElm extends CircuitElm {
         if (v > this.minV && this.decreasingV) {
             // direction change: was going down, now going up
             this.lastMinV    = this.minV;
-            this.pulseStart  = Date.now();
+            this.pulseStart  = CircuitElm.sim.t;
             this.maxV        = v;
             this.increasingV = true;
             this.decreasingV = false;
@@ -272,7 +304,35 @@ export class ProbeElm extends CircuitElm {
 
     getInfo(arr: string[]): void {
         arr[0] = "voltmeter";
-        arr[1] = "Vd = " + CircuitElm.getVoltageText(this.getVoltageDiff());
+        let i = 1;
+        arr[i++] = this.getMeterLine(this.meter);
+        // show the rest of the already-tracked values too, skipping whichever one is selected above.
+        // frequency is left out here because it isn't actually computed anywhere (see getMeterLine)
+        if (this.meter !== ProbeElm.TP_VOL) arr[i++] = this.getMeterLine(ProbeElm.TP_VOL);
+        if (this.meter !== ProbeElm.TP_MAX) arr[i++] = this.getMeterLine(ProbeElm.TP_MAX);
+        if (this.meter !== ProbeElm.TP_MIN) arr[i++] = this.getMeterLine(ProbeElm.TP_MIN);
+        if (this.meter !== ProbeElm.TP_RMS) arr[i++] = this.getMeterLine(ProbeElm.TP_RMS);
+        if (this.meter !== ProbeElm.TP_P2P) arr[i++] = this.getMeterLine(ProbeElm.TP_P2P);
+        if (this.meter !== ProbeElm.TP_BIN) arr[i++] = this.getMeterLine(ProbeElm.TP_BIN);
+        if (this.meter !== ProbeElm.TP_PER) arr[i++] = this.getMeterLine(ProbeElm.TP_PER);
+        if (this.meter !== ProbeElm.TP_PWI) arr[i++] = this.getMeterLine(ProbeElm.TP_PWI);
+        if (this.meter !== ProbeElm.TP_DUT) arr[i++] = this.getMeterLine(ProbeElm.TP_DUT);
+    }
+
+    getMeterLine(m: number): string {
+        switch (m) {
+            case ProbeElm.TP_VOL: return "Vd = " + CircuitElm.getVoltageText(this.getVoltageDiff());
+            case ProbeElm.TP_RMS: return "V(rms) = " + CircuitElm.getVoltageText(this.rmsV);
+            case ProbeElm.TP_MAX: return "Vmax = " + CircuitElm.getVoltageText(this.lastMaxV);
+            case ProbeElm.TP_MIN: return "Vmin = " + CircuitElm.getVoltageText(this.lastMinV);
+            case ProbeElm.TP_P2P: return "Vp2p = " + CircuitElm.getVoltageText(this.lastMaxV - this.lastMinV);
+            case ProbeElm.TP_BIN: return "Binary = " + this.binaryLevel;
+            case ProbeElm.TP_FRQ: return "Freq = " + CircuitElm.getUnitText(this.frequency, "Hz");
+            case ProbeElm.TP_PER: return "Period = " + CircuitElm.getUnitText(this.period, "s");
+            case ProbeElm.TP_PWI: return "Pulse width = " + CircuitElm.getUnitText(this.pulseWidth, "s");
+            case ProbeElm.TP_DUT: return "Duty cycle = " + CircuitElm.showFormat.format(this.dutyCycle);
+        }
+        return "";
     }
 
     getConnection(n1: number, n2: number): boolean { return this.resistance !== 0; }
