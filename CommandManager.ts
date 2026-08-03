@@ -19,6 +19,7 @@
 
 import { CirSim } from "./CirSim";
 import { CircuitLoader } from "./CircuitLoader";
+import { WireConverter } from "./WireConverter";
 import { MouseManager } from "./MouseManager";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
@@ -162,7 +163,7 @@ export class CommandManager {
         }
         if (item == "convertWires") {
             this.app.undoManager?.pushUndo();
-            (window as any).WireConverter?.convertWires(this.app);
+            WireConverter.convertWires(this.app);
             this.app.needAnalyze();
         }
         if (item == "createTest") {
