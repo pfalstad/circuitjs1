@@ -30,6 +30,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { HookRegistry } from "./HookRegistry";
 
 class LabelEntry {
     point!: Point;
@@ -303,3 +304,5 @@ export class LabeledNodeElm extends CircuitElm {
     getName(): string { return this.text; }
     isLabeledNodeElm(): boolean { return true; }
 }
+
+HookRegistry.resetLabeledNodeList = () => LabeledNodeElm.resetNodeList();

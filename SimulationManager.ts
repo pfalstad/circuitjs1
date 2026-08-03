@@ -256,14 +256,8 @@ export class SimulationManager {
     // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
     // The actual node we map to is not assigned yet.  Instead we map to the same NodeMapEntry.
     calculateWireClosure(): void {
-	// reset labeled node list before wire closure
-	for (let i = 0; i < this.elmList.length; i++) {
-	    if (this.elmList[i].isLabeledNodeElm()) {
-		(this.elmList[i] as any).constructor.resetNodeList();
-		break;
-	    }
-	}
-	// TODO: GroundElm.resetNodeList()
+	HookRegistry.resetLabeledNodeList?.();
+	HookRegistry.resetGroundNodeList?.();
 	this.calculateWireClosureForList(this.elmList, false);
     }
 

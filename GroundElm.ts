@@ -27,6 +27,7 @@ import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { HookRegistry } from "./HookRegistry";
 
 export class GroundElm extends CircuitElm {
     static lastSymbolType: number = 0;
@@ -171,3 +172,5 @@ export class GroundElm extends CircuitElm {
 
     getCurrentIntoNode(n: number): number { return -this.current; }
 }
+
+HookRegistry.resetGroundNodeList = () => GroundElm.resetNodeList();

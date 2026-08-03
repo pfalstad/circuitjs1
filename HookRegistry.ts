@@ -29,4 +29,6 @@ export const HookRegistry = {
     getCircuitAsComposite:       null as ((sim: any) => any) | null,
     createCustomCompositeElm:    null as ((x: number, y: number, name: string) => any) | null,
     createJSInterface:           null as ((app: any) => any) | null,
+    resetGroundNodeList:         null as (() => void) | null,
+    resetLabeledNodeList:        null as (() => void) | null,
 };
