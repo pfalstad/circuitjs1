@@ -1452,7 +1452,9 @@ export class UIManager {
             try {
                 this.app.sim.runCircuit(didAnalyze);
             } catch (e) {
+                CirSim.debugger();
                 CirSim.console("exception in runCircuit " + e);
+                this.app.consoleExceptionOccurred = true;
             }
             perfmon.stopContext();
         }
@@ -1501,10 +1503,16 @@ export class UIManager {
             this.app.transform[5] * scale);
 
         perfmon.startContext("elm.draw()");
-        for (const ce of this.elmList) {
-            if (this.menus.powerCheckItem.getState())
-                g.setColor(Color.gray);
-            ce.draw(g);
+        try {
+            for (const ce of this.elmList) {
+                if (this.menus.powerCheckItem.getState())
+                    g.setColor(Color.gray);
+                ce.draw(g);
+            }
+        } catch (e) {
+            CirSim.debugger();
+            CirSim.console("exception in elm.draw() " + e);
+            this.app.consoleExceptionOccurred = true;
         }
 
         // draw stopElm on top of everything else so it's always visible
@@ -1632,6 +1640,18 @@ export class UIManager {
         try {
             this.app.jsInterface?.callUpdateHook();
         } catch (e) {}
+    }
+
+    // called when updateCircuit() itself threw an exception, so drawBottomArea()
+    // was never reached to show the warning there.
+    drawExceptionIndicator(): void {
+        const scale = UIManager.devicePixelRatio();
+        this.cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
+        const g = new Graphics(this.cvcontext);
+        const x = UIManager.max(this.canvasWidth - CirSim.infoWidth, 0) + 5;
+        g.setFont(CircuitElm.unitsFont);
+        g.setColor(Color.yellow);
+        g.drawString("exception, see console!", x, this.canvasHeight - 10);
     }
 
     drawBottomArea(g: Graphics): void {
@@ -2206,6 +2226,7 @@ export class UIManager {
     }
 
     resetAction(): void {
+        this.app.consoleExceptionOccurred = false;
         this.app.analyzeFlag = true;
         if (this.app.autoDCOnReset)
             this.app.dcAnalysisFlag = true;

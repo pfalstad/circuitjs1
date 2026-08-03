@@ -50,7 +50,18 @@ class CirSimTimer {
     scheduleRepeating(ms: number): void {
         if (this.intervalId != null)
             clearInterval(this.intervalId);
-        this.intervalId = setInterval(() => this.app.ui?.updateCircuit(), ms);
+        this.intervalId = setInterval(() => {
+            try {
+                this.app.ui?.updateCircuit();
+            } catch (e) {
+                CirSim.debugger();
+                CirSim.console("exception in updateCircuit " + e);
+                console.error(e);
+                this.app.consoleExceptionOccurred = true;
+            }
+            if (this.app.consoleExceptionOccurred)
+                this.app.ui?.drawExceptionIndicator();
+        }, ms);
     }
 
     cancel(): void {
@@ -108,6 +119,7 @@ export class CirSim {
     hintItem2: number = 0;
 
     stopMessage: string | null = null;
+    consoleExceptionOccurred: boolean = false;
     stopElm: any = null;
     scopeElmArr: any[] | null = null;
 

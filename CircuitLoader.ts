@@ -208,6 +208,7 @@ export class CircuitLoader {
                 } catch (ee) {
                     CirSim.console("exception while undumping " + ee);
 		    debugger;
+                    this.app.consoleExceptionOccurred = true;
                     break;
                 }
                 break;
