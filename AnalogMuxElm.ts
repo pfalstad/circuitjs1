@@ -19,12 +19,15 @@
 
 import { ChipElm, Pin } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
+import { CircuitNode } from "./CircuitNode";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
 
 export class AnalogMuxElm extends ChipElm {
+    static readonly FLAG_PULLDOWN = 2;
+
     selectBitCount: number = 2;
     inputCount: number = 0;
     outputPin: number = 0;
@@ -43,6 +46,8 @@ export class AnalogMuxElm extends ChipElm {
                 this.r_off = parseFloat(st.nextToken());
                 this.threshold = parseFloat(st.nextToken());
             } catch (e) {}
+        } else {
+            this.flags |= AnalogMuxElm.FLAG_PULLDOWN;
         }
         this.setupPins();
     }
@@ -92,20 +97,30 @@ export class AnalogMuxElm extends ChipElm {
     getPostCount(): number { return this.inputCount + this.selectBitCount + 1; }
     getVoltageSourceCount(): number { return 0; }
 
+    needsPulldown(): boolean { return this.hasFlag(AnalogMuxElm.FLAG_PULLDOWN); }
+
     stamp(): void {
         for (let i = 0; i !== this.inputCount; i++)
             CircuitElm.sim.stampNonLinear(this.nodes[i]);
         CircuitElm.sim.stampNonLinear(this.nodes[this.outputPin]);
     }
 
+    // stamp r_on between output and selected input.  For the others, if
+    // the pulldown flag is set, pull them to ground with r_off instead of
+    // connecting them to the output with r_off (better conditioned, and
+    // avoids leaving unselected inputs floating).
     doStep(): void {
         let selectedInput = 0;
         for (let i = 0; i !== this.selectBitCount; i++)
             if (this.nodes[this.inputCount + i].v > this.threshold)
                 selectedInput |= 1 << i;
         for (let i = 0; i !== this.inputCount; i++) {
-            const r = (i === selectedInput) ? this.r_on : this.r_off;
-            CircuitElm.sim.stampResistor(this.nodes[i], this.nodes[this.outputPin], r);
+            if (i === selectedInput)
+                CircuitElm.sim.stampResistor(this.nodes[i], this.nodes[this.outputPin], this.r_on);
+            else if (this.needsPulldown())
+                CircuitElm.sim.stampResistor(this.nodes[i], CircuitNode.ground, this.r_off);
+            else
+                CircuitElm.sim.stampResistor(this.nodes[i], this.nodes[this.outputPin], this.r_off);
         }
     }
 
@@ -116,10 +131,17 @@ export class AnalogMuxElm extends ChipElm {
                 selectedInput |= 1 << i;
         let outputCurrent = 0;
         for (let i = 0; i !== this.inputCount; i++) {
-            const r = (i === selectedInput) ? this.r_on : this.r_off;
-            const c = (this.nodes[i].v - this.nodes[this.outputPin].v) / r;
-            this.pins[i].current = -c;
-            outputCurrent += c;
+            if (i === selectedInput) {
+                const c = (this.nodes[i].v - this.nodes[this.outputPin].v) / this.r_on;
+                this.pins[i].current = -c;
+                outputCurrent += c;
+            } else if (this.needsPulldown()) {
+                this.pins[i].current = -this.nodes[i].v / this.r_off;
+            } else {
+                const c = (this.nodes[i].v - this.nodes[this.outputPin].v) / this.r_off;
+                this.pins[i].current = -c;
+                outputCurrent += c;
+            }
         }
         this.pins[this.outputPin].current = outputCurrent;
         for (let i = 0; i !== this.selectBitCount; i++)
@@ -130,6 +152,10 @@ export class AnalogMuxElm extends ChipElm {
         if (n1 >= this.inputCount && n1 < this.outputPin) return false;
         if (n2 >= this.inputCount && n2 < this.outputPin) return false;
         return true;
+    }
+
+    hasGroundConnection(n1: number): boolean {
+        return this.needsPulldown() && n1 < this.inputCount;
     }
 
     getInfo(arr: string[]): void {
@@ -147,6 +173,7 @@ export class AnalogMuxElm extends ChipElm {
         if (n === 1) return new EditInfo("On Resistance (ohms)", this.r_on, 0, 0).setPositive();
         if (n === 2) return new EditInfo("Off Resistance (ohms)", this.r_off, 0, 0).setPositive();
         if (n === 3) return new EditInfo("Threshold Voltage", this.threshold, 0, 0);
+        if (n === 4) return EditInfo.createCheckbox("Pulldown Resistor", this.needsPulldown());
         return super.getChipEditInfo(n);
     }
 
@@ -162,6 +189,7 @@ export class AnalogMuxElm extends ChipElm {
         if (n === 1 && ei.value > 0) this.r_on = ei.value;
         if (n === 2 && ei.value > 0) this.r_off = ei.value;
         if (n === 3) this.threshold = ei.value;
+        if (n === 4) this.flags = ei.changeFlag(this.flags, AnalogMuxElm.FLAG_PULLDOWN);
         super.setChipEditValue(n, ei);
     }
 }
