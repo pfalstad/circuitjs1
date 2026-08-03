@@ -45,6 +45,7 @@ export class ProbeElm extends CircuitElm {
     static readonly TP_PER = 7;
     static readonly TP_PWI = 8;
     static readonly TP_DUT = 9; // mark to space ratio
+    static readonly TP_AVG = 10;
 
     static readonly circleSize = 12;
 
@@ -56,6 +57,8 @@ export class ProbeElm extends CircuitElm {
     rmsV: number = 0;
     total: number = 0;
     count: number = 0;
+    avgV: number = 0;
+    totalV: number = 0;
     binaryLevel: number = 0; // 0 or 1 as double
     zerocount: number = 0;
     maxV: number = 0;
@@ -130,6 +133,7 @@ export class ProbeElm extends CircuitElm {
         super.reset();
         this.zerocount = 0;
         this.rmsV = this.total = this.count = 0;
+        this.avgV = this.totalV = 0;
         this.maxV = this.lastMaxV = 0;
         this.minV = this.lastMinV = 0;
         this.binaryLevel = 0;
@@ -146,6 +150,7 @@ export class ProbeElm extends CircuitElm {
         switch (this.meter) {
             case ProbeElm.TP_VOL: return "V";
             case ProbeElm.TP_RMS: return "V(rms)";
+            case ProbeElm.TP_AVG: return "V(avg)";
             case ProbeElm.TP_MAX: return "Vmax";
             case ProbeElm.TP_MIN: return "Vmin";
             case ProbeElm.TP_P2P: return "Peak to peak";
@@ -189,6 +194,7 @@ export class ProbeElm extends CircuitElm {
             switch (this.meter) {
                 case ProbeElm.TP_VOL: s = CircuitElm.getUnitTextWithScale(this.getVoltageDiff(), "V",       this.scale); break;
                 case ProbeElm.TP_RMS: s = CircuitElm.getUnitTextWithScale(this.rmsV,             "V(rms)", this.scale); break;
+                case ProbeElm.TP_AVG: s = CircuitElm.getUnitTextWithScale(this.avgV,             "V(avg)", this.scale); break;
                 case ProbeElm.TP_MAX: s = CircuitElm.getUnitTextWithScale(this.lastMaxV,          "Vpk",   this.scale); break;
                 case ProbeElm.TP_MIN: s = CircuitElm.getUnitTextWithScale(this.lastMinV,          "Vmin",  this.scale); break;
                 case ProbeElm.TP_P2P: s = CircuitElm.getUnitTextWithScale(this.lastMaxV - this.lastMinV, "Vp2p", this.scale); break;
@@ -226,6 +232,7 @@ export class ProbeElm extends CircuitElm {
         this.count++;
         const v = this.getVoltageDiff();
         this.total += v * v;
+        this.totalV += v;
 
         // binary threshold is a fixed 2.5V (assumes ~5V logic levels); not scaled to the circuit's actual voltage range
         this.binaryLevel = (v < 2.5) ? 0 : 1;
@@ -259,8 +266,11 @@ export class ProbeElm extends CircuitElm {
             this.total /= this.count;
             this.rmsV = Math.sqrt(this.total);
             if (isNaN(this.rmsV)) this.rmsV = 0;
+            this.avgV = this.totalV / this.count;
+            if (isNaN(this.avgV)) this.avgV = 0;
             this.count = 0;
             this.total = 0;
+            this.totalV = 0;
         }
         if (v < this.minV && this.decreasingV) {
             this.minV         = v;
@@ -277,14 +287,18 @@ export class ProbeElm extends CircuitElm {
             this.total /= this.count;
             this.rmsV = Math.sqrt(this.total);
             if (isNaN(this.rmsV)) this.rmsV = 0;
+            this.avgV = this.totalV / this.count;
+            if (isNaN(this.avgV)) this.avgV = 0;
             this.count = 0;
             this.total = 0;
+            this.totalV = 0;
         }
         if (v === 0) {
             this.zerocount++;
             if (this.zerocount > 5) {
                 this.total = 0;
                 this.rmsV  = 0;
+                this.avgV  = 0;
                 this.maxV  = 0;
                 this.minV  = 0;
             }
@@ -307,13 +321,14 @@ export class ProbeElm extends CircuitElm {
         let i = 1;
         arr[i++] = this.getMeterLine(this.meter);
         // show the rest of the already-tracked values too, skipping whichever one is selected above.
-        // frequency is left out here because it isn't actually computed anywhere (see getMeterLine)
+        // frequency is left out here because it isn't actually computed anywhere (see getMeterLine);
+        // binary value is left out to make room for average, since arr[] only has room for 10 entries total
         if (this.meter !== ProbeElm.TP_VOL) arr[i++] = this.getMeterLine(ProbeElm.TP_VOL);
         if (this.meter !== ProbeElm.TP_MAX) arr[i++] = this.getMeterLine(ProbeElm.TP_MAX);
         if (this.meter !== ProbeElm.TP_MIN) arr[i++] = this.getMeterLine(ProbeElm.TP_MIN);
         if (this.meter !== ProbeElm.TP_RMS) arr[i++] = this.getMeterLine(ProbeElm.TP_RMS);
+        if (this.meter !== ProbeElm.TP_AVG) arr[i++] = this.getMeterLine(ProbeElm.TP_AVG);
         if (this.meter !== ProbeElm.TP_P2P) arr[i++] = this.getMeterLine(ProbeElm.TP_P2P);
-        if (this.meter !== ProbeElm.TP_BIN) arr[i++] = this.getMeterLine(ProbeElm.TP_BIN);
         if (this.meter !== ProbeElm.TP_PER) arr[i++] = this.getMeterLine(ProbeElm.TP_PER);
         if (this.meter !== ProbeElm.TP_PWI) arr[i++] = this.getMeterLine(ProbeElm.TP_PWI);
         if (this.meter !== ProbeElm.TP_DUT) arr[i++] = this.getMeterLine(ProbeElm.TP_DUT);
@@ -323,6 +338,7 @@ export class ProbeElm extends CircuitElm {
         switch (m) {
             case ProbeElm.TP_VOL: return "Vd = " + CircuitElm.getVoltageText(this.getVoltageDiff());
             case ProbeElm.TP_RMS: return "V(rms) = " + CircuitElm.getVoltageText(this.rmsV);
+            case ProbeElm.TP_AVG: return "V(avg) = " + CircuitElm.getVoltageText(this.avgV);
             case ProbeElm.TP_MAX: return "Vmax = " + CircuitElm.getVoltageText(this.lastMaxV);
             case ProbeElm.TP_MIN: return "Vmin = " + CircuitElm.getVoltageText(this.lastMinV);
             case ProbeElm.TP_P2P: return "Vp2p = " + CircuitElm.getVoltageText(this.lastMaxV - this.lastMinV);
@@ -345,11 +361,14 @@ export class ProbeElm extends CircuitElm {
             ei.choice = new Choice();
             ei.choice.add("Voltage");
             ei.choice.add("RMS Voltage");
+            ei.choice.add("Average Voltage");
             ei.choice.add("Max Voltage");
             ei.choice.add("Min Voltage");
             ei.choice.add("P2P Voltage");
             ei.choice.add("Binary Value");
-            ei.choice.select(this.meter);
+            // TP_AVG's value isn't contiguous with the other meter constants shown here (it was
+            // appended after TP_DUT to avoid renumbering saved circuits), so map it explicitly.
+            ei.choice.select(this.meterChoiceIndex(this.meter));
             return ei;
         }
         if (n === 2) {
@@ -369,6 +388,19 @@ export class ProbeElm extends CircuitElm {
         return null;
     }
 
+    meterChoices(): number[] {
+        return [ProbeElm.TP_VOL, ProbeElm.TP_RMS, ProbeElm.TP_AVG, ProbeElm.TP_MAX,
+            ProbeElm.TP_MIN, ProbeElm.TP_P2P, ProbeElm.TP_BIN];
+    }
+
+    meterChoiceIndex(m: number): number {
+        const choices = this.meterChoices();
+        for (let i = 0; i !== choices.length; i++)
+            if (choices[i] === m)
+                return i;
+        return 0;
+    }
+
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
             if (ei.checkbox!.getState())
@@ -377,7 +409,7 @@ export class ProbeElm extends CircuitElm {
                 this.flags &= ~ProbeElm.FLAG_SHOWVOLTAGE;
         }
         if (n === 1)
-            this.meter = ei.choice!.getSelectedIndex();
+            this.meter = this.meterChoices()[ei.choice!.getSelectedIndex()];
         if (n === 2)
             this.scale = ei.choice!.getSelectedIndex();
         if (n === 3)
