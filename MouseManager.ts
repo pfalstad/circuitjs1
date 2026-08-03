@@ -1154,8 +1154,8 @@ export class MouseManager {
 	Scope.dragStartTime = -1;
 	Scope.endDragPlotY();
 
-	// click to clear selection
-	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null)
+	// click to clear selection (but not on a right-click, e.g. from a context-menu mouseup)
+	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null && e.button === 0)
 	    this.clearSelection();
 
 	// cmd-click = split wire
