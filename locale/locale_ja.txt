@@ -1316,7 +1316,7 @@
 "Coil Style"="Coil Style"
 "Ctrl-"="Ctrl-"
 "Current Color"="電流表示色"
-"CustomCompositeElm:"="カスタムコンポーネント:"
+"SubcircuitElm:"="カスタムコンポーネント:"
 "Draw Circle"="円を表示"
 "Edit Pin Layout"="ピン配置を編集"
 "Edit Subcircuit Pin Layout"="サブ回路のピン配置を編集"

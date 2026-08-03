@@ -1287,7 +1287,7 @@
 "Copy to Clipboard"="Copia para Área de Transferência"
 "Ctrl-"="Ctrl-"
 "Current Color"="Cor Atual"
-"CustomCompositeElm:"="Composto Personalizado"
+"SubcircuitElm:"="Composto Personalizado"
 "Developer Mode"="Modo de Edição"
 "Download last played audio"="Baixar último áudio tocado"
 "Draw Circle"="Desenhar Círculo"

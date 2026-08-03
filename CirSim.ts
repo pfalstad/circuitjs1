@@ -255,7 +255,7 @@ export class CirSim {
         this.ui.setWheelSensitivity();
 
         try {
-            HookRegistry.loadCustomCompositeModelsFromStorage?.();
+            HookRegistry.loadSubcircuitModelsFromStorage?.();
         } catch (e) {
             CirSim.console("Exception: " + e);
         }
@@ -465,7 +465,7 @@ export class CirSim {
 
     dumpCircuit(): string {
         CustomLogicModel.clearDumpedFlags();
-        HookRegistry.clearCustomCompositeModelDumpedFlags?.();
+        HookRegistry.clearSubcircuitModelDumpedFlags?.();
         DiodeModel.clearDumpedFlags();
         (window as any).TransistorModel?.clearDumpedFlags();
         (window as any).RelayModel?.clearDumpedFlags();
@@ -650,10 +650,10 @@ export class CirSim {
         if (n == "UserDefinedLogicElm" || n == "CustomLogicElm")
             return ElementFactory.create("CustomLogicElm", x1, y1 ?? 0);
 
-        if (n.startsWith("CustomCompositeElm:")) {
+        if (n.startsWith("SubcircuitElm:")) {
             const ix = n.indexOf(':') + 1;
             const name = n.substring(ix);
-            return HookRegistry.createCustomCompositeElm!(x1, y1 ?? 0, name);
+            return HookRegistry.createSubcircuitElm!(x1, y1 ?? 0, name);
         }
         return null;
     }
@@ -663,10 +663,10 @@ export class CirSim {
             ce.updateModels();
     }
 
-    // force all CustomCompositeElm with a given model name to re-fetch their model
+    // force all SubcircuitElm with a given model name to re-fetch their model
     refreshModels(modelName: string): void {
         for (const ce of this.elmList) {
-            if (ce.isCustomCompositeElm && ce.isCustomCompositeElm()) {
+            if (ce.isSubcircuitElm && ce.isSubcircuitElm()) {
                 if (ce.modelName === modelName) {
                     ce.model = null;
                     ce.updateModels();

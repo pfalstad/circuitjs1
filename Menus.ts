@@ -576,10 +576,10 @@ export class Menus {
             "Add Current-Controlled Current Source (CCCS)",  "CCCSElm",
             "Add Optocoupler",                                "OptocouplerElm",
             "Add Time Delay Relay",                           "TimeDelayRelayElm",
-            "Add LM317",                                      "CustomCompositeElm:~LM317-v2",
-            "Add TL431",                                      "CustomCompositeElm:~TL431",
+            "Add LM317",                                      "SubcircuitElm:~LM317-v2",
+            "Add TL431",                                      "SubcircuitElm:~TL431",
             "Add Motor Protection Switch",                    "MotorProtectionSwitchElm",
-            "Add Subcircuit Instance",                        "CustomCompositeElm",
+            "Add Subcircuit Instance",                        "SubcircuitElm",
         ]);
         menu.addSubmenu(subheadHtml + Locale.LS("Active Building Blocks"), activeBlocMenu);
 

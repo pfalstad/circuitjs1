@@ -1414,7 +1414,7 @@ export abstract class CircuitElm implements Editable {
     isPotElm(): boolean { return false; }
     isResistorElm(): boolean { return false; }
     isCapacitorElm(): boolean { return false; }
-    isCustomCompositeElm(): boolean { return false; }
+    isSubcircuitElm(): boolean { return false; }
     isTransistorElm(): boolean { return false; }
     isOutputElm(): boolean { return false; }
     isLogicOutputElm(): boolean { return false; }

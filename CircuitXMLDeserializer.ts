@@ -64,7 +64,7 @@ export class CircuitXMLDeserializer {
         this.app.loader.finishReadCircuit(readFlags);
     }
 
-    // read elements from an already-parsed XML document (e.g. from CustomCompositeModel.elmDoc)
+    // read elements from an already-parsed XML document (e.g. from SubcircuitModel.elmDoc)
     readCircuitFromDoc(doc: Document): void {
         this.app.clearCircuit();
         this.readElements(doc.documentElement);
@@ -116,7 +116,7 @@ export class CircuitXMLDeserializer {
             }
             if (tagName === "ccm") {
                 this.currentXmlElement = elem;
-                HookRegistry.undumpCustomCompositeModel?.(this);
+                HookRegistry.undumpSubcircuitModel?.(this);
                 continue;
             }
             if (tagName === "h") {

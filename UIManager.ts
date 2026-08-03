@@ -29,8 +29,8 @@ import { Point } from "./Point";
 import { SwitchElm } from "./SwitchElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
-import { CustomCompositeModel } from "./CustomCompositeModel";
-import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import { SubcircuitModel } from "./SubcircuitModel";
+import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { KeyNames } from "./KeyNames";
 
 // GWT KeyCodes equivalents
@@ -673,14 +673,14 @@ class SubcircuitBar {
         this.contextSaveButton = this.createButton("Save", () => {
             const app = CirSim.theApp;
             const modelName = app.getEditingModelName();
-            const dlg = new EditCompositeModelDialog();
+            const dlg = new EditSubcircuitModelDialog();
             if (!dlg.createModel())
                 return;
             // Look up existing model before setName() inserts the new one under the same key
-            const existingModel = CustomCompositeModel.getModelWithName(modelName);
+            const existingModel = SubcircuitModel.getModelWithName(modelName);
             dlg.model.setName(modelName);
             if (existingModel !== null)
-                EditCompositeModelDialog.preservePinLayout(dlg.model, existingModel);
+                EditSubcircuitModelDialog.preservePinLayout(dlg.model, existingModel);
             dlg.popContext = true;
             dlg.createDialog();
             CirSim.dialogShowing = dlg;
@@ -693,12 +693,12 @@ class SubcircuitBar {
         this.contextSaveCopyButton = this.createButton("Save Copy", () => {
             const app = CirSim.theApp;
             const modelName = app.getEditingModelName();
-            const dlg = new EditCompositeModelDialog();
+            const dlg = new EditSubcircuitModelDialog();
             if (!dlg.createModel())
                 return;
-            const existingModel = CustomCompositeModel.getModelWithName(modelName);
+            const existingModel = SubcircuitModel.getModelWithName(modelName);
             if (existingModel !== null)
-                EditCompositeModelDialog.preservePinLayout(dlg.model, existingModel);
+                EditSubcircuitModelDialog.preservePinLayout(dlg.model, existingModel);
             dlg.popContext = true;
             dlg.createDialog();
             CirSim.dialogShowing = dlg;
@@ -2245,13 +2245,13 @@ export class UIManager {
         for (let mi = 0; mi !== 2; mi++) {
             const menu = this.menus.subcircuitMenuBar[mi];
             menu.clearItems();
-            const list = CustomCompositeModel.getModelList();
+            const list = SubcircuitModel.getModelList();
             for (let i = 0; i !== list.length; i++) {
                 const name: string = list[i].name;
-                menu.addCheckboxItem(this.getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name));
+                menu.addCheckboxItem(this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name));
             }
         }
-        MouseManager.lastSubcircuitMenuUpdate = CustomCompositeModel.sequenceNumber;
+        MouseManager.lastSubcircuitMenuUpdate = SubcircuitModel.sequenceNumber;
     }
 
     getClassCheckItem(s: string, t: string): CheckboxMenuItem {

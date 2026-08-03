@@ -20,9 +20,9 @@
 import { ChipElm, Pin } from "./ChipElm";
 import { Graphics } from "./Graphics";
 
-// concrete subclass of ChipElm that can be used by other elements (like CustomCompositeElm) to draw chips.
-// CustomCompositeElm can't be a subclass of both ChipElm and CompositeElm.
-export class CustomCompositeChipElm extends ChipElm {
+// concrete subclass of ChipElm that can be used by other elements (like SubcircuitElm) to draw chips.
+// SubcircuitElm can't be a subclass of both ChipElm and CompositeElm.
+export class SubcircuitChipElm extends ChipElm {
     label: string | null = null;
 
     constructor(xx: number, yy: number) {

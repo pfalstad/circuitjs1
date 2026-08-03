@@ -18,19 +18,19 @@
 */
 
 import { Dialog } from "./Dialog";
-import { CustomCompositeChipElm } from "./CustomCompositeChipElm";
-import { CustomCompositeModel } from "./CustomCompositeModel";
+import { SubcircuitChipElm } from "./SubcircuitChipElm";
+import { SubcircuitModel } from "./SubcircuitModel";
 import { ExtListEntry } from "./ExtListEntry";
 import { ChipElm, Pin } from "./ChipElm";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
-import { CustomCompositeElm } from "./CustomCompositeElm";
+import { SubcircuitElm } from "./SubcircuitElm";
 
-export class EditCompositeModelDialog extends Dialog {
-    model: CustomCompositeModel = null!;
-    chip: CustomCompositeChipElm = null!;
+export class EditSubcircuitModelDialog extends Dialog {
+    model: SubcircuitModel = null!;
+    chip: SubcircuitChipElm = null!;
     postCount: number = 0;
     context: CanvasRenderingContext2D = null!;
     scale: number = 1;
@@ -64,7 +64,7 @@ export class EditCompositeModelDialog extends Dialog {
         this.closeOnEnter = true;
     }
 
-    setModel(m: CustomCompositeModel): void { this.model = m; }
+    setModel(m: SubcircuitModel): void { this.model = m; }
 
     createModel(): boolean {
         const nodeSet = new Set<number>();
@@ -133,7 +133,7 @@ export class EditCompositeModelDialog extends Dialog {
         this.canvas.addEventListener("mouseout",   () => {});
         this.canvas.addEventListener("mouseover",  () => {});
 
-        this.chip = new CustomCompositeChipElm(50, 50);
+        this.chip = new SubcircuitChipElm(50, 50);
         this.chip.x2 = 200;
         this.chip.y2 = 50;
         this.selectedPin = -1;
@@ -187,11 +187,11 @@ export class EditCompositeModelDialog extends Dialog {
         const scopes = [Locale.LS("This Circuit"), Locale.LS("This Session"), Locale.LS("Save Across Sessions")];
         scopes.forEach(s => this.scopeSelect!.appendChild(Object.assign(document.createElement("option"), { textContent: s })));
         if (this.model.isSaved())
-            this.scopeSelect.value = scopes[EditCompositeModelDialog.SCOPE_SAVE_ACROSS_SESSIONS];
-        else if (this.model.name && CustomCompositeModel.globalModelMap.has(this.model.name))
-            this.scopeSelect.selectedIndex = EditCompositeModelDialog.SCOPE_THIS_SESSION;
+            this.scopeSelect.value = scopes[EditSubcircuitModelDialog.SCOPE_SAVE_ACROSS_SESSIONS];
+        else if (this.model.name && SubcircuitModel.globalModelMap.has(this.model.name))
+            this.scopeSelect.selectedIndex = EditSubcircuitModelDialog.SCOPE_THIS_SESSION;
         else
-            this.scopeSelect.selectedIndex = EditCompositeModelDialog.SCOPE_THIS_CIRCUIT;
+            this.scopeSelect.selectedIndex = EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT;
         scopeRow.appendChild(this.scopeSelect);
         this.dialogEl.appendChild(scopeRow);
 
@@ -235,17 +235,17 @@ export class EditCompositeModelDialog extends Dialog {
                 window.alert(Locale.LS("Please enter a model name."));
                 return;
             }
-            CustomCompositeElm.lastModelName = name;
+            SubcircuitElm.lastModelName = name;
         this.model.setName(name);
         }
         const scope = this.scopeSelect!.selectedIndex;
-        CustomCompositeModel.localModelMap.delete(this.model.name);
-        CustomCompositeModel.globalModelMap.delete(this.model.name);
+        SubcircuitModel.localModelMap.delete(this.model.name);
+        SubcircuitModel.globalModelMap.delete(this.model.name);
         this.model.setSaved(false);
-        if (scope === EditCompositeModelDialog.SCOPE_THIS_CIRCUIT) {
-            CustomCompositeModel.localModelMap.set(this.model.name, this.model);
-        } else if (scope === EditCompositeModelDialog.SCOPE_THIS_SESSION) {
-            CustomCompositeModel.globalModelMap.set(this.model.name, this.model);
+        if (scope === EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT) {
+            SubcircuitModel.localModelMap.set(this.model.name, this.model);
+        } else if (scope === EditSubcircuitModelDialog.SCOPE_THIS_SESSION) {
+            SubcircuitModel.globalModelMap.set(this.model.name, this.model);
         } else {
             this.model.setSaved(true);
         }
@@ -257,10 +257,10 @@ export class EditCompositeModelDialog extends Dialog {
         if (this.popContext) {
             const app = CirSim.theApp;
             const savedModel = this.model;
-            const changedModels: CustomCompositeModel[] = app.popContextAndGetChangedModels();
+            const changedModels: SubcircuitModel[] = app.popContextAndGetChangedModels();
             changedModels.push(savedModel);
             for (const m of changedModels) {
-                CustomCompositeModel.replaceModel(m);
+                SubcircuitModel.replaceModel(m);
                 app.refreshModels(m.name);
             }
             if (app.contextStack.length > 0)
@@ -583,7 +583,7 @@ export class EditCompositeModelDialog extends Dialog {
     }
 
     // Preserve pin positions/sides from existingModel in newModel, matching by name.
-    static preservePinLayout(newModel: CustomCompositeModel, existingModel: CustomCompositeModel): void {
+    static preservePinLayout(newModel: SubcircuitModel, existingModel: SubcircuitModel): void {
         const n = newModel.extList.length;
         const matched = new Array(n).fill(false);
         let anyPreserved = false;
@@ -622,7 +622,7 @@ export class EditCompositeModelDialog extends Dialog {
                 const curSizeY = newModel.sizeY + (ns ? 0 : expansion);
                 const maxPos = ns ? curSizeX : curSizeY;
                 for (let p = 0; p < maxPos; p++) {
-                    if (!EditCompositeModelDialog.pinIsOccupied(p, side, placed, curSizeX, curSizeY)) {
+                    if (!EditSubcircuitModelDialog.pinIsOccupied(p, side, placed, curSizeX, curSizeY)) {
                         foundPos = p;
                         newModel.sizeX = curSizeX;
                         newModel.sizeY = curSizeY;
@@ -654,10 +654,10 @@ export class EditCompositeModelDialog extends Dialog {
     }
 
     private static pinIsOccupied(pos: number, side: number, placed: number[][], sizeX: number, sizeY: number): boolean {
-        const g = EditCompositeModelDialog.pinToGrid(pos, side, sizeX, sizeY);
+        const g = EditSubcircuitModelDialog.pinToGrid(pos, side, sizeX, sizeY);
         if (g < 0) return true;
         for (const p of placed) {
-            if (EditCompositeModelDialog.pinToGrid(p[0], p[1], sizeX, sizeY) === g) return true;
+            if (EditSubcircuitModelDialog.pinToGrid(p[0], p[1], sizeX, sizeY) === g) return true;
         }
         return false;
     }

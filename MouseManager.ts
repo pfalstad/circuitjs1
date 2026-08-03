@@ -971,7 +971,7 @@ export class MouseManager {
 	e.preventDefault();
 	if (this.mouseElm == null)
 	    return;
-	if (this.mouseElm.isCustomCompositeElm()) {
+	if (this.mouseElm.isSubcircuitElm()) {
 	    (this.mouseElm as any).onDoubleClick();
 	    return;
 	}
@@ -1147,7 +1147,7 @@ export class MouseManager {
 	this.sim.menus.separateAllItem.setEnabled(this.sim.scopeManager.scopeCount > 0);
 
 	// also update the subcircuit menu if necessary
-	if (MouseManager.lastSubcircuitMenuUpdate !== (window as any).CustomCompositeModel?.sequenceNumber)
+	if (MouseManager.lastSubcircuitMenuUpdate !== (window as any).SubcircuitModel?.sequenceNumber)
 	    this.sim.composeSubcircuitMenu();
     }
 

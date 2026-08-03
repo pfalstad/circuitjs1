@@ -19,11 +19,11 @@
 
 import { Dialog } from "./Dialog";
 import { CirSim } from "./CirSim";
-import { CustomCompositeModel } from "./CustomCompositeModel";
+import { SubcircuitModel } from "./SubcircuitModel";
 
 export class SubcircuitDialog extends Dialog {
     private subcircuitListBox: HTMLSelectElement;
-    private subcircuits: CustomCompositeModel[];
+    private subcircuits: SubcircuitModel[];
 
     constructor(sim: CirSim) {
         super();
@@ -36,7 +36,7 @@ export class SubcircuitDialog extends Dialog {
         title.style.marginBottom = "6px";
         this.dialogEl.appendChild(title);
 
-        this.subcircuits = CustomCompositeModel.getModelList().filter(m => !m.isBuiltin());
+        this.subcircuits = SubcircuitModel.getModelList().filter(m => !m.isBuiltin());
 
         this.subcircuitListBox = document.createElement("select");
         this.subcircuitListBox.size = 5;

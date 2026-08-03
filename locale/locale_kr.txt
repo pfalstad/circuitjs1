@@ -382,7 +382,7 @@
 "Current Speed"="현재 속도"
 "Current-Controlled Voltage Source"="전류 제어 전압원"
 "Custom Label"="사용자 정의 라벨"
-"CustomCompositeElm:"="사용자 정의 복합 요소:"
+"SubcircuitElm:"="사용자 정의 복합 요소:"
 "Cut"="잘라내기"
 "D flip-flop"="D 플립플롭"
 "D/C"="D/C"

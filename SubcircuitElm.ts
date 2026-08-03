@@ -18,8 +18,8 @@
 */
 
 import { CompositeElm } from "./CompositeElm";
-import { CustomCompositeChipElm } from "./CustomCompositeChipElm";
-import { CustomCompositeModel } from "./CustomCompositeModel";
+import { SubcircuitChipElm } from "./SubcircuitChipElm";
+import { SubcircuitModel } from "./SubcircuitModel";
 import { ChipElm } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
 import { Graphics } from "./Graphics";
@@ -32,16 +32,16 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
-import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
+import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { HookRegistry } from "./HookRegistry";
 
-export class CustomCompositeElm extends CompositeElm {
+export class SubcircuitElm extends CompositeElm {
     modelName: string;
-    chip: CustomCompositeChipElm = null!;
+    chip: SubcircuitChipElm = null!;
     postCount: number = 0;
     inputCount: number = 0;
     outputCount: number = 0;
-    model: CustomCompositeModel = null!;
+    model: SubcircuitModel = null!;
     highVoltage: number = 0;
     static lastModelName: string = "default";
     static readonly FLAG_SMALL = 2;
@@ -62,10 +62,10 @@ export class CustomCompositeElm extends CompositeElm {
             } else {
                 // use last model as default when creating new element in UI;
                 // use "default" otherwise, to avoid infinite recursion with nested subcircuits
-                this.modelName = (xxOrXa === 0 && yyOrYa === 0) ? "default" : CustomCompositeElm.lastModelName;
+                this.modelName = (xxOrXa === 0 && yyOrYa === 0) ? "default" : SubcircuitElm.lastModelName;
             }
             this.flags |= CompositeElm.FLAG_ESCAPE;
-            if (this.useSmallGrid()) this.flags |= CustomCompositeElm.FLAG_SMALL;
+            if (this.useSmallGrid()) this.flags |= SubcircuitElm.FLAG_SMALL;
             this.updateModels();
         }
     }
@@ -108,14 +108,14 @@ export class CustomCompositeElm extends CompositeElm {
     }
 
     setPoints(): void {
-        this.chip = new CustomCompositeChipElm(this.x, this.y);
+        this.chip = new SubcircuitChipElm(this.x, this.y);
         this.chip.x2 = this.x2;
         this.chip.y2 = this.y2;
         this.chip.flags = (this.flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
         if (this.x2 - this.x > this.model.sizeX * 16 && this.isCreating())
-            this.flags &= ~CustomCompositeElm.FLAG_SMALL;
-        this.chip.setSize((this.flags & CustomCompositeElm.FLAG_SMALL) !== 0 ? 1 : 2);
-        this.chip.setLabel((this.model.flags & CustomCompositeModel.FLAG_SHOW_LABEL) !== 0 ? this.model.name : null);
+            this.flags &= ~SubcircuitElm.FLAG_SMALL;
+        this.chip.setSize((this.flags & SubcircuitElm.FLAG_SMALL) !== 0 ? 1 : 2);
+        this.chip.setLabel((this.model.flags & SubcircuitModel.FLAG_SHOW_LABEL) !== 0 ? this.model.name : null);
 
         this.chip.sizeX = this.model.sizeX;
         this.chip.sizeY = this.model.sizeY;
@@ -146,7 +146,7 @@ export class CustomCompositeElm extends CompositeElm {
 
     private _updateModels(st: StringTokenizer | null): void {
         if (this.model !== null && this.model.name === this.modelName) return;
-        this.model = CustomCompositeModel.getModelWithName(this.modelName)!;
+        this.model = SubcircuitModel.getModelWithName(this.modelName)!;
         if (!this.model) return;
         this.postCount = this.model.extList.length;
         const externalNodes = new Array(this.postCount);
@@ -166,8 +166,8 @@ export class CustomCompositeElm extends CompositeElm {
         if (this.highVoltage === 0) return;
         for (const ce of this.compElmList) {
             ce.setHighVoltage(this.highVoltage);
-            if (ce instanceof CustomCompositeElm)
-                (ce as CustomCompositeElm).propagateHighVoltage();
+            if (ce instanceof SubcircuitElm)
+                (ce as SubcircuitElm).propagateHighVoltage();
         }
     }
 
@@ -247,7 +247,7 @@ export class CustomCompositeElm extends CompositeElm {
         return false;
     }
 
-    isCustomCompositeElm(): boolean { return true; }
+    isSubcircuitElm(): boolean { return true; }
 
     onDoubleClick(): void {
         if (this.canViewComponents())
@@ -285,7 +285,7 @@ export class CustomCompositeElm extends CompositeElm {
         }
     }
 
-    private models: CustomCompositeModel[] = [];
+    private models: SubcircuitModel[] = [];
 
     getEditInfo(n: number): EditInfo | null {
         // if model is internal, don't allow it to be changed
@@ -293,7 +293,7 @@ export class CustomCompositeElm extends CompositeElm {
 
         if (n === 0) {
             const ei = new EditInfo(EditInfo.makeLink("subcircuits.html", "Model Name"), 0, -1, -1);
-            this.models = CustomCompositeModel.getModelList();
+            this.models = SubcircuitModel.getModelList();
             ei.choice = new Choice();
             for (let i = 0; i < this.models.length; i++) {
                 const ccm = this.models[i];
@@ -327,7 +327,7 @@ export class CustomCompositeElm extends CompositeElm {
         if (this.model.internal) n += 2;
         if (n === 0) {
             this.model = this.models[ei.choice.getSelectedIndex()];
-            CustomCompositeElm.lastModelName = this.modelName = this.model.name;
+            SubcircuitElm.lastModelName = this.modelName = this.model.name;
             this.updateModels();
             this.setPoints();
             return;
@@ -337,7 +337,7 @@ export class CustomCompositeElm extends CompositeElm {
                 window.alert(Locale.LS("Can't edit this model."));
                 return;
             }
-            const dlg = new EditCompositeModelDialog();
+            const dlg = new EditSubcircuitModelDialog();
             dlg.setModel(this.model);
             dlg.createDialog();
             CirSim.dialogShowing = dlg;
@@ -368,4 +368,4 @@ export class CustomCompositeElm extends CompositeElm {
     getNumHandles(): number { return 0; }
 }
 
-HookRegistry.createCustomCompositeElm = (x, y, name) => new CustomCompositeElm(x, y, name);
+HookRegistry.createSubcircuitElm = (x, y, name) => new SubcircuitElm(x, y, name);

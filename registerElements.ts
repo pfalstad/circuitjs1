@@ -34,7 +34,7 @@ import { CounterElm } from "./CounterElm";
 import { CrossSwitchElm } from "./CrossSwitchElm";
 import { CrystalElm } from "./CrystalElm";
 import { CurrentElm } from "./CurrentElm";
-import { CustomCompositeElm } from "./CustomCompositeElm";
+import { SubcircuitElm } from "./SubcircuitElm";
 import { CustomLogicElm } from "./CustomLogicElm";
 import { CustomTransformerElm } from "./CustomTransformerElm";
 import { DACElm } from "./DACElm";
@@ -184,7 +184,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("CrossSwitchElm", CrossSwitchElm as any);
     ElementFactory.registerClass("CrystalElm", CrystalElm as any);
     ElementFactory.registerClass("CurrentElm", CurrentElm as any);
-    ElementFactory.registerClass("CustomCompositeElm", CustomCompositeElm as any);
+    ElementFactory.registerClass("SubcircuitElm", SubcircuitElm as any);
     ElementFactory.registerClass("CustomLogicElm", CustomLogicElm as any);
     ElementFactory.registerClass("CustomTransformerElm", CustomTransformerElm as any);
     ElementFactory.registerClass("DACElm", DACElm as any);
@@ -447,5 +447,5 @@ export function registerElements(): void {
     CirSim.theApp.register("ZenerElm", new ZenerElm(0, 0));
 
     // registered last — constructor triggers model loading which requires other elements
-    CirSim.theApp.register("CustomCompositeElm", new CustomCompositeElm(0, 0));
+    CirSim.theApp.register("SubcircuitElm", new SubcircuitElm(0, 0));
 }

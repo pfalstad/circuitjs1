@@ -30,9 +30,9 @@ import { HookRegistry } from "./HookRegistry";
 
 // model for subcircuits
 
-export class CustomCompositeModel {
-    static globalModelMap: Map<string, CustomCompositeModel> = new Map();
-    static localModelMap:  Map<string, CustomCompositeModel> = new Map();
+export class SubcircuitModel {
+    static globalModelMap: Map<string, SubcircuitModel> = new Map();
+    static localModelMap:  Map<string, SubcircuitModel> = new Map();
 
     flags:  number = 0;
     sizeX:  number = 0;
@@ -50,32 +50,32 @@ export class CustomCompositeModel {
     static readonly FLAG_SHOW_LABEL = 1;
 
     setName(n: string): void {
-        if (CustomCompositeModel.localModelMap.delete(this.name)) {
+        if (SubcircuitModel.localModelMap.delete(this.name)) {
             this.name = n;
-            CustomCompositeModel.localModelMap.set(this.name, this);
+            SubcircuitModel.localModelMap.set(this.name, this);
         } else {
-            CustomCompositeModel.globalModelMap.delete(this.name);
+            SubcircuitModel.globalModelMap.delete(this.name);
             this.name = n;
-            CustomCompositeModel.globalModelMap.set(this.name, this);
+            SubcircuitModel.globalModelMap.set(this.name, this);
         }
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.sequenceNumber++;
     }
 
     static initModelMap(): void {
-        CustomCompositeModel.globalModelMap = new Map();
-        CustomCompositeModel.localModelMap  = new Map();
+        SubcircuitModel.globalModelMap = new Map();
+        SubcircuitModel.localModelMap  = new Map();
 
         // create default stub model
         const extList: ExtListEntry[] = [];
         extList.push(new ExtListEntry("gnd", 1));
-        const d = CustomCompositeModel.createModelFromOldFormat("default", "0 0", "GroundElm 1", extList);
+        const d = SubcircuitModel.createModelFromOldFormat("default", "0 0", "GroundElm 1", extList);
         d.sizeX = d.sizeY = 1;
         d.builtin = true;
-        CustomCompositeModel.localModelMap.delete(d.name);
-        CustomCompositeModel.globalModelMap.set(d.name, d);
-        CustomCompositeModel.sequenceNumber = 1;
+        SubcircuitModel.localModelMap.delete(d.name);
+        SubcircuitModel.globalModelMap.set(d.name, d);
+        SubcircuitModel.sequenceNumber = 1;
 
-        CustomCompositeModel.loadInternalModels();
+        SubcircuitModel.loadInternalModels();
     }
 
     static loadModelsFromStorage(): void {
@@ -89,18 +89,18 @@ export class CustomCompositeModel {
             if (!data) continue;
             try {
                 if (data.startsWith("<")) {
-                    CustomCompositeModel.loadModelFromStorage(data);
+                    SubcircuitModel.loadModelFromStorage(data);
                 } else {
                     let firstLine = data;
                     const lineLen = data.indexOf('\n');
                     if (lineLen !== -1) firstLine = data.substring(0, lineLen);
                     const st = new StringTokenizer(firstLine, " ");
                     if (st.nextToken() === ".") {
-                        const model = CustomCompositeModel.undumpModel(st);
+                        const model = SubcircuitModel.undumpModel(st);
                         if (lineLen !== -1) model.modelCircuit = data.substring(lineLen + 1);
                         // move from local to global since this is from storage
-                        CustomCompositeModel.localModelMap.delete(model.name);
-                        CustomCompositeModel.globalModelMap.set(model.name, model);
+                        SubcircuitModel.localModelMap.delete(model.name);
+                        SubcircuitModel.globalModelMap.set(model.name, model);
                     }
                 }
             } catch (e) {
@@ -109,46 +109,46 @@ export class CustomCompositeModel {
         }
     }
 
-    static getModelWithName(name: string): CustomCompositeModel | null {
-        if (CustomCompositeModel.globalModelMap.size === 0 && CustomCompositeModel.localModelMap.size === 0)
-            CustomCompositeModel.initModelMap();
-        const lm = CustomCompositeModel.localModelMap.get(name);
+    static getModelWithName(name: string): SubcircuitModel | null {
+        if (SubcircuitModel.globalModelMap.size === 0 && SubcircuitModel.localModelMap.size === 0)
+            SubcircuitModel.initModelMap();
+        const lm = SubcircuitModel.localModelMap.get(name);
         if (lm) return lm;
-        return CustomCompositeModel.globalModelMap.get(name) ?? null;
+        return SubcircuitModel.globalModelMap.get(name) ?? null;
     }
 
     // create model from old-style nodeList/elmDump format, converting to XML immediately
-    static createModelFromOldFormat(name: string, elmDump: string, nodeList: string, extList: ExtListEntry[]): CustomCompositeModel {
-        const lm = new CustomCompositeModel();
+    static createModelFromOldFormat(name: string, elmDump: string, nodeList: string, extList: ExtListEntry[]): SubcircuitModel {
+        const lm = new SubcircuitModel();
         lm.name = name;
         lm.extList = extList;
         lm.convertOldFormatToXml(nodeList, elmDump);
-        CustomCompositeModel.localModelMap.set(name, lm);
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.localModelMap.set(name, lm);
+        SubcircuitModel.sequenceNumber++;
         return lm;
     }
 
     // create model with XML element doc already built
-    static createModel(name: string, elmDoc: Document, extList: ExtListEntry[]): CustomCompositeModel {
-        const lm = new CustomCompositeModel();
+    static createModel(name: string, elmDoc: Document, extList: ExtListEntry[]): SubcircuitModel {
+        const lm = new SubcircuitModel();
         lm.name = name;
         lm.elmDoc = elmDoc;
         lm.extList = extList;
-        CustomCompositeModel.localModelMap.set(name, lm);
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.localModelMap.set(name, lm);
+        SubcircuitModel.sequenceNumber++;
         return lm;
     }
 
     static clearDumpedFlags(): void {
-        for (const m of CustomCompositeModel.globalModelMap.values()) m.dumped = false;
-        for (const m of CustomCompositeModel.localModelMap.values())  m.dumped = false;
+        for (const m of SubcircuitModel.globalModelMap.values()) m.dumped = false;
+        for (const m of SubcircuitModel.localModelMap.values())  m.dumped = false;
     }
 
-    static getModelList(): CustomCompositeModel[] {
+    static getModelList(): SubcircuitModel[] {
         // local entries win on name collision
-        const merged = new Map<string, CustomCompositeModel>(CustomCompositeModel.globalModelMap);
-        for (const [k, v] of CustomCompositeModel.localModelMap) merged.set(k, v);
-        const result: CustomCompositeModel[] = [];
+        const merged = new Map<string, SubcircuitModel>(SubcircuitModel.globalModelMap);
+        for (const [k, v] of SubcircuitModel.localModelMap) merged.set(k, v);
+        const result: SubcircuitModel[] = [];
         for (const dm of merged.values()) {
             if (!dm.internal) result.push(dm);
         }
@@ -156,20 +156,20 @@ export class CustomCompositeModel {
         return result;
     }
 
-    static undumpModel(st: StringTokenizer): CustomCompositeModel {
+    static undumpModel(st: StringTokenizer): SubcircuitModel {
         const name = CustomLogicModel.unescape(st.nextToken());
-        let model = CustomCompositeModel.getModelWithName(name);
+        let model = SubcircuitModel.getModelWithName(name);
         if (model === null) {
-            model = new CustomCompositeModel();
+            model = new SubcircuitModel();
             model.name = name;
-            CustomCompositeModel.localModelMap.set(name, model);
-            CustomCompositeModel.sequenceNumber++;
-        } else if (CustomCompositeModel.globalModelMap.has(name) && !CustomCompositeModel.localModelMap.has(name)) {
+            SubcircuitModel.localModelMap.set(name, model);
+            SubcircuitModel.sequenceNumber++;
+        } else if (SubcircuitModel.globalModelMap.has(name) && !SubcircuitModel.localModelMap.has(name)) {
             // create a local shadow instead of modifying global
-            model = new CustomCompositeModel();
+            model = new SubcircuitModel();
             model.name = name;
-            CustomCompositeModel.localModelMap.set(name, model);
-            CustomCompositeModel.sequenceNumber++;
+            SubcircuitModel.localModelMap.set(name, model);
+            SubcircuitModel.sequenceNumber++;
         }
         model.undump(st);
         return model;
@@ -247,7 +247,7 @@ export class CustomCompositeModel {
             this.buildXmlElement(doc, root);
             const serializer = new window.XMLSerializer();
             localStorage.setItem("subcircuit:" + this.name, serializer.serializeToString(doc));
-            CustomCompositeModel.globalModelMap.set(this.name, this);
+            SubcircuitModel.globalModelMap.set(this.name, this);
         } else {
             localStorage.removeItem("subcircuit:" + this.name);
         }
@@ -259,19 +259,19 @@ export class CustomCompositeModel {
         const xml = new CircuitXMLDeserializer(CirSim.theApp);
         xml.currentXmlElement = root;
         const modelName = xml.parseStringAttr("nm", null)!;
-        const model = new CustomCompositeModel();
+        const model = new SubcircuitModel();
         model.name = modelName;
         model.parseXmlElement(xml);
-        CustomCompositeModel.globalModelMap.set(modelName, model);
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.globalModelMap.set(modelName, model);
+        SubcircuitModel.sequenceNumber++;
     }
 
-    showLabel(): boolean { return (this.flags & CustomCompositeModel.FLAG_SHOW_LABEL) !== 0; }
+    showLabel(): boolean { return (this.flags & SubcircuitModel.FLAG_SHOW_LABEL) !== 0; }
     isBuiltin(): boolean { return this.builtin; }
 
     setShowLabel(sl: boolean): void {
-        this.flags = sl ? (this.flags | CustomCompositeModel.FLAG_SHOW_LABEL)
-                       : (this.flags & ~CustomCompositeModel.FLAG_SHOW_LABEL);
+        this.flags = sl ? (this.flags | SubcircuitModel.FLAG_SHOW_LABEL)
+                       : (this.flags & ~SubcircuitModel.FLAG_SHOW_LABEL);
     }
 
     // check if all bus entries have consecutive node numbers so we can use compact format
@@ -325,19 +325,19 @@ export class CustomCompositeModel {
         doc.documentElement.appendChild(elem);
     }
 
-    static undumpModelXml(xml: CircuitXMLDeserializer): CustomCompositeModel {
+    static undumpModelXml(xml: CircuitXMLDeserializer): SubcircuitModel {
         const name = xml.parseStringAttr("nm", null)!;
-        let model = CustomCompositeModel.getModelWithName(name);
+        let model = SubcircuitModel.getModelWithName(name);
         if (model === null) {
-            model = new CustomCompositeModel();
+            model = new SubcircuitModel();
             model.name = name;
-            CustomCompositeModel.localModelMap.set(name, model);
-            CustomCompositeModel.sequenceNumber++;
-        } else if (CustomCompositeModel.globalModelMap.has(name) && !CustomCompositeModel.localModelMap.has(name)) {
-            model = new CustomCompositeModel();
+            SubcircuitModel.localModelMap.set(name, model);
+            SubcircuitModel.sequenceNumber++;
+        } else if (SubcircuitModel.globalModelMap.has(name) && !SubcircuitModel.localModelMap.has(name)) {
+            model = new SubcircuitModel();
             model.name = name;
-            CustomCompositeModel.localModelMap.set(name, model);
-            CustomCompositeModel.sequenceNumber++;
+            SubcircuitModel.localModelMap.set(name, model);
+            SubcircuitModel.sequenceNumber++;
         }
         model.undumpXml(xml);
         return model;
@@ -446,20 +446,20 @@ export class CustomCompositeModel {
 
     remove(): void {
         this.setSaved(false);
-        CustomCompositeModel.localModelMap.delete(this.name);
-        CustomCompositeModel.globalModelMap.delete(this.name);
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.localModelMap.delete(this.name);
+        SubcircuitModel.globalModelMap.delete(this.name);
+        SubcircuitModel.sequenceNumber++;
     }
 
     // replace a model in whichever map it lives in
-    static replaceModel(model: CustomCompositeModel): void {
-        CustomCompositeModel.localModelMap.set(model.name, model);
-        CustomCompositeModel.sequenceNumber++;
+    static replaceModel(model: SubcircuitModel): void {
+        SubcircuitModel.localModelMap.set(model.name, model);
+        SubcircuitModel.sequenceNumber++;
     }
 
     static clearLocalModels(): void {
-        CustomCompositeModel.localModelMap.clear();
-        CustomCompositeModel.sequenceNumber++;
+        SubcircuitModel.localModelMap.clear();
+        SubcircuitModel.sequenceNumber++;
     }
 
     static loadInternalModels(): void {
@@ -469,15 +469,15 @@ export class CustomCompositeModel {
         for (const modelStr of [lm317, tl431]) {
             const st = new StringTokenizer(modelStr, " ");
             st.nextToken(); // "."
-            const model = CustomCompositeModel.undumpModel(st);
+            const model = SubcircuitModel.undumpModel(st);
             model.internal = model.builtin = true;
             // move from local to global since these are builtins
-            CustomCompositeModel.localModelMap.delete(model.name);
-            CustomCompositeModel.globalModelMap.set(model.name, model);
+            SubcircuitModel.localModelMap.delete(model.name);
+            SubcircuitModel.globalModelMap.set(model.name, model);
         }
     }
 }
 
-HookRegistry.undumpCustomCompositeModel            = (xml) => CustomCompositeModel.undumpModelXml(xml as CircuitXMLDeserializer);
-HookRegistry.loadCustomCompositeModelsFromStorage  = () => CustomCompositeModel.loadModelsFromStorage();
-HookRegistry.clearCustomCompositeModelDumpedFlags  = () => CustomCompositeModel.clearDumpedFlags();
+HookRegistry.undumpSubcircuitModel            = (xml) => SubcircuitModel.undumpModelXml(xml as CircuitXMLDeserializer);
+HookRegistry.loadSubcircuitModelsFromStorage  = () => SubcircuitModel.loadModelsFromStorage();
+HookRegistry.clearSubcircuitModelDumpedFlags  = () => SubcircuitModel.clearDumpedFlags();

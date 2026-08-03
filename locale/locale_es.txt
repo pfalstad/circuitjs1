@@ -1248,7 +1248,7 @@
 "Chua"="Chua!!"
 "Corner For Forward Beta High Current Roll-Off (IKF)"="Punto de inflexión para la caída del beta en alta corriente (IKF)!!"
 "Corner For Reverse Beta High Current Roll-Off (IKR)"="Punto de inflexión para la caída del beta en alta corriente inversa (IKR)!!"
-"CustomCompositeElm:"="Componente compuesto personalizado:!!"
+"SubcircuitElm:"="Componente compuesto personalizado:!!"
 "DC Coupled"="Acoplado en CC"
 "Acoplado en CC"="Acoplado en CC!!"
 "Differentiator (inverting)"="Diferenciador inversor"

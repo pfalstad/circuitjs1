@@ -32,8 +32,8 @@ import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SearchDialog } from "./SearchDialog";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
-import { EditCompositeModelDialog } from "./EditCompositeModelDialog";
-import "./GetCircuitAsComposite";
+import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
+import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
 
@@ -369,7 +369,7 @@ export class CommandManager {
     }
 
     doCreateSubcircuit(): void {
-        const dlg = new EditCompositeModelDialog();
+        const dlg = new EditSubcircuitModelDialog();
         if (!dlg.createModel())
             return;
         dlg.createDialog();
@@ -495,7 +495,7 @@ export class CommandManager {
         const root = doc.documentElement;
 
         CustomLogicModel.clearDumpedFlags();
-        (window as any).CustomCompositeModel?.clearDumpedFlags();
+        (window as any).SubcircuitModel?.clearDumpedFlags();
         DiodeModel.clearDumpedFlags();
         (window as any).TransistorModel?.clearDumpedFlags();
         MosfetModel.clearDumpedFlags();

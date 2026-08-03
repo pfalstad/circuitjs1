@@ -30,7 +30,7 @@ import { Scope } from "./Scope";
 import { DiodeModel } from "./DiodeModel";
 import { TransistorModel } from "./TransistorModel";
 import { CustomLogicModel } from "./CustomLogicModel";
-import { CustomCompositeModel } from "./CustomCompositeModel";
+import { SubcircuitModel } from "./SubcircuitModel";
 
 /**
  * Handles all circuit loading, parsing, clearing, setup-file fetching,
@@ -85,7 +85,7 @@ export class CircuitLoader {
         this.scopes.clearScopes();
         this.sim.lastIterTime = 0;
         if (this.app.contextStack.length === 0) {
-            // CustomCompositeModel.clearLocalModels() — stub
+            // SubcircuitModel.clearLocalModels() — stub
         }
         if (this.app.ui.subcircuitStack.length > 0) {
             this.app.ui.subcircuitStack.length = 0;
@@ -188,7 +188,7 @@ export class CircuitLoader {
                         break;
                     }
                     if (tint === '.'.charCodeAt(0)) {
-                        CustomCompositeModel.undumpModel(st);
+                        SubcircuitModel.undumpModel(st);
                         break;
                     }
 

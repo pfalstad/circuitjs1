@@ -20,7 +20,7 @@
 import { ChipElm } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
-import { CustomCompositeModel } from "./CustomCompositeModel";
+import { SubcircuitModel } from "./SubcircuitModel";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { ExtListEntry } from "./ExtListEntry";
@@ -31,7 +31,7 @@ import { SimulationManager } from "./SimulationManager";
 import { SwitchElm } from "./SwitchElm";
 import { TransistorModel } from "./TransistorModel";
 
-function getCircuitAsComposite(sim: SimulationManager): CustomCompositeModel | null {
+function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     const elmDoc = document.implementation.createDocument(null, "elms");
     const elmRoot = elmDoc.documentElement;
     CustomLogicModel.clearDumpedFlags();
@@ -156,7 +156,7 @@ function getCircuitAsComposite(sim: SimulationManager): CustomCompositeModel | n
         }
     }
 
-    const ccm = CustomCompositeModel.createModel("", elmDoc, extList);
+    const ccm = SubcircuitModel.createModel("", elmDoc, extList);
     SimulationManager.console("created model " + CircuitXMLSerializer.prettyPrint(elmDoc));
     return ccm;
 }

@@ -11,10 +11,10 @@ import { fileURLToPath } from "url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out  = join(root, "registerElements.ts");
 
-const SKIP = new Set(["GateElm", "ChipElm", "CompositeElm", "CustomCompositeChipElm", "JfetElm", "GraphicElm"]);
+const SKIP = new Set(["GateElm", "ChipElm", "CompositeElm", "SubcircuitChipElm", "JfetElm", "GraphicElm"]);
 
 // Classes that must be registered last (after all other elements).
-const REGISTER_LAST = new Set(["CustomCompositeElm"]);
+const REGISTER_LAST = new Set(["SubcircuitElm"]);
 
 // Classes to add to ElementFactory but not CirSim.register.
 // Used when another class's getDumpClass() causes the dump-type mapping,

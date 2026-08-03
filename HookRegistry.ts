@@ -21,13 +21,13 @@
 // This module has no imports, so it is safe to import from anywhere.
 
 export const HookRegistry = {
-    undumpCustomCompositeModel:        null as ((xml: any) => void) | null,
-    loadCustomCompositeModelsFromStorage: null as (() => void) | null,
-    clearCustomCompositeModelDumpedFlags: null as (() => void) | null,
+    undumpSubcircuitModel:        null as ((xml: any) => void) | null,
+    loadSubcircuitModelsFromStorage: null as (() => void) | null,
+    clearSubcircuitModelDumpedFlags: null as (() => void) | null,
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,
-    createCustomCompositeElm:    null as ((x: number, y: number, name: string) => any) | null,
+    createSubcircuitElm:    null as ((x: number, y: number, name: string) => any) | null,
     createJSInterface:           null as ((app: any) => any) | null,
     resetGroundNodeList:         null as (() => void) | null,
     resetLabeledNodeList:        null as (() => void) | null,
