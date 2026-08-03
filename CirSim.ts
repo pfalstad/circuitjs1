@@ -209,6 +209,7 @@ export class CirSim {
         await import('./SubcircuitDialog');
         await import('./ExportAsUrlDialog');
         await import('./ExportAsImageDialog');
+        await import('./ImportFromDropboxDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
