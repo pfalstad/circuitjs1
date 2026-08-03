@@ -170,6 +170,8 @@ export class Graphics {
     }
 
     setLineDash(a: number, b: number): void {
+        if (typeof this.context.setLineDash !== "function")
+            return;
         if (a === 0)
             this.context.setLineDash([]);
         else

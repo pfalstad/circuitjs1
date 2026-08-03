@@ -9,9 +9,11 @@ import { CircuitLoader } from "./CircuitLoader";
 import { JSInterface } from "./JSInterface";
 import { HookRegistry } from "./HookRegistry";
 import * as LZString from "lz-string";
+import "./canvas2svg.js";
 
 // used via the global (window.LZString) by CirSim.decompress() and ExportAsUrlDialog
 (window as any).LZString = LZString;
+// canvas2svg.js sets window.C2S; used by ImageExporter for SVG export
 
 HookRegistry.createJSInterface = (app: any) => new JSInterface(app);
 

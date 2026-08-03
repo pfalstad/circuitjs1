@@ -195,7 +195,8 @@ export class CirSim {
         this.ui = new UIManager(this);
         this.undoManager = new UndoManager(this);
         this.undoManager.readRecovery();
-        // imageExporter = new ImageExporter(this);  // not yet ported
+        const { ImageExporter } = await import('./ImageExporter');
+        this.imageExporter = new ImageExporter(this);
         const { CommandManager } = await import('./CommandManager');
         this.commands = new CommandManager(this);
 
@@ -205,6 +206,7 @@ export class CirSim {
         await import('./ScopePropertiesDialog');
         await import('./ShortcutsDialog');
         await import('./ExportAsUrlDialog');
+        await import('./ExportAsImageDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
