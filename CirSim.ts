@@ -164,6 +164,7 @@ export class CirSim {
     static aboutBox: any = null;
 
     static readonly baseTitle: string = "Circuit Simulator";
+    static readonly versionString: string = "4.1.4js";
 
     // maps integer dump type code → class name (built by register())
     static dumpTypeMap: Map<number, string> = new Map();

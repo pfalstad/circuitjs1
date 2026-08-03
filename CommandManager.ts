@@ -53,7 +53,7 @@ export class CommandManager {
             return;
         }
         if (item == "about")
-            CirSim.aboutBox = new (window as any).AboutBox((window as any).circuitjs1?.versionString);
+            CirSim.aboutBox = new (window as any).AboutBox(CirSim.versionString);
         if (item == "importfromlocalfile") {
             this.app.undoManager?.pushUndo();
             if (CirSim.isElectron())
