@@ -81,7 +81,7 @@ export class InductorElm extends CircuitElm {
         this.inductance = xml.parseDoubleAttr("l", this.inductance);
         this.initialCurrent = xml.parseDoubleAttr("ic", this.initialCurrent);
         this.current = xml.parseDoubleAttr("i", this.current);
-        this.saturationCurrent = xml.parseDoubleAttr("isat", 0);
+        this.saturationCurrent = xml.parseDoubleAttr("isat", this.saturationCurrent);
         this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
     }
 

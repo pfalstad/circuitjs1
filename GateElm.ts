@@ -105,11 +105,18 @@ export abstract class GateElm extends CircuitElm {
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
-        this.flags = 0; // SMALL might have gotten set
+        // "ix" is present on state-restore calls (from CompositeElm.dumpXmlState/undumpXml).
+        // In that case this element already exists with correct flags (set up when the
+        // containing model was loaded), and the state element has no "f" attribute, so
+        // zeroing flags here would wipe FLAG_SCHMITT/FLAG_INVERT_INPUTS/FLAG_SMALL instead
+        // of restoring them.
+        const stateRestore = xml.parseStringAttr("ix", null) != null;
+        if (!stateRestore)
+            this.flags = 0; // SMALL might have gotten set
         super.undumpXml(xml);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);
         this.inputCount = xml.parseIntAttr("in", this.inputCount);
-        this.propagationDelay = xml.parseDoubleAttr("pd", 0);
+        this.propagationDelay = xml.parseDoubleAttr("pd", this.propagationDelay);
         const lastOutputVoltage = xml.parseDoubleAttr("o", 0);
         this.lastOutput = lastOutputVoltage > this.highVoltage * .5;
         this.setSize((this.flags & GateElm.FLAG_SMALL) !== 0 ? 1 : 2);
@@ -261,6 +268,10 @@ export abstract class GateElm extends CircuitElm {
         const high = !this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
         if (!this.hasSchmittInputs())
             return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
+        // inputStates is normally allocated in setPoints(), but elements inside a
+        // CompositeElm/subcircuit never get setPoints() called, so allocate lazily here too.
+        if (this.inputStates == null || this.inputStates.length !== this.inputCount)
+            this.inputStates = new Array(this.inputCount).fill(false);
         const res = this.nodes[x].v > this.highVoltage * (this.inputStates[x] ? .35 : .55);
         this.inputStates[x] = res;
         return res ? high : !high;

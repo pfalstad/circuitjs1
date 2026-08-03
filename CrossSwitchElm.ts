@@ -59,18 +59,26 @@ export class CrossSwitchElm extends SwitchElm {
     currents: number[];
     curcounts: number[];
 
+    // voltageSources/currents/curcounts are normally (re)allocated in setPoints(), but elements
+    // inside a CompositeElm/subcircuit never get setPoints() called, so allocate lazily here too.
+    ensureArrays(): void {
+        if (this.voltageSources == null) {
+            this.voltageSources = new Array(this.poleCount);
+            this.currents = new Array(this.poleCount).fill(0);
+            this.curcounts = new Array(this.poleCount).fill(0);
+        }
+    }
+
     setPoints(): void {
         super.setPoints();
         this.calcLeads(32);
-        this.voltageSources = new Array(this.poleCount);
+        this.ensureArrays();
         this.throwPosts  = this.newPointArray(2 * this.poleCount);
         this.throwLeads  = this.newPointArray(4 * this.poleCount);
         this.poleLeads   = this.newPointArray(this.poleCount);
         this.polePosts   = this.newPointArray(this.poleCount);
         this.linePoints  = this.newPointArray(2);
         this.crossPoints = this.newPointArray(6);
-        this.currents  = [0, 0];
-        this.curcounts = [0, 0];
         for (let i = 0; i !== this.poleCount; i++) {
             const offset = -i * this.openhs * 3;
             this.interpPoint(this.point1, this.point2, this.polePosts[i],      0, offset);
@@ -191,11 +199,13 @@ export class CrossSwitchElm extends SwitchElm {
     }
 
     setVoltageSource(j: number, vs: VoltageSource): void {
+        this.ensureArrays();
         this.voltageSources[j] = vs;
         vs.setNodes(this.nodes[j*2], this.nodes[j*2+1]);
     }
 
     stamp(): void {
+        this.ensureArrays();
         if (this.position === 0) {
             for (let i = 0; i !== this.poleCount; i++) {
                 if (this.resistance > 0)
