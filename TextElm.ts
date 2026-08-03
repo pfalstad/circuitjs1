@@ -21,6 +21,7 @@ import { GraphicElm } from "./GraphicElm";
 import { CircuitElm } from "./CircuitElm";
 import { Graphics } from "./Graphics";
 import { Font } from "./Font";
+import { Color } from "./Color";
 import { StringTokenizer } from "./StringTokenizer";
 import { Locale } from "./Locale";
 import { EditInfo } from "./EditInfo";
@@ -33,6 +34,7 @@ export class TextElm extends GraphicElm {
     text: string;
     lines: string[];
     size: number;
+    color: string | null = null;
     editTextArea: any = null;
 //    final int FLAG_CENTER = 1;
     static readonly FLAG_BAR    = 2;
@@ -86,12 +88,15 @@ export class TextElm extends GraphicElm {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "si", this.size);
         CircuitXMLSerializer.dumpAttr(elem, "te", this.text);
+        if (this.color != null)
+            CircuitXMLSerializer.dumpAttr(elem, "co", this.color);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.size = xml.parseIntAttr("si", this.size);
         this.text = xml.parseStringAttr("te", this.text) ?? this.text;
+        this.color = xml.parseStringAttr("co", this.color);
         this.split();
     }
 
@@ -106,7 +111,7 @@ export class TextElm extends GraphicElm {
 
     draw(g: Graphics): void {
         g.save();
-        g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
+        g.setColor(this.needsHighlight() ? CircuitElm.selectColor : (this.color != null ? new Color(this.color) : CircuitElm.lightGrayColor));
         const f = new Font("SansSerif", 0, this.size);
         g.setFont(f);
         let maxw = -1;
@@ -147,6 +152,8 @@ export class TextElm extends GraphicElm {
             ei.checkbox = new Checkbox("Draw Bar On Top", (this.flags & TextElm.FLAG_BAR) !== 0);
             return ei;
         }
+        if (n === 3)
+            return new EditInfo("Color", this.color != null ? this.color : CircuitElm.lightGrayColor.getHexValue()).setIsColor();
         return null;
     }
 
@@ -162,6 +169,10 @@ export class TextElm extends GraphicElm {
                 this.flags |= TextElm.FLAG_BAR;
             else
                 this.flags &= ~TextElm.FLAG_BAR;
+        }
+        if (n === 3) {
+            const c = (ei.textf as HTMLInputElement).value;
+            this.color = c === CircuitElm.lightGrayColor.getHexValue() ? null : c;
         }
     }
 
