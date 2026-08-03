@@ -48,7 +48,7 @@ export class EditDialog extends Dialog {
     private colsRow: HTMLDivElement;       // holds the column panels
     private activeCol: HTMLDivElement;     // current column being filled
     private activeColCount: number = 0;
-    private firstInput: HTMLInputElement | null = null;
+    private firstInput: HTMLInputElement | HTMLTextAreaElement | null = null;
     protected applyButton: HTMLButtonElement;
 
     constructor(ce: Editable, f: CirSim) {
@@ -188,6 +188,8 @@ export class EditDialog extends Dialog {
                 ta.rows = 4;
                 ta.cols = 40;
                 ei.textArea.element = ta;
+                if (this.firstInput === null)
+                    this.firstInput = ta;
                 this.activeCol.appendChild(ta);
                 this.closeOnEnter = false;
 
