@@ -31,9 +31,12 @@ export class StopTriggerElm extends CircuitElm {
     triggerVoltage: number = 1;
     triggered: boolean = false;
     stopped: boolean = false;
+    conditionActive: boolean = false;
     delay: number = 0;
     triggerTime: number = 0;
     type: number = 0;
+    count: number = 1;
+    triggerCount: number = 0;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -43,6 +46,7 @@ export class StopTriggerElm extends CircuitElm {
             this.triggerVoltage = parseFloat(st.nextToken());
             this.type = parseInt(st.nextToken());
             this.delay = parseFloat(st.nextToken());
+            this.count = 1;
         }
     }
 
@@ -51,6 +55,7 @@ export class StopTriggerElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "tv", this.triggerVoltage);
         CircuitXMLSerializer.dumpAttr(elem, "tp", this.type);
         CircuitXMLSerializer.dumpAttr(elem, "dl", this.delay);
+        CircuitXMLSerializer.dumpAttr(elem, "ct", this.count);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -58,9 +63,16 @@ export class StopTriggerElm extends CircuitElm {
         this.triggerVoltage = xml.parseDoubleAttr("tv", this.triggerVoltage);
         this.type = xml.parseIntAttr("tp", this.type);
         this.delay = xml.parseDoubleAttr("dl", this.delay);
+        this.count = xml.parseIntAttr("ct", 1);
+        if (this.count < 1)
+            this.count = 1;
     }
 
-    reset(): void { this.triggered = false; }
+    reset(): void {
+        this.triggered = false;
+        this.conditionActive = false;
+        this.triggerCount = 0;
+    }
     getDumpType(): number { return 408; }
     getPostCount(): number { return 1; }
 
@@ -85,13 +97,21 @@ export class StopTriggerElm extends CircuitElm {
 
     stepFinished(): void {
         this.stopped = false;
-        if (!this.triggered && ((this.type === 0 && this.nodes[0].v >= this.triggerVoltage) ||
-                (this.type === 1 && this.nodes[0].v <= this.triggerVoltage))) {
-            this.triggered = true;
-            this.triggerTime = CircuitElm.sim.t;
+        const condition = (this.type === 0 && this.nodes[0].v >= this.triggerVoltage) ||
+            (this.type === 1 && this.nodes[0].v <= this.triggerVoltage);
+        if (!this.conditionActive && condition) {
+            this.conditionActive = true;
+            this.triggerCount++;
+            if (!this.triggered && this.triggerCount >= this.count) {
+                this.triggered = true;
+                this.triggerTime = CircuitElm.sim.t;
+            }
         }
+        if (this.conditionActive && !condition)
+            this.conditionActive = false;
         if (this.triggered && CircuitElm.sim.t >= this.triggerTime + this.delay) {
             this.triggered = false;
+            this.triggerCount = 0;
             this.stopped = true;
             CircuitElm.app.setSimRunning(false);
         }
@@ -109,6 +129,8 @@ export class StopTriggerElm extends CircuitElm {
             arr[3] = "stopped";
         else
             arr[3] = "waiting";
+        if (!this.stopped && this.count > 1)
+            arr[3] += " (" + Math.min(this.triggerCount, this.count) + "/" + this.count + ")";
     }
 
     getEditInfo(n: number): EditInfo | null {
@@ -122,6 +144,10 @@ export class StopTriggerElm extends CircuitElm {
             return ei;
         }
         if (n === 2) return new EditInfo("Delay (s)", this.delay);
+        if (n === 3) {
+            const ei = new EditInfo("Required Count", this.count, -1, -1);
+            return ei.setDimensionless().setPositive();
+        }
         return null;
     }
 
@@ -129,5 +155,10 @@ export class StopTriggerElm extends CircuitElm {
         if (n === 0) this.triggerVoltage = ei.value;
         if (n === 1) this.type = ei.choice!.getSelectedIndex();
         if (n === 2) this.delay = ei.value;
+        if (n === 3) {
+            this.count = Math.trunc(ei.value);
+            if (this.count < 1)
+                this.count = 1;
+        }
     }
 }
