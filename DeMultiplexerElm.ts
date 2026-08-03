@@ -28,6 +28,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class DeMultiplexerElm extends ChipElm {
     static readonly FLAG_BUS_SELECT = 1 << 3;
+    static readonly FLAG_INVERT_OUTPUTS = 1 << 4;
 
     // outputMode: 0 = single input, individual outputs (original)
     //             1 = single input, bus output (bit distributor)
@@ -46,6 +47,7 @@ export class DeMultiplexerElm extends ChipElm {
 
     hasReset(): boolean { return false; }
     busSelect(): boolean { return this.hasFlag(DeMultiplexerElm.FLAG_BUS_SELECT); }
+    invertOutputs(): boolean { return this.hasFlag(DeMultiplexerElm.FLAG_INVERT_OUTPUTS); }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -225,23 +227,13 @@ export class DeMultiplexerElm extends ChipElm {
         const D = DeMultiplexerElm;
         const selectedValue = this.readSelectValue();
 
-        if (this.outputMode === D.OUTPUT_MODE_BUS_BUS) {
-            for (let g = 0; g < this.outputCount; g++)
-                for (let i = 0; i < this.dataBusWidth; i++)
-                    this.pins[this.outputPin + g * this.dataBusWidth + i].value = false;
-            for (let i = 0; i < this.dataBusWidth; i++)
-                this.pins[this.outputPin + selectedValue * this.dataBusWidth + i].value = this.pins[this.inputPin + i].value;
-
-        } else if (this.outputMode === D.OUTPUT_MODE_BUS_BIT) {
-            for (let i = 0; i < this.outputCount; i++)
-                this.pins[this.outputPin + i].value = false;
-            this.pins[this.outputPin + selectedValue].value = this.pins[this.inputPin].value;
-
-        } else {
-            for (let i = 0; i < this.outputCount; i++)
-                this.pins[this.outputPin + i].value = false;
-            this.pins[this.outputPin + selectedValue].value = this.pins[this.inputPin].value;
-        }
+        // set inactive outputs to idle level, then copy input (bus) to selected output (group)
+        const width = (this.outputMode === D.OUTPUT_MODE_BUS_BUS) ? this.dataBusWidth : 1;
+        const idle = this.invertOutputs();
+        for (let i = 0; i < this.outputCount * width; i++)
+            this.pins[this.outputPin + i].value = idle;
+        for (let i = 0; i < width; i++)
+            this.pins[this.outputPin + selectedValue * width + i].value = this.pins[this.inputPin + i].value;
     }
 
     getDumpType(): number { return 185; }
@@ -262,7 +254,9 @@ export class DeMultiplexerElm extends ChipElm {
         }
         if (n === 2)
             return EditInfo.createCheckbox("Bus Select", this.busSelect());
-        if (n === 3 && this.outputMode === D.OUTPUT_MODE_BUS_BUS)
+        if (n === 3)
+            return EditInfo.createCheckbox("Keep Inactive Outputs High (74139)", this.invertOutputs());
+        if (n === 4 && this.outputMode === D.OUTPUT_MODE_BUS_BUS)
             return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless();
         return null;
     }
@@ -288,6 +282,9 @@ export class DeMultiplexerElm extends ChipElm {
             this.setPoints();
         }
         if (n === 3) {
+            this.flags = ei.changeFlag(this.flags, D.FLAG_INVERT_OUTPUTS);
+        }
+        if (n === 4) {
             if (ei.value >= 2) {
                 this.dataBusWidth = Math.trunc(ei.value);
                 this.setupPins();
