@@ -23,7 +23,6 @@ import { ScopePopupMenu } from "./ScopePopupMenu";
 import { CircuitElm } from "./CircuitElm";
 import { CirSim } from "./CirSim";
 import { Graphics } from "./Graphics";
-import { Color } from "./Color";
 import { Rectangle } from "./Rectangle";
 
 export class ScopeManager {
@@ -32,7 +31,6 @@ export class ScopeManager {
 
     scopes: Scope[];
     scopeCount: number;
-    hoverScope: Scope | null;
     scopeColCount: number[];
     scopeSelected: number = -1;
     scopeMenuSelected: number = -1;
@@ -50,7 +48,6 @@ export class ScopeManager {
         this.scopes = new Array(20);
         this.scopeColCount = new Array(20).fill(0);
         this.scopeCount = 0;
-        this.hoverScope = null;
         this.init();
     }
 
@@ -80,60 +77,6 @@ export class ScopeManager {
             for (i = 0; i !== scopeElmArr.length; i++)
                 scopeElmArr[i].stepScope();
         }
-        if (this.hoverScope !== null)
-            this.hoverScope.timeStep();
-    }
-
-    drawHoverScope(g: Graphics, canvasWidth: number, canvasHeight: number): void {
-        const mouseElm = this.sim.mouse.getMouseElm();
-        if (mouseElm === null || mouseElm.isWireEquivalent() || mouseElm.isSwitchElm()) {
-            this.hoverScope = null;
-            return;
-        }
-        if (this.hoverScope === null || this.hoverScope.getElm() !== mouseElm) {
-            this.hoverScope = null;
-            if (!mouseElm.canViewInScope())
-                return;
-            for (let i = 0; i < this.scopeCount; i++)
-                if (this.scopes[i].showingElm(mouseElm))
-                    return;
-            const scopeElmArr = this.sim.scopeElmArr;
-            if (scopeElmArr !== null) {
-                for (let i = 0; i < scopeElmArr.length; i++)
-                    if (scopeElmArr[i].elmScope !== null && scopeElmArr[i].elmScope.showingElm(mouseElm))
-                        return;
-            }
-            this.hoverScope = new Scope(this.sim, this.sim.sim);
-            this.hoverScope.setElm(mouseElm);
-            this.hoverScope.showMax = true;
-            this.hoverScope.showRMS = true;
-            if (this.scopeCount > 0)
-                this.hoverScope.speed = this.scopes[this.scopeCount - 1].speed;
-        }
-        const w = CirSim.infoWidth * 2;
-        const h0 = Math.trunc(canvasHeight * this.scopeHeightFraction);
-        const h = h0;
-        const y = canvasHeight - h0 - h;
-        if (y < 0)
-            return;
-        if (canvasWidth < w)
-            return;
-        const scopeRect = new Rectangle(canvasWidth - w, y, w, h);
-        for (const ce of this.sim.elmList) {
-            const bb = (ce as CircuitElm).getBoundingBox();
-            const ex1 = this.sim.mouse.transformX(bb.x);
-            const ey1 = this.sim.mouse.transformY(bb.y);
-            const ex2 = this.sim.mouse.transformX(bb.x + bb.width);
-            const ey2 = this.sim.mouse.transformY(bb.y + bb.height);
-            const elmRect = new Rectangle(Math.min(ex1, ex2), Math.min(ey1, ey2),
-                    Math.abs(ex2 - ex1) + 1, Math.abs(ey2 - ey1) + 1);
-            if (scopeRect.intersects(elmRect))
-                return;
-        }
-        this.hoverScope.setRect(scopeRect);
-        g.setColor(this.sim.menus.printableCheckItem.getState() ? Color.white : Color.black);
-        g.fillRect(canvasWidth - w, y, w, h);
-        this.hoverScope.draw(g);
     }
 
     setupScopes(): void {
