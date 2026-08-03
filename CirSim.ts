@@ -206,6 +206,7 @@ export class CirSim {
         await import('./SliderDialog');
         await import('./ScopePropertiesDialog');
         await import('./ShortcutsDialog');
+        await import('./SubcircuitDialog');
         await import('./ExportAsUrlDialog');
         await import('./ExportAsImageDialog');
 
