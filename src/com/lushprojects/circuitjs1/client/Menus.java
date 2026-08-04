@@ -343,6 +343,7 @@ public class Menus {
 		"Add Ohmmeter", "OhmMeterElm",
 		"Add Ammeter", "AmmeterElm",
 		"Add Wattmeter", "WattmeterElm",
+		"Add WattmeterTrue", "WattmeterTrueElm",
 		"Add Test Point", "TestPointElm",
 		"Add Decimal Display", "DecimalDisplayElm",
 		"Add Instruction Display", "InstructionDisplayElm",
