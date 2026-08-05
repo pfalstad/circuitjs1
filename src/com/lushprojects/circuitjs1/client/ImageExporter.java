@@ -73,7 +73,7 @@ public class ImageExporter {
 	    var img = cv.toDataURL("image/png");
 	    var style = $doc.createElement("style");
 	    style.id = "circuit-print-style";
-	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { @page { size: auto; margin: 10mm; } #circuit-print-overlay { display: block !important; width: 100%; height: 100%; } #circuit-print-overlay img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; margin: 0 auto; page-break-inside: avoid; } }";
+	    style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } #circuit-print-overlay { display: none; } @media print { html, body { height: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 10mm; } #circuit-print-overlay { display: flex !important; align-items: center; justify-content: center; width: 100%; height: 100%; } #circuit-print-overlay img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; page-break-inside: avoid; } }";
 	    $doc.head.appendChild(style);
 	    var overlay = $doc.createElement("div");
 	    overlay.id = "circuit-print-overlay";
@@ -134,6 +134,11 @@ public class ImageExporter {
 		sim.jsInterface.callSVGRenderedHook(svg);
 	}
 
+	// max canvas dimensions we'll target; chosen to stay under the tightest
+	// common browser limit (Chrome caps canvas area at 16384*16384 = 268,435,456 px)
+	static final int MAX_CANVAS_DIM = 16000;
+	static final long MAX_CANVAS_AREA = 250_000_000L;
+
 	public Canvas getCircuitAsCanvas(int type) {
 	    	// create canvas to draw circuit into
 	    	Canvas cv = Canvas.createIfSupported();
@@ -142,8 +147,19 @@ public class ImageExporter {
 		// add some space on edges because bounds calculation is not perfect
 	    	int wmargin = 140;
 	    	int hmargin = 100;
-	    	int w = (bounds.width*2+wmargin) ;
-	    	int h = (bounds.height*2+hmargin) ;
+	    	double baseW = bounds.width+wmargin;
+	    	double baseH = bounds.height+hmargin;
+
+	    	// oversample by up to 2x for quality, but clamp so the canvas never
+	    	// exceeds browser size limits (which otherwise makes toDataURL() fail
+	    	// silently, producing an empty image)
+	    	double factor = 2;
+	    	factor = Math.min(factor, MAX_CANVAS_DIM/baseW);
+	    	factor = Math.min(factor, MAX_CANVAS_DIM/baseH);
+	    	factor = Math.min(factor, Math.sqrt(MAX_CANVAS_AREA/(baseW*baseH)));
+
+	    	int w = (int) Math.round(bounds.width*factor+wmargin) ;
+	    	int h = (int) Math.round(bounds.height*factor+hmargin) ;
 	    	cv.setCoordinateSpaceWidth(w);
 	    	cv.setCoordinateSpaceHeight(h);
 
