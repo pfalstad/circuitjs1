@@ -233,5 +233,4 @@ export class LampElm extends CircuitElm {
         return x === VAL_R;
     }
 
-    getXmlDumpType(): string { return "lamp"; }
 }

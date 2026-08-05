@@ -181,5 +181,4 @@ export class DiacElm extends CircuitElm {
         if (ei.value > 0 && n === 3) this.holdcurrent   = ei.value;
     }
 
-    getXmlDumpType(): string { return "diac"; }
 }

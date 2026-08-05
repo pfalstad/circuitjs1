@@ -283,5 +283,4 @@ export class TriodeElm extends CircuitElm {
         super.flipXY(xmy, count);
     }
 
-    getXmlDumpType(): string { return "tri"; }
 }

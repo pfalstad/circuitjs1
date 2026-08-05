@@ -265,5 +265,4 @@ export class AmmeterElm extends CircuitElm {
         if (n === 2) this.flags = ei.changeFlag(this.flags, AmmeterElm.FLAG_CIRCLE);
     }
 
-    getXmlDumpType(): string { return "amm"; }
 }

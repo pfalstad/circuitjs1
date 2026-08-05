@@ -62,5 +62,4 @@ export class AntennaElm extends RailElm {
 
     getEditInfo(n: number): null { return null; }
 
-    getXmlDumpType(): string { return "ant"; }
 }

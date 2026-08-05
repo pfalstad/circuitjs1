@@ -173,5 +173,4 @@ export class VaractorElm extends DiodeElm {
     getVoltageSourceCount(): number { return 1; }
     getInternalNodeCount(): number { return 1; }
 
-    getXmlDumpType(): string { return "var"; }
 }

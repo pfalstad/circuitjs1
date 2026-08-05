@@ -209,5 +209,4 @@ export class OTAElm extends CompositeElm {
     canFlipX(): boolean { return false; }
     canFlipY(): boolean { return false; }
 
-    getXmlDumpType(): string { return "ota"; }
 }

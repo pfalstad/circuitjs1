@@ -162,5 +162,4 @@ export class UnijunctionElm extends CompositeElm {
         super.flipXY(xmy, count);
     }
 
-    getXmlDumpType(): string { return "ujt"; }
 }

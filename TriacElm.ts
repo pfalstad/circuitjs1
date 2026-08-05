@@ -284,5 +284,4 @@ export class TriacElm extends CircuitElm {
     getVoltageDiff(): number { return this.nodes[this.mt2node].v - this.nodes[this.mt1node].v; }
     getCurrent(): number { return this.i2; }
 
-    getXmlDumpType(): string { return "triac"; }
 }

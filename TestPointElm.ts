@@ -385,6 +385,5 @@ export class TestPointElm extends CircuitElm {
             this.label = ei.textf ? ei.textf.value : (ei.text ?? "TP");
     }
 
-    getXmlDumpType(): string { return "tp"; }
     isTestPointElm(): boolean { return true; }
 }
