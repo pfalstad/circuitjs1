@@ -121,7 +121,8 @@ export abstract class CircuitElm implements Editable {
     noDiagonal: boolean = false;
 
     selected: boolean = false;
-    inComposite: boolean = false;
+    // the CompositeElm (subcircuit chip) this element is a child of, if any
+    parent: CircuitElm | null = null;
 
 
 //    abstract getDumpType(): number;

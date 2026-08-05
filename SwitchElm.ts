@@ -191,7 +191,7 @@ export class SwitchElm extends CircuitElm {
             this.current = 0;
         else if (this.resistance > 0)
             this.current = (this.nodes[0].v - this.nodes[1].v) / this.resistance;
-        else if (this.inComposite)
+        else if (this.parent != null)
             this.current = (this.nodes[0].v - this.nodes[1].v) / SwitchElm.COMPOSITE_CLOSED_R;
     }
 
@@ -235,14 +235,14 @@ export class SwitchElm extends CircuitElm {
     }
 
     getConnection(n1: number, n2: number): boolean { return this.position === 0; }
-    isWireEquivalent(): boolean { return this.position === 0 && !this.inComposite && this.resistance === 0; }
-    isRemovableWire(): boolean { return this.position === 0 && !this.inComposite && this.resistance === 0; }
+    isWireEquivalent(): boolean { return this.position === 0 && this.parent == null && this.resistance === 0; }
+    isRemovableWire(): boolean { return this.position === 0 && this.parent == null && this.resistance === 0; }
 
     stamp(): void {
         if (this.position === 0) {
             if (this.resistance > 0)
                 CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], this.resistance);
-            else if (this.inComposite)
+            else if (this.parent != null)
                 CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], SwitchElm.COMPOSITE_CLOSED_R);
         }
     }

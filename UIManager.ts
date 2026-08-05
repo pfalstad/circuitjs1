@@ -1396,6 +1396,18 @@ export class UIManager {
         return this.app.simRunning;
     }
 
+    // find the element in "list" to highlight for target: either target itself, or,
+    // if target is nested inside a subcircuit/composite not in list, walk up through
+    // its owning composites until we reach one that's in list (e.g. the subcircuit
+    // chip). Returns null if we walk off the top without finding target in list (e.g.
+    // it belongs to a different, currently unopened part of the circuit hierarchy).
+    findHighlightElm(target: CircuitElm, list: CircuitElm[] | null): CircuitElm | null {
+        let ce: CircuitElm | null = target;
+        while (ce != null && (list == null || !list.includes(ce)))
+            ce = ce.parent;
+        return ce;
+    }
+
     // ---- Drawing/Display ----
 
     updateCircuit(): void {
@@ -1423,8 +1435,11 @@ export class UIManager {
             perfmon.stopContext();
         }
 
-        if (this.app.stopElm != null && this.app.stopElm !== this.mouse.getMouseElm())
-            this.app.stopElm.setMouseElm(true);
+        // app.stopElm may be buried inside a subcircuit, so find the top-level element to highlight
+        const stopHighlightElm = this.app.stopElm == null ? null : this.findHighlightElm(this.app.stopElm, this.elmList);
+
+        if (stopHighlightElm != null && stopHighlightElm !== this.mouse.getMouseElm())
+            stopHighlightElm.setMouseElm(true);
 
         this.app.scopeManager.setupScopes();
 
@@ -1515,12 +1530,14 @@ export class UIManager {
             this.app.consoleExceptionOccurred = true;
         }
 
-        // draw stopElm on top of everything else so it's always visible
-        if (this.app.stopElm != null) {
-            if (this.menus.powerCheckItem.getState())
-                g.setColor(Color.gray);
-            this.app.stopElm.draw(g);
-        }
+        // draw stopHighlightElm on top of everything else so it's always visible
+        try {
+            if (stopHighlightElm != null) {
+                if (this.menus.powerCheckItem.getState())
+                    g.setColor(Color.gray);
+                stopHighlightElm.draw(g);
+            }
+        } catch (e) {}
         perfmon.stopContext();
 
         if (this.mouse.mouseMode !== MouseManager.MODE_DRAG_ROW &&
@@ -1600,8 +1617,8 @@ export class UIManager {
 
         perfmon.stopContext(); // graphics
 
-        if (this.app.stopElm != null && this.app.stopElm !== this.mouse.getMouseElm())
-            this.app.stopElm.setMouseElm(false);
+        if (stopHighlightElm != null && stopHighlightElm !== this.mouse.getMouseElm())
+            stopHighlightElm.setMouseElm(false);
 
         this.frames++;
 
