@@ -98,7 +98,7 @@ public abstract class CompositeElm extends CircuitElm {
 	    }
 	    if (newce instanceof GroundElm)
 		((GroundElm) newce).setOldStyle();
-	    newce.inComposite = true;
+	    newce.parent = this;
 	    compElmList.add(newce);
 	    nodeInfoList.add(nodeStr);
 	}
@@ -138,7 +138,7 @@ public abstract class CompositeElm extends CircuitElm {
 		((GroundElm) newce).setOldStyle();
 	    xml.parseChildElement(childElem);
 	    newce.undumpXml(xml);
-	    newce.inComposite = true;
+	    newce.parent = this;
 	    compElmList.add(newce);
 	    String nn = childElem.getAttribute("nn");
 	    nodeInfoList.add(nn != null ? nn : "");

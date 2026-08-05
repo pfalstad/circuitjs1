@@ -173,7 +173,7 @@ class SwitchElm extends CircuitElm {
 	    current = 0;
 	else if (resistance > 0)
 	    current = (volts[0] - volts[1]) / resistance;
-	else if (inComposite)
+	else if (parent != null)
 	    current = (volts[0] - volts[1]) / COMPOSITE_CLOSED_R;
     }
     
@@ -216,14 +216,14 @@ class SwitchElm extends CircuitElm {
 	}
     }
     boolean getConnection(int n1, int n2) { return position == 0; }
-    boolean isWireEquivalent() { return position == 0 && !inComposite && resistance == 0; }
-    boolean isRemovableWire() { return position == 0 && !inComposite && resistance == 0; }
+    boolean isWireEquivalent() { return position == 0 && parent == null && resistance == 0; }
+    boolean isRemovableWire() { return position == 0 && parent == null && resistance == 0; }
 
     void stamp() {
 	if (position == 0) {
 	    if (resistance > 0)
 		sim.stampResistor(nodes[0], nodes[1], resistance);
-	    else if (inComposite)
+	    else if (parent != null)
 		sim.stampResistor(nodes[0], nodes[1], COMPOSITE_CLOSED_R);
 	}
     }

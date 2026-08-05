@@ -540,6 +540,18 @@ public class UIManager {
     	return app.simRunning;
     }
 
+    // find the element in "list" to highlight for target: either target itself, or,
+    // if target is nested inside a subcircuit/composite not in list, walk up through
+    // its owning composites until we reach one that's in list (e.g. the subcircuit
+    // chip). Returns null if we walk off the top without finding target in list (e.g.
+    // it belongs to a different, currently unopened part of the circuit hierarchy).
+    CircuitElm findHighlightElm(CircuitElm target, Vector<CircuitElm> list) {
+        CircuitElm ce = target;
+        while (ce != null && (list == null || !list.contains(ce)))
+            ce = ce.parent;
+        return ce;
+    }
+
     // ---- Drawing/Display ----
 
     public void updateCircuit() {
@@ -567,8 +579,11 @@ public class UIManager {
             perfmon.stopContext();
         }
 
-        if (app.stopElm != null && app.stopElm != mouse.getMouseElm())
-            app.stopElm.setMouseElm(true);
+        // app.stopElm may be buried inside a subcircuit, so find the top-level element to highlight
+        CircuitElm stopHighlightElm = app.stopElm == null ? null : findHighlightElm(app.stopElm, elmList);
+
+        if (stopHighlightElm != null && stopHighlightElm != mouse.getMouseElm())
+            stopHighlightElm.setMouseElm(true);
 
         app.scopeManager.setupScopes();
 
@@ -658,12 +673,14 @@ public class UIManager {
             app.consoleExceptionOccurred = true;
         }
 
-        // draw stopElm on top of everything else so it's always visible
-        if (app.stopElm != null) {
-            if (menus.powerCheckItem.getState())
-                g.setColor(Color.gray);
-            app.stopElm.draw(g);
-        }
+        // draw stopHighlightElm on top of everything else so it's always visible
+        try {
+            if (stopHighlightElm != null) {
+                if (menus.powerCheckItem.getState())
+                    g.setColor(Color.gray);
+                stopHighlightElm.draw(g);
+            }
+        } catch (Exception e) {}
         perfmon.stopContext();
 
         if (mouse.mouseMode != MouseManager.MODE_DRAG_ROW && mouse.mouseMode != MouseManager.MODE_DRAG_COLUMN) {
@@ -738,8 +755,8 @@ public class UIManager {
 
         perfmon.stopContext(); // graphics
 
-        if (app.stopElm != null && app.stopElm != mouse.getMouseElm())
-            app.stopElm.setMouseElm(false);
+        if (stopHighlightElm != null && stopHighlightElm != mouse.getMouseElm())
+            stopHighlightElm.setMouseElm(false);
 
         frames++;
 

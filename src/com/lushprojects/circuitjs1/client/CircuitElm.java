@@ -99,7 +99,8 @@ public abstract class CircuitElm implements Editable {
     boolean noDiagonal;
     
     public boolean selected;
-    boolean inComposite;
+    // the CompositeElm (subcircuit chip) this element is a child of, if any
+    CircuitElm parent;
     
     
 //    abstract int getDumpType();
