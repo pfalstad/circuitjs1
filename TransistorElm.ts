@@ -350,8 +350,11 @@ export class TransistorElm extends CircuitElm {
     }
 
     doStep(): void {
-        let vbc = this.justLoaded ? this.lastvbc : this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
-        let vbe = this.justLoaded ? this.lastvbe : this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
+        // note: the saved lastvbe/lastvbc fields are named for volts[1]/volts[2] (collector/emitter),
+        // not for vbc/vbe directly, so they're cross-wired and pnp-scaled here to match doStep's
+        // vbc/vbe convention (see the constructor and undumpXml, which seed them the same way Java does)
+        let vbc = this.justLoaded ? this.pnp * this.lastvbe : this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
+        let vbe = this.justLoaded ? this.pnp * this.lastvbc : this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
         this.justLoaded = false;
         const notConverged = Math.abs(vbc - this.lastvbc) > .01 ||
             Math.abs(vbe - this.lastvbe) > .01;
