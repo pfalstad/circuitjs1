@@ -74,10 +74,10 @@ export class ImageExporter {
         style.id = "circuit-print-style";
         style.innerHTML = "@media print { body > *:not(#circuit-print-overlay) { display: none !important; } } " +
             "#circuit-print-overlay { display: none; } " +
-            "@media print { @page { size: auto; margin: 10mm; } " +
-            "#circuit-print-overlay { display: block !important; width: 100%; height: 100%; } " +
+            "@media print { html, body { height: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 10mm; } " +
+            "#circuit-print-overlay { display: flex !important; align-items: center; justify-content: center; width: 100%; height: 100%; } " +
             "#circuit-print-overlay img { max-width: 100%; max-height: 100%; width: auto; height: auto; " +
-            "display: block; margin: 0 auto; page-break-inside: avoid; } }";
+            "object-fit: contain; page-break-inside: avoid; } }";
         document.head.appendChild(style);
         const overlay = document.createElement("div");
         overlay.id = "circuit-print-overlay";
@@ -110,6 +110,11 @@ export class ImageExporter {
         this.sim.jsInterface.callSVGRenderedHook(svg);
     }
 
+    // max canvas dimensions we'll target; chosen to stay under the tightest
+    // common browser limit (Chrome caps canvas area at 16384*16384 = 268,435,456 px)
+    static readonly MAX_CANVAS_DIM = 16000;
+    static readonly MAX_CANVAS_AREA = 250_000_000;
+
     getCircuitAsCanvas(type: number): HTMLCanvasElement {
         const cv = document.createElement("canvas");
         const bounds = this.sim.getCircuitBounds();
@@ -117,8 +122,19 @@ export class ImageExporter {
         // add some space on edges because bounds calculation is not perfect
         const wmargin = 140;
         const hmargin = 100;
-        const w = bounds.width * 2 + wmargin;
-        const h = bounds.height * 2 + hmargin;
+        const baseW = bounds.width + wmargin;
+        const baseH = bounds.height + hmargin;
+
+        // oversample by up to 2x for quality, but clamp so the canvas never
+        // exceeds browser size limits (which otherwise makes toDataURL() fail
+        // silently, producing an empty image)
+        let factor = 2;
+        factor = Math.min(factor, ImageExporter.MAX_CANVAS_DIM / baseW);
+        factor = Math.min(factor, ImageExporter.MAX_CANVAS_DIM / baseH);
+        factor = Math.min(factor, Math.sqrt(ImageExporter.MAX_CANVAS_AREA / (baseW * baseH)));
+
+        const w = Math.round(bounds.width * factor + wmargin);
+        const h = Math.round(bounds.height * factor + hmargin);
         cv.width = w;
         cv.height = h;
 
