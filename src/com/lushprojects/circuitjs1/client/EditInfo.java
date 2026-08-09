@@ -106,4 +106,8 @@ class EditInfo {
 	static String makeLink(String file, String text) {
             return "<a href=\"" + file + "\" target=\"_blank\">" + Locale.LS(text) + "</a>";
 	}
+	
+	void setCheckbox(boolean flag) {
+		checkbox.setState(flag);
+	}
 }

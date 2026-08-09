@@ -19,13 +19,17 @@
 
 package com.lushprojects.circuitjs1.client;
 
-    import com.google.gwt.xml.client.Element;
+import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 
 abstract class GateElm extends CircuitElm {
 	final int FLAG_SMALL = 1<<0;
 	final int FLAG_SCHMITT = 1<<1;
 	final int FLAG_INVERT_INPUTS = 1<<2;
+	final int FLAG_DEMORGAN = 1<<3;
+	EditInfo Invert_Inputs;
+	EditInfo DeMorgan;
+
 	int inputCount = 2;
 	boolean lastOutput;
 	int getDragLength() { return 96; }
@@ -145,7 +149,7 @@ abstract class GateElm extends CircuitElm {
 	    inPosts = new Point[inputCount];
 	    inGates = new Point[inputCount];
 	    int i0 = -inputCount/2;
-	    if (hasFlag(FLAG_INVERT_INPUTS))
+	    if (hasFlag(FLAG_INVERT_INPUTS) || hasFlag(FLAG_DEMORGAN))
 		icircles = new Point[inputCount];
 	    else
 		icircles = null;
@@ -211,7 +215,7 @@ abstract class GateElm extends CircuitElm {
 	    if (linePoints != null)
 		for (i = 0; i != linePoints.length-1; i++)
 		    drawThickLine(g, linePoints[i], linePoints[i+1]);
-	    if (isInverting())
+	    if (pcircle != null && (isInverting() ^ hasFlag(FLAG_DEMORGAN)))
 		drawThickCircle(g, pcircle.x, pcircle.y, 3);
 	    if (icircles != null)
 		for (i = 0; i != inputCount; i++)
@@ -235,7 +239,7 @@ abstract class GateElm extends CircuitElm {
 	    arr[1] = "Vout = " + getVoltageText(volts[inputCount]);
 	    arr[2] = "Iout = " + getCurrentText(getCurrent());
 	    if (propagationDelay > 0)
-		arr[3] = "delay = " + getUnitText(propagationDelay, "s");
+			arr[3] = "delay = " + getUnitText(propagationDelay, "s");
 	}
 	void setHighVoltage(double hv) { highVoltage = hv; }
 
@@ -312,9 +316,17 @@ abstract class GateElm extends CircuitElm {
 	    if (n == 2)
 		return EditInfo.createCheckbox("Schmitt Inputs", hasSchmittInputs());
 	    if (n == 3)
-		return EditInfo.createCheckbox("Invert Inputs", hasFlag(FLAG_INVERT_INPUTS));
+		{
+			Invert_Inputs = EditInfo.createCheckbox("Invert Inputs", hasFlag(FLAG_INVERT_INPUTS));
+			return Invert_Inputs;
+		}
 	    if (n == 4)
 		return new EditInfo("Propagation Delay (s)", propagationDelay, 0, 0);
+	    if (n == 5)
+		{
+			DeMorgan = EditInfo.createCheckbox("DeMorgan's Symbol", hasFlag(FLAG_DEMORGAN));
+			return DeMorgan;
+		}
 	    return null;
 	}
 
@@ -339,11 +351,30 @@ abstract class GateElm extends CircuitElm {
 		setPoints();
 	    }
 	    if (n == 3) {
-		flags = ei.changeFlag(flags, FLAG_INVERT_INPUTS);
-		setPoints();
+			if (ei.checkbox.getState())
+			{
+//	Invert_Inputs (3) and DeMorgan gates (5) are mutually exclusive
+				flags |= FLAG_INVERT_INPUTS;
+				flags &= ~FLAG_DEMORGAN;
+				DeMorgan.setCheckbox(false);
+			}
+			else
+				flags &= ~FLAG_INVERT_INPUTS;
+			setPoints();
 	    }
 	    if (n == 4)
-		propagationDelay = ei.value;
+			propagationDelay = ei.value;
+	    if (n == 5) {
+			if (ei.checkbox.getState())
+			{
+				flags |= FLAG_DEMORGAN;
+				flags &= ~FLAG_INVERT_INPUTS;
+				Invert_Inputs.setCheckbox(false);
+			}
+			else
+				flags &= ~FLAG_DEMORGAN;
+			setPoints();
+	    }
 	}
 	// there is no current path through the gate inputs, but there
 	// is an indirect path through the output to ground.

@@ -30,6 +30,22 @@ package com.lushprojects.circuitjs1.client;
 	void drawGatePolygon(Graphics g) {
 	    g.setLineWidth(3.0);
             g.context.beginPath();
+		if (hasFlag(FLAG_DEMORGAN))
+		{
+			g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
+			g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[1], gatePoly.ypoints[1],
+				gatePoly.xpoints[2], gatePoly.ypoints[2],
+				gatePoly.xpoints[3], gatePoly.ypoints[3]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[3], gatePoly.ypoints[3],
+				gatePoly.xpoints[4], gatePoly.ypoints[4],
+				gatePoly.xpoints[5], gatePoly.ypoints[5]);
+			g.context.lineTo(gatePoly.xpoints[6], gatePoly.ypoints[6]);
+		}
+		else
+		{
             g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
             g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
             g.context.bezierCurveTo(
@@ -45,9 +61,10 @@ package com.lushprojects.circuitjs1.client;
         	    gatePoly.xpoints[7], gatePoly.ypoints[7],
         	    gatePoly.xpoints[7], gatePoly.ypoints[7],
         	    gatePoly.xpoints[0], gatePoly.ypoints[0]);
+		}
             g.context.closePath();
             
-            if (this instanceof XorGateElm) {
+		if (this instanceof XorGateElm || this instanceof XnorGateElm) {
                 g.context.moveTo(gatePoly.xpoints[8], gatePoly.ypoints[8]);
                 g.context.bezierCurveTo(
             	    gatePoly.xpoints[10], gatePoly.ypoints[10],
@@ -63,11 +80,11 @@ package com.lushprojects.circuitjs1.client;
 	    if (useEuroGates())
 		return 0;
 	    if (inputCount > 3 && (ix == 0 || ix == inputCount-1))
-		return -.05;
+			return -.15;
 	    if (inputCount > 7 && (ix == 1 || ix == inputCount-2))
-		return -.05;
+			return -.25;
 	    if (inputCount >= 12 && (ix == 2 || ix == inputCount-3))
-		return -.05;
+			return -.35;
 	    return 0;
 	}
 
@@ -80,27 +97,34 @@ package com.lushprojects.circuitjs1.client;
 	    } else {
 		// 0 - top left, 1 - start of top curve, 2 - control point for top curve
 		// 3 - right, 4 - control point for bottom curve, 5 - start of bottom curve, 6 - bottom right, 7 - control point for left curve
-//		if (this instanceof XorGateElm)
-//		    linePoints = new Point[5];
-		
 		Point triPoints[] = newPointArray(11);
-		interpPoint2(lead1, lead2, triPoints[0], triPoints[6], -.05, hs2);
+			
+			if (hasFlag(FLAG_DEMORGAN))
+			{
+				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
+				interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .5, hs2);
+				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], 1, hs2);
+				interpPoint(lead1, lead2, triPoints[3], 1);
+			}
+			else
+			{
+				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
 		interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .3, hs2);
 		triPoints[3] = lead2;
-		interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .7, hs2*.81);
-		interpPoint(lead1, lead2, triPoints[7], .08); // was .15
-		
-		if (this instanceof XorGateElm) {
+				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .733, hs2*.85);
+				interpPoint(lead1, lead2, triPoints[7], .105); // was .15
+			}
+			if (this instanceof XorGateElm || this instanceof XnorGateElm) {
 		    double ww2 = (ww == 0) ? dn*2 : ww*2;
-		    interpPoint2(lead1, lead2, triPoints[8], triPoints[9], -.05-5/ww2, hs2); 
-		    interpPoint(lead1, lead2, triPoints[10], .08-5/ww2);
+				interpPoint2(lead1, lead2, triPoints[8], triPoints[9], -.05-8/ww2, hs2); 
+				interpPoint(lead1, lead2, triPoints[10], .1-8/ww2);
 		}
-
 		gatePoly = createPolygon(triPoints);
 	    }
-	    if (isInverting()) {
-		pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
-		lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
+		
+	    if (isInverting() ^ hasFlag(FLAG_DEMORGAN)) {
+				pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
+				lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
 	    }
 	}
 

@@ -37,20 +37,38 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	void drawGatePolygon(Graphics g) {
 	    g.setLineWidth(3.0);
 	    g.context.beginPath();
-	    g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
-	    double ang1 = -Math.PI/2 * sign(dx);
-	    double ang2 =  Math.PI/2 * sign(dx);
-	    boolean ccw = false;
-	    double rx = ww;
-	    double ry = hs2;
-	    if (dx == 0) {
-		ang1 = (dy > 0) ? 0 : Math.PI;
-		ang2 = (dy > 0) ? Math.PI : 0;
-		rx = hs2;
-		ry = ww;
-	    }
-	    ellipse(g.context, gatePoly.xpoints[2], gatePoly.ypoints[2], rx, ry, 0, ang1, ang2, ccw);
-	    g.context.lineTo(gatePoly.xpoints[4], gatePoly.ypoints[4]);
+		if (hasFlag(FLAG_DEMORGAN))
+		{
+			g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
+			g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[2], gatePoly.ypoints[2],
+				gatePoly.xpoints[2], gatePoly.ypoints[2],
+				gatePoly.xpoints[3], gatePoly.ypoints[3]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[4], gatePoly.ypoints[4],
+				gatePoly.xpoints[4], gatePoly.ypoints[4],
+				gatePoly.xpoints[5], gatePoly.ypoints[5]);
+			g.context.lineTo(gatePoly.xpoints[6], gatePoly.ypoints[6]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[7], gatePoly.ypoints[7],
+				gatePoly.xpoints[7], gatePoly.ypoints[7],
+				gatePoly.xpoints[0], gatePoly.ypoints[0]);
+		}
+		else
+		{
+			g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
+			g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[1], gatePoly.ypoints[1],
+				gatePoly.xpoints[2], gatePoly.ypoints[2],
+				gatePoly.xpoints[3], gatePoly.ypoints[3]);
+			g.context.bezierCurveTo(
+				gatePoly.xpoints[3], gatePoly.ypoints[3],
+				gatePoly.xpoints[4], gatePoly.ypoints[4],
+				gatePoly.xpoints[5], gatePoly.ypoints[5]);
+			g.context.lineTo(gatePoly.xpoints[6], gatePoly.ypoints[6]);
+		}
 	    g.context.closePath();
 	    g.context.stroke();
 	    g.setLineWidth(1.0);
@@ -62,17 +80,29 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	    if (useEuroGates()) {
 		createEuroGatePolygon();
 	    } else {
-		// 0=topleft, 1 = top of curve, 2 = center, 3=bottom of curve,
-		// 4 = bottom left
-		Point triPoints[] = newPointArray(5);
-		interpPoint2(lead1, lead2, triPoints[0], triPoints[4], 0, hs2);
-		interpPoint2(lead1, lead2, triPoints[1], triPoints[3], .5, hs2);
-		interpPoint(lead1, lead2, triPoints[2], .5);
+			Point triPoints[] = newPointArray(11);
+			// 0 = top left, 1 = top of curve, 2 = bezier, 3 = center,
+			// 4 = bezier, 5 = bottom of curve, 6 = bottom left
+			if (hasFlag(FLAG_DEMORGAN))
+			{
+				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
+				interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .3, hs2);
+				triPoints[3] = lead2;
+				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .733, hs2*.85);
+				interpPoint(lead1, lead2, triPoints[7], .105);
+			}
+			else
+			{
+				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
+				interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .5, hs2);
+				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], 1, hs2);
+				interpPoint(lead1, lead2, triPoints[3], 1);
+			}
 		gatePoly = createPolygon(triPoints);
 	    }
-	    if (isInverting()) {
-		pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
-		lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
+	    if (isInverting() ^ hasFlag(FLAG_DEMORGAN)) {
+			pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
+			lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
 	    }
 	}
 	String getGateName() { return "AND gate"; }
