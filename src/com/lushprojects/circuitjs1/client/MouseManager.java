@@ -670,8 +670,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    }
 	sim.menus.cutItem.setEnabled(selCount > 0);
 	sim.menus.copyItem.setEnabled(selCount > 0);
-	sim.menus.rotateItem.setEnabled(canFlipXY && canFlipY);
-	sim.menus.mirrorItem.setEnabled(canFlipX);
+	sim.menus.rotateCCWItem.setEnabled(canFlipXY && canFlipY);
+	sim.menus.rotateCWItem.setEnabled(canFlipXY && canFlipY);
+	sim.menus.mirrorXItem.setEnabled(canFlipX);
+	sim.menus.mirrorYItem.setEnabled(canFlipY);
     }
 
     void setMouseElm(CircuitElm ce) {
@@ -967,8 +969,10 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 			    if (!elm.canFlipXY())
 				canFlipXY = false;
 			}
-    	    	    sim.menus.elmRotateMenuItem.setEnabled(canFlipXY && canFlipY);
-    	    	    sim.menus.elmMirrorMenuItem.setEnabled(canFlipX);
+    	    	    sim.menus.elmRotateCCWMenuItem.setEnabled(canFlipXY && canFlipY);
+    	    	    sim.menus.elmRotateCWMenuItem.setEnabled(canFlipXY && canFlipY);
+    	    	    sim.menus.elmMirrorXMenuItem.setEnabled(canFlipX);
+    	    	    sim.menus.elmMirrorYMenuItem.setEnabled(canFlipY);
     	    	    ui.contextPanel=new PopupPanel(true);
     	    	    ui.contextPanel.add(sim.menus.elmMenuBar);
     	    	    showContextPanel(menuClientX, menuClientY);

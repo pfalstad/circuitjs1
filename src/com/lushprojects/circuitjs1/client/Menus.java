@@ -45,7 +45,7 @@ public class Menus {
     MenuItem importFromLocalFileItem, importFromTextItem, exportAsUrlItem, exportAsLocalFileItem, exportAsTextItem,
             printItem, recoverItem, saveFileItem;
     MenuItem importFromDropboxItem;
-    MenuItem undoItem, redoItem, cutItem, copyItem, pasteItem, selectAllItem, optionsItem, rotateItem, mirrorItem;
+    MenuItem undoItem, redoItem, cutItem, copyItem, pasteItem, selectAllItem, optionsItem, rotateCCWItem, rotateCWItem, mirrorXItem, mirrorYItem;
     MenuBar optionsMenuBar;
     CheckboxMenuItem dotsCheckItem;
     CheckboxMenuItem voltsCheckItem;
@@ -71,7 +71,7 @@ public class Menus {
     MenuItem elmAddScopeMenuItem;
     MenuItem elmSplitMenuItem;
     MenuItem elmSliderMenuItem;
-    MenuItem elmRotateMenuItem, elmMirrorMenuItem;
+    MenuItem elmRotateCCWMenuItem, elmRotateCWMenuItem, elmMirrorXMenuItem, elmMirrorYMenuItem;
     MenuItem elmSwapMenuItem;
     MenuItem stackAllItem;
     MenuItem unstackAllItem;
@@ -166,8 +166,10 @@ public class Menus {
 	m.addItem(menuItemWithShortcut("zoom-11", "Zoom 100%", "0", new MyCommand("zoom", "zoom100")));
 	m.addItem(menuItemWithShortcut("zoom-in", "Zoom In", "+", new MyCommand("zoom", "zoomin")));
 	m.addItem(menuItemWithShortcut("zoom-out", "Zoom Out", "-", new MyCommand("zoom", "zoomout")));
-	m.addItem(rotateItem = iconMenuItem("cw", "Rotate", new MyCommand("edit", "rotate")));
-	m.addItem(mirrorItem = iconMenuItem("flip-x", "Mirror", new MyCommand("edit", "mirror")));
+	m.addItem(mirrorXItem = iconMenuItem("flip-x", "Mirror X", new MyCommand("edit", "mirrorX")));
+	m.addItem(mirrorYItem = iconMenuItem("flip-y", "Mirror Y", new MyCommand("edit", "mirrorY")));
+	m.addItem(rotateCCWItem = iconMenuItem("ccw", "Rotate CCW", new MyCommand("edit", "rotateCCW")));
+	m.addItem(rotateCWItem = iconMenuItem("cw", "Rotate CW", new MyCommand("edit", "rotateCW")));
 	menuBar.addItem(Locale.LS("Edit"),m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
@@ -261,8 +263,10 @@ public class Menus {
 	elmMenuBar.addItem(elmDeleteMenuItem = new MenuItem(Locale.LS("Delete"),new MyCommand("elm","delete")));
 	elmMenuBar.addItem(                    new MenuItem(Locale.LS("Duplicate"),new MyCommand("elm","duplicate")));
 	elmMenuBar.addItem(elmSwapMenuItem = new MenuItem(Locale.LS("Swap Terminals"),new MyCommand("elm","flip")));
-	elmMenuBar.addItem(elmRotateMenuItem =  new MenuItem(Locale.LS("Rotate"),new MyCommand("elm","rotate")));
-	elmMenuBar.addItem(elmMirrorMenuItem =  new MenuItem(Locale.LS("Mirror"),new MyCommand("elm","mirror")));
+	elmMenuBar.addItem(elmMirrorXMenuItem =  new MenuItem(Locale.LS("Mirror X"),new MyCommand("elm","mirrorX")));
+	elmMenuBar.addItem(elmMirrorYMenuItem =  new MenuItem(Locale.LS("Mirror Y"),new MyCommand("elm","mirrorY")));
+	elmMenuBar.addItem(elmRotateCCWMenuItem =  new MenuItem(Locale.LS("Rotate CCW"),new MyCommand("elm","rotateCCW")));
+	elmMenuBar.addItem(elmRotateCWMenuItem =  new MenuItem(Locale.LS("Rotate CW"),new MyCommand("elm","rotateCW")));
 	elmMenuBar.addItem(elmSplitMenuItem = menuItemWithShortcut("", "Split Wire Manually", Locale.LS(ctrlMetaKey + "click"), new MyCommand("elm","split")));
 	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem(Locale.LS("Sliders..."),new MyCommand("elm","sliders")));
     }

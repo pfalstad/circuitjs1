@@ -130,13 +130,21 @@ public class CommandManager {
     		app.undoManager.pushUndo();
     		app.centerCircuit();
     	}
-    	if (item=="rotate") {
+    	if (item=="rotateCCW") {
 	    app.undoManager.pushUndo();
-	    rotate();
+	    rotateCCW();
     	}
-    	if (item=="mirror") {
+    	if (item=="rotateCW") {
 	    app.undoManager.pushUndo();
-	    mirror();
+	    rotateCW();
+    	}
+    	if (item=="mirrorX") {
+	    app.undoManager.pushUndo();
+	    mirrorX();
+    	}
+    	if (item=="mirrorY") {
+	    app.undoManager.pushUndo();
+	    mirrorY();
     	}
     	if (item=="convertWires") {
 	    app.undoManager.pushUndo();
@@ -404,8 +412,8 @@ public class CommandManager {
 	return fi;
     }
 
-    // mirror horizontally
-    void mirror() {
+    // mirror horizontally (flip left-right)
+    void mirrorX() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cx*2;
 	for (CircuitElm ce : app.elmList) {
@@ -415,8 +423,19 @@ public class CommandManager {
 	app.needAnalyze();
     }
 
-    // rotate 90 degrees: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
-    void rotate() {
+    // mirror vertically (flip top-bottom)
+    void mirrorY() {
+	FlipInfo fi = prepareFlip();
+	int center2 = fi.cy*2;
+	for (CircuitElm ce : app.elmList) {
+	    if (ce.isSelected() || fi.count == 0)
+		ce.flipY(center2, fi.count);
+    	}
+	app.needAnalyze();
+    }
+
+    // rotate 90 degrees counterclockwise: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
+    void rotateCCW() {
 	FlipInfo fi = prepareFlip();
 	int center2 = fi.cy*2;
 	int xmy = app.snapGrid(fi.cx-fi.cy);
@@ -424,6 +443,20 @@ public class CommandManager {
 	    if (ce.isSelected() || fi.count == 0) {
 		ce.flipXY(xmy, fi.count);
 		ce.flipY(center2, fi.count);
+	    }
+    	}
+	app.needAnalyze();
+    }
+
+    // rotate 90 degrees clockwise: same two flips as rotateCCW(), in the opposite order, giving the opposite rotation direction
+    void rotateCW() {
+	FlipInfo fi = prepareFlip();
+	int center2 = fi.cy*2;
+	int xmy = app.snapGrid(fi.cx-fi.cy);
+	for (CircuitElm ce : app.elmList) {
+	    if (ce.isSelected() || fi.count == 0) {
+		ce.flipY(center2, fi.count);
+		ce.flipXY(xmy, fi.count);
 	    }
     	}
 	app.needAnalyze();
