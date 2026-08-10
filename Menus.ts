@@ -215,8 +215,10 @@ export class Menus {
     pasteItem                = new MenuItem();
     selectAllItem            = new MenuItem();
     optionsItem              = new MenuItem();
-    rotateItem                = new MenuItem();
-    mirrorItem                = new MenuItem();
+    rotateCCWItem             = new MenuItem();
+    rotateCWItem              = new MenuItem();
+    mirrorXItem               = new MenuItem();
+    mirrorYItem               = new MenuItem();
     stackAllItem             = new MenuItem();
     unstackAllItem           = new MenuItem();
     combineAllItem           = new MenuItem();
@@ -230,8 +232,10 @@ export class Menus {
     elmAddScopeMenuItem      = new MenuItem();
     elmSplitMenuItem         = new MenuItem();
     elmSliderMenuItem        = new MenuItem();
-    elmRotateMenuItem        = new MenuItem();
-    elmMirrorMenuItem        = new MenuItem();
+    elmRotateCCWMenuItem     = new MenuItem();
+    elmRotateCWMenuItem      = new MenuItem();
+    elmMirrorXMenuItem       = new MenuItem();
+    elmMirrorYMenuItem       = new MenuItem();
     elmSwapMenuItem          = new MenuItem();
     scopeRemovePlotMenuItem  = new MenuItem();
     scopeSelectYMenuItem     = new MenuItem();
@@ -352,8 +356,8 @@ export class Menus {
 
         // ---- Edit menu ----
         const editMenu = new Menu(this.app);
-        editMenu.addMenuItem(this.undoItem,      shortcutHtml("ccw",        "Undo",       Locale.LS(ck + "Z")), "edit", "undo");
-        editMenu.addMenuItem(this.redoItem,      shortcutHtml("cw",         "Redo",       Locale.LS(ck + "Y")), "edit", "redo");
+        editMenu.addMenuItem(this.undoItem,      shortcutHtml("reply",      "Undo",       Locale.LS(ck + "Z")), "edit", "undo");
+        editMenu.addMenuItem(this.redoItem,      shortcutHtml("forward",    "Redo",       Locale.LS(ck + "Y")), "edit", "redo");
         editMenu.addSeparator();
         editMenu.addMenuItem(this.cutItem,       shortcutHtml("scissors",   "Cut",        Locale.LS(ck + "X")), "edit", "cut");
         editMenu.addMenuItem(this.copyItem,      shortcutHtml("copy",       "Copy",       Locale.LS(ck + "C")), "edit", "copy");
@@ -367,8 +371,10 @@ export class Menus {
         editMenu.addCommand(shortcutHtml("zoom-11",  "Zoom 100%", "0"), "zoom", "zoom100");
         editMenu.addCommand(shortcutHtml("zoom-in",  "Zoom In",   "+"), "zoom", "zoomin");
         editMenu.addCommand(shortcutHtml("zoom-out", "Zoom Out",  "-"), "zoom", "zoomout");
-        editMenu.addMenuItem(this.rotateItem, iconHtml("cw",     "Rotate"), "edit", "rotate");
-        editMenu.addMenuItem(this.mirrorItem, iconHtml("flip-x", "Mirror"), "edit", "mirror");
+        editMenu.addMenuItem(this.mirrorXItem,    iconHtml("flip-x", "Mirror X"),    "edit", "mirrorX");
+        editMenu.addMenuItem(this.mirrorYItem,    iconHtml("flip-y", "Mirror Y"),    "edit", "mirrorY");
+        editMenu.addMenuItem(this.rotateCCWItem,  iconHtml("ccw",    "Rotate CCW"),  "edit", "rotateCCW");
+        editMenu.addMenuItem(this.rotateCWItem,   iconHtml("cw",     "Rotate CW"),   "edit", "rotateCW");
 
         // ---- Draw menu + right-click popup (same content, built twice) ----
         const drawMenu = new Menu(this.app);
@@ -777,8 +783,10 @@ export class Menus {
         m.addMenuItem(this.elmDeleteMenuItem,     Locale.LS("Delete"),                   "elm", "delete");
         m.addCommand(                             Locale.LS("Duplicate"),                "elm", "duplicate");
         m.addMenuItem(this.elmSwapMenuItem,       Locale.LS("Swap Terminals"),           "elm", "flip");
-        m.addMenuItem(this.elmRotateMenuItem,     Locale.LS("Rotate"),                   "elm", "rotate");
-        m.addMenuItem(this.elmMirrorMenuItem,     Locale.LS("Mirror"),                   "elm", "mirror");
+        m.addMenuItem(this.elmMirrorXMenuItem,    Locale.LS("Mirror X"),                 "elm", "mirrorX");
+        m.addMenuItem(this.elmMirrorYMenuItem,    Locale.LS("Mirror Y"),                 "elm", "mirrorY");
+        m.addMenuItem(this.elmRotateCCWMenuItem,  Locale.LS("Rotate CCW"),               "elm", "rotateCCW");
+        m.addMenuItem(this.elmRotateCWMenuItem,   Locale.LS("Rotate CW"),                "elm", "rotateCW");
         m.addMenuItem(this.elmSplitMenuItem,      shortcutHtml("", "Split Wire Manually", Locale.LS(this.ctrlMetaKey + "click")), "elm", "split");
         m.addMenuItem(this.elmSliderMenuItem,     Locale.LS("Sliders..."),               "elm", "sliders");
     }

@@ -153,13 +153,21 @@ export class CommandManager {
             this.app.undoManager?.pushUndo();
             this.app.centerCircuit();
         }
-        if (item == "rotate") {
+        if (item == "rotateCCW") {
             this.app.undoManager?.pushUndo();
-            this.rotate();
+            this.rotateCCW();
         }
-        if (item == "mirror") {
+        if (item == "rotateCW") {
             this.app.undoManager?.pushUndo();
-            this.mirror();
+            this.rotateCW();
+        }
+        if (item == "mirrorX") {
+            this.app.undoManager?.pushUndo();
+            this.mirrorX();
+        }
+        if (item == "mirrorY") {
+            this.app.undoManager?.pushUndo();
+            this.mirrorY();
         }
         if (item == "convertWires") {
             this.app.undoManager?.pushUndo();
@@ -422,8 +430,8 @@ export class CommandManager {
         return { cx: (minx + maxx) / 2, cy: (miny + maxy) / 2, count };
     }
 
-    // mirror horizontally
-    mirror(): void {
+    // mirror horizontally (flip left-right)
+    mirrorX(): void {
         const fi = this.prepareFlip();
         const center2 = fi.cx * 2;
         for (const ce of this.app.elmList)
@@ -432,8 +440,18 @@ export class CommandManager {
         this.app.needAnalyze();
     }
 
-    // rotate 90 degrees: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
-    rotate(): void {
+    // mirror vertically (flip top-bottom)
+    mirrorY(): void {
+        const fi = this.prepareFlip();
+        const center2 = fi.cy * 2;
+        for (const ce of this.app.elmList)
+            if (ce.isSelected() || fi.count == 0)
+                ce.flipY(center2, fi.count);
+        this.app.needAnalyze();
+    }
+
+    // rotate 90 degrees counterclockwise: a diagonal flip followed by a vertical flip cancels out the mirroring and leaves a pure rotation
+    rotateCCW(): void {
         const fi = this.prepareFlip();
         const center2 = fi.cy * 2;
         const xmy = this.app.snapGrid(fi.cx - fi.cy);
@@ -441,6 +459,20 @@ export class CommandManager {
             if (ce.isSelected() || fi.count == 0) {
                 ce.flipXY(xmy, fi.count);
                 ce.flipY(center2, fi.count);
+            }
+        }
+        this.app.needAnalyze();
+    }
+
+    // rotate 90 degrees clockwise: same two flips as rotateCCW(), in the opposite order, giving the opposite rotation direction
+    rotateCW(): void {
+        const fi = this.prepareFlip();
+        const center2 = fi.cy * 2;
+        const xmy = this.app.snapGrid(fi.cx - fi.cy);
+        for (const ce of this.app.elmList) {
+            if (ce.isSelected() || fi.count == 0) {
+                ce.flipY(center2, fi.count);
+                ce.flipXY(xmy, fi.count);
             }
         }
         this.app.needAnalyze();

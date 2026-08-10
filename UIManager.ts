@@ -281,8 +281,8 @@ class Toolbar {
         style.overflow = 'hidden';
         style.boxSizing = 'border-box';
 
-        this.element.appendChild(this.createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
-        this.element.appendChild(this.createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
+        this.element.appendChild(this.createIconButton("reply",   "Undo", new MyCommand("edit", "undo")));
+        this.element.appendChild(this.createIconButton("forward", "Redo", new MyCommand("edit", "redo")));
         this.element.appendChild(this.createIconButton("scissors", "Cut", new MyCommand("edit", "cut")));
         this.element.appendChild(this.createIconButton("copy", "Copy", new MyCommand("edit", "copy")));
         this.element.appendChild(this.createIconButton("paste", "Paste", new MyCommand("edit", "paste")));

@@ -640,8 +640,10 @@ export class MouseManager {
 	}
 	this.sim.menus.cutItem.setEnabled(selCount > 0);
 	this.sim.menus.copyItem.setEnabled(selCount > 0);
-	this.sim.menus.rotateItem.setEnabled(canFlipXY && canFlipY);
-	this.sim.menus.mirrorItem.setEnabled(canFlipX);
+	this.sim.menus.rotateCCWItem.setEnabled(canFlipXY && canFlipY);
+	this.sim.menus.rotateCWItem.setEnabled(canFlipXY && canFlipY);
+	this.sim.menus.mirrorXItem.setEnabled(canFlipX);
+	this.sim.menus.mirrorYItem.setEnabled(canFlipY);
     }
 
     setMouseElm(ce: CircuitElm | null): void {
@@ -929,8 +931,10 @@ export class MouseManager {
 			if (!elm.canFlipXY()) canFlipXY = false;
 		    }
 		}
-		this.sim.menus.elmRotateMenuItem.setEnabled(canFlipXY && canFlipY);
-		this.sim.menus.elmMirrorMenuItem.setEnabled(canFlipX);
+		this.sim.menus.elmRotateCCWMenuItem.setEnabled(canFlipXY && canFlipY);
+		this.sim.menus.elmRotateCWMenuItem.setEnabled(canFlipXY && canFlipY);
+		this.sim.menus.elmMirrorXMenuItem.setEnabled(canFlipX);
+		this.sim.menus.elmMirrorYMenuItem.setEnabled(canFlipY);
 		this.ui.showContextPanel(this.sim.menus.elmMenuBar, this.menuClientX, this.menuClientY);
 	    } else {
 		const s = this.mouseElm as any; // ScopeElm
