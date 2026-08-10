@@ -36,8 +36,8 @@ public class Toolbar extends FlowPanel {
         style.setDisplay(Style.Display.FLEX);
 	style.setProperty("alignItems", "center");
 
-	add(createIconButton("ccw", "Undo", new MyCommand("edit", "undo")));
-	add(createIconButton("cw",  "Redo", new MyCommand("edit", "redo")));
+	add(createIconButton("reply",   "Undo", new MyCommand("edit", "undo")));
+	add(createIconButton("forward", "Redo", new MyCommand("edit", "redo")));
 	add(createIconButton("scissors", "Cut", new MyCommand("edit", "cut")));
 	add(createIconButton("copy", "Copy", new MyCommand("edit", "copy")));
 	add(createIconButton("paste", "Paste", new MyCommand("edit", "paste")));

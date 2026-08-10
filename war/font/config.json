@@ -263,6 +263,18 @@
       "src": "fontawesome"
     },
     {
+      "uid": "c6be5a58ee4e63a5ec399c2b0d15cf2c",
+      "css": "reply",
+      "code": 61714,
+      "src": "fontawesome"
+    },
+    {
+      "uid": "3d39c828009c04ddb6764c0b04cd2439",
+      "css": "forward",
+      "code": 59416,
+      "src": "fontawesome"
+    },
+    {
       "uid": "500f9108bd1bad36bbe1a4cef7828974",
       "css": "folder",
       "code": 59408,
