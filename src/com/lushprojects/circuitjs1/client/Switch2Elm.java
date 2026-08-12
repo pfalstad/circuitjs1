@@ -28,7 +28,7 @@ import com.google.gwt.xml.client.Document;
 	int link;
 	int throwCount;
 	static final int FLAG_CENTER_OFF = 1;
-	boolean positionFlipped; // tracks runtime flip state for sync
+	static final int FLAG_FLIPPED = 8; // tracks runtime flip state for sync
 	
 	public Switch2Elm(int xx, int yy) {
 	    super(xx, yy, false);
@@ -162,7 +162,7 @@ import com.google.gwt.xml.client.Document;
 			Switch2Elm s2 = (Switch2Elm) o;
 			if (s2.link == link) {
 			    int pos = position;
-			    if (s2.positionFlipped != this.positionFlipped)
+			    if (s2.isPositionFlipped() != this.isPositionFlipped())
 				pos = posCount - 1 - pos;
 			    if (pos < s2.posCount)
 				s2.position = pos;
@@ -224,6 +224,7 @@ import com.google.gwt.xml.client.Document;
 	
 	// this is for backwards compatibility only.  we only support it if throwCount = 2
 	boolean hasCenterOff() { return (flags & FLAG_CENTER_OFF) != 0 && throwCount == 2; }
+	boolean isPositionFlipped() { return (flags & FLAG_FLIPPED) != 0; }
 	
 	void addRoutingObstacle(WireRouter router) {
 	    router.addWire(point1.x, point1.y, lead1.x, lead1.y);
@@ -241,19 +242,19 @@ import com.google.gwt.xml.client.Document;
 	void flipX(int c2, int count) {
 	    super.flipX(c2, count);
 	    position = posCount-1-position;
-	    positionFlipped = !positionFlipped;
+	    flags ^= FLAG_FLIPPED;
 	}
 
 	void flipY(int c2, int count) {
 	    super.flipY(c2, count);
 	    position = posCount-1-position;
-	    positionFlipped = !positionFlipped;
+	    flags ^= FLAG_FLIPPED;
 	}
 
 	void flipXY(int c2, int count) {
 	    super.flipXY(c2, count);
 	    position = posCount-1-position;
-	    positionFlipped = !positionFlipped;
+	    flags ^= FLAG_FLIPPED;
 	}       
 
 	boolean validate() {
