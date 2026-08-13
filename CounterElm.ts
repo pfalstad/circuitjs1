@@ -26,6 +26,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateSummary, appendInfoLine } from "./digital/CircuitWiring";
 
 export class CounterElm extends ChipElm implements Group {
     invertreset: boolean = false;
@@ -80,6 +81,11 @@ export class CounterElm extends ChipElm implements Group {
      * reasoning as GroupPin.prepare()'s own docstring. */
     alwaysDemoteOn(sender: DigitalElmInstance): boolean {
         return sender === this.inputs[1] || (this.hasUpDown() && sender === this.inputs[2]);
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        appendInfoLine(arr, "opt: " + digitalStateSummary(this.digitalPins));
     }
     static readonly FLAG_UP_DOWN       = 4;
     static readonly FLAG_NEGATIVE_EDGE = 8;

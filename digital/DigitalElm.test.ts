@@ -279,4 +279,63 @@ describe("DigitalElm promotion/sleep against a small synchronous circuit", () =>
         scheduler.runUntil(20000);
         expect(counter.state).toBe(State.Asleep);
     });
+
+    it("retroactively trusts an input that was still Passive when the consumer first promoted", () => {
+        // Reproduces a real bug found live: if a consumer promotes to
+        // Active/Asleep before one of its inputs has itself gone Active,
+        // trustedInputs (computed once, at promotion time) permanently
+        // excludes that input - even after it later proves its own
+        // periodicity. Without the fix, that input can then never sleep
+        // (it can never satisfy "all my outputs trust me" for this
+        // consumer) and keeps live-notifying the consumer on every single
+        // tick forever, even though the consumer's periodicity was already
+        // proven. Constructed deterministically (the consumer starts
+        // Active from construction, like a second clock) rather than
+        // relying on fragile organic promotion-order timing.
+        const scheduler = newScheduler();
+        const clock = new ClockElm(200);
+
+        class Echo extends DigitalElm {
+            evaluate(): boolean { return this.inputs[0].currentValue(); }
+        }
+        const a = new Echo();
+        a.addInput(clock);
+
+        // Already Active from construction - trustedInputs starts empty,
+        // exactly like a consumer that promoted before `a` ever went
+        // Active. `a` is wired as a formal input so the liveOutputs/
+        // notifyOutputs machinery is exercised, but evaluate() ignores it
+        // (always confirms), isolating the trust-upgrade mechanism itself
+        // from any particular circuit's real logic.
+        // A constant, non-self-ticking source: Active from construction
+        // with a single-entry (never-changing) schedule, so there's no
+        // self-tick prediction to get wrong - only external Rechecks from
+        // `a` ever exercise its evaluate(), which trivially always
+        // confirms. (A self-ticking element with a real .inputs entry MUST
+        // correctly predict its own next value on every tick - see
+        // prepare()'s active-tick branch, which re-verifies via evaluate()
+        // whenever inputs.length > 0 - so a "just echo currentValue()"
+        // shortcut there would spuriously demote on its very first tick,
+        // which is what an earlier version of this test actually did.)
+        class AlwaysConfirms extends DigitalElm {
+            constructor(period: number) {
+                super();
+                this.value = true;
+                this.state = State.Active;
+                this.cycleTime = period;
+                this.outputEvents = [[0, true]];
+            }
+            evaluate(): boolean { return true; }
+        }
+        const b = new AlwaysConfirms(400); // a multiple of clock's (and so `a`'s) period
+        b.addInput(a);
+
+        expect(b.trustedInputs.has(a)).toBe(false);
+
+        scheduler.runUntil(50000); // plenty of time for `a` to promote and for several Rechecks to fire
+
+        expect(a.state).not.toBe(State.Passive); // `a` did promote on its own
+        expect(b.trustedInputs.has(a)).toBe(true); // retroactively trusted
+        expect(a.state).toBe(State.Asleep); // and can now sleep, since `b` is its only (now-trusting) output
+    });
 });

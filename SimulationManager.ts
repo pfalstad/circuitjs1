@@ -28,6 +28,9 @@ import { Locale } from "./Locale";
 import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
+import { Scheduler } from "./digital/Scheduler";
+import { DigitalElm } from "./digital/DigitalElm";
+import { initDigitalElements, syncDigitalToNodes, syncNodesToPassiveChips } from "./digital/CircuitWiring";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -102,6 +105,14 @@ export class SimulationManager {
     adjustTimeStep: boolean = false;
 
     lastIterTime: number = 0;
+
+    // --- Digital-only fast path (see digital/ and doc.txt) - replaces the
+    // per-timestep MNA solve in runCircuit() below. The old analog stamping/
+    // matrix code above is left running unchanged (its output just goes
+    // unused for now) rather than removed, so it's there to reconcile with
+    // when analog support returns.
+    digitalScheduler: Scheduler | null = null;
+    digitalReady: boolean = false;
 
     static console(text: string): void { console.log(text); }
     static debugger(): void { debugger; }
@@ -1103,6 +1114,20 @@ export class SimulationManager {
 	this.app.scopeElmArr = scopeElmArr;
 
 	this.needsStamp = false;
+
+	this.initDigitalCircuit();
+    }
+
+    // Sets up the digital fast path for the circuit just stamped above:
+    // fresh scheduler, wire every digital element's inputs from the real
+    // node graph, let clocks/chips build their schedules, then give every
+    // still-Passive element one initial evaluation (see
+    // initDigitalElements()'s own docstring for why that last step matters).
+    initDigitalCircuit(): void {
+	this.digitalScheduler = new Scheduler();
+	DigitalElm.current = this.digitalScheduler;
+	initDigitalElements(this.elmArr);
+	this.digitalReady = true;
     }
 
     // make list of posts we need to draw.  posts shared by 2 elements should be hidden, all
@@ -1347,7 +1372,61 @@ export class SimulationManager {
     converged: boolean = false;
     subIterations: number = 0;
 
+    // Digital-only fast path (see digital/CircuitWiring.ts and doc.txt):
+    // drives the digital Scheduler forward instead of the per-timestep MNA
+    // solve runCircuitAnalog() below does. 1 tick = 1 timestep (see
+    // RailElm.initDigitalClock()'s docstring), so wall-clock-to-tick pacing
+    // mirrors runCircuitAnalog()'s own speed-slider/frame-rate gating
+    // exactly, just advancing ticks instead of running solver iterations.
+    //
+    // Known simplifications versus the analog path, left for later: wire
+    // currents/dot animation aren't recomputed here (the stamped matrices
+    // are stale once this path is driving, so calcWireCurrents() would be
+    // reading garbage), and onTimeStep() fires once per frame rather than
+    // once per timestep, so Scope sampling is coarser than before.
     runCircuit(didAnalyze: boolean): void {
+	if (!this.digitalReady || this.digitalScheduler == null || this.elmList.length === 0)
+	    return;
+
+	const steprate = Math.trunc(160 * this.app.getIterCount());
+	const tm = Date.now();
+	const lit = this.lastIterTime;
+	if (lit === 0) {
+	    this.lastIterTime = tm;
+	    return;
+	}
+
+	// Check if we don't need to run simulation (for very slow simulation
+	// speeds). If the circuit changed, do at least one iteration to make
+	// sure everything is consistent.
+	if (1000 >= steprate * (tm - this.lastIterTime) && !didAnalyze)
+	    return;
+
+	if (CircuitNode.ground.v != 0)
+	    this.stop("ground node at nonzero voltage", null);
+
+	const frameTimeLimit = Math.trunc(1000 / this.app.minFrameRate);
+	const elapsedMs = Math.min(tm - this.lastIterTime, frameTimeLimit);
+	const ticks = Math.max(1, Math.round(steprate * elapsedMs / 1000));
+
+	this.digitalScheduler.runUntil(this.digitalScheduler.currentTime + ticks);
+
+	this.t += ticks * this.maxTimeStep;
+	this.timeStepAccum = 0;
+	this.timeStepCount += ticks;
+
+	syncDigitalToNodes(this.elmArr);
+	syncNodesToPassiveChips(this.elmArr);
+	this.app.onTimeStep();
+
+	this.lastIterTime = tm;
+    }
+
+    // The original per-timestep analog MNA solve. No longer called from
+    // runCircuit() above (see this version's digital-only scope), kept
+    // intact and unused so it's there to reconcile with when analog
+    // support returns - see this file's digitalScheduler field comment.
+    runCircuitAnalog(didAnalyze: boolean): void {
 	if (this.matrices == null || this.elmList.length === 0) {
 	    this.matrices = null;
 	    return;

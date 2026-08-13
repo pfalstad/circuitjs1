@@ -24,8 +24,101 @@ import { FindPathInfo } from "./FindPathInfo";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { WireRouter } from "./WireRouter";
+import { withDigital, State } from "./digital/DigitalElm";
+import type { DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
-export class RailElm extends VoltageElm {
+export class RailElm extends withDigital(VoltageElm) {
+    // --- Digital fast-path scaffolding, called fresh on every stamp (see
+    // initDigitalElements()) since a real RailElm instance is long-lived
+    // and persists across re-stamps, each of which gets a brand new
+    // Scheduler. Two RailElm waveforms are digital sources: a square-wave
+    // clock rail (ClockElm; see isDigitalClock()) becomes a real Active
+    // periodic source, and a DC rail (a +5V/VCC or 0V/GND tie - extremely
+    // common in real digital circuits) becomes a constant Passive source.
+    // Other waveforms (variable/sine/etc., analog sources) aren't part of
+    // the digital-only version - isDigitalSource() below reflects that.
+    isDigitalClock(): boolean {
+        return this.waveform === VoltageElm.WF_SQUARE && (this.flags & this.FLAG_CLOCK) !== 0;
+    }
+
+    isDigitalConstant(): boolean {
+        return this.waveform === VoltageElm.WF_DC;
+    }
+
+    isDigitalSource(): boolean {
+        return this.isDigitalClock() || this.isDigitalConstant();
+    }
+
+    /** Sets this rail up as a digital source - an always-Active periodic
+     * one from its frequency for a clock rail, or a fixed constant one from
+     * its DC voltage's sign otherwise. Always fully reinitializes (via
+     * resetDigital()) rather than being a one-time/idempotent setup: real
+     * RailElm instances are constructed constantly by the app (toolbox, XML
+     * load) before any digital scheduler exists, so this can't happen in
+     * the constructor (see DigitalElm.ts's static `current` docstring) - it
+     * has to run on every stamp instead, and each stamp's fresh Scheduler
+     * means any state left over from a previous stamp (a stale scheduled
+     * tick, old liveOutputs/trustedInputs from elements that no longer even
+     * exist) must be cleared first, not skipped past by an idempotency
+     * guard.
+     *
+     * 1 tick = 1 CircuitElm.sim.maxTimeStep (seconds), the same
+     * already-user-configurable resolution the old per-timestep analog
+     * model used - see DigitalElm.ts's tick-unit comment. */
+    initDigitalSource(): void {
+        if (this.isDigitalClock()) {
+            this.resetDigital();
+            const period = 1 / this.frequency; // seconds
+            const halfPeriod = Math.max(1, Math.round(period / (2 * CircuitElm.sim.maxTimeStep)));
+            this.cycleTime = halfPeriod * 2;
+            this.rootPhaseZero = 0;
+            this.firstOutputEvent = 0;
+            this.currentOutputEvent = 1;
+            this.outputEvents = [[0, false], [halfPeriod, true]];
+            this.state = State.Active;
+            this.scheduler.schedule(halfPeriod, this, true);
+        } else if (this.isDigitalConstant()) {
+            this.resetDigital();
+            // getVoltage() is safe to call here (unlike for a clock/AC
+            // rail): the WF_DC branch just returns maxVoltage+bias, not
+            // something derived from CircuitElm.sim.t. State stays Passive
+            // (resetDigital()'s default) with zero inputs, so nothing will
+            // ever call evaluate() on it again - same as DigitalConst.
+            this.value = this.getVoltage() > 0;
+        }
+    }
+
+    evaluate(sender?: DigitalElmInstance | null): boolean {
+        if (this.isDigitalSource())
+            throw new Error("digital rail source has no inputs; evaluate() should never be called");
+        // Non-source rails (variable/sine/etc.) aren't part of the
+        // digital-only version yet - see this class's header comment.
+        return false;
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        if (this.isDigitalSource())
+            appendInfoLine(arr, "opt: " + digitalStateText(this));
+    }
+
+    // Clock's schedule is never actually in doubt (it has no inputs), so
+    // unlike the generic wake(), just resume Active ticking in place
+    // instead of fully demoting - see cycle4/sim.py Clock.wake()'s
+    // docstring (ported verbatim in spirit) for why this is safe only here.
+    wake(): void {
+        if (!this.isDigitalClock()) { super.wake(); return; }
+        if (this.sleepRequested) { this.sleepRequested = false; return; }
+        if (this.state !== State.Asleep) return;
+        this.value = this.currentValue();
+        const elapsed = this._rootElapsed();
+        this.currentCycle = this;
+        const idx = this._indexAt(this, elapsed);
+        this.state = State.Active;
+        this._advanceAndSchedule(idx, elapsed, this);
+    }
+
     constructor(xx: number, yy: number);
     constructor(xx: number, yy: number, wf: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);

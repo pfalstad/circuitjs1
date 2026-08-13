@@ -29,6 +29,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
 export abstract class GateElm extends withDigital(CircuitElm) {
     static readonly FLAG_SMALL = 1<<0;
@@ -256,6 +257,7 @@ export abstract class GateElm extends withDigital(CircuitElm) {
         arr[2] = "Iout = " + CircuitElm.getCurrentText(this.getCurrent());
         if (this.propagationDelay > 0)
             arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelay, "s");
+        appendInfoLine(arr, "opt: " + digitalStateText(this));
     }
 
     setHighVoltage(hv: number): void { this.highVoltage = hv; }

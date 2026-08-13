@@ -30,6 +30,26 @@ import type { Schedulable } from "./Scheduler";
 
 export enum State { Passive, Active, Asleep }
 
+/** The scheduler's time unit is an integer tick, deliberately decoupled
+ * from CircuitElm.sim.t (floating-point seconds) - _matchPeriod() and
+ * _matchRotation() rely on *exact* equality of time differences, which
+ * floating-point arithmetic can't guarantee. This file doesn't define what
+ * a tick actually is in real-world terms - that's up to whoever drives the
+ * scheduler. Real integration (RailElm's digital clock) defines 1 tick = 1
+ * SimulationManager.maxTimeStep, the same already-user-configurable
+ * resolution the old per-timestep analog model used - a clock period too
+ * fast to resolve at the current maxTimeStep would have aliased under that
+ * model too, so this isn't a new constraint. */
+
+/** Minimum positive delay used wherever an event must land strictly after
+ * the change that caused it (see doc.txt's "10 ticks later" convention,
+ * which this replaces) - e.g. a Passive element reacting to a live input
+ * change, or the recheck scheduled right after a demote. Any positive
+ * value works; the periodicity-matching algorithm discovers real gaps
+ * empirically rather than assuming this specific constant, so it isn't
+ * tied to real-world timing the way TICKS_PER_SECOND is. */
+const MIN_HOP_TICKS = 1;
+
 export type OutputEvent = [number, boolean | SubRef];
 
 /** Shape shared by a DigitalElm (acting as its own root Cycle) and Cycle
@@ -76,7 +96,7 @@ export class Recheck {
 
 type Pending =
     | null
-    | { kind: "confirm" }
+    | { kind: "confirm"; sender: DigitalElmInstance | null }
     | { kind: "demote" }
     | { kind: "active"; val: boolean }
     | { kind: "passive"; val: boolean };
@@ -113,6 +133,7 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     readonly scheduler: Scheduler;
 
     addInput(...elements: DigitalElmInstance[]): void;
+    resetDigital(): void;
     notifyOutputs(): void;
     inputUpdated(sender?: DigitalElmInstance | null): void;
     wake(): void;
@@ -187,11 +208,20 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         backfillCycle: CycleLike;
         backfillTime = 0;
 
-        readonly scheduler: Scheduler;
+        // A live getter, not a field captured once at construction: real
+        // elements (new ClockElm(x, y), etc.) get constructed the moment
+        // they're dragged onto the canvas - before the circuit is ever
+        // stamped, which is the only place DigitalCore.current gets
+        // assigned. A captured field would freeze in whatever scheduler
+        // (possibly none yet) existed at that arbitrary moment, going
+        // stale across re-stamps; every construction after this always
+        // sees whichever scheduler is actually current.
+        get scheduler(): Scheduler {
+            return DigitalCore.current;
+        }
 
         constructor(...args: any[]) {
             super(...args);
-            this.scheduler = DigitalCore.current;
             this.currentCycle = this;
             this.backfillCycle = this;
         }
@@ -203,6 +233,39 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             }
         }
 
+        /** Resets all digital state back to fresh construction-time
+         * defaults. Needed because a real circuit element (GateElm,
+         * RailElm) is a long-lived CircuitElm instance that persists
+         * across re-stamps - e.g. wiring a new connection to an already-
+         * placed gate, or clicking Reset, both trigger a fresh stamp (and
+         * a fresh Scheduler) without the element itself being recreated.
+         * Re-wiring such an element without first resetting it would
+         * accumulate stale inputs/liveOutputs left over from the previous
+         * stamp's now-discarded scheduler on top of the new ones, instead
+         * of starting clean. */
+        resetDigital(): void {
+            this.inputs = [];
+            this.liveOutputs = [];
+            this.value = false;
+            this.state = State.Passive;
+            this.history = [];
+            this.trustedInputs = new Set();
+            this.sleepRequested = false;
+            this.lastChecked = 0;
+            this.outputEvents = [];
+            this.cycleTime = 0;
+            this.firstOutputEvent = 0;
+            this.currentOutputEvent = 0;
+            this.cycleParent = null;
+            this.cycleSpanEnd = null;
+            this.currentCycle = this;
+            this.previousCycle = null;
+            this.rootPhaseZero = 0;
+            this.sleepBase = 0;
+            this.backfillCycle = this;
+            this.backfillTime = 0;
+        }
+
         /** Phase 1 of the scheduler's two-phase dispatch: decide what this
          * event would do, using only state committed before this timestamp's
          * current delta round. See Scheduler.run(). */
@@ -211,7 +274,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 if (this.state !== State.Active && this.state !== State.Asleep)
                     return null; // already resolved by an earlier delta this same tick
                 if (this.evaluate(val.sender) === this.currentValue())
-                    return { kind: "confirm" };
+                    return { kind: "confirm", sender: val.sender };
                 return { kind: "demote" };
             }
             if (val === null) {
@@ -245,17 +308,49 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             if (pending === null) return;
             const now = this.scheduler.currentTime;
             switch (pending.kind) {
-                case "confirm":
+                case "confirm": {
                     // A co-tier event for this same object may have already
                     // committed a demote by the time we get here; only advance
                     // the window on a genuine surviving confirmation.
-                    if (this.state === State.Active || this.state === State.Asleep)
-                        this.lastChecked = now;
+                    if (this.state !== State.Active && this.state !== State.Asleep) return;
+                    this.lastChecked = now;
+                    // Opportunistic retroactive trust upgrade: the sender
+                    // that triggered this Recheck was untrusted (that's the
+                    // only reason a Recheck fires at all - see
+                    // notifyOutputs()), but if it's since become Active/
+                    // Asleep with a period that evenly divides ours, its
+                    // future periodicity is already implicitly covered by
+                    // our own verified schedule - the same reasoning
+                    // tryPromote()'s LCM-trusted candidate already relies
+                    // on, just discovered late instead of at our own
+                    // promotion time. Needed because trustedInputs is
+                    // otherwise permanently frozen at promotion: an input
+                    // still Passive at that moment can never be trusted
+                    // later even after it proves itself, which would
+                    // otherwise (a) block it from ever sleeping (it can
+                    // never satisfy "all my outputs trust me" for this
+                    // output) and (b) keep it live-notifying this element
+                    // forever, on every single tick, even though this
+                    // element's periodicity was already proven - silently
+                    // undermining the optimization for the whole downstream
+                    // chain. Safe to add: if the sender's promise later
+                    // turns out wrong, _demote() already force-notifies
+                    // every output with `sender` in its trustedInputs
+                    // regardless of when that entry was added.
+                    const sender = pending.sender;
+                    if (sender && !this.trustedInputs.has(sender) && this.inputs.includes(sender) &&
+                        (sender.state === State.Active || sender.state === State.Asleep) &&
+                        sender.cycleTime > 0 && this.cycleTime % sender.cycleTime === 0) {
+                        this.trustedInputs = new Set(this.trustedInputs).add(sender);
+                        sender._maybeSleep();
+                        this._maybeSleep();
+                    }
                     return;
+                }
                 case "demote":
                     if (this.state !== State.Passive) {
                         this._demote();
-                        this.scheduler.schedule(now + 10, this);
+                        this.scheduler.schedule(now + MIN_HOP_TICKS, this);
                     }
                     return;
                 case "active": {
@@ -388,7 +483,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 this.scheduler.schedule(this.scheduler.currentTime, this, new Recheck(sender));
                 return;
             }
-            this.scheduler.schedule(this.scheduler.currentTime + 10, this);
+            this.scheduler.schedule(this.scheduler.currentTime + MIN_HOP_TICKS, this);
         }
 
         /** Common teardown for leaving Active/Asleep because our prediction
@@ -521,7 +616,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             }
             if (this.state !== State.Asleep) return;
             this._demote();
-            this.scheduler.schedule(this.scheduler.currentTime + 10, this);
+            this.scheduler.schedule(this.scheduler.currentTime + MIN_HOP_TICKS, this);
         }
 
         /** Called from the "active" commit branch once a previously-requested

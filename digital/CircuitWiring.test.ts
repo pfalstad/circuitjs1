@@ -14,6 +14,7 @@ function fakeGate(inputCount: number) {
     return {
         inputCount,
         inputs: [] as unknown[],
+        liveOutputs: [] as unknown[],
         addInput(...els: unknown[]) { this.inputs.push(...els); },
         nodes: [] as { links: { num: number; elm: any }[] }[],
     };
@@ -77,9 +78,11 @@ describe("wireDigitalCircuit - graph algorithm", () => {
     it("wires a chip's inputs array from pins[], excluding output pins, in post order", () => {
         const clk = fakeGate(0);
         const reset = fakeGate(0);
+        const digitalPins = [{ inputs: [] as unknown[], addInput(...els: unknown[]) { this.inputs.push(...els); } },
+                              { inputs: [] as unknown[], addInput(...els: unknown[]) { this.inputs.push(...els); } }];
         const chip = {
             pins: [{ output: false }, { output: false }, { output: true }, { output: true }],
-            digitalPins: [{}, {}], // 2 output bits
+            digitalPins, // 2 output bits
             inputs: [] as unknown[],
             nodes: [] as { links: { num: number; elm: any }[] }[],
         };
@@ -91,6 +94,12 @@ describe("wireDigitalCircuit - graph algorithm", () => {
         wireDigitalCircuit([clk, reset, chip]);
 
         expect(chip.inputs).toEqual([clk, reset]);
+        // Each digitalPin must go through real addInput() calls too (not
+        // just the group's own .inputs bookkeeping) - otherwise clk/reset
+        // never learn the pins depend on them, and notifyOutputs() would
+        // never reach them when clk/reset actually change.
+        expect(digitalPins[0].inputs).toEqual([clk, reset]);
+        expect(digitalPins[1].inputs).toEqual([clk, reset]);
     });
 });
 

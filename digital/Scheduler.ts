@@ -119,9 +119,20 @@ export class Scheduler {
 
     /** Like run(), but stops once no event remains at or before maxTime -
      * needed for anything that schedules itself forever (a free-running
-     * clock), which run() would otherwise never return from. */
+     * clock), which run() would otherwise never return from.
+     *
+     * Advances currentTime to maxTime even when nothing was due: currentTime
+     * otherwise only moves when an event actually pops, so a caller that
+     * derives each call's maxTime from currentTime + increment (rather than
+     * tracking its own independent "how far should we be by now") would see
+     * it never accumulate past a single increment while the scheduler sits
+     * idle - e.g. waiting for a clock's first tick, possibly far in the
+     * future. Jumping straight to maxTime here is also just correct: no
+     * event existed in the skipped gap, so nothing was missed. */
     runUntil(maxTime: number): void {
         this.runWhile(() => this.queue.size > 0 && this.queue.peekTime() <= maxTime);
+        if (this.currentTime < maxTime)
+            this.currentTime = maxTime;
     }
 
     private runWhile(shouldContinue: () => boolean): void {

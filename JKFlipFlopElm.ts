@@ -23,6 +23,7 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
 export class JKFlipFlopElm extends ChipElm implements Group {
     static readonly FLAG_RESET         = 2;
@@ -68,6 +69,12 @@ export class JKFlipFlopElm extends ChipElm implements Group {
 
     alwaysDemoteOn(sender: DigitalElmInstance): boolean {
         return this.hasReset() && sender === this.inputs[3];
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        appendInfoLine(arr, "opt Q: " + digitalStateText(this.digitalPins[0]));
+        appendInfoLine(arr, "opt /Q: " + digitalStateText(this.digitalPins[1]));
     }
 
     constructor(xx: number, yy: number);
