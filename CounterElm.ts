@@ -24,10 +24,63 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 
-export class CounterElm extends ChipElm {
+export class CounterElm extends ChipElm implements Group {
     invertreset: boolean = false;
     modulus: number = 0;
+
+    // --- Group/GroupPin: digital fast-path scaffolding, dormant until a
+    // future circuit-detection/wiring pass populates `inputs` and calls
+    // initDigitalPins() - see DFlipFlopElm.ts for the same pattern.
+    // inputs layout: [clk, reset, updown?] (updown present iff hasUpDown()).
+    // digitalPins[k] is bit (bits-1-k) - i.e. digitalPins[0] is the MSB,
+    // matching execute()'s own pins[2+k] <-> bit(bits-1-k) relationship
+    // below (fixed regardless of the bitOrder display flag, since
+    // makeBitPins() is always called with reversed=true for this chip).
+    inputs: DigitalElmInstance[] = [];
+    digitalPins: GroupPin[] = [];
+
+    initDigitalPins(): void {
+        this.digitalPins = Array.from({ length: this.bits }, (_, k) => new GroupPin(this, k));
+    }
+
+    /** Pure equivalent of execute() (see below) - computes the whole
+     * register's next state without mutating anything. Kept memory O(bits)
+     * via per-bit GroupPins (see doc.txt's CounterGroup design) even though
+     * this evaluate() computes the whole word at once, same as any
+     * synchronous multi-bit register's shared next-state logic must. */
+    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
+        const clk = this.inputs[0];
+        const reset = this.inputs[1];
+        const updown = this.hasUpDown() ? this.inputs[2] : null;
+        const now = pin.scheduler.currentTime;
+        const neg = this.negativeEdgeTriggered();
+
+        const old = this.digitalPins.map(p => syncedValue(p, now));
+        let next = old;
+        if ((sender === null || sender === clk) && clk.transitionedTo(!neg, pin.lastChecked, now)) {
+            let value = 0;
+            old.forEach((b, k) => { if (b) value |= 1 << (this.bits - 1 - k); });
+            const dir = (updown && syncedValue(updown, now)) ? -1 : 1;
+            value += dir;
+            if (this.modulus !== 0)
+                value = ((value % this.modulus) + this.modulus) % this.modulus;
+            next = Array.from({ length: this.bits }, (_, k) => (value & (1 << (this.bits - 1 - k))) !== 0);
+        }
+        if (syncedValue(reset, now) !== this.invertreset)
+            next = new Array(this.bits).fill(false);
+        return next;
+    }
+
+    /** Reset (and a direction flip, which changes the register's future
+     * evolution just as fundamentally) must always demote every bit rather
+     * than risk one slipping through on a lucky value match - same
+     * reasoning as GroupPin.prepare()'s own docstring. */
+    alwaysDemoteOn(sender: DigitalElmInstance): boolean {
+        return sender === this.inputs[1] || (this.hasUpDown() && sender === this.inputs[2]);
+    }
     static readonly FLAG_UP_DOWN       = 4;
     static readonly FLAG_NEGATIVE_EDGE = 8;
 

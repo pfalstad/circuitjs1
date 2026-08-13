@@ -21,7 +21,10 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-export class DFlipFlopElm extends ChipElm {
+import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
+
+export class DFlipFlopElm extends ChipElm implements Group {
     static readonly FLAG_RESET            = 2;
     static readonly FLAG_SET              = 4;
     static readonly FLAG_INVERT_SET_RESET = 8;
@@ -29,6 +32,53 @@ export class DFlipFlopElm extends ChipElm {
     hasReset():       boolean { return (this.flags & DFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
+
+    // --- Group/GroupPin: digital fast-path scaffolding, dormant until a
+    // future circuit-detection/wiring pass populates `inputs` and calls
+    // initDigitalPins() - see doc.txt's Group/GroupPin design and this
+    // repo's GateElm.evaluate() for the same "exists but unused" pattern.
+    // inputs layout: [D, clk, R?, S?] (R present iff hasReset(), S iff hasSet()).
+    inputs: DigitalElmInstance[] = [];
+    digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
+
+    initDigitalPins(): void {
+        this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
+    }
+
+    /** Pure equivalent of execute() (see below) - computes [Q, /Q] without
+     * mutating anything, so the digital scheduler can call it speculatively.
+     * Mirrors execute()'s exact semantics, including the DFlipFlopElm-
+     * specific quirk that Q and /Q are independently forced during set/reset
+     * (not simply complementary) - see execute()'s own body. */
+    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
+        const d = this.inputs[0];
+        const clk = this.inputs[1];
+        const now = pin.scheduler.currentTime;
+        let idx = 2;
+        const r = this.hasReset() ? this.inputs[idx++] : null;
+        const s = this.hasSet() ? this.inputs[idx] : null;
+        const isSet = s !== null && syncedValue(s, now) !== this.invertSetReset();
+        const isReset = r !== null && syncedValue(r, now) !== this.invertSetReset();
+
+        if (isSet || isReset)
+            return [isSet, isReset];
+
+        let q = syncedValue(this.digitalPins[0], now);
+        if ((sender === null || sender === clk) && clk.transitionedTo(true, pin.lastChecked, now))
+            q = syncedValue(d, now);
+        return [q, !q];
+    }
+
+    /** Q and /Q are correlated through set/reset (see evaluate()): a set/
+     * reset line changing must always demote both pins rather than risk one
+     * slipping through on a lucky value match - same reasoning as
+     * GroupPin.prepare()'s own docstring for a shared reset line. */
+    alwaysDemoteOn(sender: DigitalElmInstance): boolean {
+        let idx = 2;
+        if (this.hasReset() && sender === this.inputs[idx++]) return true;
+        if (this.hasSet() && sender === this.inputs[idx]) return true;
+        return false;
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);

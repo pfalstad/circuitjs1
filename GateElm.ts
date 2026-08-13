@@ -27,8 +27,10 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { withDigital } from "./digital/DigitalElm";
+import type { DigitalElmInstance } from "./digital/DigitalElm";
 
-export abstract class GateElm extends CircuitElm {
+export abstract class GateElm extends withDigital(CircuitElm) {
     static readonly FLAG_SMALL = 1<<0;
     static readonly FLAG_SCHMITT = 1<<1;
     static readonly FLAG_INVERT_INPUTS = 1<<2;
@@ -266,6 +268,17 @@ export abstract class GateElm extends CircuitElm {
 
     getInput(x: number): boolean {
         const high = !this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
+        if (this.inputs.length > 0) {
+            // Digital fast path: this.inputs (the DigitalElm graph, wired
+            // by CircuitWiring.wireDigitalCircuit()) has an entry for this
+            // post, so read the upstream element's value directly instead
+            // of thresholding a voltage. Schmitt hysteresis doesn't apply
+            // here - it exists to reject noisy analog signals near the
+            // switching threshold, but a value coming from another digital
+            // element's currentValue() is already a clean boolean.
+            const res = this.inputs[x].currentValue();
+            return res ? high : !high;
+        }
         if (!this.hasSchmittInputs())
             return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
         // inputStates is normally allocated in setPoints(), but elements inside a
@@ -279,6 +292,20 @@ export abstract class GateElm extends CircuitElm {
 
     oscillationCount: number = 0;
     lastTime: number = 0;
+
+    /** DigitalElm's required evaluate(). A thin wrapper over the existing
+     * calcFunction()/isInverting() logic already used by doStep() every
+     * timestep - calcFunction() calls getInput(), which (see getInput()
+     * above) reads this.inputs (the DigitalElm graph) once
+     * CircuitWiring.wireDigitalCircuit() has populated it, falling back to
+     * the analog voltage otherwise. Still dormant until the sim loop
+     * itself is switched onto the digital scheduler - doStep() runs every
+     * timestep exactly as before until then. */
+    evaluate(sender?: DigitalElmInstance | null): boolean {
+        let f = this.calcFunction();
+        if (this.isInverting()) f = !f;
+        return f;
+    }
 
     doStep(): void {
         if (this.justLoaded) {

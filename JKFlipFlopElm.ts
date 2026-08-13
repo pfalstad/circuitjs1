@@ -21,7 +21,10 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-export class JKFlipFlopElm extends ChipElm {
+import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
+
+export class JKFlipFlopElm extends ChipElm implements Group {
     static readonly FLAG_RESET         = 2;
     static readonly FLAG_POSITIVE_EDGE = 4;
     static readonly FLAG_INVERT_RESET  = 8;
@@ -29,6 +32,43 @@ export class JKFlipFlopElm extends ChipElm {
     hasReset():           boolean { return (this.flags & JKFlipFlopElm.FLAG_RESET        ) !== 0; }
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
     invertReset():        boolean { return (this.flags & JKFlipFlopElm.FLAG_INVERT_RESET ) !== 0; }
+
+    // --- Group/GroupPin: digital fast-path scaffolding, dormant until a
+    // future circuit-detection/wiring pass populates `inputs` and calls
+    // initDigitalPins() - see DFlipFlopElm.ts for the same pattern.
+    // inputs layout: [J, clk, K, R?] (R present iff hasReset()).
+    inputs: DigitalElmInstance[] = [];
+    digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
+
+    initDigitalPins(): void {
+        this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
+    }
+
+    /** Pure equivalent of execute() (see below): unlike DFlipFlopElm, JK's
+     * /Q is always strictly !Q (reset only forces Q, never /Q
+     * independently) - see execute()'s writeOutput(4, !pins[3].value)
+     * running after any reset override has already applied. */
+    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
+        const j = this.inputs[0];
+        const clk = this.inputs[1];
+        const k = this.inputs[2];
+        const now = pin.scheduler.currentTime;
+
+        let q = syncedValue(this.digitalPins[0], now);
+        const edgeTarget = this.positiveEdgeTriggered();
+        if ((sender === null || sender === clk) && clk.transitionedTo(edgeTarget, pin.lastChecked, now)) {
+            const jv = syncedValue(j, now), kv = syncedValue(k, now);
+            if (jv) q = kv ? !q : true;
+            else if (kv) q = false;
+        }
+        if (this.hasReset() && syncedValue(this.inputs[3], now) !== this.invertReset())
+            q = false;
+        return [q, !q];
+    }
+
+    alwaysDemoteOn(sender: DigitalElmInstance): boolean {
+        return this.hasReset() && sender === this.inputs[3];
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
