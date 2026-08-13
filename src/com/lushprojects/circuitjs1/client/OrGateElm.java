@@ -25,55 +25,10 @@ package com.lushprojects.circuitjs1.client;
 			  StringTokenizer st) {
 	    super(xa, ya, xb, yb, f, st);
 	}
-	String getGateName() { return "OR gate"; }
-	
-	void drawGatePolygon(Graphics g) {
-	    g.setLineWidth(3.0);
-            g.context.beginPath();
-		if (hasFlag(FLAG_DEMORGAN))
-		{
-			g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
-			g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
-			g.context.bezierCurveTo(
-				gatePoly.xpoints[1], gatePoly.ypoints[1],
-				gatePoly.xpoints[2], gatePoly.ypoints[2],
-				gatePoly.xpoints[3], gatePoly.ypoints[3]);
-			g.context.bezierCurveTo(
-				gatePoly.xpoints[3], gatePoly.ypoints[3],
-				gatePoly.xpoints[4], gatePoly.ypoints[4],
-				gatePoly.xpoints[5], gatePoly.ypoints[5]);
-			g.context.lineTo(gatePoly.xpoints[6], gatePoly.ypoints[6]);
-		}
-		else
-		{
-            g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
-            g.context.lineTo(gatePoly.xpoints[1], gatePoly.ypoints[1]);
-            g.context.bezierCurveTo(
-        	    gatePoly.xpoints[2], gatePoly.ypoints[2],
-        	    gatePoly.xpoints[2], gatePoly.ypoints[2],
-        	    gatePoly.xpoints[3], gatePoly.ypoints[3]);
-            g.context.bezierCurveTo(
-        	    gatePoly.xpoints[4], gatePoly.ypoints[4],
-        	    gatePoly.xpoints[4], gatePoly.ypoints[4],
-        	    gatePoly.xpoints[5], gatePoly.ypoints[5]);
-            g.context.lineTo(gatePoly.xpoints[6], gatePoly.ypoints[6]);
-            g.context.bezierCurveTo(
-        	    gatePoly.xpoints[7], gatePoly.ypoints[7],
-        	    gatePoly.xpoints[7], gatePoly.ypoints[7],
-        	    gatePoly.xpoints[0], gatePoly.ypoints[0]);
-		}
-            g.context.closePath();
-            
-		if (this instanceof XorGateElm || this instanceof XnorGateElm) {
-                g.context.moveTo(gatePoly.xpoints[8], gatePoly.ypoints[8]);
-                g.context.bezierCurveTo(
-            	    gatePoly.xpoints[10], gatePoly.ypoints[10],
-            	    gatePoly.xpoints[10], gatePoly.ypoints[10],
-            	    gatePoly.xpoints[9], gatePoly.ypoints[9]);
-            }
-
-            g.context.stroke();
-	    g.setLineWidth(1.0);
+	String getGateName() {
+		if (hasFlag(FLAG_INVERT_INPUTS))
+			return "NAND gate";
+		return "OR gate"; 
 	}
 
 	double getLeadAdjustment(int ix) {
@@ -88,46 +43,6 @@ package com.lushprojects.circuitjs1.client;
 	    return 0;
 	}
 
-	void setPoints() {
-	    super.setPoints();
-
-	    if (useEuroGates()) {
-		createEuroGatePolygon();
-		linePoints = null;
-	    } else {
-		// 0 - top left, 1 - start of top curve, 2 - control point for top curve
-		// 3 - right, 4 - control point for bottom curve, 5 - start of bottom curve, 6 - bottom right, 7 - control point for left curve
-		Point triPoints[] = newPointArray(11);
-			
-			if (hasFlag(FLAG_DEMORGAN))
-			{
-				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
-				interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .5, hs2);
-				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], 1, hs2);
-				interpPoint(lead1, lead2, triPoints[3], 1);
-			}
-			else
-			{
-				interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
-		interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .3, hs2);
-		triPoints[3] = lead2;
-				interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .733, hs2*.85);
-				interpPoint(lead1, lead2, triPoints[7], .105); // was .15
-			}
-			if (this instanceof XorGateElm || this instanceof XnorGateElm) {
-		    double ww2 = (ww == 0) ? dn*2 : ww*2;
-				interpPoint2(lead1, lead2, triPoints[8], triPoints[9], -.05-8/ww2, hs2); 
-				interpPoint(lead1, lead2, triPoints[10], .1-8/ww2);
-		}
-		gatePoly = createPolygon(triPoints);
-	    }
-		
-	    if (isInverting() ^ hasFlag(FLAG_DEMORGAN)) {
-				pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
-				lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
-	    }
-	}
-
 	String getGateText() { return "\u22651"; }
 	
 	boolean calcFunction() {
@@ -139,4 +54,8 @@ package com.lushprojects.circuitjs1.client;
 	}
 	int getDumpType() { return 152; }
 	int getShortcut() { return '3'; }
+	boolean baseGateType() { return hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
+//	If FLAG_DEMORGAN = 1, we return true for AND gate baseGateType
+//	otherwise we return 0 for OR
+//	FLAG_DEMORGAN and FLAG_INVERT_INPUTS cannot be set at the same time from Edit popup
     }

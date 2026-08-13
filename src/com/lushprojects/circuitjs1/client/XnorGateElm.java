@@ -29,4 +29,5 @@ package com.lushprojects.circuitjs1.client;
 	boolean isInverting() { return true; }
 	int getDumpType() { return 431; }
 	int getShortcut() { return '$'; }
+	boolean baseGateType() { return false; }
     }

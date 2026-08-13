@@ -25,8 +25,13 @@ package com.lushprojects.circuitjs1.client;
 			   StringTokenizer st) {
 	    super(xa, ya, xb, yb, f, st);
 	}
-	String getGateName() { return "NOR gate"; }
+	String getGateName() { 
+		if (hasFlag(FLAG_INVERT_INPUTS))
+			return "AND gate";
+		return "NOR gate"; 
+	}
 	boolean isInverting() { return true; }
 	int getDumpType() { return 153; }
 	int getShortcut() { return '#'; }
+	boolean baseGateType() { return hasFlag(FLAG_DEMORGAN); }
     }
