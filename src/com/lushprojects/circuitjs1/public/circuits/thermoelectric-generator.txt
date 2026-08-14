@@ -1,0 +1,15 @@
+$ 1 0.005 10.20027730826997 50 5 43 5e-11
+435 400 208 496 208 0 0.05 2 0.5
+r 400 192 288 192 0 2
+w 288 192 288 224 0
+w 400 224 288 224 0
+g 288 224 288 256 0
+v 592 128 496 192 0 0 40 350 0 0 0.5
+g 592 128 592 96 0
+v 592 288 496 224 0 0 40 300 0 0 0.5
+g 592 288 592 320 0
+x 216 176 296 179 4 16 2\sohm\sload
+x 508 152 604 155 4 16 hot\sface\sheld\sat\s350K
+x 508 264 604 267 4 16 cold\sface\sheld\sat\s300K
+x 216 352 744 355 4 16 Seebeck\sgenerator\smode:\sa\stemperature\sdifference\sacross\sthe\smodule\sdrives\scurrent.
+x 216 376 752 379 4 16 Open\scircuit\sthe\sload\sand\sthe\selectrical\sport\sreads\sa*dT\s=\s0.05\s*\s50\s=\s2.5V\sexactly.

@@ -1,0 +1,18 @@
+$ 1 0.005 10.20027730826997 50 5 43 5e-11
+435 400 208 496 208 0 0.05 2 0.5
+v 336 288 336 192 0 0 40 2 0 0 0.5
+g 336 288 336 320 0
+w 336 192 400 192 0
+w 400 224 288 224 0
+g 288 224 288 256 0
+r 496 192 592 192 0 0.5
+r 496 224 592 224 0 1
+w 592 192 592 224 0
+v 592 288 592 224 0 0 40 293 0 0 0.5
+g 592 288 592 320 0
+x 264 168 336 171 4 16 2V\sdrive
+x 500 176 616 179 4 16 hot\sface\s->\s0.5K/W\ssink
+x 500 248 620 251 4 16 cold\sface\s->\s1K/W\sload
+x 608 300 712 303 4 16 293K\s(20C)\sambient
+x 264 352 736 355 4 16 Thermal\snodes\scarry\sabsolute\stemperature\sin\skelvin\s(1V\s=\s1K),\sheat\sflow\sis\scurrent\s(1A\s=\s1W).
+x 264 376 728 379 4 16 Click\sthe\smodule\sfor\sQc,\sQh,\sW\sand\sthe\sQh-Qc-W\sresidual,\swhich\sreads\szero.

@@ -54,6 +54,10 @@ transformerdc.txt Transformer w/ DC
 transformerup.txt Step-Up Transformer
 transformerdown.txt Step-Down Transformer
 longdist.txt Long-Distance Power Transmission
++Thermoelectric
+thermoelectric-cooler.txt Peltier Cooler
+thermoelectric-generator.txt Seebeck Generator
+-
 +Saturable Core
 satcore-inductor.txt Saturable vs Linear Inductor (DC)
 satcore-comparison.txt Low vs High Drive (AC Saturation)
