@@ -42,8 +42,16 @@ export class DFlipFlopElm extends ChipElm implements Group {
     inputs: DigitalElmInstance[] = [];
     digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
 
+    // Persists across re-stamps (unlike digitalPins itself, which
+    // initDigitalPins() below always rebuilds from scratch as brand new
+    // GroupPin instances - see CircuitWiring.initDigitalElements()'s
+    // docstring) since it's a user debugging preference, not scheduler-
+    // cycle state.
+    digitalDebugPins = false;
+
     initDigitalPins(): void {
         this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
+        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
     }
 
     /** Pure equivalent of execute() (see below) - computes [Q, /Q] without
@@ -170,6 +178,11 @@ export class DFlipFlopElm extends ChipElm implements Group {
             ei.checkbox = new Checkbox("Invert Set/Reset", this.invertSetReset());
             return ei;
         }
+        if (n === 3) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Digital Debug", this.digitalDebugPins);
+            return ei;
+        }
         return super.getChipEditInfo(n);
     }
 
@@ -196,6 +209,13 @@ export class DFlipFlopElm extends ChipElm implements Group {
             this.flags = ei.changeFlag(this.flags, DFlipFlopElm.FLAG_INVERT_SET_RESET);
             this.setupPins();
             this.setPoints();
+        }
+        if (n === 3) {
+            this.digitalDebugPins = ei.checkbox!.getState();
+            // Apply immediately (not just on the next stamp's
+            // initDigitalPins()) since digitalPins already exist if a
+            // stamp has already run.
+            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
         }
         super.setChipEditValue(n, ei);
     }

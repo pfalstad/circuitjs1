@@ -98,6 +98,15 @@ export class Scheduler {
     currentTime = 0;
     private queue = new EventHeap();
     private orderCounter = 0;
+    /** Total number of prepare()/commit() calls processed so far - a direct
+     * measure of how much live work the scheduler actually did, independent
+     * of whether the resulting values were correct. Existing tests only
+     * check correctness (sampled values vs. an always-correct baseline);
+     * that alone doesn't catch a regression that keeps re-deriving the
+     * right answer far more often than necessary (e.g. a forced-demote
+     * cascade that doesn't converge quickly) - only a count like this does.
+     * See DigitalElm.test.ts's efficiency assertions for how this gets used. */
+    eventsProcessed = 0;
 
     schedule(time: number, obj: Schedulable, arg: unknown = null): void {
         if (time < this.currentTime)
@@ -177,6 +186,7 @@ export class Scheduler {
     }
 
     private commitTier(tier: { obj: Schedulable; arg: unknown }[]): void {
+        this.eventsProcessed += tier.length;
         const prepared = tier.map(e => ({ obj: e.obj, pending: e.obj.prepare(e.arg) }));
         for (const { obj, pending } of prepared)
             obj.commit(pending);

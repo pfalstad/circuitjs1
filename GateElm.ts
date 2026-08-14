@@ -371,6 +371,8 @@ export abstract class GateElm extends withDigital(CircuitElm) {
             return EditInfo.createCheckbox("Invert Inputs", this.hasFlag(GateElm.FLAG_INVERT_INPUTS));
         if (n === 4)
             return new EditInfo("Propagation Delay (s)", this.propagationDelay, 0, 0);
+        if (n === 5)
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -400,6 +402,8 @@ export abstract class GateElm extends withDigital(CircuitElm) {
         }
         if (n === 4)
             this.propagationDelay = ei.value;
+        if (n === 5)
+            this.digitalDebug = ei.checkbox.getState();
     }
 
     validate(): boolean { return this.validateRailNode(this.inputCount); }

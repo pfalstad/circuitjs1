@@ -1709,7 +1709,7 @@ export class UIManager {
         if (this.app.stopMessage != null) {
             g.drawString(this.app.stopMessage, 10, this.canvasHeight - 10);
         } else if (!this.hideInfoBox) {
-            const info: (string | null)[] = new Array(10).fill(null);
+            const info: (string | null)[] = new Array(20).fill(null);
             if (this.mouse.getMouseElm() != null) {
                 if (this.mouse.mousePost === -1) {
                     this.mouse.getMouseElm().getInfo(info);

@@ -44,9 +44,13 @@ export function digitalStateText(elm: DigitalElmInstance | null | undefined): st
  * chip's digitalPins), e.g. "Active x3, Passive x1". */
 export function digitalStateSummary(pins: DigitalElmInstance[]): string {
     if (pins.length === 0) return "not wired";
+    // Grouped by (state, period) - not just state - since different bits of
+    // the same counter each track their own independent period (bit k's
+    // is typically ~2x bit k-1's), and that period is exactly the number
+    // this feature exists to surface (see digitalStateText()).
     const counts = new Map<string, number>();
     for (const p of pins) {
-        const label = State[p.state];
+        const label = p.state === State.Passive ? State[p.state] : `${State[p.state]} ${p.cycleTime}t`;
         counts.set(label, (counts.get(label) ?? 0) + 1);
     }
     return [...counts.entries()].map(([label, n]) => n > 1 ? `${label} x${n}` : label).join(", ");

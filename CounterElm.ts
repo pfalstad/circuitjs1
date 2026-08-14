@@ -26,7 +26,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateSummary, appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
 export class CounterElm extends ChipElm implements Group {
     invertreset: boolean = false;
@@ -43,8 +43,13 @@ export class CounterElm extends ChipElm implements Group {
     inputs: DigitalElmInstance[] = [];
     digitalPins: GroupPin[] = [];
 
+    // Persists across re-stamps (unlike digitalPins itself, rebuilt from
+    // scratch by initDigitalPins() below - see DFlipFlopElm.ts for why).
+    digitalDebugPins = false;
+
     initDigitalPins(): void {
         this.digitalPins = Array.from({ length: this.bits }, (_, k) => new GroupPin(this, k));
+        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
     }
 
     /** Pure equivalent of execute() (see below) - computes the whole
@@ -85,7 +90,21 @@ export class CounterElm extends ChipElm implements Group {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        appendInfoLine(arr, "opt: " + digitalStateSummary(this.digitalPins));
+        // One line per bit (not a summary): with limited horizontal room in
+        // the info box, a combined "opt: Active x3, Asleep x1"-style line
+        // doesn't say WHICH bit is the odd one out, which is exactly what
+        // matters when tracking down why a specific bit isn't sleeping.
+        // Uses each pin's own real label (pins[i].text, e.g. "Q0") rather
+        // than a made-up index - digitalPins[k]'s corresponding Q-number
+        // depends on the Bit Order setting (MSB/LSB first), so only the
+        // pin's own text is guaranteed to match what's actually drawn on
+        // the chip.
+        let k = 0;
+        for (const pin of this.pins) {
+            if (!pin.output) continue;
+            appendInfoLine(arr, `${pin.text}: ${digitalStateText(this.digitalPins[k])}`);
+            k++;
+        }
     }
     static readonly FLAG_UP_DOWN       = 4;
     static readonly FLAG_NEGATIVE_EDGE = 8;
@@ -209,6 +228,11 @@ export class CounterElm extends ChipElm implements Group {
             ei.checkbox = new Checkbox("Negative Edge Triggered", this.negativeEdgeTriggered());
             return ei;
         }
+        if (n === 5) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Digital Debug", this.digitalDebugPins);
+            return ei;
+        }
         return null;
     }
 
@@ -237,6 +261,10 @@ export class CounterElm extends ChipElm implements Group {
             this.flags = ei.changeFlag(this.flags, CounterElm.FLAG_NEGATIVE_EDGE);
             this.setupPins();
             this.setPoints();
+        }
+        if (n === 5) {
+            this.digitalDebugPins = ei.checkbox!.getState();
+            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
         }
     }
 

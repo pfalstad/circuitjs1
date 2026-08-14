@@ -91,7 +91,20 @@ export class SubRef {
  * re-evaluation). Scheduled with zero delay (see inputUpdated()) so the
  * scheduler's delta-cycle batching handles it. */
 export class Recheck {
-    constructor(public sender: DigitalElmInstance | null) {}
+    /** alwaysDemote: skip the usual "does live evaluate() still match my
+     * current prediction" confirmation and demote unconditionally. Used by
+     * forceReconsider() (see DigitalElmInstance) when a formerly-Passive
+     * input has just proven its own periodicity for the first time: a
+     * consumer that already promoted without this input in its
+     * trustedInputs (because the input was still Passive when the consumer
+     * looked) may have built its schedule from an incomplete empirical
+     * match that only looked periodic because this input's own real
+     * variation simply hadn't been observed yet within that window - a
+     * plain value-confirming Recheck wouldn't catch that until the
+     * specific instant the values happen to actually diverge, which can be
+     * arbitrarily far in the future (see doc.txt's "known limitations" on
+     * the two-window match not being a proof). */
+    constructor(public sender: DigitalElmInstance | null, public alwaysDemote = false) {}
 }
 
 type Pending =
@@ -131,11 +144,27 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     backfillCycle: CycleLike;
     backfillTime: number;
     readonly scheduler: Scheduler;
+    /** When true, logs inputUpdated()/Recheck decisions for this element to
+     * the console - a debugging aid toggled per-element via a getEditInfo()
+     * checkbox (see e.g. GateElm's "Digital Debug" entry), since browser
+     * console access can't reach an arbitrary live object directly and
+     * hover-based selection doesn't survive switching to the console. */
+    digitalDebug: boolean;
 
     addInput(...elements: DigitalElmInstance[]): void;
     resetDigital(): void;
     notifyOutputs(): void;
     inputUpdated(sender?: DigitalElmInstance | null): void;
+    /** Forces this element to unconditionally reconsider its own promotion
+     * (a real demote-and-rederive, not just a value confirmation), even if
+     * its currently-predicted value still happens to match live reality
+     * right now. Called on liveOutputs that already promoted without
+     * `fromInput` in their trustedInputs, when fromInput itself has just
+     * newly proven its own periodicity - see Recheck's alwaysDemote
+     * docstring for why a plain value-check isn't enough here. No-op if
+     * this element is still Passive (it'll naturally reconsider via the
+     * normal live-notification path once fromInput starts varying). */
+    forceReconsider(fromInput: DigitalElmInstance): void;
     wake(): void;
     currentValue(): boolean;
     transitionedTo(targetValue: boolean, since: number, until: number): boolean;
@@ -191,6 +220,18 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         trustedInputs = new Set<DigitalElmInstance>(); // inputs whose future is already accounted for
         sleepRequested = false; // Active + all outputs now trust us; stop after the next tick
         lastChecked = 0; // end of the window already covered by an edge-detection check
+        digitalDebug = false;
+        // The cycleTime we last cascaded a liveOutputs forceReconsider()
+        // for (0 = never promoted). Gates that cascade in _promote() to
+        // fire only when our OWN period actually changes from what
+        // liveOutputs may have already built their own schedules on top
+        // of - not on every re-promotion (repeating it even when the
+        // period comes out the same, e.g. a routine re-confirmation after
+        // a demote, caused a real performance regression - see that
+        // cascade's comment). Persists across a later demote (a demote
+        // doesn't itself invalidate what liveOutputs already saw); only a
+        // genuine period change needs to re-cascade.
+        lastCascadedCycleTime = 0;
 
         // CycleLike fields: self acts as its own root Cycle.
         outputEvents: OutputEvent[] = [];
@@ -264,6 +305,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.sleepBase = 0;
             this.backfillCycle = this;
             this.backfillTime = 0;
+            this.lastCascadedCycleTime = 0;
         }
 
         /** Phase 1 of the scheduler's two-phase dispatch: decide what this
@@ -273,7 +315,20 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             if (val instanceof Recheck) {
                 if (this.state !== State.Active && this.state !== State.Asleep)
                     return null; // already resolved by an earlier delta this same tick
-                if (this.evaluate(val.sender) === this.currentValue())
+                if (val.alwaysDemote) {
+                    if (this.digitalDebug)
+                        console.log("[digital] Recheck (forced)", (this as any).getClassName?.() ?? this,
+                            "state=", State[this.state], "sender=", (val.sender as any)?.getClassName?.() ?? val.sender, "DEMOTE");
+                    return { kind: "demote" };
+                }
+                const liveVal = this.evaluate(val.sender);
+                const predictedVal = this.currentValue();
+                if (this.digitalDebug)
+                    console.log("[digital] Recheck", (this as any).getClassName?.() ?? this,
+                        "state=", State[this.state], "sender=", (val.sender as any)?.getClassName?.() ?? val.sender,
+                        "live=", liveVal, "predicted=", predictedVal, liveVal === predictedVal ? "CONFIRM" : "DEMOTE",
+                        "inputs=", this.inputs.map(i => ({ elm: (i as any).getClassName?.() ?? i, val: i.currentValue() })));
+                if (liveVal === predictedVal)
                     return { kind: "confirm", sender: val.sender };
                 return { kind: "demote" };
             }
@@ -476,6 +531,9 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         }
 
         inputUpdated(sender: DigitalElmInstance | null = null): void {
+            if (this.digitalDebug)
+                console.log("[digital] inputUpdated", (this as any).getClassName?.() ?? this,
+                    "state=", State[this.state], "sender=", (sender as any)?.getClassName?.() ?? sender);
             if (this.state === State.Active || this.state === State.Asleep) {
                 // Scheduled (not evaluated inline) so it goes through the
                 // scheduler's normal two-phase batching for this same
@@ -484,6 +542,11 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 return;
             }
             this.scheduler.schedule(this.scheduler.currentTime + MIN_HOP_TICKS, this);
+        }
+
+        forceReconsider(fromInput: DigitalElmInstance): void {
+            if (this.state === State.Passive) return;
+            this.scheduler.schedule(this.scheduler.currentTime, this, new Recheck(fromInput, true));
         }
 
         /** Common teardown for leaving Active/Asleep because our prediction
@@ -508,10 +571,37 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // Any input we used to trust may now need to run again.
             for (const inp of oldTrusted) inp.wake();
             // Any output that was trusting us locked in a prediction based on
-            // our now-broken periodicity - force a notification even though
-            // notifyOutputs() would normally skip a trusting output.
-            for (const out of this.liveOutputs)
-                if (out.trustedInputs.has(this)) out.inputUpdated(this);
+            // our now-broken periodicity - and as long as it keeps trusting
+            // us, notifyOutputs() will keep silently skipping it, so it
+            // would never hear about anything we do again even if we get
+            // stuck Passive forever, permanently unable to re-promote (a
+            // real bug found live: an output kept replaying a stale
+            // schedule indefinitely after the input it trusted demoted and
+            // never successfully re-promoted). Break that silence
+            // immediately by revoking the trust itself, then let the
+            // ordinary live-notification path (not a forced demote) decide
+            // whether the output's existing prediction is actually still
+            // right. Deliberately NOT forceReconsider() here (an
+            // unconditional demote-and-rederive): for elements in a genuine
+            // mutual feedback loop (like this circuit's own nand/dff
+            // pairing), forcing a full redemote on literally every single
+            // demote let members of the cycle keep re-triggering each
+            // other's forced redemotion indefinitely, never converging - a
+            // real regression found while fixing the original bug above. A
+            // plain notification is enough: once trust is revoked,
+            // notifyOutputs() stops skipping this output, so any REAL future
+            // divergence still gets caught by the normal Recheck value-
+            // mismatch path (see prepare()'s Recheck branch) the moment it
+            // actually happens, without forcing every trusting output to
+            // redo its own promotion from scratch on every demote regardless
+            // of whether its existing prediction is still fine.
+            for (const out of this.liveOutputs) {
+                if (!out.trustedInputs.has(this)) continue;
+                const trusted = new Set(out.trustedInputs);
+                trusted.delete(this);
+                out.trustedInputs = trusted;
+                out.inputUpdated(this);
+            }
         }
 
         /** Index into cyc.outputEvents of the entry in effect `elapsed` ticks
@@ -605,9 +695,39 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         }
 
         /** Called on an input we used to (partly) rely on trusting, when that
-         * trust just broke. Always fully demotes and re-derives live rather
-         * than resuming Active prediction - a single instant matching doesn't
-         * prove the rest of a schedule is still valid (see doc.txt section 4). */
+         * trust just broke - NOT necessarily because our own schedule was
+         * ever shown to be wrong; the consumer that dropped us may simply
+         * have demoted for reasons entirely local to itself (e.g. one of
+         * its OTHER inputs mispredicted). Resume Active self-driving in
+         * place from our existing schedule if a live evaluate() still
+         * agrees with it right now - the same single-instant confirmation
+         * the rest of the trust model already relies on to keep trusting an
+         * established schedule (see Recheck's confirm path and the "active"
+         * commit branch) - rather than unconditionally discarding a still-
+         * good schedule and relearning periodicity from scratch. Only fully
+         * demotes when that check actually fails.
+         *
+         * A single instant matching doesn't *prove* the rest of the
+         * schedule is still valid (see doc.txt section 4) - but neither
+         * does any other point where this same check is used to keep
+         * trusting an existing schedule, so this isn't a weaker guarantee
+         * than the rest of the system already accepts; if the schedule
+         * really has gone stale, the normal Recheck/notifyOutputs path
+         * catches it on the next real divergence, same as it always does
+         * for a self-driving Active element. Was previously an unconditional
+         * _demote(): a real bug found live, where a downstream element's own
+         * (unrelated) mispredictions kept forcibly relearning an upstream
+         * element's periodicity from scratch before it could ever
+         * accumulate enough clean history to re-detect its own true
+         * (shorter, more precise) period, so it settled on a cruder LCM-
+         * based candidate instead - see the cross-coupled-NAND-latch
+         * regression test below for how a purely downstream, non-feedback
+         * consumer could corrupt an upstream element's own promoted period
+         * this way. ClockElm previously needed its own wake() override to
+         * avoid this same trap (safe in its case because it has no inputs,
+         * so its schedule can never actually be wrong) - that override is
+         * now redundant, since the `this.inputs.length === 0` case below
+         * covers it identically. */
         wake(): void {
             if (this.sleepRequested) {
                 // Never actually stopped ticking yet; just cancel the request.
@@ -615,6 +735,16 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 return;
             }
             if (this.state !== State.Asleep) return;
+            this._backfillHistory(this.scheduler.currentTime);
+            this.value = this.currentValue();
+            if (this.inputs.length === 0 || this.evaluate() === this.value) {
+                const elapsed = this._rootElapsed();
+                this.currentCycle = this;
+                const idx = this._indexAt(this, elapsed);
+                this.state = State.Active;
+                this._advanceAndSchedule(idx, elapsed, this);
+                return;
+            }
             this._demote();
             this.scheduler.schedule(this.scheduler.currentTime + MIN_HOP_TICKS, this);
         }
@@ -655,16 +785,102 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             if (this.state !== State.Passive || this.inputs.length === 0) return;
 
             const candidates: number[] = [];
-            const activeInputs = this.inputs.filter(i => i.state === State.Active && i.cycleTime);
-            if (activeInputs.length === this.inputs.length)
-                candidates.push(lcm(activeInputs.map(i => i.cycleTime)));
+            // Active OR Asleep both count as "proven periodicity" here -
+            // Asleep is an even stronger guarantee than Active (it also
+            // satisfied every one of ITS OWN outputs' trust), not a weaker
+            // one. Excluding Asleep inputs was a real bug: once every input
+            // to a slow-changing element has gone to sleep (the common case
+            // for anything downstream of an already-optimized subcircuit),
+            // this would find zero "active" inputs, skip the trustworthy
+            // LCM candidate entirely, and fall back to the empirical
+            // heuristic alone - risking a promotion to a shorter, spuriously-
+            // matching period that doesn't capture the element's true
+            // behavior (see doc.txt's "known limitations" on _matchPeriod
+            // only ever proving two windows, not the whole schedule).
+            // A genuine constant (Passive, with zero inputs of its own - a
+            // DC-tied rail, DigitalConst, etc.) also counts as proven, even
+            // though its cycleTime stays 0 forever: it's not "hasn't proven
+            // a period yet", it has no period to prove at all, being
+            // eternally unchanging. Without this, any element with a
+            // constant input (extremely common - tie-offs, unused
+            // reset/set pins) could NEVER reach provenInputs.length ===
+            // inputs.length no matter how long every other input runs, so
+            // the trustworthy LCM candidate would never be available at
+            // all - leaving it permanently dependent on the empirical
+            // heuristic alone, which can cycle through repeated wrong
+            // guesses indefinitely for circuits where that heuristic is
+            // unreliable (a real bug found live: components never settled
+            // even after dozens of full cycles).
+            const provenInputs = this.inputs.filter(i =>
+                ((i.state === State.Active || i.state === State.Asleep) && i.cycleTime) ||
+                (i.state === State.Passive && i.inputs.length === 0));
+
+            if (this.digitalDebug)
+                console.log("[digital] tryPromote", (this as any).getClassName?.() ?? this,
+                    "inputs=", this.inputs.map(i => ({ elm: (i as any).getClassName?.() ?? i, state: State[i.state], cycleTime: i.cycleTime })),
+                    "provenInputs.length=", provenInputs.length, "/", this.inputs.length,
+                    "historyLength=", this.history.length);
+
+            if (provenInputs.length === this.inputs.length) {
+                const periodic = provenInputs.filter(i => i.cycleTime > 0);
+                candidates.push(periodic.length > 0 ? lcm(periodic.map(i => i.cycleTime)) : 1);
+            }
             for (const p of this._empiricalCandidates())
                 if (!candidates.includes(p)) candidates.push(p);
 
+            if (this.digitalDebug)
+                console.log("[digital] tryPromote", (this as any).getClassName?.() ?? this, "candidates=", candidates);
+
+            // Inputs the empirical heuristic below has to fly blind on: not
+            // proven periodic/constant, so _matchPeriod()'s two-window match
+            // is only as good as whatever evidence our own history happens
+            // to contain about them.
+            const unprovenInputs = this.inputs.filter(i => !provenInputs.includes(i));
+
             for (const p of candidates) {
                 const window = this._matchPeriod(p);
-                if (window !== null) {
-                    this._promote(p, window, activeInputs);
+                // An empirical (non-LCM-trusted) candidate is only as
+                // trustworthy as its evidence about EVERY input - if an
+                // unproven input's own history isn't ALSO internally
+                // consistent with this exact candidate period (same count
+                // of recorded transitions in each window, at matching
+                // offsets and values - i.e. it would pass its OWN
+                // _matchPeriod-style check at this period), the match says
+                // nothing trustworthy about that input's real behavior.
+                // Requiring merely "showed up at least once" isn't enough:
+                // a single isolated transition can land inside the window
+                // without proving anything about periodicity, and - worse -
+                // might not even have been the thing our own two-window
+                // match actually depended on, if another input was already
+                // masking it (e.g. an already-true OR input hiding a
+                // separate input's transition). A real bug found live: an
+                // element promoted (and later went Asleep, permanently
+                // losing all further self-checking - see wake()'s
+                // docstring) based on a match that only superficially
+                // "saw" a slow input vary once, and showed a genuinely
+                // wrong live value for as long as that input's true
+                // (much longer) period didn't happen to matter yet.
+                // Requiring EVERY input to be fully proven first (not just
+                // self-consistent within the window) was tried and
+                // rejected: it deadlocks any genuine feedback loop, where
+                // members can only ever bootstrap via exactly this kind of
+                // empirical evidence about each other. Requiring each
+                // unproven input's own history to independently pass the
+                // same two-window test preserves that bootstrapping (loop
+                // members vary repeatedly and consistently, so they satisfy
+                // this too) while refusing a candidate that's only really
+                // supported by inputs we have genuine confidence in.
+                const blind = window !== null && unprovenInputs.some(i => {
+                    const w1 = i.history.filter(([t]) => t > this.scheduler.currentTime - 2 * p && t <= this.scheduler.currentTime - p);
+                    const w2 = i.history.filter(([t]) => t > this.scheduler.currentTime - p && t <= this.scheduler.currentTime);
+                    if (w1.length === 0 && w2.length === 0) return true;
+                    if (w1.length !== w2.length) return true;
+                    return w1.some(([t1, v1], j) => { const [t2, v2] = w2[j]; return v1 !== v2 || t2 - t1 !== p; });
+                });
+                if (this.digitalDebug)
+                    console.log("[digital] tryPromote candidate", p, "matched=", window !== null, "blind=", blind);
+                if (window !== null && !blind) {
+                    this._promote(p, window, provenInputs);
                     return;
                 }
             }
@@ -770,7 +986,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return { reps, tail: events.slice(i) };
         }
 
-        _promote(period: number, window: [number, boolean][], activeInputs: DigitalElmInstance[]): void {
+        _promote(period: number, window: [number, boolean][], provenInputs: DigitalElmInstance[]): void {
             const now = this.scheduler.currentTime;
             const base = now - period;
             this.rootPhaseZero = base;
@@ -788,13 +1004,48 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.state = State.Active;
             this.firstOutputEvent = 0;
             this.currentCycle = this; // fresh promotion: start clean at the root
-            this.trustedInputs = new Set(activeInputs);
+            this.trustedInputs = new Set(provenInputs);
             this._advanceAndSchedule(this.outputEvents.length - 1);
             // These inputs may have just become fully unwatched.
-            for (const inp of activeInputs) inp._maybeSleep();
+            for (const inp of provenInputs) inp._maybeSleep();
             // One of our own outputs may already have been trusting us from an
             // earlier promotion of its own - give it a fresh chance to notice.
             this._maybeSleep();
+            // Any of our own liveOutputs that already promoted WITHOUT us in
+            // their trustedInputs may have built their own schedule from an
+            // incomplete or now-stale empirical match (see Recheck's
+            // alwaysDemote docstring for why a plain value-confirming
+            // notification isn't enough to catch this) - either because we
+            // were still Passive when they looked (the original case this
+            // cascade covered), or because they promoted using OUR earlier,
+            // now-superseded period: a downstream element whose own history
+            // happened to be recorded while we were still mid-flux (re-
+            // deriving our own period across several promotions) can bake a
+            // transient artifact from that flux into its schedule, match it
+            // against itself as if periodic, and never notice it no longer
+            // reflects our real (now-settled) behavior - a real bug found
+            // live (see the cross-coupled-NAND-latch and downstream-NOR
+            // regression tests). Only cascade when our period actually
+            // changed from what we last cascaded, not on every re-
+            // promotion: a routine re-confirmation that lands on the exact
+            // same period is not new information for any output, and
+            // cascading on every re-promotion regardless (including same-
+            // period ones) was a real performance regression - normal re-
+            // promotion churn is common (during startup especially), and
+            // each cascade could itself trigger more re-promotions with
+            // their own cascades, snowballing through the whole graph. An
+            // output that already trusts us is separately covered by
+            // _demote()'s own force-notify cascade if we're ever wrong
+            // later; an output that doesn't trust us is already getting
+            // normal live notifications on every tick regardless (see
+            // notifyOutputs()) - but as this bug showed, "live notification"
+            // alone isn't enough to catch a stale *schedule*, only a stale
+            // *live value*.
+            if (this.cycleTime !== this.lastCascadedCycleTime) {
+                this.lastCascadedCycleTime = this.cycleTime;
+                for (const out of this.liveOutputs)
+                    if (!out.trustedInputs.has(this)) out.forceReconsider(this);
+            }
         }
 
         /** Override in derived classes to compute the element's value.

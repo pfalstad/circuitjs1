@@ -24,6 +24,7 @@ import { FindPathInfo } from "./FindPathInfo";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { WireRouter } from "./WireRouter";
+import { EditInfo } from "./EditInfo";
 import { withDigital, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
@@ -103,20 +104,29 @@ export class RailElm extends withDigital(VoltageElm) {
             appendInfoLine(arr, "opt: " + digitalStateText(this));
     }
 
-    // Clock's schedule is never actually in doubt (it has no inputs), so
-    // unlike the generic wake(), just resume Active ticking in place
-    // instead of fully demoting - see cycle4/sim.py Clock.wake()'s
-    // docstring (ported verbatim in spirit) for why this is safe only here.
-    wake(): void {
-        if (!this.isDigitalClock()) { super.wake(); return; }
-        if (this.sleepRequested) { this.sleepRequested = false; return; }
-        if (this.state !== State.Asleep) return;
-        this.value = this.currentValue();
-        const elapsed = this._rootElapsed();
-        this.currentCycle = this;
-        const idx = this._indexAt(this, elapsed);
-        this.state = State.Active;
-        this._advanceAndSchedule(idx, elapsed, this);
+    // VoltageElm's own edit list length varies by waveform, so the "Digital
+    // Debug" checkbox's index can't be a fixed constant - compute where
+    // VoltageElm's own entries run out and use that slot instead.
+    private digitalDebugEditIndex(): number {
+        let i = 0;
+        while (super.getEditInfo(i) !== null) i++;
+        return i;
+    }
+
+    getEditInfo(n: number): EditInfo | null {
+        const ei = super.getEditInfo(n);
+        if (ei !== null) return ei;
+        if (n === this.digitalDebugEditIndex())
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
+        return null;
+    }
+
+    setEditValue(n: number, ei: EditInfo): void {
+        if (n === this.digitalDebugEditIndex()) {
+            this.digitalDebug = ei.checkbox.getState();
+            return;
+        }
+        super.setEditValue(n, ei);
     }
 
     constructor(xx: number, yy: number);

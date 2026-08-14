@@ -41,8 +41,13 @@ export class JKFlipFlopElm extends ChipElm implements Group {
     inputs: DigitalElmInstance[] = [];
     digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
 
+    // Persists across re-stamps (unlike digitalPins itself, rebuilt from
+    // scratch by initDigitalPins() below - see DFlipFlopElm.ts for why).
+    digitalDebugPins = false;
+
     initDigitalPins(): void {
         this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
+        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
     }
 
     /** Pure equivalent of execute() (see below): unlike DFlipFlopElm, JK's
@@ -144,6 +149,8 @@ export class JKFlipFlopElm extends ChipElm implements Group {
             return EditInfo.createCheckbox("Positive Edge Triggered", this.positiveEdgeTriggered());
         if (n === 2)
             return EditInfo.createCheckbox("Invert Reset", this.invertReset());
+        if (n === 3)
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebugPins);
         return super.getChipEditInfo(n);
     }
 
@@ -162,6 +169,10 @@ export class JKFlipFlopElm extends ChipElm implements Group {
             this.flags = ei.changeFlag(this.flags, JKFlipFlopElm.FLAG_INVERT_RESET);
             this.setupPins();
             this.setPoints();
+        }
+        if (n === 3) {
+            this.digitalDebugPins = ei.checkbox!.getState();
+            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
         }
         super.setChipEditValue(n, ei);
     }

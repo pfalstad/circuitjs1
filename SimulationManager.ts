@@ -1124,10 +1124,10 @@ export class SimulationManager {
     // still-Passive element one initial evaluation (see
     // initDigitalElements()'s own docstring for why that last step matters).
     initDigitalCircuit(): void {
-	this.digitalScheduler = new Scheduler();
-	DigitalElm.current = this.digitalScheduler;
-	initDigitalElements(this.elmArr);
-	this.digitalReady = true;
+        this.digitalScheduler = new Scheduler();
+        DigitalElm.current = this.digitalScheduler;
+        initDigitalElements(this.elmArr);
+        this.digitalReady = true;
     }
 
     // make list of posts we need to draw.  posts shared by 2 elements should be hidden, all
