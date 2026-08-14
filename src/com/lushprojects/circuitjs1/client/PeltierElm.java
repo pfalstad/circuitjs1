@@ -23,6 +23,8 @@ import com.google.gwt.xml.client.Element;
 import com.google.gwt.xml.client.Document;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
+// REPORT-CARD >> features/thermoelectric-peltier-element.feature
+//
 // Thermoelectric (Peltier / TEC) module.
 //
 // Four terminals: two ELECTRICAL and two THERMAL.  The thermal terminals use
@@ -183,8 +185,15 @@ class PeltierElm extends CircuitElm {
 	double tc = volts[3];
 	double i = current;              // electrical current through the device
 
-	// Seebeck emf opposes the applied voltage, proportional to dT
-	sim.updateVoltageSource(nodes[0], nodes[4], voltSource, seebeck*(th-tc));
+	// Seebeck emf opposes the applied voltage, proportional to dT.
+	// stampVoltageSource(n1, n2, vs, v) sets V(n2) - V(n1) = v, so the emf must
+	// be stamped NEGATIVE here to raise the terminal voltage: with the internal
+	// node 4 between the source and R, this gives
+	//     V(0) - V(1) = I*R + a*(Th-Tc)
+	// which is the relation Qh - Qc = V*I depends on.  Stamping +seebeck*(th-tc)
+	// makes the emf assist the drive instead of opposing it, and the element then
+	// delivers more heat than the electrical work put in.
+	sim.updateVoltageSource(nodes[0], nodes[4], voltSource, -seebeck*(th-tc));
 
 	// Peltier pumping: aITc leaves the cold face, aITh enters the hot face.
 	// The difference aI(Th-Tc) is supplied by the electrical port via the
@@ -202,8 +211,13 @@ class PeltierElm extends CircuitElm {
 	double cond = thermalCond*(th-tc);
 	qCold = seebeck*i*tc - 0.5*i*i*resistance - cond;
 	qHot  = seebeck*i*th + 0.5*i*i*resistance - cond;
-	elecPower = (seebeck*(th-tc) + i*resistance)*i;
-	cop = (elecPower != 0) ? qCold/elecPower : 0;
+	// measured from the solved terminal voltage rather than recomputed from the
+	// model equation, so that the Qh-Qc-W residual shown in getInfo() is a real
+	// check against the circuit solution and not the formula compared to itself
+	elecPower = (volts[0]-volts[1])*i;
+	// only meaningful when the device is actually being driven; with no drive
+	// (Seebeck generator mode) W tends to zero and the ratio blows up
+	cop = (elecPower > 1e-6) ? qCold/elecPower : 0;
     }
 
     void getInfo(String arr[]) {
