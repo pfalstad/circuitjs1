@@ -554,10 +554,51 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         _demote(): void {
             if (this.state === State.Asleep) {
                 // We stopped recording history (and correcting .value) while
-                // asleep; catch both up before clearing our schedule.
+                // asleep; catch both up before clearing our schedule. Using
+                // currentValue() (the abandoned schedule's own prediction)
+                // rather than a fresh evaluate() is correct here: the baked
+                // schedule was still trusted right up until this demote, so
+                // replaying it via backfill is exactly what should have
+                // been happening in the background all along.
                 this._backfillHistory(this.scheduler.currentTime);
                 this.value = this.currentValue();
             }
+            // Whatever our state was, the schedule we're abandoning (baked
+            // or self-driven) accounted for our behavior up through right
+            // now - so our edge-detection window is fully covered up to
+            // this instant too. Without this, an element leaving Active
+            // keeps whatever lastChecked its last real self-driven commit
+            // left behind (often set once, at promotion time, and never
+            // touched again while ticking off its own baked schedule) -
+            // potentially tens of thousands of ticks stale. The next live
+            // (Passive) re-evaluation then computes transitionedTo() over
+            // that whole stale span instead of just the time since now,
+            // so ANY edge anywhere in that huge window - not just the one
+            // that should actually govern this check - counts as "yes, an
+            // edge happened," and edge-triggered logic (e.g. a D flip-
+            // flop) latches its data input's CURRENT value instead of the
+            // value as of the one real relevant edge. A real bug found
+            // live: a demote triggered by an unrelated cascade (see
+            // _promote()'s forceReconsider comment) - even though the
+            // demoted element's own prediction was still completely
+            // correct - corrupted its very next live value this way,
+            // which then propagated through several more levels of the
+            // circuit before surfacing as a visibly wrong NOR output.
+            // transitionedTo()'s window is exclusive of `since`, so
+            // advancing lastChecked to exactly `now` would exclude a real
+            // edge landing on this exact tick (the same tick as the
+            // demote) from every future check, permanently - a real bug
+            // found live. Back off by one tick instead: a (now-1, now]
+            // window can contain at most one transition (ticks are
+            // integers), so this can't under-count multiple edges the way
+            // calling this.evaluate() here did when tried (it collapses
+            // "at least one edge occurred" into a single toggle, which
+            // silently under-counts if lastChecked was stale by more than
+            // one edge's worth of time - exactly the case this whole fix
+            // exists for). This also still closes the original wide-
+            // stale-window bug (see the flip-flop example above): stale
+            // by one tick behaves nothing like stale by tens of thousands.
+            this.lastChecked = this.scheduler.currentTime - 1;
             this.state = State.Passive;
             // Keep the schedule we're abandoning as compression material for a
             // future promotion (see doc.txt section 5).
