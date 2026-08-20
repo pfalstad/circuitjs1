@@ -342,7 +342,7 @@ public class Menus {
 		"Add Voltmeter/Scope Probe", "ProbeElm",
 		"Add Ohmmeter", "OhmMeterElm",
 		"Add Ammeter", "AmmeterElm",
-		"Add Wattmeter", "WattmeterElm",
+		"Add Wattmeter", "WattmeterTrueElm",
 		"Add Test Point", "TestPointElm",
 		"Add Decimal Display", "DecimalDisplayElm",
 		"Add Instruction Display", "InstructionDisplayElm",
@@ -351,7 +351,8 @@ public class Menus {
 		"Add Audio Output", "AudioOutputElm",
 		"Add Stop Trigger", "StopTriggerElm",
 		"Add DC Motor", "DCMotorElm",
-		"Add 3-Phase Motor", "ThreePhaseMotorElm"
+		"Add 3-Phase Motor", "ThreePhaseMotorElm",
+		"Add Wattmeter (old)", "WattmeterElm",
 	});
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Outputs and Labels")), outputMenuBar);
     	
