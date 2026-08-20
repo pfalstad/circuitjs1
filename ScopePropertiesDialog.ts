@@ -161,6 +161,13 @@ export class ScopePropertiesDialog extends Dialog {
     private xyGreenBox: HTMLSelectElement;
     private xyBlueBox: HTMLSelectElement;
 
+    // Digital raster (CRT-style scan of a single digital signal)
+    private rasterBox: ScopeCheckBox;
+    private rasterSettingsDiv: HTMLDivElement;
+    private rasterSignalBox: HTMLSelectElement;
+    private rasterLineWidthTextBox: HTMLInputElement;
+    private rasterFrameLengthTextBox: HTMLInputElement;
+
     // Show info
     private showInfoSection: ExpandingSection;
     private scaleBox: ScopeCheckBox;
@@ -449,6 +456,35 @@ export class ScopePropertiesDialog extends Dialog {
         trailDiv.appendChild(this.trailLabel);
         xyContent.appendChild(trailDiv);
 
+        // Digital Raster (also inside XY Plots section - a third,
+        // mutually-exclusive 2d mode alongside V-vs-I and X/Y, for viewing
+        // a digital signal as a CRT-style raster image rather than a 1-d
+        // waveform - see ScopePlot2d.fillDigitalRaster()).
+        this.rasterBox = new ScopeCheckBox('Digital Raster', 'digitalraster', xyBasicDiv);
+        this.rasterBox.element.addEventListener('change', () => this.onCheckboxChange(this.rasterBox));
+
+        this.rasterSettingsDiv = document.createElement('div');
+        this.rasterSettingsDiv.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px;align-items:center;margin-top:4px;';
+        xyContent.appendChild(this.rasterSettingsDiv);
+        this.rasterSignalBox = this.makeXYSelect('Signal:', this.rasterSettingsDiv,
+            (idx) => { scope.plot2d.plotBrightness = idx; scope.resetGraph(); });
+        const lineWidthLbl = document.createElement('span');
+        lineWidthLbl.textContent = Locale.LS('Line Width:');
+        this.rasterSettingsDiv.appendChild(lineWidthLbl);
+        this.rasterLineWidthTextBox = document.createElement('input');
+        this.rasterLineWidthTextBox.type = 'text';
+        this.rasterLineWidthTextBox.className = 'scalebox';
+        this.rasterLineWidthTextBox.addEventListener('change', () => this.applyRasterTiming());
+        this.rasterSettingsDiv.appendChild(this.rasterLineWidthTextBox);
+        const frameLengthLbl = document.createElement('span');
+        frameLengthLbl.textContent = Locale.LS('Frame Length:');
+        this.rasterSettingsDiv.appendChild(frameLengthLbl);
+        this.rasterFrameLengthTextBox = document.createElement('input');
+        this.rasterFrameLengthTextBox.type = 'text';
+        this.rasterFrameLengthTextBox.className = 'scalebox';
+        this.rasterFrameLengthTextBox.addEventListener('change', () => this.applyRasterTiming());
+        this.rasterSettingsDiv.appendChild(this.rasterFrameLengthTextBox);
+
         // ---- Show Info ----
         this.showInfoSection = new ExpandingSection('Show Info', displayAll, fp);
         const infoContent = this.showInfoSection.contentEl;
@@ -631,6 +667,19 @@ export class ScopePropertiesDialog extends Dialog {
         } catch (e) {}
     }
 
+    private applyRasterTiming(): void {
+        try {
+            const lw = EditDialog.parseUnits(this.rasterLineWidthTextBox.value);
+            if (lw > 0) this.scope.plot2d.rasterLineWidthSec = lw;
+        } catch (e) {}
+        try {
+            const fl = EditDialog.parseUnits(this.rasterFrameLengthTextBox.value);
+            if (fl > 0) this.scope.plot2d.rasterFrameLengthSec = fl;
+        } catch (e) {}
+        this.scope.resetGraph();
+        this.updateUi();
+    }
+
     private onCheckboxChange(cb: ScopeCheckBox): void {
         this.scope.handleMenu(cb.menuCmd, cb.getValue());
         this.updateUi();
@@ -659,8 +708,9 @@ export class ScopePropertiesDialog extends Dialog {
         this.phaseAngleBox.setValue(scope.fftPlot.showPhaseAngle);
         this.elmInfoBox.setValue(scope.showElmInfo);
         this.rmsBox.setEnabled(scope.canShowRMS());
-        this.viBox.setValue(scope.plot2d.enabled && !scope.plot2d.plotXY);
+        this.viBox.setValue(scope.plot2d.enabled && !scope.plot2d.plotXY && !scope.plot2d.digitalRaster);
         this.xyBox.setValue(scope.plot2d.plotXY);
+        this.rasterBox.setValue(scope.plot2d.digitalRaster);
         this.resistanceBox.setValue(scope.hasPlotValue(Scope.VAL_R));
         this.resistanceBox.setEnabled(scope.canShowResistance());
         if (this.chargeBox !== null)
@@ -713,6 +763,15 @@ export class ScopePropertiesDialog extends Dialog {
             this.populatePlotListBox(this.xyRedBox,        scope.plot2d.plotColorR,     true);
             this.populatePlotListBox(this.xyGreenBox,      scope.plot2d.plotColorG,     true);
             this.populatePlotListBox(this.xyBlueBox,       scope.plot2d.plotColorB,     true);
+        }
+
+        // Digital raster settings visibility
+        const rasterActive = scope.plot2d.digitalRaster;
+        this.rasterSettingsDiv.style.display = (rasterActive && this.xyPlotsSection.expanded) ? '' : 'none';
+        if (rasterActive) {
+            this.populatePlotListBox(this.rasterSignalBox, scope.plot2d.plotBrightness, true);
+            this.rasterLineWidthTextBox.value   = EditDialog.unitStringVal(null, scope.plot2d.rasterLineWidthSec);
+            this.rasterFrameLengthTextBox.value = EditDialog.unitStringVal(null, scope.plot2d.rasterFrameLengthSec);
         }
 
         this.setScopeSpeedLabel();

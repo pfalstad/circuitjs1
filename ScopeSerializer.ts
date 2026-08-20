@@ -39,6 +39,7 @@ export class ScopeSerializer {
     static readonly FLAG_PERPLOT_MAN_SCALE = 1 << 19;
     static readonly FLAG_DIVISIONS         = 1 << 21;
     static readonly FLAG_TRIGGER           = 1 << 24;
+    static readonly FLAG_DIGITAL_RASTER    = 1 << 25;
 
     constructor(scope: Scope) {
         this.scope = scope;
@@ -55,7 +56,8 @@ export class ScopeSerializer {
                 (this.scope.fftPlot.enabled ? 1024 : 0) | (this.scope.maxScale ? 8192 : 0) | (this.scope.showRMS ? 16384 : 0) |
                 (this.scope.showDutyCycle ? 32768 : 0) | (this.scope.fftPlot.logSpectrum ? 65536 : 0) |
                 (this.scope.showAverage ? (1 << 17) : 0) | (this.scope.showElmInfo ? (1 << 20) : 0) |
-                (this.scope.showP2P ? (1 << 22) : 0) | (this.scope.fftPlot.showPhaseAngle ? (1 << 23) : 0);
+                (this.scope.showP2P ? (1 << 22) : 0) | (this.scope.fftPlot.showPhaseAngle ? (1 << 23) : 0) |
+                (this.scope.plot2d.digitalRaster ? ScopeSerializer.FLAG_DIGITAL_RASTER : 0);
         flags |= ScopeSerializer.FLAG_PLOTS; // 4096
         let allPlotFlags = 0;
         for (const p of this.scope.plots)
@@ -76,6 +78,7 @@ export class ScopeSerializer {
         this.scope.manualScale = (flags & ScopeSerializer.FLAG_MAN_SCALE) !== 0;
         this.scope.plot2d.enabled = (flags & 64) !== 0;
         this.scope.plot2d.plotXY = (flags & 128) !== 0;
+        this.scope.plot2d.digitalRaster = (flags & ScopeSerializer.FLAG_DIGITAL_RASTER) !== 0;
         this.scope.showMin = (flags & 256) !== 0;
         this.scope.showScale = (flags & 512) !== 0;
         this.scope.fftPlot.show((flags & 1024) !== 0);
@@ -123,6 +126,11 @@ export class ScopeSerializer {
             if (this.scope.plot2d.plotColorG >= 0) CircuitXMLSerializer.dumpAttr(xmlElm, "xy2g", this.scope.plot2d.plotColorG);
             if (this.scope.plot2d.plotColorB >= 0) CircuitXMLSerializer.dumpAttr(xmlElm, "xy2b", this.scope.plot2d.plotColorB);
         }
+        if (this.scope.plot2d.digitalRaster) {
+            if (this.scope.plot2d.plotBrightness >= 0) CircuitXMLSerializer.dumpAttr(xmlElm, "dr2br", this.scope.plot2d.plotBrightness);
+            CircuitXMLSerializer.dumpAttr(xmlElm, "dr2lw", this.scope.plot2d.rasterLineWidthSec);
+            CircuitXMLSerializer.dumpAttr(xmlElm, "dr2fl", this.scope.plot2d.rasterFrameLengthSec);
+        }
         root.appendChild(xmlElm);
         for (let i = 0; i < this.scope.plots.length; i++) {
             const p = this.scope.plots[i];
@@ -168,6 +176,9 @@ export class ScopeSerializer {
         const xy2r  = xml.parseIntAttr("xy2r",  -1);
         const xy2g  = xml.parseIntAttr("xy2g",  -1);
         const xy2b  = xml.parseIntAttr("xy2b",  -1);
+        const dr2br = xml.parseIntAttr("dr2br", -1);
+        const dr2lw = xml.parseDoubleAttr("dr2lw", this.scope.plot2d.rasterLineWidthSec);
+        const dr2fl = xml.parseDoubleAttr("dr2fl", this.scope.plot2d.rasterFrameLengthSec);
         for (const elem of xml.getChildElements()) {
             xml.parseChildElement(elem);
             const plotFlags = parseInt(xml.parseStringAttr("f", "0")!, 16);
@@ -197,6 +208,11 @@ export class ScopeSerializer {
             this.scope.plot2d.plotColorR     = xy2r;
             this.scope.plot2d.plotColorG     = xy2g;
             this.scope.plot2d.plotColorB     = xy2b;
+        }
+        if (this.scope.plot2d.digitalRaster) {
+            this.scope.plot2d.plotBrightness    = dr2br;
+            this.scope.plot2d.rasterLineWidthSec   = dr2lw;
+            this.scope.plot2d.rasterFrameLengthSec = dr2fl;
         }
         // restore scaleX/scaleY for 2d plots
         if (this.scope.plot2d.enabled && this.scope.plots.length >= 1) {

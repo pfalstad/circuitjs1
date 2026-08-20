@@ -21,6 +21,7 @@ import { CircuitElm } from "./CircuitElm";
 import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Scope } from "./Scope";
+import { State } from "./digital/DigitalElm";
 
 export class ScopePlot2d {
     enabled: boolean = false;
@@ -41,6 +42,30 @@ export class ScopePlot2d {
     scaleR: number = 5;
     scaleG: number = 5;
     scaleB: number = 5;
+
+    // --- Digital raster mode ---
+    //
+    // A CRT-style raster view for a single digital signal: scans left to
+    // right across a horizontal line lasting rasterLineWidthSec, then top
+    // to bottom one line per rasterLineWidthSec, wrapping to a new frame
+    // every rasterFrameLengthSec - exactly what's needed to view something
+    // like a video generator's output as an actual image, rather than as a
+    // 1-d waveform. Mutually exclusive with plotXY (see Scope.handleMenu()).
+    // Which plot supplies the signal is plotBrightness, reused from the X-Y
+    // brightness-modulator concept above - only one of the two modes is
+    // ever active, so sharing the field avoids a redundant one.
+    digitalRaster: boolean = false;
+    rasterLineWidthSec: number = 1e-5;
+    rasterFrameLengthSec: number = 1e-3;
+    // Which frame (now / frameLengthTicks, floored) the canvas currently
+    // shows - a change means a new frame has started and the canvas needs
+    // clearing before drawing anything into it. -1 (impossible for a real
+    // frame index) forces that clear-and-restart on the very first fill.
+    private rasterFrameIndex: number = -1;
+    // Tick (relative to the scheduler, not the frame) already painted up
+    // to - fillDigitalRaster() resumes from here instead of rescanning
+    // history it already drew.
+    private rasterFilledTick: number = -1;
 
     private imageCanvas: HTMLCanvasElement | null = null;
     private imageContext: CanvasRenderingContext2D | null = null;
@@ -69,6 +94,11 @@ export class ScopePlot2d {
         this.imageCanvas.width  = this.scope.rect.width;
         this.imageCanvas.height = this.scope.rect.height;
         this.clearView();
+        // Canvas just got wiped/resized - force fillDigitalRaster() to
+        // clear-and-restart the current frame rather than trying to resume
+        // painting into content that no longer exists.
+        this.rasterFrameIndex = -1;
+        this.rasterFilledTick = -1;
     }
 
     clearView(): void {
@@ -148,6 +178,114 @@ export class ScopePlot2d {
         return idx;
     }
 
+    /** Rebuilds the raster image from the signal's own change-list history
+     * (DigitalElmInstance.history - see digital/DigitalElm.ts) instead of
+     * sampling a pixel every simulation timestep, for the same reason
+     * ScopePlot.fillFromDigitalHistory() does: under the digital fast-path
+     * optimization most timesteps never touch the analog solver at all, so
+     * per-tick sampling would either force live evaluation on every tick
+     * (defeating the optimization) or silently miss whatever happened while
+     * asleep. Called once per draw() (see Scope.draw()), not once per tick -
+     * unlike timeStep() above (the X-Y trail mode this replaces), which IS
+     * driven by the real per-timestep simulation loop.
+     *
+     * Shows the current, in-progress frame - built up left-to-right,
+     * top-to-bottom exactly like a real raster scan as `now` advances - and
+     * clears to black the moment a new frame starts (rather than trying to
+     * average/overlay repeated frames, which would just look like noise
+     * unless rasterLineWidthSec/rasterFrameLengthSec exactly matches the
+     * real signal's own timing - the user is expected to tune them until
+     * the image locks, the same way an old TV's manual hold controls work). */
+    fillDigitalRaster(): void {
+        if (this.imageContext === null) return;
+        const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
+            ? this.scope.plots[this.plotBrightness] : null;
+        const de = bp?.digitalElm ?? null;
+        if (de === null) return;
+        const maxTimeStep = this.scope.sim.maxTimeStep;
+        if (!(maxTimeStep > 0)) return;
+
+        const lineWidthTicks = Math.max(1, Math.round(this.rasterLineWidthSec / maxTimeStep));
+        const linesPerFrame = Math.max(1, Math.round(this.rasterFrameLengthSec / (lineWidthTicks * maxTimeStep)));
+        const frameLengthTicks = lineWidthTicks * linesPerFrame;
+
+        const now = de.scheduler.currentTime;
+        if (de.state === State.Asleep) de._backfillHistory(now);
+
+        const frameIndex = Math.floor(now / frameLengthTicks);
+        const frameStart = frameIndex * frameLengthTicks;
+        const canvasWidth = this.scope.rect.width;
+        const canvasHeight = this.scope.rect.height;
+
+        let fillFromTick: number;
+        if (frameIndex !== this.rasterFrameIndex) {
+            this.rasterFrameIndex = frameIndex;
+            this.imageContext.fillStyle = this.rasterOffColor();
+            this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
+            fillFromTick = frameStart;
+        } else {
+            if (this.rasterFilledTick === now) return; // already caught up
+            fillFromTick = this.rasterFilledTick;
+        }
+
+        const hist = de.history; // ascending [tick, value]
+        let lo = 0, hi = hist.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (hist[mid][0] <= fillFromTick) lo = mid + 1; else hi = mid;
+        }
+        let curVal = lo > 0 ? hist[lo - 1][1] : (hist.length > 0 ? hist[0][1] : de.currentValue());
+        let cursor = fillFromTick;
+        for (let i = lo; i < hist.length && hist[i][0] < now; i++) {
+            this.drawRasterSpan(cursor - frameStart, hist[i][0] - frameStart, curVal,
+                lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+            curVal = hist[i][1];
+            cursor = hist[i][0];
+        }
+        this.drawRasterSpan(cursor - frameStart, now - frameStart, curVal,
+            lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+
+        this.rasterFilledTick = now;
+    }
+
+    /** Paints one constant-value run of raster time [fromTick, toTick)
+     * (already relative to the current frame's own start) as filled
+     * rects. A run can span many lines (e.g. held low through many lines
+     * of blanking) - rather than looping line by line, any stretch of
+     * whole lines is painted as a single rect, so the number of fillRect
+     * calls stays proportional to (history transitions x lines they
+     * straddle), not to the frame's total line count. */
+    private drawRasterSpan(fromTick: number, toTick: number, value: boolean,
+            lineWidthTicks: number, linesPerFrame: number, canvasWidth: number, canvasHeight: number): void {
+        if (toTick <= fromTick) return;
+        this.imageContext!.fillStyle = value ? this.rasterOnColor() : this.rasterOffColor();
+        let t = fromTick;
+        while (t < toTick) {
+            const line = Math.floor(t / lineWidthTicks);
+            const lineStartTick = line * lineWidthTicks;
+            const offsetInLine = t - lineStartTick;
+            const remaining = toTick - t;
+            if (offsetInLine === 0 && remaining >= lineWidthTicks) {
+                const fullLines = Math.min(Math.floor(remaining / lineWidthTicks), linesPerFrame - line);
+                const py0 = line / linesPerFrame * canvasHeight;
+                const py1 = (line + fullLines) / linesPerFrame * canvasHeight;
+                this.imageContext!.fillRect(0, py0, canvasWidth, py1 - py0);
+                t += fullLines * lineWidthTicks;
+            } else {
+                const segTicks = Math.min(lineWidthTicks - offsetInLine, remaining);
+                const px0 = offsetInLine / lineWidthTicks * canvasWidth;
+                const px1 = (offsetInLine + segTicks) / lineWidthTicks * canvasWidth;
+                const py0 = line / linesPerFrame * canvasHeight;
+                const py1 = (line + 1) / linesPerFrame * canvasHeight;
+                this.imageContext!.fillRect(px0, py0, Math.max(1, px1 - px0), py1 - py0);
+                t += segTicks;
+            }
+        }
+    }
+
+    private rasterOnColor(): string  { return this.scope.app.isPrintable() ? "#000000" : "#ffffff"; }
+    private rasterOffColor(): string { return this.scope.app.isPrintable() ? "#ffffff" : "#000000"; }
+
     timeStep(): void {
         if (this.imageContext === null || this.scope.plots.length < 1)
             return;
@@ -190,6 +328,10 @@ export class ScopePlot2d {
     draw(g: Graphics): void {
         if (this.imageContext === null)
             return;
+        if (this.digitalRaster) {
+            this.drawRaster(g);
+            return;
+        }
         g.context.save();
         g.context.translate(this.scope.rect.x, this.scope.rect.y);
         g.clipRect(0, 0, this.scope.rect.width, this.scope.rect.height);
@@ -274,5 +416,29 @@ export class ScopePlot2d {
             info[1] = spy.getUnitText(yValue);
             this.scope.drawCursorInfo(g, info, 2, this.scope.app.mouse.mouseCursorX, true);
         }
+    }
+
+    /** Draw path for digital raster mode - just the image (built entirely
+     * by fillDigitalRaster(), called before this from Scope.draw()) plus a
+     * label; none of the X-Y mode's crosshairs/grid/trail-fade/cursor
+     * readout apply to a raster image. */
+    private drawRaster(g: Graphics): void {
+        g.context.save();
+        g.context.translate(this.scope.rect.x, this.scope.rect.y);
+        g.clipRect(0, 0, this.scope.rect.width, this.scope.rect.height);
+        g.context.drawImage(this.imageCanvas!, 0, 0);
+
+        this.scope.overlays.textY = 10;
+        g.setColor(CircuitElm.whiteColor);
+        if (this.scope.text != null)
+            this.scope.drawInfoText(g, this.scope.text);
+        const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
+            ? this.scope.plots[this.plotBrightness] : null;
+        const label = (bp !== null && bp.elm !== null) ? bp.elm.getClassName().replace("Elm", "") : "no signal";
+        this.scope.drawInfoText(g, label + ": " + CircuitElm.getUnitText(this.rasterLineWidthSec, "s") + "/line, " +
+            CircuitElm.getUnitText(this.rasterFrameLengthSec, "s") + "/frame");
+
+        g.context.restore();
+        this.scope.drawSettingsWheel(g);
     }
 }

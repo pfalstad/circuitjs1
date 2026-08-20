@@ -541,8 +541,12 @@ export class Scope {
 
         this.checkTrigger();
 
-        // For 2d plots we draw here rather than in the drawing routine
-        if (this.plot2d.enabled)
+        // For 2d plots we draw here rather than in the drawing routine.
+        // Digital raster mode is excluded - like the 1-d digital plots
+        // above, it's rebuilt from history once per draw() instead (see
+        // ScopePlot2d.fillDigitalRaster()'s docstring), not sampled here
+        // every timestep.
+        if (this.plot2d.enabled && !this.plot2d.digitalRaster)
             this.plot2d.timeStep();
     }
 
@@ -655,12 +659,19 @@ export class Scope {
 
         // Digital plots weren't kept up to date by timeStep() (see there) -
         // catch them up now, once per draw, from their own change-list
-        // history rather than per simulation tick.
-        for (const p of this.plots)
+        // history rather than per simulation tick. Re-resolve digitalElm
+        // first (see ScopePlot.refreshDigitalSource()'s docstring) - a
+        // plot restored from a saved circuit may not have been able to
+        // find its driver yet the moment it was constructed.
+        for (const p of this.plots) {
+            p.refreshDigitalSource();
             if (p.digitalElm !== null)
                 p.fillFromDigitalHistory();
+        }
 
         if (this.plot2d.enabled) {
+            if (this.plot2d.digitalRaster)
+                this.plot2d.fillDigitalRaster();
             this.plot2d.draw(g);
             return;
         }
@@ -1374,6 +1385,7 @@ export class Scope {
         if (mi === "showvcevsic") {
             this.plot2d.enabled = true;
             this.plot2d.plotXY = false;
+            this.plot2d.digitalRaster = false;
             this.setValues(VAL_VCE, VAL_IC, this.getElm(), null);
             this.resetGraph();
         }
@@ -1381,12 +1393,14 @@ export class Scope {
         if (mi === "showvvsi") {
             this.plot2d.enabled = state;
             this.plot2d.plotXY = false;
+            this.plot2d.digitalRaster = false;
             this.resetGraph();
         }
         if (mi === "manualscale")
             this.setManualScale(state, true);
         if (mi === "plotxy") {
             this.plot2d.plotXY = this.plot2d.enabled = state;
+            this.plot2d.digitalRaster = false;
             if (this.plot2d.enabled) {
                 this.plots = this.visiblePlots;
                 this.plot2d.plotX = 0;
@@ -1395,6 +1409,22 @@ export class Scope {
             }
             if (this.plot2d.enabled && this.plots.length === 1)
                 this.selectY();
+            this.resetGraph();
+        }
+        if (mi === "digitalraster") {
+            this.plot2d.digitalRaster = this.plot2d.enabled = state;
+            this.plot2d.plotXY = false;
+            if (this.plot2d.enabled) {
+                this.plots = this.visiblePlots;
+                // Default the raster signal to whichever visible plot is
+                // actually a digital source, if any - otherwise leave
+                // whatever was already selected (or none).
+                if (this.plot2d.plotBrightness < 0 || this.plot2d.plotBrightness >= this.plots.length ||
+                        this.plots[this.plot2d.plotBrightness].digitalElm === null) {
+                    const idx = this.plots.findIndex(p => p.digitalElm !== null);
+                    if (idx >= 0) this.plot2d.plotBrightness = idx;
+                }
+            }
             this.resetGraph();
         }
         if (mi === "showresistance")

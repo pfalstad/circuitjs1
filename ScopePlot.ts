@@ -58,13 +58,15 @@ export class ScopePlot {
     acLastOut: number = 0; // Store y[i-1] term for AC coupling filter
 
     // If this plot is showing a single-output digital element's voltage
-    // (GateElm/InverterElm/DelayBufferElm, or a digital RailElm source),
-    // this is that element's own DigitalElmInstance - see
+    // (GateElm/InverterElm/DelayBufferElm, or a digital RailElm source) -
+    // or a wire-equivalent node (LabeledNodeElm, ...) driven by one - this
+    // is that actual driver's DigitalElmInstance - see
     // fillFromDigitalHistory()'s docstring for why such a plot is filled
     // completely differently from a normal analog one. null for every other
     // plot (including current/other non-voltage plots on a digital
     // element - only the voltage trace goes through the digital fast path).
-    readonly digitalElm: DigitalElmInstance | null;
+    // NOT readonly: see refreshDigitalSource().
+    digitalElm: DigitalElmInstance | null;
     // scheduler tick this plot's arrays were last rebuilt for, so a
     // redundant draw() within the same tick (e.g. no simulation progress
     // between frames) doesn't repeat the O(new history entries) rebuild.
@@ -94,6 +96,33 @@ export class ScopePlot {
             // power can be negative for caps and inductors, but still move to the bottom (for backward compatibility)
             if (u === UNITS_OHMS || u === UNITS_W || u === UNITS_C)
                 this.manVPosition = -V_POSITION_STEPS / 2;
+        }
+    }
+
+    /** Re-resolves digitalElm. Needed beyond the constructor's one-shot
+     * digitalScopeSource() call because a scope can be constructed before
+     * the node graph/wire closure exists to resolve against - notably
+     * ScopeSerializer.undumpXml(), which runs while a saved circuit's XML
+     * is still being read element-by-element (see
+     * CircuitXMLDeserializer.readElements()), well before
+     * SimulationManager.makeNodeList() builds the wiring a wire-equivalent
+     * passthrough like LabeledNodeElm needs digitalScopeSource() to walk.
+     * A scope added interactively via the "View in Scope" menu doesn't hit
+     * this - the circuit is already fully wired by then - which is why the
+     * bug only showed up after a save/reload round trip. Called from
+     * Scope.draw() every frame (cheap - a couple of property checks, or a
+     * short scan of one node's links) so a plot self-heals as soon as
+     * wiring becomes available, without every other digitalElm reader
+     * needing to know any of this. */
+    refreshDigitalSource(): void {
+        if (this.units !== UNITS_V) return;
+        const resolved = digitalScopeSource(this.elm);
+        if (resolved !== this.digitalElm) {
+            this.digitalElm = resolved;
+            // The old arrays (if any) belonged to a different signal (or to
+            // no signal at all) - don't let a stale lastDigitalFillTick
+            // suppress the rebuild fillFromDigitalHistory() needs to do now.
+            this.lastDigitalFillTick = -1;
         }
     }
 
