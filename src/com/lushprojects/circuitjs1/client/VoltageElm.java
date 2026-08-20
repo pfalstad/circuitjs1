@@ -458,8 +458,7 @@ class VoltageElm extends CircuitElm {
     int getVoltageSourceCount() {
 	return 1;
     }
-//	Power is positive
-    double getPower() { return getVoltageDiff()*current; }
+    double getPower() { return -getVoltageDiff()*current; }
     double getVoltageDiff() { return volts[1] - volts[0]; }
     void getInfo(String arr[]) {
 	switch (waveform) {

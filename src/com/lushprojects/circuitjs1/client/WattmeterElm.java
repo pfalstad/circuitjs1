@@ -270,7 +270,7 @@ class WattmeterElm extends CircuitElm {
     boolean hasGroundConnection(int n1) { return false; }
 
     void getInfo(String arr[]) {
-	arr[0] = "wattmeter";
+	arr[0] = "wattmeter (old)";
 	getBasicInfo(arr);
 	arr[3] = "P = " + getUnitText(getPower(), "W");
 	if (meter == PM_AVG)

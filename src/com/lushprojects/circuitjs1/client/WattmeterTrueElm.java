@@ -41,22 +41,12 @@ class WattmeterTrueElm extends CircuitElm {
 	super(xx, yy);
 	setup();
     }
-    public WattmeterTrueElm(int xa, int ya, int xb, int yb, int f,
-	    StringTokenizer st) {
-	super(xa, ya, xb, yb, f);
-	width = Integer.parseInt(st.nextToken());
-        try {
-			meter = Integer.parseInt(st.nextToken());
-        } catch (Exception e) {}
-	setup();
-    }
 
     void setup() {
 	voltSources = new VoltageSource[2];
 	currents = new double[2];
 	curcounts = new double[2];
     }
-    String dump() { return super.dump() + " " + width + " " + meter; }
 
     void dumpXml(Document doc, Element elem) {
 	super.dumpXml(doc, elem);
@@ -72,8 +62,6 @@ class WattmeterTrueElm extends CircuitElm {
 
     int getVoltageSourceCount() { return 1; }
 
-//	Change 502 to whatever seems appropriate
-    int getDumpType() { return 502; }
     int getPostCount() { return 4; }
 
     void drag(int xx, int yy) {
@@ -269,7 +257,7 @@ class WattmeterTrueElm extends CircuitElm {
     boolean hasGroundConnection(int n1) { return false; }
 
     void getInfo(String arr[]) {
-		arr[0] = "Wattmeter (true)";
+		arr[0] = "wattmeter";
 		getBasicInfo(arr);
 		double P = getPower();
 		arr[3] = "P = " + getUnitText(getVoltageDiff()*getCurrent(), "W");
