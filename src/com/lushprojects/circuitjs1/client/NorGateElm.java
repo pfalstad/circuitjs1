@@ -33,5 +33,5 @@ package com.lushprojects.circuitjs1.client;
 	boolean isInverting() { return true; }
 	int getDumpType() { return 153; }
 	int getShortcut() { return '#'; }
-	boolean baseGateType() { return hasFlag(FLAG_DEMORGAN); }
+	boolean drawAsAndGate() { return hasFlag(FLAG_DEMORGAN); }
     }

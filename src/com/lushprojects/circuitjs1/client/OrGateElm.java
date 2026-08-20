@@ -54,8 +54,8 @@ package com.lushprojects.circuitjs1.client;
 	}
 	int getDumpType() { return 152; }
 	int getShortcut() { return '3'; }
-	boolean baseGateType() { return hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
-//	If FLAG_DEMORGAN = 1, we return true for AND gate baseGateType
+	boolean drawAsAndGate() { return hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
+//	If FLAG_DEMORGAN = 1, we return true (drawn as AND gate)
 //	otherwise we return 0 for OR
 //	FLAG_DEMORGAN and FLAG_INVERT_INPUTS cannot be set at the same time from Edit popup
     }

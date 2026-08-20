@@ -50,5 +50,5 @@ package com.lushprojects.circuitjs1.client;
 	
 	int getDumpType() { return 154; }
 	int getShortcut() { return '4'; }
-	boolean baseGateType() { return false; }
+	boolean drawAsAndGate() { return false; }
     }

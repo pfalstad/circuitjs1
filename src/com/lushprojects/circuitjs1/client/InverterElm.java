@@ -94,20 +94,17 @@ class InverterElm extends CircuitElm {
 	    lead1 = interpPoint(point1, point2, .5-ww/dn);
 	    lead2 = interpPoint(point1, point2, .5+(ww+2)/dn);
 
-		Point start;
-		double end;
-	    if (hasFlag(FLAG_DEMORGAN))
-		{
-			pcircle = interpPoint(point1, point2, .5-(ww-4)/dn);	// Move circle to front
-			start = interpPoint(point1, point2, .5-(ww-8)/dn);		// Shift triangle so overall
-			end = .5+(ww+2)/dn;										// symbol takes up same space
-		}
-		else
-		{
-			pcircle = interpPoint(point1, point2, .5+(ww-1)/dn);	// Normal symbol circle
-			start = lead1;
-			end = .5+(ww-5)/dn;
-		}
+	    Point start;
+	    double end;
+	    if (hasFlag(FLAG_DEMORGAN)) {
+		pcircle = interpPoint(point1, point2, .5-(ww-4)/dn);	// Move circle to front
+		start = interpPoint(point1, point2, .5-(ww-8)/dn);	// Shift triangle so overall
+		end = .5+(ww+2)/dn;					// symbol takes up same space
+	    } else {
+		pcircle = interpPoint(point1, point2, .5+(ww-1)/dn);	// Normal symbol circle
+		start = lead1;
+		end = .5+(ww-5)/dn;
+	    }
 	    
 	    if (GateElm.useEuroGates()) {
 		Point pts[] = newPointArray(4);
@@ -153,7 +150,7 @@ class InverterElm extends CircuitElm {
 	    if (n == 1)
 		return new EditInfo("High Logic Voltage", highVoltage, 1, 10).setUnitStep();
 	    if (n == 2)
-			return EditInfo.createCheckbox("DeMorgan's Symbol", hasFlag(FLAG_DEMORGAN));
+		return EditInfo.createCheckbox("DeMorgan's Symbol", hasFlag(FLAG_DEMORGAN));
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -162,11 +159,11 @@ class InverterElm extends CircuitElm {
 	    if (n == 1)
 		highVoltage = GateElm.lastHighVoltage = ei.value;
 	    if (n == 2) {
-			if (ei.checkbox.getState())
-				flags |= FLAG_DEMORGAN;
-			else
-				flags &= ~FLAG_DEMORGAN;
-			setPoints();
+		if (ei.checkbox.getState())
+		    flags |= FLAG_DEMORGAN;
+		else
+		    flags &= ~FLAG_DEMORGAN;
+		setPoints();
 	    }
 	}
 	// there is no current path through the inverter input, but there

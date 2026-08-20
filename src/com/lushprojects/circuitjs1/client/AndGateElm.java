@@ -44,8 +44,8 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	}
 	int getDumpType() { return 150; }
 	int getShortcut() { return '2'; }
-	boolean baseGateType() { return !hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
-//	If FLAG_DEMORGAN = 1, we return false for OR gate baseGateType
+	boolean drawAsAndGate() { return !hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
+//	If FLAG_DEMORGAN = 1, we return false (drawn as OR gate)
 //	otherwise we return 1 for AND
 //	FLAG_DEMORGAN and FLAG_INVERT_INPUTS cannot be set at the same time from Edit popup
     }
