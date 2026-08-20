@@ -173,6 +173,11 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
      * for a sleeping sibling pin. */
     _leafValueAt(cyc: CycleLike, elapsed: number): boolean;
     _maybeSleep(): void;
+    /** Public (despite the leading underscore), like _leafValueAt() above -
+     * ScopePlot.fillFromDigitalHistory() needs to force an Asleep element's
+     * history to catch up to "now" before reading it directly, the same way
+     * transitionedTo() already does internally. */
+    _backfillHistory(now: number): void;
     evaluate(sender?: DigitalElmInstance | null): boolean;
 }
 

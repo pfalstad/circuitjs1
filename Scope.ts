@@ -28,6 +28,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { ScopePlot } from "./ScopePlot";
 import { ScopeDataIterator } from "./ScopeDataIterator";
 import { ScopeSerializer } from "./ScopeSerializer";
+import { digitalScopeSource } from "./digital/CircuitWiring";
 import { ScopePlot2d } from "./ScopePlot2d";
 import { ScopeFFT } from "./ScopeFFT";
 import { ScopeOverlays } from "./ScopeOverlays";
@@ -391,14 +392,21 @@ export class Scope {
         if (val === 0) {
             this.plots.push(new ScopePlot(ce, UNITS_V, VAL_VOLTAGE, this.getManScaleFromMaxScale(UNITS_V, false)));
 
-            // create plot for current if applicable
+            // create plot for current if applicable - not for a digital
+            // scope source (gate/inverter/delay buffer, digital rail):
+            // its current isn't tracked by the digital fast path (that's
+            // the whole point of the optimization - see
+            // digital/DigitalElm.ts), so an analog current trace on such
+            // an element would either be stale or force it back onto
+            // live per-timestep evaluation, defeating the optimization.
             if (ce !== null &&
                     this.app.menus.dotsCheckItem.getState() &&
                     !ce.isOutputElm() &&
                     !ce.isLogicOutputElm() &&
                     !ce.isAudioOutputElm() &&
                     !ce.isTestPointElm() &&
-                    !ce.isProbeElm())
+                    !ce.isProbeElm() &&
+                    digitalScopeSource(ce) === null)
                 this.plots.push(new ScopePlot(ce, UNITS_A, VAL_CURRENT, this.getManScaleFromMaxScale(UNITS_A, false)));
         } else {
             if (ce === null) return;
@@ -524,7 +532,12 @@ export class Scope {
     timeStep(): void {
         let i;
         for (i = 0; i !== this.plots.length; i++)
-            this.plots[i].timeStep();
+            // Digital plots deliberately skip per-timestep sampling
+            // entirely - see ScopePlot.fillFromDigitalHistory()'s
+            // docstring. They're rebuilt from history once per draw()
+            // instead, not once per simulation tick.
+            if (this.plots[i].digitalElm === null)
+                this.plots[i].timeStep();
 
         this.checkTrigger();
 
@@ -639,6 +652,13 @@ export class Scope {
             this.scopeTimeStep = this.sim.maxTimeStep;
             this.resetGraph();
         }
+
+        // Digital plots weren't kept up to date by timeStep() (see there) -
+        // catch them up now, once per draw, from their own change-list
+        // history rather than per simulation tick.
+        for (const p of this.plots)
+            if (p.digitalElm !== null)
+                p.fillFromDigitalHistory();
 
         if (this.plot2d.enabled) {
             this.plot2d.draw(g);
@@ -1040,7 +1060,8 @@ export class Scope {
         let cursorX = -1;
         let ct = 0;
         let cursorValue = NaN;
-        const plot = this.visiblePlots.length > 0 ? this.visiblePlots[this.selectedPlot >= 0 ? this.selectedPlot : 0] : null;
+        const plotIndex = this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length ? this.selectedPlot : 0;
+        const plot = this.visiblePlots.length > 0 ? this.visiblePlots[plotIndex] : null;
         if (Scope.cursorTime >= 0) {
             cursorX = this.timeToX(Scope.cursorTime);
             if (plot !== null) {

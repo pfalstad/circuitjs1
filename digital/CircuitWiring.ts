@@ -78,6 +78,34 @@ export function isRailSourceLike(elm: any): boolean {
     return elm != null && typeof elm.isDigitalSource === "function" && elm.isDigitalSource();
 }
 
+/** If `elm` is a single-output digital element (a gate/inverter/delay
+ * buffer, or a digital RailElm source), returns it as its own
+ * DigitalElmInstance - these classes all mix withDigital(CircuitElm)
+ * directly onto themselves, so the CircuitElm IS the DigitalElmInstance,
+ * unlike a multi-output chip (where each output is a separate GroupPin, not
+ * the chip element itself - not handled here; a chip pin isn't a
+ * CircuitElm a scope plot could reference). Used by ScopePlot to source a
+ * 1-d digital scope trace from the element's own change-list history
+ * (DigitalElmInstance.history) instead of per-timestep voltage sampling -
+ * see ScopePlot.fillFromDigitalHistory()'s docstring for why that matters
+ * under the digital fast-path optimization. */
+export function digitalScopeSource(elm: any): DigitalElmInstance | null {
+    if (isGateLike(elm) || isRailSourceLike(elm))
+        return elm as DigitalElmInstance;
+    // A wire-equivalent passthrough (LabeledNodeElm, WireElm, ...) isn't a
+    // digital source itself, but "the node's value" is exactly what a
+    // scope on it is meant to show - resolve back to whatever digital
+    // element actually drives its (single, wire-closure-merged) node, the
+    // same way wireDigitalCircuit() resolves a gate's own inputs across
+    // however many wire segments sit in between. Bus nodes (busWidth > 1,
+    // more than one post) aren't handled - falls back to per-frame analog
+    // voltage sampling for those.
+    if (elm != null && typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent() &&
+        Array.isArray(elm.nodes) && elm.nodes.length === 1)
+        return findDriver(elm, 0);
+    return null;
+}
+
 /** True if post `postIndex` of `elm` is a digital OUTPUT (drives its node)
  * rather than an input (reads its node). */
 function isDigitalOutputPost(elm: any, postIndex: number): boolean {
@@ -109,8 +137,11 @@ function resolveOutput(elm: any, postIndex: number): DigitalElmInstance {
  * `postIndex` - the thing actually driving this input. Assumes wire
  * closure has already merged purely-wire-connected posts into one
  * CircuitNode (i.e. this must run after SimulationManager.makeNodeList()/
- * calcWireInfo()), so WireElm itself never needs special-casing here. */
-function findDriver(elm: any, postIndex: number): DigitalElmInstance | null {
+ * calcWireInfo()), so WireElm itself never needs special-casing here.
+ * Exported (beyond wireDigitalCircuit()'s own use below) for
+ * digitalScopeSource() to reuse the same resolution for a wire-equivalent
+ * passthrough like LabeledNodeElm. */
+export function findDriver(elm: any, postIndex: number): DigitalElmInstance | null {
     const node = elm.nodes[postIndex];
     const candidates = node.links.filter((link: any) =>
         !(link.elm === elm && link.num === postIndex) && isDigitalOutputPost(link.elm, link.num));

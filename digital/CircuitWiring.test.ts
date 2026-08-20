@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Scheduler } from "./Scheduler";
 import { DigitalElm, DigitalConst, GroupPin } from "./DigitalElm";
-import { wireDigitalCircuit } from "./CircuitWiring";
+import { wireDigitalCircuit, digitalScopeSource } from "./CircuitWiring";
 import { NandGateElm } from "../GateElm";
 import { CounterElm } from "../CounterElm";
 
@@ -26,6 +26,15 @@ function fakeGate(inputCount: number) {
 function connect(...posts: { elm: any; num: number }[]): void {
     const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
     for (const p of posts) p.elm.nodes[p.num] = node;
+}
+
+/** A minimal fake wire-equivalent passthrough (LabeledNodeElm, WireElm, ...):
+ * a single post, no digital identity of its own. */
+function fakeWireElm() {
+    return {
+        isWireEquivalent: () => true,
+        nodes: [] as { links: { num: number; elm: any }[] }[],
+    };
 }
 
 let scheduler: Scheduler;
@@ -140,5 +149,42 @@ describe("wireDigitalCircuit - real element classes", () => {
 
         expect((counter as any).inputs).toEqual([clkSrc, resetSrc]);
         expect((gate as any).inputs).toEqual([counter.digitalPins[1]]);
+    });
+});
+
+describe("digitalScopeSource", () => {
+    it("returns a gate-like element directly", () => {
+        const gate = fakeGate(2);
+        expect(digitalScopeSource(gate)).toBe(gate);
+    });
+
+    it("resolves a wire-equivalent passthrough (e.g. LabeledNodeElm) to whatever actually drives its node", () => {
+        const src = fakeGate(0); // acts as the real digital driver
+        const label = fakeWireElm();
+        connect({ elm: src, num: 0 }, { elm: label, num: 0 });
+
+        expect(digitalScopeSource(label)).toBe(src);
+    });
+
+    it("resolves through a chain of wire segments onto one merged node", () => {
+        const src = fakeGate(0);
+        const wire = fakeWireElm();
+        const label = fakeWireElm();
+        // all three posts end up on the SAME merged CircuitNode after wire
+        // closure, exactly as connect() models it - findDriver() doesn't
+        // need to walk the chain itself.
+        connect({ elm: src, num: 0 }, { elm: wire, num: 0 }, { elm: label, num: 0 });
+
+        expect(digitalScopeSource(label)).toBe(src);
+    });
+
+    it("returns null for a wire-equivalent node with no digital driver", () => {
+        const label = fakeWireElm();
+        connect({ elm: label, num: 0 });
+        expect(digitalScopeSource(label)).toBeNull();
+    });
+
+    it("returns null for a plain (non-digital, non-wire) element", () => {
+        expect(digitalScopeSource({ nodes: [] })).toBeNull();
     });
 });

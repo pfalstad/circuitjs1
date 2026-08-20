@@ -25,6 +25,9 @@ import {
     UNITS_V, UNITS_A, UNITS_OHMS, UNITS_W, UNITS_C,
     V_POSITION_STEPS,
 } from "./ScopeConstants";
+import { State } from "./digital/DigitalElm";
+import type { DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalScopeSource } from "./digital/CircuitWiring";
 
 // plot of single value on a scope
 export class ScopePlot {
@@ -54,6 +57,19 @@ export class ScopePlot {
     acAlpha: number = 0.9999; // Filter coefficient for AC coupling
     acLastOut: number = 0; // Store y[i-1] term for AC coupling filter
 
+    // If this plot is showing a single-output digital element's voltage
+    // (GateElm/InverterElm/DelayBufferElm, or a digital RailElm source),
+    // this is that element's own DigitalElmInstance - see
+    // fillFromDigitalHistory()'s docstring for why such a plot is filled
+    // completely differently from a normal analog one. null for every other
+    // plot (including current/other non-voltage plots on a digital
+    // element - only the voltage trace goes through the digital fast path).
+    readonly digitalElm: DigitalElmInstance | null;
+    // scheduler tick this plot's arrays were last rebuilt for, so a
+    // redundant draw() within the same tick (e.g. no simulation progress
+    // between frames) doesn't repeat the O(new history entries) rebuild.
+    private lastDigitalFillTick: number = -1;
+
     static readonly FLAG_AC = 1;
 
     constructor(e: CircuitElm | null, u: number);
@@ -70,6 +86,7 @@ export class ScopePlot {
         this.color = "#FFFFFF";
         this.minValues = [];
         this.maxValues = [];
+        this.digitalElm = (u === UNITS_V) ? digitalScopeSource(e) : null;
         if (v !== undefined && manS !== undefined) {
             this.value = v;
             this.manScale = manS;
@@ -109,10 +126,20 @@ export class ScopePlot {
         } else
             this.lastUpdateTime = SimulationManager.theSim!.t;
         this.ptr = 0;
+        // Array size/window just changed (or was thrown away above) - force
+        // the next draw() to fully rebuild from history rather than trusting
+        // whatever partial data the copy loop above preserved.
+        this.lastDigitalFillTick = -1;
     }
 
     timeStep(): void {
         if (this.elm === null)
+            return;
+        if (this.digitalElm !== null)
+            // Digital plots are never sampled per-timestep - see
+            // fillFromDigitalHistory(). Scope.timeStep() already skips
+            // calling this for digital plots; this guard is just so a
+            // stray direct call can't corrupt the history-built arrays.
             return;
         let v = this.elm.getScopeValue(this.value);
          // AC coupling filter. 1st order IIR high pass
@@ -133,6 +160,77 @@ export class ScopePlot {
             this.minValues[this.ptr] = this.maxValues[this.ptr] = v;
             this.lastUpdateTime += maxTimeStep * this.scopePlotSpeed;
         }
+    }
+
+    /** Rebuilds minValues/maxValues (the same per-pixel-column min/max
+     * arrays timeStep() accretes one simulation tick at a time for an
+     * analog plot) in a single pass over digitalElm.history - the
+     * DigitalElmInstance's own append-only list of (tick, value) changes
+     * (see digital/DigitalElm.ts). This is *not* called once per simulation
+     * timestep the way timeStep() is: under the digital fast-path
+     * optimization, a promoted/sleeping element can skip real work for
+     * thousands of ticks at a stretch (that's the whole point of the
+     * optimization - see digital/DigitalElm.ts's doc comment), so sampling
+     * "the current value" every tick would either force it to keep doing
+     * that work anyway (defeating the optimization) or read a stale
+     * this.value that was never updated live while asleep. Instead this
+     * runs once per draw() (see Scope.draw()), walking however many
+     * genuine transitions actually happened - typically far fewer than the
+     * number of simulated ticks - and fills the display arrays exactly as
+     * if per-tick sampling had produced them, so downstream drawing code
+     * (drawPlot(), calcMaxAndMin(), the FFT/trigger machinery, etc.) sees
+     * an ordinary-looking analog-shaped plot and needs no digital-specific
+     * cases of its own. */
+    fillFromDigitalHistory(): void {
+        const de = this.digitalElm;
+        if (de === null || this.scopePlotSpeed === 0) return;
+        const now = de.scheduler.currentTime;
+        if (de.state === State.Asleep) de._backfillHistory(now);
+        if (this.lastDigitalFillTick === now) return;
+        this.lastDigitalFillTick = now;
+
+        const spc = this.scopePointCount;
+        const sp = this.scopePlotSpeed; // ticks per pixel column (1 tick = 1 maxTimeStep)
+        const hist = de.history; // ascending [tick, value]
+        // this.elm may be a wire-equivalent passthrough (e.g. LabeledNodeElm)
+        // with no highVoltage of its own - the actual level lives on
+        // whatever digital element really drives the node (digitalElm may
+        // or may not be the same object as this.elm - see
+        // digitalScopeSource()).
+        const hv = (de as any).highVoltage ?? (this.elm as any).highVoltage ?? 5;
+        const windowStart = now - spc * sp;
+
+        // Binary search: first history index with tick > windowStart.
+        let lo = 0, hi = hist.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (hist[mid][0] <= windowStart) lo = mid + 1; else hi = mid;
+        }
+        let hIdx = lo;
+        let curVal = lo > 0 ? hist[lo - 1][1] : (hist.length > 0 ? hist[0][1] : de.currentValue());
+
+        for (let col = 0; col < spc; col++) {
+            const colEnd = windowStart + (col + 1) * sp;
+            const v0 = curVal ? hv : 0;
+            let mn = v0, mx = v0;
+            while (hIdx < hist.length && hist[hIdx][0] < colEnd) {
+                curVal = hist[hIdx][1];
+                const v = curVal ? hv : 0;
+                if (v < mn) mn = v;
+                if (v > mx) mx = v;
+                hIdx++;
+            }
+            this.minValues[col] = mn;
+            this.maxValues[col] = mx;
+        }
+        // See startIndex()/reset()'s (ptr - i) & (spc - 1) convention: ptr
+        // is the newest column. minValues/maxValues were just filled
+        // oldest-to-newest at indices 0..spc-1, so ptr = spc - 1 makes
+        // index spc-1 (the last one written, i.e. newest) resolve to
+        // offset 0 from ptr - exactly matching that convention without
+        // needing an actual circular write.
+        this.ptr = spc - 1;
+        this.lastValue = curVal ? hv : 0;
     }
 
     getUnitText(v: number): string {
@@ -182,7 +280,12 @@ export class ScopePlot {
     }
 
     canAcCouple(): boolean {
-        return this.units === UNITS_V; // AC coupling is permitted if the plot is displaying volts
+        // A digital plot's minValues/maxValues are rebuilt wholesale from
+        // history on every draw (see fillFromDigitalHistory()), not
+        // accreted sample-by-sample like acLastOut/lastValue assume - AC
+        // coupling's IIR filter has no meaningful per-sample state to run
+        // against here.
+        return this.units === UNITS_V && this.digitalElm === null; // AC coupling is permitted if the plot is displaying volts
     }
 
     isAcCoupled(): boolean {
