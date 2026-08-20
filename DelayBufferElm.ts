@@ -28,14 +28,132 @@ import { GateElm } from "./GateElm";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { withDigital } from "./digital/DigitalElm";
+import type { DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
-export class DelayBufferElm extends CircuitElm {
+export class DelayBufferElm extends withDigital(CircuitElm) {
+    // CircuitWiring's isGateLike() check looks for .addInput + a numeric
+    // .inputCount (same convention GateElm/InverterElm use) to find this
+    // element's output post (nodes[inputCount]) - fixed 1-input/1-output,
+    // matching stamp()/doStep()'s existing node convention.
+    readonly inputCount = 1;
+
     delay: number = 0;
     threshold: number = 2.5;
     highVoltage: number = 5;
     center: Point;
     gatePoly: Polygon;
     delayEndTime: number;
+
+    // --- Digital fast-path wiring ---
+    //
+    // Unlike GateElm/InverterElm (pure combinational: evaluate() is a
+    // memoryless function of current input state, with the generic
+    // Passive/Active machinery in DigitalElm.ts applying a fixed one-tick
+    // propagation delay), this element's whole purpose IS a configurable
+    // delay - and, per doStep()'s existing analog model, a glitch-filtering
+    // one: outState only follows a change in inState once inState has held
+    // continuously for `delay` seconds, since delayEndTime gets pushed
+    // forward to t+delay every step the two already match, and only a
+    // sustained mismatch that outlasts that deadline commits. That needs
+    // its own pending-transition bookkeeping rather than the generic
+    // evaluate()-driven promotion path, so this class overrides
+    // inputUpdated()/prepare()/commit() outright instead of just evaluate()
+    // - and, as a consequence, never calls tryPromote(): it stays
+    // permanently Passive (always correct, just not self-scheduling/
+    // sleepable the way a promoted gate can become). Downstream elements
+    // reading this buffer's output are unaffected - they still see a
+    // normal DigitalElmInstance and can promote around it as usual.
+    private pendingTarget: boolean | null = null;
+    // The scheduled tick the current pendingTarget is due to commit at. Not
+    // redundant with pendingTarget: since scheduled events can't be
+    // cancelled (Scheduler has no such primitive), an earlier pending
+    // transition's now-obsolete event can still be sitting in the queue
+    // when a LATER, unrelated edge happens to schedule the very same target
+    // value again - matching pendingTarget alone would let that old event
+    // fire the new transition too early. Comparing against the exact
+    // deadline this specific pending transition was scheduled for is what
+    // actually distinguishes "the event I'm expecting" from "some other,
+    // stale event that happens to agree on the value."
+    private pendingDeadline = -1;
+
+    private delayTicks(): number {
+        return Math.max(1, Math.round(this.delay / CircuitElm.sim.maxTimeStep));
+    }
+
+    resetDigital(): void {
+        super.resetDigital();
+        this.pendingTarget = null;
+        this.pendingDeadline = -1;
+    }
+
+    /** DigitalElm's required evaluate(): the input's current live value,
+     * falling back to the analog voltage threshold before wireDigitalCircuit()
+     * has populated this.inputs - same thin-wrapper pattern as
+     * InverterElm.evaluate(). This buffer's actual delay/glitch-filtering
+     * behavior lives in inputUpdated()/prepare()/commit() below, not here -
+     * evaluate() itself is just "what does the input say right now." */
+    evaluate(sender?: DigitalElmInstance | null): boolean {
+        if (this.inputs.length > 0)
+            return this.inputs[0].currentValue();
+        return this.nodes[0].v > this.threshold;
+    }
+
+    /** Reacts to the input changing. If the input is back to matching our
+     * current output, any pending transition is moot - cancel it (mirrors
+     * doStep()'s delayEndTime being pushed forward whenever inState ===
+     * outState). Otherwise, if this isn't already the pending target
+     * (e.g. a redundant notification), start a fresh delay window: schedule
+     * a check delayTicks() from now, and remember what value it should
+     * commit to if the input is still there when it fires. */
+    inputUpdated(sender: DigitalElmInstance | null = null): void {
+        const inputVal = this.evaluate();
+        if (this.digitalDebug)
+            console.log("[digital] DelayBufferElm inputUpdated", "value=", this.value,
+                "inputVal=", inputVal, "pendingTarget=", this.pendingTarget);
+        if (inputVal === this.value) {
+            this.pendingTarget = null;
+            return;
+        }
+        if (this.pendingTarget === inputVal) return;
+        this.pendingTarget = inputVal;
+        this.pendingDeadline = this.scheduler.currentTime + this.delayTicks();
+        this.scheduler.schedule(this.pendingDeadline, this);
+    }
+
+    /** Phase 1: is the pending transition still live? Re-reads the input
+     * live (rather than trusting the `inputVal` captured back when this was
+     * scheduled) since a later bounce may have changed pendingTarget, or
+     * cancelled it back to matching this.value, in the meantime - either
+     * case makes this check stale and it's ignored, same as doStep() checking
+     * `CircuitElm.sim.t >= this.delayEndTime` against whatever inState/outState
+     * actually are by the time it runs. Also requires this to be exactly the
+     * event scheduled for the CURRENT pendingTarget (see pendingDeadline's
+     * docstring) - not just any earlier, already-superseded event that
+     * happens to agree on the target value. */
+    // Return type is deliberately `any`: the base class's prepare() returns
+    // its own unexported Pending union (a set of {kind: "..."} records) that
+    // this override's plain boolean-or-null pending value doesn't belong
+    // to - commit() below only ever sees what this same override returned,
+    // so the mismatch is safe in practice, just not expressible as a proper
+    // covariant override.
+    prepare(val: unknown): any {
+        const inputVal = this.evaluate();
+        if (this.scheduler.currentTime !== this.pendingDeadline) return null;
+        if (inputVal !== this.pendingTarget || inputVal === this.value) return null;
+        return inputVal;
+    }
+
+    /** Phase 2: commit the confirmed transition. */
+    commit(pending: unknown): void {
+        if (pending === null) return;
+        this.value = pending as boolean;
+        this.pendingTarget = null;
+        this.pendingDeadline = -1;
+        this.history.push([this.scheduler.currentTime, this.value]);
+        this.notifyOutputs();
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -135,6 +253,7 @@ export class DelayBufferElm extends CircuitElm {
         arr[1] = Locale.LS("delay = ") + CircuitElm.getUnitText(this.delay, "s");
         arr[2] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
         arr[3] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
+        appendInfoLine(arr, "opt: " + digitalStateText(this));
     }
 
     getEditInfo(n: number): EditInfo | null {
@@ -144,6 +263,8 @@ export class DelayBufferElm extends CircuitElm {
             return new EditInfo("Threshold (V)", this.threshold, 0, 0);
         if (n === 2)
             return new EditInfo("High Logic Voltage", this.highVoltage, 0, 0).setUnitStep();
+        if (n === 3)
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -154,6 +275,8 @@ export class DelayBufferElm extends CircuitElm {
             this.threshold = ei.value;
         if (n === 2)
             this.highVoltage = ei.value;
+        if (n === 3)
+            this.digitalDebug = ei.checkbox.getState();
     }
 
     // there is no current path through the inverter input, but there
