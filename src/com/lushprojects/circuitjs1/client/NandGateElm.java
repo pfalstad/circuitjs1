@@ -26,7 +26,12 @@ package com.lushprojects.circuitjs1.client;
 	    super(xa, ya, xb, yb, f, st);
 	}
 	boolean isInverting() { return true; }
-	String getGateName() { return "NAND gate"; }
+	String getGateName() { 
+		if (hasFlag(FLAG_INVERT_INPUTS))
+			return "OR gate";
+		return "NAND gate"; 
+	}
 	int getDumpType() { return 151; }
 	int getShortcut() { return '@'; }
+	boolean drawAsAndGate() { return !hasFlag(FLAG_DEMORGAN); }
     }

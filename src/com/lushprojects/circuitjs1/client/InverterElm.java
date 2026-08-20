@@ -25,6 +25,8 @@ import com.google.gwt.xml.client.Document;
 class InverterElm extends CircuitElm {
 	double slewRate; // V/ns
 	double highVoltage;
+	final int FLAG_DEMORGAN = 1<<3;
+
 	public InverterElm(int xx, int yy) {
 	    super(xx, yy);
 	    noDiagonal = true;
@@ -91,7 +93,18 @@ class InverterElm extends CircuitElm {
 		ww = (int) (dn/2);
 	    lead1 = interpPoint(point1, point2, .5-ww/dn);
 	    lead2 = interpPoint(point1, point2, .5+(ww+2)/dn);
-	    pcircle = interpPoint(point1, point2, .5+(ww-2)/dn);
+
+	    Point start;
+	    double end;
+	    if (hasFlag(FLAG_DEMORGAN)) {
+		pcircle = interpPoint(point1, point2, .5-(ww-4)/dn);	// Move circle to front
+		start = interpPoint(point1, point2, .5-(ww-8)/dn);	// Shift triangle so overall
+		end = .5+(ww+2)/dn;					// symbol takes up same space
+	    } else {
+		pcircle = interpPoint(point1, point2, .5+(ww-1)/dn);	// Normal symbol circle
+		start = lead1;
+		end = .5+(ww-5)/dn;
+	    }
 	    
 	    if (GateElm.useEuroGates()) {
 		Point pts[] = newPointArray(4);
@@ -102,8 +115,8 @@ class InverterElm extends CircuitElm {
 		center = interpPoint(lead1, l2, .5);
 	    } else {
 		Point triPoints[] = newPointArray(3);
-		interpPoint2(lead1, lead2, triPoints[0], triPoints[1], 0, hs);
-		triPoints[2] = interpPoint(point1, point2, .5+(ww-5)/dn);
+			interpPoint2(start, lead2, triPoints[0], triPoints[1], 0, hs);
+			triPoints[2] = interpPoint(point1, point2, end);
 		gatePoly = createPolygon(triPoints);
 	    }
 	    setBbox(point1, point2, hs);
@@ -136,6 +149,8 @@ class InverterElm extends CircuitElm {
 		return new EditInfo("Slew Rate (V/ns)", slewRate, 0, 0);
 	    if (n == 1)
 		return new EditInfo("High Logic Voltage", highVoltage, 1, 10).setUnitStep();
+	    if (n == 2)
+		return EditInfo.createCheckbox("DeMorgan's Symbol", hasFlag(FLAG_DEMORGAN));
 	    return null;
 	}
 	public void setEditValue(int n, EditInfo ei) {
@@ -143,6 +158,13 @@ class InverterElm extends CircuitElm {
 		slewRate = ei.value;
 	    if (n == 1)
 		highVoltage = GateElm.lastHighVoltage = ei.value;
+	    if (n == 2) {
+		if (ei.checkbox.getState())
+		    flags |= FLAG_DEMORGAN;
+		else
+		    flags &= ~FLAG_DEMORGAN;
+		setPoints();
+	    }
 	}
 	// there is no current path through the inverter input, but there
 	// is an indirect path through the output to ground.

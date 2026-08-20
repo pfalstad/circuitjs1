@@ -29,53 +29,12 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	}
 	
 	String getGateText() { return "&"; }
-	
-	public final native void ellipse(Context2d g, double x, double y, double rx, double ry, double ro, double sa, double ea, boolean ccw) /*-{
-	    if (rx >= 0 && ry >= 0) g.ellipse(x, y, rx, ry, ro, sa, ea, ccw);
-	}-*/;
 
-	void drawGatePolygon(Graphics g) {
-	    g.setLineWidth(3.0);
-	    g.context.beginPath();
-	    g.context.moveTo(gatePoly.xpoints[0], gatePoly.ypoints[0]);
-	    double ang1 = -Math.PI/2 * sign(dx);
-	    double ang2 =  Math.PI/2 * sign(dx);
-	    boolean ccw = false;
-	    double rx = ww;
-	    double ry = hs2;
-	    if (dx == 0) {
-		ang1 = (dy > 0) ? 0 : Math.PI;
-		ang2 = (dy > 0) ? Math.PI : 0;
-		rx = hs2;
-		ry = ww;
-	    }
-	    ellipse(g.context, gatePoly.xpoints[2], gatePoly.ypoints[2], rx, ry, 0, ang1, ang2, ccw);
-	    g.context.lineTo(gatePoly.xpoints[4], gatePoly.ypoints[4]);
-	    g.context.closePath();
-	    g.context.stroke();
-	    g.setLineWidth(1.0);
+	String getGateName() { 
+		if (hasFlag(FLAG_INVERT_INPUTS))
+			return "NOR gate";
+		return "AND gate"; 
 	}
-	
-	void setPoints() {
-	    super.setPoints();
-	 
-	    if (useEuroGates()) {
-		createEuroGatePolygon();
-	    } else {
-		// 0=topleft, 1 = top of curve, 2 = center, 3=bottom of curve,
-		// 4 = bottom left
-		Point triPoints[] = newPointArray(5);
-		interpPoint2(lead1, lead2, triPoints[0], triPoints[4], 0, hs2);
-		interpPoint2(lead1, lead2, triPoints[1], triPoints[3], .5, hs2);
-		interpPoint(lead1, lead2, triPoints[2], .5);
-		gatePoly = createPolygon(triPoints);
-	    }
-	    if (isInverting()) {
-		pcircle = interpPoint(point1, point2, .5+(ww+4)/dn);
-		lead2 = interpPoint(point1, point2, .5+(ww+8)/dn);
-	    }
-	}
-	String getGateName() { return "AND gate"; }
 	boolean calcFunction() {
 	    int i;
 	    boolean f = true;
@@ -85,4 +44,8 @@ import com.google.gwt.canvas.dom.client.Context2d;
 	}
 	int getDumpType() { return 150; }
 	int getShortcut() { return '2'; }
+	boolean drawAsAndGate() { return !hasFlag(FLAG_DEMORGAN); }		// false OR, true AND
+//	If FLAG_DEMORGAN = 1, we return false (drawn as OR gate)
+//	otherwise we return 1 for AND
+//	FLAG_DEMORGAN and FLAG_INVERT_INPUTS cannot be set at the same time from Edit popup
     }
