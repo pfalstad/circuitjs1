@@ -115,8 +115,11 @@ class WattmeterTrueElm extends CircuitElm {
 	// points to be on the bottom, so that if some of them are unconnected
 	// (which is often true) then the bottom ones will get automatically
 	// attached to ground.
-	posts = new Point[] { p3, p4, point1, point2 };
-	inner = new Point[] { p7, p8, p5, p6 };
+	// bottom 2 terminals (potential coil) are swapped so that the marked
+	// (C) terminal lines up under the marked (M) current coil terminal,
+	// matching the standard wattmeter terminal layout: M L / C V
+	posts = new Point[] { p4, p3, point1, point2 };
+	inner = new Point[] { p8, p7, p5, p6 };
 
 	// get rectangle
 	Point r1 = interpPoint(point1, point2,   sep/dn, ds*sep);
@@ -160,18 +163,20 @@ class WattmeterTrueElm extends CircuitElm {
 			drawThickLine(g, posts[i], inner[i]);
 			if (i == 2 || i == 3)
 				drawDots(g, posts[i], inner[i], curcounts[i/2]*flip);
-			if (i==2)	// Ammeter + terminal
-			{	
-				g.setColor(Color.yellow);
-				int w = (int)g.context.measureText("+").getWidth();
-				Point plusPoint = interpPoint(posts[i], inner[i], (dn/2-4)/dn, 5 );
-				g.drawString("+", plusPoint.x-w/2, plusPoint.y);
-			}
-			else if (i==1)	// Voltmeter + terminal
-			{	
-				int w = (int)g.context.measureText("+").getWidth();
-				Point plusPoint = interpPoint(posts[i], inner[i], (dn/2-4)/dn, 13 );
-				g.drawString("+", plusPoint.x-w/2, plusPoint.y);
+			// current coil terminals are labeled M (marked) and L, potential coil
+			// terminals are labeled C (marked) and V, matching standard wattmeter
+			// terminal markings: M L / C V.  Labels sit just inside the box edge,
+			// like pin labels on a ChipElm.
+			{
+				String label;
+				if (i==2) label = "M";
+				else if (i==3) label = "L";
+				else if (i==1) label = "C";
+				else label = "V";
+				g.setColor(needsHighlight() ? selectColor : whiteColor);
+				int w = (int)g.context.measureText(label).getWidth();
+				Point labelPoint = interpPoint(posts[i], inner[i], 1.5);
+				g.drawString(label, labelPoint.x-w/2, labelPoint.y+4);
 			}
 			flip *= -1;
 		}
