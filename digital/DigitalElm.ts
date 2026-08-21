@@ -367,7 +367,24 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 return { kind: "active", val: predicted };
             }
             // Stale Active-scheduled tick: our state changed since this was
-            // scheduled - fall back to a live re-derivation.
+            // scheduled (demoted, or re-promoted onto a new schedule) - this
+            // leftover event no longer describes anything real. A leftover
+            // self-driven tick specifically carries a raw boolean payload
+            // (see _advanceAndSchedule()'s schedule() call, `leafValue`);
+            // demote's own follow-up recheck (commit()'s "demote" case)
+            // schedules itself with no value at all (undefined), not a
+            // boolean, so it still falls through to the live re-derivation
+            // below. Treating a stale boolean tick as "just do a generic
+            // live recheck" instead of dropping it is itself a bug: that
+            // fallback calls evaluate() with sender defaulting to null (see
+            // GroupPin.evaluate()), which for an element like CounterElm
+            // means "check for a clock edge too" - so a stale tick landing
+            // in an earlier same-tick batch than the real recheck can
+            // consume/misattribute a genuine clock-edge check that the real
+            // recheck should have performed, corrupting the value it
+            // computes (and that value gets broadcast via notifyOutputs()
+            // before a later, correct commit overwrites it locally).
+            if (typeof val === "boolean") return null;
             return { kind: "passive", val: this.evaluate() };
         }
 

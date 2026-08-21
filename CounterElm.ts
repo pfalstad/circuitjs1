@@ -47,9 +47,31 @@ export class CounterElm extends ChipElm implements Group {
     // scratch by initDigitalPins() below - see DFlipFlopElm.ts for why).
     digitalDebugPins = false;
 
+    // Dedicated clock-edge watermark, one per pin (index-matched to
+    // digitalPins) - NOT the same thing as each pin's own generic
+    // pin.lastChecked, and that distinction is load-bearing. See
+    // evaluate()'s own comment below for why sharing the generic watermark
+    // with clock-edge detection is a real bug: commit()'s "passive" branch
+    // (digital/DigitalElm.ts) advances pin.lastChecked to `now` on EVERY
+    // recompute regardless of what triggered it - including a reset-line
+    // change, which evaluate() below deliberately does NOT check the clock
+    // for. If a real clock edge happens to land on that exact same tick,
+    // the reset-triggered recompute's pin.lastChecked = now silently
+    // consumes it: transitionedTo()'s window is (since, until], exclusive
+    // of `since`, so the next clock-triggered check - using since = that
+    // same tick - can never see an edge that occurred AT it. The edge is
+    // gone, permanently, with no increment ever applied for it. A real bug
+    // found live: reproduced with a reset line and a clock edge landing on
+    // the same tick, which the digital fast-path's own self-driven timing
+    // made far more likely to actually coincide than it would under live
+    // per-timestep simulation. Rebuilt fresh (like digitalPins itself) by
+    // initDigitalPins() below, not persisted across re-stamps.
+    private lastClockChecked: number[] = [];
+
     initDigitalPins(): void {
         this.digitalPins = Array.from({ length: this.bits }, (_, k) => new GroupPin(this, k));
         for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
+        this.lastClockChecked = new Array(this.bits).fill(0);
     }
 
     /** Pure equivalent of execute() (see below) - computes the whole
@@ -66,7 +88,14 @@ export class CounterElm extends ChipElm implements Group {
 
         const old = this.digitalPins.map(p => syncedValue(p, now));
         let next = old;
-        if ((sender === null || sender === clk) && clk.transitionedTo(!neg, pin.lastChecked, now)) {
+        // Use lastClockChecked, not pin.lastChecked, for the SAME reason
+        // this field exists at all - see its own docstring. Falls back to
+        // 0 (never checked) if initDigitalPins() didn't run for this pin
+        // (e.g. a test building a CounterElm via Object.create() and
+        // wiring digitalPins by hand) rather than crashing - matches
+        // pin.lastChecked's own default-0 convention.
+        const checkingClock = sender === null || sender === clk;
+        if (checkingClock && clk.transitionedTo(!neg, this.lastClockChecked?.[pin.index] ?? 0, now)) {
             let value = 0;
             old.forEach((b, k) => { if (b) value |= 1 << (this.bits - 1 - k); });
             const dir = (updown && syncedValue(updown, now)) ? -1 : 1;
@@ -74,6 +103,14 @@ export class CounterElm extends ChipElm implements Group {
             if (this.modulus !== 0)
                 value = ((value % this.modulus) + this.modulus) % this.modulus;
             next = Array.from({ length: this.bits }, (_, k) => (value & (1 << (this.bits - 1 - k))) !== 0);
+        }
+        // Only mark the clock's window as checked through `now` when we
+        // actually looked - a reset-only (or other non-clock) recompute
+        // must leave this watermark untouched, so a later clock-triggered
+        // check still covers the ground this one skipped.
+        if (checkingClock) {
+            if (!this.lastClockChecked) this.lastClockChecked = [];
+            this.lastClockChecked[pin.index] = now;
         }
         if (syncedValue(reset, now) !== this.invertreset)
             next = new Array(this.bits).fill(false);
