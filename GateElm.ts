@@ -27,7 +27,7 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
+import { withDigital, valueAtTick, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -268,6 +268,14 @@ export abstract class GateElm extends withDigital(CircuitElm) {
 
     hasSchmittInputs(): boolean { return (this.flags & GateElm.FLAG_SCHMITT) !== 0; }
 
+    // Set for the duration of a digital evaluate() call (see evaluate()
+    // below) so getInput() reads each input delayTicks() in the past
+    // instead of its current value - the digital fast path's equivalent of
+    // doStep()'s propagationDelay handling. null outside of that call (the
+    // normal doStep()/analog path), where getInput() must keep reading the
+    // live current value exactly as before.
+    private _digitalEvalTick: number | null = null;
+
     getInput(x: number): boolean {
         const high = !this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
         if (this.inputs.length > 0) {
@@ -278,7 +286,9 @@ export abstract class GateElm extends withDigital(CircuitElm) {
             // here - it exists to reject noisy analog signals near the
             // switching threshold, but a value coming from another digital
             // element's currentValue() is already a clean boolean.
-            const res = this.inputs[x].currentValue();
+            const res = this._digitalEvalTick !== null
+                ? valueAtTick(this.inputs[x], this._digitalEvalTick)
+                : this.inputs[x].currentValue();
             return res ? high : !high;
         }
         if (!this.hasSchmittInputs())
@@ -295,6 +305,25 @@ export abstract class GateElm extends withDigital(CircuitElm) {
     oscillationCount: number = 0;
     lastTime: number = 0;
 
+    /** Real gates don't react to an input change in zero simulated time -
+     * doStep() already models that via propagationDelay/delayEndTime (see
+     * below), but the digital fast path's evaluate() used to ignore
+     * propagationDelay entirely and read inputs' current values, making
+     * every gate instantaneous under the digital engine regardless of what
+     * was configured. That let same-tick combinational feedback (e.g. a
+     * gate wired straight back into something it reads) resolve within a
+     * single simulated instant via the scheduler's delta-round batching,
+     * which a chain of genuinely-delayed gates could never do. delayTicks()
+     * floors at 1 (one timestep) even when propagationDelay is 0, so the
+     * digital path always takes at least a tick to react, matching
+     * MIN_HOP_TICKS' existing "at least one tick" floor elsewhere in the
+     * engine. Same formula as DelayBufferElm.delayTicks(). */
+    delayTicks(): number {
+        const step = CircuitElm.sim?.maxTimeStep;
+        if (!step) return 1; // sim not set up yet (e.g. a unit test constructing a gate directly) - still floor at 1
+        return Math.max(1, Math.round(this.propagationDelay / step));
+    }
+
     /** DigitalElm's required evaluate(). A thin wrapper over the existing
      * calcFunction()/isInverting() logic already used by doStep() every
      * timestep - calcFunction() calls getInput(), which (see getInput()
@@ -302,11 +331,51 @@ export abstract class GateElm extends withDigital(CircuitElm) {
      * CircuitWiring.wireDigitalCircuit() has populated it, falling back to
      * the analog voltage otherwise. Still dormant until the sim loop
      * itself is switched onto the digital scheduler - doStep() runs every
-     * timestep exactly as before until then. */
+     * timestep exactly as before until then.
+     *
+     * Unlike doStep()'s iterative delayEndTime state machine (which only
+     * tracks "now"), this needs to be a pure function re-derivable at any
+     * tick (promotion/backfill/Recheck all call it against arbitrary
+     * points) - so instead of debouncing the output's own transitions, it
+     * time-shifts the inputs: this tick's output is exactly the
+     * combinational function of each input's value from delayTicks() ago
+     * (see _digitalEvalTick/getInput() above). That's a simpler model than
+     * doStep()'s glitch-filtering debounce (a bounce narrower than the
+     * delay still passes through here, just shifted, rather than being
+     * filtered out) but it's enough to give every gate genuine multi-tick
+     * propagation delay and eliminate zero-delay same-tick combinational
+     * resolution. */
     evaluate(sender?: DigitalElmInstance | null): boolean {
-        let f = this.calcFunction();
-        if (this.isInverting()) f = !f;
-        return f;
+        this._digitalEvalTick = this.scheduler.currentTime - this.delayTicks();
+        try {
+            let f = this.calcFunction();
+            if (this.isInverting()) f = !f;
+            return f;
+        } finally {
+            this._digitalEvalTick = null;
+        }
+    }
+
+    /** The generic Passive path (DigitalElm.inputUpdated()) re-evaluates
+     * only MIN_HOP_TICKS (1 tick) after an input change - correct only when
+     * delayTicks() is also 1. With a longer configured propagationDelay,
+     * evaluate() at that 1-tick mark would look back to a moment before the
+     * delay has elapsed, see no change yet, and (since commit()'s "passive"
+     * case only schedules a follow-up when the value actually changes) go
+     * quiet with nothing left to wake it at the moment the delayed value
+     * should actually land - the transition would only surface if some
+     * unrelated later event happened to trigger a recheck. Scheduling our
+     * own recheck exactly delayTicks() out instead avoids that. Mirrors
+     * DelayBufferElm.inputUpdated() exactly (see its own docstring); the
+     * Active/Asleep case is left to the base class's Recheck-based
+     * reconfirmation, which just calls evaluate() and compares - already
+     * correct regardless of how far evaluate() looks back. */
+    inputUpdated(sender: DigitalElmInstance | null = null): void {
+        if (this.state === State.Active || this.state === State.Asleep) {
+            super.inputUpdated(sender);
+            return;
+        }
+        this.scheduler.schedule(this.scheduler.currentTime + this.delayTicks(), this);
     }
 
     doStep(): void {
