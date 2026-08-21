@@ -28,7 +28,7 @@ import { GateElm } from "./GateElm";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
+import { withDigital, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -49,110 +49,109 @@ export class DelayBufferElm extends withDigital(CircuitElm) {
     // --- Digital fast-path wiring ---
     //
     // Unlike GateElm/InverterElm (pure combinational: evaluate() is a
-    // memoryless function of current input state, with the generic
-    // Passive/Active machinery in DigitalElm.ts applying a fixed one-tick
-    // propagation delay), this element's whole purpose IS a configurable
-    // delay - and, per doStep()'s existing analog model, a glitch-filtering
-    // one: outState only follows a change in inState once inState has held
-    // continuously for `delay` seconds, since delayEndTime gets pushed
-    // forward to t+delay every step the two already match, and only a
-    // sustained mismatch that outlasts that deadline commits. That needs
-    // its own pending-transition bookkeeping rather than the generic
-    // evaluate()-driven promotion path, so this class overrides
-    // inputUpdated()/prepare()/commit() outright instead of just evaluate()
-    // - and, as a consequence, never calls tryPromote(): it stays
-    // permanently Passive (always correct, just not self-scheduling/
-    // sleepable the way a promoted gate can become). Downstream elements
-    // reading this buffer's output are unaffected - they still see a
-    // normal DigitalElmInstance and can promote around it as usual.
-    private pendingTarget: boolean | null = null;
-    // The scheduled tick the current pendingTarget is due to commit at. Not
-    // redundant with pendingTarget: since scheduled events can't be
-    // cancelled (Scheduler has no such primitive), an earlier pending
-    // transition's now-obsolete event can still be sitting in the queue
-    // when a LATER, unrelated edge happens to schedule the very same target
-    // value again - matching pendingTarget alone would let that old event
-    // fire the new transition too early. Comparing against the exact
-    // deadline this specific pending transition was scheduled for is what
-    // actually distinguishes "the event I'm expecting" from "some other,
-    // stale event that happens to agree on the value."
-    private pendingDeadline = -1;
-
+    // memoryless function of current input state), this element's whole
+    // purpose IS a configurable delay - and, per doStep()'s existing analog
+    // model, a glitch-filtering one: outState only follows a change in
+    // inState once inState has held continuously for `delay` seconds
+    // (delayEndTime gets pushed forward to t+delay every step the two
+    // already match, so only a sustained mismatch that outlasts that
+    // deadline commits - a bounce shorter than `delay` never reaches the
+    // output at all).
+    //
+    // That's expressible as a genuinely PURE evaluate() - see
+    // debouncedValueAt() below - which is what lets this element promote
+    // like any other: the periodicity engine (tryPromote()/_advanceAndSchedule()
+    // in digital/DigitalElm.ts) only requires evaluate() to be a
+    // deterministic function of committed state, and this.inputs[0].history
+    // (an append-only, already-committed log) qualifies just as much as
+    // this.inputs[0].currentValue() does for a combinational gate - it's
+    // just also looking a little further back in time. The one thing that
+    // still needs a real override is inputUpdated(): the generic Passive
+    // path re-evaluates only MIN_HOP_TICKS (1 tick) after an input change,
+    // which models simple propagation delay, not a multi-tick debounce -
+    // without scheduling our own check exactly delayTicks() out, a
+    // confirmed transition would only get noticed (and its history entry
+    // timestamped) whenever some UNRELATED later event happened to trigger
+    // a re-evaluation, which is both late and non-deterministic. The
+    // Active/Asleep path (Recheck-based reconfirmation) is left alone -
+    // Recheck just calls evaluate() and compares, which already works
+    // correctly regardless of how far evaluate() itself looks back.
     private delayTicks(): number {
         return Math.max(1, Math.round(this.delay / CircuitElm.sim.maxTimeStep));
     }
 
-    resetDigital(): void {
-        super.resetDigital();
-        this.pendingTarget = null;
-        this.pendingDeadline = -1;
-    }
-
-    /** DigitalElm's required evaluate(): the input's current live value,
-     * falling back to the analog voltage threshold before wireDigitalCircuit()
-     * has populated this.inputs - same thin-wrapper pattern as
-     * InverterElm.evaluate(). This buffer's actual delay/glitch-filtering
-     * behavior lives in inputUpdated()/prepare()/commit() below, not here -
-     * evaluate() itself is just "what does the input say right now." */
+    /** DigitalElm's required evaluate(): the debounced/delayed value of the
+     * input, falling back to the analog voltage threshold before
+     * wireDigitalCircuit() has populated this.inputs - same fallback
+     * InverterElm.evaluate() uses. */
     evaluate(sender?: DigitalElmInstance | null): boolean {
         if (this.inputs.length > 0)
-            return this.inputs[0].currentValue();
+            return this.debouncedValueAt(this.inputs[0], this.scheduler.currentTime);
         return this.nodes[0].v > this.threshold;
     }
 
-    /** Reacts to the input changing. If the input is back to matching our
-     * current output, any pending transition is moot - cancel it (mirrors
-     * doStep()'s delayEndTime being pushed forward whenever inState ===
-     * outState). Otherwise, if this isn't already the pending target
-     * (e.g. a redundant notification), start a fresh delay window: schedule
-     * a check delayTicks() from now, and remember what value it should
-     * commit to if the input is still there when it fires. */
+    /** The value `input` had settled to as of `now`, applying this
+     * buffer's own delay as a glitch filter: a transition only "confirms"
+     * (and the value it introduces takes effect delayTicks() after it) if
+     * no LATER transition preempts it within that same window - exactly
+     * mirroring doStep()'s delayEndTime logic (see this class's header
+     * comment), just expressed as a pure function over input.history
+     * instead of a per-timestep running deadline. Pure and re-derivable at
+     * any `now`: never mutates anything, so it's safe to call from
+     * evaluate() as often as the periodicity engine likes (promotion
+     * attempts, Recheck reconfirmation, backfill, ...) without needing any
+     * bookkeeping of its own to stay consistent. */
+    private debouncedValueAt(input: DigitalElmInstance, now: number): boolean {
+        const delay = this.delayTicks();
+        // An Asleep input stops appending to its own history live (that's
+        // the whole point of Asleep - see digital/DigitalElm.ts) - reading
+        // it without catching up first would silently miss every
+        // transition that "happened" during sleep, exactly the same
+        // staleness transitionedTo() already guards against. Missing that
+        // here was a real bug found live: this buffer's own self-driven
+        // Active ticks re-verify via evaluate() on every tick (see
+        // prepare()'s "active" branch in digital/DigitalElm.ts), and an
+        // Asleep input's un-backfilled history made that re-verification
+        // see a stale value, spuriously demoting - then re-promoting, then
+        // demoting again - so the buffer could never settle into Asleep
+        // itself as long as something (e.g. a downstream consumer's own
+        // Recheck) kept asking. Without a downstream consumer, vacuous
+        // trust let the buffer reach Asleep before this could ever bite,
+        // masking the bug entirely.
+        if (input.state === State.Asleep) input._backfillHistory(now);
+        const hist = input.history; // ascending [tick, value]
+        if (hist.length === 0)
+            return input.currentValue(); // never changed - nothing to debounce
+        // Binary search: first index whose deadline (tick + delay) is
+        // still in the future as of `now` - candidates are everything
+        // before it.
+        let lo = 0, hi = hist.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (hist[mid][0] + delay <= now) lo = mid + 1; else hi = mid;
+        }
+        for (let i = lo - 1; i >= 0; i--) {
+            const [ti, vi] = hist[i];
+            const nextTick = (i + 1 < hist.length) ? hist[i + 1][0] : null;
+            if (nextTick !== null && nextTick < ti + delay)
+                continue; // preempted by a later bounce before confirming - never reached the output
+            return vi;
+        }
+        return false; // nothing confirmed yet - same before-first-entry default every DigitalElmInstance uses
+    }
+
+    /** Reacts to the input changing. The Active/Asleep case is exactly the
+     * base class's own behavior (Recheck-based reconfirmation - see this
+     * class's header comment for why that's fine as-is). The Passive case
+     * schedules our own re-evaluation delayTicks() out - the earliest
+     * moment this specific edge could possibly confirm - rather than the
+     * generic MIN_HOP_TICKS. */
     inputUpdated(sender: DigitalElmInstance | null = null): void {
-        const inputVal = this.evaluate();
-        if (this.digitalDebug)
-            console.log("[digital] DelayBufferElm inputUpdated", "value=", this.value,
-                "inputVal=", inputVal, "pendingTarget=", this.pendingTarget);
-        if (inputVal === this.value) {
-            this.pendingTarget = null;
+        if (this.state === State.Active || this.state === State.Asleep) {
+            super.inputUpdated(sender);
             return;
         }
-        if (this.pendingTarget === inputVal) return;
-        this.pendingTarget = inputVal;
-        this.pendingDeadline = this.scheduler.currentTime + this.delayTicks();
-        this.scheduler.schedule(this.pendingDeadline, this);
-    }
-
-    /** Phase 1: is the pending transition still live? Re-reads the input
-     * live (rather than trusting the `inputVal` captured back when this was
-     * scheduled) since a later bounce may have changed pendingTarget, or
-     * cancelled it back to matching this.value, in the meantime - either
-     * case makes this check stale and it's ignored, same as doStep() checking
-     * `CircuitElm.sim.t >= this.delayEndTime` against whatever inState/outState
-     * actually are by the time it runs. Also requires this to be exactly the
-     * event scheduled for the CURRENT pendingTarget (see pendingDeadline's
-     * docstring) - not just any earlier, already-superseded event that
-     * happens to agree on the target value. */
-    // Return type is deliberately `any`: the base class's prepare() returns
-    // its own unexported Pending union (a set of {kind: "..."} records) that
-    // this override's plain boolean-or-null pending value doesn't belong
-    // to - commit() below only ever sees what this same override returned,
-    // so the mismatch is safe in practice, just not expressible as a proper
-    // covariant override.
-    prepare(val: unknown): any {
-        const inputVal = this.evaluate();
-        if (this.scheduler.currentTime !== this.pendingDeadline) return null;
-        if (inputVal !== this.pendingTarget || inputVal === this.value) return null;
-        return inputVal;
-    }
-
-    /** Phase 2: commit the confirmed transition. */
-    commit(pending: unknown): void {
-        if (pending === null) return;
-        this.value = pending as boolean;
-        this.pendingTarget = null;
-        this.pendingDeadline = -1;
-        this.history.push([this.scheduler.currentTime, this.value]);
-        this.notifyOutputs();
+        this.scheduler.schedule(this.scheduler.currentTime + this.delayTicks(), this);
     }
 
     constructor(xx: number, yy: number);
