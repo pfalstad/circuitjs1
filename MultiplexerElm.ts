@@ -25,8 +25,11 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
-export class MultiplexerElm extends ChipElm {
+export class MultiplexerElm extends ChipElm implements Group {
     static readonly FLAG_INVERTED_OUTPUT = 1 << 1;
     static readonly FLAG_STROBE         = 1 << 2;
     static readonly FLAG_BUS_SELECT     = 1 << 3;
@@ -48,6 +51,76 @@ export class MultiplexerElm extends ChipElm {
 
     hasReset(): boolean { return false; }
     busSelect(): boolean { return this.hasFlag(MultiplexerElm.FLAG_BUS_SELECT); }
+
+    // --- Group/GroupPin: digital fast-path scaffolding - see
+    // CounterElm.ts/DFlipFlopElm.ts for the same pattern.
+    //
+    // this.inputs layout (wireDigitalCircuit() populates it as every
+    // non-output pin, in post order - see setupPins() above for that
+    // order per inputMode):
+    //   INPUT_MODE_INDIVIDUAL / INPUT_MODE_BUS_BIT (functionally
+    //   identical - the "bus" in BUS_BIT is purely a wiring/rendering
+    //   convenience, still `outputCount` separate single-bit posts):
+    //     [0, outputCount)                  -> data channel i
+    //     [outputCount, outputCount+selectBitCount) -> select bit i
+    //     outputCount+selectBitCount        -> strobe (iff FLAG_STROBE)
+    //   INPUT_MODE_BUS_BUS:
+    //     [0, outputCount*dataBusWidth)     -> channel g, bit i at g*dataBusWidth+i
+    //     [that, +selectBitCount)           -> select bit i
+    //     last                              -> strobe (iff FLAG_STROBE)
+    //
+    // digitalPins layout mirrors the output pins setupPins() lays out:
+    // the primary output (1 pin, or dataBusWidth pins in BUS_BUS), then
+    // the inverted output (same width again) iff FLAG_INVERTED_OUTPUT.
+    inputs: DigitalElmInstance[] = [];
+    digitalPins: GroupPin[] = [];
+    digitalDebugPins = false;
+
+    private outputWidth(): number {
+        return this.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS ? this.dataBusWidth : 1;
+    }
+
+    initDigitalPins(): void {
+        const w = this.outputWidth();
+        const n = this.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT) ? w * 2 : w;
+        this.digitalPins = Array.from({ length: n }, (_, k) => new GroupPin(this, k));
+        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
+    }
+
+    /** Pure combinational equivalent of execute() below - no clock/edge
+     * dependency, so sender is unused (every output is recomputed fresh
+     * from current input state regardless of which input changed). */
+    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
+        const now = pin.scheduler.currentTime;
+        const M = MultiplexerElm;
+        let sel = 0;
+        const selBase = this.inputMode === M.INPUT_MODE_BUS_BUS ? this.outputCount * this.dataBusWidth : this.outputCount;
+        for (let i = 0; i < this.selectBitCount; i++)
+            if (syncedValue(this.inputs[selBase + i], now)) sel |= 1 << i;
+        const strobeIdx = this.hasFlag(M.FLAG_STROBE) ? selBase + this.selectBitCount : -1;
+        const strobed = strobeIdx >= 0 && syncedValue(this.inputs[strobeIdx], now);
+
+        let out: boolean[];
+        if (this.inputMode === M.INPUT_MODE_BUS_BUS) {
+            const w = this.dataBusWidth;
+            out = Array.from({ length: w }, (_, i) => !strobed && syncedValue(this.inputs[sel * w + i], now));
+        } else {
+            out = [!strobed && syncedValue(this.inputs[sel], now)];
+        }
+        if (this.hasFlag(M.FLAG_INVERTED_OUTPUT))
+            return [...out, ...out.map(v => !v)];
+        return out;
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        let k = 0;
+        for (const pin of this.pins) {
+            if (!pin.output) continue;
+            appendInfoLine(arr, `${pin.text}${pin.lineOver ? "'" : ""}: ${digitalStateText(this.digitalPins[k])}`);
+            k++;
+        }
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -324,7 +397,14 @@ export class MultiplexerElm extends ChipElm {
         }
         if (n === 4)
             return EditInfo.createCheckbox("Bus Select", this.busSelect());
-        if (n === 5 && this.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS)
+        if (n === 5)
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebugPins);
+        // Must come after the unconditional Digital Debug checkbox, not
+        // before it: getEditInfo() consumers stop at the first null (see
+        // EditDialog.buildDialog()), so a conditional field followed by an
+        // unconditional one would hide the latter whenever the condition
+        // is false.
+        if (n === 6 && this.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS)
             return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless();
         return null;
     }
@@ -365,6 +445,11 @@ export class MultiplexerElm extends ChipElm {
             return;
         }
         if (n === 5) {
+            this.digitalDebugPins = ei.checkbox!.getState();
+            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
+            return;
+        }
+        if (n === 6) {
             if (ei.value >= 2) {
                 this.dataBusWidth = Math.trunc(ei.value);
                 this.setupPins();

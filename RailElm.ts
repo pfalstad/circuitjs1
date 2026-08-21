@@ -90,6 +90,22 @@ export class RailElm extends withDigital(VoltageElm) {
         }
     }
 
+    /** The analog voltage syncDigitalToNodes() should write back for a
+     * given boolean state - duck-typed alongside LogicInputElm's own
+     * version (any isRailSourceLike() element needs one), rather than that
+     * function special-casing RailElm's own bias/maxVoltage/getVoltage()
+     * fields directly. */
+    getDigitalVoltage(v: boolean): number {
+        if (this.isDigitalClock())
+            // bias +/- maxVoltage, not getVoltage(): getVoltage() is
+            // time-dependent (reads CircuitElm.sim.t) for a square/AC
+            // waveform, which this path doesn't keep advancing.
+            return v ? this.bias + this.maxVoltage : this.bias - this.maxVoltage;
+        // DC rail: getVoltage() is safe here (see initDigitalSource()'s
+        // comment) - just reflects its fixed configured voltage.
+        return v ? this.getVoltage() : 0;
+    }
+
     evaluate(sender?: DigitalElmInstance | null): boolean {
         if (this.isDigitalSource())
             throw new Error("digital rail source has no inputs; evaluate() should never be called");

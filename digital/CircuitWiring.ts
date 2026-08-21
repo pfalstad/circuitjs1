@@ -250,16 +250,12 @@ export function syncDigitalToNodes(elmList: any[]): void {
                 k++;
             }
         } else if (isRailSourceLike(elm)) {
-            if (elm.isDigitalClock())
-                // bias +/- maxVoltage, not getVoltage(): getVoltage() is
-                // time-dependent (reads CircuitElm.sim.t) for a square/AC
-                // waveform, which this path doesn't keep advancing.
-                elm.nodes[0].v = elm.currentValue() ? elm.bias + elm.maxVoltage : elm.bias - elm.maxVoltage;
-            else
-                // DC rail: getVoltage() is safe here (see
-                // RailElm.initDigitalSource()'s comment) - just reflects
-                // its fixed configured voltage.
-                elm.nodes[0].v = elm.currentValue() ? elm.getVoltage() : 0;
+            // getDigitalVoltage() is duck-typed, not RailElm-specific -
+            // any isDigitalSource()-returning element (RailElm's clock/DC
+            // rails, LogicInputElm's user-toggled constant) supplies its
+            // own mapping from boolean state to the real analog voltage
+            // syncDigitalToNodes() should write back.
+            elm.nodes[0].v = elm.getDigitalVoltage(elm.currentValue());
         }
     }
 }

@@ -29,8 +29,10 @@ import { Rectangle } from "./Rectangle";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { withDigital } from "./digital/DigitalElm";
+import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
-export class LogicInputElm extends SwitchElm {
+export class LogicInputElm extends withDigital(SwitchElm) {
     static readonly FLAG_TERNARY = 1;
     static readonly FLAG_NUMERIC = 2;
     hiV: number;
@@ -59,6 +61,64 @@ export class LogicInputElm extends SwitchElm {
 
     isTernary(): boolean { return (this.flags & LogicInputElm.FLAG_TERNARY) !== 0; }
     isNumeric(): boolean { return (this.flags & (LogicInputElm.FLAG_TERNARY | LogicInputElm.FLAG_NUMERIC)) !== 0; }
+
+    // --- Digital fast-path wiring ---
+    //
+    // A user-toggleable digital source - the other one besides RailElm's
+    // DC/clock rails (see isRailSourceLike() in digital/CircuitWiring.ts,
+    // which duck-types on isDigitalSource() rather than being RailElm-
+    // specific). Ternary mode is a genuine 3-level voltage, not a boolean,
+    // so it's excluded - same scope restriction RailElm places on its own
+    // non-square/non-DC waveforms.
+    isDigitalSource(): boolean { return !this.isTernary(); }
+
+    private digitalHigh(): boolean { return this.position !== 0; }
+
+    /** The analog voltage syncDigitalToNodes() should write back for a
+     * given boolean state - see RailElm.getDigitalVoltage() for why this
+     * is duck-typed rather than that function special-casing RailElm's
+     * own fields. */
+    getDigitalVoltage(v: boolean): number { return v ? this.hiV : this.loV; }
+
+    /** Sets this element up as a digital source: a Passive, zero-input
+     * "constant" whose value comes from this.position - see
+     * RailElm.initDigitalSource()'s DC-rail branch for the analogous
+     * fixed-voltage case. Unlike a DC rail's voltage, this one changes
+     * live via user interaction (see toggle() below), so "constant" here
+     * just means "not driven by another digital element's inputs", not
+     * "never changes" - always fully reinitializes via resetDigital() for
+     * the same reason RailElm's does (a fresh Scheduler exists per stamp). */
+    initDigitalSource(): void {
+        if (!this.isDigitalSource()) return;
+        this.resetDigital();
+        this.value = this.digitalHigh();
+    }
+
+    evaluate(): boolean {
+        if (this.isDigitalSource())
+            throw new Error("digital logic-input source has no inputs; evaluate() should never be called");
+        return false;
+    }
+
+    /** SwitchElm.toggle() (called from MouseManager.doSwitch() on click)
+     * updates this.position, but MouseManager deliberately skips
+     * needAnalyze() for a LogicInputElm specifically (toggling one
+     * shouldn't force a full re-stamp/rewire) - so nothing else re-derives
+     * the digital graph's view of this source's value. This is the only
+     * place a live toggle actually gets noticed downstream in digital
+     * mode, mirroring what the base commit "passive" branch does for an
+     * ordinary input-driven change (see digital/DigitalElm.ts), just
+     * triggered by a user click instead of an input. */
+    toggle(): void {
+        super.toggle();
+        if (!this.isDigitalSource()) return;
+        const v = this.digitalHigh();
+        if (v !== this.value) {
+            this.value = v;
+            this.history.push([this.scheduler.currentTime, v]);
+            this.notifyOutputs();
+        }
+    }
 
     getDumpType(): number { return 'L'.charCodeAt(0); }
 
@@ -138,6 +198,8 @@ export class LogicInputElm extends SwitchElm {
             arr[1] = "" + this.position;
         arr[1] += " (" + CircuitElm.getVoltageText(this.nodes[0].v) + ")";
         arr[2] = "I = " + CircuitElm.getCurrentText(this.getCurrent());
+        if (this.isDigitalSource())
+            appendInfoLine(arr, "opt: " + digitalStateText(this));
     }
 
     hasGroundConnection(n1: number): boolean { return true; }
@@ -164,6 +226,8 @@ export class LogicInputElm extends SwitchElm {
         }
         if (n === 5)
             return this.getKeyShortcutEditInfo();
+        if (n === 6 && this.isDigitalSource())
+            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -189,6 +253,8 @@ export class LogicInputElm extends SwitchElm {
         }
         if (n === 5)
             this.setKeyShortcutEditValue(ei);
+        if (n === 6)
+            this.digitalDebug = ei.checkbox.getState();
     }
 
     addRoutingObstacle(router: WireRouter): void {

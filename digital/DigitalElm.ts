@@ -713,10 +713,40 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         /** Did we transition to targetValue at some point in (since, until]?
          * This is the primitive edge detection actually needs - not "what was
          * my value an instant before now," but "did the relevant edge occur
-         * anywhere in the window since the caller last checked." */
+         * anywhere in the window since the caller last checked."
+         *
+         * Scans backward from the end of history, not history.some()'s
+         * forward-from-index-0 order: the (since, until] window is almost
+         * always just the most recent entry or two (edge detection is
+         * typically checked right after the edge it's looking for), but
+         * history is append-only and never trimmed (see the "active" commit
+         * case's own comment on why it keeps growing forever even while
+         * Active) - a forward scan has to walk the ENTIRE history array
+         * before reaching a match near the end. That's O(history length)
+         * per call, and since history length itself grows with every real
+         * tick this element or its watchers process, a hot edge-detection
+         * path (CounterElm/DFlipFlopElm/JKFlipFlopElm's own evaluate()) that
+         * never gets a chance to let its watched input sleep - e.g. because
+         * something ELSE downstream never trusts it - turns into O(n) work
+         * on an ever-growing n, i.e. calls keep getting slower over the
+         * lifetime of the simulation even though each one is only looking at
+         * a tiny recent window. Walking backward instead stops as soon as it
+         * passes `since` (history is sorted ascending by tick, so nothing
+         * earlier could match either), making this O(entries actually in
+         * the window) - typically O(1) - regardless of how much history has
+         * piled up. A real perf bug found live via a SevenSegDecoderElm
+         * whose output never fully settled into being trusted, keeping an
+         * upstream counter/clock's history growing forever while this scan
+         * kept re-walking all of it. */
         transitionedTo(targetValue: boolean, since: number, until: number): boolean {
             if (this.state === State.Asleep) this._backfillHistory(until);
-            return this.history.some(([t, v]) => v === targetValue && since < t && t <= until);
+            const hist = this.history;
+            for (let i = hist.length - 1; i >= 0; i--) {
+                const [t, v] = hist[i];
+                if (t <= since) break; // ascending order - no earlier entry can be in (since, until] either
+                if (t <= until && v === targetValue) return true;
+            }
+            return false;
         }
 
         /** We stopped recording into history while asleep. Replay every
@@ -886,43 +916,9 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             for (const p of candidates) {
                 const window = this._matchPeriod(p);
                 // An empirical (non-LCM-trusted) candidate is only as
-                // trustworthy as its evidence about EVERY input - if an
-                // unproven input's own history isn't ALSO internally
-                // consistent with this exact candidate period (same count
-                // of recorded transitions in each window, at matching
-                // offsets and values - i.e. it would pass its OWN
-                // _matchPeriod-style check at this period), the match says
-                // nothing trustworthy about that input's real behavior.
-                // Requiring merely "showed up at least once" isn't enough:
-                // a single isolated transition can land inside the window
-                // without proving anything about periodicity, and - worse -
-                // might not even have been the thing our own two-window
-                // match actually depended on, if another input was already
-                // masking it (e.g. an already-true OR input hiding a
-                // separate input's transition). A real bug found live: an
-                // element promoted (and later went Asleep, permanently
-                // losing all further self-checking - see wake()'s
-                // docstring) based on a match that only superficially
-                // "saw" a slow input vary once, and showed a genuinely
-                // wrong live value for as long as that input's true
-                // (much longer) period didn't happen to matter yet.
-                // Requiring EVERY input to be fully proven first (not just
-                // self-consistent within the window) was tried and
-                // rejected: it deadlocks any genuine feedback loop, where
-                // members can only ever bootstrap via exactly this kind of
-                // empirical evidence about each other. Requiring each
-                // unproven input's own history to independently pass the
-                // same two-window test preserves that bootstrapping (loop
-                // members vary repeatedly and consistently, so they satisfy
-                // this too) while refusing a candidate that's only really
-                // supported by inputs we have genuine confidence in.
-                const blind = window !== null && unprovenInputs.some(i => {
-                    const w1 = i.history.filter(([t]) => t > this.scheduler.currentTime - 2 * p && t <= this.scheduler.currentTime - p);
-                    const w2 = i.history.filter(([t]) => t > this.scheduler.currentTime - p && t <= this.scheduler.currentTime);
-                    if (w1.length === 0 && w2.length === 0) return true;
-                    if (w1.length !== w2.length) return true;
-                    return w1.some(([t1, v1], j) => { const [t2, v2] = w2[j]; return v1 !== v2 || t2 - t1 !== p; });
-                });
+                // trustworthy as its evidence about EVERY input - see
+                // _blindFor()'s docstring for what "trustworthy" means here.
+                const blind = window !== null && unprovenInputs.some(i => this._blindFor(i, p));
                 if (this.digitalDebug)
                     console.log("[digital] tryPromote candidate", p, "matched=", window !== null, "blind=", blind);
                 if (window !== null && !blind) {
@@ -930,6 +926,60 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     return;
                 }
             }
+        }
+
+        /** True if `input` (one of tryPromote()'s unprovenInputs) doesn't
+         * give us enough confidence to promote on candidate period `p` -
+         * i.e. its own history isn't ALSO internally consistent with this
+         * exact period (same count of recorded transitions in the last two
+         * windows of length p, at matching offsets and values - i.e. it
+         * would pass its OWN _matchPeriod-style check at this period).
+         * Requiring merely "showed up at least once" isn't enough: a single
+         * isolated transition can land inside the window without proving
+         * anything about periodicity, and - worse - might not even have
+         * been the thing our own two-window match actually depended on, if
+         * another input was already masking it (e.g. an already-true OR
+         * input hiding a separate input's transition). A real bug found
+         * live: an element promoted (and later went Asleep, permanently
+         * losing all further self-checking - see wake()'s docstring) based
+         * on a match that only superficially "saw" a slow input vary once,
+         * and showed a genuinely wrong live value for as long as that
+         * input's true (much longer) period didn't happen to matter yet.
+         * Requiring EVERY input to be fully proven first (not just
+         * self-consistent within the window) was tried and rejected: it
+         * deadlocks any genuine feedback loop, where members can only ever
+         * bootstrap via exactly this kind of empirical evidence about each
+         * other. Requiring each unproven input's own history to
+         * independently pass the same two-window test preserves that
+         * bootstrapping (loop members vary repeatedly and consistently, so
+         * they satisfy this too) while refusing a candidate that's only
+         * really supported by inputs we have genuine confidence in.
+         *
+         * Tried and reverted: treating "no activity in either window, but
+         * also none for a good many periods before that" as safe (on the
+         * theory that a real future change would still reach this element
+         * through the normal untrusted-input path regardless). The
+         * always-correct baseline comparison test caught a genuine value
+         * divergence from that relaxation - some other mechanism this
+         * docstring doesn't yet fully account for depends on silence in
+         * exactly these two windows meaning "not proven," not just "current
+         * value assumed correct." Left as a flat reject until that's
+         * actually understood, rather than re-attempted. */
+        _blindFor(input: DigitalElmInstance, p: number): boolean {
+            const now = this.scheduler.currentTime;
+            const hist = input.history;
+            const win1: [number, boolean][] = [];
+            const win2: [number, boolean][] = [];
+            for (let i = hist.length - 1; i >= 0; i--) {
+                const [t, v] = hist[i];
+                if (t <= now - 2 * p) break;
+                (t <= now - p ? win1 : win2).push([t, v]);
+            }
+            win1.reverse();
+            win2.reverse();
+            if (win1.length === 0 && win2.length === 0) return true;
+            if (win1.length !== win2.length) return true;
+            return win1.some(([t1, v1], j) => { const [t2, v2] = win2[j]; return v1 !== v2 || t2 - t1 !== p; });
         }
 
         /** Guess candidate periods from gaps to earlier same-valued events. */
@@ -953,10 +1003,24 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         _matchPeriod(period: number): [number, boolean][] | null {
             if (!period || period <= 0) return null;
             const now = this.scheduler.currentTime;
-            if (this.history.length === 0 || this.history[0][0] > now - 2 * period)
+            const hist = this.history;
+            if (hist.length === 0 || hist[0][0] > now - 2 * period)
                 return null; // not enough history yet to prove two full periods
-            const win1 = this.history.filter(([t]) => now - 2 * period < t && t <= now - period);
-            const win2 = this.history.filter(([t]) => now - period < t && t <= now);
+            // Backward scan, not history.filter() (which always walks the
+            // WHOLE array): the two windows we want are right at the end of
+            // this ever-growing, append-only log - see transitionedTo()'s
+            // docstring for the same reasoning and the real perf bug this
+            // mirrors (tryPromote() calls this on every value change, so an
+            // O(history length) scan here compounds the same way).
+            const win1: [number, boolean][] = [];
+            const win2: [number, boolean][] = [];
+            for (let i = hist.length - 1; i >= 0; i--) {
+                const [t, v] = hist[i];
+                if (t <= now - 2 * period) break;
+                (t <= now - period ? win1 : win2).push([t, v]);
+            }
+            win1.reverse();
+            win2.reverse();
             if (win1.length === 0 || win2.length === 0 || win1.length !== win2.length) return null;
             for (let i = 0; i < win1.length; i++) {
                 const [t1, v1] = win1[i], [t2, v2] = win2[i];
