@@ -1409,11 +1409,25 @@ export class SimulationManager {
 	const elapsedMs = Math.min(tm - this.lastIterTime, frameTimeLimit);
 	const ticks = Math.max(1, Math.round(steprate * elapsedMs / 1000));
 
-	this.digitalScheduler.runUntil(this.digitalScheduler.currentTime + ticks);
+	// ticks assumes a roughly constant per-tick cost, same as
+	// runCircuitAnalog()'s own iteration-count budgeting - but unlike that
+	// solver loop, ticks here are NOT uniformly cheap (that's the whole
+	// point of the promotion/sleep optimization: most ticks are nearly
+	// free, but a demote/re-promote cascade landing in this batch can be
+	// arbitrarily more expensive than the rest). Passing a real wall-clock
+	// deadline lets the scheduler bail out mid-batch rather than run this
+	// frame's whole requested tick count regardless of how long it
+	// actually takes - see Scheduler.runUntil()'s docstring. Advance t/
+	// timeStepCount by the ACTUAL ticks processed, not the requested
+	// count, so a cut-short frame doesn't silently claim sim time that
+	// was never actually simulated.
+	const startSchedTime = this.digitalScheduler.currentTime;
+	this.digitalScheduler.runUntil(startSchedTime + ticks, tm + frameTimeLimit);
+	const actualTicks = this.digitalScheduler.currentTime - startSchedTime;
 
-	this.t += ticks * this.maxTimeStep;
+	this.t += actualTicks * this.maxTimeStep;
 	this.timeStepAccum = 0;
-	this.timeStepCount += ticks;
+	this.timeStepCount += actualTicks;
 
 	syncDigitalToNodes(this.elmArr);
 	syncNodesToPassiveChips(this.elmArr);

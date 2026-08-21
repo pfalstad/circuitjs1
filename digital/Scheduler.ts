@@ -137,15 +137,48 @@ export class Scheduler {
      * it never accumulate past a single increment while the scheduler sits
      * idle - e.g. waiting for a clock's first tick, possibly far in the
      * future. Jumping straight to maxTime here is also just correct: no
-     * event existed in the skipped gap, so nothing was missed. */
-    runUntil(maxTime: number): void {
-        this.runWhile(() => this.queue.size > 0 && this.queue.peekTime() <= maxTime);
-        if (this.currentTime < maxTime)
+     * event existed in the skipped gap, so nothing was missed - but only
+     * once the run below actually reports it got that far (see
+     * `deadlineMs`); jumping ahead after an early exit would skip real,
+     * still-pending events instead of a genuinely empty gap.
+     *
+     * `deadlineMs` (an absolute Date.now()-comparable timestamp, not a
+     * duration) is optional wall-clock time-boxing: a caller driving this
+     * from a real-time animation loop (see SimulationManager.runCircuit())
+     * needs to bound how long a single call can block the main thread,
+     * but ticks aren't uniformly cheap under the promotion/sleep
+     * optimization (this file's whole point) - a fixed tick-count budget
+     * computed from an assumed constant per-tick cost can still blow
+     * through a frame budget by a wide margin whenever a big
+     * demote/re-promote cascade lands in it. Checking real elapsed time
+     * directly, and simply stopping (mid-queue, nothing lost - every
+     * unprocessed event is still sitting in the heap for next call) is the
+     * only thing that actually bounds it. Returns true if maxTime was
+     * fully reached, false if cut short by the deadline - the caller
+     * should advance whatever it derives from wall-clock time (e.g. sim
+     * time) by the ACTUAL ticks processed (now currentTime - the time it
+     * was at when this was called), not by how many were requested. */
+    runUntil(maxTime: number, deadlineMs?: number): boolean {
+        const completed = this.runWhile(() => this.queue.size > 0 && this.queue.peekTime() <= maxTime, deadlineMs);
+        if (completed && this.currentTime < maxTime)
             this.currentTime = maxTime;
+        return completed;
     }
 
-    private runWhile(shouldContinue: () => boolean): void {
+    private runWhile(shouldContinue: () => boolean, deadlineMs?: number): boolean {
+        let first = true;
         while (shouldContinue()) {
+            // Checked once per distinct timestamp (not per event/tier) -
+            // Date.now() is cheap enough that this granularity costs
+            // nothing measurable, while still being far finer than "once
+            // per frame" would be. Never on the very first timestamp,
+            // though: an already-expired deadline (e.g. minFrameRate set
+            // absurdly high, or the caller just plain running behind) must
+            // still guarantee real forward progress every call, not starve
+            // forever - see this file's runUntil() docstring.
+            if (!first && deadlineMs !== undefined && Date.now() >= deadlineMs)
+                return false;
+            first = false;
             const time = this.queue.peekTime();
             this.currentTime = time;
             while (this.queue.size > 0 && this.queue.peekTime() === time) {
@@ -157,6 +190,7 @@ export class Scheduler {
                 this.commitByTiers(batch);
             }
         }
+        return true;
     }
 
     private commitAfter(obj: Schedulable): Set<Schedulable> | typeof LAST {
