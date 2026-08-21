@@ -24,7 +24,7 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
-import { GroupPin, syncedValue, State } from "./digital/DigitalElm";
+import { GroupPin, syncedValue, valueAtTick, MIN_HOP_TICKS, State } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -85,6 +85,16 @@ export class CounterElm extends ChipElm implements Group {
         const updown = this.hasUpDown() ? this.inputs[2] : null;
         const now = pin.scheduler.currentTime;
         const neg = this.negativeEdgeTriggered();
+        // Every external input (reset, up/down) gets read at least
+        // MIN_HOP_TICKS in the past, not its current value - see
+        // MIN_HOP_TICKS' own docstring in digital/DigitalElm.ts. Sibling
+        // digitalPins (below) are NOT external - they're this same
+        // register's own internal state, read instantaneously same as
+        // always. The clock edge check is left alone (see
+        // lastClockChecked, which already has its own careful exact-tick
+        // semantics from a prior fix - shifting it by another tick here
+        // would need working through those interactions again).
+        const readTick = now - MIN_HOP_TICKS;
 
         const old = this.digitalPins.map(p => syncedValue(p, now));
         let next = old;
@@ -98,7 +108,7 @@ export class CounterElm extends ChipElm implements Group {
         if (checkingClock && clk.transitionedTo(!neg, this.lastClockChecked?.[pin.index] ?? 0, now)) {
             let value = 0;
             old.forEach((b, k) => { if (b) value |= 1 << (this.bits - 1 - k); });
-            const dir = (updown && syncedValue(updown, now)) ? -1 : 1;
+            const dir = (updown && valueAtTick(updown, readTick)) ? -1 : 1;
             value += dir;
             if (this.modulus !== 0)
                 value = ((value % this.modulus) + this.modulus) % this.modulus;
@@ -112,7 +122,7 @@ export class CounterElm extends ChipElm implements Group {
             if (!this.lastClockChecked) this.lastClockChecked = [];
             this.lastClockChecked[pin.index] = now;
         }
-        if (syncedValue(reset, now) !== this.invertreset)
+        if (valueAtTick(reset, readTick) !== this.invertreset)
             next = new Array(this.bits).fill(false);
         return next;
     }

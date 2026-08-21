@@ -21,7 +21,7 @@ import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import { GroupPin, syncedValue, valueAtTick, MIN_HOP_TICKS } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -66,15 +66,21 @@ export class DFlipFlopElm extends ChipElm implements Group {
         let idx = 2;
         const r = this.hasReset() ? this.inputs[idx++] : null;
         const s = this.hasSet() ? this.inputs[idx] : null;
-        const isSet = s !== null && syncedValue(s, now) !== this.invertSetReset();
-        const isReset = r !== null && syncedValue(r, now) !== this.invertSetReset();
+        // External inputs (set/reset/data) read at least MIN_HOP_TICKS in
+        // the past, not their current value - see MIN_HOP_TICKS' own
+        // docstring. digitalPins[0] (our own Q) is internal state, read
+        // instantaneously same as always; the clock edge check is left
+        // alone same as CounterElm's.
+        const readTick = now - MIN_HOP_TICKS;
+        const isSet = s !== null && valueAtTick(s, readTick) !== this.invertSetReset();
+        const isReset = r !== null && valueAtTick(r, readTick) !== this.invertSetReset();
 
         if (isSet || isReset)
             return [isSet, isReset];
 
         let q = syncedValue(this.digitalPins[0], now);
         if ((sender === null || sender === clk) && clk.transitionedTo(true, pin.lastChecked, now))
-            q = syncedValue(d, now);
+            q = valueAtTick(d, readTick);
         return [q, !q];
     }
 

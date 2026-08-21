@@ -25,7 +25,7 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import { GroupPin, valueAtTick, MIN_HOP_TICKS } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -92,20 +92,23 @@ export class MultiplexerElm extends ChipElm implements Group {
      * from current input state regardless of which input changed). */
     evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
         const now = pin.scheduler.currentTime;
+        // Every input is external, read at least MIN_HOP_TICKS in the past
+        // rather than its current value - see MIN_HOP_TICKS' own docstring.
+        const readTick = now - MIN_HOP_TICKS;
         const M = MultiplexerElm;
         let sel = 0;
         const selBase = this.inputMode === M.INPUT_MODE_BUS_BUS ? this.outputCount * this.dataBusWidth : this.outputCount;
         for (let i = 0; i < this.selectBitCount; i++)
-            if (syncedValue(this.inputs[selBase + i], now)) sel |= 1 << i;
+            if (valueAtTick(this.inputs[selBase + i], readTick)) sel |= 1 << i;
         const strobeIdx = this.hasFlag(M.FLAG_STROBE) ? selBase + this.selectBitCount : -1;
-        const strobed = strobeIdx >= 0 && syncedValue(this.inputs[strobeIdx], now);
+        const strobed = strobeIdx >= 0 && valueAtTick(this.inputs[strobeIdx], readTick);
 
         let out: boolean[];
         if (this.inputMode === M.INPUT_MODE_BUS_BUS) {
             const w = this.dataBusWidth;
-            out = Array.from({ length: w }, (_, i) => !strobed && syncedValue(this.inputs[sel * w + i], now));
+            out = Array.from({ length: w }, (_, i) => !strobed && valueAtTick(this.inputs[sel * w + i], readTick));
         } else {
-            out = [!strobed && syncedValue(this.inputs[sel], now)];
+            out = [!strobed && valueAtTick(this.inputs[sel], readTick)];
         }
         if (this.hasFlag(M.FLAG_INVERTED_OUTPUT))
             return [...out, ...out.map(v => !v)];
