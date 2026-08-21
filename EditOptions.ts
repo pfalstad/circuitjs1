@@ -26,6 +26,7 @@ import { CircuitElm } from "./CircuitElm";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { Locale } from "./Locale";
+import { DigitalElm } from "./digital/DigitalElm";
 
 export class EditOptions implements Editable {
     app: CirSim;
@@ -110,9 +111,23 @@ export class EditOptions implements Editable {
         if (n === 17)
             return new EditInfo("Value Label Font Size", CircuitElm.valueFontSize);
 
+        if (n === 18) {
+            const ei = new EditInfo("", 0, -1, -1);
+            // Global, not per-element, to start - see DigitalElm.ts's own
+            // docstring on promotionEnabled: this is the SAME switch the
+            // verification harness uses to compare the optimized digital
+            // fast path against its always-correct live-evaluated
+            // baseline. Meant as a diagnostic: if disabling this makes a
+            // "gets slower/garbled over time" symptom go away, the bug is
+            // in the promotion/sleep machinery, not the display path
+            // reading its output.
+            ei.checkbox = new Checkbox("Disable Digital Optimization", !DigitalElm.promotionEnabled);
+            return ei;
+        }
+
         // add new options here (before the adjustTimeStep conditional below)
 
-        if (n === 18 && this.sim.adjustTimeStep)
+        if (n === 19 && this.sim.adjustTimeStep)
             return new EditInfo("Minimum time step size (s)", this.sim.minTimeStep, 0, 0).setPositive();
 
         // do not add new options here because they will be hidden unless adjustTimeStep is set
@@ -221,7 +236,11 @@ export class EditOptions implements Editable {
         }
         if (n === 17)
             CircuitElm.setValueFontSize(ei.value > 0 ? Math.trunc(ei.value) : 12);
-        if (n === 18 && ei.value > 0)
+        if (n === 18) {
+            DigitalElm.promotionEnabled = !ei.checkbox!.getState();
+            this.app.needAnalyze();
+        }
+        if (n === 19 && ei.value > 0)
             this.sim.minTimeStep = ei.value;
     }
 

@@ -178,6 +178,15 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
      * history to catch up to "now" before reading it directly, the same way
      * transitionedTo() already does internally. */
     _backfillHistory(now: number): void;
+    /** Optional: analytically-known candidate period(s) tryPromote() should
+     * try with the same confidence as its own provenInputs LCM candidate,
+     * for an element whose true period depends on internal configuration
+     * the generic engine can't see from input periods alone (a Group's
+     * hook - see Group.extraPromotionCandidates() - surfaces through here
+     * via GroupPin's own implementation). Absent (undefined) for anything
+     * with no such extra knowledge to offer - the overwhelmingly common
+     * case - so tryPromote() only calls it via `?.()`. */
+    extraPromotionCandidates?(): number[];
     evaluate(sender?: DigitalElmInstance | null): boolean;
 }
 
@@ -897,9 +906,20 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     "provenInputs.length=", provenInputs.length, "/", this.inputs.length,
                     "historyLength=", this.history.length);
 
+            // Candidates trusted at the same level as a provenInputs LCM
+            // match (2-window _matchPeriod, no extra scrutiny) - as opposed
+            // to a pure guess from _empiricalCandidates() below, which gets
+            // the stricter 3-window check (see the loop below for why).
+            const trustedCandidates = new Set<number>();
             if (provenInputs.length === this.inputs.length) {
                 const periodic = provenInputs.filter(i => i.cycleTime > 0);
-                candidates.push(periodic.length > 0 ? lcm(periodic.map(i => i.cycleTime)) : 1);
+                const lcmCandidate = periodic.length > 0 ? lcm(periodic.map(i => i.cycleTime)) : 1;
+                candidates.push(lcmCandidate);
+                trustedCandidates.add(lcmCandidate);
+            }
+            for (const p of (this as DigitalElmInstance).extraPromotionCandidates?.() ?? []) {
+                if (!candidates.includes(p)) candidates.push(p);
+                trustedCandidates.add(p);
             }
             for (const p of this._empiricalCandidates())
                 if (!candidates.includes(p)) candidates.push(p);
@@ -908,19 +928,86 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 console.log("[digital] tryPromote", (this as any).getClassName?.() ?? this, "candidates=", candidates);
 
             // Inputs the empirical heuristic below has to fly blind on: not
-            // proven periodic/constant, so _matchPeriod()'s two-window match
-            // is only as good as whatever evidence our own history happens
-            // to contain about them.
+            // proven periodic/constant, so _matchPeriod()'s window match is
+            // only as good as whatever evidence our own history happens to
+            // contain about them.
             const unprovenInputs = this.inputs.filter(i => !provenInputs.includes(i));
 
             for (const p of candidates) {
-                const window = this._matchPeriod(p);
+                // A trustedCandidates member - mathematically implied by
+                // fully-proven inputs' own periods (LCM), or analytically
+                // known from an element's own configuration
+                // (extraPromotionCandidates() - see e.g. CounterElm's
+                // modulus) - only needs the standard 2-window check: it's
+                // already vouched for from OUTSIDE the empirical evidence,
+                // so _matchPeriod(p) here is purely confirming our own
+                // output actually settled into that exact period.
+                //
+                // Every OTHER candidate is a pure guess from our own
+                // recent history (_empiricalCandidates() - gaps between
+                // same-valued points), with NOTHING vouching for it beyond
+                // "two windows happened to match." That's fragile for any
+                // element whose true output isn't a simple alternating
+                // square wave: something like a modulus (non-power-of-2)
+                // counter bit has an IRREGULAR multi-transition pattern
+                // within its real period, which raises the odds that a much
+                // SHORTER, wrong period coincidentally matches for exactly
+                // two windows early on - especially since the _blindFor()
+                // safety net is vacuous here (there ARE no unprovenInputs to
+                // check when all inputs are already proven). A real bug
+                // found live: exactly this, on a CounterElm bit with
+                // modulus=13 - its LCM candidate (from the clock's own
+                // period, 20) correctly failed to match (the bit's true
+                // period, 260, isn't 20), but an empirical guess of 40 (a
+                // coincidental gap between two of its own history points,
+                // early in the irregular per-cycle pattern) matched for two
+                // windows and got promoted - locking in a badly wrong
+                // period forever, with the accumulated error compounding
+                // every recurrence (each reported "edge" landing 20 ticks
+                // further from the true baseline than the last). Fixed at
+                // the root by teaching CounterElm to offer modulus*clockPeriod
+                // as its own extraPromotionCandidates() (an analytically
+                // exact period, not a guess); requiring a third matching
+                // window for remaining pure-guess candidates is a second,
+                // independent layer of defense for elements with no such
+                // hook - doesn't fully eliminate the risk (still a
+                // heuristic, not a proof - see doc.txt), but raises the bar
+                // enough that a genuinely short-period element still
+                // promotes almost immediately while a coincidental match
+                // against a much-longer true period becomes far less likely
+                // to survive three independent windows agreeing by chance.
+                const trusted = trustedCandidates.has(p);
+                const windows = trusted ? 2 : 3;
+                if (trusted && !this._hasEnoughHistoryFor(p, windows)) {
+                    // A trusted (LCM/analytic) candidate we don't have
+                    // enough history to verify YET isn't evidence it's
+                    // wrong - it's evidence we don't know yet. Falling
+                    // through to a lower-trust guess here would defeat the
+                    // whole point of preferring the trusted candidate in
+                    // the first place: an empirical guess can satisfy its
+                    // own (shorter) history requirement well before the
+                    // trusted candidate's (longer) one is met, so without
+                    // this check the guess would win the race every time
+                    // regardless of how much better-founded the trusted
+                    // candidate is - exactly what CounterElm's
+                    // extraPromotionCandidates() (modulus*clockPeriod) is
+                    // for: it's usually a longer period than any
+                    // coincidental short-window empirical guess, so it
+                    // would otherwise never get a fair chance to be
+                    // verified before a wrong guess locked in first. Better
+                    // to stay Passive a while longer than promote on a
+                    // worse candidate we know a better one exists for.
+                    if (this.digitalDebug)
+                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "trusted but not enough history yet - waiting");
+                    return;
+                }
+                const window = this._matchPeriod(p, windows);
                 // An empirical (non-LCM-trusted) candidate is only as
                 // trustworthy as its evidence about EVERY input - see
                 // _blindFor()'s docstring for what "trustworthy" means here.
                 const blind = window !== null && unprovenInputs.some(i => this._blindFor(i, p));
                 if (this.digitalDebug)
-                    console.log("[digital] tryPromote candidate", p, "matched=", window !== null, "blind=", blind);
+                    console.log("[digital] tryPromote candidate", p, "windows=", windows, "matched=", window !== null, "blind=", blind);
                 if (window !== null && !blind) {
                     this._promote(p, window, provenInputs);
                     return;
@@ -998,35 +1085,54 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return candidates;
         }
 
-        /** If our history's last two windows of length `period` match exactly,
-         * return the more recent window. */
-        _matchPeriod(period: number): [number, boolean][] | null {
-            if (!period || period <= 0) return null;
+        /** Do we have at least `windows` full periods of `period`-length
+         * history yet? Same guard _matchPeriod() itself opens with, split
+         * out so tryPromote() can tell "not enough evidence yet" apart from
+         * "tested and failed" for a trusted candidate - see its own call
+         * site for why that distinction matters. */
+        _hasEnoughHistoryFor(period: number, windows: number): boolean {
+            const hist = this.history;
+            return hist.length > 0 && hist[0][0] <= this.scheduler.currentTime - windows * period;
+        }
+
+        /** If our history's last `windows` windows of length `period` all
+         * match exactly (same value sequence, each offset from the most
+         * recent window by an exact multiple of `period`), return the most
+         * recent window. `windows` defaults to 2 (the minimum needed to
+         * call anything "periodic" at all); tryPromote() asks for more on
+         * candidates it has less independent reason to trust - see its own
+         * call site for why 2 windows alone isn't always enough. */
+        _matchPeriod(period: number, windows: number = 2): [number, boolean][] | null {
+            if (!period || period <= 0 || windows < 2) return null;
             const now = this.scheduler.currentTime;
             const hist = this.history;
-            if (hist.length === 0 || hist[0][0] > now - 2 * period)
-                return null; // not enough history yet to prove two full periods
+            if (hist.length === 0 || hist[0][0] > now - windows * period)
+                return null; // not enough history yet to prove `windows` full periods
             // Backward scan, not history.filter() (which always walks the
-            // WHOLE array): the two windows we want are right at the end of
+            // WHOLE array): the windows we want are right at the end of
             // this ever-growing, append-only log - see transitionedTo()'s
             // docstring for the same reasoning and the real perf bug this
             // mirrors (tryPromote() calls this on every value change, so an
             // O(history length) scan here compounds the same way).
-            const win1: [number, boolean][] = [];
-            const win2: [number, boolean][] = [];
+            const buckets: [number, boolean][][] = Array.from({ length: windows }, (): [number, boolean][] => []);
             for (let i = hist.length - 1; i >= 0; i--) {
                 const [t, v] = hist[i];
-                if (t <= now - 2 * period) break;
-                (t <= now - period ? win1 : win2).push([t, v]);
+                const age = now - t;
+                const w = Math.floor(age / period);
+                if (w >= windows) break;
+                buckets[w].push([t, v]);
             }
-            win1.reverse();
-            win2.reverse();
-            if (win1.length === 0 || win2.length === 0 || win1.length !== win2.length) return null;
-            for (let i = 0; i < win1.length; i++) {
-                const [t1, v1] = win1[i], [t2, v2] = win2[i];
-                if (v1 !== v2 || t2 - t1 !== period) return null;
+            for (const b of buckets) b.reverse();
+            const mostRecent = buckets[0];
+            if (mostRecent.length === 0) return null;
+            for (let w = 1; w < windows; w++) {
+                if (buckets[w].length !== mostRecent.length) return null;
+                for (let i = 0; i < mostRecent.length; i++) {
+                    const [t1, v1] = buckets[w][i], [t2, v2] = mostRecent[i];
+                    if (v1 !== v2 || t2 - t1 !== w * period) return null;
+                }
             }
-            return win2;
+            return mostRecent;
         }
 
         /** If `events` (one full new period, offsets already 0-based) begins
@@ -1211,11 +1317,24 @@ export interface Group {
      * usual "does live evaluate() still match" confirmation shortcut - see
      * GroupPin.prepare()'s docstring for why. */
     alwaysDemoteOn?(sender: DigitalElmInstance): boolean;
+    /** Optional hook: analytically-known candidate periods tryPromote()
+     * should try with the same confidence as its own provenInputs-derived
+     * LCM candidate (2-window match), not the extra scrutiny given to a
+     * purely empirical guess - see DigitalElmInstance.extraPromotionCandidates()'s
+     * docstring for why this exists and CounterElm's implementation for a
+     * concrete example (a nonzero modulus's true period isn't derivable
+     * from any input's own cycleTime at all, since the modulus is internal
+     * configuration invisible to the generic engine). */
+    extraPromotionCandidates?(pin: GroupPin): number[];
 }
 
 export class GroupPin extends DigitalElm {
     constructor(public group: Group, public index: number) {
         super();
+    }
+
+    extraPromotionCandidates(): number[] {
+        return this.group.extraPromotionCandidates?.(this) ?? [];
     }
 
     prepare(val: unknown): Pending {

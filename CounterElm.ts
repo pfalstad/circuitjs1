@@ -24,7 +24,7 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
+import { GroupPin, syncedValue, State } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -78,6 +78,30 @@ export class CounterElm extends ChipElm implements Group {
         if (syncedValue(reset, now) !== this.invertreset)
             next = new Array(this.bits).fill(false);
         return next;
+    }
+
+    /** modulus*clockPeriod is the register's true period whenever it wraps
+     * via an explicit modulus rather than plain binary overflow - but
+     * nothing about that is derivable from provenInputs' own cycleTimes
+     * (tryPromote()'s generic LCM candidate only sees the CLOCK's period,
+     * with no visibility into this element's own modulus configuration).
+     * Left to empirical guessing alone, a non-power-of-2 modulus's
+     * wraparound-driven irregularity (some bit's simple alternating
+     * pattern skips a beat once per full cycle) can go completely
+     * unobserved for many candidate periods before the wraparound is ever
+     * seen even once, letting a much shorter, purely coincidental period
+     * match and lock in - see tryPromote()'s own docstring for a real bug
+     * found exactly this way. Restricted to the case this reasoning
+     * actually covers: a fixed, single-direction count (hasUpDown() lets
+     * the count direction reverse mid-cycle, which this simple
+     * modulus*clockPeriod formula doesn't account for) driven by an
+     * already-proven periodic clock. */
+    extraPromotionCandidates(pin: GroupPin): number[] {
+        if (this.modulus === 0 || this.hasUpDown()) return [];
+        const clk = this.inputs[0];
+        if (!clk || !((clk.state === State.Active || clk.state === State.Asleep) && clk.cycleTime > 0))
+            return [];
+        return [this.modulus * clk.cycleTime];
     }
 
     /** Reset (and a direction flip, which changes the register's future
