@@ -1257,12 +1257,35 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // mirrors (tryPromote() calls this on every value change, so an
             // O(history length) scan here compounds the same way).
             const buckets: [number, boolean][][] = Array.from({ length: windows }, (): [number, boolean][] => []);
+            // Same-tick "double commit" entries (multiple delta-round
+            // batches settling within one simulated instant - see
+            // digital/DigitalElm.ts's own docstring on that being a
+            // harmless, expected artifact) collapse to just the final,
+            // settled value at that tick: keeping every intermediate flip
+            // would bake them into outputEvents as multiple scheduled
+            // events sharing one timestamp, which a self-driven replay
+            // later can't actually reproduce faithfully - a real bug found
+            // live. Each such baked pair requires evaluate() to be checked
+            // twice at the identical tick, but the SECOND check's own
+            // edge-detection watermark (e.g. CounterElm/DFlipFlopElm's
+            // lastClockChecked) has already been advanced by the first, so
+            // it correctly reports "no new edge" instead of reproducing the
+            // second, transient value the original live recording happened
+            // to see - a genuine mismatch against the baked schedule,
+            // causing a demote immediately after every promotion, forever.
+            // Scanning backward (latest first), the first entry seen at any
+            // given timestamp is already the final one, so any earlier
+            // (chronologically) duplicate at that same timestamp is simply
+            // skipped.
+            let lastKeptTime: number | null = null;
             for (let i = hist.length - 1; i >= 0; i--) {
                 const [t, v] = hist[i];
+                if (t === lastKeptTime) continue;
                 const age = now - t;
                 const w = Math.floor(age / period);
                 if (w >= windows) break;
                 buckets[w].push([t, v]);
+                lastKeptTime = t;
             }
             for (const b of buckets) b.reverse();
             const mostRecent = buckets[0];
