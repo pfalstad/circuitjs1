@@ -1319,35 +1319,6 @@ export function syncedValue(element: DigitalElmInstance, now: number): boolean {
     return element.currentValue();
 }
 
-/** element's value as of an arbitrary past `tick`, not just "now" (unlike
- * syncedValue() above, which only ever means "current"). Used for modeling
- * genuine propagation delay (see GateElm.evaluate()): reading an input's
- * value from `delayTicks` ago rather than its current value. Asleep inputs
- * are backfilled first so their history actually covers `tick` - otherwise
- * a sleeping element's un-appended history would silently look identical to
- * "never transitioned" for any tick after it fell asleep. Pure: never
- * mutates element itself (backfilling only appends already-implied history
- * entries, which is itself idempotent/order-independent), so safe to call
- * from another element's own evaluate() as often as promotion/backfill/
- * Recheck reconfirmation likes. */
-export function valueAtTick(element: DigitalElmInstance, tick: number): boolean {
-    if (element.state === State.Asleep)
-        element._backfillHistory(Math.max(tick, element.scheduler.currentTime));
-    const hist = element.history;
-    // Never transitioned at all (a fixed DigitalConst, or simply hasn't
-    // changed yet) - constant since forever, so "at any tick" is just its
-    // one and only value, not the universal false default below (which
-    // only applies to a tick predating a REAL first transition).
-    if (hist.length === 0) return element.currentValue();
-    if (hist[0][0] > tick) return false; // before its first-ever transition - matches every element's initial value
-    let lo = 0, hi = hist.length;
-    while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (hist[mid][0] <= tick) lo = mid + 1; else hi = mid;
-    }
-    return hist[lo - 1][1];
-}
-
 /** One output bit of a multi-output Group (e.g. one bit of an N-bit
  * counter chip). Inherits all of DigitalElm's periodicity machinery
  * unchanged; computing its raw new value is delegated to the shared Group,
