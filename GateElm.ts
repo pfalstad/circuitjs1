@@ -27,7 +27,7 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital, valueAtTick, State, MIN_HOP_TICKS } from "./digital/DigitalElm";
+import { withDigital, valueAtTick, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -320,8 +320,8 @@ export abstract class GateElm extends withDigital(CircuitElm) {
      * engine. Same formula as DelayBufferElm.delayTicks(). */
     delayTicks(): number {
         const step = CircuitElm.sim?.maxTimeStep;
-        if (!step) return MIN_HOP_TICKS; // sim not set up yet (e.g. a unit test constructing a gate directly) - still floor at MIN_HOP_TICKS
-        return Math.max(MIN_HOP_TICKS, Math.round(this.propagationDelay / step));
+        if (!step) return 1; // sim not set up yet (e.g. a unit test constructing a gate directly) - still floor at 1
+        return Math.max(1, Math.round(this.propagationDelay / step));
     }
 
     /** DigitalElm's required evaluate(). A thin wrapper over the existing

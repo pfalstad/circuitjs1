@@ -24,7 +24,7 @@ import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { GroupPin, valueAtTick, MIN_HOP_TICKS } from "./digital/DigitalElm";
+import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -200,17 +200,14 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
      * dependency, so sender is unused. */
     evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
         const now = pin.scheduler.currentTime;
-        // Every input is external, read at least MIN_HOP_TICKS in the past
-        // rather than its current value - see MIN_HOP_TICKS' own docstring.
-        const readTick = now - MIN_HOP_TICKS;
         const segCount = this.getSegmentCount();
         let input = 0;
-        if (valueAtTick(this.inputs[0], readTick)) input += 8;
-        if (valueAtTick(this.inputs[1], readTick)) input += 4;
-        if (valueAtTick(this.inputs[2], readTick)) input += 2;
-        if (valueAtTick(this.inputs[3], readTick)) input += 1;
+        if (syncedValue(this.inputs[0], now)) input += 8;
+        if (syncedValue(this.inputs[1], now)) input += 4;
+        if (syncedValue(this.inputs[2], now)) input += 2;
+        if (syncedValue(this.inputs[3], now)) input += 1;
         let en = true;
-        if (this.hasBlank() && !valueAtTick(this.inputs[4], readTick)) en = false;
+        if (this.hasBlank() && !syncedValue(this.inputs[4], now)) en = false;
         if (!en || (input === 15 && this.blankOnF()))
             return new Array(segCount).fill(false);
         const sym = (segCount === 14) ? SevenSegDecoderElm.symbols14 :

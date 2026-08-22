@@ -28,7 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { GateElm } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital, valueAtTick, MIN_HOP_TICKS } from "./digital/DigitalElm";
+import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -156,11 +156,7 @@ export class InverterElm extends withDigital(CircuitElm) {
      * underlying logical value). */
     evaluate(sender?: DigitalElmInstance | null): boolean {
         if (this.inputs.length > 0)
-            // Read at least MIN_HOP_TICKS in the past, not the current
-            // value - see MIN_HOP_TICKS' own docstring in
-            // digital/DigitalElm.ts for why every combinational element
-            // needs this floor.
-            return !valueAtTick(this.inputs[0], this.scheduler.currentTime - MIN_HOP_TICKS);
+            return !this.inputs[0].currentValue();
         return !(this.nodes[0].v > this.highVoltage * .5);
     }
 

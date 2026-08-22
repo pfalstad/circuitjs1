@@ -80,19 +80,14 @@ describe("DFlipFlopElm.evaluate()", () => {
         chip.inputs = [d, clk, r, s]; // [D, clk, R, S]
         chip.digitalPins = [new GroupPin(chip, 0), new GroupPin(chip, 1)];
 
-        // Every external input now reads MIN_HOP_TICKS in the past (see
-        // GateElm/CounterElm/etc.'s own delay fix), so a value set at tick T
-        // only becomes visible to evaluate() from tick T+1 onward - matching
-        // how the real scheduler always invokes evaluate() at least a tick
-        // after the change that triggered it, never at the exact same tick.
+        scheduler.currentTime = 5;
         s.setValue(5, true);
-        scheduler.currentTime = 6;
         let [q, qbar] = chip.evaluate(chip.digitalPins[0], s);
         expect([q, qbar]).toEqual([true, false]); // isSet only
 
         s.setValue(10, false);
         r.setValue(10, true);
-        scheduler.currentTime = 11;
+        scheduler.currentTime = 10;
         [q, qbar] = chip.evaluate(chip.digitalPins[0], r);
         expect([q, qbar]).toEqual([false, true]); // isReset only
 
@@ -100,7 +95,7 @@ describe("DFlipFlopElm.evaluate()", () => {
         // real execute() produces (Q and /Q both true) rather than papering
         // over it.
         s.setValue(15, true);
-        scheduler.currentTime = 16;
+        scheduler.currentTime = 15;
         [q, qbar] = chip.evaluate(chip.digitalPins[0], s);
         expect([q, qbar]).toEqual([true, true]);
 
@@ -162,10 +157,8 @@ describe("JKFlipFlopElm.evaluate()", () => {
         expect(q).toBe(true);
         chip.digitalPins[0].value = q;
 
-        // Reset is external, so (like set/reset above) reads MIN_HOP_TICKS
-        // in the past - advance one more tick before checking it landed.
         r!.setValue(20, true);
-        scheduler.currentTime = 21;
+        scheduler.currentTime = 20;
         [q] = chip.evaluate(chip.digitalPins[0], r);
         expect(q).toBe(false);
 
@@ -236,10 +229,8 @@ describe("CounterElm.evaluate()", () => {
         expect(tick()).toBe(4);
         expect(tick()).toBe(3);
 
-        // Reset is external, so (like the DFlipFlop/JKFlipFlop cases above)
-        // reads MIN_HOP_TICKS in the past - advance one more tick first.
         reset.setValue(t + 5, true);
-        scheduler.currentTime = t + 6;
+        scheduler.currentTime = t + 5;
         const afterReset = chip.evaluate(chip.digitalPins[0], reset);
         expect(toValue(afterReset)).toBe(0);
 

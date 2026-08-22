@@ -47,22 +47,8 @@ export enum State { Passive, Active, Asleep }
  * change, or the recheck scheduled right after a demote. Any positive
  * value works; the periodicity-matching algorithm discovers real gaps
  * empirically rather than assuming this specific constant, so it isn't
- * tied to real-world timing the way TICKS_PER_SECOND is.
- *
- * Also doubles as the default propagation delay floor for any combinational
- * element's own evaluate() (see valueAtTick() and its callers in GateElm,
- * InverterElm, CounterElm, DFlipFlopElm, JKFlipFlopElm, MultiplexerElm,
- * SevenSegDecoderElm): reading an external input as of `now - MIN_HOP_TICKS`
- * rather than its current value ensures every component takes at least one
- * timestep to react, even without a configurable delay field of its own
- * (only GateElm has one - propagationDelay - and floors at this same value
- * when it's 0). Without this floor, a component wired back into something
- * that (transitively) depends on it could resolve a whole feedback loop
- * within a single simulated instant via the scheduler's delta-round
- * batching - real hardware can't do that, and it was a real source of
- * corrupted values, not just a performance curiosity (see the CounterElm/
- * GateElm fixes this constant's callers replaced instantaneous reads for). */
-export const MIN_HOP_TICKS = 1;
+ * tied to real-world timing the way TICKS_PER_SECOND is. */
+const MIN_HOP_TICKS = 1;
 
 export type OutputEvent = [number, boolean | SubRef];
 
