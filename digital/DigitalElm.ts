@@ -140,6 +140,11 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     currentCycle: CycleLike;
     previousCycle: Cycle | null;
     rootPhaseZero: number;
+    /** The tick rootPhaseZero was last set at - see the implementation
+     * field's own docstring. Read cross-instance by tryPromote() (on
+     * provenInputs), so it's part of the public interface unlike most other
+     * internal bookkeeping fields here. */
+    phaseStableSince: number;
     sleepBase: number;
     backfillCycle: CycleLike;
     backfillTime: number;
@@ -246,6 +251,19 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         // doesn't itself invalidate what liveOutputs already saw); only a
         // genuine period change needs to re-cascade.
         lastCascadedCycleTime = 0;
+        // The tick our CURRENT rootPhaseZero was set at (0 = never
+        // promoted). Set only by _promote() - wake()'s "resume same
+        // schedule" path deliberately does NOT touch this, since it keeps
+        // the existing rootPhaseZero unchanged. Lets tryPromote() tell
+        // "this input has a correct cycleTime" apart from "this input's
+        // absolute PHASE has actually settled" - see tryPromote()'s own use
+        // of it for why that distinction matters: an input can flicker
+        // through several different phase anchors (each with the same,
+        // already-correct period) while it's still settling, and a
+        // downstream consumer bootstrapping off history collected before
+        // the input's LAST re-anchor can lock in a schedule matching a
+        // phase the input has already abandoned.
+        phaseStableSince = 0;
 
         // CycleLike fields: self acts as its own root Cycle.
         outputEvents: OutputEvent[] = [];
@@ -320,6 +338,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.backfillCycle = this;
             this.backfillTime = 0;
             this.lastCascadedCycleTime = 0;
+            this.phaseStableSince = 0;
         }
 
         /** Phase 1 of the scheduler's two-phase dispatch: decide what this
@@ -950,6 +969,21 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // contain about them.
             const unprovenInputs = this.inputs.filter(i => !provenInputs.includes(i));
 
+            // The latest point any proven input's own absolute phase was
+            // last (re-)anchored. A trusted candidate's own window has to
+            // lie entirely after this - see its use below for why. Inputs
+            // that are themselves part of a feedback loop with us are
+            // excluded, for the exact same reason _blindFor() exempts them
+            // from its own unproven-input safety net (see this method's own
+            // docstring): a genuine cycle can only ever bootstrap off
+            // members' still-co-evolving state, so requiring OUR window to
+            // postdate a cyclic input's last phase change would deadlock -
+            // neither side can ever settle "first" for the other to wait on.
+            const phaseGatingInputs = provenInputs.filter(i => !dependsOnTransitively(i, this));
+            const inputsPhaseStableSince = phaseGatingInputs.length > 0
+                ? Math.max(...phaseGatingInputs.map(i => i.phaseStableSince)) : 0;
+
+            let maxUnresolvedTrusted = 0;
             for (const p of candidates) {
                 // A trustedCandidates member - mathematically implied by
                 // fully-proven inputs' own periods (LCM), or analytically
@@ -1018,7 +1052,75 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                         console.log("[digital] tryPromote candidate", p, "windows=", windows, "trusted but not enough history yet - waiting");
                     return;
                 }
+                if (trusted && (this.scheduler.currentTime - windows * p) < inputsPhaseStableSince) {
+                    // Having enough RAW history isn't the same as having
+                    // enough history since our inputs' absolute phase last
+                    // settled. An input can show a correct cycleTime while
+                    // still cycling through several different phase anchors
+                    // (each internally consistent, same period, different
+                    // absolute offset) before finally settling - Active
+                    // alone doesn't mean phase-stable, only Asleep's
+                    // stronger "every output already trusts me" guarantee
+                    // comes close, and even that isn't required here. A real
+                    // bug found live: a D flip-flop sampling a NAND fed by a
+                    // free-running counter promoted using a window that
+                    // reached back to before the NAND's LAST re-anchor - the
+                    // window happened to satisfy _matchPeriod (two
+                    // repetitions of an intermediate, not-yet-final phase
+                    // the NAND had briefly settled into), so it looked fully
+                    // proven, but the schedule it baked in didn't match the
+                    // NAND's true final phase. The flip-flop then failed its
+                    // own very next self-driven-tick verification, demoted,
+                    // woke the (by-then Asleep) NAND back up, and repeated
+                    // forever - never actually settling, matching a real
+                    // user report of a downstream signal "shifting" and
+                    // never reaching a stable state. Same "wait, don't
+                    // guess" principle as the not-enough-history case above.
+                    if (this.digitalDebug)
+                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "trusted but window reaches back before an input's last phase re-anchor (", inputsPhaseStableSince, ") - waiting");
+                    return;
+                }
+                // A trusted candidate WITH enough history that still doesn't
+                // match isn't necessarily evidence it's wrong - our own
+                // history can genuinely still carry noise from before our
+                // inputs (like a NAND feeding a D flip-flop's D input) had
+                // themselves finished settling: tryPromote() only ever runs
+                // on a real value change, so once a trusted input goes from
+                // Passive/glitchy to genuinely periodic, our own history up
+                // to that point can easily fail to line up with the input's
+                // NOW-true period, even though our future behavior
+                // eventually will (we're a deterministic function of an
+                // input that's now proven periodic). But a trusted candidate
+                // can ALSO be a genuine, PERMANENT dead end rather than just
+                // "not proven yet" - e.g. a toggle flip-flop's clock-derived
+                // LCM candidate is exactly half its own true period (it only
+                // flips once per clock cycle, needing two flips - one full
+                // clock-derived period each - to repeat), so it will NEVER
+                // match no matter how long we wait, and the CORRECT period
+                // is only ever discoverable empirically (as a low multiple
+                // of the trusted-but-wrong one). So: only block a SHORTER
+                // empirical guess (maxUnresolvedTrusted tracks the largest
+                // trusted candidate still unresolved) - that's the
+                // "coincidentally matches on incomplete evidence" case this
+                // exists to guard against (a real bug found live: a D flip-
+                // flop sampling a slow, only-just-settled NAND kept
+                // promoting onto a much shorter wrong period, immediately
+                // failing its own next Recheck, waking its now-Asleep input
+                // back up, and repeating forever - never actually settling,
+                // each cycle re-anchoring rootPhaseZero to a new "now" and
+                // shifting its reported phase further with every retry). An
+                // empirical guess LONGER than every unresolved trusted
+                // candidate can't be that same trap (it's not a hasty short
+                // match against incomplete evidence, it's independent
+                // evidence of a longer, still-plausible true period) and is
+                // exactly how the toggle-flip-flop case above is meant to
+                // recover, same as it always has.
                 const window = this._matchPeriod(p, windows);
+                if (!trusted && p <= maxUnresolvedTrusted) {
+                    if (this.digitalDebug)
+                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "skipping empirical guess no longer than an unresolved trusted candidate (", maxUnresolvedTrusted, ") - waiting on it instead");
+                    return;
+                }
                 // An empirical (non-LCM-trusted) candidate is only as
                 // trustworthy as its evidence about EVERY input - see
                 // _blindFor()'s docstring for what "trustworthy" means here.
@@ -1029,6 +1131,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     this._promote(p, window, provenInputs);
                     return;
                 }
+                if (trusted) maxUnresolvedTrusted = Math.max(maxUnresolvedTrusted, p);
             }
         }
 
@@ -1070,6 +1173,28 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
          * value assumed correct." Left as a flat reject until that's
          * actually understood, rather than re-attempted. */
         _blindFor(input: DigitalElmInstance, p: number): boolean {
+            // A Passive input that ISN'T part of a feedback loop with us
+            // (its value doesn't, even transitively, depend on ours) has no
+            // need to bootstrap via a shallow self-consistency check - it
+            // will settle on its own, on its own schedule, with nothing we
+            // do affecting it. Trusting its still-incomplete history here
+            // instead of just waiting is a real bug found live: a D flip-
+            // flop registering a slow combinational function (e.g. a NAND
+            // reading several bits of a free-running counter) can look
+            // perfectly periodic-so-far for many windows using only the
+            // fast-changing low-order bits, long before the slow high-order
+            // bits that actually determine its TRUE (much longer) period
+            // have ever toggled even once - a pure-DAG version of the same
+            // "coincidental short match" failure mode extraPromotionCandidates()/
+            // _hasEnoughHistoryFor() were built to guard against for trusted
+            // candidates, just with no analytical candidate available to
+            // rescue it here. The existing self-consistency check below
+            // stays exactly as-is for a GENUINE feedback loop (input
+            // depends on us too, even transitively) - see this method's own
+            // header comment (above this check) for why that bootstrap
+            // can't simply be removed for the cyclic case.
+            if (input.state === State.Passive && !dependsOnTransitively(input, this))
+                return true;
             const now = this.scheduler.currentTime;
             const hist = input.history;
             const win1: [number, boolean][] = [];
@@ -1222,6 +1347,19 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         _promote(period: number, window: [number, boolean][], provenInputs: DigitalElmInstance[]): void {
             const now = this.scheduler.currentTime;
             const base = now - period;
+            // Only a genuine phase change (not just re-anchoring the same
+            // period/phase to a new "now" after a routine demote-and-
+            // reconfirm - e.g. a purely-local downstream consumer's own
+            // instability, unrelated to whether OUR schedule was ever
+            // actually wrong) resets phaseStableSince. Bumping it on every
+            // _promote() call regardless would starve any downstream
+            // consumer that requires its own window to postdate it: a
+            // frequently-reconfirming-but-never-actually-changing input
+            // would look perpetually "just re-anchored," never satisfying
+            // that requirement no matter how long a consumer waited.
+            const samePhase = this.cycleTime === period &&
+                (((base - this.rootPhaseZero) % period) + period) % period === 0;
+            if (!samePhase) this.phaseStableSince = now;
             this.rootPhaseZero = base;
             const events: OutputEvent[] = window.map(([t, v]) => [t - base, v]);
             const { reps, tail, start } = this._splitRepeatingPrefix(events);
@@ -1306,6 +1444,23 @@ class DigitalCore {
  * `class GateElm extends withDigital(CircuitElm) { ... }` directly. */
 export const DigitalElm = withDigital(class {});
 export type DigitalElm = InstanceType<typeof DigitalElm>;
+
+/** Does `node`'s value depend, directly or transitively through its own
+ * `inputs`, on `target`? Used by _blindFor() to tell a genuine feedback loop
+ * (target reachable from one of its own inputs) apart from a plain DAG edge
+ * (an upstream input that will settle on its own, with nothing target does
+ * affecting it) - see _blindFor()'s own docstring for why that distinction
+ * matters. Bounded by `visited`: circuits can and do contain real cycles
+ * (that's the whole reason this function exists), so a naive unmarked
+ * recursion would infinite-loop on one instead of correctly reporting it. */
+function dependsOnTransitively(
+    node: DigitalElmInstance, target: DigitalElmInstance, visited: Set<DigitalElmInstance> = new Set(),
+): boolean {
+    if (node === target) return true;
+    if (visited.has(node)) return false;
+    visited.add(node);
+    return node.inputs.some(i => dependsOnTransitively(i, target, visited));
+}
 
 /** element's value as of just before `now`'s current batch of commits -
  * what a same-timestamp sibling needs when reading another element as part

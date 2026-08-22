@@ -82,8 +82,8 @@ export class DFlipFlopElm extends ChipElm implements Group {
         let idx = 2;
         const r = this.hasReset() ? this.inputs[idx++] : null;
         const s = this.hasSet() ? this.inputs[idx] : null;
-        const isSet = s !== null && syncedValue(s, now) !== this.invertSetReset();
-        const isReset = r !== null && syncedValue(r, now) !== this.invertSetReset();
+        const isSet = s !== null && s.currentValue() !== this.invertSetReset();
+        const isReset = r !== null && r.currentValue() !== this.invertSetReset();
 
         if (isSet || isReset)
             return [isSet, isReset];
@@ -92,7 +92,7 @@ export class DFlipFlopElm extends ChipElm implements Group {
         // Use lastClockChecked, not pin.lastChecked - see its own docstring.
         const checkingClock = sender === null || sender === clk;
         if (checkingClock && clk.transitionedTo(true, this.lastClockChecked?.[pin.index] ?? 0, now))
-            q = syncedValue(d, now);
+            q = d.currentValue();
         if (checkingClock) {
             if (!this.lastClockChecked) this.lastClockChecked = [];
             this.lastClockChecked[pin.index] = now;
