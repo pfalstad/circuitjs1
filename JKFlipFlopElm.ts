@@ -45,9 +45,17 @@ export class JKFlipFlopElm extends ChipElm implements Group {
     // scratch by initDigitalPins() below - see DFlipFlopElm.ts for why).
     digitalDebugPins = false;
 
+    // Dedicated clock-edge watermark, one per pin - see CounterElm.ts's/
+    // DFlipFlopElm.ts's identical field for the full explanation of why
+    // sharing the generic pin.lastChecked with clock-edge detection is a
+    // real bug (a same-tick J/K/reset-driven recompute silently swallows a
+    // genuine clock edge landing on that exact tick, permanently).
+    private lastClockChecked: number[] = [];
+
     initDigitalPins(): void {
         this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
         for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
+        this.lastClockChecked = new Array(this.digitalPins.length).fill(0);
     }
 
     /** Pure equivalent of execute() (see below): unlike DFlipFlopElm, JK's
@@ -62,10 +70,16 @@ export class JKFlipFlopElm extends ChipElm implements Group {
 
         let q = syncedValue(this.digitalPins[0], now);
         const edgeTarget = this.positiveEdgeTriggered();
-        if ((sender === null || sender === clk) && clk.transitionedTo(edgeTarget, pin.lastChecked, now)) {
+        // Use lastClockChecked, not pin.lastChecked - see its own docstring.
+        const checkingClock = sender === null || sender === clk;
+        if (checkingClock && clk.transitionedTo(edgeTarget, this.lastClockChecked?.[pin.index] ?? 0, now)) {
             const jv = syncedValue(j, now), kv = syncedValue(k, now);
             if (jv) q = kv ? !q : true;
             else if (kv) q = false;
+        }
+        if (checkingClock) {
+            if (!this.lastClockChecked) this.lastClockChecked = [];
+            this.lastClockChecked[pin.index] = now;
         }
         if (this.hasReset() && syncedValue(this.inputs[3], now) !== this.invertReset())
             q = false;

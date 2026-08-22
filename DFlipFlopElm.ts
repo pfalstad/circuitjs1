@@ -49,9 +49,25 @@ export class DFlipFlopElm extends ChipElm implements Group {
     // cycle state.
     digitalDebugPins = false;
 
+    // Dedicated clock-edge watermark, one per pin (Q, /Q) - NOT the same
+    // thing as each pin's own generic pin.lastChecked. See CounterElm.ts's
+    // identical field for the full explanation: commit()'s "passive" branch
+    // (digital/DigitalElm.ts) advances pin.lastChecked to `now` on every
+    // recompute regardless of what triggered it - including a D-only change
+    // (D changing alone doesn't move Q, but the generic engine still wakes
+    // this element to re-check, per inputUpdated()), which evaluate() below
+    // does NOT treat as a clock check. Sharing the generic watermark with
+    // clock-edge detection silently swallows a real clock edge landing on
+    // that exact same tick - transitionedTo()'s window is exclusive of its
+    // lower bound, so the very next clock-triggered check can never see an
+    // edge that occurred AT the tick lastChecked was stamped with. Rebuilt
+    // fresh by initDigitalPins() below, not persisted across re-stamps.
+    private lastClockChecked: number[] = [];
+
     initDigitalPins(): void {
         this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
         for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
+        this.lastClockChecked = new Array(this.digitalPins.length).fill(0);
     }
 
     /** Pure equivalent of execute() (see below) - computes [Q, /Q] without
@@ -73,8 +89,14 @@ export class DFlipFlopElm extends ChipElm implements Group {
             return [isSet, isReset];
 
         let q = syncedValue(this.digitalPins[0], now);
-        if ((sender === null || sender === clk) && clk.transitionedTo(true, pin.lastChecked, now))
+        // Use lastClockChecked, not pin.lastChecked - see its own docstring.
+        const checkingClock = sender === null || sender === clk;
+        if (checkingClock && clk.transitionedTo(true, this.lastClockChecked?.[pin.index] ?? 0, now))
             q = syncedValue(d, now);
+        if (checkingClock) {
+            if (!this.lastClockChecked) this.lastClockChecked = [];
+            this.lastClockChecked[pin.index] = now;
+        }
         return [q, !q];
     }
 
