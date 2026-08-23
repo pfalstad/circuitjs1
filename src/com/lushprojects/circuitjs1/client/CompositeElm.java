@@ -120,6 +120,16 @@ public abstract class CompositeElm extends CircuitElm {
 
 	for (Element childElem : elmEntries) {
 	    String tagName = childElem.getTagName();
+	    if (tagName.equals("ccm")) {
+		// referenced subcircuit model definition, embedded here when this model was
+		// originally created from a selection that included an instance of it (see
+		// SimulationManager.getCircuitAsComposite()).  Register it so any instance
+		// below that references it by name can resolve it, same as
+		// XMLDeserializer.readElements() does for a whole-circuit load.
+		xml.parseChildElement(childElem);
+		CustomCompositeModel.undumpModelXml(xml);
+		continue;
+	    }
 	    String className = CirSim.xmlDumpTypeMap.get(tagName);
 	    if (className == null)
 		continue;

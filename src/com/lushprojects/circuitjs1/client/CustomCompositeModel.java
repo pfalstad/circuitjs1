@@ -458,6 +458,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 		    TransistorModel.undumpModelXml(xml);
 		else if (tagName.equals("clm"))
 		    CustomLogicModel.undumpModelXml(xml);
+		else if (tagName.equals("mm"))
+		    MosfetModel.undumpModelXml(xml);
+		else if (tagName.equals("ccm"))
+		    CustomCompositeModel.undumpModelXml(xml);
 	    }
 	}
     }
