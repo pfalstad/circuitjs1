@@ -48,14 +48,16 @@ public class CustomCompositeElm extends CompositeElm {
 	modelName = CustomLogicModel.unescape(st.nextToken());
 	updateModels(st);
     }
-    
+
     void dumpXmlModel(Document doc) {
 	// dump models of all children first
 	if (compElmList != null) {
 	    for (int i = 0; i < compElmList.size(); i++)
 		compElmList.get(i).dumpXmlModel(doc);
 	}
-	if (!(model.builtin || model.dumped))
+	// model may be missing (e.g. wasn't available under its scope in this circuit); modelName
+	// attribute is still dumped by dumpXml() so the reference is preserved for a future retry
+	if (model != null && !(model.builtin || model.dumped))
 	    model.dumpXml(doc);
     }
 
@@ -93,11 +95,24 @@ public class CustomCompositeElm extends CompositeElm {
 	chip.x2 = x2;
 	chip.y2 = y2;
 	chip.flags = (flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
+
+	if (model == null) {
+	    // model couldn't be resolved (missing/not in scope); draw as a labeled placeholder
+	    // instead of crashing, so the rest of the circuit stays usable
+	    chip.setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+	    chip.setLabel("?");
+	    chip.sizeX = chip.sizeY = 2;
+	    chip.allocPins(0);
+	    chip.setPoints();
+	    boundingBox = chip.boundingBox;
+	    return;
+	}
+
         if (x2-x > model.sizeX*16 && isCreating())
 	    flags &= ~FLAG_SMALL;
 	chip.setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
 	chip.setLabel((model.flags & CustomCompositeModel.FLAG_SHOW_LABEL) != 0 ? model.name : null);
-	
+
 	chip.sizeX = model.sizeX;
 	chip.sizeY = model.sizeY;
 	chip.allocPins(postCount);
@@ -119,7 +134,7 @@ public class CustomCompositeElm extends CompositeElm {
 	model = null;
 	updateModels(null);
     }
-    
+
     void flipX(int center2, int count) {
 	flags ^= ChipElm.FLAG_FLIP_X;
 	if (count != 1) {
@@ -162,8 +177,19 @@ public class CustomCompositeElm extends CompositeElm {
 	if (model != null && model.name.equals(modelName))
 	    return;
 	model = CustomCompositeModel.getModelWithName(modelName);
-	if (model == null)
+	if (model == null) {
+	    // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
+	    // fall back to an empty/placeholder state instead of leaving fields uninitialized,
+	    // so the rest of the circuit keeps working; modelName is preserved so a later
+	    // updateModels() call (if the model becomes available) can still resolve it
+	    postCount = 0;
+	    compElmList = new Vector<CircuitElm>();
+	    numPosts = numNodes = 0;
+	    posts = new Point[0];
+	    allocNodes();
+	    setPoints();
 	    return;
+	}
 	postCount = model.extList.size();
 	int externalNodes[] = new int[postCount];
 	int i;
@@ -202,11 +228,14 @@ public class CustomCompositeElm extends CompositeElm {
     
     public EditInfo getEditInfo(int n) {
 	// if model is internal, don't allow it to be changed
-	if (model.internal)
+	if (model != null && model.internal)
 	    n += 2;
-	
+
 	if (n == 0) {
-	    EditInfo ei = new EditInfo(EditInfo.makeLink("subcircuits.html", "Model Name"), 0, -1, -1);
+	    String label = (model == null) ?
+		(Locale.LS("Model not found: ") + modelName) :
+		EditInfo.makeLink("subcircuits.html", "Model Name");
+	    EditInfo ei = new EditInfo(label, 0, -1, -1);
             models = CustomCompositeModel.getModelList();
             ei.choice = new Choice();
             int i;
@@ -218,6 +247,9 @@ public class CustomCompositeElm extends CompositeElm {
             }
 	    return ei;
 	}
+	// remaining fields all depend on having a resolved model
+	if (model == null)
+	    return null;
         if (n == 1) {
             EditInfo ei = new EditInfo("", 0, -1, -1);
             ei.button = new Button(Locale.LS("Edit Pin Layout"));
@@ -240,7 +272,7 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     public void setEditValue(int n, EditInfo ei) {
-	if (model.internal)
+	if (model != null && model.internal)
 	    n += 2;
 	if (n == 0) {
             model = models.get(ei.choice.getSelectedIndex());
@@ -249,6 +281,8 @@ public class CustomCompositeElm extends CompositeElm {
 	    setPoints();
 	    return;
 	}
+	if (model == null)
+	    return;
         if (n == 1) {
             if (model.name.equals("default")) {
         	Window.alert(Locale.LS("Can't edit this model."));
@@ -310,6 +344,8 @@ public class CustomCompositeElm extends CompositeElm {
     }
 
     boolean canViewComponents() {
+	if (model == null)
+	    return false;
 	Vector<Element> elmEntries = model.getElmEntries();
 	XMLDeserializer xml = new XMLDeserializer(app);
 	int compIdx = 0;
@@ -333,6 +369,10 @@ public class CustomCompositeElm extends CompositeElm {
     String getElmType() { return "subcircuit"; }
     void getInfo(String arr[]) {
 	super.getInfo(arr);
+	if (model == null) {
+	    arr[0] = Locale.LS("subcircuit") +  " (" + Locale.LS("missing: ") + modelName + ")";
+	    return;
+	}
 	if (model.builtin && model.name.startsWith("~"))
 	    arr[0] = model.name.substring(1);
 	else
