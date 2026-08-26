@@ -151,7 +151,7 @@ import com.google.gwt.xml.client.Element;
             	EditInfo ei = new EditInfo(
 		    loadedFileName != null ? "Loaded: " + loadedFileName : "",
 		    0, -1, -1);
-            	ei.loadFile = new SRAMLoadFile();
+            	ei.loadFile = new SRAMLoadFile(dataBits);
             	ei.button = new Button("Load Contents From File");
             	ei.newDialog = true;
             	return ei;
