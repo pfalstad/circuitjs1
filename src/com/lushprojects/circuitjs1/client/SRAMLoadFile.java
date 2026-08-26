@@ -20,7 +20,14 @@
 package com.lushprojects.circuitjs1.client;
 
 public class SRAMLoadFile extends EditDialogLoadFile {
-	
+
+	int dataBits;
+
+	public SRAMLoadFile(int dataBits) {
+		super();
+		this.dataBits = dataBits;
+	}
+
 	public final native void handle()
 	/*-{
 		var oFiles = $doc.getElementById("EditDialogLoadFileElement").files,
@@ -31,13 +38,25 @@ public class SRAMLoadFile extends EditDialogLoadFile {
 				return;
 			}
 
+			// values wider than 8 bits are represented as 2 consecutive bytes, big-endian
+			var bytesPerValue = (this.@com.lushprojects.circuitjs1.client.SRAMLoadFile::dataBits > 8) ? 2 : 1;
+			var hexDigits = bytesPerValue * 2;
+
 			var fileName = oFiles[0].name;
 			var reader = new FileReader();
 			reader.onload = function(e) {
 				var arr = new Uint8Array(reader.result);
+				var n = arr.length - (arr.length % bytesPerValue);
 				var str = "0x0:";
-				for (var i = 0; i < arr.length; i++)
-					str += " 0x" + ("0" + arr[i].toString(16)).slice(-2).toUpperCase();
+				for (var i = 0; i < n; i += bytesPerValue) {
+					var val = 0;
+					for (var j = 0; j < bytesPerValue; j++)
+						val = (val << 8) | arr[i+j];
+					var hex = val.toString(16).toUpperCase();
+					while (hex.length < hexDigits)
+						hex = "0" + hex;
+					str += " 0x" + hex;
+				}
 				@com.lushprojects.circuitjs1.client.SRAMLoadFile::doLoadCallback(Ljava/lang/String;Ljava/lang/String;)(str, fileName);
 			};
 
