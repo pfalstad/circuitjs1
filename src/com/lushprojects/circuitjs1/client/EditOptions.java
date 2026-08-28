@@ -47,6 +47,7 @@ class EditOptions implements Editable {
 	            ei.choice.add("Deutsch");
 	            ei.choice.add("English");
 	            ei.choice.add("Español");
+	            ei.choice.add("Suomi");
 	            ei.choice.add("Français");
 	            ei.choice.add("Italiano");
 	            ei.choice.add("Norsk bokmål");
@@ -141,16 +142,17 @@ class EditOptions implements Editable {
 		    	case 3: langString = "de"; break;
 		    	case 4: langString = "en"; break;
 		    	case 5: langString = "es"; break;
-		    	case 6: langString = "fr"; break;
-		    	case 7: langString = "it"; break;
-		    	case 8: langString = "nb"; break;
-		    	case 9: langString = "pl"; break;
-			case 10: langString = "pt"; break;
-		    	case 11: langString = "ru"; break;
-		    	case 12: langString = "zh"; break;
-		    	case 13: langString = "zh-tw"; break;
-		    	case 14: langString = "ja"; break;
-		    	case 15: langString = "kr"; break;
+		    	case 6: langString = "fi"; break;
+		    	case 7: langString = "fr"; break;
+		    	case 8: langString = "it"; break;
+		    	case 9: langString = "nb"; break;
+		    	case 10: langString = "pl"; break;
+			case 11: langString = "pt"; break;
+		    	case 12: langString = "ru"; break;
+		    	case 13: langString = "zh"; break;
+		    	case 14: langString = "zh-tw"; break;
+		    	case 15: langString = "ja"; break;
+		    	case 16: langString = "kr"; break;
 		    	}
 		    	if (langString == null)
 		    	    return;
