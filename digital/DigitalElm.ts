@@ -192,6 +192,9 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
      * with no such extra knowledge to offer - the overwhelmingly common
      * case - so tryPromote() only calls it via `?.()`. */
     extraPromotionCandidates?(): number[];
+    /** Ticks a Passive element waits after an input change before
+     * re-evaluating - see the Digital mixin's own propagationDelayTicks() docstring. */
+    propagationDelayTicks(): number;
     evaluate(sender?: DigitalElmInstance | null): boolean;
 }
 
@@ -580,6 +583,23 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             };
         }
 
+        /** How many ticks after an input change a Passive element should wait
+         * before re-evaluating (doc.txt section 1's "schedules itself to
+         * re-evaluate N ticks later" convention, modeling propagation
+         * delay). MIN_HOP_TICKS by default; GateElm overrides this to honor
+         * its own configured propagationDelay (floored at MIN_HOP_TICKS),
+         * and GroupPin below delegates to its owning Group so a multi-pin
+         * chip (CounterElm, DFlipFlopElm, JKFlipFlopElm, ...) can do the
+         * same. Deliberately NOT consulted on the Active/Asleep path below
+         * (same-tick Recheck) - see doc.txt section 8b: that's a distinct,
+         * intentional mechanism (confirming an already-promoted schedule
+         * against a live re-derivation via commit_after()'s same-batch
+         * ordering guarantee), not the same thing as an ordinary Passive
+         * element reacting to a change for the first time. */
+        propagationDelayTicks(): number {
+            return MIN_HOP_TICKS;
+        }
+
         inputUpdated(sender: DigitalElmInstance | null = null): void {
             if (this.digitalDebug)
                 console.log("[digital] inputUpdated", (this as any).getClassName?.() ?? this,
@@ -591,7 +611,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 this.scheduler.schedule(this.scheduler.currentTime, this, new Recheck(sender));
                 return;
             }
-            this.scheduler.schedule(this.scheduler.currentTime + MIN_HOP_TICKS, this);
+            this.scheduler.schedule(this.scheduler.currentTime + this.propagationDelayTicks(), this);
         }
 
         forceReconsider(fromInput: DigitalElmInstance): void {
@@ -1521,6 +1541,11 @@ export interface Group {
      * from any input's own cycleTime at all, since the modulus is internal
      * configuration invisible to the generic engine). */
     extraPromotionCandidates?(pin: GroupPin): number[];
+    /** Optional hook: ticks a pin should wait after an input change before
+     * re-evaluating - see the Digital mixin's own propagationDelayTicks() docstring.
+     * Absent means "no chip-specific delay", so GroupPin falls back to the
+     * base MIN_HOP_TICKS default, same as any other digital element. */
+    propagationDelayTicks?(pin: GroupPin): number;
 }
 
 export class GroupPin extends DigitalElm {
@@ -1530,6 +1555,10 @@ export class GroupPin extends DigitalElm {
 
     extraPromotionCandidates(): number[] {
         return this.group.extraPromotionCandidates?.(this) ?? [];
+    }
+
+    propagationDelayTicks(): number {
+        return this.group.propagationDelayTicks?.(this) ?? MIN_HOP_TICKS;
     }
 
     prepare(val: unknown): Pending {

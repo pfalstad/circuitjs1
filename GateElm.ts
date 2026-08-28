@@ -27,7 +27,7 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital, State } from "./digital/DigitalElm";
+import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
 
@@ -309,39 +309,18 @@ export abstract class GateElm extends withDigital(CircuitElm) {
         return f;
     }
 
-    /** doc.txt section 1's convention: "when an input changes, it notifies
-     * its outputs, each of which schedules itself to re-evaluate N ticks
-     * later (modeling propagation delay)". The base DigitalElm mixin's
-     * inputUpdated() already does this for every Passive element with a
-     * fixed N = MIN_HOP_TICKS (1 tick = 1 timestep - see
-     * SimulationManager.runCircuit()'s own docstring) - propagationDelay
-     * was simply never wired in to lengthen that hop for a gate configured
-     * with a real delay. delayTicks() floors at MIN_HOP_TICKS even when
-     * propagationDelay is 0, so this is a no-op change for the common case
-     * and only lengthens the hop when a longer delay is actually
-     * configured. evaluate() itself is untouched - it keeps reading
-     * current input values exactly as the baseline model requires; the
-     * delay comes entirely from *when* it gets scheduled to run, never
-     * from reading stale history.
-     *
-     * The Active/Asleep branch is deliberately left to the base class
-     * (same-tick Recheck) - see doc.txt section 8b: that's a distinct,
-     * intentional mechanism (confirming an already-promoted schedule
-     * against a live re-derivation, made safe by commit_after()'s same-
-     * batch ordering guarantee), not the same thing as an ordinary
-     * Passive element reacting to a change for the first time. */
-    delayTicks(): number {
+    /** Overrides the base Digital mixin's propagationDelayTicks() (fixed at
+     * MIN_HOP_TICKS) to honor this gate's own configured propagationDelay,
+     * floored at MIN_HOP_TICKS even when propagationDelay is 0 - so this is
+     * a no-op for the common case and only lengthens the hop when a longer
+     * delay is actually configured. evaluate() itself is untouched - it
+     * keeps reading current input values exactly as the baseline model
+     * requires; the delay comes entirely from *when* it gets scheduled to
+     * run, never from reading stale history. */
+    propagationDelayTicks(): number {
         const step = CircuitElm.sim?.maxTimeStep;
         if (!step) return 1; // sim not set up yet (e.g. a unit test constructing a gate directly) - still floor at 1
         return Math.max(1, Math.round(this.propagationDelay / step));
-    }
-
-    inputUpdated(sender: DigitalElmInstance | null = null): void {
-        if (this.state === State.Active || this.state === State.Asleep) {
-            super.inputUpdated(sender);
-            return;
-        }
-        this.scheduler.schedule(this.scheduler.currentTime + this.delayTicks(), this);
     }
 
     doStep(): void {

@@ -18,6 +18,7 @@
 */
 
 import { ChipElm, Pin } from "./ChipElm";
+import { CircuitElm } from "./CircuitElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
@@ -147,6 +148,17 @@ export class CounterElm extends ChipElm implements Group {
      * reasoning as GroupPin.prepare()'s own docstring. */
     alwaysDemoteOn(sender: DigitalElmInstance): boolean {
         return sender === this.inputs[1] || (this.hasUpDown() && sender === this.inputs[2]);
+    }
+
+    /** Same propagation-delay modeling as GateElm.propagationDelayTicks() (seconds ->
+     * ticks, floored at 1 - see the Digital mixin's own propagationDelayTicks()
+     * docstring), applied here via the Group hook since a counter's pins
+     * are individually-tracked GroupPins rather than the chip itself. */
+    propagationDelay: number = 0;
+    propagationDelayTicks(pin: GroupPin): number {
+        const step = CircuitElm.sim?.maxTimeStep;
+        if (!step) return 1;
+        return Math.max(1, Math.round(this.propagationDelay / step));
     }
 
     getInfo(arr: string[]): void {
