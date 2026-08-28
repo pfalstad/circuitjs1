@@ -63,6 +63,10 @@ export interface CycleLike {
     currentOutputEvent: number;
     cycleParent: CycleLike | null;
     cycleSpanEnd: number | null;
+    /** Absolute time this instance's local elapsed=0 corresponds to - set on
+     * entry (see _resolveLeaf/_descendTo). Unused for a root (self acting as
+     * its own Cycle; see _cycleAnchor, which uses rootPhaseZero instead). */
+    activationTime: number | null;
 }
 
 /** A reusable, nested playback pattern - the target of a SubRef entry in
@@ -75,6 +79,7 @@ export class Cycle implements CycleLike {
     currentOutputEvent = 0;
     cycleParent: CycleLike | null = null;
     cycleSpanEnd: number | null = null;
+    activationTime: number | null = null;
     constructor(public outputEvents: OutputEvent[], public cycleTime: number) {}
 }
 
@@ -86,33 +91,24 @@ export class SubRef {
 }
 
 /** Marker arg for a scheduled event meaning "an untrusted input changed,
- * re-derive and confirm-or-demote" - as opposed to a plain boolean (an
- * Active element's own predicted next output) or null (a generic Passive
- * re-evaluation). Scheduled with zero delay (see inputUpdated()) so the
- * scheduler's delta-cycle batching handles it. */
+ * demote and go re-derive live" - as opposed to a plain boolean (an Active
+ * element's own predicted next output) or null (a generic Passive
+ * re-evaluation). Always a demote, never a "confirm and stay trusting" path
+ * - see prepare()'s Recheck branch for why: a live re-evaluation matching
+ * the schedule's predicted value at this one instant doesn't prove the
+ * schedule's NEXT entry still holds, only that this untrusted input's new
+ * value happens not to have moved the needle *yet*. Scheduled with zero
+ * delay (see inputUpdated()) so the scheduler's delta-cycle batching
+ * handles it. */
 export class Recheck {
-    /** alwaysDemote: skip the usual "does live evaluate() still match my
-     * current prediction" confirmation and demote unconditionally. Used by
-     * forceReconsider() (see DigitalElmInstance) when a formerly-Passive
-     * input has just proven its own periodicity for the first time: a
-     * consumer that already promoted without this input in its
-     * trustedInputs (because the input was still Passive when the consumer
-     * looked) may have built its schedule from an incomplete empirical
-     * match that only looked periodic because this input's own real
-     * variation simply hadn't been observed yet within that window - a
-     * plain value-confirming Recheck wouldn't catch that until the
-     * specific instant the values happen to actually diverge, which can be
-     * arbitrarily far in the future (see doc.txt's "known limitations" on
-     * the two-window match not being a proof). */
-    constructor(public sender: DigitalElmInstance | null, public alwaysDemote = false) {}
+    constructor(public sender: DigitalElmInstance | null) {}
 }
 
 type Pending =
     | null
-    | { kind: "confirm"; sender: DigitalElmInstance | null }
-    | { kind: "demote" }
-    | { kind: "active"; val: boolean }
-    | { kind: "passive"; val: boolean };
+    | { kind: "demote"; pattern: boolean[] }
+    | { kind: "active"; val: boolean; pattern: boolean[] }
+    | { kind: "passive"; val: boolean; pattern: boolean[] };
 
 function gcd(a: number, b: number): number {
     while (b) [a, b] = [b, a % b];
@@ -132,6 +128,7 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     inputs: DigitalElmInstance[];
     liveOutputs: DigitalElmInstance[];
     value: boolean;
+    initialValue: boolean;
     state: State;
     history: [number, boolean][];
     trustedInputs: Set<DigitalElmInstance>;
@@ -139,12 +136,11 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     lastChecked: number;
     currentCycle: CycleLike;
     previousCycle: Cycle | null;
+    /** rootPhaseZero previousCycle's own offsets are relative to - needed
+     * to compute the phase difference between the abandoned schedule and
+     * the current one when compounding (see _splitRepeatingPrefix()). */
+    previousRootPhaseZero: number | null;
     rootPhaseZero: number;
-    /** The tick rootPhaseZero was last set at - see the implementation
-     * field's own docstring. Read cross-instance by tryPromote() (on
-     * provenInputs), so it's part of the public interface unlike most other
-     * internal bookkeeping fields here. */
-    phaseStableSince: number;
     sleepBase: number;
     backfillCycle: CycleLike;
     backfillTime: number;
@@ -156,23 +152,54 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
      * hover-based selection doesn't survive switching to the console. */
     digitalDebug: boolean;
 
+    // DICE-style activation_check bookkeeping (see activationCheck()): a
+    // history of changes to the pattern of our inputs' current values,
+    // independent of our own State - kept warm through Active/Asleep
+    // stretches for the same reason `history` is. Cross-instance because
+    // activationCheck() reads/writes this on every input it recurses into,
+    // and _cascadeActivate() reads `history`/`lastInputChange` on whatever
+    // elements a successful check resolved.
+    inputPatternHistory: [number, boolean[]][];
+    inputPatternTable: Map<string, number[]>;
+    /** Index into inputPatternHistory -> explicit end time, for entries
+     * collapsed by _compressInputPatternHistory(). */
+    compressedEnd: Map<number, number>;
+    /** Per-input-index: abs time that input's value last changed, as
+     * observed by us. */
+    lastInputChange: number[];
+    /** Cross-call search-position memoization (see activationCheck()'s own
+     * docstring for why this is correctness-relevant, not just perf):
+     * resume index into inputPatternTable[current pattern] - reset only
+     * when OUR OWN pattern changes. */
+    firstInputTablePos: number;
+    /** Bit j: input j's own firstInputTablePos hasn't been re-primed yet
+     * this "pattern epoch" - see activationCheck(). */
+    firstInputMask: number;
+    /** Recursion guard for activationCheck(). */
+    checkVisited: boolean;
+
     addInput(...elements: DigitalElmInstance[]): void;
     resetDigital(): void;
     notifyOutputs(): void;
     inputUpdated(sender?: DigitalElmInstance | null): void;
-    /** Forces this element to unconditionally reconsider its own promotion
-     * (a real demote-and-rederive, not just a value confirmation), even if
-     * its currently-predicted value still happens to match live reality
-     * right now. Called on liveOutputs that already promoted without
-     * `fromInput` in their trustedInputs, when fromInput itself has just
-     * newly proven its own periodicity - see Recheck's alwaysDemote
-     * docstring for why a plain value-check isn't enough here. No-op if
-     * this element is still Passive (it'll naturally reconsider via the
-     * normal live-notification path once fromInput starts varying). */
-    forceReconsider(fromInput: DigitalElmInstance): void;
     wake(): void;
     currentValue(): boolean;
-    transitionedTo(targetValue: boolean, since: number, until: number): boolean;
+    /** Our value as of `time`, which may be earlier than right now - unlike
+     * currentValue(), which only ever answers "as of this instant". Needed
+     * by a chip's shared next-state computation (e.g. CounterElm's carry,
+     * DFlipFlopElm's D sample): a sibling that's Active and self-driving
+     * reacts to a clock edge immediately, while a DIFFERENT input only
+     * catches up to that same edge later (e.g. after demoting) - reading
+     * its currentValue() at that later point would see it already past the
+     * edge, double-applying the edge's effect. */
+    valueAt(time: number): boolean;
+    /** Did we transition to targetValue at some point in (since, until]?
+     * Returns the absolute time of the LATEST matching transition, or null
+     * if there wasn't one - not just a bool - so a caller that needs "the
+     * state of some OTHER element just before this specific edge" (a
+     * chip's shared carry/D-sample computation) has an actual instant to
+     * query valueAt() with, rather than only a yes/no. */
+    transitionedTo(targetValue: boolean, since: number, until: number): number | null;
     /** Public (despite the leading underscore) because syncedValue() - a
      * free function usable by any Group implementation - has to reach it
      * for a sleeping sibling pin. */
@@ -183,6 +210,23 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
      * history to catch up to "now" before reading it directly, the same way
      * transitionedTo() already does internally. */
     _backfillHistory(now: number): void;
+    /** Absolute time c's own local elapsed=0 corresponds to - our
+     * rootPhaseZero if c is our own root Cycle (self), else c's own
+     * activationTime. Called cross-instance by activationCheck() while
+     * walking an Active input's own currentCycle chain. */
+    _cycleAnchor(c: CycleLike): number;
+    /** Port of DICE's Chip::activation_check: has our current input pattern
+     * already occurred somewhere in [minTime, maxTime), with the entire
+     * upstream chain that produced it (recursively) provably repeating in
+     * lockstep? If so, returns the absolute time of that occurrence and
+     * records every element (self included) whose own repeat was confirmed
+     * along the way into `resolved`, so the caller can promote the whole
+     * verified chain at once. Returns maxTime if no repeat is found. */
+    activationCheck(minTime: number, maxTime: number, resolved: Map<DigitalElmInstance, number>): number;
+    /** Promote using a verified activationTime from activationCheck,
+     * reusing our own already-recorded output history for the window it
+     * implies. Called cross-instance by _cascadeActivate(). */
+    _promoteFromActivation(activationTime: number, activeInputs?: DigitalElmInstance[]): void;
     /** Optional: analytically-known candidate period(s) tryPromote() should
      * try with the same confidence as its own provenInputs LCM candidate,
      * for an element whose true period depends on internal configuration
@@ -237,36 +281,32 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         inputs: DigitalElmInstance[] = [];
         liveOutputs: DigitalElmInstance[] = [];
         value = false;
+        // The value we held before our very first history entry - captured
+        // lazily (see _pushHistory) the moment that first entry is pushed,
+        // since by construction it's exactly whatever `.value` was right
+        // before that specific assignment. Needed by valueAt(): a query
+        // for a time strictly before history[0]'s own timestamp can't be
+        // answered by scanning history (nothing there yet covers it), and
+        // currentValue() is unsafe for this (it can already reflect a
+        // same-tick commit that happened before this query but logically
+        // after the time being asked about).
+        initialValue = false;
         state = State.Passive;
         history: [number, boolean][] = []; // append-only (abs_time, value) log, used for periodicity detection
         trustedInputs = new Set<DigitalElmInstance>(); // inputs whose future is already accounted for
         sleepRequested = false; // Active + all outputs now trust us; stop after the next tick
         lastChecked = 0; // end of the window already covered by an edge-detection check
         digitalDebug = false;
-        // The cycleTime we last cascaded a liveOutputs forceReconsider()
-        // for (0 = never promoted). Gates that cascade in _promote() to
-        // fire only when our OWN period actually changes from what
-        // liveOutputs may have already built their own schedules on top
-        // of - not on every re-promotion (repeating it even when the
-        // period comes out the same, e.g. a routine re-confirmation after
-        // a demote, caused a real performance regression - see that
-        // cascade's comment). Persists across a later demote (a demote
-        // doesn't itself invalidate what liveOutputs already saw); only a
-        // genuine period change needs to re-cascade.
-        lastCascadedCycleTime = 0;
-        // The tick our CURRENT rootPhaseZero was set at (0 = never
-        // promoted). Set only by _promote() - wake()'s "resume same
-        // schedule" path deliberately does NOT touch this, since it keeps
-        // the existing rootPhaseZero unchanged. Lets tryPromote() tell
-        // "this input has a correct cycleTime" apart from "this input's
-        // absolute PHASE has actually settled" - see tryPromote()'s own use
-        // of it for why that distinction matters: an input can flicker
-        // through several different phase anchors (each with the same,
-        // already-correct period) while it's still settling, and a
-        // downstream consumer bootstrapping off history collected before
-        // the input's LAST re-anchor can lock in a schedule matching a
-        // phase the input has already abandoned.
-        phaseStableSince = 0;
+
+        // DICE-style activation_check bookkeeping - see the interface
+        // docstrings above for what each of these is for.
+        inputPatternHistory: [number, boolean[]][] = [];
+        inputPatternTable = new Map<string, number[]>();
+        compressedEnd = new Map<number, number>();
+        lastInputChange: number[] = [];
+        firstInputTablePos = 0;
+        firstInputMask = 0;
+        checkVisited = false;
 
         // CycleLike fields: self acts as its own root Cycle.
         outputEvents: OutputEvent[] = [];
@@ -275,9 +315,11 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         currentOutputEvent = 0;
         cycleParent: CycleLike | null = null; // always null for the root; only a nested Cycle has a real cycleParent
         cycleSpanEnd: number | null = null; // always null for the root
+        activationTime: number | null = null; // unused for the root - see _cycleAnchor()
 
         currentCycle: CycleLike;
         previousCycle: Cycle | null = null; // our last Active schedule, kept around as compression material
+        previousRootPhaseZero: number | null = null;
         rootPhaseZero = 0; // absolute time offset-0 of our current root schedule corresponds to; fixed for that schedule's lifetime
 
         sleepBase = 0;
@@ -305,6 +347,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
         addInput(...elements: DigitalElmInstance[]): void {
             for (const el of elements) {
                 this.inputs.push(el);
+                this.lastInputChange.push(0);
                 el.liveOutputs.push(this);
             }
         }
@@ -323,25 +366,33 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.inputs = [];
             this.liveOutputs = [];
             this.value = false;
+            this.initialValue = false;
             this.state = State.Passive;
             this.history = [];
             this.trustedInputs = new Set();
             this.sleepRequested = false;
             this.lastChecked = 0;
+            this.inputPatternHistory = [];
+            this.inputPatternTable = new Map();
+            this.compressedEnd = new Map();
+            this.lastInputChange = [];
+            this.firstInputTablePos = 0;
+            this.firstInputMask = 0;
+            this.checkVisited = false;
             this.outputEvents = [];
             this.cycleTime = 0;
             this.firstOutputEvent = 0;
             this.currentOutputEvent = 0;
             this.cycleParent = null;
             this.cycleSpanEnd = null;
+            this.activationTime = null;
             this.currentCycle = this;
             this.previousCycle = null;
+            this.previousRootPhaseZero = null;
             this.rootPhaseZero = 0;
             this.sleepBase = 0;
             this.backfillCycle = this;
             this.backfillTime = 0;
-            this.lastCascadedCycleTime = 0;
-            this.phaseStableSince = 0;
         }
 
         /** Phase 1 of the scheduler's two-phase dispatch: decide what this
@@ -351,22 +402,21 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             if (val instanceof Recheck) {
                 if (this.state !== State.Active && this.state !== State.Asleep)
                     return null; // already resolved by an earlier delta this same tick
-                if (val.alwaysDemote) {
-                    if (this.digitalDebug)
-                        console.log("[digital] Recheck (forced)", (this as any).getClassName?.() ?? this,
-                            "state=", State[this.state], "sender=", (val.sender as any)?.getClassName?.() ?? val.sender, "DEMOTE");
-                    return { kind: "demote" };
-                }
-                const liveVal = this.evaluate(val.sender);
-                const predictedVal = this.currentValue();
+                // Always demote on a genuinely untrusted input change - never
+                // try to "confirm" by checking whether a live evaluate()
+                // happens to still match the schedule's predicted value
+                // right now. That single-instant check is unsound: it can
+                // match by coincidence (the schedule's own prediction
+                // happens to equal whatever the untrusted input is
+                // independently forcing at this exact tick) while saying
+                // nothing about whether the schedule's NEXT entry still
+                // holds. Trust is only re-earned the normal way, by
+                // activationCheck() re-running from scratch once real data
+                // accumulates again (see tryPromote()/inputUpdated()).
                 if (this.digitalDebug)
                     console.log("[digital] Recheck", (this as any).getClassName?.() ?? this,
-                        "state=", State[this.state], "sender=", (val.sender as any)?.getClassName?.() ?? val.sender,
-                        "live=", liveVal, "predicted=", predictedVal, liveVal === predictedVal ? "CONFIRM" : "DEMOTE",
-                        "inputs=", this.inputs.map(i => ({ elm: (i as any).getClassName?.() ?? i, val: i.currentValue() })));
-                if (liveVal === predictedVal)
-                    return { kind: "confirm", sender: val.sender };
-                return { kind: "demote" };
+                        "state=", State[this.state], "sender=", (val.sender as any)?.getClassName?.() ?? val.sender, "DEMOTE");
+                return { kind: "demote", pattern: this._currentPattern() };
             }
             if (val === null) {
                 // A generic "go re-check your inputs" wakeup. If we've since
@@ -374,7 +424,8 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 // already governs future updates, so this stale wakeup is a no-op.
                 if (this.state === State.Active || this.state === State.Asleep)
                     return null;
-                return { kind: "passive", val: this.evaluate() };
+                const newval = this.evaluate();
+                return { kind: "passive", val: newval, pattern: this._currentPattern(newval) };
             }
             const predicted = val as boolean;
             if (this.state === State.Active) {
@@ -385,8 +436,8 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     // docstring for the same "single instant doesn't prove the
                     // schedule" principle). Demote instead of committing a value
                     // now known to be wrong.
-                    return { kind: "demote" };
-                return { kind: "active", val: predicted };
+                    return { kind: "demote", pattern: this._currentPattern() };
+                return { kind: "active", val: predicted, pattern: this._currentPattern(predicted) };
             }
             // Stale Active-scheduled tick: our state changed since this was
             // scheduled (demoted, or re-promoted onto a new schedule) - this
@@ -407,7 +458,21 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // computes (and that value gets broadcast via notifyOutputs()
             // before a later, correct commit overwrites it locally).
             if (typeof val === "boolean") return null;
-            return { kind: "passive", val: this.evaluate() };
+            const newval = this.evaluate();
+            return { kind: "passive", val: newval, pattern: this._currentPattern(newval) };
+        }
+
+        /** Append to history, capturing initialValue (see its own docstring)
+         * the first time this is ever called for this element - lazily,
+         * since the correct value is exactly whatever `.value` held right
+         * before this specific push, which by construction (history only
+         * ever gets a new entry on a genuine change, or - for an Active
+         * self-driven tick - after real history already exists from an
+         * earlier Passive stretch) is the boolean opposite of what's being
+         * pushed now. */
+        _pushHistory(t: number, v: boolean): void {
+            if (this.history.length === 0) this.initialValue = !v;
+            this.history.push([t, v]);
         }
 
         /** Phase 2: apply what prepare() decided. */
@@ -415,47 +480,16 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             const pending = pendingRaw as Pending;
             if (pending === null) return;
             const now = this.scheduler.currentTime;
+            // Record unconditionally, independent of state and of whether
+            // this particular pending turns out stale below - mirrors DICE
+            // recording input_events on every event delivered to a chip, so
+            // a later demotion has continuous pattern history to re-search
+            // (see inputPatternHistory's own docstring).
+            this._recordInputPattern(pending.pattern, now);
             switch (pending.kind) {
-                case "confirm": {
-                    // A co-tier event for this same object may have already
-                    // committed a demote by the time we get here; only advance
-                    // the window on a genuine surviving confirmation.
-                    if (this.state !== State.Active && this.state !== State.Asleep) return;
-                    this.lastChecked = now;
-                    // Opportunistic retroactive trust upgrade: the sender
-                    // that triggered this Recheck was untrusted (that's the
-                    // only reason a Recheck fires at all - see
-                    // notifyOutputs()), but if it's since become Active/
-                    // Asleep with a period that evenly divides ours, its
-                    // future periodicity is already implicitly covered by
-                    // our own verified schedule - the same reasoning
-                    // tryPromote()'s LCM-trusted candidate already relies
-                    // on, just discovered late instead of at our own
-                    // promotion time. Needed because trustedInputs is
-                    // otherwise permanently frozen at promotion: an input
-                    // still Passive at that moment can never be trusted
-                    // later even after it proves itself, which would
-                    // otherwise (a) block it from ever sleeping (it can
-                    // never satisfy "all my outputs trust me" for this
-                    // output) and (b) keep it live-notifying this element
-                    // forever, on every single tick, even though this
-                    // element's periodicity was already proven - silently
-                    // undermining the optimization for the whole downstream
-                    // chain. Safe to add: if the sender's promise later
-                    // turns out wrong, _demote() already force-notifies
-                    // every output with `sender` in its trustedInputs
-                    // regardless of when that entry was added.
-                    const sender = pending.sender;
-                    if (sender && !this.trustedInputs.has(sender) && this.inputs.includes(sender) &&
-                        (sender.state === State.Active || sender.state === State.Asleep) &&
-                        sender.cycleTime > 0 && this.cycleTime % sender.cycleTime === 0) {
-                        this.trustedInputs = new Set(this.trustedInputs).add(sender);
-                        sender._maybeSleep();
-                        this._maybeSleep();
-                    }
-                    return;
-                }
                 case "demote":
+                    // Guarded: a co-tier event for this same object may have
+                    // already demoted us.
                     if (this.state !== State.Passive) {
                         this._demote();
                         this.scheduler.schedule(now + MIN_HOP_TICKS, this);
@@ -467,7 +501,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     // Keep recording into history even while Active - otherwise a
                     // later re-promotion attempt against a longer candidate
                     // period can spuriously match on leftover pre-Active points.
-                    this.history.push([now, pending.val]);
+                    this._pushHistory(now, pending.val);
                     this.lastChecked = now;
                     if (this.sleepRequested) this._enterSleep();
                     else this._advanceAndSchedule(this.currentCycle.currentOutputEvent);
@@ -481,7 +515,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     this.lastChecked = now;
                     if (this.value !== pending.val) {
                         this.value = pending.val;
-                        this.history.push([now, pending.val]);
+                        this._pushHistory(now, pending.val);
                         this.tryPromote();
                         this.notifyOutputs();
                     }
@@ -578,6 +612,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     fromCycle.currentOutputEvent = fromIdx;
                     sub.cycleParent = fromCycle;
                     sub.cycleSpanEnd = targetTime + entry.span;
+                    sub.activationTime = targetTime;
                     inner.commit();
                 },
             };
@@ -611,12 +646,56 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 this.scheduler.schedule(this.scheduler.currentTime, this, new Recheck(sender));
                 return;
             }
+            // DICE parity (chip.cpp's update_inputs()): update our own
+            // pattern first, then re-check it against EXISTING history
+            // before falling through to recording it as a new occurrence.
+            // A transient pattern that already matches some proven
+            // precedent is resolved immediately via _cascadeActivate() (the
+            // same proven-structure reuse tryPromote() does), so it never
+            // becomes a spurious "single coincidental occurrence" a later,
+            // unrelated cascade might wrongly trust. Gated on
+            // promotionEnabled for the same reason tryPromote() is - this
+            // is a second, independent path that can promote an element
+            // (via _cascadeActivate), and the "always-correct baseline"
+            // verification harness relies on promotionEnabled=false
+            // meaning EVERY element stays Passive forever, not just that
+            // tryPromote() itself is disabled.
+            if (DigitalCore.promotionEnabled && this.inputPatternHistory.length > 0) {
+                const pattern = this._currentPattern();
+                const lastPattern = this.inputPatternHistory[this.inputPatternHistory.length - 1][1];
+                if (patternKey(pattern) !== patternKey(lastPattern)) {
+                    // This pattern hasn't been recorded yet, so
+                    // firstInputTablePos is still tracking wherever the
+                    // PREVIOUS (different) pattern's search left off - not a
+                    // valid resume point into THIS pattern's own occurrence
+                    // list.
+                    this.firstInputTablePos = 0;
+                    this.firstInputMask = this.inputs.length ? (1 << this.inputs.length) - 1 : 0;
+                    const resolved = new Map<DigitalElmInstance, number>();
+                    const now = this.scheduler.currentTime;
+                    const at = this.activationCheck(this.inputPatternHistory[0][0], now, resolved);
+                    if (at < now) {
+                        cascadeActivate(resolved);
+                        if (this.state !== State.Passive) {
+                            // _cascadeActivate() actually promoted us (the
+                            // common case) - our own predicted schedule now
+                            // governs future updates, so the fallback
+                            // schedule below would be a stale no-op. But
+                            // promotion isn't guaranteed just because
+                            // activationCheck matched (e.g. our own history
+                            // window for the verified span can be empty) -
+                            // in that case we still need the normal
+                            // fallback schedule, or we'd be permanently
+                            // orphaned with nothing ever scheduling us
+                            // again.
+                            return;
+                        }
+                    } else {
+                        this._recordInputPattern(pattern, now);
+                    }
+                }
+            }
             this.scheduler.schedule(this.scheduler.currentTime + this.propagationDelayTicks(), this);
-        }
-
-        forceReconsider(fromInput: DigitalElmInstance): void {
-            if (this.state === State.Passive) return;
-            this.scheduler.schedule(this.scheduler.currentTime, this, new Recheck(fromInput, true));
         }
 
         /** Common teardown for leaving Active/Asleep because our prediction
@@ -648,8 +727,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // edge happened," and edge-triggered logic (e.g. a D flip-
             // flop) latches its data input's CURRENT value instead of the
             // value as of the one real relevant edge. A real bug found
-            // live: a demote triggered by an unrelated cascade (see
-            // _promote()'s forceReconsider comment) - even though the
+            // live: a demote triggered by an unrelated cascade - even though the
             // demoted element's own prediction was still completely
             // correct - corrupted its very next live value this way,
             // which then propagated through several more levels of the
@@ -669,11 +747,26 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // stale-window bug (see the flip-flop example above): stale
             // by one tick behaves nothing like stale by tens of thousands.
             this.lastChecked = this.scheduler.currentTime - 1;
+            // We're demoting after a stretch [rootPhaseZero, now) we were
+            // genuinely Active/Asleep for, which means that ENTIRE stretch
+            // is proven periodic/self-consistent. But commit()
+            // unconditionally records the input pattern the whole time
+            // regardless of State, so inputPatternHistory kept accumulating
+            // fine-grained entries throughout - meaning the occurrence
+            // recorded for our pattern at rootPhaseZero only appears to
+            // span up to the next incidental blip a few ticks later, not
+            // the whole proven stretch. Collapse it into one wide
+            // occurrence so a later re-verification attempt can find it
+            // directly - without this, cycleTime can never grow across
+            // repeated promote/demote cycles.
+            this._compressInputPatternHistory(this.rootPhaseZero);
             this.state = State.Passive;
             // Keep the schedule we're abandoning as compression material for a
             // future promotion (see doc.txt section 5).
-            if (this.outputEvents.length > 0 && this.cycleTime)
+            if (this.outputEvents.length > 0 && this.cycleTime) {
                 this.previousCycle = new Cycle(this.outputEvents, this.cycleTime);
+                this.previousRootPhaseZero = this.rootPhaseZero;
+            }
             this.outputEvents = [];
             this.sleepRequested = false;
             this.currentCycle = this; // abandon any nested playback position
@@ -692,8 +785,8 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // immediately by revoking the trust itself, then let the
             // ordinary live-notification path (not a forced demote) decide
             // whether the output's existing prediction is actually still
-            // right. Deliberately NOT forceReconsider() here (an
-            // unconditional demote-and-rederive): for elements in a genuine
+            // right. Deliberately NOT an unconditional demote-and-rederive
+            // here: for elements in a genuine
             // mutual feedback loop (like this circuit's own nand/dff
             // pairing), forcing a full redemote on literally every single
             // demote let members of the cycle keep re-triggering each
@@ -755,6 +848,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             const intoSpan = elapsed - offset;
             const localElapsed = ((intoSpan % sub.cycleTime) + sub.cycleTime) % sub.cycleTime;
             const subRefTime = refTime + offset + (intoSpan - localElapsed);
+            sub.activationTime = subRefTime;
             return this._descendTo(sub, localElapsed, subRefTime);
         }
 
@@ -775,10 +869,55 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return this._leafValueAt(this, elapsed);
         }
 
+        /** Our value as of `time`, which may be earlier than right now -
+         * unlike currentValue(), which only ever answers "as of this
+         * instant". Valid for Active/Asleep: rootPhaseZero is fixed for our
+         * current schedule's whole lifetime, so replaying via
+         * _leafValueAt works for ANY `time` within that schedule's span,
+         * independent of where our live self-driving currently happens to
+         * be positioned. If `time` predates our current schedule (we're
+         * currently Passive, or we've since demoted and possibly
+         * re-promoted), fall back to history: it's gapless everywhere
+         * except an Asleep stretch, and a demote doesn't itself append
+         * anything, so the last recorded change at or before `time` is the
+         * exact answer. Only falls back to currentValue() if `time`
+         * predates our very first recorded change. */
+        valueAt(time: number): boolean {
+            if (this.state !== State.Passive && time >= this.rootPhaseZero) {
+                const elapsed = ((time - this.rootPhaseZero) % this.cycleTime + this.cycleTime) % this.cycleTime;
+                return this._leafValueAt(this, elapsed);
+            }
+            const hist = this.history;
+            for (let i = hist.length - 1; i >= 0; i--) {
+                if (hist[i][0] <= time) return hist[i][1];
+            }
+            // `time` predates our very first recorded change. In principle
+            // initialValue (captured when that first entry was pushed -
+            // see _pushHistory) should be the exact answer here rather than
+            // currentValue() (which can already reflect a change committed
+            // THIS SAME TICK by an earlier-tier same-batch sibling, one
+            // that hasn't happened yet as of `time` - a confirmed real bug
+            // in a carry computation, traced directly to this fallback).
+            // BUT: using initialValue here traded that bug for a different,
+            // not-yet-understood regression elsewhere (two previously-
+            // passing baseline-comparison tests started diverging late
+            // into long runs once this changed) - reverted to currentValue()
+            // until that's root-caused; _pushHistory/initialValue are left
+            // in place (harmless, and correctly maintained) for whoever
+            // picks this back up. See the "purely downstream" and "3-input
+            // NOR" regression tests in DigitalElm.test.ts.
+            return this.currentValue();
+        }
+
         /** Did we transition to targetValue at some point in (since, until]?
          * This is the primitive edge detection actually needs - not "what was
          * my value an instant before now," but "did the relevant edge occur
-         * anywhere in the window since the caller last checked."
+         * anywhere in the window since the caller last checked." Returns the
+         * absolute time of the LATEST matching transition (so a caller can
+         * sample some OTHER element's valueAt() pinned to that exact edge -
+         * see valueAt()'s own docstring for why "current" isn't safe once an
+         * element only catches up to a stale edge late), or null if there
+         * wasn't one.
          *
          * Scans backward from the end of history, not history.some()'s
          * forward-from-index-0 order: the (since, until] window is almost
@@ -803,15 +942,15 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
          * whose output never fully settled into being trusted, keeping an
          * upstream counter/clock's history growing forever while this scan
          * kept re-walking all of it. */
-        transitionedTo(targetValue: boolean, since: number, until: number): boolean {
+        transitionedTo(targetValue: boolean, since: number, until: number): number | null {
             if (this.state === State.Asleep) this._backfillHistory(until);
             const hist = this.history;
             for (let i = hist.length - 1; i >= 0; i--) {
                 const [t, v] = hist[i];
                 if (t <= since) break; // ascending order - no earlier entry can be in (since, until] either
-                if (t <= until && v === targetValue) return true;
+                if (t <= until && v === targetValue) return t;
             }
-            return false;
+            return null;
         }
 
         /** We stopped recording into history while asleep. Replay every
@@ -828,7 +967,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 const { leafValue, resolvedCycle, targetTime, commit } = this._advance(ix, elapsed, cyc, this.backfillTime);
                 if (targetTime > now) break;
                 commit();
-                this.history.push([targetTime, leafValue]);
+                this._pushHistory(targetTime, leafValue);
                 this.backfillCycle = resolvedCycle;
                 this.backfillTime = targetTime;
             }
@@ -918,317 +1057,288 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 this.sleepRequested = true;
         }
 
+        /** Absolute time c's own local elapsed=0 corresponds to - our
+         * rootPhaseZero if c is our own root Cycle (self), else c's own
+         * activationTime (set on entry - see _resolveLeaf/_descendTo). */
+        _cycleAnchor(c: CycleLike): number {
+            return c === (this as CycleLike) ? this.rootPhaseZero : (c.activationTime as number);
+        }
+
+        /** Tuple of (our own value, our inputs' current values) - the
+         * DICE-style "input pattern" activationCheck() searches for repeats
+         * of. Our own value has to be part of the pattern: an edge-
+         * triggered element's future depends not just on its external
+         * inputs but on its own previous state too. `ownValue` lets a
+         * caller in prepare() supply the value THIS SAME event is about to
+         * commit, rather than the stale pre-commit currentValue(). */
+        _currentPattern(ownValue?: boolean): boolean[] {
+            const own = ownValue === undefined ? this.currentValue() : ownValue;
+            return [own, ...this.inputs.map(i => i.currentValue())];
+        }
+
+        /** Append `pattern` to inputPatternHistory (and index it into
+         * inputPatternTable) if it differs from the last recorded pattern,
+         * and update lastInputChange[j] for whichever input(s) actually
+         * flipped. Called unconditionally from commit(), independent of our
+         * own State, so a later demotion has continuous pattern history to
+         * re-search. */
+        _recordInputPattern(pattern: boolean[], now: number): void {
+            const hist = this.inputPatternHistory;
+            const prev = hist.length > 0 ? hist[hist.length - 1][1] : null;
+            if (prev !== null && patternKey(prev) === patternKey(pattern)) return;
+            if (prev !== null) {
+                for (let j = 0; j < pattern.length - 1; j++)
+                    if (prev[j + 1] !== pattern[j + 1]) this.lastInputChange[j] = now;
+            } else {
+                for (let j = 0; j < pattern.length - 1; j++) this.lastInputChange[j] = now;
+            }
+            const idx = hist.length;
+            hist.push([now, pattern]);
+            const key = patternKey(pattern);
+            const list = this.inputPatternTable.get(key);
+            if (list) list.push(idx); else this.inputPatternTable.set(key, [idx]);
+            // A genuine pattern change starts a fresh "pattern epoch" - our
+            // own occurrence search resumes from scratch, and every one of
+            // our inputs becomes eligible to have ITS OWN search position
+            // re-primed again the next time we recurse into it.
+            this.firstInputTablePos = 0;
+            this.firstInputMask = this.inputs.length ? (1 << this.inputs.length) - 1 : 0;
+        }
+
+        /** DICE parity (chip.cpp's deactivate_outputs(), called just before
+         * a demote): we're demoting after a stretch [activationTime, now)
+         * we were genuinely Active/Asleep for, which means that ENTIRE
+         * stretch is proven periodic/self-consistent (we were self-driving
+         * off a verified schedule, not live-evaluating). But commit()
+         * unconditionally calls _recordInputPattern() the whole time
+         * regardless of State, so inputPatternHistory kept accumulating
+         * fine-grained entries throughout - meaning the occurrence recorded
+         * for our pattern AT activationTime only appears to span up to the
+         * next incidental blip a few ticks later, not the whole proven
+         * stretch. Collapse every entry recorded during the stretch into
+         * the one already in effect at activationTime, with its end pinned
+         * to `now` - so a later re-verification attempt can find ONE wide
+         * occurrence covering the whole previous activation, instead of
+         * only ever rediscovering the same tiny window it started from.
+         * Without this, cycleTime can never grow across repeated
+         * promote/demote cycles. */
+        _compressInputPatternHistory(activationTime: number | null): void {
+            const hist = this.inputPatternHistory;
+            if (hist.length === 0 || activationTime === null) return;
+            let i = hist.length - 1;
+            while (i >= 0 && hist[i][0] > activationTime) i -= 1;
+            if (i < 0 || i === hist.length - 1) return; // nothing recorded since activationTime
+            const now = this.scheduler.currentTime;
+            for (let k = hist.length - 1; k > i; k--) {
+                const pat = hist[k][1];
+                const key = patternKey(pat);
+                const lst = this.inputPatternTable.get(key);
+                if (lst && lst[lst.length - 1] === k) {
+                    lst.pop();
+                    if (lst.length === 0) this.inputPatternTable.delete(key);
+                }
+                this.compressedEnd.delete(k);
+                hist.pop();
+            }
+            this.compressedEnd.set(i, now);
+        }
+
+        /** DICE parity (chip.cpp's Chip::activation_check): has our current
+         * input pattern already occurred somewhere in [minTime, maxTime),
+         * with the entire upstream chain that produced it (recursively)
+         * provably repeating in lockstep? If so, returns the absolute time
+         * of that occurrence and records every element (self included)
+         * whose own repeat was confirmed along the way into `resolved`, so
+         * the caller can promote the whole verified chain at once (see
+         * _cascadeActivate/tryPromote). Returns maxTime if no repeat is
+         * found.
+         *
+         * Carries cross-call search-position memoization
+         * (firstInputTablePos/firstInputMask): our own occurrence search
+         * resumes from wherever it last left off instead of always
+         * restarting at index 0, and each input we recurse into only has
+         * ITS OWN search position reset once per "pattern epoch", not once
+         * per call - without this, a chip whose own pattern changes slowly
+         * (wide, sparse occurrences) checked repeatedly by a fast-changing
+         * one (narrow candidate windows) can have every individual call
+         * correctly fail to find an overlap while still never actually
+         * walking forward far enough, across all those calls put together,
+         * to reach the occurrence that would. */
+        activationCheck(minTime: number, maxTime: number, resolved: Map<DigitalElmInstance, number>): number {
+            this.checkVisited = true;
+            try {
+                const globalTime = this.scheduler.currentTime;
+                const pattern = this._currentPattern();
+                const occurrences = this.inputPatternTable.get(patternKey(pattern)) ?? [];
+                let pos = this.firstInputTablePos;
+                while (pos < occurrences.length) {
+                    const idx = occurrences[pos];
+                    const startTime = this.inputPatternHistory[idx][0];
+                    const compressed = this.compressedEnd.get(idx);
+                    let endTime: number;
+                    if (compressed !== undefined) endTime = compressed;
+                    else if (idx + 1 < this.inputPatternHistory.length) endTime = this.inputPatternHistory[idx + 1][0];
+                    else endTime = globalTime;
+                    const lo0 = Math.max(minTime, startTime);
+                    const hi0 = Math.min(maxTime, endTime);
+                    if (lo0 >= maxTime) {
+                        // This occurrence isn't advanced past (pos left
+                        // as-is), since it may still be relevant to a later
+                        // call with a wider maxTime.
+                        maxTime = lo0;
+                        break;
+                    }
+                    if (lo0 >= hi0) {
+                        pos += 1;
+                        continue;
+                    }
+                    let lo = lo0, hi = hi0;
+                    let activationTime = lo;
+                    let ok = true;
+                    for (let j = 0; j < this.inputs.length; j++) {
+                        const inp = this.inputs[j];
+                        if (this.lastInputChange[j] <= lo) continue;
+                        if (inp.state === State.Active) {
+                            let c: CycleLike = inp.currentCycle;
+                            let found = false;
+                            let actMin: number | null = null;
+                            for (;;) {
+                                const anchor = inp._cycleAnchor(c);
+                                const m = Math.max(lo, anchor);
+                                if (actMin === null || m < actMin) actMin = m;
+                                if (m < hi) {
+                                    const at = m + (((globalTime - m) % c.cycleTime) + c.cycleTime) % c.cycleTime;
+                                    if (at < actMin) actMin = at;
+                                    if (at < hi) {
+                                        lo = at; hi = at + 1; activationTime = at; found = true;
+                                        break;
+                                    }
+                                }
+                                if (c === (inp as CycleLike) || c.cycleParent === null) break;
+                                c = c.cycleParent;
+                            }
+                            // Unconditional, even on failure - this is what
+                            // lets a later occurrence attempt (in this call,
+                            // or a future call via firstInputTablePos
+                            // memoization) pick up from how far this failed
+                            // attempt actually got, instead of restarting
+                            // from the original minTime every single time.
+                            minTime = Math.min(actMin as number, this.lastInputChange[j]);
+                            if (!found) { ok = false; break; }
+                        } else if (inp.state === State.Passive && !inp.checkVisited) {
+                            if ((this.firstInputMask >> j) & 1) {
+                                inp.firstInputTablePos = 0;
+                                inp.firstInputMask = inp.inputs.length ? (1 << inp.inputs.length) - 1 : 0;
+                                this.firstInputMask &= ~(1 << j);
+                            }
+                            const at = inp.activationCheck(lo, hi, resolved);
+                            minTime = Math.min(at, this.lastInputChange[j]);
+                            if (at >= hi) { ok = false; break; }
+                            lo = at; hi = at + 1; activationTime = at;
+                        }
+                        // Passive+already-visited, or Asleep: fine as-is.
+                    }
+                    if (!ok) { pos += 1; continue; }
+                    resolved.set(this, activationTime);
+                    // Left at `pos` itself (not advanced past it): a repeat
+                    // search starting from here re-tries this same
+                    // occurrence first.
+                    this.firstInputTablePos = pos;
+                    return activationTime;
+                }
+                this.firstInputTablePos = pos;
+                return maxTime;
+            } finally {
+                this.checkVisited = false;
+            }
+        }
+
+        /** Leftmost index i such that history[i][0] > t. history is
+         * append-only in increasing time order, so this is a valid binary
+         * search target - used instead of a linear scan since history can
+         * be very large for an element that's been stably periodic for a
+         * long time. */
+        _historyUpperBound(t: number): number {
+            const h = this.history;
+            let lo = 0, hi = h.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (h[mid][0] <= t) lo = mid + 1; else hi = mid;
+            }
+            return lo;
+        }
+
+        /** Promote using a verified activationTime from activationCheck,
+         * reusing our own already-recorded output history for the window it
+         * implies - valid because the entire causal chain feeding us was
+         * just proven to repeat over that span, so the same evaluate()
+         * over it already produced the correct output sequence. */
+        _promoteFromActivation(activationTime: number, activeInputs: DigitalElmInstance[] = []): void {
+            const now = this.scheduler.currentTime;
+            const period = now - activationTime;
+            const i0 = this._historyUpperBound(activationTime);
+            const i1 = this._historyUpperBound(now);
+            const window = this.history.slice(i0, i1);
+            if (window.length === 0) return;
+            // A pattern-level match (from inputPatternHistory, which can
+            // include transient mid-propagation-delay checkpoints) doesn't
+            // always imply real output-level periodicity - verify the
+            // boundary directly against history before trusting it.
+            const boundaryValue = i0 > 0 ? this.history[i0 - 1][1] : this.currentValue();
+            if (boundaryValue !== this.value) return;
+            this._promote(period, window, activeInputs);
+        }
+
         /** Check whether our recorded history is now periodic and, if so,
          * switch to Active so we can predict future output without depending
-         * on live input evaluation. */
+         * on live input evaluation. Primary path is activationCheck() - a
+         * real proof of periodicity against upstream elements' own already-
+         * verified cycles - falling back to a simpler LCM/empirical guess
+         * only to bootstrap a first period before any pattern history
+         * exists yet. */
         tryPromote(): void {
             if (!DigitalCore.promotionEnabled) return;
             if (this.state !== State.Passive || this.inputs.length === 0) return;
 
+            if (this.inputPatternHistory.length > 0) {
+                const resolved = new Map<DigitalElmInstance, number>();
+                const now = this.scheduler.currentTime;
+                const at = this.activationCheck(this.inputPatternHistory[0][0], now, resolved);
+                if (at < now) {
+                    cascadeActivate(resolved);
+                    return;
+                }
+            }
+
             const candidates: number[] = [];
-            // Active OR Asleep both count as "proven periodicity" here -
-            // Asleep is an even stronger guarantee than Active (it also
-            // satisfied every one of ITS OWN outputs' trust), not a weaker
-            // one. Excluding Asleep inputs was a real bug: once every input
-            // to a slow-changing element has gone to sleep (the common case
-            // for anything downstream of an already-optimized subcircuit),
-            // this would find zero "active" inputs, skip the trustworthy
-            // LCM candidate entirely, and fall back to the empirical
-            // heuristic alone - risking a promotion to a shorter, spuriously-
-            // matching period that doesn't capture the element's true
-            // behavior (see doc.txt's "known limitations" on _matchPeriod
-            // only ever proving two windows, not the whole schedule).
-            // A genuine constant (Passive, with zero inputs of its own - a
-            // DC-tied rail, DigitalConst, etc.) also counts as proven, even
-            // though its cycleTime stays 0 forever: it's not "hasn't proven
-            // a period yet", it has no period to prove at all, being
-            // eternally unchanging. Without this, any element with a
-            // constant input (extremely common - tie-offs, unused
-            // reset/set pins) could NEVER reach provenInputs.length ===
-            // inputs.length no matter how long every other input runs, so
-            // the trustworthy LCM candidate would never be available at
-            // all - leaving it permanently dependent on the empirical
-            // heuristic alone, which can cycle through repeated wrong
-            // guesses indefinitely for circuits where that heuristic is
-            // unreliable (a real bug found live: components never settled
-            // even after dozens of full cycles).
-            const provenInputs = this.inputs.filter(i =>
-                ((i.state === State.Active || i.state === State.Asleep) && i.cycleTime) ||
-                (i.state === State.Passive && i.inputs.length === 0));
-
-            if (this.digitalDebug)
-                console.log("[digital] tryPromote", (this as any).getClassName?.() ?? this,
-                    "inputs=", this.inputs.map(i => ({ elm: (i as any).getClassName?.() ?? i, state: State[i.state], cycleTime: i.cycleTime })),
-                    "provenInputs.length=", provenInputs.length, "/", this.inputs.length,
-                    "historyLength=", this.history.length);
-
-            // Candidates trusted at the same level as a provenInputs LCM
-            // match (2-window _matchPeriod, no extra scrutiny) - as opposed
-            // to a pure guess from _empiricalCandidates() below, which gets
-            // the stricter 3-window check (see the loop below for why).
-            const trustedCandidates = new Set<number>();
-            if (provenInputs.length === this.inputs.length) {
-                const periodic = provenInputs.filter(i => i.cycleTime > 0);
-                const lcmCandidate = periodic.length > 0 ? lcm(periodic.map(i => i.cycleTime)) : 1;
-                candidates.push(lcmCandidate);
-                trustedCandidates.add(lcmCandidate);
-            }
-            for (const p of (this as DigitalElmInstance).extraPromotionCandidates?.() ?? []) {
+            const activeInputs = this.inputs.filter(i => i.state === State.Active && i.cycleTime > 0);
+            if (activeInputs.length === this.inputs.length)
+                candidates.push(lcm(activeInputs.map(i => i.cycleTime)));
+            for (const p of (this as DigitalElmInstance).extraPromotionCandidates?.() ?? [])
                 if (!candidates.includes(p)) candidates.push(p);
-                trustedCandidates.add(p);
-            }
             for (const p of this._empiricalCandidates())
                 if (!candidates.includes(p)) candidates.push(p);
 
             if (this.digitalDebug)
                 console.log("[digital] tryPromote", (this as any).getClassName?.() ?? this, "candidates=", candidates);
 
-            // Inputs the empirical heuristic below has to fly blind on: not
-            // proven periodic/constant, so _matchPeriod()'s window match is
-            // only as good as whatever evidence our own history happens to
-            // contain about them.
-            const unprovenInputs = this.inputs.filter(i => !provenInputs.includes(i));
+            // Prefer the SMALLEST candidate that verifies - the true,
+            // minimal period, not an artificially inflated exact multiple
+            // of it (which is also, trivially, "a period" by _matchPeriod's
+            // two-window check, but produces a flat schedule with no
+            // relationship to the compact SubRef proof structure genuine
+            // compounding builds). Filter out any candidate that's an exact
+            // multiple of a smaller one already in the list.
+            const filtered = candidates.filter(p => !candidates.some(q => q < p && p % q === 0));
+            filtered.sort((a, b) => a - b);
 
-            // The latest point any proven input's own absolute phase was
-            // last (re-)anchored. A trusted candidate's own window has to
-            // lie entirely after this - see its use below for why. Inputs
-            // that are themselves part of a feedback loop with us are
-            // excluded, for the exact same reason _blindFor() exempts them
-            // from its own unproven-input safety net (see this method's own
-            // docstring): a genuine cycle can only ever bootstrap off
-            // members' still-co-evolving state, so requiring OUR window to
-            // postdate a cyclic input's last phase change would deadlock -
-            // neither side can ever settle "first" for the other to wait on.
-            const phaseGatingInputs = provenInputs.filter(i => !dependsOnTransitively(i, this));
-            const inputsPhaseStableSince = phaseGatingInputs.length > 0
-                ? Math.max(...phaseGatingInputs.map(i => i.phaseStableSince)) : 0;
-
-            let maxUnresolvedTrusted = 0;
-            for (const p of candidates) {
-                // A trustedCandidates member - mathematically implied by
-                // fully-proven inputs' own periods (LCM), or analytically
-                // known from an element's own configuration
-                // (extraPromotionCandidates() - see e.g. CounterElm's
-                // modulus) - only needs the standard 2-window check: it's
-                // already vouched for from OUTSIDE the empirical evidence,
-                // so _matchPeriod(p) here is purely confirming our own
-                // output actually settled into that exact period.
-                //
-                // Every OTHER candidate is a pure guess from our own
-                // recent history (_empiricalCandidates() - gaps between
-                // same-valued points), with NOTHING vouching for it beyond
-                // "two windows happened to match." That's fragile for any
-                // element whose true output isn't a simple alternating
-                // square wave: something like a modulus (non-power-of-2)
-                // counter bit has an IRREGULAR multi-transition pattern
-                // within its real period, which raises the odds that a much
-                // SHORTER, wrong period coincidentally matches for exactly
-                // two windows early on - especially since the _blindFor()
-                // safety net is vacuous here (there ARE no unprovenInputs to
-                // check when all inputs are already proven). A real bug
-                // found live: exactly this, on a CounterElm bit with
-                // modulus=13 - its LCM candidate (from the clock's own
-                // period, 20) correctly failed to match (the bit's true
-                // period, 260, isn't 20), but an empirical guess of 40 (a
-                // coincidental gap between two of its own history points,
-                // early in the irregular per-cycle pattern) matched for two
-                // windows and got promoted - locking in a badly wrong
-                // period forever, with the accumulated error compounding
-                // every recurrence (each reported "edge" landing 20 ticks
-                // further from the true baseline than the last). Fixed at
-                // the root by teaching CounterElm to offer modulus*clockPeriod
-                // as its own extraPromotionCandidates() (an analytically
-                // exact period, not a guess); requiring a third matching
-                // window for remaining pure-guess candidates is a second,
-                // independent layer of defense for elements with no such
-                // hook - doesn't fully eliminate the risk (still a
-                // heuristic, not a proof - see doc.txt), but raises the bar
-                // enough that a genuinely short-period element still
-                // promotes almost immediately while a coincidental match
-                // against a much-longer true period becomes far less likely
-                // to survive three independent windows agreeing by chance.
-                const trusted = trustedCandidates.has(p);
-                const windows = trusted ? 2 : 3;
-                if (trusted && !this._hasEnoughHistoryFor(p, windows)) {
-                    // A trusted (LCM/analytic) candidate we don't have
-                    // enough history to verify YET isn't evidence it's
-                    // wrong - it's evidence we don't know yet. Falling
-                    // through to a lower-trust guess here would defeat the
-                    // whole point of preferring the trusted candidate in
-                    // the first place: an empirical guess can satisfy its
-                    // own (shorter) history requirement well before the
-                    // trusted candidate's (longer) one is met, so without
-                    // this check the guess would win the race every time
-                    // regardless of how much better-founded the trusted
-                    // candidate is - exactly what CounterElm's
-                    // extraPromotionCandidates() (modulus*clockPeriod) is
-                    // for: it's usually a longer period than any
-                    // coincidental short-window empirical guess, so it
-                    // would otherwise never get a fair chance to be
-                    // verified before a wrong guess locked in first. Better
-                    // to stay Passive a while longer than promote on a
-                    // worse candidate we know a better one exists for.
-                    if (this.digitalDebug)
-                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "trusted but not enough history yet - waiting");
+            for (const p of filtered) {
+                const window = this._matchPeriod(p);
+                if (window !== null) {
+                    this._promote(p, window, activeInputs);
                     return;
                 }
-                if (trusted && (this.scheduler.currentTime - windows * p) < inputsPhaseStableSince) {
-                    // Having enough RAW history isn't the same as having
-                    // enough history since our inputs' absolute phase last
-                    // settled. An input can show a correct cycleTime while
-                    // still cycling through several different phase anchors
-                    // (each internally consistent, same period, different
-                    // absolute offset) before finally settling - Active
-                    // alone doesn't mean phase-stable, only Asleep's
-                    // stronger "every output already trusts me" guarantee
-                    // comes close, and even that isn't required here. A real
-                    // bug found live: a D flip-flop sampling a NAND fed by a
-                    // free-running counter promoted using a window that
-                    // reached back to before the NAND's LAST re-anchor - the
-                    // window happened to satisfy _matchPeriod (two
-                    // repetitions of an intermediate, not-yet-final phase
-                    // the NAND had briefly settled into), so it looked fully
-                    // proven, but the schedule it baked in didn't match the
-                    // NAND's true final phase. The flip-flop then failed its
-                    // own very next self-driven-tick verification, demoted,
-                    // woke the (by-then Asleep) NAND back up, and repeated
-                    // forever - never actually settling, matching a real
-                    // user report of a downstream signal "shifting" and
-                    // never reaching a stable state. Same "wait, don't
-                    // guess" principle as the not-enough-history case above.
-                    if (this.digitalDebug)
-                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "trusted but window reaches back before an input's last phase re-anchor (", inputsPhaseStableSince, ") - waiting");
-                    return;
-                }
-                // A trusted candidate WITH enough history that still doesn't
-                // match isn't necessarily evidence it's wrong - our own
-                // history can genuinely still carry noise from before our
-                // inputs (like a NAND feeding a D flip-flop's D input) had
-                // themselves finished settling: tryPromote() only ever runs
-                // on a real value change, so once a trusted input goes from
-                // Passive/glitchy to genuinely periodic, our own history up
-                // to that point can easily fail to line up with the input's
-                // NOW-true period, even though our future behavior
-                // eventually will (we're a deterministic function of an
-                // input that's now proven periodic). But a trusted candidate
-                // can ALSO be a genuine, PERMANENT dead end rather than just
-                // "not proven yet" - e.g. a toggle flip-flop's clock-derived
-                // LCM candidate is exactly half its own true period (it only
-                // flips once per clock cycle, needing two flips - one full
-                // clock-derived period each - to repeat), so it will NEVER
-                // match no matter how long we wait, and the CORRECT period
-                // is only ever discoverable empirically (as a low multiple
-                // of the trusted-but-wrong one). So: only block a SHORTER
-                // empirical guess (maxUnresolvedTrusted tracks the largest
-                // trusted candidate still unresolved) - that's the
-                // "coincidentally matches on incomplete evidence" case this
-                // exists to guard against (a real bug found live: a D flip-
-                // flop sampling a slow, only-just-settled NAND kept
-                // promoting onto a much shorter wrong period, immediately
-                // failing its own next Recheck, waking its now-Asleep input
-                // back up, and repeating forever - never actually settling,
-                // each cycle re-anchoring rootPhaseZero to a new "now" and
-                // shifting its reported phase further with every retry). An
-                // empirical guess LONGER than every unresolved trusted
-                // candidate can't be that same trap (it's not a hasty short
-                // match against incomplete evidence, it's independent
-                // evidence of a longer, still-plausible true period) and is
-                // exactly how the toggle-flip-flop case above is meant to
-                // recover, same as it always has.
-                const window = this._matchPeriod(p, windows);
-                if (!trusted && p <= maxUnresolvedTrusted) {
-                    if (this.digitalDebug)
-                        console.log("[digital] tryPromote candidate", p, "windows=", windows, "skipping empirical guess no longer than an unresolved trusted candidate (", maxUnresolvedTrusted, ") - waiting on it instead");
-                    return;
-                }
-                // An empirical (non-LCM-trusted) candidate is only as
-                // trustworthy as its evidence about EVERY input - see
-                // _blindFor()'s docstring for what "trustworthy" means here.
-                const blind = window !== null && unprovenInputs.some(i => this._blindFor(i, p));
-                if (this.digitalDebug)
-                    console.log("[digital] tryPromote candidate", p, "windows=", windows, "matched=", window !== null, "blind=", blind);
-                if (window !== null && !blind) {
-                    this._promote(p, window, provenInputs);
-                    return;
-                }
-                if (trusted) maxUnresolvedTrusted = Math.max(maxUnresolvedTrusted, p);
             }
-        }
-
-        /** True if `input` (one of tryPromote()'s unprovenInputs) doesn't
-         * give us enough confidence to promote on candidate period `p` -
-         * i.e. its own history isn't ALSO internally consistent with this
-         * exact period (same count of recorded transitions in the last two
-         * windows of length p, at matching offsets and values - i.e. it
-         * would pass its OWN _matchPeriod-style check at this period).
-         * Requiring merely "showed up at least once" isn't enough: a single
-         * isolated transition can land inside the window without proving
-         * anything about periodicity, and - worse - might not even have
-         * been the thing our own two-window match actually depended on, if
-         * another input was already masking it (e.g. an already-true OR
-         * input hiding a separate input's transition). A real bug found
-         * live: an element promoted (and later went Asleep, permanently
-         * losing all further self-checking - see wake()'s docstring) based
-         * on a match that only superficially "saw" a slow input vary once,
-         * and showed a genuinely wrong live value for as long as that
-         * input's true (much longer) period didn't happen to matter yet.
-         * Requiring EVERY input to be fully proven first (not just
-         * self-consistent within the window) was tried and rejected: it
-         * deadlocks any genuine feedback loop, where members can only ever
-         * bootstrap via exactly this kind of empirical evidence about each
-         * other. Requiring each unproven input's own history to
-         * independently pass the same two-window test preserves that
-         * bootstrapping (loop members vary repeatedly and consistently, so
-         * they satisfy this too) while refusing a candidate that's only
-         * really supported by inputs we have genuine confidence in.
-         *
-         * Tried and reverted: treating "no activity in either window, but
-         * also none for a good many periods before that" as safe (on the
-         * theory that a real future change would still reach this element
-         * through the normal untrusted-input path regardless). The
-         * always-correct baseline comparison test caught a genuine value
-         * divergence from that relaxation - some other mechanism this
-         * docstring doesn't yet fully account for depends on silence in
-         * exactly these two windows meaning "not proven," not just "current
-         * value assumed correct." Left as a flat reject until that's
-         * actually understood, rather than re-attempted. */
-        _blindFor(input: DigitalElmInstance, p: number): boolean {
-            // A Passive input that ISN'T part of a feedback loop with us
-            // (its value doesn't, even transitively, depend on ours) has no
-            // need to bootstrap via a shallow self-consistency check - it
-            // will settle on its own, on its own schedule, with nothing we
-            // do affecting it. Trusting its still-incomplete history here
-            // instead of just waiting is a real bug found live: a D flip-
-            // flop registering a slow combinational function (e.g. a NAND
-            // reading several bits of a free-running counter) can look
-            // perfectly periodic-so-far for many windows using only the
-            // fast-changing low-order bits, long before the slow high-order
-            // bits that actually determine its TRUE (much longer) period
-            // have ever toggled even once - a pure-DAG version of the same
-            // "coincidental short match" failure mode extraPromotionCandidates()/
-            // _hasEnoughHistoryFor() were built to guard against for trusted
-            // candidates, just with no analytical candidate available to
-            // rescue it here. The existing self-consistency check below
-            // stays exactly as-is for a GENUINE feedback loop (input
-            // depends on us too, even transitively) - see this method's own
-            // header comment (above this check) for why that bootstrap
-            // can't simply be removed for the cyclic case.
-            if (input.state === State.Passive && !dependsOnTransitively(input, this))
-                return true;
-            const now = this.scheduler.currentTime;
-            const hist = input.history;
-            const win1: [number, boolean][] = [];
-            const win2: [number, boolean][] = [];
-            for (let i = hist.length - 1; i >= 0; i--) {
-                const [t, v] = hist[i];
-                if (t <= now - 2 * p) break;
-                (t <= now - p ? win1 : win2).push([t, v]);
-            }
-            win1.reverse();
-            win2.reverse();
-            if (win1.length === 0 && win2.length === 0) return true;
-            if (win1.length !== win2.length) return true;
-            return win1.some(([t1, v1], j) => { const [t2, v2] = win2[j]; return v1 !== v2 || t2 - t1 !== p; });
         }
 
         /** Guess candidate periods from gaps to earlier same-valued events. */
@@ -1247,23 +1357,11 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return candidates;
         }
 
-        /** Do we have at least `windows` full periods of `period`-length
-         * history yet? Same guard _matchPeriod() itself opens with, split
-         * out so tryPromote() can tell "not enough evidence yet" apart from
-         * "tested and failed" for a trusted candidate - see its own call
-         * site for why that distinction matters. */
-        _hasEnoughHistoryFor(period: number, windows: number): boolean {
-            const hist = this.history;
-            return hist.length > 0 && hist[0][0] <= this.scheduler.currentTime - windows * period;
-        }
-
         /** If our history's last `windows` windows of length `period` all
          * match exactly (same value sequence, each offset from the most
          * recent window by an exact multiple of `period`), return the most
-         * recent window. `windows` defaults to 2 (the minimum needed to
-         * call anything "periodic" at all); tryPromote() asks for more on
-         * candidates it has less independent reason to trust - see its own
-         * call site for why 2 windows alone isn't always enough. */
+         * recent window. `windows` defaults to 2, the minimum needed to
+         * call anything "periodic" at all. */
         _matchPeriod(period: number, windows: number = 2): [number, boolean][] | null {
             if (!period || period <= 0 || windows < 2) return null;
             const now = this.scheduler.currentTime;
@@ -1320,96 +1418,202 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return mostRecent;
         }
 
-        /** If `events` (one full new period, offsets already 0-based) begins
-         * with some whole number of exact repeats of previousCycle's own
-         * pattern - at any phase rotation of it - replace that stretch with a
-         * SubRef. Returns {reps, tail, start}: start is which rotation of the
-         * old pattern was actually verified (0 if nothing compressed). Only
-         * attempted when previousCycle is itself flat (no SubRef entries) - see
-         * doc.txt section 10 for why this doesn't compound across re-promotions. */
-        _splitRepeatingPrefix(events: OutputEvent[]): { reps: number; tail: OutputEvent[]; start: number } {
-            const old = this.previousCycle;
-            if (old === null || old.outputEvents.length === 0) return { reps: 0, tail: events, start: 0 };
-            if (old.outputEvents.some(([, v]) => v instanceof SubRef)) return { reps: 0, tail: events, start: 0 };
-            const oldEvents = old.outputEvents;
-            const nOld = oldEvents.length;
-            if (events.length === 0 || nOld === 0 || events.length < nOld) return { reps: 0, tail: events, start: 0 };
-
-            let best = { reps: 0, tail: events, start: 0 };
-            for (let start = 0; start < nOld; start++) {
-                const { reps, tail } = this._matchRotation(events, oldEvents, old.cycleTime, start);
-                if (reps > best.reps) best = { reps, tail, start };
+        /** Verify that flat `events` (offsets relative to w0, the very
+         * first entry of the whole new window), starting at index i,
+         * matches `cycle` played back cyclically from rotation index
+         * startIdx, for exactly `wantTicks` of relative time, landing
+         * exactly on a cycle.outputEvents boundary. `timeBase` is where
+         * this span starts, in the same relative-offset space as `events`.
+         * Recursing into a nested SubRef entry costs O(len(that sub-
+         * cycle's own outputEvents)), never O(how many ticks or reps it
+         * spans) - trusts the SubRef's own span (already verified as an
+         * exact whole number of its nested cycle's reps when IT was built)
+         * rather than re-walking every leaf inside it. This is what lets
+         * compression compound across repeated re-promotions instead of
+         * being blocked the moment previousCycle itself contains a nested
+         * SubRef. Returns the number of `events` entries consumed if the
+         * match holds for the full span, else null. */
+        _matchFlatSpan(
+            events: OutputEvent[], i: number, w0: number, timeBase: number,
+            cycle: CycleLike, startIdx: number, wantTicks: number,
+        ): number | null {
+            const n = cycle.outputEvents.length;
+            let idx = startIdx;
+            const base = cycle.outputEvents[startIdx][0];
+            let wrap = 0;
+            let consumedTicks = 0;
+            let consumedEvents = 0;
+            while (consumedTicks < wantTicks) {
+                const [offset, val] = cycle.outputEvents[idx];
+                const rel = wrap + offset - base;
+                let nxtRaw: number;
+                if (idx + 1 < n) nxtRaw = cycle.outputEvents[idx + 1][0];
+                else nxtRaw = cycle.cycleTime + cycle.outputEvents[0][0];
+                const duration = nxtRaw - offset;
+                if (val instanceof SubRef) {
+                    if (consumedTicks + val.span > wantTicks) return null;
+                    const got = this._matchFlatSpan(events, i + consumedEvents, w0, timeBase + rel, val.cycle, 0, val.span);
+                    if (got === null) return null;
+                    consumedEvents += got;
+                    consumedTicks += val.span;
+                } else {
+                    if (i + consumedEvents >= events.length) return null;
+                    const [wOffset, wVal] = events[i + consumedEvents];
+                    if (wVal !== val || (wOffset - w0) !== (timeBase + rel)) return null;
+                    consumedEvents += 1;
+                    consumedTicks += duration;
+                }
+                idx += 1;
+                if (idx === n) { idx = 0; wrap += cycle.cycleTime; }
             }
-            return best;
+            if (consumedTicks !== wantTicks) return null;
+            return consumedEvents;
         }
 
-        /** A new, small Cycle holding old.outputEvents walked cyclically
+        /** How many full periods of `cycle` (possibly previousCycle itself,
+         * possibly nested - reached via _matchFlatSpan's own SubRef
+         * recursion), walked cyclically starting at index `start`, exactly
+         * match the beginning of `events`. */
+        _matchRotation(events: OutputEvent[], cycle: CycleLike, start: number): { reps: number; tail: OutputEvent[] } {
+            const w0 = events[0][0];
+            let reps = 0, i = 0;
+            for (;;) {
+                const consumed = this._matchFlatSpan(events, i, w0, reps * cycle.cycleTime, cycle, start, cycle.cycleTime);
+                if (consumed === null) break;
+                reps += 1;
+                i += consumed;
+            }
+            return { reps, tail: events.slice(i) };
+        }
+
+        /** A new, small Cycle holding cycle.outputEvents walked cyclically
          * starting at index `start`, with offsets renormalized so the first
-         * entry sits at offset 0. */
-        _rotatedCycle(old: Cycle, start: number): Cycle {
-            const n = old.outputEvents.length;
-            const base = old.outputEvents[start][0];
+         * entry sits at offset 0. Nested SubRef entries are carried over
+         * as-is (same cycle reference, only their own top-level offset
+         * renormalized) - their own internal structure doesn't need to be
+         * re-flattened here. */
+        _rotatedCycle(cycle: CycleLike, start: number): Cycle {
+            const n = cycle.outputEvents.length;
+            const base = cycle.outputEvents[start][0];
             const rotated: OutputEvent[] = [];
             let idx = start, wrap = 0;
             for (let i = 0; i < n; i++) {
-                const [offset, val] = old.outputEvents[idx];
+                const [offset, val] = cycle.outputEvents[idx];
                 rotated.push([wrap + offset - base, val]);
                 idx++;
-                if (idx === n) { idx = 0; wrap += old.cycleTime; }
+                if (idx === n) { idx = 0; wrap += cycle.cycleTime; }
             }
-            return new Cycle(rotated, old.cycleTime);
+            return new Cycle(rotated, cycle.cycleTime);
         }
 
-        /** How many full reps of oldEvents, walked cyclically starting at index
-         * `start` (wrapping its offset by oldPeriod each wrap), exactly match
-         * the beginning of `events`. */
-        _matchRotation(events: OutputEvent[], oldEvents: OutputEvent[], oldPeriod: number, start: number):
-            { reps: number; tail: OutputEvent[] } {
-            const nOld = oldEvents.length;
-            const w0 = events[0][0];
-            const base = oldEvents[start][0];
-            let idx = start, wrap = 0, reps = 0, i = 0;
-            while (i + nOld <= events.length) {
-                let ok = true;
-                let probeIdx = idx, probeWrap = wrap;
-                for (let j = 0; j < nOld; j++) {
-                    const [wOffset, wVal] = events[i + j];
-                    const [oOffset, oVal] = oldEvents[probeIdx];
-                    if (wVal !== oVal || wOffset - w0 !== probeWrap + oOffset - base) { ok = false; break; }
-                    probeIdx++;
-                    if (probeIdx === nOld) { probeIdx = 0; probeWrap += oldPeriod; }
+        /** (distance, rotated): the next genuine transition in `cycle`
+         * strictly after local offset `after` (0 <= after < cycle.cycleTime),
+         * at any nesting depth - descending into a SubRef only as far as
+         * its own recorded span actually reaches (a SubRef's span is
+         * generally NOT an exact multiple of its nested cycle's own
+         * cycleTime - it's cut off wherever the window that produced it
+         * happened to end - so "the next transition" is sometimes the
+         * SubRef's own end, not something inside it). `distance` is in
+         * (0, cycle.cycleTime]. `rotated` is a new Cycle (same cycleTime as
+         * `cycle`) with that transition at its own offset 0 - reusing
+         * existing nested Cycle objects wherever possible rather than
+         * re-flattening them, so compression compounds across repeated
+         * re-promotions instead of collapsing back to a size that blocks
+         * any further match (a confirmed real bug: once a previousCycle
+         * held only a single top-level SubRef entry, a purely-flat search
+         * over top-level entries alone had nothing left to find,
+         * permanently blocking further growth). */
+        _nextTransition(cycle: CycleLike, after: number): { distance: number; rotated: Cycle } {
+            const idx = this._indexAt(cycle, after);
+            const [offset, entry] = cycle.outputEvents[idx];
+            if (entry instanceof SubRef) {
+                const spanEnd = offset + entry.span;
+                if (after < spanEnd) {
+                    const nestedAfter = ((after - offset) % entry.cycle.cycleTime + entry.cycle.cycleTime) % entry.cycle.cycleTime;
+                    const { distance: nd, rotated: nestedRotated } = this._nextTransition(entry.cycle, nestedAfter);
+                    if (nd <= spanEnd - after) {
+                        const target = after + nd;
+                        const remaining = spanEnd - target;
+                        const lead = target - offset;
+                        const n = cycle.outputEvents.length;
+                        const rotated: OutputEvent[] = [[0, new SubRef(nestedRotated, remaining)]];
+                        let i = idx + 1, wrap = 0;
+                        for (;;) {
+                            if (i === n) { i = 0; wrap += cycle.cycleTime; }
+                            if (i === idx) break;
+                            const [o, e] = cycle.outputEvents[i];
+                            rotated.push([wrap + o - target, e]);
+                            i += 1;
+                        }
+                        if (lead > 0) rotated.push([wrap + offset - target, new SubRef(entry.cycle, lead)]);
+                        return { distance: nd, rotated: new Cycle(rotated, cycle.cycleTime) };
+                    }
+                    // else: this SubRef's own span ends before its nested
+                    // cycle would naturally transition again (a partial
+                    // final rep) - fall through to "next top-level entry",
+                    // same as a plain leaf.
                 }
-                if (!ok) break;
-                reps++;
-                i += nOld;
-                idx = probeIdx; wrap = probeWrap;
             }
-            return { reps, tail: events.slice(i) };
+            const n = cycle.outputEvents.length;
+            const nextIdx = (idx + 1) % n;
+            let nextOffset = cycle.outputEvents[nextIdx][0];
+            if (nextIdx <= idx) nextOffset += cycle.cycleTime;
+            return { distance: nextOffset - after, rotated: this._rotatedCycle(cycle, nextIdx) };
+        }
+
+        /** If `events` (one full new period, offsets already 0-based) begins
+         * with some whole number of exact repeats of previousCycle's own
+         * pattern - at ANY phase rotation of it, not just literally
+         * starting at the old cycle's own offset-0 entry. The old cycle's
+         * phase-zero is wherever an unrelated, earlier real event happened
+         * to land; there's no reason to expect it lines up with this new
+         * window's own start. The rotation to try is fully determined (via
+         * _nextTransition) by the actual absolute-time offset between the
+         * two phase-zeros - there's exactly one candidate alignment, not
+         * one to search for among many. previousCycle may itself already
+         * contain nested SubRef entries (from an earlier compression) -
+         * _matchRotation recurses through those via _matchFlatSpan rather
+         * than requiring a flat comparison, so compression compounds
+         * across repeated re-promotions instead of only ever firing once
+         * per element. Returns (reps, tail, sub): sub is the
+         * already-rotated Cycle that was actually verified (a throwaway
+         * placeholder if nothing compressed) - the old cycle's own
+         * phase-zero is almost never where the match actually starts, so
+         * embedding old.outputEvents unrotated as the SubRef's target
+         * would silently replay the wrong values. Returns (0, events,
+         * <unused>) if there's nothing to compress against, or the implied
+         * rotation doesn't produce a repeat. */
+        _splitRepeatingPrefix(events: OutputEvent[]): { reps: number; tail: OutputEvent[]; sub: Cycle | null } {
+            const old = this.previousCycle;
+            if (old === null || old.outputEvents.length === 0) return { reps: 0, tail: events, sub: null };
+            if (events.length === 0) return { reps: 0, tail: events, sub: null };
+            const oldPeriod = old.cycleTime;
+            if (this.previousRootPhaseZero === null || !oldPeriod) return { reps: 0, tail: events, sub: null };
+
+            const phaseDiff = ((this.rootPhaseZero - this.previousRootPhaseZero) % oldPeriod + oldPeriod) % oldPeriod;
+            const { rotated: sub } = this._nextTransition(old, phaseDiff);
+            const { reps, tail } = this._matchRotation(events, sub, 0);
+            if (reps === 0) return { reps: 0, tail: events, sub: null };
+            return { reps, tail, sub };
         }
 
         _promote(period: number, window: [number, boolean][], provenInputs: DigitalElmInstance[]): void {
             const now = this.scheduler.currentTime;
             const base = now - period;
-            // Only a genuine phase change (not just re-anchoring the same
-            // period/phase to a new "now" after a routine demote-and-
-            // reconfirm - e.g. a purely-local downstream consumer's own
-            // instability, unrelated to whether OUR schedule was ever
-            // actually wrong) resets phaseStableSince. Bumping it on every
-            // _promote() call regardless would starve any downstream
-            // consumer that requires its own window to postdate it: a
-            // frequently-reconfirming-but-never-actually-changing input
-            // would look perpetually "just re-anchored," never satisfying
-            // that requirement no matter how long a consumer waited.
-            const samePhase = this.cycleTime === period &&
-                (((base - this.rootPhaseZero) % period) + period) % period === 0;
-            if (!samePhase) this.phaseStableSince = now;
             this.rootPhaseZero = base;
             const events: OutputEvent[] = window.map(([t, v]) => [t - base, v]);
-            const { reps, tail, start } = this._splitRepeatingPrefix(events);
-            if (reps >= 2 && tail.length > 0) {
-                const sub = this._rotatedCycle(this.previousCycle!, start);
+            const { reps, tail, sub } = this._splitRepeatingPrefix(events);
+            if (reps >= 2 && sub !== null) {
+                // tail can be genuinely empty - the window is an EXACT whole
+                // number of reps, nothing left over - and that's not a
+                // reason to skip compressing: the SubRef's span then just
+                // reaches to this period's own end. Skipping compression in
+                // this case would leave outputEvents as the full flat
+                // `events` list, which a later re-promotion's shorter
+                // window could then never compound onto (previousCycle's
+                // own entry count - n_old - would stay too large).
                 const w0 = events[0][0];
-                const span = tail[0][0] - w0;
+                const span = (tail.length > 0 ? tail[0][0] : period) - w0;
                 this.outputEvents = [[w0, new SubRef(sub, span)], ...tail];
             } else {
                 this.outputEvents = events;
@@ -1419,47 +1623,29 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.firstOutputEvent = 0;
             this.currentCycle = this; // fresh promotion: start clean at the root
             this.trustedInputs = new Set(provenInputs);
-            this._advanceAndSchedule(this.outputEvents.length - 1);
+            // rootPhaseZero is `now - period` by construction (above), so
+            // we are always exactly one full period past it - i.e.
+            // elapsed=0, always, whether `now` is the instant our own last
+            // recorded value change happened (the direct tryPromote()
+            // caller) or not (a force-activated elem cascaded in from
+            // someone else's activationCheck - see cascadeActivate()):
+            // elapsed doesn't depend on which. ix=-1 (mirroring
+            // _indexAt's own "before the first offset wraps to the last
+            // entry" convention) + explicit elapsed=0 correctly finds the
+            // next real transition (index 0) at delay outputEvents[0][0]
+            // regardless. Passing outputEvents.length-1 with elapsed
+            // defaulting to that entry's own offset instead is only
+            // correct when "now" and "elem's last change" coincide; for a
+            // cascaded, not-this-tick elem it silently computes the wrong
+            // delay to the next transition - concretely, a confirmed real
+            // bug once _promoteFromActivation() started calling this for
+            // elements that didn't just change value on this exact tick.
+            this._advanceAndSchedule(-1, 0);
             // These inputs may have just become fully unwatched.
             for (const inp of provenInputs) inp._maybeSleep();
             // One of our own outputs may already have been trusting us from an
             // earlier promotion of its own - give it a fresh chance to notice.
             this._maybeSleep();
-            // Any of our own liveOutputs that already promoted WITHOUT us in
-            // their trustedInputs may have built their own schedule from an
-            // incomplete or now-stale empirical match (see Recheck's
-            // alwaysDemote docstring for why a plain value-confirming
-            // notification isn't enough to catch this) - either because we
-            // were still Passive when they looked (the original case this
-            // cascade covered), or because they promoted using OUR earlier,
-            // now-superseded period: a downstream element whose own history
-            // happened to be recorded while we were still mid-flux (re-
-            // deriving our own period across several promotions) can bake a
-            // transient artifact from that flux into its schedule, match it
-            // against itself as if periodic, and never notice it no longer
-            // reflects our real (now-settled) behavior - a real bug found
-            // live (see the cross-coupled-NAND-latch and downstream-NOR
-            // regression tests). Only cascade when our period actually
-            // changed from what we last cascaded, not on every re-
-            // promotion: a routine re-confirmation that lands on the exact
-            // same period is not new information for any output, and
-            // cascading on every re-promotion regardless (including same-
-            // period ones) was a real performance regression - normal re-
-            // promotion churn is common (during startup especially), and
-            // each cascade could itself trigger more re-promotions with
-            // their own cascades, snowballing through the whole graph. An
-            // output that already trusts us is separately covered by
-            // _demote()'s own force-notify cascade if we're ever wrong
-            // later; an output that doesn't trust us is already getting
-            // normal live notifications on every tick regardless (see
-            // notifyOutputs()) - but as this bug showed, "live notification"
-            // alone isn't enough to catch a stale *schedule*, only a stale
-            // *live value*.
-            if (this.cycleTime !== this.lastCascadedCycleTime) {
-                this.lastCascadedCycleTime = this.cycleTime;
-                for (const out of this.liveOutputs)
-                    if (!out.trustedInputs.has(this)) out.forceReconsider(this);
-            }
         }
 
         /** Override in derived classes to compute the element's value.
@@ -1488,21 +1674,40 @@ class DigitalCore {
 export const DigitalElm = withDigital(class {});
 export type DigitalElm = InstanceType<typeof DigitalElm>;
 
-/** Does `node`'s value depend, directly or transitively through its own
- * `inputs`, on `target`? Used by _blindFor() to tell a genuine feedback loop
- * (target reachable from one of its own inputs) apart from a plain DAG edge
- * (an upstream input that will settle on its own, with nothing target does
- * affecting it) - see _blindFor()'s own docstring for why that distinction
- * matters. Bounded by `visited`: circuits can and do contain real cycles
- * (that's the whole reason this function exists), so a naive unmarked
- * recursion would infinite-loop on one instead of correctly reporting it. */
-function dependsOnTransitively(
-    node: DigitalElmInstance, target: DigitalElmInstance, visited: Set<DigitalElmInstance> = new Set(),
-): boolean {
-    if (node === target) return true;
-    if (visited.has(node)) return false;
-    visited.add(node);
-    return node.inputs.some(i => dependsOnTransitively(i, target, visited));
+/** Hashable key for a pattern tuple (see _currentPattern()), used to index
+ * inputPatternTable - a plain array can't be a Map key by value, so encode
+ * each boolean as a `0`/`1` character. */
+function patternKey(pattern: boolean[]): string {
+    let s = "";
+    for (const b of pattern) s += b ? "1" : "0";
+    return s;
+}
+
+/** Force-activate every element a successful activationCheck chain
+ * verification touched, not just the element that called it - mirroring
+ * chip.cpp's activate_inputs(), which unconditionally activates any still-
+ * Passive driver whose input changed since our activationTime, rather than
+ * waiting for that driver to independently rediscover its own periodicity
+ * later. Without this, a driver that gets torn down every time it notifies
+ * an untrusted output can never stay Active long enough for the output's own
+ * activationCheck to verify it, so nothing ever settles - the output keeps
+ * re-deriving the same schedule from scratch forever. Shared by tryPromote()
+ * (self's own periodic-history check) and inputUpdated() (DICE's
+ * update_inputs()-triggered immediate re-verification) - same cascade
+ * either way. */
+function cascadeActivate(resolved: Map<DigitalElmInstance, number>): void {
+    for (const [elem, elemAt] of resolved) {
+        if (elem.state === State.Passive && elem.history.length > 0) {
+            // Trust every input that changed since elem's own verified
+            // activation point - not just the ones verified via the
+            // Active cycle-chain branch: one verified via the Passive-
+            // recursive branch instead (now itself force-activated here
+            // too, possibly later in this same loop) is just as
+            // trustworthy.
+            const trusted = elem.inputs.filter((inp, j) => elem.lastInputChange[j] > elemAt);
+            elem._promoteFromActivation(elemAt, trusted);
+        }
+    }
 }
 
 /** element's value as of just before `now`'s current batch of commits -
@@ -1527,11 +1732,6 @@ export function syncedValue(element: DigitalElmInstance, now: number): boolean {
 export interface Group {
     inputs: DigitalElmInstance[];
     evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[];
-    /** Optional hook: for an input at this index (e.g. a shared reset
-     * line), a pin must always demote on change rather than trying the
-     * usual "does live evaluate() still match" confirmation shortcut - see
-     * GroupPin.prepare()'s docstring for why. */
-    alwaysDemoteOn?(sender: DigitalElmInstance): boolean;
     /** Optional hook: analytically-known candidate periods tryPromote()
      * should try with the same confidence as its own provenInputs-derived
      * LCM candidate (2-window match), not the extra scrutiny given to a
@@ -1546,6 +1746,22 @@ export interface Group {
      * Absent means "no chip-specific delay", so GroupPin falls back to the
      * base MIN_HOP_TICKS default, same as any other digital element. */
     propagationDelayTicks?(pin: GroupPin): number;
+    /** Optional hook: sibling pins (of the same Group) this pin's own next
+     * value depends on beyond the shared clk/reset/etc. inputs - e.g. a
+     * counter bit's own next value also depends on the carry from every
+     * lower-weight bit (CounterElm.evaluate() reads this.digitalPins
+     * directly for that, bypassing pin.inputs entirely). Absent means "no
+     * extra dependencies" (the common case - e.g. DFlipFlopElm's Q/notQ
+     * pair, each computed purely from D/clk/reset independent of the
+     * other). This exists purely for activationCheck()'s benefit, not
+     * evaluate(): a pin's own recorded input pattern (ownValue + every
+     * pin.inputs' value) has to be a genuinely SUFFICIENT statistic for
+     * predicting the pin's future, or activationCheck can find spurious
+     * "repeats" of just the shared clk/reset that don't actually
+     * correspond to a real repeat of this pin's value once its true next
+     * value also depends on sibling state activationCheck can't otherwise
+     * see - see CounterElm's implementation for the concrete case. */
+    extraPeriodicityInputs?(pin: GroupPin): DigitalElmInstance[];
 }
 
 export class GroupPin extends DigitalElm {
@@ -1559,23 +1775,6 @@ export class GroupPin extends DigitalElm {
 
     propagationDelayTicks(): number {
         return this.group.propagationDelayTicks?.(this) ?? MIN_HOP_TICKS;
-    }
-
-    prepare(val: unknown): Pending {
-        if (val instanceof Recheck && val.sender && this.group.alwaysDemoteOn?.(val.sender) &&
-            (this.state === State.Active || this.state === State.Asleep)) {
-            // A shared control line (e.g. reset) just changed. Not safe to
-            // confirm via "does evaluate() still match my current value
-            // right now": bits sharing one physical clock/reset aren't
-            // independent - a reset can restart the whole register's carry
-            // chain from a different relative phase, and this bit's own
-            // value can coincidentally already equal the reset-forced value
-            // by luck of its current phase, letting the reset slip past
-            // undetected while a sibling bit correctly resets, permanently
-            // desyncing the two. Always demote here rather than trust a match.
-            return { kind: "demote" };
-        }
-        return super.prepare(val);
     }
 
     evaluate(sender: DigitalElmInstance | null = null): boolean {

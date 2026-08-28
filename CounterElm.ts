@@ -87,8 +87,7 @@ export class CounterElm extends ChipElm implements Group {
         const now = pin.scheduler.currentTime;
         const neg = this.negativeEdgeTriggered();
 
-        const old = this.digitalPins.map(p => syncedValue(p, now));
-        let next = old;
+        let next = this.digitalPins.map(p => syncedValue(p, now));
         // Use lastClockChecked, not pin.lastChecked, for the SAME reason
         // this field exists at all - see its own docstring. Falls back to
         // 0 (never checked) if initDigitalPins() didn't run for this pin
@@ -96,7 +95,22 @@ export class CounterElm extends ChipElm implements Group {
         // wiring digitalPins by hand) rather than crashing - matches
         // pin.lastChecked's own default-0 convention.
         const checkingClock = sender === null || sender === clk;
-        if (checkingClock && clk.transitionedTo(!neg, this.lastClockChecked?.[pin.index] ?? 0, now)) {
+        const edgeTime = checkingClock
+            ? clk.transitionedTo(!neg, this.lastClockChecked?.[pin.index] ?? 0, now) : null;
+        if (edgeTime !== null) {
+            // Read every bit's PRE-edge value as of the edge's own timestamp,
+            // not "now" - a sibling bit that's Active reacts to this same
+            // edge immediately, while this pin might only be catching up to
+            // it much later (e.g. after demoting); reading the sibling's
+            // current value at that later point would see it already
+            // advanced past this edge, double-applying it on top of a
+            // register state that already reflects it once via that sibling.
+            // A real bug found live: this exact mismatch caused a promoted
+            // schedule to fail its own very next self-verification and
+            // thrash between promote/demote forever, since the live
+            // recompute (via currentValue()) never agreed with the baked
+            // prediction once any sibling bit had moved on.
+            const old = this.digitalPins.map(p => p.valueAt(edgeTime));
             let value = 0;
             old.forEach((b, k) => { if (b) value |= 1 << (this.bits - 1 - k); });
             const dir = (updown && syncedValue(updown, now)) ? -1 : 1;
@@ -134,6 +148,15 @@ export class CounterElm extends ChipElm implements Group {
      * the count direction reverse mid-cycle, which this simple
      * modulus*clockPeriod formula doesn't account for) driven by an
      * already-proven periodic clock. */
+    /** activationCheck() needs each bit's own input pattern to be a
+     * sufficient statistic for its future - see the Group interface's own
+     * docstring. digitalPins[k] is bit(bits-1-k) (see the class-level
+     * comment above), so a lower WEIGHT bit (the ones whose carry this bit
+     * depends on) is every pin with a HIGHER index than this one. */
+    extraPeriodicityInputs(pin: GroupPin): DigitalElmInstance[] {
+        return this.digitalPins.slice(pin.index + 1);
+    }
+
     extraPromotionCandidates(pin: GroupPin): number[] {
         if (this.modulus === 0 || this.hasUpDown()) return [];
         const clk = this.inputs[0];

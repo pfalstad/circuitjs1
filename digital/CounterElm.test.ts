@@ -44,7 +44,7 @@ function buildModulusCounter(scheduler: Scheduler) {
     counter.bits = 4;
     counter.inputs = [clock, resetInactive];
     counter.digitalPins = Array.from({ length: 4 }, (_, k) => new GroupPin(counter, k));
-    for (const p of counter.digitalPins) p.addInput(...counter.inputs);
+    for (const p of counter.digitalPins) p.addInput(...counter.inputs, ...counter.extraPeriodicityInputs(p));
     for (const p of counter.digitalPins) if (p.state === State.Passive) p.inputUpdated(null);
 
     return { scheduler, counter };

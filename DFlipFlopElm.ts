@@ -92,8 +92,16 @@ export class DFlipFlopElm extends ChipElm implements Group {
         let q = syncedValue(this.digitalPins[0], now);
         // Use lastClockChecked, not pin.lastChecked - see its own docstring.
         const checkingClock = sender === null || sender === clk;
-        if (checkingClock && clk.transitionedTo(true, this.lastClockChecked?.[pin.index] ?? 0, now))
-            q = d.currentValue();
+        const edgeTime = checkingClock
+            ? clk.transitionedTo(true, this.lastClockChecked?.[pin.index] ?? 0, now) : null;
+        if (edgeTime !== null)
+            // Sample D as of the edge's own timestamp, not "now" - if we're
+            // only catching up to this edge late (e.g. after demoting), D
+            // may have changed again since, and reading its current value
+            // would sample whatever it became by then, not what it actually
+            // was at the clock edge. See CounterElm.evaluate()'s identical
+            // fix for the concrete failure mode this caused.
+            q = d.valueAt(edgeTime);
         if (checkingClock) {
             if (!this.lastClockChecked) this.lastClockChecked = [];
             this.lastClockChecked[pin.index] = now;

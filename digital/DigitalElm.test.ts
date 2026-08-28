@@ -25,6 +25,7 @@ class Nand extends DigitalElm {
     constructor() {
         super();
         this.value = true;
+        this.initialValue = true;
     }
     evaluate(): boolean {
         return !this.inputs.every(i => i.currentValue());
@@ -64,7 +65,8 @@ class CounterElm extends DigitalElm {
         const clk = this.inputs[0];
         const cur = this.currentValue();
         let newval = cur;
-        if ((sender === null || sender === clk) && clk.transitionedTo(false, this.lastChecked, this.scheduler.currentTime))
+        if ((sender === null || sender === clk) &&
+            clk.transitionedTo(false, this.lastChecked, this.scheduler.currentTime) !== null)
             newval = !cur;
         if (this.inputs[1].currentValue() === this.resetValue) newval = false;
         return newval;
@@ -79,8 +81,12 @@ class DFlipFlopElm extends DigitalElm {
         const clk = this.inputs[1];
         const cur = this.currentValue();
         let newval = cur;
-        if ((sender === null || sender === clk) && clk.transitionedTo(true, this.lastChecked, this.scheduler.currentTime)) {
-            newval = this.inputs[0].currentValue();
+        const edgeTime = (sender === null || sender === clk)
+            ? clk.transitionedTo(true, this.lastChecked, this.scheduler.currentTime) : null;
+        if (edgeTime !== null) {
+            // Sample D as of the edge's own timestamp, not "now" - see
+            // DFlipFlopElm.ts's real evaluate() for why.
+            newval = this.inputs[0].valueAt(edgeTime);
             if (this.invert) newval = !newval;
         }
         return newval;
@@ -97,14 +103,26 @@ class CounterGroupElm implements Group {
     }
     addInput(clk: DigitalElm, reset: DigitalElm): void {
         this.inputs = [clk, reset];
-        for (const p of this.pins) p.addInput(clk, reset);
+        // activationCheck() needs each bit's own recorded input pattern to
+        // be a sufficient statistic for its future - bit i's next value
+        // also depends on the carry from every lower bit (0..i-1), which
+        // evaluate() reads via this.pins directly (bypassing pin.inputs) -
+        // see Group.extraPeriodicityInputs()'s docstring in DigitalElm.ts.
+        for (const [i, p] of this.pins.entries()) p.addInput(clk, reset, ...this.pins.slice(0, i));
     }
     evaluate(pin: GroupPin, sender: DigitalElm | null): boolean[] {
         const clk = this.inputs[0];
         const now = pin.scheduler.currentTime;
-        const old = this.pins.map(p => syncedValue(p, now));
-        let next = old;
-        if ((sender === null || sender === clk) && clk.transitionedTo(false, pin.lastChecked, now)) {
+        let next = this.pins.map(p => syncedValue(p, now));
+        const edgeTime = (sender === null || sender === clk)
+            ? clk.transitionedTo(false, pin.lastChecked, now) : null;
+        if (edgeTime !== null) {
+            // Read every bit's value as of the edge's own timestamp, not
+            // "now" - see CounterElm.ts's real evaluate() for why (a
+            // sibling bit that's Active reacts to this same edge
+            // immediately, while this pin might only be catching up to it
+            // much later).
+            const old = this.pins.map(p => p.valueAt(edgeTime));
             let val = 0;
             old.forEach((b, i) => { if (b) val |= 1 << i; });
             val = (val + 1) % (1 << this.width);
@@ -113,9 +131,6 @@ class CounterGroupElm implements Group {
         if (syncedValue(this.inputs[1], now) === this.resetValue)
             next = new Array(this.width).fill(false);
         return next;
-    }
-    alwaysDemoteOn(sender: DigitalElm): boolean {
-        return sender === this.inputs[1];
     }
 }
 
@@ -137,17 +152,16 @@ class JKGroupElm implements Group {
         const [j, clk, k, r] = this.inputs;
         const now = pin.scheduler.currentTime;
         let q = syncedValue(this.pins[0], now);
-        if ((sender === null || sender === clk) && clk.transitionedTo(false, pin.lastChecked, now)) {
-            const jv = syncedValue(j, now), kv = syncedValue(k, now);
+        const edgeTime = (sender === null || sender === clk)
+            ? clk.transitionedTo(false, pin.lastChecked, now) : null;
+        if (edgeTime !== null) {
+            const jv = j.valueAt(edgeTime), kv = k.valueAt(edgeTime);
             if (jv) q = kv ? !q : true;
             else if (kv) q = false;
         }
         if (syncedValue(r, now) !== this.invertReset)
             q = false;
         return [q, !q];
-    }
-    alwaysDemoteOn(sender: DigitalElm): boolean {
-        return sender === this.inputs[3];
     }
 }
 

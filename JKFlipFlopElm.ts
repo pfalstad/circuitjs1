@@ -73,8 +73,12 @@ export class JKFlipFlopElm extends ChipElm implements Group {
         const edgeTarget = this.positiveEdgeTriggered();
         // Use lastClockChecked, not pin.lastChecked - see its own docstring.
         const checkingClock = sender === null || sender === clk;
-        if (checkingClock && clk.transitionedTo(edgeTarget, this.lastClockChecked?.[pin.index] ?? 0, now)) {
-            const jv = syncedValue(j, now), kv = syncedValue(k, now);
+        const edgeTime = checkingClock
+            ? clk.transitionedTo(edgeTarget, this.lastClockChecked?.[pin.index] ?? 0, now) : null;
+        if (edgeTime !== null) {
+            // Sample J/K as of the edge's own timestamp, not "now" - same
+            // reasoning as DFlipFlopElm.evaluate()'s D sample.
+            const jv = j.valueAt(edgeTime), kv = k.valueAt(edgeTime);
             if (jv) q = kv ? !q : true;
             else if (kv) q = false;
         }

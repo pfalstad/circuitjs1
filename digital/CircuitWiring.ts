@@ -188,7 +188,7 @@ export function wireDigitalCircuit(elmList: any[]): void {
             // tryPromote() always bails out immediately).
             elm.inputs = inputs;
             for (const pin of elm.digitalPins)
-                pin.addInput(...inputs);
+                pin.addInput(...inputs, ...(elm.extraPeriodicityInputs?.(pin) ?? []));
         }
     }
 }
