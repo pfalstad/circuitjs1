@@ -51,7 +51,7 @@ function fakeGate(proto: object, inputCount: number): any {
     g.rootPhaseZero = 0; g.sleepBase = 0; g.backfillCycle = g; g.backfillTime = 0;
     g.lastChecked = 0; g.sleepRequested = false; g.digitalDebug = false;
     g.inputPatternHistory = []; g.inputPatternTable = new Map();
-    g.compressedEnd = new Map(); g.lastInputChange = [];
+    g.lastInputChange = [];
     g.firstInputTablePos = 0; g.firstInputMask = 0; g.checkVisited = false;
     return withDelay(g);
 }
@@ -83,8 +83,8 @@ function buildCircuit(scheduler: Scheduler) {
     const hbit = (weight: number) => hCounter.digitalPins[8 - Math.log2(weight)];
     nand5.addInput(hbit(2), hbit(4), hbit(64), hbit(128), hbit(256));
 
-    // V: ripple-cascaded, self-resetting via its OWN nand3/vresetFF, reset
-    // pins wired to VRESET (vJK included).
+    // V: self-resetting via its OWN nand3/vresetFF, reset pins wired to
+    // VRESET (vJK included).
     const nand3 = fakeGate(NandGateElm.prototype, 3);
     const vresetFF = buildDFF(nand3, clock);
     const VRESET = vresetFF.digitalPins[0];

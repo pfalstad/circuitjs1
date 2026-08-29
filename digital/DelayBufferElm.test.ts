@@ -36,7 +36,6 @@ function fakeBuffer(delay: number, threshold = 2.5): DelayBufferElm {
     buf.digitalDebug = false;
     buf.inputPatternHistory = [];
     buf.inputPatternTable = new Map();
-    buf.compressedEnd = new Map();
     buf.lastInputChange = [];
     buf.firstInputTablePos = 0;
     buf.firstInputMask = 0;

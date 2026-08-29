@@ -52,6 +52,35 @@ const MIN_HOP_TICKS = 1;
 
 export type OutputEvent = [number, boolean | SubRef];
 
+/** One recorded (own_value + all inputs') pattern snapshot - see
+ * _currentPattern(). A mutable object (not a plain tuple), matching
+ * cycle5/sim.py's own input_pattern_history exactly: append-only, no size
+ * cap or eviction (an earlier version of this file added a DICE-inspired
+ * fixed-size ring buffer here, modeled on the real C++ simulator's
+ * EVENT_QUEUE_SIZE rather than on the validated sim.py reference - that
+ * turned out to be a genuine correctness hazard, not just a memory bound:
+ * a large cap let activationCheck() match against a much older, no-longer-
+ * representative occurrence and corrupt a downstream edge-triggered
+ * consumer's count, confirmed live by reproducing the exact same
+ * corruption with the cap raised. Reverted to sim.py's unbounded design;
+ * `_compressInputPatternHistory()` below is the only thing that ever
+ * shrinks this, matching sim.py exactly). `next` links to whatever the
+ * chronologically-following entry was (used by activationCheck() to find
+ * an occurrence's own end time). */
+export interface PatternEntry {
+    time: number;
+    pattern: boolean[];
+    /** The next entry in GLOBAL chronological order (any pattern), not
+     * the next occurrence of THIS SAME pattern - mirrors sim.py's
+     * `input_pattern_history[idx + 1]`. Null for the most recent entry. */
+    next: PatternEntry | null;
+    /** Set by _compressInputPatternHistory() when a whole Active/Asleep
+     * stretch collapses onto this entry - its "end" is then this explicit
+     * time, not wherever `next` (if any survived compression) happens to
+     * start. Null otherwise. */
+    compressedEnd: number | null;
+}
+
 /** Shape shared by a DigitalElm (acting as its own root Cycle) and Cycle
  * itself (a nested, reusable playback pattern referenced by a SubRef). */
 export interface CycleLike {
@@ -159,11 +188,8 @@ export interface DigitalElmInstance extends Schedulable, CycleLike {
     // activationCheck() reads/writes this on every input it recurses into,
     // and _cascadeActivate() reads `history`/`lastInputChange` on whatever
     // elements a successful check resolved.
-    inputPatternHistory: [number, boolean[]][];
-    inputPatternTable: Map<string, number[]>;
-    /** Index into inputPatternHistory -> explicit end time, for entries
-     * collapsed by _compressInputPatternHistory(). */
-    compressedEnd: Map<number, number>;
+    inputPatternHistory: PatternEntry[];
+    inputPatternTable: Map<string, PatternEntry[]>;
     /** Per-input-index: abs time that input's value last changed, as
      * observed by us. */
     lastInputChange: number[];
@@ -300,9 +326,8 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
 
         // DICE-style activation_check bookkeeping - see the interface
         // docstrings above for what each of these is for.
-        inputPatternHistory: [number, boolean[]][] = [];
-        inputPatternTable = new Map<string, number[]>();
-        compressedEnd = new Map<number, number>();
+        inputPatternHistory: PatternEntry[] = [];
+        inputPatternTable = new Map<string, PatternEntry[]>();
         lastInputChange: number[] = [];
         firstInputTablePos = 0;
         firstInputMask = 0;
@@ -374,7 +399,6 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             this.lastChecked = 0;
             this.inputPatternHistory = [];
             this.inputPatternTable = new Map();
-            this.compressedEnd = new Map();
             this.lastInputChange = [];
             this.firstInputTablePos = 0;
             this.firstInputMask = 0;
@@ -500,7 +524,18 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     this.value = pending.val;
                     // Keep recording into history even while Active - otherwise a
                     // later re-promotion attempt against a longer candidate
-                    // period can spuriously match on leftover pre-Active points.
+                    // period can spuriously match on leftover pre-Active
+                    // points. But only push a NEW entry when the value
+                    // actually changed: a self-driven schedule's wraparound
+                    // step (returning to outputEvents[firstOutputEvent] at
+                    // the end of one period) always fires as a scheduled
+                    // "next event" even when that entry's value happens to
+                    // equal the value already in effect (an odd-length
+                    // window - see _promote()) - pushing unconditionally
+                    // there bakes a phantom same-value entry into history
+                    // with no real transition, which a downstream
+                    // edge-triggered consumer's transitionedTo() then reads
+                    // as a genuine (but wrong) edge - a confirmed real bug.
                     this._pushHistory(now, pending.val);
                     this.lastChecked = now;
                     if (this.sleepRequested) this._enterSleep();
@@ -662,7 +697,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             // tryPromote() itself is disabled.
             if (DigitalCore.promotionEnabled && this.inputPatternHistory.length > 0) {
                 const pattern = this._currentPattern();
-                const lastPattern = this.inputPatternHistory[this.inputPatternHistory.length - 1][1];
+                const lastPattern = this.inputPatternHistory[this.inputPatternHistory.length - 1].pattern;
                 if (patternKey(pattern) !== patternKey(lastPattern)) {
                     // This pattern hasn't been recorded yet, so
                     // firstInputTablePos is still tracking wherever the
@@ -673,7 +708,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                     this.firstInputMask = this.inputs.length ? (1 << this.inputs.length) - 1 : 0;
                     const resolved = new Map<DigitalElmInstance, number>();
                     const now = this.scheduler.currentTime;
-                    const at = this.activationCheck(this.inputPatternHistory[0][0], now, resolved);
+                    const at = this.activationCheck(this.inputPatternHistory[0].time, now, resolved);
                     if (at < now) {
                         cascadeActivate(resolved);
                         if (this.state !== State.Passive) {
@@ -1022,7 +1057,24 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 this.currentCycle = this;
                 const idx = this._indexAt(this, elapsed);
                 this.state = State.Active;
-                this._advanceAndSchedule(idx, elapsed, this);
+                // _indexAt() defaults to the LAST entry when `elapsed` falls
+                // before this period's own first offset - correct for
+                // reading "the value in effect" (carried over from the
+                // previous lap's tail), but wrong to feed directly into
+                // _advanceAndSchedule(): _advance()'s wrap branch assumes ix
+                // is a real same-lap position and unconditionally adds a
+                // full cycleTime when computing the next entry, silently
+                // double-counting the lap we're actually still IN - a
+                // confirmed real bug where waking early in a period (before
+                // its first real transition) scheduled the next self-driven
+                // commit a full extra cycleTime too late, permanently
+                // freezing this element's own history one transition short
+                // forever (nothing else was left to notice or correct it).
+                // ix=-1 mirrors _promote()'s own "before index 0" convention,
+                // which correctly resolves to outputEvents[0] in the CURRENT
+                // lap instead.
+                const beforeFirstEntry = this.outputEvents.length > 0 && elapsed < this.outputEvents[0][0];
+                this._advanceAndSchedule(beforeFirstEntry ? -1 : idx, elapsed, this);
                 return;
             }
             this._demote();
@@ -1081,10 +1133,14 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
          * and update lastInputChange[j] for whichever input(s) actually
          * flipped. Called unconditionally from commit(), independent of our
          * own State, so a later demotion has continuous pattern history to
-         * re-search. */
+         * re-search. Matches cycle5/sim.py's _record_input_pattern exactly:
+         * unconditional append, no eviction (see PatternEntry's own
+         * docstring for why a DICE-inspired size cap was tried and
+         * reverted). */
         _recordInputPattern(pattern: boolean[], now: number): void {
             const hist = this.inputPatternHistory;
-            const prev = hist.length > 0 ? hist[hist.length - 1][1] : null;
+            const prevEntry = hist.length > 0 ? hist[hist.length - 1] : null;
+            const prev = prevEntry?.pattern ?? null;
             if (prev !== null && patternKey(prev) === patternKey(pattern)) return;
             if (prev !== null) {
                 for (let j = 0; j < pattern.length - 1; j++)
@@ -1092,11 +1148,12 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             } else {
                 for (let j = 0; j < pattern.length - 1; j++) this.lastInputChange[j] = now;
             }
-            const idx = hist.length;
-            hist.push([now, pattern]);
+            const entry: PatternEntry = { time: now, pattern, next: null, compressedEnd: null };
+            if (hist.length > 0) hist[hist.length - 1].next = entry;
+            hist.push(entry);
             const key = patternKey(pattern);
             const list = this.inputPatternTable.get(key);
-            if (list) list.push(idx); else this.inputPatternTable.set(key, [idx]);
+            if (list) list.push(entry); else this.inputPatternTable.set(key, [entry]);
             // A genuine pattern change starts a fresh "pattern epoch" - our
             // own occurrence search resumes from scratch, and every one of
             // our inputs becomes eligible to have ITS OWN search position
@@ -1126,21 +1183,21 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             const hist = this.inputPatternHistory;
             if (hist.length === 0 || activationTime === null) return;
             let i = hist.length - 1;
-            while (i >= 0 && hist[i][0] > activationTime) i -= 1;
+            while (i >= 0 && hist[i].time > activationTime) i -= 1;
             if (i < 0 || i === hist.length - 1) return; // nothing recorded since activationTime
             const now = this.scheduler.currentTime;
             for (let k = hist.length - 1; k > i; k--) {
-                const pat = hist[k][1];
-                const key = patternKey(pat);
+                const entry = hist[k];
+                const key = patternKey(entry.pattern);
                 const lst = this.inputPatternTable.get(key);
-                if (lst && lst[lst.length - 1] === k) {
+                if (lst && lst[lst.length - 1] === entry) {
                     lst.pop();
                     if (lst.length === 0) this.inputPatternTable.delete(key);
                 }
-                this.compressedEnd.delete(k);
                 hist.pop();
             }
-            this.compressedEnd.set(i, now);
+            hist[i].next = null;
+            hist[i].compressedEnd = now;
         }
 
         /** DICE parity (chip.cpp's Chip::activation_check): has our current
@@ -1172,12 +1229,12 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
                 const occurrences = this.inputPatternTable.get(patternKey(pattern)) ?? [];
                 let pos = this.firstInputTablePos;
                 while (pos < occurrences.length) {
-                    const idx = occurrences[pos];
-                    const startTime = this.inputPatternHistory[idx][0];
-                    const compressed = this.compressedEnd.get(idx);
+                    const entry = occurrences[pos];
+                    const startTime = entry.time;
+                    const compressed = entry.compressedEnd;
                     let endTime: number;
-                    if (compressed !== undefined) endTime = compressed;
-                    else if (idx + 1 < this.inputPatternHistory.length) endTime = this.inputPatternHistory[idx + 1][0];
+                    if (compressed !== null) endTime = compressed;
+                    else if (entry.next !== null) endTime = entry.next.time;
                     else endTime = globalTime;
                     const lo0 = Math.max(minTime, startTime);
                     const hi0 = Math.min(maxTime, endTime);
@@ -1268,6 +1325,30 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             return lo;
         }
 
+        /** Collapse consecutive same-timestamp entries down to just the
+         * LAST (final, settled) one for that tick - matching _matchPeriod's
+         * own same-tick handling (see its docstring for the full reasoning):
+         * multiple delta-round batches can settle within one simulated
+         * instant (a real, expected artifact - see commit()'s "active"
+         * case), and baking every intermediate value into a schedule
+         * produces a structure a self-driven replay can't actually
+         * reproduce (the SECOND check's own edge-detection watermark has
+         * already advanced past the first, so replaying it live would
+         * never re-see that transient value) - a confirmed real bug: an
+         * uncollapsed duplicate baked into a counter bit's own promoted
+         * schedule read as a genuine extra toggle by a downstream
+         * edge-triggered consumer (CounterElm) watching that bit, silently
+         * corrupting its count. `hist` is in ascending time order, so
+         * same-timestamp entries are always adjacent. */
+        _collapseSameTick(hist: [number, boolean][]): [number, boolean][] {
+            const out: [number, boolean][] = [];
+            for (const entry of hist) {
+                if (out.length > 0 && out[out.length - 1][0] === entry[0]) out[out.length - 1] = entry;
+                else out.push(entry);
+            }
+            return out;
+        }
+
         /** Promote using a verified activationTime from activationCheck,
          * reusing our own already-recorded output history for the window it
          * implies - valid because the entire causal chain feeding us was
@@ -1278,7 +1359,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             const period = now - activationTime;
             const i0 = this._historyUpperBound(activationTime);
             const i1 = this._historyUpperBound(now);
-            const window = this.history.slice(i0, i1);
+            const window = this._collapseSameTick(this.history.slice(i0, i1));
             if (window.length === 0) return;
             // A pattern-level match (from inputPatternHistory, which can
             // include transient mid-propagation-delay checkpoints) doesn't
@@ -1303,7 +1384,7 @@ export function withDigital<TBase extends Constructor>(Base: TBase) {
             if (this.inputPatternHistory.length > 0) {
                 const resolved = new Map<DigitalElmInstance, number>();
                 const now = this.scheduler.currentTime;
-                const at = this.activationCheck(this.inputPatternHistory[0][0], now, resolved);
+                const at = this.activationCheck(this.inputPatternHistory[0].time, now, resolved);
                 if (at < now) {
                     cascadeActivate(resolved);
                     return;
