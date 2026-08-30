@@ -158,6 +158,19 @@ import com.google.gwt.xml.client.Document;
 
 	double lastvd;
 
+	// Initialize lastvd with a tiny offset to break metastable equilibrium.
+	// Without this, a positive-feedback buffer (output wired to non-inverting
+	// input) will unrealistically track the input perfectly because the
+	// Newton-Raphson solver finds the exact metastable solution.  A real
+	// opamp has an input offset voltage (~1 mV) that would immediately push
+	// the output to a supply rail.  This small perturbation mimics that
+	// behavior and is orders of magnitude too small to affect normal
+	// negative-feedback circuits.
+	void reset() {
+	    super.reset();
+	    lastvd = 1e-6;
+	}
+
 	void stamp() {
 	    sim.stampNonLinear(voltSource);
 	    sim.stampMatrix(nodes[2], voltSource, 1);
