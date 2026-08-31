@@ -984,6 +984,26 @@ export class Chip extends Cycle {
         this.backfillValue = value;
     }
 
+    // The chip's own logical output as of right now - unlike the raw `output` field/setter
+    // above, which only tracks reality live while ACTIVE/PASSIVE. A chip with no live consumer
+    // (activeOutputs === 0n - e.g. a free-running clock feeding nothing, or any element's output
+    // post nothing else happens to be wired to) legitimately goes ASLEEP after its very first
+    // transition and then never wakes on its own (see updateOutput()'s ASLEEP-entry branch) -
+    // `output` stays frozen at that one transition's value forever, even though the chip's true
+    // value keeps changing on its own schedule. That's the correct, efficient behavior for the
+    // periodicity engine itself (nothing downstream ever needs the intermediate values), but a
+    // live circuit editor's own rendering - every wire's voltage color, not just a Scope's trace -
+    // needs "the value right now" regardless of whether any other CHIP is watching. Reuses
+    // backfillHistory()'s own side-effect-free resumable cursor (doesn't wake the chip or disturb
+    // its real schedule) rather than sampling `output` directly. Same KNOWN GAP as
+    // backfillHistory() itself: a chip that was mid-nested-subcycle when it fell asleep just
+    // returns its frozen sleep-time value here too.
+    currentValue(): number {
+        if (this.state !== ChipState.ASLEEP) return this.output;
+        this.backfillHistory(this.circuit.globalTime);
+        return this.backfillValue;
+    }
+
     static nextBit(x: number): number {
         x = x | 0;
         if (x === 0) return 0;

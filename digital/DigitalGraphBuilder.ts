@@ -299,7 +299,12 @@ export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[
         for (const post of digitalOutputPosts(elm)) {
             const chip = digitalOutputChip(elm, post, chipsByElm);
             if (chip == null) continue;
-            const high = chip.output === 1;
+            // currentValue(), not the raw output field: a chip with no live consumer (e.g. a
+            // clock feeding nothing, or any dangling output) falls ASLEEP after its first
+            // transition and then never wakes on its own - `output` would stay frozen at that
+            // one transition forever even though the wire's voltage still needs to visibly keep
+            // changing every frame. See Chip.currentValue()'s own docstring.
+            const high = chip.currentValue() === 1;
             if (typeof elm.getDigitalVoltage === "function")
                 elm.nodes[post].v = elm.getDigitalVoltage(high);
             else
