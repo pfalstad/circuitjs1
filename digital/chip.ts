@@ -993,13 +993,23 @@ export class Chip extends Cycle {
     // value keeps changing on its own schedule. That's the correct, efficient behavior for the
     // periodicity engine itself (nothing downstream ever needs the intermediate values), but a
     // live circuit editor's own rendering - every wire's voltage color, not just a Scope's trace -
-    // needs "the value right now" regardless of whether any other CHIP is watching. Reuses
+    // needs "the value right now" regardless of whether any other CHIP is watching. Prefers
     // backfillHistory()'s own side-effect-free resumable cursor (doesn't wake the chip or disturb
-    // its real schedule) rather than sampling `output` directly. Same KNOWN GAP as
-    // backfillHistory() itself: a chip that was mid-nested-subcycle when it fell asleep just
-    // returns its frozen sleep-time value here too.
+    // its real schedule) over sampling `output` directly - but backfillHistory() has a KNOWN GAP:
+    // it can't replay past a nested sub-cycle (a promoted schedule whose period is itself a
+    // repeat of a shorter one - exactly what a self-resetting counter's irregular period compiles
+    // to) without the same mutation wakeUp() itself needs to do, and just stops short of `now` in
+    // that case. Falling back to a real wakeUp() there - the same thing any genuine downstream
+    // consumer already triggers when it needs this chip's live value (see deactivateOutputs()'s
+    // own wakeUp() call) - trades a one-time promotion-relearning cost for correctness: a
+    // permanently frozen wire is a real bug users can see, a chip that re-derives its schedule
+    // once when someone finally looks at it is not.
     currentValue(): number {
         if (this.state !== ChipState.ASLEEP) return this.output;
+        if (this.currentCycle !== (this as Cycle)) {
+            this.wakeUp();
+            return this.output;
+        }
         this.backfillHistory(this.circuit.globalTime);
         return this.backfillValue;
     }
