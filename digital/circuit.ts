@@ -10,7 +10,7 @@
 // must bound how long a single call can block the main thread (mirrors
 // digital/Scheduler.ts's old `runUntil(maxTime, deadlineMs)`).
 
-import { Chip, ChipLink, ChipType } from "./chip";
+import { Chip, ChipLink } from "./chip";
 import { customChipStart } from "./chip_desc";
 import type { ChipDesc } from "./chip_desc";
 import type { CircuitDesc, ChipInstanceEntry } from "./circuit_desc";
@@ -167,33 +167,24 @@ class CircuitBuilder {
         return connected;
     }
 
+    // The original C++ prunes any non-CUSTOM_CHIP whose output feeds no other chip's input
+    // ("Removing unused chip ...") - correct for Pong, where the ONLY thing that can ever need a
+    // chip's value is another chip wired to consume it. That assumption doesn't hold in a live
+    // circuit editor: every element's output is drawn on screen every frame
+    // (DigitalGraphBuilder.syncDigitalToNodesNew()) regardless of whether anything downstream
+    // consumes it, and the user can wire a Scope onto any pin at any time - neither is a chip
+    // connection this pass could ever see. Pruning such a chip doesn't just leave it stale, it
+    // disconnects it from its own drivers and skips initialize() entirely, so it never computes
+    // anything at all (a bare clock feeding nothing, or a gate whose output isn't wired
+    // downstream yet, would sit frozen at its construction-time default forever). Dropped
+    // entirely rather than special-cased with a synthetic "always observed" consumer: a
+    // CUSTOM_CHIP consumer would work for elimination but permanently starves the driving chip's
+    // own sleep optimization too (updateInputs()'s CUSTOM_CHIP branch never calls
+    // activateInputs()/deactivateOutputsInMask() to release its interest - see chip.ts) - keeping
+    // every real chip un-pruned costs nothing per se (a chip nothing needs still correctly falls
+    // ASLEEP on its own after its first transition, same as before; Chip.currentValue() computes
+    // its true current value from there without waking it).
     makeAllConnections(): void {
-        let removed: boolean;
-        do {
-            removed = false;
-            for (let idx = 0; idx < this.chips.length; idx++) {
-                const chip = this.chips[idx];
-                if (chip.type === ChipType.CUSTOM_CHIP) continue;
-
-                const found = this.connectionListOut.some(c => c.cd.chip === chip);
-                if (!found) {
-                    console.log(`Removing unused chip ${this.getOutputInfo(chip)}`);
-                    removed = true;
-
-                    for (let i = 0; i < this.connectionListIn.length; i++) {
-                        if (this.connectionListIn[i].cd.chip === chip) {
-                            this.connectionListIn.splice(i, 1);
-                            this.connectionListOut.splice(i, 1);
-                            i--;
-                        }
-                    }
-
-                    this.chips.splice(idx, 1);
-                    idx--;
-                }
-            }
-        } while (removed);
-
         for (let i = 0; i < this.connectionListOut.length; i++) {
             const cOut = this.connectionListOut[i].cd.chip;
             const cIn = this.connectionListIn[i].cd.chip;
