@@ -28,9 +28,12 @@ import { GateElm } from "./GateElm";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital, State } from "./digital/DigitalElm";
+import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class DelayBufferElm extends withDigital(CircuitElm) {
     // CircuitWiring's isGateLike() check looks for .addInput + a numeric
@@ -46,112 +49,28 @@ export class DelayBufferElm extends withDigital(CircuitElm) {
     gatePoly: Polygon;
     delayEndTime: number;
 
-    // --- Digital fast-path wiring ---
-    //
-    // Unlike GateElm/InverterElm (pure combinational: evaluate() is a
-    // memoryless function of current input state), this element's whole
-    // purpose IS a configurable delay - and, per doStep()'s existing analog
-    // model, a glitch-filtering one: outState only follows a change in
-    // inState once inState has held continuously for `delay` seconds
-    // (delayEndTime gets pushed forward to t+delay every step the two
-    // already match, so only a sustained mismatch that outlasts that
-    // deadline commits - a bounce shorter than `delay` never reaches the
-    // output at all).
-    //
-    // That's expressible as a genuinely PURE evaluate() - see
-    // debouncedValueAt() below - which is what lets this element promote
-    // like any other: the periodicity engine (tryPromote()/_advanceAndSchedule()
-    // in digital/DigitalElm.ts) only requires evaluate() to be a
-    // deterministic function of committed state, and this.inputs[0].history
-    // (an append-only, already-committed log) qualifies just as much as
-    // this.inputs[0].currentValue() does for a combinational gate - it's
-    // just also looking a little further back in time. The one thing that
-    // still needs a real override is inputUpdated(): the generic Passive
-    // path re-evaluates only MIN_HOP_TICKS (1 tick) after an input change,
-    // which models simple propagation delay, not a multi-tick debounce -
-    // without scheduling our own check exactly delayTicks() out, a
-    // confirmed transition would only get noticed (and its history entry
-    // timestamped) whenever some UNRELATED later event happened to trigger
-    // a re-evaluation, which is both late and non-deterministic. The
-    // Active/Asleep path (Recheck-based reconfirmation) is left alone -
-    // Recheck just calls evaluate() and compares, which already works
-    // correctly regardless of how far evaluate() itself looks back.
-    private delayTicks(): number {
-        return Math.max(1, Math.round(this.delay / CircuitElm.sim.maxTimeStep));
-    }
-
-    /** DigitalElm's required evaluate(): the debounced/delayed value of the
-     * input, falling back to the analog voltage threshold before
+    /** DigitalElm's required evaluate(): thin wrapper over the live input,
+     * falling back to the analog voltage threshold before
      * wireDigitalCircuit() has populated this.inputs - same fallback
-     * InverterElm.evaluate() uses. */
+     * pattern as InverterElm.evaluate()/GateElm.evaluate(). */
     evaluate(sender?: DigitalElmInstance | null): boolean {
         if (this.inputs.length > 0)
-            return this.debouncedValueAt(this.inputs[0], this.scheduler.currentTime);
+            return this.inputs[0].currentValue();
         return this.nodes[0].v > this.threshold;
     }
 
-    /** The value `input` had settled to as of `now`, applying this
-     * buffer's own delay as a glitch filter: a transition only "confirms"
-     * (and the value it introduces takes effect delayTicks() after it) if
-     * no LATER transition preempts it within that same window - exactly
-     * mirroring doStep()'s delayEndTime logic (see this class's header
-     * comment), just expressed as a pure function over input.history
-     * instead of a per-timestep running deadline. Pure and re-derivable at
-     * any `now`: never mutates anything, so it's safe to call from
-     * evaluate() as often as the periodicity engine likes (promotion
-     * attempts, Recheck reconfirmation, backfill, ...) without needing any
-     * bookkeeping of its own to stay consistent. */
-    private debouncedValueAt(input: DigitalElmInstance, now: number): boolean {
-        const delay = this.delayTicks();
-        // An Asleep input stops appending to its own history live (that's
-        // the whole point of Asleep - see digital/DigitalElm.ts) - reading
-        // it without catching up first would silently miss every
-        // transition that "happened" during sleep, exactly the same
-        // staleness transitionedTo() already guards against. Missing that
-        // here was a real bug found live: this buffer's own self-driven
-        // Active ticks re-verify via evaluate() on every tick (see
-        // prepare()'s "active" branch in digital/DigitalElm.ts), and an
-        // Asleep input's un-backfilled history made that re-verification
-        // see a stale value, spuriously demoting - then re-promoting, then
-        // demoting again - so the buffer could never settle into Asleep
-        // itself as long as something (e.g. a downstream consumer's own
-        // Recheck) kept asking. Without a downstream consumer, vacuous
-        // trust let the buffer reach Asleep before this could ever bite,
-        // masking the bug entirely.
-        if (input.state === State.Asleep) input._backfillHistory(now);
-        const hist = input.history; // ascending [tick, value]
-        if (hist.length === 0)
-            return input.currentValue(); // never changed - nothing to debounce
-        // Binary search: first index whose deadline (tick + delay) is
-        // still in the future as of `now` - candidates are everything
-        // before it.
-        let lo = 0, hi = hist.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (hist[mid][0] + delay <= now) lo = mid + 1; else hi = mid;
-        }
-        for (let i = lo - 1; i >= 0; i--) {
-            const [ti, vi] = hist[i];
-            const nextTick = (i + 1 < hist.length) ? hist[i + 1][0] : null;
-            if (nextTick !== null && nextTick < ti + delay)
-                continue; // preempted by a later bounce before confirming - never reached the output
-            return vi;
-        }
-        return false; // nothing confirmed yet - same before-first-entry default every DigitalElmInstance uses
-    }
-
-    /** Reacts to the input changing. The Active/Asleep case is exactly the
-     * base class's own behavior (Recheck-based reconfirmation - see this
-     * class's header comment for why that's fine as-is). The Passive case
-     * schedules our own re-evaluation delayTicks() out - the earliest
-     * moment this specific edge could possibly confirm - rather than the
-     * generic MIN_HOP_TICKS. */
-    inputUpdated(sender: DigitalElmInstance | null = null): void {
-        if (this.state === State.Active || this.state === State.Asleep) {
-            super.inputUpdated(sender);
-            return;
-        }
-        this.scheduler.schedule(this.scheduler.currentTime + this.delayTicks(), this);
+    /** Phase 4 (see noble-stirring-rabin.md): a 1-input/1-output buffer cell
+     * (`output = input`) with the configured delay applied via outputDelayS
+     * - the dice-ts engine's own pending-event-cancel-on-revert behavior
+     * (Chip.updateInputs()) reproduces the glitch-filtering semantics the
+     * old debouncedValueAt()/history-scanning implementation had to
+     * hand-roll. */
+    digitalSynthesis(): DigitalSynthesis {
+        const desc: ChipDesc[] = [
+            chipStart((pin) => { pin[2] = pin[1]; }).inputPins(1).outputPin(2)
+                .outputDelayS(this.delay, this.delay),
+        ];
+        return { desc, pinMap: new Map([[0, 1], [1, 2]]) };
     }
 
     constructor(xx: number, yy: number);

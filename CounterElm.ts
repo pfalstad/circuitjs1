@@ -28,6 +28,9 @@ import { Locale } from "./Locale";
 import { GroupPin, syncedValue, State } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class CounterElm extends ChipElm implements Group {
     invertreset: boolean = false;
@@ -211,6 +214,72 @@ export class CounterElm extends ChipElm implements Group {
             k++;
         }
     }
+    /** Phase 3 (see noble-stirring-rabin.md): one LUT cell per bit, each cell's own real Q pin
+     * doubling as its prevOutputPin (see DFlipFlopElm.digitalSynthesis()'s identical convention),
+     * with the OTHER bits' current values wired in as plain inPins - every bit-cell reconstructs
+     * the whole register's value (its own bit from prevPin, every other bit from its real wired
+     * pin, which reflects that sibling's PRE-edge output since dice-ts's engine always defers an
+     * output's own `.output` mutation through the event queue - see chip.ts's updateOutput() -
+     * even at zero delay, so no sibling can appear to have already advanced when this cell reads
+     * it off the same clock edge), applies +/-1 and the configured modulus exactly per evaluate()
+     * above, then re-extracts its own bit. When idle (no edge), the reconstruction trivially
+     * reproduces the bit it started from (nothing else touches position w), which is why this
+     * needs no separate "hold" branch - matches evaluate()'s "genuine synchronous design"
+     * docstring, just with the whole register visible to every bit-cell instead of a chain.
+     * Deliberately NOT the doc's originally-sketched ripple/9316-style carry chain (chained
+     * bit-to-bit dependency, doc.txt's "extra internal-pin cell" compare-and-clear trick): this
+     * needs no internal pins at all (every bit's real Q pin already carries what a sibling needs,
+     * both as data and via its own prevOutputPin), which sidesteps chip_desc.ts's 24-internal-pin
+     * ceiling entirely - and it's a direct restatement of the already-validated evaluate(), not a
+     * fresh derivation. Trade-off: each bit-cell's LUT is `2^(bits+2+hasUpDown)` truth-table
+     * entries, so this doesn't scale to very wide (~20+ bit) counters - fine for this editor's
+     * realistic range. */
+    digitalSynthesis(): DigitalSynthesis {
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const clkPin = 1, resetPin = 2;
+        const hasUD = this.hasUpDown();
+        const updownPin = hasUD ? bits + 3 : 0;
+        const qPin = (w: number) => bits + 2 - w; // w=0 is LSB, matches execute()'s pins[lastBit-i] layout
+        const neg = this.negativeEdgeTriggered();
+        const modulus = this.modulus;
+        const invertBit = this.invertreset ? 1 : 0;
+
+        const desc: ChipDesc[] = [];
+        for (let w = 0; w < bits; w++) {
+            const out = qPin(w);
+            const inPins: number[] = [clkPin, resetPin];
+            if (hasUD) inPins.push(updownPin);
+            for (let j = 0; j < bits; j++) if (j !== w) inPins.push(qPin(j));
+
+            const logic: ChipLogic = (pin, prevPin, eventPin) => {
+                let value = 0;
+                for (let j = 0; j < bits; j++) {
+                    const bit = j === w ? prevPin[out] : pin[qPin(j)];
+                    if (bit) value |= 1 << j;
+                }
+                const edge = neg ? negEdge(pin, eventPin, clkPin) : posEdge(pin, eventPin, clkPin);
+                if (edge) {
+                    const dir = (hasUD && pin[updownPin]) ? -1 : 1;
+                    value += dir;
+                    if (modulus !== 0) value = ((value % modulus) + modulus) % modulus;
+                }
+                let bitW = (value >> w) & 1;
+                if (pin[resetPin] ^ invertBit) bitW = 0;
+                pin[out] = bitW;
+            };
+
+            desc.push(
+                chipStart(logic).inputPins(...inPins).eventPins(clkPin).outputPin(out).prevOutputPin(out)
+                    .outputDelayS(this.propagationDelay, this.propagationDelay)
+            );
+        }
+        return { desc, pinMap };
+    }
+
     static readonly FLAG_UP_DOWN       = 4;
     static readonly FLAG_NEGATIVE_EDGE = 8;
 

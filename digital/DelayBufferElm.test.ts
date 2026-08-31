@@ -1,183 +1,118 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+// Phase 4 (see noble-stirring-rabin.md): tests the real digitalSynthesis() implementation added
+// to DelayBufferElm, exercised through DigitalGraphBuilder against a real dice-ts-engine Circuit -
+// same manualSource()/probe()/connect()/chipAt() harness as DigitalSynthesisPhase3.test.ts. Unlike
+// the old digital/DigitalElm.ts-based tests this replaces, there's no debouncedValueAt() left to
+// unit-test directly: the delay/glitch-filter behavior is entirely the dice-ts Chip engine's own
+// outputDelayS()/pending-event-cancel-on-revert machinery, so these tests just confirm
+// digitalSynthesis() wires that machinery up with the right delay.
+import { describe, it, expect, beforeEach } from "vitest";
 import { Scheduler } from "./Scheduler";
-import { DigitalElm, DigitalConst, State } from "./DigitalElm";
-import { CircuitElm } from "../CircuitElm";
+import { DigitalElm } from "./DigitalElm";
+import { customChipStart } from "./chip_desc";
+import { buildDigitalCircuit } from "./DigitalGraphBuilder";
+import type { Chip } from "./chip";
 import { DelayBufferElm } from "../DelayBufferElm";
-
-// DelayBufferElm can't be constructed headlessly (needs CircuitElm.app - see
-// ChipGroupLogic.test.ts), so this bypasses the constructor via
-// Object.create(), same trick GateEvaluate.test.ts uses, while exercising
-// the real evaluate()/inputUpdated() delay-and-glitch-filter logic (and,
-// via the inherited base-class machinery, real promotion/sleep).
-function fakeBuffer(delay: number, threshold = 2.5): DelayBufferElm {
-    const buf = Object.create(DelayBufferElm.prototype) as any;
-    buf.inputs = [];
-    buf.liveOutputs = [];
-    buf.value = false;
-    buf.initialValue = false;
-    buf.state = State.Passive;
-    buf.history = [];
-    buf.trustedInputs = new Set();
-    buf.outputEvents = [];
-    buf.cycleTime = 0;
-    buf.firstOutputEvent = 0;
-    buf.currentOutputEvent = 0;
-    buf.cycleParent = null;
-    buf.cycleSpanEnd = null;
-    buf.activationTime = null;
-    buf.currentCycle = buf;
-    buf.previousCycle = null;
-    buf.rootPhaseZero = 0;
-    buf.sleepBase = 0;
-    buf.backfillCycle = buf;
-    buf.backfillTime = 0;
-    buf.lastChecked = 0;
-    buf.sleepRequested = false;
-    buf.digitalDebug = false;
-    buf.inputPatternHistory = [];
-    buf.inputPatternTable = new Map();
-    buf.lastInputChange = [];
-    buf.firstInputTablePos = 0;
-    buf.firstInputMask = 0;
-    buf.checkVisited = false;
-    buf.delay = delay;
-    buf.threshold = threshold;
-    return buf as DelayBufferElm;
-}
-
-// A DigitalConst has no inputs and never records history itself - it's a
-// fine stand-in for a driver as long as tests push into `.history`
-// themselves to mimic what a real commit() would do, since
-// DelayBufferElm.evaluate() now reads the input's history directly (see
-// debouncedValueAt()) rather than just its live .value.
-function setInputAt(input: DigitalConst, tick: number, val: boolean): void {
-    (input as any).value = val;
-    (input as any).history.push([tick, val]);
-}
+import { CircuitElm } from "../CircuitElm";
+import { TIMESCALE } from "./constants";
 
 beforeEach(() => {
     DigitalElm.current = new Scheduler();
-    CircuitElm.sim = { maxTimeStep: 1 } as any; // 1 tick = 1 "second" for these tests
+    CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
 });
 
-describe("DelayBufferElm digital delay/glitch-filter", () => {
-    it("passes a sustained input change through after exactly `delay` ticks", () => {
-        const buf = fakeBuffer(5);
-        const input = new DigitalConst(false);
-        buf.inputs = [input];
-        const sched = DigitalElm.current;
-
-        setInputAt(input, 0, true);
-        buf.inputUpdated(input);
-        expect(buf.value).toBe(false); // not yet - still pending
-
-        sched.runUntil(4);
-        expect(buf.value).toBe(false); // one tick short of the delay
-
-        sched.runUntil(5);
-        expect(buf.value).toBe(true); // delay elapsed, transition committed
-    });
-
-    it("filters a glitch shorter than `delay`", () => {
-        const buf = fakeBuffer(10);
-        const input = new DigitalConst(false);
-        buf.inputs = [input];
-        const sched = DigitalElm.current;
-
-        // input rises at t=0, falls back at t=3 - well within the 10-tick delay
-        setInputAt(input, 0, true);
-        buf.inputUpdated(input);
-        sched.runUntil(3);
-        setInputAt(input, 3, false);
-        buf.inputUpdated(input);
-
-        sched.runUntil(20);
-        expect(buf.value).toBe(false); // glitch never reached the output
-        expect(buf.history.length).toBe(0);
-    });
-
-    it("times a late transition from the most recent edge, not the first bounce", () => {
-        const buf = fakeBuffer(10);
-        const input = new DigitalConst(false);
-        buf.inputs = [input];
-        const sched = DigitalElm.current;
-
-        setInputAt(input, 0, true); buf.inputUpdated(input);  // t=0: A->B
-        sched.runUntil(3);
-        setInputAt(input, 3, false); buf.inputUpdated(input); // t=3: B->A (cancels)
-        sched.runUntil(6);
-        setInputAt(input, 6, true); buf.inputUpdated(input);  // t=6: A->B again
-
-        sched.runUntil(10);
-        expect(buf.value).toBe(false); // only 4 ticks since the real edge at t=6
-        sched.runUntil(16);
-        expect(buf.value).toBe(true); // 10 ticks after t=6
-    });
-});
-
-// A real, self-driving Active source (mirrors DigitalElm.test.ts's own
-// ClockElm helper) - used to verify DelayBufferElm can promote itself, not
-// just stay permanently Passive.
-class ClockElm extends DigitalElm {
-    constructor(period: number) {
-        super();
-        this.cycleTime = period;
-        this.rootPhaseZero = 0;
-        this.state = State.Active;
-        this.firstOutputEvent = 0;
-        this.currentOutputEvent = 1;
-        this.outputEvents.push([0, false]);
-        this.outputEvents.push([period / 2, true]);
-        this.scheduler.schedule(period / 2, this, true);
-    }
-    evaluate(): boolean {
-        throw new Error("Clock is always Active; evaluate() should never be called");
-    }
+function probe() {
+    return {
+        digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
+        nodes: [] as { links: { num: number; elm: any }[] }[],
+    };
 }
 
-describe("DelayBufferElm promotion", () => {
-    it("goes Active/Asleep (not permanently Passive) behind a periodic source", () => {
-        const sched = DigitalElm.current;
-        const clock = new ClockElm(100); // period 100, half-period edges at 0/50/100/...
-        const buf = fakeBuffer(5); // delay well under the 50-tick half-period - no glitch filtering
-        buf.addInput(clock);
+function connect(...posts: { elm: any; num: number }[]): void {
+    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
+    for (const p of posts) p.elm.nodes[p.num] = node;
+}
 
-        sched.runUntil(5000);
+/** A live-pushable digital source - see DigitalSynthesisPhase3.test.ts's identical helper. */
+function manualSource(initial: 0 | 1) {
+    const src = {
+        nodes: [] as { links: { num: number; elm: any }[] }[],
+        value: initial,
+        chip: null as Chip | null,
+        digitalSynthesis: () => ({
+            desc: [customChipStart((chip: Chip) => {
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+            }).outputPin(1)],
+            pinMap: new Map([[0, 1]]),
+        }),
+        set(v: 0 | 1) {
+            src.value = v;
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+        },
+    };
+    return src;
+}
 
-        expect(buf.state).not.toBe(State.Passive);
-        // Sanity: the promoted/sleeping value should still be the clock's
-        // value from exactly `delay` ticks ago - e.g. at the last full
-        // clock edge before "now", offset by delay.
-        const elapsedInPeriod = (sched.currentTime - 5) % 100;
-        const expected = elapsedInPeriod >= 50;
-        expect(buf.currentValue()).toBe(expected);
+function chipAt(elm: any, post: number, chipsByElm: Map<any, Chip[]>): Chip {
+    const { pinMap, desc } = elm.digitalSynthesis();
+    const pin = pinMap.get(post)!;
+    const idx = desc.findIndex((d: any) => d.outPin === pin);
+    return chipsByElm.get(elm)![idx];
+}
+
+describe("DelayBufferElm.digitalSynthesis()", () => {
+    it("passes a sustained input change through after exactly `delay` ticks", () => {
+        const buf = Object.create(DelayBufferElm.prototype) as any;
+        buf.delay = 5 * TIMESCALE;
+        buf.threshold = 2.5;
+        buf.nodes = [];
+
+        const src = manualSource(0);
+        const sink = probe(); // pure leaf cell - needs an external sink to survive dead-code elimination
+        connect({ elm: src, num: 0 }, { elm: buf, num: 0 });
+        connect({ elm: buf, num: 1 }, { elm: sink, num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([src, buf, sink]);
+        src.chip = chipsByElm.get(src)![0];
+        circuit.run(1n);
+
+        const edgeTime = circuit.globalTime;
+        src.set(1);
+        // runWithDeadline(N) clamps at globalTime+N (unlike run(), which always drains
+        // through to the next queued event regardless of the requested budget) - so a
+        // 1-tick call here flushes only src's own 0-delay self-event (which notifies
+        // buf and schedules ITS real event 5 ticks out), without reaching that event.
+        circuit.runWithDeadline(1n);
+        expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // not yet - delay hasn't elapsed
+
+        circuit.runWithDeadline(3n); // total 4 ticks since the edge
+        expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // one tick short of the delay
+
+        circuit.runWithDeadline(1n); // total 5 ticks since the edge
+        expect(chipAt(buf, 1, chipsByElm).output).toBe(1); // delay elapsed, transition committed
+        expect(circuit.globalTime - edgeTime).toBe(5n);
     });
 
-    it("backfills an Asleep input before reading its history (regression: thrashing Active/Passive)", () => {
-        // Reproduces a real bug: this buffer's own self-driven Active
-        // ticks re-verify via evaluate() on every tick (see prepare()'s
-        // "active" branch in DigitalElm.ts), which calls back into
-        // debouncedValueAt(). An Asleep input's .history isn't kept live -
-        // reading it without backfilling first showed a stale value,
-        // causing the buffer to spuriously demote, re-promote, demote
-        // again, and so on - never settling into Asleep itself as long as
-        // something kept asking it to reconfirm.
-        const buf = fakeBuffer(5);
-        const input: any = {
-            state: State.Asleep,
-            // Deliberately stale/incomplete - the real transition to
-            // `true` at tick 20 only shows up once _backfillHistory() is
-            // called, mimicking an Asleep element's real behavior.
-            history: [[0, false]],
-            currentValue: () => true,
-            _backfillHistory: vi.fn((now: number) => { input.history.push([20, true]); }),
-        };
-        buf.inputs = [input];
+    it("filters a glitch shorter than `delay` (engine's own event-cancel-on-revert)", () => {
+        const buf = Object.create(DelayBufferElm.prototype) as any;
+        buf.delay = 10 * TIMESCALE;
+        buf.threshold = 2.5;
+        buf.nodes = [];
 
-        const sched = DigitalElm.current;
-        sched.runUntil(30); // now = 30, well past the tick-20 edge + 5-tick delay
+        const src = manualSource(0);
+        const sink = probe();
+        connect({ elm: src, num: 0 }, { elm: buf, num: 0 });
+        connect({ elm: buf, num: 1 }, { elm: sink, num: 0 });
 
-        expect((buf as any).evaluate()).toBe(true);
-        expect(input._backfillHistory).toHaveBeenCalledWith(30);
+        const { circuit, chipsByElm } = buildDigitalCircuit([src, buf, sink]);
+        src.chip = chipsByElm.get(src)![0];
+        circuit.run(1n);
+
+        src.set(1);
+        circuit.runWithDeadline(1n); // src rises, buf schedules a pending event 10 ticks out
+        src.set(0);
+        circuit.runWithDeadline(1n); // src falls back immediately - cancels the pending event
+
+        circuit.run(100n); // run well past the original delay window
+        expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // glitch never reached the output
     });
 });

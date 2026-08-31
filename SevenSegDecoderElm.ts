@@ -27,6 +27,9 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class SevenSegDecoderElm extends ChipElm implements Group {
 
@@ -220,6 +223,40 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
         super.getInfo(arr);
         for (let k = 0; k < this.digitalPins.length; k++)
             appendInfoLine(arr, `${this.pins[k].text}: ${digitalStateText(this.digitalPins[k])}`);
+    }
+
+    /** Phase 3 (see noble-stirring-rabin.md): one LUT cell per segment, a near-direct translation
+     * of dice-ts's chips/7448.ts segment() - the static symbols/symbols14/symbols16 ROM tables
+     * already are the logic function, unchanged from evaluate() above. All real pins (segCount is
+     * at most 16), so no internal-pin budget concern the way CounterElm/MultiplexerElm have. */
+    digitalSynthesis(): DigitalSynthesis {
+        const segCount = this.getSegmentCount();
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const iPin3 = segCount + 1, iPin2 = segCount + 2, iPin1 = segCount + 3, iPin0 = segCount + 4;
+        const hasBI = this.hasBlank();
+        const biPin = hasBI ? segCount + 5 : 0;
+        const blankOnF = this.blankOnF();
+        const sym = (segCount === 14) ? SevenSegDecoderElm.symbols14 :
+                    (segCount === 16) ? SevenSegDecoderElm.symbols16 :
+                                        SevenSegDecoderElm.symbols;
+
+        const inPins = [iPin3, iPin2, iPin1, iPin0];
+        if (hasBI) inPins.push(biPin);
+
+        const desc: ChipDesc[] = [];
+        for (let seg = 0; seg < segCount; seg++) {
+            const outPin = seg + 1;
+            const logic: ChipLogic = (pin) => {
+                const input = (pin[iPin3] << 3) | (pin[iPin2] << 2) | (pin[iPin1] << 1) | pin[iPin0];
+                const en = !hasBI || pin[biPin];
+                pin[outPin] = (!en || (input === 15 && blankOnF)) ? 0 : (sym[input][seg] ? 1 : 0);
+            };
+            desc.push(chipStart(logic).inputPins(...inPins).outputPin(outPin));
+        }
+        return { desc, pinMap };
     }
 
     getPostCount(): number {

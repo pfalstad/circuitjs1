@@ -28,6 +28,35 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart, i1 } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
+
+/** Builds a binary tree of 2:1 mux cells picking `leaves[sel]`, `sel` read LSB-first off
+ * `selectPins` (weight i at selectPins[i], matching MultiplexerElm.readSelectValue()'s own
+ * convention) - not a single wide LUT cell enumerating every (data, select) combination at once,
+ * which would need a `2^(leaves.length + selectPins.length)`-entry truth table (infeasible for
+ * anything past a handful of channels; chip_desc.ts's LUT enumeration is genuinely brute-force).
+ * Each tree node is instead a tiny 3-input cell (`select bit, a, b`), chained via freshly
+ * `allocPin()`-ed pins - `leaves.length - 1` of them per call, shared out of chip_desc.ts's
+ * MAX_PINS=48 budget for this element's whole synthesized instance, so this doesn't scale to
+ * this editor's largest configurable widths (6 select bits x wide data buses) - fine for
+ * realistic mux sizes. */
+function buildMuxTree(leaves: number[], selectPins: number[], allocPin: () => number, desc: ChipDesc[]): number {
+    let level = leaves.slice();
+    for (const sel of selectPins) {
+        const next: number[] = [];
+        for (let k = 0; k < level.length; k += 2) {
+            const a = level[k], b = level[k + 1];
+            const out = allocPin();
+            const logic: ChipLogic = (pin) => { pin[out] = pin[sel] ? pin[b] : pin[a]; };
+            desc.push(chipStart(logic).inputPins(sel, a, b).outputPin(out));
+            next.push(out);
+        }
+        level = next;
+    }
+    return level[0];
+}
 
 export class MultiplexerElm extends ChipElm implements Group {
     static readonly FLAG_INVERTED_OUTPUT = 1 << 1;
@@ -120,6 +149,50 @@ export class MultiplexerElm extends ChipElm implements Group {
             appendInfoLine(arr, `${pin.text}${pin.lineOver ? "'" : ""}: ${digitalStateText(this.digitalPins[k])}`);
             k++;
         }
+    }
+
+    /** Phase 3 (see noble-stirring-rabin.md): one buildMuxTree() per output bit (dataBusWidth of
+     * them in INPUT_MODE_BUS_BUS, else just one), matching evaluate() above's own per-mode data
+     * layout exactly (channel g's bit i at post `g*dataBusWidth+i` for BUS_BUS, plain channel
+     * post `ch` otherwise). Strobe forces the output low without a separate mux stage; inverted
+     * output is a trailing NOT cell, mirroring evaluate()'s own trailing `out.map(v => !v)`. */
+    digitalSynthesis(): DigitalSynthesis {
+        const M = MultiplexerElm;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const selectPins = Array.from({ length: this.selectBitCount }, (_, i) => this.selectPin + i + 1);
+        const strobePin = this.strobe >= 0 ? this.strobe + 1 : 0;
+        const width = this.outputWidth();
+        const desc: ChipDesc[] = [];
+        let nextInternal = i1;
+        const allocPin = () => nextInternal++;
+
+        for (let bit = 0; bit < width; bit++) {
+            const leaves = Array.from({ length: this.outputCount }, (_, ch) => {
+                const dataPost = this.inputMode === M.INPUT_MODE_BUS_BUS ? ch * this.dataBusWidth + bit : ch;
+                return dataPost + 1;
+            });
+            const muxOut = buildMuxTree(leaves, selectPins, allocPin, desc);
+
+            const outPin = this.outputPin + bit + 1;
+            if (strobePin) {
+                const strobed: ChipLogic = (pin) => { pin[outPin] = pin[strobePin] ? 0 : pin[muxOut]; };
+                desc.push(chipStart(strobed).inputPins(strobePin, muxOut).outputPin(outPin));
+            } else {
+                const buf: ChipLogic = (pin) => { pin[outPin] = pin[muxOut]; };
+                desc.push(chipStart(buf).inputPins(muxOut).outputPin(outPin));
+            }
+
+            if (this.hasFlag(M.FLAG_INVERTED_OUTPUT)) {
+                const invPin = this.outputPin + width + bit + 1;
+                const inv: ChipLogic = (pin) => { pin[invPin] = pin[outPin] ^ 1; };
+                desc.push(chipStart(inv).inputPins(outPin).outputPin(invPin));
+            }
+        }
+
+        return { desc, pinMap };
     }
 
     constructor(xx: number, yy: number);

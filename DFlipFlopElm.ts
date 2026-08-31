@@ -25,6 +25,9 @@ import { Checkbox } from "./Checkbox";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class DFlipFlopElm extends ChipElm implements Group {
     static readonly FLAG_RESET            = 2;
@@ -135,6 +138,53 @@ export class DFlipFlopElm extends ChipElm implements Group {
         super.getInfo(arr);
         appendInfoLine(arr, "opt Q: " + digitalStateText(this.digitalPins[0]));
         appendInfoLine(arr, "opt /Q: " + digitalStateText(this.digitalPins[1]));
+    }
+
+    /** Phase 3 (see noble-stirring-rabin.md): a state cell (own real Q pin doubles as its
+     * prevOutputPin, per-pin post index -> pin number is postIndex+1 throughout, matching
+     * GateElm.digitalSynthesis()'s convention) computes Q exactly per evaluate() above - captures
+     * D on the configured clock edge, or forces to isSet/isReset on that same quirky
+     * independent-per-pin basis - then a /Q buffer cell reads it back, re-deriving the same
+     * isSet/isReset override rather than simply inverting Q (see evaluate()'s own docstring for
+     * why DFlipFlopElm's /Q isn't strictly !Q during a set/reset collision). */
+    digitalSynthesis(): DigitalSynthesis {
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const Dpin = 1, Qpin = 2, notQpin = 3, clkPin = 4;
+        const hasR = this.hasReset(), hasS = this.hasSet();
+        const Rpin = hasR ? 5 : 0;
+        const Spin = hasS ? 6 : 0;
+        const invertBit = this.invertSetReset() ? 1 : 0;
+
+        const stateIn: number[] = [Dpin, clkPin];
+        if (hasR) stateIn.push(Rpin);
+        if (hasS) stateIn.push(Spin);
+
+        const state: ChipLogic = (pin, prevPin, eventPin) => {
+            const isSet = hasS ? (pin[Spin] ^ invertBit) : 0;
+            const isReset = hasR ? (pin[Rpin] ^ invertBit) : 0;
+            if (isSet || isReset) pin[Qpin] = isSet;
+            else if (posEdge(pin, eventPin, clkPin)) pin[Qpin] = pin[Dpin];
+            else pin[Qpin] = prevPin[Qpin];
+        };
+
+        const notQIn: number[] = [Qpin];
+        if (hasR) notQIn.push(Rpin);
+        if (hasS) notQIn.push(Spin);
+        const notQ: ChipLogic = (pin) => {
+            const isSet = hasS ? (pin[Spin] ^ invertBit) : 0;
+            const isReset = hasR ? (pin[Rpin] ^ invertBit) : 0;
+            pin[notQpin] = (isSet || isReset) ? isReset : (pin[Qpin] ^ 1);
+        };
+
+        const desc: ChipDesc[] = [
+            chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(Qpin).prevOutputPin(Qpin)
+                .outputDelayS(this.propagationDelay, this.propagationDelay),
+            chipStart(notQ).inputPins(...notQIn).outputPin(notQpin),
+        ];
+        return { desc, pinMap };
     }
 
     constructor(xx: number, yy: number);

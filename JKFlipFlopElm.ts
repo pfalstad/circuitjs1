@@ -25,6 +25,9 @@ import { Checkbox } from "./Checkbox";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class JKFlipFlopElm extends ChipElm implements Group {
     static readonly FLAG_RESET         = 2;
@@ -110,6 +113,46 @@ export class JKFlipFlopElm extends ChipElm implements Group {
         super.getInfo(arr);
         appendInfoLine(arr, "opt Q: " + digitalStateText(this.digitalPins[0]));
         appendInfoLine(arr, "opt /Q: " + digitalStateText(this.digitalPins[1]));
+    }
+
+    /** Phase 3 (see noble-stirring-rabin.md): a state cell (own real Q pin doubles as its
+     * prevOutputPin - see DFlipFlopElm.digitalSynthesis()'s identical convention) computes Q
+     * exactly per evaluate() above (J/K transition on the configured edge, then an async reset
+     * override), then a /Q buffer strictly inverts it - unlike DFlipFlopElm, JK's /Q has no
+     * independent-forcing quirk (see evaluate()'s own `return [q, !q]`). */
+    digitalSynthesis(): DigitalSynthesis {
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const Jpin = 1, clkPin = 2, Kpin = 3, Qpin = 4, notQpin = 5;
+        const hasR = this.hasReset();
+        const Rpin = hasR ? 6 : 0;
+        const edgeIsPositive = this.positiveEdgeTriggered();
+        const invertBit = this.invertReset() ? 1 : 0;
+
+        const stateIn: number[] = [Jpin, clkPin, Kpin];
+        if (hasR) stateIn.push(Rpin);
+
+        const state: ChipLogic = (pin, prevPin, eventPin) => {
+            let q = prevPin[Qpin];
+            const edge = edgeIsPositive ? posEdge(pin, eventPin, clkPin) : negEdge(pin, eventPin, clkPin);
+            if (edge) {
+                if (pin[Jpin]) q = pin[Kpin] ? (q ^ 1) : 1;
+                else if (pin[Kpin]) q = 0;
+            }
+            if (hasR && (pin[Rpin] ^ invertBit)) q = 0;
+            pin[Qpin] = q;
+        };
+
+        const notQ: ChipLogic = (pin) => { pin[notQpin] = pin[Qpin] ^ 1; };
+
+        const desc: ChipDesc[] = [
+            chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(Qpin).prevOutputPin(Qpin)
+                .outputDelayS(this.propagationDelay, this.propagationDelay),
+            chipStart(notQ).inputPins(Qpin).outputPin(notQpin),
+        ];
+        return { desc, pinMap };
     }
 
     constructor(xx: number, yy: number);
