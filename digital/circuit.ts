@@ -10,7 +10,8 @@
 // must bound how long a single call can block the main thread (mirrors
 // digital/Scheduler.ts's old `runUntil(maxTime, deadlineMs)`).
 
-import { Chip, ChipLink } from "./chip";
+import { Chip, ChipLink, ChipType } from "./chip";
+import { customChipStart } from "./chip_desc";
 import type { ChipDesc } from "./chip_desc";
 import type { CircuitDesc, ChipInstanceEntry } from "./circuit_desc";
 
@@ -20,6 +21,15 @@ const SUBCYCLE_SIZE = 64;
 
 const chipVCC: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
 const chipGND: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
+
+// Not Pong-specific (unlike the video/audio special chips this port drops) - the general escape
+// hatch circuit_desc.ts's DISABLE_OPTIMIZATION() already exposes for marking a pin "externally
+// observed" (a scope probe, a display sink) so makeAllConnections()'s dead-code elimination below
+// doesn't prune the chip that drives it just because no other *chip* consumes its output.
+function deoptimizeLogic(chip: Chip): void {
+    for (const cl of chip.outputLinks) cl.chip.optimizationDisabled = true;
+}
+const chipDeoptimizer: ChipDesc = customChipStart(deoptimizeLogic).outputPin(1);
 
 interface QueueEntry { time: bigint; chip: Chip | null; }
 
@@ -47,6 +57,11 @@ class CircuitBuilder {
         const gnd = new Chip(1, 64, this.circuit, chipGND);
         this.chips.push(gnd);
         this.addToChipMap("_GND", { chip: gnd, desc: chipGND });
+
+        const deopt = new Chip(1, 64, this.circuit, chipDeoptimizer);
+        deopt.isDeoptimizer = true;
+        this.chips.push(deopt);
+        this.addToChipMap("_DEOPTIMIZER", { chip: deopt, desc: chipDeoptimizer });
     }
 
     createChip(chipDescArray: ChipDesc[], name: string, custom: unknown, queueSize: number, subcycleSize: number): void {
@@ -158,6 +173,8 @@ class CircuitBuilder {
             removed = false;
             for (let idx = 0; idx < this.chips.length; idx++) {
                 const chip = this.chips[idx];
+                if (chip.type === ChipType.CUSTOM_CHIP) continue;
+
                 const found = this.connectionListOut.some(c => c.cd.chip === chip);
                 if (!found) {
                     console.log(`Removing unused chip ${this.getOutputInfo(chip)}`);
