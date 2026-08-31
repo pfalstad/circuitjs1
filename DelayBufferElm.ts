@@ -28,37 +28,18 @@ import { GateElm } from "./GateElm";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
-import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class DelayBufferElm extends withDigital(CircuitElm) {
-    // CircuitWiring's isGateLike() check looks for .addInput + a numeric
-    // .inputCount (same convention GateElm/InverterElm use) to find this
-    // element's output post (nodes[inputCount]) - fixed 1-input/1-output,
-    // matching stamp()/doStep()'s existing node convention.
-    readonly inputCount = 1;
-
+export class DelayBufferElm extends CircuitElm {
     delay: number = 0;
     threshold: number = 2.5;
     highVoltage: number = 5;
     center: Point;
     gatePoly: Polygon;
     delayEndTime: number;
-
-    /** DigitalElm's required evaluate(): thin wrapper over the live input,
-     * falling back to the analog voltage threshold before
-     * wireDigitalCircuit() has populated this.inputs - same fallback
-     * pattern as InverterElm.evaluate()/GateElm.evaluate(). */
-    evaluate(sender?: DigitalElmInstance | null): boolean {
-        if (this.inputs.length > 0)
-            return this.inputs[0].currentValue();
-        return this.nodes[0].v > this.threshold;
-    }
 
     /** Phase 4 (see noble-stirring-rabin.md): a 1-input/1-output buffer cell
      * (`output = input`) with the configured delay applied via outputDelayS
@@ -182,8 +163,6 @@ export class DelayBufferElm extends withDigital(CircuitElm) {
             return new EditInfo("Threshold (V)", this.threshold, 0, 0);
         if (n === 2)
             return new EditInfo("High Logic Voltage", this.highVoltage, 0, 0).setUnitStep();
-        if (n === 3)
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -194,8 +173,6 @@ export class DelayBufferElm extends withDigital(CircuitElm) {
             this.threshold = ei.value;
         if (n === 2)
             this.highVoltage = ei.value;
-        if (n === 3)
-            this.digitalDebug = ei.checkbox.getState();
     }
 
     // there is no current path through the inverter input, but there

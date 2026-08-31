@@ -10,8 +10,6 @@
 // exercising each class's real methods, same pattern as ChipGroupLogic.test.ts/
 // CircuitWiring.test.ts.
 import { describe, it, expect, beforeEach } from "vitest";
-import { Scheduler } from "./Scheduler";
-import { DigitalElm } from "./DigitalElm";
 import { customChipStart } from "./chip_desc";
 import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import { AndGateElm, OrGateElm, XorGateElm, NandGateElm, NorGateElm, XnorGateElm, GateElm } from "../GateElm";
@@ -22,7 +20,6 @@ import { VoltageElm } from "../VoltageElm";
 import { CircuitElm } from "../CircuitElm";
 
 beforeEach(() => {
-    DigitalElm.current = new Scheduler();
     // VoltageElm.getVoltage() unconditionally reads CircuitElm.sim.t before branching on
     // waveform (even for WF_DC, whose result doesn't depend on it) - real app always has
     // CircuitElm.sim set by the time digital wiring runs; headless tests need a stand-in.
@@ -196,10 +193,6 @@ describe("LogicInputElm.digitalSynthesis() / toggle()", () => {
         (li as any).flags = 0;
         (li as any).momentary = false;
         (li as any).label = null; // SwitchElm.toggle() checks this - a class field, unset via Object.create
-        (li as any).value = initialPosition !== 0;
-        (li as any).history = [];
-        (li as any).liveOutputs = [];
-        // .scheduler is a getter returning DigitalElm.current (set in beforeEach) - no setter.
         li.nodes = [];
         li.digitalChip = null;
         return li;

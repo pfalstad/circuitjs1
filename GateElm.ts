@@ -27,15 +27,12 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
-import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export abstract class GateElm extends withDigital(CircuitElm) {
+export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
     static readonly FLAG_SCHMITT = 1<<1;
     static readonly FLAG_INVERT_INPUTS = 1<<2;
@@ -314,17 +311,6 @@ export abstract class GateElm extends withDigital(CircuitElm) {
 
     getInput(x: number): boolean {
         const high = !this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
-        if (this.inputs.length > 0) {
-            // Digital fast path: this.inputs (the DigitalElm graph, wired
-            // by CircuitWiring.wireDigitalCircuit()) has an entry for this
-            // post, so read the upstream element's value directly instead
-            // of thresholding a voltage. Schmitt hysteresis doesn't apply
-            // here - it exists to reject noisy analog signals near the
-            // switching threshold, but a value coming from another digital
-            // element's currentValue() is already a clean boolean.
-            const res = this.inputs[x].currentValue();
-            return res ? high : !high;
-        }
         if (!this.hasSchmittInputs())
             return (this.nodes[x].v > this.highVoltage * .5) ? high : !high;
         // inputStates is normally allocated in setPoints(), but elements inside a
@@ -338,34 +324,6 @@ export abstract class GateElm extends withDigital(CircuitElm) {
 
     oscillationCount: number = 0;
     lastTime: number = 0;
-
-    /** DigitalElm's required evaluate(). A thin wrapper over the existing
-     * calcFunction()/isInverting() logic already used by doStep() every
-     * timestep - calcFunction() calls getInput(), which (see getInput()
-     * above) reads this.inputs (the DigitalElm graph) once
-     * CircuitWiring.wireDigitalCircuit() has populated it, falling back to
-     * the analog voltage otherwise. Still dormant until the sim loop
-     * itself is switched onto the digital scheduler - doStep() runs every
-     * timestep exactly as before until then. */
-    evaluate(sender?: DigitalElmInstance | null): boolean {
-        let f = this.calcFunction();
-        if (this.isInverting()) f = !f;
-        return f;
-    }
-
-    /** Overrides the base Digital mixin's propagationDelayTicks() (fixed at
-     * MIN_HOP_TICKS) to honor this gate's own configured propagationDelay,
-     * floored at MIN_HOP_TICKS even when propagationDelay is 0 - so this is
-     * a no-op for the common case and only lengthens the hop when a longer
-     * delay is actually configured. evaluate() itself is untouched - it
-     * keeps reading current input values exactly as the baseline model
-     * requires; the delay comes entirely from *when* it gets scheduled to
-     * run, never from reading stale history. */
-    propagationDelayTicks(): number {
-        const step = CircuitElm.sim?.maxTimeStep;
-        if (!step) return 1; // sim not set up yet (e.g. a unit test constructing a gate directly) - still floor at 1
-        return Math.max(1, Math.round(this.propagationDelay / step));
-    }
 
     doStep(): void {
         if (this.justLoaded) {
@@ -429,8 +387,6 @@ export abstract class GateElm extends withDigital(CircuitElm) {
             return EditInfo.createCheckbox("Invert Inputs", this.hasFlag(GateElm.FLAG_INVERT_INPUTS));
         if (n === 4)
             return new EditInfo("Propagation Delay (s)", this.propagationDelay, 0, 0);
-        if (n === 5)
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -460,8 +416,6 @@ export abstract class GateElm extends withDigital(CircuitElm) {
         }
         if (n === 4)
             this.propagationDelay = ei.value;
-        if (n === 5)
-            this.digitalDebug = ei.checkbox.getState();
     }
 
     validate(): boolean { return this.validateRailNode(this.inputCount); }

@@ -26,7 +26,7 @@ import { CircuitElm } from "./CircuitElm";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { Locale } from "./Locale";
-import { DigitalElm } from "./digital/DigitalElm";
+import { setPromotionEnabled, promotionEnabled } from "./digital/constants";
 
 export class EditOptions implements Editable {
     app: CirSim;
@@ -113,15 +113,13 @@ export class EditOptions implements Editable {
 
         if (n === 18) {
             const ei = new EditInfo("", 0, -1, -1);
-            // Global, not per-element, to start - see DigitalElm.ts's own
-            // docstring on promotionEnabled: this is the SAME switch the
-            // verification harness uses to compare the optimized digital
-            // fast path against its always-correct live-evaluated
-            // baseline. Meant as a diagnostic: if disabling this makes a
-            // "gets slower/garbled over time" symptom go away, the bug is
-            // in the promotion/sleep machinery, not the display path
-            // reading its output.
-            ei.checkbox = new Checkbox("Disable Digital Optimization", !DigitalElm.promotionEnabled);
+            // Global, not per-element - see digital/constants.ts's own docstring on
+            // promotionEnabled: this is the SAME switch the verification harness uses to compare
+            // the optimized digital fast path against its always-correct live-evaluated
+            // baseline. Meant as a diagnostic: if disabling this makes a "gets slower/garbled
+            // over time" symptom go away, the bug is in the promotion/sleep machinery, not the
+            // display path reading its output.
+            ei.checkbox = new Checkbox("Disable Digital Optimization", !promotionEnabled);
             return ei;
         }
 
@@ -237,7 +235,7 @@ export class EditOptions implements Editable {
         if (n === 17)
             CircuitElm.setValueFontSize(ei.value > 0 ? Math.trunc(ei.value) : 12);
         if (n === 18) {
-            DigitalElm.promotionEnabled = !ei.checkbox!.getState();
+            setPromotionEnabled(!ei.checkbox!.getState());
             this.app.needAnalyze();
         }
         if (n === 19 && ei.value > 0)

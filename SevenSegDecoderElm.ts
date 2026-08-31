@@ -24,15 +24,12 @@ import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
-import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class SevenSegDecoderElm extends ChipElm implements Group {
+export class SevenSegDecoderElm extends ChipElm {
 
     private static readonly symbols: boolean[][] = [
         [true,true,true,true,true,true,false],     //0
@@ -174,55 +171,10 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
     hasBlank(): boolean { return (this.flags & SevenSegDecoderElm.FLAG_ENABLE) !== 0; }
     blankOnF(): boolean { return (this.flags & SevenSegDecoderElm.FLAG_BLANK_F) !== 0; }
 
-    // --- Group/GroupPin: digital fast-path scaffolding - see
-    // CounterElm.ts/DFlipFlopElm.ts for the same pattern.
-    //
-    // this.inputs layout (wireDigitalCircuit() populates it as every
-    // non-output pin, in post order): setupPins() lays the segment
-    // outputs out first (posts [0, segCount), all output - excluded), then
-    // the I3..I0 bit pins via makeBitPins(..., reversed=true) - which,
-    // read in POST order, comes out I3,I2,I1,I0 (see execute()'s own
-    // pins[segCount+0..3] indexing, weights 8/4/2/1 respectively) - then
-    // BI last (iff hasBlank()). So:
-    //   inputs[0..3] -> I3,I2,I1,I0 (weights 8,4,2,1 - matches execute())
-    //   inputs[4]    -> BI (iff hasBlank())
-    // digitalPins[k] is segment k (pins[k], k in [0, segCount)) - already
-    // in post order with nothing else output before it, so no reindexing
-    // is needed the way a chip with non-output pins mixed in earlier
-    // would require.
-    inputs: DigitalElmInstance[] = [];
-    digitalPins: GroupPin[] = [];
-    digitalDebugPins = false;
-
-    initDigitalPins(): void {
-        const segCount = this.getSegmentCount();
-        this.digitalPins = Array.from({ length: segCount }, (_, k) => new GroupPin(this, k));
-        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
-    }
-
-    /** Pure combinational equivalent of execute() above - no clock/edge
-     * dependency, so sender is unused. */
-    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
-        const now = pin.scheduler.currentTime;
-        const segCount = this.getSegmentCount();
-        let input = 0;
-        if (syncedValue(this.inputs[0], now)) input += 8;
-        if (syncedValue(this.inputs[1], now)) input += 4;
-        if (syncedValue(this.inputs[2], now)) input += 2;
-        if (syncedValue(this.inputs[3], now)) input += 1;
-        let en = true;
-        if (this.hasBlank() && !syncedValue(this.inputs[4], now)) en = false;
-        if (!en || (input === 15 && this.blankOnF()))
-            return new Array(segCount).fill(false);
-        const sym = (segCount === 14) ? SevenSegDecoderElm.symbols14 :
-                    (segCount === 16) ? SevenSegDecoderElm.symbols16 :
-                                        SevenSegDecoderElm.symbols;
-        return sym[input];
-    }
-
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        for (let k = 0; k < this.digitalPins.length; k++)
+        const segCount = this.getSegmentCount();
+        for (let k = 0; k < segCount; k++)
             appendInfoLine(arr, `${this.pins[k].text}: ${digitalStateTextForOutput(this, k)}`);
     }
 
@@ -309,8 +261,6 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
             ei.checkbox = new Checkbox("Blank on 1111", this.blankOnF());
             return ei;
         }
-        if (n === 3)
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebugPins);
         return super.getChipEditInfo(n);
     }
 
@@ -329,11 +279,6 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
         }
         if (n === 2)
             this.flags = ei.changeFlag(this.flags, SevenSegDecoderElm.FLAG_BLANK_F);
-        if (n === 3) {
-            this.digitalDebugPins = ei.checkbox!.getState();
-            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
-            return;
-        }
         super.setChipEditValue(n, ei);
     }
 

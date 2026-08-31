@@ -28,23 +28,12 @@ import { WireRouter } from "./WireRouter";
 import { GateElm } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
-import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class InverterElm extends withDigital(CircuitElm) {
-    // CircuitWiring's isGateLike() check (shared with GateElm) looks for
-    // .addInput + a numeric .inputCount to find this element's output post
-    // (nodes[inputCount], same convention GateElm uses) - InverterElm is a
-    // fixed 1-input/1-output element (post 0 = input, post 1 = output, same
-    // as its existing stamp()/doStep() already assume) that doesn't
-    // otherwise have this field, so it's declared here purely for that.
-    readonly inputCount = 1;
-
+export class InverterElm extends CircuitElm {
     slewRate: number; // V/ns
     highVoltage: number;
     gatePoly: Polygon;
@@ -151,19 +140,6 @@ export class InverterElm extends withDigital(CircuitElm) {
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[1], this.voltSource, out);
     }
 
-    /** DigitalElm's required evaluate(). Same thin-wrapper pattern as
-     * GateElm.evaluate(): reads this.inputs (the DigitalElm graph, wired by
-     * CircuitWiring.wireDigitalCircuit()) once populated, falling back to
-     * the analog voltage threshold otherwise - matches doStep()'s own
-     * `nodes[0].v > highVoltage * .5` test, just without the slew-rate
-     * ramping (which only matters for the analog voltage waveform, not the
-     * underlying logical value). */
-    evaluate(sender?: DigitalElmInstance | null): boolean {
-        if (this.inputs.length > 0)
-            return !this.inputs[0].currentValue();
-        return !(this.nodes[0].v > this.highVoltage * .5);
-    }
-
     /** Phase 2 (see noble-stirring-rabin.md): a 1-input/1-output NOT cell - collapses to a
      * single LUT cell like GateElm.digitalSynthesis(), just with no propagationDelay field of
      * its own (unlike GateElm) so the delay is fixed at 0. */
@@ -186,8 +162,6 @@ export class InverterElm extends withDigital(CircuitElm) {
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);
         if (n === 1)
             return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
-        if (n === 2)
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -196,8 +170,6 @@ export class InverterElm extends withDigital(CircuitElm) {
             this.slewRate = ei.value;
         if (n === 1)
             this.highVoltage = GateElm.lastHighVoltage = ei.value;
-        if (n === 2)
-            this.digitalDebug = ei.checkbox.getState();
     }
 
     // no current path through inverter input, but indirect path through output to ground

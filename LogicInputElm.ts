@@ -29,15 +29,13 @@ import { Rectangle } from "./Rectangle";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
-import { withDigital } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class LogicInputElm extends withDigital(SwitchElm) {
+export class LogicInputElm extends SwitchElm {
     static readonly FLAG_TERNARY = 1;
     static readonly FLAG_NUMERIC = 2;
     hiV: number;
@@ -67,14 +65,9 @@ export class LogicInputElm extends withDigital(SwitchElm) {
     isTernary(): boolean { return (this.flags & LogicInputElm.FLAG_TERNARY) !== 0; }
     isNumeric(): boolean { return (this.flags & (LogicInputElm.FLAG_TERNARY | LogicInputElm.FLAG_NUMERIC)) !== 0; }
 
-    // --- Digital fast-path wiring ---
-    //
-    // A user-toggleable digital source - the other one besides RailElm's
-    // DC/clock rails (see isRailSourceLike() in digital/CircuitWiring.ts,
-    // which duck-types on isDigitalSource() rather than being RailElm-
-    // specific). Ternary mode is a genuine 3-level voltage, not a boolean,
-    // so it's excluded - same scope restriction RailElm places on its own
-    // non-square/non-DC waveforms.
+    // A user-toggleable digital source - the other one besides RailElm's DC/clock rails.
+    // Ternary mode is a genuine 3-level voltage, not a boolean, so it's excluded - same scope
+    // restriction RailElm places on its own non-square/non-DC waveforms.
     isDigitalSource(): boolean { return !this.isTernary(); }
 
     private digitalHigh(): boolean { return this.position !== 0; }
@@ -84,26 +77,6 @@ export class LogicInputElm extends withDigital(SwitchElm) {
      * is duck-typed rather than that function special-casing RailElm's
      * own fields. */
     getDigitalVoltage(v: boolean): number { return v ? this.hiV : this.loV; }
-
-    /** Sets this element up as a digital source: a Passive, zero-input
-     * "constant" whose value comes from this.position - see
-     * RailElm.initDigitalSource()'s DC-rail branch for the analogous
-     * fixed-voltage case. Unlike a DC rail's voltage, this one changes
-     * live via user interaction (see toggle() below), so "constant" here
-     * just means "not driven by another digital element's inputs", not
-     * "never changes" - always fully reinitializes via resetDigital() for
-     * the same reason RailElm's does (a fresh Scheduler exists per stamp). */
-    initDigitalSource(): void {
-        if (!this.isDigitalSource()) return;
-        this.resetDigital();
-        this.value = this.digitalHigh();
-    }
-
-    evaluate(): boolean {
-        if (this.isDigitalSource())
-            throw new Error("digital logic-input source has no inputs; evaluate() should never be called");
-        return false;
-    }
 
     /** Phase 2 (see noble-stirring-rabin.md): unlike RailElm's DC tie (a genuine constant, bound
      * straight to _VCC/_GND - see DigitalTieSource), this value changes live via toggle() below,
@@ -140,11 +113,7 @@ export class LogicInputElm extends withDigital(SwitchElm) {
      * place a live toggle actually gets noticed downstream in digital
      * mode - pushing straight into this.digitalChip (set once by
      * SimulationManager.initDigitalCircuit() - see that field's own
-     * docstring) is the whole mechanism now; there's no old-engine
-     * state/history/notifyOutputs() left to keep in sync (see
-     * noble-stirring-rabin.md Phase 5 - nothing reads those anymore, since
-     * the old Scheduler is no longer what's actually driving the
-     * simulation). */
+     * docstring) is the whole mechanism. */
     toggle(): void {
         super.toggle();
         if (!this.isDigitalSource()) return;
@@ -257,8 +226,6 @@ export class LogicInputElm extends withDigital(SwitchElm) {
         }
         if (n === 5)
             return this.getKeyShortcutEditInfo();
-        if (n === 6 && this.isDigitalSource())
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebug);
         return null;
     }
 
@@ -284,8 +251,6 @@ export class LogicInputElm extends withDigital(SwitchElm) {
         }
         if (n === 5)
             this.setKeyShortcutEditValue(ei);
-        if (n === 6)
-            this.digitalDebug = ei.checkbox.getState();
     }
 
     addRoutingObstacle(router: WireRouter): void {

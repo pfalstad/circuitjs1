@@ -6,8 +6,6 @@
 // outputDelayS()/pending-event-cancel-on-revert machinery, so these tests just confirm
 // digitalSynthesis() wires that machinery up with the right delay.
 import { describe, it, expect, beforeEach } from "vitest";
-import { Scheduler } from "./Scheduler";
-import { DigitalElm } from "./DigitalElm";
 import { customChipStart } from "./chip_desc";
 import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import type { Chip } from "./chip";
@@ -16,7 +14,6 @@ import { CircuitElm } from "../CircuitElm";
 import { TIMESCALE } from "./constants";
 
 beforeEach(() => {
-    DigitalElm.current = new Scheduler();
     CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
 });
 

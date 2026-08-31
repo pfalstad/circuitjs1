@@ -28,10 +28,8 @@ import { Locale } from "./Locale";
 import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
-import { DigitalElm } from "./digital/DigitalElm";
-import { syncNodesToPassiveChips } from "./digital/CircuitWiring";
-import { setTimescale } from "./digital/constants";
-import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph } from "./digital/DigitalGraphBuilder";
+import { setTimescale, promotionEnabled } from "./digital/constants";
+import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips } from "./digital/DigitalGraphBuilder";
 import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 
 // declared before SimulationManager so they can be referenced in static members
@@ -114,12 +112,8 @@ export class SimulationManager {
     // unused for now) rather than removed, so it's there to reconcile with
     // when analog support returns.
     //
-    // Phase 5 (see noble-stirring-rabin.md): built by DigitalGraphBuilder.buildDigitalCircuit()
-    // against the ported dice-ts engine (digital/circuit.ts's Circuit/digital/chip.ts's Chip),
-    // replacing the old hand-rolled Scheduler this field used to hold. digital/Scheduler.ts and
-    // digital/DigitalElm.ts's promotion engine aren't driven by this path anymore, but aren't
-    // deleted yet either - see initDigitalCircuit()'s own docstring for why (getInfo() panels/
-    // LogicInputElm.toggle() still need a couple of their fields).
+    // Built by DigitalGraphBuilder.buildDigitalCircuit() against the ported dice-ts engine
+    // (digital/circuit.ts's Circuit/digital/chip.ts's Chip).
     digitalGraph: DigitalGraph | null = null;
     digitalReady: boolean = false;
 
@@ -1129,23 +1123,18 @@ export class SimulationManager {
 
     // Sets up the digital fast path for the circuit just stamped above: synthesize + wire every
     // digital-capable element into a fresh dice-ts Circuit (DigitalGraphBuilder.
-    // buildDigitalCircuit() - see noble-stirring-rabin.md Phase 5), instead of the old engine's
-    // Scheduler/initDigitalElements().
+    // buildDigitalCircuit()).
     //
-    // Still reads DigitalElm.promotionEnabled (the old engine's "Disable Digital Optimization"
-    // toggle, EditOptions.ts's checkbox 18) rather than introducing a second one - that checkbox
-    // already forces a restamp (needAnalyze()) on toggle, so "fresh graph -> read the flag once
-    // at build time" is exactly as live as the old code's "fresh scheduler -> every element
-    // starts Passive" was; there's no live-without-restamp requirement to support. digital/
-    // DigitalElm.ts/digital/Scheduler.ts aren't deleted this phase (see this class's
-    // digitalGraph field comment) so this static is still the one real source of truth for the
-    // toggle.
+    // Reads digital/constants.ts's promotionEnabled (EditOptions.ts's "Disable Digital
+    // Optimization" checkbox 18) once per build - that checkbox already forces a restamp
+    // (needAnalyze()) on toggle, so "fresh graph -> read the flag once at build time" is live
+    // enough; there's no need to support toggling it without a restamp.
     initDigitalCircuit(): void {
         setTimescale(this.maxTimeStep);
         this.digitalGraph = buildDigitalCircuit(this.elmArr);
         setCurrentDigitalGraph(this.digitalGraph);
 
-        if (!DigitalElm.promotionEnabled)
+        if (!promotionEnabled)
             for (const chip of this.digitalGraph.circuit.chips) chip.optimizationDisabled = true;
 
         // Give every element exposing a live-pushable `digitalChip` field (LogicInputElm's own

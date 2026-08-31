@@ -308,6 +308,36 @@ export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[
     }
 }
 
+/** Appends a line to a getInfo() array, which is a fixed-size array pre-filled with null (new
+ * Array(10).fill(null)) rather than a plain growable list - writing to arr[arr.length] would
+ * land past the end instead of into the first actually-empty slot. No-ops if every slot is
+ * already filled. */
+export function appendInfoLine(arr: (string | null)[], line: string): void {
+    const i = arr.indexOf(null);
+    if (i !== -1) arr[i] = line;
+}
+
+/** For ChipElm-derived elements NOT digital-synthesizable themselves (pure sinks like
+ * DecimalDisplayElm, LEDArrayElm, SevenSegElm - no digitalSynthesis() of their own), refreshes
+ * pins[i].value from nodes[i].v for every non-output pin, mirroring what ChipElm.startIteration()
+ * used to do every timestep in the old analog loop. That loop isn't called at all on this digital
+ * path, so anything reading pins[i].value directly - as these display-only elements' own draw()
+ * methods do - would otherwise go stale at whatever it was on construction (typically false/0),
+ * regardless of what the digital graph actually computed and already wrote into nodes[i].v via
+ * syncDigitalToNodesNew() above. Skips digital-synthesizable elements (CounterElm, ...): those
+ * render via nodes[i].v directly (ChipElm.drawChip()'s generic per-pin coloring), so their own
+ * pins[i].value is never read for anything real - not worth refreshing here too. */
+export function syncNodesToPassiveChips(elmList: any[]): void {
+    for (const elm of elmList) {
+        if (isDigitalSynthesizable(elm)) continue;
+        if (!Array.isArray(elm.pins) || !Array.isArray(elm.nodes) || typeof elm.getThreshold !== "function")
+            continue;
+        for (let i = 0; i < elm.pins.length; i++)
+            if (!elm.pins[i].output)
+                elm.pins[i].value = elm.nodes[i].v > elm.getThreshold();
+    }
+}
+
 /** Optimization-status text for a single Chip, replacing digitalStateText() - same three
  * State/ChipState cases and "Constant" special case (a zero-input Passive chip - a DC tie or a
  * fixed-logic cell - never promotes and never needs to, unlike a real Passive chip still proving

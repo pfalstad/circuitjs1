@@ -23,3 +23,13 @@ export let DEBUG_TRACE = false;
 export function setDebugTrace(on: boolean): void {
     DEBUG_TRACE = on;
 }
+
+// The "always-correct baseline" toggle (EditOptions.ts's "Disable Digital Optimization"
+// checkbox): false forces every synthesized Chip to run with optimizationDisabled (see
+// SimulationManager.initDigitalCircuit()), which is what the verification harness compares the
+// real optimized path against.
+export let promotionEnabled = true;
+
+export function setPromotionEnabled(on: boolean): void {
+    promotionEnabled = on;
+}

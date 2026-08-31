@@ -11,8 +11,6 @@
 // available outside the running app - Object.create() bypasses the constructor while still
 // exercising each class's real methods, same pattern as DigitalSynthesis.test.ts.
 import { describe, it, expect, beforeEach } from "vitest";
-import { Scheduler } from "./Scheduler";
-import { DigitalElm } from "./DigitalElm";
 import { customChipStart } from "./chip_desc";
 import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import type { Chip } from "./chip";
@@ -24,7 +22,6 @@ import { SevenSegDecoderElm } from "../SevenSegDecoderElm";
 import { CircuitElm } from "../CircuitElm";
 
 beforeEach(() => {
-    DigitalElm.current = new Scheduler();
     CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
 });
 

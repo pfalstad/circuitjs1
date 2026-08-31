@@ -18,19 +18,15 @@
 */
 
 import { ChipElm, Pin } from "./ChipElm";
-import { CircuitElm } from "./CircuitElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
-import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class JKFlipFlopElm extends ChipElm implements Group {
+export class JKFlipFlopElm extends ChipElm {
     static readonly FLAG_RESET         = 2;
     static readonly FLAG_POSITIVE_EDGE = 4;
     static readonly FLAG_INVERT_RESET  = 8;
@@ -39,76 +35,7 @@ export class JKFlipFlopElm extends ChipElm implements Group {
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
     invertReset():        boolean { return (this.flags & JKFlipFlopElm.FLAG_INVERT_RESET ) !== 0; }
 
-    // --- Group/GroupPin: digital fast-path scaffolding, dormant until a
-    // future circuit-detection/wiring pass populates `inputs` and calls
-    // initDigitalPins() - see DFlipFlopElm.ts for the same pattern.
-    // inputs layout: [J, clk, K, R?] (R present iff hasReset()).
-    inputs: DigitalElmInstance[] = [];
-    digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
-
-    // Persists across re-stamps (unlike digitalPins itself, rebuilt from
-    // scratch by initDigitalPins() below - see DFlipFlopElm.ts for why).
-    digitalDebugPins = false;
-
-    // Dedicated clock-edge watermark, one per pin - see CounterElm.ts's/
-    // DFlipFlopElm.ts's identical field for the full explanation of why
-    // sharing the generic pin.lastChecked with clock-edge detection is a
-    // real bug (a same-tick J/K/reset-driven recompute silently swallows a
-    // genuine clock edge landing on that exact tick, permanently).
-    private lastClockChecked: number[] = [];
-
-    initDigitalPins(): void {
-        this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
-        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
-        this.lastClockChecked = new Array(this.digitalPins.length).fill(0);
-    }
-
-    /** Pure equivalent of execute() (see below): unlike DFlipFlopElm, JK's
-     * /Q is always strictly !Q (reset only forces Q, never /Q
-     * independently) - see execute()'s writeOutput(4, !pins[3].value)
-     * running after any reset override has already applied. */
-    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
-        const j = this.inputs[0];
-        const clk = this.inputs[1];
-        const k = this.inputs[2];
-        const now = pin.scheduler.currentTime;
-
-        let q = syncedValue(this.digitalPins[0], now);
-        const edgeTarget = this.positiveEdgeTriggered();
-        // Use lastClockChecked, not pin.lastChecked - see its own docstring.
-        const checkingClock = sender === null || sender === clk;
-        const edgeTime = checkingClock
-            ? clk.transitionedTo(edgeTarget, this.lastClockChecked?.[pin.index] ?? 0, now) : null;
-        if (edgeTime !== null) {
-            // Sample J/K as of the edge's own timestamp, not "now" - same
-            // reasoning as DFlipFlopElm.evaluate()'s D sample.
-            const jv = j.valueAt(edgeTime), kv = k.valueAt(edgeTime);
-            if (jv) q = kv ? !q : true;
-            else if (kv) q = false;
-        }
-        if (checkingClock) {
-            if (!this.lastClockChecked) this.lastClockChecked = [];
-            this.lastClockChecked[pin.index] = now;
-        }
-        if (this.hasReset() && syncedValue(this.inputs[3], now) !== this.invertReset())
-            q = false;
-        return [q, !q];
-    }
-
-    alwaysDemoteOn(sender: DigitalElmInstance): boolean {
-        return this.hasReset() && sender === this.inputs[3];
-    }
-
-    /** Same propagation-delay modeling as GateElm.propagationDelayTicks() (seconds ->
-     * ticks, floored at 1 - see the Digital mixin's own propagationDelayTicks()
-     * docstring), applied here via the Group hook since this chip's pins
-     * are individually-tracked GroupPins rather than the chip itself. */
     propagationDelay: number = 0;
-    propagationDelayTicks(pin: GroupPin): number {
-        const step = CircuitElm.sim?.maxTimeStep;
-        if (!step) return 1;
-        return Math.max(1, Math.round(this.propagationDelay / step));
-    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
@@ -223,8 +150,6 @@ export class JKFlipFlopElm extends ChipElm implements Group {
             return EditInfo.createCheckbox("Positive Edge Triggered", this.positiveEdgeTriggered());
         if (n === 2)
             return EditInfo.createCheckbox("Invert Reset", this.invertReset());
-        if (n === 3)
-            return EditInfo.createCheckbox("Digital Debug", this.digitalDebugPins);
         return super.getChipEditInfo(n);
     }
 
@@ -243,10 +168,6 @@ export class JKFlipFlopElm extends ChipElm implements Group {
             this.flags = ei.changeFlag(this.flags, JKFlipFlopElm.FLAG_INVERT_RESET);
             this.setupPins();
             this.setPoints();
-        }
-        if (n === 3) {
-            this.digitalDebugPins = ei.checkbox!.getState();
-            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
         }
         super.setChipEditValue(n, ei);
     }

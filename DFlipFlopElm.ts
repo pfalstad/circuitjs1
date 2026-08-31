@@ -18,19 +18,15 @@
 */
 
 import { ChipElm, Pin } from "./ChipElm";
-import { CircuitElm } from "./CircuitElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { GroupPin, syncedValue } from "./digital/DigitalElm";
-import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { appendInfoLine } from "./digital/CircuitWiring";
-import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class DFlipFlopElm extends ChipElm implements Group {
+export class DFlipFlopElm extends ChipElm {
     static readonly FLAG_RESET            = 2;
     static readonly FLAG_SET              = 4;
     static readonly FLAG_INVERT_SET_RESET = 8;
@@ -39,101 +35,7 @@ export class DFlipFlopElm extends ChipElm implements Group {
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
 
-    // --- Group/GroupPin: digital fast-path scaffolding, dormant until a
-    // future circuit-detection/wiring pass populates `inputs` and calls
-    // initDigitalPins() - see doc.txt's Group/GroupPin design and this
-    // repo's GateElm.evaluate() for the same "exists but unused" pattern.
-    // inputs layout: [D, clk, R?, S?] (R present iff hasReset(), S iff hasSet()).
-    inputs: DigitalElmInstance[] = [];
-    digitalPins: GroupPin[] = []; // [0]=Q, [1]=/Q
-
-    // Persists across re-stamps (unlike digitalPins itself, which
-    // initDigitalPins() below always rebuilds from scratch as brand new
-    // GroupPin instances - see CircuitWiring.initDigitalElements()'s
-    // docstring) since it's a user debugging preference, not scheduler-
-    // cycle state.
-    digitalDebugPins = false;
-
-    // Dedicated clock-edge watermark, one per pin (Q, /Q) - NOT the same
-    // thing as each pin's own generic pin.lastChecked. See CounterElm.ts's
-    // identical field for the full explanation: commit()'s "passive" branch
-    // (digital/DigitalElm.ts) advances pin.lastChecked to `now` on every
-    // recompute regardless of what triggered it - including a D-only change
-    // (D changing alone doesn't move Q, but the generic engine still wakes
-    // this element to re-check, per inputUpdated()), which evaluate() below
-    // does NOT treat as a clock check. Sharing the generic watermark with
-    // clock-edge detection silently swallows a real clock edge landing on
-    // that exact same tick - transitionedTo()'s window is exclusive of its
-    // lower bound, so the very next clock-triggered check can never see an
-    // edge that occurred AT the tick lastChecked was stamped with. Rebuilt
-    // fresh by initDigitalPins() below, not persisted across re-stamps.
-    private lastClockChecked: number[] = [];
-
-    initDigitalPins(): void {
-        this.digitalPins = [new GroupPin(this, 0), new GroupPin(this, 1)];
-        for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
-        this.lastClockChecked = new Array(this.digitalPins.length).fill(0);
-    }
-
-    /** Pure equivalent of execute() (see below) - computes [Q, /Q] without
-     * mutating anything, so the digital scheduler can call it speculatively.
-     * Mirrors execute()'s exact semantics, including the DFlipFlopElm-
-     * specific quirk that Q and /Q are independently forced during set/reset
-     * (not simply complementary) - see execute()'s own body. */
-    evaluate(pin: GroupPin, sender: DigitalElmInstance | null): boolean[] {
-        const d = this.inputs[0];
-        const clk = this.inputs[1];
-        const now = pin.scheduler.currentTime;
-        let idx = 2;
-        const r = this.hasReset() ? this.inputs[idx++] : null;
-        const s = this.hasSet() ? this.inputs[idx] : null;
-        const isSet = s !== null && s.currentValue() !== this.invertSetReset();
-        const isReset = r !== null && r.currentValue() !== this.invertSetReset();
-
-        if (isSet || isReset)
-            return [isSet, isReset];
-
-        let q = syncedValue(this.digitalPins[0], now);
-        // Use lastClockChecked, not pin.lastChecked - see its own docstring.
-        const checkingClock = sender === null || sender === clk;
-        const edgeTime = checkingClock
-            ? clk.transitionedTo(true, this.lastClockChecked?.[pin.index] ?? 0, now) : null;
-        if (edgeTime !== null)
-            // Sample D as of the edge's own timestamp, not "now" - if we're
-            // only catching up to this edge late (e.g. after demoting), D
-            // may have changed again since, and reading its current value
-            // would sample whatever it became by then, not what it actually
-            // was at the clock edge. See CounterElm.evaluate()'s identical
-            // fix for the concrete failure mode this caused.
-            q = d.valueAt(edgeTime);
-        if (checkingClock) {
-            if (!this.lastClockChecked) this.lastClockChecked = [];
-            this.lastClockChecked[pin.index] = now;
-        }
-        return [q, !q];
-    }
-
-    /** Q and /Q are correlated through set/reset (see evaluate()): a set/
-     * reset line changing must always demote both pins rather than risk one
-     * slipping through on a lucky value match - same reasoning as
-     * GroupPin.prepare()'s own docstring for a shared reset line. */
-    alwaysDemoteOn(sender: DigitalElmInstance): boolean {
-        let idx = 2;
-        if (this.hasReset() && sender === this.inputs[idx++]) return true;
-        if (this.hasSet() && sender === this.inputs[idx]) return true;
-        return false;
-    }
-
-    /** Same propagation-delay modeling as GateElm.propagationDelayTicks() (seconds ->
-     * ticks, floored at 1 - see the Digital mixin's own propagationDelayTicks()
-     * docstring), applied here via the Group hook since this chip's pins
-     * are individually-tracked GroupPins rather than the chip itself. */
     propagationDelay: number = 0;
-    propagationDelayTicks(pin: GroupPin): number {
-        const step = CircuitElm.sim?.maxTimeStep;
-        if (!step) return 1;
-        return Math.max(1, Math.round(this.propagationDelay / step));
-    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
@@ -271,11 +173,6 @@ export class DFlipFlopElm extends ChipElm implements Group {
             ei.checkbox = new Checkbox("Invert Set/Reset", this.invertSetReset());
             return ei;
         }
-        if (n === 3) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Digital Debug", this.digitalDebugPins);
-            return ei;
-        }
         return super.getChipEditInfo(n);
     }
 
@@ -302,13 +199,6 @@ export class DFlipFlopElm extends ChipElm implements Group {
             this.flags = ei.changeFlag(this.flags, DFlipFlopElm.FLAG_INVERT_SET_RESET);
             this.setupPins();
             this.setPoints();
-        }
-        if (n === 3) {
-            this.digitalDebugPins = ei.checkbox!.getState();
-            // Apply immediately (not just on the next stamp's
-            // initDigitalPins()) since digitalPins already exist if a
-            // stamp has already run.
-            for (const p of this.digitalPins) p.digitalDebug = this.digitalDebugPins;
         }
         super.setChipEditValue(n, ei);
     }
