@@ -30,7 +30,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -177,7 +178,7 @@ export class InverterElm extends withDigital(CircuitElm) {
         arr[0] = "inverter";
         arr[1] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
         arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
-        appendInfoLine(arr, "opt: " + digitalStateText(this));
+        appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     getEditInfo(n: number): EditInfo | null {

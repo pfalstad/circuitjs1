@@ -200,6 +200,16 @@ export class Chip extends Cycle {
 
     sleepTime = 0n;
 
+    // Resumable cursor for backfillHistory() below - seeded at the exact position/time this
+    // chip fell ASLEEP (see updateOutput()'s ASLEEP-entry branch), then advanced forward by
+    // backfillHistory() itself as it's called. Deliberately separate from currentOutputEvent/
+    // currentCycle (which wakeUp() needs untouched at their sleep-time values to replay from
+    // scratch) - see backfillHistory()'s own docstring for why sharing those would corrupt live
+    // replay.
+    private backfillIdx = 0;
+    private backfillAbsTime = 0n;
+    private backfillValue = 0;
+
     debugName = "";
 
     subCycles: (Cycle | null)[];
@@ -581,6 +591,15 @@ export class Chip extends Cycle {
                 this.state = ChipState.ASLEEP;
                 this.sleepTime = globalTime;
 
+                // Seed the backfill cursor at exactly this position - currentOutputEvent still
+                // indexes the entry just applied (this.output above), and wakeUp() itself starts
+                // its own replay from this same (currentCycle, currentOutputEvent, sleepTime)
+                // triple, so this is the correct starting point for backfillHistory()'s
+                // independent forward walk too.
+                this.backfillIdx = this.currentCycle.currentOutputEvent;
+                this.backfillAbsTime = globalTime;
+                this.backfillValue = this.output;
+
                 if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' asleep`);
 
                 if (this.currentCycle !== (this as Cycle) && (this.currentCycle.parentCycle !== (this as Cycle) || this.activeOutputs !== 0n))
@@ -912,14 +931,57 @@ export class Chip extends Cycle {
     // transitions nobody downstream needed - so `history` genuinely has gaps here that must be
     // reconstructed by walking the same Cycle/outputEvents structure wakeUp() replays.
     //
-    // KNOWN GAP: not yet implemented. `wakeUp()`'s own replay loop (`while (time > delay) ...`)
-    // is the right shape to reuse, but it mutates `this.currentCycle`/`this.output` as it goes -
-    // reusing it here as-is would corrupt live simulation state just to answer a scope-plot
-    // query. Needs a side-effect-free walk (peek without committing, the way the old
-    // digital/DigitalElm.ts's `_advance()`/`commit()` split did) before ScopePlot can safely
-    // call this on a currently-ASLEEP chip. Tracked as follow-up work in Phase 5.
-    backfillHistory(_now: bigint): void {
-        // Intentionally not implemented yet - see docstring above.
+    // Deliberately does NOT reuse wakeUp()'s own loop, which mutates `this.currentCycle`/
+    // `this.output`/etc as it goes - calling that here just to answer a scope-plot query would
+    // corrupt live replay state (wakeUp() itself always restarts from (currentCycle,
+    // currentOutputEvent, sleepTime) as they stood at the moment this chip fell ASLEEP - see
+    // updateOutput()'s ASLEEP-entry branch). Instead this walks the same outputEvents structure
+    // with its own resumable, side-effect-free cursor (backfillIdx/backfillAbsTime/
+    // backfillValue - seeded at that same ASLEEP-entry point), inlining
+    // nextOutputEventDelay()'s exact formula against the local cursor instead of the real
+    // (mutating) currentOutputEvent field.
+    //
+    // KNOWN GAP: only handles a chip that was at its own ROOT cycle (no promoted sub-cycle) when
+    // it fell asleep - bails out immediately if `currentCycle !== this`, and mid-walk if it ever
+    // reaches a SUBCYCLE_MASK entry (`type === 1`), rather than descending into nested Cycle
+    // replay (wakeUp()'s own nested-cycle handling - endTime/activationTime bookkeeping across
+    // `parentCycle` - would need the same side-effect-free treatment, not yet done here). history
+    // just stops short of `now` in that case rather than producing wrong data; ScopePlot draws
+    // whatever prefix is available.
+    backfillHistory(now: bigint): void {
+        if (this.state !== ChipState.ASLEEP) return;
+        if (this.currentCycle !== (this as Cycle)) return; // nested sub-cycle at sleep time - see KNOWN GAP above
+        if (this.outputEvents.empty()) return;
+        if (this.backfillAbsTime >= now) return;
+
+        const oe = this.outputEvents;
+        let idx = this.backfillIdx;
+        let absTime = this.backfillAbsTime;
+        let value = this.backfillValue;
+
+        const watchdog = new Watchdog(1_000_000);
+        for (;;) {
+            if (oe.get(idx).type) break; // KNOWN GAP: nested sub-cycle replay not implemented
+
+            const delay = idx === this.firstOutputEvent
+                ? oe.get(this.firstOutputEvent).time + this.cycleTime - oe.back().time
+                : oe.get(idx).time - oe.get(oe.dec(idx)).time;
+
+            if (absTime + delay > now) break;
+            watchdog.tick(() => `backfillHistory stuck: chip=${this.debugName}`);
+
+            absTime += delay;
+            value ^= 1;
+            this.history.push({ time: absTime, value });
+
+            let next = oe.inc(idx);
+            if (next === oe.end()) next = this.firstOutputEvent;
+            idx = next;
+        }
+
+        this.backfillIdx = idx;
+        this.backfillAbsTime = absTime;
+        this.backfillValue = value;
     }
 
     static nextBit(x: number): number {

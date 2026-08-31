@@ -13,6 +13,7 @@
     methods; later phases add them to the remaining chip elements.
 */
 
+import { ChipState } from "./chip";
 import type { Chip } from "./chip";
 import type { ChipDesc } from "./chip_desc";
 import { CHIP, CONNECTION, circuitLayout } from "./circuit_desc";
@@ -82,7 +83,7 @@ function tieDesc(): ChipDesc[] {
 /** True if `pin` (an external pin number within `desc`) is some cell's output, per the same
  * convention chip_desc.ts's ChipDesc.outPin already encodes. A pin is exactly one of
  * output/input by construction - it can't be both. */
-function isOutputPin(desc: ChipDesc[], pin: number): boolean {
+export function isOutputPin(desc: ChipDesc[], pin: number): boolean {
     return desc.some(d => d.outPin === pin);
 }
 
@@ -208,4 +209,169 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
     }
 
     return { circuit, chipsByElm };
+}
+
+// --- Phase 5 (see noble-stirring-rabin.md): sync/scope-source helpers against the built
+// DigitalGraph, replacing digital/CircuitWiring.ts's isGateLike()/isChipLike()/
+// isRailSourceLike()/syncDigitalToNodes()/digitalScopeSource()/digitalStateText()/
+// digitalStateSummary(). Those all duck-typed on the OLD engine's DigitalElmInstance/GroupPin
+// shape (an element's inputCount/digitalPins/pins array); here every digital-capable element -
+// gate, chip, tie, or CUSTOM_CHIP source - resolves the exact same way, through its own
+// digitalSynthesis()/digitalTie() plus chipsByElm, so none of that per-shape special-casing is
+// needed anymore.
+
+/** Every real post of `elm` that's a digital OUTPUT, in ascending post-index order - which by
+ * construction (every digitalSynthesis() implementation maps postIndex -> pin i+1 uniformly, one
+ * pin per real post - see e.g. DFlipFlopElm.digitalSynthesis()) is exactly the same order
+ * elm.pins[] itself lists them in, without needing to consult elm.pins at all. A DC/GND tie is a
+ * single output at post 0 (mirrors TIE_OUT_PIN's own convention above). Empty for anything not
+ * digital-capable right now (see DigitalSynthesis's own "null return" docstring). */
+export function digitalOutputPosts(elm: any): number[] {
+    if (isDigitalTieSource(elm) && elm.digitalTie() != null) return [0];
+    if (!isDigitalSynthesizable(elm)) return [];
+    const synth = elm.digitalSynthesis();
+    if (synth == null) return [];
+    const { pinMap, desc } = synth;
+    return [...pinMap.entries()]
+        .filter(([, pin]) => isOutputPin(desc, pin))
+        .sort((a, b) => a[0] - b[0])
+        .map(([post]) => post);
+}
+
+/** The real, already-built Chip that post `postIndex` of `elm` corresponds to (must be one of
+ * `elm`'s own OUTPUT posts - an input post has no chip of its own to resolve to, same as the old
+ * engine's isDigitalOutputPost() gate). Same resolution the `chipAt()` test helper in
+ * DigitalSynthesisPhase3.test.ts uses ad hoc, promoted to a real export here: `desc`/`pinMap`
+ * tell us which cell (index into chipsByElm.get(elm)) owns that pin, since createChip() builds
+ * one real Chip per desc[] entry in array order (see circuit.ts's CircuitBuilder.createChip()) -
+ * the same order chipsByElm's own build loop above preserves. */
+export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+    if (isDigitalTieSource(elm) && elm.digitalTie() != null)
+        return postIndex === 0 ? (chipsByElm.get(elm)?.[0] ?? null) : null;
+    if (!isDigitalSynthesizable(elm)) return null;
+    const synth = elm.digitalSynthesis();
+    if (synth == null) return null;
+    const pin = synth.pinMap.get(postIndex);
+    if (pin === undefined) return null;
+    const idx = synth.desc.findIndex(d => d.outPin === pin);
+    if (idx < 0) return null;
+    return chipsByElm.get(elm)?.[idx] ?? null;
+}
+
+/** The Chip for `elm`'s `outputIndex`-th output post (0 = its first output post in ascending
+ * post-index order, per digitalOutputPosts() above) - what a getInfo() panel iterating "the k-th
+ * output pin" (the old engine's `digitalPins[k]` convention - see e.g.
+ * CounterElm.getInfo()/DFlipFlopElm.getInfo()) needs instead. For a single-output element (a
+ * gate, a rail, a delay buffer, ...) outputIndex is always 0. */
+export function digitalOutputChipAt(elm: any, outputIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+    const post = digitalOutputPosts(elm)[outputIndex];
+    return post === undefined ? null : digitalOutputChip(elm, post, chipsByElm);
+}
+
+/** Finds whichever OTHER element's real output post shares `elm`'s node at `postIndex` - the
+ * thing actually driving this input. Same precondition/role as the old engine's own
+ * findDriver()/CircuitWiring.findDriver(), but resolves post-build (against chipsByElm, via each
+ * candidate's own digitalOutputPosts()) rather than against the transient synthMap findDriver()
+ * above only has during buildDigitalCircuit() itself - needed by digitalScopeSourceNew() below to
+ * resolve a wire-equivalent passthrough (LabeledNodeElm, ...) added or re-resolved after the
+ * graph was already built (see ScopePlot.refreshDigitalSource()'s own docstring for why that
+ * matters - a scope can exist before wiring does). */
+export function findDigitalDriver(elm: any, postIndex: number): { elm: any; postIndex: number } | null {
+    const node = elm.nodes?.[postIndex];
+    const candidates = (node?.links ?? []).filter((link: any) =>
+        !(link.elm === elm && link.num === postIndex) && digitalOutputPosts(link.elm).includes(link.num));
+    if (candidates.length === 0) return null;
+    if (candidates.length > 1)
+        console.log("digital wiring: multiple drivers for " + (elm.getClassName?.() ?? elm) + " post " + postIndex);
+    return { elm: candidates[0].elm, postIndex: candidates[0].num };
+}
+
+/** Writes every digital-capable element's current Chip output(s) back into the real
+ * CircuitNode(s) it drives, as a plain high/low voltage - replaces
+ * CircuitWiring.syncDigitalToNodes()'s isGateLike/isChipLike/isRailSourceLike three-way split
+ * with one loop over digitalOutputPosts(), since that already enumerates exactly the posts the
+ * old code's three branches handled separately (a gate/chip's single/multiple `highVoltage`
+ * posts, a rail/logic-input's `getDigitalVoltage()` post) - the two are told apart here by
+ * whichever method the element actually exposes, same duck-typed convention this file already
+ * uses throughout. */
+export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
+    for (const elm of elmList) {
+        for (const post of digitalOutputPosts(elm)) {
+            const chip = digitalOutputChip(elm, post, chipsByElm);
+            if (chip == null) continue;
+            const high = chip.output === 1;
+            if (typeof elm.getDigitalVoltage === "function")
+                elm.nodes[post].v = elm.getDigitalVoltage(high);
+            else
+                elm.nodes[post].v = high ? elm.highVoltage : 0;
+        }
+    }
+}
+
+/** Optimization-status text for a single Chip, replacing digitalStateText() - same three
+ * State/ChipState cases and "Constant" special case (a zero-input Passive chip - a DC tie or a
+ * fixed-logic cell - never promotes and never needs to, unlike a real Passive chip still proving
+ * periodicity), just phrased against dice-ts's ChipState/cycleTime instead of the old engine's
+ * State/cycleTime. */
+export function digitalStateTextNew(chip: Chip | null): string {
+    if (chip == null) return "not wired";
+    if (chip.state === ChipState.PASSIVE && chip.inputLinks.length === 0) return "Constant";
+    switch (chip.state) {
+        case ChipState.PASSIVE: return "Passive (not yet optimized)";
+        case ChipState.ACTIVE: return `Active, ${chip.cycleTime} ticks`;
+        case ChipState.ASLEEP: return `Asleep, ${chip.cycleTime} ticks`;
+        default: return "?";
+    }
+}
+
+// The live DigitalGraph for whichever circuit is currently simulating - mirrors the old engine's
+// DigitalCore.current singleton (digital/DigitalElm.ts's `DigitalElm.current`) convention: an
+// element's getInfo() panel (CounterElm.getInfo(), DFlipFlopElm.getInfo(), ...) needs to reach
+// "the currently-built graph" to resolve its own optimization-status text, but only
+// SimulationManager.initDigitalCircuit() actually builds one - threading chipsByElm through
+// every such call site individually would mean plumbing it across ~9 unrelated element files.
+let currentGraph: DigitalGraph | null = null;
+
+/** Set by SimulationManager.initDigitalCircuit() right after buildDigitalCircuit() - see
+ * currentGraph's own docstring above. Pass null when tearing down (no live circuit). */
+export function setCurrentDigitalGraph(graph: DigitalGraph | null): void {
+    currentGraph = graph;
+}
+
+export function getCurrentDigitalGraph(): DigitalGraph | null {
+    return currentGraph;
+}
+
+/** digitalStateTextNew() against the currently-live graph (see currentGraph above), for an
+ * element's own getInfo() to call directly - replaces every `digitalStateText(this)` /
+ * `digitalStateText(this.digitalPins[k])` call site across GateElm/InverterElm/RailElm/
+ * LogicInputElm/DelayBufferElm/CounterElm/DFlipFlopElm/JKFlipFlopElm/MultiplexerElm/
+ * SevenSegDecoderElm with `digitalStateTextForOutput(this, 0)` (single-output elements) or
+ * `digitalStateTextForOutput(this, k)` (the k-th output pin of a multi-output chip, same `k` the
+ * old digitalPins[k] loop already computed - see digitalOutputChipAt()'s own docstring). */
+export function digitalStateTextForOutput(elm: any, outputIndex: number): string {
+    if (currentGraph == null) return "not wired";
+    return digitalStateTextNew(digitalOutputChipAt(elm, outputIndex, currentGraph.chipsByElm));
+}
+
+/** Resolves `elm` to the single real Chip that supplies "this element's own digital output
+ * voltage", for ScopePlot to source a 1-d trace from history/backfillHistory() instead of
+ * per-frame analog sampling - replaces CircuitWiring.digitalScopeSource(). Same single-output
+ * scope as the old function: a multi-output chip (CounterElm, ...) isn't resolved here even
+ * though digitalOutputChip() COULD reach any one of its posts by index - ScopePlot's own
+ * constructor only ever identifies a plotted element, not which specific post of it, so there's
+ * no post index to resolve against without a broader ScopePlot API change (a real gap, same as
+ * the old engine's - left as-is per noble-stirring-rabin.md Phase 5's own scope). A
+ * wire-equivalent passthrough (LabeledNodeElm, a bare WireElm, ...) resolves through to whatever
+ * actually drives its node, same as before. */
+export function digitalScopeSourceNew(elm: any): Chip | null {
+    if (elm == null || currentGraph == null) return null;
+    const posts = digitalOutputPosts(elm);
+    if (posts.length === 1) return digitalOutputChip(elm, posts[0], currentGraph.chipsByElm);
+    if (posts.length === 0 && typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent() &&
+            Array.isArray(elm.nodes) && elm.nodes.length === 1) {
+        const driver = findDigitalDriver(elm, 0);
+        if (driver) return digitalOutputChip(driver.elm, driver.postIndex, currentGraph.chipsByElm);
+    }
+    return null;
 }

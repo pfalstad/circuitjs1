@@ -27,7 +27,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart, i1 } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -146,7 +147,7 @@ export class MultiplexerElm extends ChipElm implements Group {
         let k = 0;
         for (const pin of this.pins) {
             if (!pin.output) continue;
-            appendInfoLine(arr, `${pin.text}${pin.lineOver ? "'" : ""}: ${digitalStateText(this.digitalPins[k])}`);
+            appendInfoLine(arr, `${pin.text}${pin.lineOver ? "'" : ""}: ${digitalStateTextForOutput(this, k)}`);
             k++;
         }
     }

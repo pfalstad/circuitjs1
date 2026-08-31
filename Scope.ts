@@ -28,7 +28,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { ScopePlot } from "./ScopePlot";
 import { ScopeDataIterator } from "./ScopeDataIterator";
 import { ScopeSerializer } from "./ScopeSerializer";
-import { digitalScopeSource } from "./digital/CircuitWiring";
+import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
 import { ScopePlot2d } from "./ScopePlot2d";
 import { ScopeFFT } from "./ScopeFFT";
 import { ScopeOverlays } from "./ScopeOverlays";
@@ -406,7 +406,7 @@ export class Scope {
                     !ce.isAudioOutputElm() &&
                     !ce.isTestPointElm() &&
                     !ce.isProbeElm() &&
-                    digitalScopeSource(ce) === null)
+                    digitalScopeSourceNew(ce) === null)
                 this.plots.push(new ScopePlot(ce, UNITS_A, VAL_CURRENT, this.getManScaleFromMaxScale(UNITS_A, false)));
         } else {
             if (ce === null) return;
@@ -536,7 +536,7 @@ export class Scope {
             // entirely - see ScopePlot.fillFromDigitalHistory()'s
             // docstring. They're rebuilt from history once per draw()
             // instead, not once per simulation tick.
-            if (this.plots[i].digitalElm === null)
+            if (this.plots[i].digitalChip === null)
                 this.plots[i].timeStep();
 
         this.checkTrigger();
@@ -659,13 +659,13 @@ export class Scope {
 
         // Digital plots weren't kept up to date by timeStep() (see there) -
         // catch them up now, once per draw, from their own change-list
-        // history rather than per simulation tick. Re-resolve digitalElm
+        // history rather than per simulation tick. Re-resolve digitalChip
         // first (see ScopePlot.refreshDigitalSource()'s docstring) - a
         // plot restored from a saved circuit may not have been able to
         // find its driver yet the moment it was constructed.
         for (const p of this.plots) {
             p.refreshDigitalSource();
-            if (p.digitalElm !== null)
+            if (p.digitalChip !== null)
                 p.fillFromDigitalHistory();
         }
 
@@ -1420,8 +1420,8 @@ export class Scope {
                 // actually a digital source, if any - otherwise leave
                 // whatever was already selected (or none).
                 if (this.plot2d.plotBrightness < 0 || this.plot2d.plotBrightness >= this.plots.length ||
-                        this.plots[this.plot2d.plotBrightness].digitalElm === null) {
-                    const idx = this.plots.findIndex(p => p.digitalElm !== null);
+                        this.plots[this.plot2d.plotBrightness].digitalChip === null) {
+                    const idx = this.plots.findIndex(p => p.digitalChip !== null);
                     if (idx >= 0) this.plot2d.plotBrightness = idx;
                 }
             }

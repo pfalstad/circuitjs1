@@ -30,7 +30,8 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
@@ -137,19 +138,17 @@ export class LogicInputElm extends withDigital(SwitchElm) {
      * shouldn't force a full re-stamp/rewire) - so nothing else re-derives
      * the digital graph's view of this source's value. This is the only
      * place a live toggle actually gets noticed downstream in digital
-     * mode, mirroring what the base commit "passive" branch does for an
-     * ordinary input-driven change (see digital/DigitalElm.ts), just
-     * triggered by a user click instead of an input. */
+     * mode - pushing straight into this.digitalChip (set once by
+     * SimulationManager.initDigitalCircuit() - see that field's own
+     * docstring) is the whole mechanism now; there's no old-engine
+     * state/history/notifyOutputs() left to keep in sync (see
+     * noble-stirring-rabin.md Phase 5 - nothing reads those anymore, since
+     * the old Scheduler is no longer what's actually driving the
+     * simulation). */
     toggle(): void {
         super.toggle();
         if (!this.isDigitalSource()) return;
-        const v = this.digitalHigh();
-        if (v !== this.value) {
-            this.value = v;
-            this.history.push([this.scheduler.currentTime, v]);
-            this.notifyOutputs();
-        }
-        if (this.digitalChip) LogicInputElm.pushDigitalValue(this.digitalChip, v);
+        if (this.digitalChip) LogicInputElm.pushDigitalValue(this.digitalChip, this.digitalHigh());
     }
 
     getDumpType(): number { return 'L'.charCodeAt(0); }
@@ -231,7 +230,7 @@ export class LogicInputElm extends withDigital(SwitchElm) {
         arr[1] += " (" + CircuitElm.getVoltageText(this.nodes[0].v) + ")";
         arr[2] = "I = " + CircuitElm.getCurrentText(this.getCurrent());
         if (this.isDigitalSource())
-            appendInfoLine(arr, "opt: " + digitalStateText(this));
+            appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     hasGroundConnection(n1: number): boolean { return true; }

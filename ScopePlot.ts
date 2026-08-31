@@ -25,9 +25,9 @@ import {
     UNITS_V, UNITS_A, UNITS_OHMS, UNITS_W, UNITS_C,
     V_POSITION_STEPS,
 } from "./ScopeConstants";
-import { State } from "./digital/DigitalElm";
-import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalScopeSource } from "./digital/CircuitWiring";
+import { ChipState } from "./digital/chip";
+import type { Chip } from "./digital/chip";
+import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
 
 // plot of single value on a scope
 export class ScopePlot {
@@ -60,13 +60,14 @@ export class ScopePlot {
     // If this plot is showing a single-output digital element's voltage
     // (GateElm/InverterElm/DelayBufferElm, or a digital RailElm source) -
     // or a wire-equivalent node (LabeledNodeElm, ...) driven by one - this
-    // is that actual driver's DigitalElmInstance - see
+    // is that actual driver's real Chip (dice-ts engine - see
+    // digital/DigitalGraphBuilder.ts's digitalScopeSourceNew()) - see
     // fillFromDigitalHistory()'s docstring for why such a plot is filled
     // completely differently from a normal analog one. null for every other
     // plot (including current/other non-voltage plots on a digital
     // element - only the voltage trace goes through the digital fast path).
     // NOT readonly: see refreshDigitalSource().
-    digitalElm: DigitalElmInstance | null;
+    digitalChip: Chip | null;
     // scheduler tick this plot's arrays were last rebuilt for, so a
     // redundant draw() within the same tick (e.g. no simulation progress
     // between frames) doesn't repeat the O(new history entries) rebuild.
@@ -88,7 +89,7 @@ export class ScopePlot {
         this.color = "#FFFFFF";
         this.minValues = [];
         this.maxValues = [];
-        this.digitalElm = (u === UNITS_V) ? digitalScopeSource(e) : null;
+        this.digitalChip = (u === UNITS_V) ? digitalScopeSourceNew(e) : null;
         if (v !== undefined && manS !== undefined) {
             this.value = v;
             this.manScale = manS;
@@ -99,26 +100,27 @@ export class ScopePlot {
         }
     }
 
-    /** Re-resolves digitalElm. Needed beyond the constructor's one-shot
-     * digitalScopeSource() call because a scope can be constructed before
+    /** Re-resolves digitalChip. Needed beyond the constructor's one-shot
+     * digitalScopeSourceNew() call because a scope can be constructed before
      * the node graph/wire closure exists to resolve against - notably
      * ScopeSerializer.undumpXml(), which runs while a saved circuit's XML
      * is still being read element-by-element (see
      * CircuitXMLDeserializer.readElements()), well before
      * SimulationManager.makeNodeList() builds the wiring a wire-equivalent
-     * passthrough like LabeledNodeElm needs digitalScopeSource() to walk.
-     * A scope added interactively via the "View in Scope" menu doesn't hit
-     * this - the circuit is already fully wired by then - which is why the
-     * bug only showed up after a save/reload round trip. Called from
-     * Scope.draw() every frame (cheap - a couple of property checks, or a
-     * short scan of one node's links) so a plot self-heals as soon as
-     * wiring becomes available, without every other digitalElm reader
-     * needing to know any of this. */
+     * passthrough like LabeledNodeElm needs digitalScopeSourceNew() to walk
+     * (and before initDigitalCircuit() has even built a DigitalGraph to
+     * resolve against at all). A scope added interactively via the "View in
+     * Scope" menu doesn't hit this - the circuit is already fully wired by
+     * then - which is why the bug only showed up after a save/reload round
+     * trip. Called from Scope.draw() every frame (cheap - a couple of
+     * property checks, or a short scan of one node's links) so a plot
+     * self-heals as soon as wiring becomes available, without every other
+     * digitalChip reader needing to know any of this. */
     refreshDigitalSource(): void {
         if (this.units !== UNITS_V) return;
-        const resolved = digitalScopeSource(this.elm);
-        if (resolved !== this.digitalElm) {
-            this.digitalElm = resolved;
+        const resolved = digitalScopeSourceNew(this.elm);
+        if (resolved !== this.digitalChip) {
+            this.digitalChip = resolved;
             // The old arrays (if any) belonged to a different signal (or to
             // no signal at all) - don't let a stale lastDigitalFillTick
             // suppress the rebuild fillFromDigitalHistory() needs to do now.
@@ -164,7 +166,7 @@ export class ScopePlot {
     timeStep(): void {
         if (this.elm === null)
             return;
-        if (this.digitalElm !== null)
+        if (this.digitalChip !== null)
             // Digital plots are never sampled per-timestep - see
             // fillFromDigitalHistory(). Scope.timeStep() already skips
             // calling this for digital plots; this guard is just so a
@@ -193,57 +195,57 @@ export class ScopePlot {
 
     /** Rebuilds minValues/maxValues (the same per-pixel-column min/max
      * arrays timeStep() accretes one simulation tick at a time for an
-     * analog plot) in a single pass over digitalElm.history - the
-     * DigitalElmInstance's own append-only list of (tick, value) changes
-     * (see digital/DigitalElm.ts). This is *not* called once per simulation
-     * timestep the way timeStep() is: under the digital fast-path
-     * optimization, a promoted/sleeping element can skip real work for
-     * thousands of ticks at a stretch (that's the whole point of the
-     * optimization - see digital/DigitalElm.ts's doc comment), so sampling
-     * "the current value" every tick would either force it to keep doing
-     * that work anyway (defeating the optimization) or read a stale
-     * this.value that was never updated live while asleep. Instead this
-     * runs once per draw() (see Scope.draw()), walking however many
-     * genuine transitions actually happened - typically far fewer than the
-     * number of simulated ticks - and fills the display arrays exactly as
-     * if per-tick sampling had produced them, so downstream drawing code
-     * (drawPlot(), calcMaxAndMin(), the FFT/trigger machinery, etc.) sees
-     * an ordinary-looking analog-shaped plot and needs no digital-specific
+     * analog plot) in a single pass over digitalChip.history - the Chip's
+     * own append-only list of (tick, value) changes (see digital/chip.ts).
+     * This is *not* called once per simulation timestep the way timeStep()
+     * is: under the digital fast-path optimization, a promoted/sleeping
+     * chip can skip real work for thousands of ticks at a stretch (that's
+     * the whole point of the optimization), so sampling "the current
+     * value" every tick would either force it to keep doing that work
+     * anyway (defeating the optimization) or read a stale value that was
+     * never updated live while asleep. Instead this runs once per draw()
+     * (see Scope.draw()), walking however many genuine transitions
+     * actually happened - typically far fewer than the number of simulated
+     * ticks - and fills the display arrays exactly as if per-tick sampling
+     * had produced them, so downstream drawing code (drawPlot(),
+     * calcMaxAndMin(), the FFT/trigger machinery, etc.) sees an
+     * ordinary-looking analog-shaped plot and needs no digital-specific
      * cases of its own. */
     fillFromDigitalHistory(): void {
-        const de = this.digitalElm;
-        if (de === null || this.scopePlotSpeed === 0) return;
-        const now = de.scheduler.currentTime;
-        if (de.state === State.Asleep) de._backfillHistory(now);
+        const chip = this.digitalChip;
+        if (chip === null || this.scopePlotSpeed === 0) return;
+        const nowBig = chip.circuit.globalTime;
+        if (chip.state === ChipState.ASLEEP) chip.backfillHistory(nowBig);
+        const now = Number(nowBig);
         if (this.lastDigitalFillTick === now) return;
         this.lastDigitalFillTick = now;
 
         const spc = this.scopePointCount;
         const sp = this.scopePlotSpeed; // ticks per pixel column (1 tick = 1 maxTimeStep)
-        const hist = de.history; // ascending [tick, value]
+        const hist = chip.history; // ascending {time, value}
         // this.elm may be a wire-equivalent passthrough (e.g. LabeledNodeElm)
         // with no highVoltage of its own - the actual level lives on
-        // whatever digital element really drives the node (digitalElm may
-        // or may not be the same object as this.elm - see
-        // digitalScopeSource()).
-        const hv = (de as any).highVoltage ?? (this.elm as any).highVoltage ?? 5;
+        // whatever digital element really drives the node (this.elm and
+        // whatever elm digitalChip actually came from may differ - see
+        // digitalScopeSourceNew()).
+        const hv = (this.elm as any)?.highVoltage ?? 5;
         const windowStart = now - spc * sp;
 
         // Binary search: first history index with tick > windowStart.
         let lo = 0, hi = hist.length;
         while (lo < hi) {
             const mid = (lo + hi) >> 1;
-            if (hist[mid][0] <= windowStart) lo = mid + 1; else hi = mid;
+            if (Number(hist[mid].time) <= windowStart) lo = mid + 1; else hi = mid;
         }
         let hIdx = lo;
-        let curVal = lo > 0 ? hist[lo - 1][1] : (hist.length > 0 ? hist[0][1] : de.currentValue());
+        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? hist[0].value : chip.output);
 
         for (let col = 0; col < spc; col++) {
             const colEnd = windowStart + (col + 1) * sp;
             const v0 = curVal ? hv : 0;
             let mn = v0, mx = v0;
-            while (hIdx < hist.length && hist[hIdx][0] < colEnd) {
-                curVal = hist[hIdx][1];
+            while (hIdx < hist.length && Number(hist[hIdx].time) < colEnd) {
+                curVal = hist[hIdx].value;
                 const v = curVal ? hv : 0;
                 if (v < mn) mn = v;
                 if (v > mx) mx = v;
@@ -314,7 +316,7 @@ export class ScopePlot {
         // accreted sample-by-sample like acLastOut/lastValue assume - AC
         // coupling's IIR filter has no meaningful per-sample state to run
         // against here.
-        return this.units === UNITS_V && this.digitalElm === null; // AC coupling is permitted if the plot is displaying volts
+        return this.units === UNITS_V && this.digitalChip === null; // AC coupling is permitted if the plot is displaying volts
     }
 
     isAcCoupled(): boolean {

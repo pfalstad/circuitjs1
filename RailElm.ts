@@ -27,7 +27,8 @@ import { WireRouter } from "./WireRouter";
 import { EditInfo } from "./EditInfo";
 import { withDigital, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -149,7 +150,7 @@ export class RailElm extends withDigital(VoltageElm) {
     getInfo(arr: string[]): void {
         super.getInfo(arr);
         if (this.isDigitalSource())
-            appendInfoLine(arr, "opt: " + digitalStateText(this));
+            appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     // VoltageElm's own edit list length varies by waveform, so the "Digital

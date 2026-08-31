@@ -24,7 +24,8 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -136,8 +137,8 @@ export class DFlipFlopElm extends ChipElm implements Group {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        appendInfoLine(arr, "opt Q: " + digitalStateText(this.digitalPins[0]));
-        appendInfoLine(arr, "opt /Q: " + digitalStateText(this.digitalPins[1]));
+        appendInfoLine(arr, "opt Q: " + digitalStateTextForOutput(this, 0));
+        appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
     }
 
     /** Phase 3 (see noble-stirring-rabin.md): a state cell (own real Q pin doubles as its

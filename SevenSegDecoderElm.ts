@@ -26,7 +26,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { GroupPin, syncedValue } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -222,7 +223,7 @@ export class SevenSegDecoderElm extends ChipElm implements Group {
     getInfo(arr: string[]): void {
         super.getInfo(arr);
         for (let k = 0; k < this.digitalPins.length; k++)
-            appendInfoLine(arr, `${this.pins[k].text}: ${digitalStateText(this.digitalPins[k])}`);
+            appendInfoLine(arr, `${this.pins[k].text}: ${digitalStateTextForOutput(this, k)}`);
     }
 
     /** Phase 3 (see noble-stirring-rabin.md): one LUT cell per segment, a near-direct translation

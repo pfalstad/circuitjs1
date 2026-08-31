@@ -27,7 +27,8 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 import { GroupPin, syncedValue, State } from "./digital/DigitalElm";
 import type { Group, DigitalElmInstance } from "./digital/DigitalElm";
-import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { appendInfoLine } from "./digital/CircuitWiring";
+import { digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -210,7 +211,7 @@ export class CounterElm extends ChipElm implements Group {
         let k = 0;
         for (const pin of this.pins) {
             if (!pin.output) continue;
-            appendInfoLine(arr, `${pin.text}: ${digitalStateText(this.digitalPins[k])}`);
+            appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
             k++;
         }
     }

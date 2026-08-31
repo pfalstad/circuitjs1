@@ -28,9 +28,11 @@ import { Locale } from "./Locale";
 import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
-import { Scheduler } from "./digital/Scheduler";
 import { DigitalElm } from "./digital/DigitalElm";
-import { initDigitalElements, syncDigitalToNodes, syncNodesToPassiveChips } from "./digital/CircuitWiring";
+import { syncNodesToPassiveChips } from "./digital/CircuitWiring";
+import { setTimescale } from "./digital/constants";
+import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph } from "./digital/DigitalGraphBuilder";
+import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -111,7 +113,14 @@ export class SimulationManager {
     // matrix code above is left running unchanged (its output just goes
     // unused for now) rather than removed, so it's there to reconcile with
     // when analog support returns.
-    digitalScheduler: Scheduler | null = null;
+    //
+    // Phase 5 (see noble-stirring-rabin.md): built by DigitalGraphBuilder.buildDigitalCircuit()
+    // against the ported dice-ts engine (digital/circuit.ts's Circuit/digital/chip.ts's Chip),
+    // replacing the old hand-rolled Scheduler this field used to hold. digital/Scheduler.ts and
+    // digital/DigitalElm.ts's promotion engine aren't driven by this path anymore, but aren't
+    // deleted yet either - see initDigitalCircuit()'s own docstring for why (getInfo() panels/
+    // LogicInputElm.toggle() still need a couple of their fields).
+    digitalGraph: DigitalGraph | null = null;
     digitalReady: boolean = false;
 
     static console(text: string): void { console.log(text); }
@@ -1118,15 +1127,33 @@ export class SimulationManager {
 	this.initDigitalCircuit();
     }
 
-    // Sets up the digital fast path for the circuit just stamped above:
-    // fresh scheduler, wire every digital element's inputs from the real
-    // node graph, let clocks/chips build their schedules, then give every
-    // still-Passive element one initial evaluation (see
-    // initDigitalElements()'s own docstring for why that last step matters).
+    // Sets up the digital fast path for the circuit just stamped above: synthesize + wire every
+    // digital-capable element into a fresh dice-ts Circuit (DigitalGraphBuilder.
+    // buildDigitalCircuit() - see noble-stirring-rabin.md Phase 5), instead of the old engine's
+    // Scheduler/initDigitalElements().
+    //
+    // Still reads DigitalElm.promotionEnabled (the old engine's "Disable Digital Optimization"
+    // toggle, EditOptions.ts's checkbox 18) rather than introducing a second one - that checkbox
+    // already forces a restamp (needAnalyze()) on toggle, so "fresh graph -> read the flag once
+    // at build time" is exactly as live as the old code's "fresh scheduler -> every element
+    // starts Passive" was; there's no live-without-restamp requirement to support. digital/
+    // DigitalElm.ts/digital/Scheduler.ts aren't deleted this phase (see this class's
+    // digitalGraph field comment) so this static is still the one real source of truth for the
+    // toggle.
     initDigitalCircuit(): void {
-        this.digitalScheduler = new Scheduler();
-        DigitalElm.current = this.digitalScheduler;
-        initDigitalElements(this.elmArr);
+        setTimescale(this.maxTimeStep);
+        this.digitalGraph = buildDigitalCircuit(this.elmArr);
+        setCurrentDigitalGraph(this.digitalGraph);
+
+        if (!DigitalElm.promotionEnabled)
+            for (const chip of this.digitalGraph.circuit.chips) chip.optimizationDisabled = true;
+
+        // Give every element exposing a live-pushable `digitalChip` field (LogicInputElm's own
+        // toggle() - see its digitalChip docstring) a handle onto its own synthesized Chip, so a
+        // later user click has something to push a value change into.
+        for (const [elm, chips] of this.digitalGraph.chipsByElm)
+            if ("digitalChip" in elm) (elm as any).digitalChip = chips[0] ?? null;
+
         this.digitalReady = true;
     }
 
@@ -1372,10 +1399,10 @@ export class SimulationManager {
     converged: boolean = false;
     subIterations: number = 0;
 
-    // Digital-only fast path (see digital/CircuitWiring.ts and doc.txt):
-    // drives the digital Scheduler forward instead of the per-timestep MNA
-    // solve runCircuitAnalog() below does. 1 tick = 1 timestep (see
-    // RailElm.initDigitalClock()'s docstring), so wall-clock-to-tick pacing
+    // Digital-only fast path (see digital/DigitalGraphBuilder.ts and doc.txt):
+    // drives the dice-ts Circuit forward instead of the per-timestep MNA
+    // solve runCircuitAnalog() below does. 1 tick = 1 timestep (TIMESCALE ===
+    // maxTimeStep - see digital/constants.ts), so wall-clock-to-tick pacing
     // mirrors runCircuitAnalog()'s own speed-slider/frame-rate gating
     // exactly, just advancing ticks instead of running solver iterations.
     //
@@ -1385,7 +1412,7 @@ export class SimulationManager {
     // reading garbage), and onTimeStep() fires once per frame rather than
     // once per timestep, so Scope sampling is coarser than before.
     runCircuit(didAnalyze: boolean): void {
-	if (!this.digitalReady || this.digitalScheduler == null || this.elmList.length === 0)
+	if (!this.digitalReady || this.digitalGraph == null || this.elmList.length === 0)
 	    return;
 
 	const steprate = Math.trunc(160 * this.app.getIterCount());
@@ -1415,21 +1442,20 @@ export class SimulationManager {
 	// point of the promotion/sleep optimization: most ticks are nearly
 	// free, but a demote/re-promote cascade landing in this batch can be
 	// arbitrarily more expensive than the rest). Passing a real wall-clock
-	// deadline lets the scheduler bail out mid-batch rather than run this
+	// deadline lets the circuit bail out mid-batch rather than run this
 	// frame's whole requested tick count regardless of how long it
-	// actually takes - see Scheduler.runUntil()'s docstring. Advance t/
-	// timeStepCount by the ACTUAL ticks processed, not the requested
+	// actually takes - see Circuit.runWithDeadline()'s docstring. Advance
+	// t/timeStepCount by the ACTUAL ticks processed, not the requested
 	// count, so a cut-short frame doesn't silently claim sim time that
 	// was never actually simulated.
-	const startSchedTime = this.digitalScheduler.currentTime;
-	this.digitalScheduler.runUntil(startSchedTime + ticks, tm + frameTimeLimit);
-	const actualTicks = this.digitalScheduler.currentTime - startSchedTime;
+	const circuit = this.digitalGraph.circuit;
+	const actualTicks = Number(circuit.runWithDeadline(BigInt(ticks), tm + frameTimeLimit));
 
 	this.t += actualTicks * this.maxTimeStep;
 	this.timeStepAccum = 0;
 	this.timeStepCount += actualTicks;
 
-	syncDigitalToNodes(this.elmArr);
+	syncDigitalToNodesNew(this.elmArr, this.digitalGraph.chipsByElm);
 	syncNodesToPassiveChips(this.elmArr);
 	this.app.onTimeStep();
 
@@ -1439,7 +1465,7 @@ export class SimulationManager {
     // The original per-timestep analog MNA solve. No longer called from
     // runCircuit() above (see this version's digital-only scope), kept
     // intact and unused so it's there to reconcile with when analog
-    // support returns - see this file's digitalScheduler field comment.
+    // support returns - see this file's digitalGraph field comment.
     runCircuitAnalog(didAnalyze: boolean): void {
 	if (this.matrices == null || this.elmList.length === 0) {
 	    this.matrices = null;

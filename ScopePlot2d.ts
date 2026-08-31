@@ -21,7 +21,7 @@ import { CircuitElm } from "./CircuitElm";
 import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Scope } from "./Scope";
-import { State } from "./digital/DigitalElm";
+import { ChipState } from "./digital/chip";
 
 export class ScopePlot2d {
     enabled: boolean = false;
@@ -179,8 +179,8 @@ export class ScopePlot2d {
     }
 
     /** Rebuilds the raster image from the signal's own change-list history
-     * (DigitalElmInstance.history - see digital/DigitalElm.ts) instead of
-     * sampling a pixel every simulation timestep, for the same reason
+     * (Chip.history - see digital/chip.ts) instead of sampling a pixel
+     * every simulation timestep, for the same reason
      * ScopePlot.fillFromDigitalHistory() does: under the digital fast-path
      * optimization most timesteps never touch the analog solver at all, so
      * per-tick sampling would either force live evaluation on every tick
@@ -200,8 +200,8 @@ export class ScopePlot2d {
         if (this.imageContext === null) return;
         const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
             ? this.scope.plots[this.plotBrightness] : null;
-        const de = bp?.digitalElm ?? null;
-        if (de === null) return;
+        const chip = bp?.digitalChip ?? null;
+        if (chip === null) return;
         const maxTimeStep = this.scope.sim.maxTimeStep;
         if (!(maxTimeStep > 0)) return;
 
@@ -209,8 +209,8 @@ export class ScopePlot2d {
         const linesPerFrame = Math.max(1, Math.round(this.rasterFrameLengthSec / (lineWidthTicks * maxTimeStep)));
         const frameLengthTicks = lineWidthTicks * linesPerFrame;
 
-        const now = de.scheduler.currentTime;
-        if (de.state === State.Asleep) de._backfillHistory(now);
+        if (chip.state === ChipState.ASLEEP) chip.backfillHistory(chip.circuit.globalTime);
+        const now = Number(chip.circuit.globalTime);
 
         const frameIndex = Math.floor(now / frameLengthTicks);
         const frameStart = frameIndex * frameLengthTicks;
@@ -228,21 +228,22 @@ export class ScopePlot2d {
             fillFromTick = this.rasterFilledTick;
         }
 
-        const hist = de.history; // ascending [tick, value]
+        const hist = chip.history; // ascending {time, value}
         let lo = 0, hi = hist.length;
         while (lo < hi) {
             const mid = (lo + hi) >> 1;
-            if (hist[mid][0] <= fillFromTick) lo = mid + 1; else hi = mid;
+            if (Number(hist[mid].time) <= fillFromTick) lo = mid + 1; else hi = mid;
         }
-        let curVal = lo > 0 ? hist[lo - 1][1] : (hist.length > 0 ? hist[0][1] : de.currentValue());
+        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? hist[0].value : chip.output);
         let cursor = fillFromTick;
-        for (let i = lo; i < hist.length && hist[i][0] < now; i++) {
-            this.drawRasterSpan(cursor - frameStart, hist[i][0] - frameStart, curVal,
+        for (let i = lo; i < hist.length && Number(hist[i].time) < now; i++) {
+            const t = Number(hist[i].time);
+            this.drawRasterSpan(cursor - frameStart, t - frameStart, !!curVal,
                 lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
-            curVal = hist[i][1];
-            cursor = hist[i][0];
+            curVal = hist[i].value;
+            cursor = t;
         }
-        this.drawRasterSpan(cursor - frameStart, now - frameStart, curVal,
+        this.drawRasterSpan(cursor - frameStart, now - frameStart, !!curVal,
             lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
 
         this.rasterFilledTick = now;
