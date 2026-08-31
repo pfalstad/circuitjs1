@@ -28,6 +28,11 @@ import { EditInfo } from "./EditInfo";
 import { withDigital, State } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { customChipStart } from "./digital/chip_desc";
+import type { ChipDesc } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
+import { clockLogic } from "./digital/clockChip";
+import { TIMESCALE } from "./digital/constants";
 
 export class RailElm extends withDigital(VoltageElm) {
     // --- Digital fast-path scaffolding, called fresh on every stamp (see
@@ -112,6 +117,33 @@ export class RailElm extends withDigital(VoltageElm) {
         // Non-source rails (variable/sine/etc.) aren't part of the
         // digital-only version yet - see this class's header comment.
         return false;
+    }
+
+    /** Phase 2 (see noble-stirring-rabin.md): a DC tie binds straight to Circuit's shared
+     * _VCC/_GND sentinel chips (see DigitalGraphBuilder.ts's DigitalTieSource) instead of
+     * synthesizing its own chip - checked before digitalSynthesis() below, so a DC rail never
+     * reaches it. getVoltage() is safe to call here for the same reason
+     * initDigitalSource()'s DC branch already relies on: it's not time-dependent for WF_DC. */
+    digitalTie(): "VCC" | "GND" | null {
+        if (!this.isDigitalConstant()) return null;
+        return this.getVoltage() > 0 ? "VCC" : "GND";
+    }
+
+    /** Phase 2 (see noble-stirring-rabin.md): a clock rail becomes a per-instance CUSTOM_CHIP
+     * built around clockChip.ts's clockLogic() - a direct port of dice-ts's own chips/clock.ts,
+     * replacing the old initDigitalSource()'s hand-rolled Cycle/outputEvents setup. delay (real
+     * seconds) is TIMESCALE-converted to ticks by Chip's own constructor - unlike a gate's
+     * propagationDelay, though, a clock's half-period must never round down to 0 ticks (that
+     * degenerates to a zero-length cycle - an infinite loop, since the chip never advances
+     * globalTime). The old initDigitalSource() guarded this the same way
+     * (`Math.max(1, Math.round(...))`); reproduced here in real-seconds terms so Chip's own
+     * seconds->ticks conversion still owns the actual rounding. */
+    digitalSynthesis(): DigitalSynthesis | null {
+        if (!this.isDigitalClock()) return null;
+        const halfPeriodTicks = Math.max(1, Math.round(1 / (2 * this.frequency * TIMESCALE)));
+        const halfPeriod = halfPeriodTicks * TIMESCALE; // seconds - an exact multiple, so Chip's own trunc() below recovers halfPeriodTicks exactly
+        const desc: ChipDesc[] = [customChipStart(clockLogic).outputDelayS(halfPeriod, halfPeriod).outputPin(1)];
+        return { desc, pinMap: new Map([[0, 1]]) };
     }
 
     getInfo(arr: string[]): void {

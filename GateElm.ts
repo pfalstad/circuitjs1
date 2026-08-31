@@ -30,6 +30,9 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export abstract class GateElm extends withDigital(CircuitElm) {
     static readonly FLAG_SMALL = 1<<0;
@@ -250,6 +253,46 @@ export abstract class GateElm extends withDigital(CircuitElm) {
 
     abstract getGateName(): string;
     abstract calcFunction(): boolean;
+
+    /** Two-input reduction step of this gate's family (AND/OR/XOR), as a 0/1 bitwise op -
+     * digitalSynthesis() below folds it across pin[1..inputCount] to build the LUT cell's logic
+     * function. Matches calcFunction()'s own per-family combine (AndGateElm's `f && ...`,
+     * OrGateElm's `f || ...`, XorGateElm's `f !== ...`), just expressed once as a pure function
+     * instead of duplicated per subclass's analog-path loop. Nand/Nor/Xnor inherit their base
+     * family's reduction unchanged - only isInverting() differs. */
+    protected abstract gateOp(a: number, b: number): number;
+
+    /** Phase 2 (see noble-stirring-rabin.md): a single LUT cell computing the same
+     * AND/OR/XOR-of-inputs-then-optionally-inverted logic as calcFunction()/isInverting(), with
+     * FLAG_INVERT_INPUTS applied per-input first (mirrors getInput()'s own per-input inversion
+     * for the analog path). propagationDelay (seconds) maps directly onto the cell's
+     * outputDelayS, replacing the old propagationDelayTicks() hop-scheduling trick. */
+    digitalSynthesis(): DigitalSynthesis {
+        const n = this.inputCount;
+        const invertInputs = this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
+        const invertOutput = this.isInverting();
+        const outPin = n + 1;
+
+        const logic: ChipLogic = (pin) => {
+            let result = invertInputs ? (pin[1] ^ 1) : pin[1];
+            for (let i = 2; i <= n; i++) {
+                const v = invertInputs ? (pin[i] ^ 1) : pin[i];
+                result = this.gateOp(result, v);
+            }
+            pin[outPin] = invertOutput ? (result ^ 1) : result;
+        };
+
+        const inPins: number[] = [];
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < n; i++) { inPins.push(i + 1); pinMap.set(i, i + 1); }
+        pinMap.set(n, outPin);
+
+        const desc: ChipDesc[] = [
+            chipStart(logic).inputPins(...inPins).outputPin(outPin)
+                .outputDelayS(this.propagationDelay, this.propagationDelay),
+        ];
+        return { desc, pinMap };
+    }
 
     getInfo(arr: string[]): void {
         arr[0] = this.getGateName();
@@ -488,6 +531,7 @@ export class AndGateElm extends GateElm {
             f = f && this.getInput(i);
         return f;
     }
+    protected gateOp(a: number, b: number): number { return a & b; }
     getDumpType(): number { return 150; }
     getShortcut(): number { return '2'.charCodeAt(0); }
 }
@@ -597,6 +641,7 @@ export class OrGateElm extends GateElm {
             f = f || this.getInput(i);
         return f;
     }
+    protected gateOp(a: number, b: number): number { return a | b; }
     getDumpType(): number { return 152; }
     getShortcut(): number { return '3'.charCodeAt(0); }
 }
@@ -630,6 +675,7 @@ export class XorGateElm extends OrGateElm {
             f = f !== this.getInput(i);
         return f;
     }
+    protected gateOp(a: number, b: number): number { return a ^ b; }
     // skip "Invert Inputs" (index 3 in GateElm); shift higher indices down
     getEditInfo(n: number): EditInfo | null {
         if (n >= 3) return super.getEditInfo(n + 1);

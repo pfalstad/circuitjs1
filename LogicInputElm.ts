@@ -31,6 +31,10 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { customChipStart } from "./digital/chip_desc";
+import type { ChipDesc } from "./digital/chip_desc";
+import type { Chip } from "./digital/chip";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class LogicInputElm extends withDigital(SwitchElm) {
     static readonly FLAG_TERNARY = 1;
@@ -100,6 +104,33 @@ export class LogicInputElm extends withDigital(SwitchElm) {
         return false;
     }
 
+    /** Phase 2 (see noble-stirring-rabin.md): unlike RailElm's DC tie (a genuine constant, bound
+     * straight to _VCC/_GND - see DigitalTieSource), this value changes live via toggle() below,
+     * so it needs its own tiny zero-input CUSTOM_CHIP rather than a shared sentinel. Its
+     * customUpdate mirrors dice-ts's own chips/input.ts digitalInput() pattern: only ever
+     * schedules a 0-delay self-event (letting Chip.updateOutput()'s generic output^=1 apply the
+     * flip) when the desired value actually differs from the chip's current output. Called once
+     * at Circuit-construction time (Chip.initialize()) for the correct initial value, and again
+     * from toggle() below for every live click - same function either way. */
+    private static pushDigitalValue(chip: Chip, high: boolean): void {
+        const newOut = high ? 1 : 0;
+        if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+    }
+
+    /** Set by whoever builds the digital graph (DigitalGraphBuilder.buildDigitalCircuit()'s
+     * chipsByElm) to this element's own synthesized Chip, so toggle() below has something to
+     * push a live value change into. null until then (or for a ternary LogicInputElm, which
+     * isDigitalSource() excludes from the netlist entirely). */
+    digitalChip: Chip | null = null;
+
+    digitalSynthesis(): DigitalSynthesis | null {
+        if (!this.isDigitalSource()) return null;
+        const desc: ChipDesc[] = [
+            customChipStart((chip) => LogicInputElm.pushDigitalValue(chip, this.digitalHigh())).outputPin(1),
+        ];
+        return { desc, pinMap: new Map([[0, 1]]) };
+    }
+
     /** SwitchElm.toggle() (called from MouseManager.doSwitch() on click)
      * updates this.position, but MouseManager deliberately skips
      * needAnalyze() for a LogicInputElm specifically (toggling one
@@ -118,6 +149,7 @@ export class LogicInputElm extends withDigital(SwitchElm) {
             this.history.push([this.scheduler.currentTime, v]);
             this.notifyOutputs();
         }
+        if (this.digitalChip) LogicInputElm.pushDigitalValue(this.digitalChip, v);
     }
 
     getDumpType(): number { return 'L'.charCodeAt(0); }

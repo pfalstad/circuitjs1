@@ -134,8 +134,9 @@ describe("buildDigitalCircuit - end to end", () => {
         connect({ elm: buf1, num: 1 }, { elm: buf2, num: 0 });
         connect({ elm: buf2, num: 1 }, { elm: sink, num: 0 });
 
-        const circuit = buildDigitalCircuit([src, buf1, buf2, sink]);
+        const { circuit, chipsByElm } = buildDigitalCircuit([src, buf1, buf2, sink]);
 
+        expect(chipsByElm.get(buf2)![0].output).toBe(1);
         // chips[0..2] are the special _VCC/_GND/_DEOPTIMIZER chips; src/buf1/buf2/sink follow
         // in build order.
         const buf2Chip = circuit.chips.find(c => c.debugName === "e2")!;
@@ -152,9 +153,36 @@ describe("buildDigitalCircuit - end to end", () => {
         connect({ elm: b, num: 0 }, { elm: gate, num: 1 });
         connect({ elm: gate, num: 2 }, { elm: sink, num: 0 });
 
-        const circuit = buildDigitalCircuit([a, b, gate, sink]);
+        const { chipsByElm } = buildDigitalCircuit([a, b, gate, sink]);
 
-        const gateChip = circuit.chips.find(c => c.debugName === "e2")!;
-        expect(gateChip.output).toBe(0);
+        expect(chipsByElm.get(gate)![0].output).toBe(0);
+    });
+});
+
+describe("digitalTie - constant-source elements bind to Circuit's shared _VCC/_GND", () => {
+    function tieElm(tie: "VCC" | "GND") {
+        return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
+    }
+
+    it("does not emit its own CHIP entry, and resolves consumers straight to the sentinel", () => {
+        const vcc = tieElm("VCC");
+        const sink = fakeElm(sinkDesc(), [[0, 1]]);
+        connect({ elm: vcc, num: 0 }, { elm: sink, num: 0 });
+
+        const desc = buildCircuitDesc([vcc, sink]);
+
+        expect(desc.chips).toHaveLength(1); // just "e0" (sink) - no chip for the tie itself
+        expect(desc.connections).toEqual([{ kind: "connection", name1: "_VCC", pin1: 1, name2: "e0", pin2: 1 }]);
+    });
+
+    it("drives a real consumer through Circuit's actual VCC/GND chips, and chipsByElm resolves to them", () => {
+        const gnd = tieElm("GND");
+        const sink = fakeElm(sinkDesc(), [[0, 1]]);
+        connect({ elm: gnd, num: 0 }, { elm: sink, num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([gnd, sink]);
+
+        expect(chipsByElm.get(gnd)).toEqual([circuit.chips[1]]); // circuit.chips[1] is the shared _GND chip
+        expect(chipsByElm.get(sink)![0].inputLinks[0].chip).toBe(circuit.chips[1]);
     });
 });

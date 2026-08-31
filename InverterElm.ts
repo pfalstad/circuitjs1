@@ -31,6 +31,9 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { withDigital } from "./digital/DigitalElm";
 import type { DigitalElmInstance } from "./digital/DigitalElm";
 import { digitalStateText, appendInfoLine } from "./digital/CircuitWiring";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class InverterElm extends withDigital(CircuitElm) {
     // CircuitWiring's isGateLike() check (shared with GateElm) looks for
@@ -158,6 +161,14 @@ export class InverterElm extends withDigital(CircuitElm) {
         if (this.inputs.length > 0)
             return !this.inputs[0].currentValue();
         return !(this.nodes[0].v > this.highVoltage * .5);
+    }
+
+    /** Phase 2 (see noble-stirring-rabin.md): a 1-input/1-output NOT cell - collapses to a
+     * single LUT cell like GateElm.digitalSynthesis(), just with no propagationDelay field of
+     * its own (unlike GateElm) so the delay is fixed at 0. */
+    digitalSynthesis(): DigitalSynthesis {
+        const desc: ChipDesc[] = [chipStart((pin) => { pin[2] = pin[1] ^ 1; }).inputPins(1).outputPin(2)];
+        return { desc, pinMap: new Map([[0, 1], [1, 2]]) };
     }
 
     getVoltageDiff(): number { return this.nodes[0].v; }
