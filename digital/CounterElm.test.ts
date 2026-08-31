@@ -1,82 +1,104 @@
-import { describe, it, expect } from "vitest";
-import { Scheduler } from "./Scheduler";
-import { DigitalElm, DigitalConst, GroupPin, State } from "./DigitalElm";
+// Rewritten against the new dice-ts-based engine (see noble-stirring-rabin.md's Testing
+// section). Same real bug this test originally guarded: a CounterElm with a non-power-of-2
+// modulus (a "count to N then reset" line/frame counter, not plain binary overflow) has an
+// IRREGULAR multi-transition pattern within its true period (modulus * clockPeriod). The new
+// engine doesn't have the old empirical-promotion heuristic that could lock onto a wrong period,
+// but this test still earns its keep as a correctness check on CounterElm.digitalSynthesis()
+// itself against dice-ts's own "always-correct baseline" path (Chip.optimizationDisabled ->
+// Chip.updateInputsSimple()) over many full modulus cycles, exactly the methodology the old
+// digital/DigitalElm.ts-based test used (promotionEnabled=false vs true), just against the new
+// engine's own optimization mechanism instead.
+import { describe, it, expect, beforeEach } from "vitest";
+import { ChipState } from "./chip";
+import type { Chip } from "./chip";
+import { customChipStart } from "./chip_desc";
+import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import { CounterElm } from "../CounterElm";
+import { RailElm } from "../RailElm";
+import { VoltageElm } from "../VoltageElm";
+import { CircuitElm } from "../CircuitElm";
+import { TIMESCALE } from "./constants";
 
-// A real bug found live: a CounterElm with a non-power-of-2 modulus (a
-// "count to N then reset" line/frame counter, like a real video timing
-// generator uses - not plain binary overflow) has an IRREGULAR
-// multi-transition pattern within its true period (modulus * clockPeriod) -
-// not derivable from any input's own cycleTime, since the modulus is
-// internal configuration invisible to tryPromote()'s generic engine. Left to
-// empirical guessing alone, a short, purely coincidental period could match
-// two (or even three) windows well before the wraparound irregularity was
-// ever observed even once, locking in a badly wrong period forever with
-// compounding drift on every recurrence. Fixed via CounterElm's own
-// extraPromotionCandidates() (an analytically exact modulus*clockPeriod
-// candidate) plus tryPromote() waiting for that trusted candidate to have
-// enough history before falling back to a weaker guess.
+beforeEach(() => {
+    CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
+});
 
-class ClockElm extends DigitalElm {
-    constructor(period: number) {
-        super();
-        this.cycleTime = period;
-        this.rootPhaseZero = 0;
-        this.state = State.Active;
-        this.firstOutputEvent = 0;
-        this.currentOutputEvent = 1;
-        this.outputEvents.push([0, false]);
-        this.outputEvents.push([period / 2, true]);
-        this.scheduler.schedule(period / 2, this, true);
-    }
-    evaluate(): boolean { throw new Error("clock always active"); }
+function fakeRail(waveform: number, opts: { maxVoltage?: number; bias?: number; frequency?: number; flags?: number } = {}) {
+    const r = Object.create(RailElm.prototype) as RailElm;
+    (r as any).waveform = waveform;
+    (r as any).maxVoltage = opts.maxVoltage ?? 5;
+    (r as any).bias = opts.bias ?? 0;
+    (r as any).frequency = opts.frequency ?? 1000;
+    (r as any).FLAG_CLOCK = 1;
+    (r as any).flags = opts.flags ?? 1;
+    r.nodes = [];
+    return r;
 }
 
-function buildModulusCounter(scheduler: Scheduler) {
-    DigitalElm.current = scheduler;
-    const clock = new ClockElm(20);
-    const resetInactive = new DigitalConst(true); // invertreset=true -> true = inactive
+function probe() {
+    return {
+        digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
+        nodes: [] as { links: { num: number; elm: any }[] }[],
+    };
+}
+
+function connect(...posts: { elm: any; num: number }[]): void {
+    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
+    for (const p of posts) p.elm.nodes[p.num] = node;
+}
+
+// periodTicks*TIMESCALE seconds total period -> frequency such that halfPeriodTicks rounds
+// exactly to periodTicks/2 (see RailElm.digitalSynthesis()).
+function clockFrequencyForPeriodTicks(periodTicks: number): number {
+    return 1 / (periodTicks * TIMESCALE);
+}
+
+/** Builds a fresh modulus-13 4-bit CounterElm graph: a real RailElm square-wave clock (period 20
+ * ticks, matching the old ClockElm(20)) feeding a real CounterElm(bits=4, modulus=13,
+ * invertreset=true) whose reset is tied inactive (VCC, since invertreset=true -> active-low). */
+function buildModulusCounter() {
+    const clock = fakeRail(VoltageElm.WF_SQUARE, { frequency: clockFrequencyForPeriodTicks(20) });
+    const resetInactive = { digitalTie: () => "VCC" as const, nodes: [] as { links: { num: number; elm: any }[] }[] };
 
     const counter = Object.create(CounterElm.prototype) as any;
-    counter.invertreset = true;
-    counter.modulus = 13; // non-power-of-2 - the case that exposed the bug
-    counter.flags = 0;
     counter.bits = 4;
-    counter.inputs = [clock, resetInactive];
-    counter.digitalPins = Array.from({ length: 4 }, (_, k) => new GroupPin(counter, k));
-    for (const p of counter.digitalPins) p.addInput(...counter.inputs, ...counter.extraPeriodicityInputs(p));
-    for (const p of counter.digitalPins) if (p.state === State.Passive) p.inputUpdated(null);
+    counter.modulus = 13; // non-power-of-2 - the case that exposed the original bug
+    counter.invertreset = true;
+    counter.flags = 0;
+    counter.propagationDelay = 0;
+    counter.nodes = [];
 
-    return { scheduler, counter };
+    connect({ elm: clock, num: 0 }, { elm: counter, num: 0 });
+    connect({ elm: resetInactive, num: 0 }, { elm: counter, num: 1 });
+    const bitSinks = Array.from({ length: 4 }, () => probe());
+    bitSinks.forEach((sink, k) => connect({ elm: counter, num: 2 + k }, { elm: sink, num: 0 }));
+
+    const { circuit, chipsByElm } = buildDigitalCircuit([clock, resetInactive, counter, ...bitSinks]);
+    const bitChips: Chip[] = bitSinks.map((_, k) => {
+        const { pinMap, desc } = counter.digitalSynthesis();
+        const pin = pinMap.get(2 + k)!;
+        const idx = desc.findIndex((d: any) => d.outPin === pin);
+        return chipsByElm.get(counter)![idx];
+    });
+    return { circuit, bitChips };
 }
 
 describe("CounterElm modulus promotion", () => {
-    it("promotes each bit to the true modulus*clockPeriod, not a coincidentally-matching shorter guess", () => {
-        const { scheduler, counter } = buildModulusCounter(new Scheduler());
-        DigitalElm.promotionEnabled = true;
-        scheduler.runUntil(50_000);
-
-        const truePeriod = 13 * 20; // modulus * clock period
-        for (const pin of counter.digitalPins) {
-            expect(pin.state, "should have promoted").not.toBe(State.Passive);
-            expect(pin.cycleTime).toBe(truePeriod);
-        }
-    });
-
     it("matches the always-correct baseline over many full modulus cycles", () => {
-        DigitalElm.promotionEnabled = false;
-        const base = buildModulusCounter(new Scheduler());
-        base.scheduler.runUntil(500_000);
+        const runTicks = 500_000n;
 
-        DigitalElm.promotionEnabled = true;
-        const opt = buildModulusCounter(new Scheduler());
-        opt.scheduler.runUntil(500_000);
+        const base = buildModulusCounter();
+        for (const chip of base.circuit.chips) chip.optimizationDisabled = true;
+        base.circuit.run(runTicks);
+
+        const opt = buildModulusCounter();
+        opt.circuit.run(runTicks);
 
         for (let k = 0; k < 4; k++) {
-            const baseHist = base.counter.digitalPins[k].history;
-            const optPin = opt.counter.digitalPins[k];
-            if (optPin.state === State.Asleep) optPin._backfillHistory(500_000);
-            const optHist = optPin.history.filter(([t]: [number, boolean]) => t <= 500_000);
+            const baseHist = base.bitChips[k].history;
+            const optChip = opt.bitChips[k];
+            if (optChip.state === ChipState.ASLEEP) optChip.backfillHistory(opt.circuit.globalTime);
+            const optHist = optChip.history.filter(h => h.time <= runTicks);
 
             expect(optHist, `bit ${k} transition count`).toHaveLength(baseHist.length);
             for (let i = 0; i < baseHist.length; i++)

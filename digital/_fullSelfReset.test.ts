@@ -1,184 +1,223 @@
-import { describe, it, expect } from "vitest";
-import { Scheduler } from "./Scheduler";
-import { DigitalElm, State, GroupPin } from "./DigitalElm";
+// Rewritten against the new dice-ts-based engine (see noble-stirring-rabin.md's Testing
+// section: "Keep _fullSelfReset.test.ts's long-run integration test as the end-to-end regression
+// gate for the whole rewrite"). Same circuit structure as the old digital/DigitalElm.ts-based
+// version, built from REAL element classes (CounterElm, DFlipFlopElm, JKFlipFlopElm,
+// NandGateElm) via digitalSynthesis() + a real dice-ts Circuit instead of hand-rolled
+// GroupPin/DigitalElm wiring:
+//   H: 9-bit self-resetting counter (bits -> nand5 -> hresetFF -> Q=HRESET feeds back into H's
+//      OWN reset pin).
+//   V: two 4-bit ripple-cascaded counters + a JK 9th bit, ALL clocked ultimately from HRESET
+//      (vChip1 directly, vChip2/vJK via ripple carry), and ALL reset by VRESET (vChip1/vChip2
+//      directly, vJK via its own invert-reset flag) - VRESET generated the same way as HRESET:
+//      V's own bits -> nand3 -> vresetFF -> Q=VRESET, feeding back into V's OWN reset pins.
+import { describe, it, expect, beforeEach } from "vitest";
+import { ChipState } from "./chip";
+import type { Chip } from "./chip";
+import { customChipStart } from "./chip_desc";
+import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import { CounterElm } from "../CounterElm";
+import { DFlipFlopElm } from "../DFlipFlopElm";
 import { JKFlipFlopElm } from "../JKFlipFlopElm";
 import { NandGateElm } from "../GateElm";
-import { DFlipFlopElm } from "../DFlipFlopElm";
+import { RailElm } from "../RailElm";
+import { VoltageElm } from "../VoltageElm";
+import { CircuitElm } from "../CircuitElm";
+import { TIMESCALE } from "./constants";
 
-// Full structure, corrected per the user:
-//   H: 9-bit self-resetting counter (bits -> nand5 -> hresetFF -> Q=HRESET
-//      feeds back into H's OWN reset pin).
-//   V: two 4-bit ripple-cascaded chips + a JK 9th bit, ALL clocked
-//      ultimately from HRESET (vChip1 directly, vChip2/vJK via ripple
-//      carry), and ALL reset by VRESET (vChip1/vChip2 directly, vJK via
-//      its own invert-reset flag - matching /VRESET's active-low wiring) -
-//      VRESET itself generated the same way as HRESET: V's own bits ->
-//      nand3 -> vresetFF -> Q=VRESET, feeding back into V's OWN reset pins.
+beforeEach(() => {
+    CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
+});
 
-class ClockElm extends DigitalElm {
-    constructor(period: number) {
-        super();
-        this.cycleTime = period;
-        this.rootPhaseZero = 0;
-        this.state = State.Active;
-        this.firstOutputEvent = 0;
-        this.currentOutputEvent = 1;
-        this.outputEvents.push([0, false]);
-        this.outputEvents.push([period / 2, true]);
-        this.scheduler.schedule(period / 2, this, true);
-    }
-    evaluate(): boolean { throw new Error("clock always active"); }
+// Uniform 2-tick propagation delay on every gate/chip, matching the old test's DELAY_TICKS=2.
+const DELAY_S = 2 * TIMESCALE;
+
+function fakeRail(frequency: number) {
+    const r = Object.create(RailElm.prototype) as RailElm;
+    (r as any).waveform = VoltageElm.WF_SQUARE;
+    (r as any).maxVoltage = 5;
+    (r as any).bias = 0;
+    (r as any).frequency = frequency;
+    (r as any).FLAG_CLOCK = 1;
+    (r as any).flags = 1;
+    r.nodes = [];
+    return r;
 }
-// Uniform propagation delay (in ticks) applied to every gate/chip in the
-// circuit below, bypassing the seconds/maxTimeStep conversion (there's no
-// full SimulationManager set up in this unit test) via a direct
-// propagationDelayTicks() override - see DigitalElm.ts's delayTicks docstring
-// and GateElm/CounterElm/DFlipFlopElm/JKFlipFlopElm's own propagationDelayTicks()
-// implementations for the real (seconds-based) version this stands in for.
-const DELAY_TICKS = 2;
-function withDelay<T extends { propagationDelayTicks?: (...a: any[]) => number }>(obj: T): T {
-    if (DELAY_TICKS > 0) (obj as any).propagationDelayTicks = () => DELAY_TICKS;
-    return obj;
+
+function clockFrequencyForPeriodTicks(periodTicks: number): number {
+    return 1 / (periodTicks * TIMESCALE);
 }
-function fakeGate(proto: object, inputCount: number): any {
-    const g = Object.create(proto) as any;
-    g.inputCount = inputCount; g.flags = 0; g.inputs = []; g.liveOutputs = [];
-    g.value = false; g.initialValue = false; g.state = State.Passive; g.history = []; g.trustedInputs = new Set();
-    g.outputEvents = []; g.cycleTime = 0; g.firstOutputEvent = 0; g.currentOutputEvent = 0;
-    g.cycleParent = null; g.cycleSpanEnd = null; g.activationTime = null;
-    g.currentCycle = g; g.previousCycle = null;
-    g.rootPhaseZero = 0; g.sleepBase = 0; g.backfillCycle = g; g.backfillTime = 0;
-    g.lastChecked = 0; g.sleepRequested = false; g.digitalDebug = false;
-    g.inputPatternHistory = []; g.inputPatternTable = new Map();
-    g.lastInputChange = [];
-    g.firstInputTablePos = 0; g.firstInputMask = 0; g.checkVisited = false;
-    return withDelay(g);
+
+function tieSource(tie: "VCC" | "GND") {
+    return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
 }
-function buildDFF(d: any, clk: any) {
-    const ff = Object.create(DFlipFlopElm.prototype) as any;
-    ff.flags = 0;
-    ff.inputs = [d, clk];
-    ff.digitalPins = [new GroupPin(ff, 0), new GroupPin(ff, 1)];
-    ff.initDigitalPins();
-    withDelay(ff);
-    for (const p of ff.digitalPins) p.addInput(...ff.inputs);
-    return ff;
+
+function probe() {
+    return {
+        digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
+        nodes: [] as { links: { num: number; elm: any }[] }[],
+    };
 }
+
+function connect(...posts: { elm: any; num: number }[]): void {
+    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
+    for (const p of posts) p.elm.nodes[p.num] = node;
+}
+
+function counterElm(bits: number, flags: number) {
+    const c = Object.create(CounterElm.prototype) as any;
+    c.bits = bits;
+    c.modulus = 0;
+    c.invertreset = true; // active-low reset
+    c.flags = flags;
+    c.propagationDelay = DELAY_S;
+    c.nodes = [];
+    return c;
+}
+
+/** Real post index of a CounterElm's bit of the given power-of-2 `weight` - posts 2..bits+1 are
+ * the bits MSB-first (post2 = weight 2^(bits-1), post bits+1 = weight 2^0). */
+function bitPost(bits: number, weight: number): number {
+    return 2 + (bits - 1 - Math.log2(weight));
+}
+
+function dff() {
+    const f = Object.create(DFlipFlopElm.prototype) as any;
+    f.flags = 0;
+    f.propagationDelay = DELAY_S;
+    f.nodes = [];
+    return f;
+}
+
+function nand(inputCount: number) {
+    const g = Object.create(NandGateElm.prototype) as any;
+    g.inputCount = inputCount;
+    g.flags = 0;
+    g.propagationDelay = DELAY_S;
+    g.nodes = [];
+    return g;
+}
+
 const NEG = CounterElm.FLAG_NEGATIVE_EDGE;
 
-function buildCircuit(scheduler: Scheduler) {
-    DigitalElm.current = scheduler;
-    const clock = new ClockElm(4);
+/** Builds one fresh instance of the full H+V self-resetting structure. Returns every element plus
+ * the full elmList to hand to buildDigitalCircuit(), and hbit()/vbit() weight-indexed accessors
+ * mirroring the old test's helpers. */
+function buildCircuit() {
+    const clock = fakeRail(clockFrequencyForPeriodTicks(4));
 
     // H: self-resetting.
-    const hCounter = Object.create(CounterElm.prototype) as any;
-    hCounter.invertreset = true; hCounter.modulus = 0; hCounter.flags = NEG; hCounter.bits = 9;
-    hCounter.initDigitalPins(); withDelay(hCounter);
-    const nand5 = fakeGate(NandGateElm.prototype, 5);
-    const hresetFF = buildDFF(nand5, clock);
-    const HRESET = hresetFF.digitalPins[0];
-    hCounter.inputs = [clock, HRESET];
-    for (const p of hCounter.digitalPins) p.addInput(...hCounter.inputs, ...hCounter.extraPeriodicityInputs(p));
-    const hbit = (weight: number) => hCounter.digitalPins[8 - Math.log2(weight)];
-    nand5.addInput(hbit(2), hbit(4), hbit(64), hbit(128), hbit(256));
+    const hCounter = counterElm(9, NEG);
+    const nand5 = nand(5);
+    const hresetFF = dff();
+    connect({ elm: nand5, num: 5 }, { elm: hresetFF, num: 0 }); // D
+    connect({ elm: clock, num: 0 }, { elm: hresetFF, num: 3 }); // clk
+    const HRESET = { elm: hresetFF, num: 1 }; // Q
 
-    // V: self-resetting via its OWN nand3/vresetFF, reset pins wired to
-    // VRESET (vJK included).
-    const nand3 = fakeGate(NandGateElm.prototype, 3);
-    const vresetFF = buildDFF(nand3, clock);
-    const VRESET = vresetFF.digitalPins[0];
+    connect({ elm: clock, num: 0 }, { elm: hCounter, num: 0 }); // clk
+    connect(HRESET, { elm: hCounter, num: 1 }); // reset
+    for (let k = 0; k < 5; k++) {
+        const weight = [2, 4, 64, 128, 256][k];
+        connect({ elm: hCounter, num: bitPost(9, weight) }, { elm: nand5, num: k });
+    }
 
-    const vChip1 = Object.create(CounterElm.prototype) as any;
-    vChip1.invertreset = true; vChip1.modulus = 0; vChip1.flags = NEG; vChip1.bits = 4;
-    vChip1.initDigitalPins(); withDelay(vChip1);
-    vChip1.inputs = [HRESET, VRESET];
-    for (const p of vChip1.digitalPins) p.addInput(...vChip1.inputs, ...vChip1.extraPeriodicityInputs(p));
-    const vChip1MSB = vChip1.digitalPins[0];
+    // V: self-resetting via its OWN nand3/vresetFF, reset pins wired to VRESET (vJK included).
+    const nand3 = nand(3);
+    const vresetFF = dff();
+    connect({ elm: nand3, num: 3 }, { elm: vresetFF, num: 0 }); // D
+    connect({ elm: clock, num: 0 }, { elm: vresetFF, num: 3 }); // clk
+    const VRESET = { elm: vresetFF, num: 1 }; // Q
 
-    const vChip2 = Object.create(CounterElm.prototype) as any;
-    vChip2.invertreset = true; vChip2.modulus = 0; vChip2.flags = NEG; vChip2.bits = 4;
-    vChip2.initDigitalPins(); withDelay(vChip2);
-    vChip2.inputs = [vChip1MSB, VRESET];
-    for (const p of vChip2.digitalPins) p.addInput(...vChip2.inputs, ...vChip2.extraPeriodicityInputs(p));
-    const vChip2MSB = vChip2.digitalPins[0];
+    const vChip1 = counterElm(4, NEG);
+    connect(HRESET, { elm: vChip1, num: 0 }); // clk
+    connect(VRESET, { elm: vChip1, num: 1 }); // reset
+    const vChip1MSB = { elm: vChip1, num: bitPost(4, 8) };
+
+    const vChip2 = counterElm(4, NEG);
+    connect(vChip1MSB, { elm: vChip2, num: 0 }); // clk
+    connect(VRESET, { elm: vChip2, num: 1 }); // reset
+    const vChip2MSB = { elm: vChip2, num: bitPost(4, 8) };
 
     const vJK = Object.create(JKFlipFlopElm.prototype) as any;
     vJK.flags = JKFlipFlopElm.FLAG_RESET | JKFlipFlopElm.FLAG_INVERT_RESET;
-    const jHigh = fakeGate(NandGateElm.prototype, 0); jHigh.value = true; jHigh.evaluate = () => true;
-    const kHigh = fakeGate(NandGateElm.prototype, 0); kHigh.value = true; kHigh.evaluate = () => true;
-    vJK.inputs = [jHigh, vChip2MSB, kHigh, VRESET];
-    vJK.digitalPins = [new GroupPin(vJK, 0), new GroupPin(vJK, 1)];
-    vJK.initDigitalPins(); withDelay(vJK);
-    for (const p of vJK.digitalPins) p.addInput(...vJK.inputs);
+    vJK.propagationDelay = DELAY_S;
+    vJK.nodes = [];
+    const vcc = tieSource("VCC");
+    connect({ elm: vcc, num: 0 }, { elm: vJK, num: 0 }); // J
+    connect(vChip2MSB, { elm: vJK, num: 1 }); // clk
+    connect({ elm: vcc, num: 0 }, { elm: vJK, num: 2 }); // K
+    connect(VRESET, { elm: vJK, num: 5 }); // reset
 
-    const vbit = (weight: number): any => {
-        if (weight === 256) return vJK.digitalPins[0];
-        if (weight >= 16) return vChip2.digitalPins[3 - Math.log2(weight / 16)];
-        return vChip1.digitalPins[3 - Math.log2(weight)];
+    const vbitPost = (weight: number): { elm: any; num: number } => {
+        if (weight === 256) return { elm: vJK, num: 3 }; // Q
+        if (weight >= 16) return { elm: vChip2, num: bitPost(4, weight / 16) };
+        return { elm: vChip1, num: bitPost(4, weight) };
     };
-    nand3.addInput(vbit(1), vbit(4), vbit(256));
+    for (const [k, weight] of [1, 4, 256].entries())
+        connect(vbitPost(weight), { elm: nand3, num: k });
 
-    const all = [
-        ...hCounter.digitalPins, nand5, ...hresetFF.digitalPins,
-        ...vChip1.digitalPins, ...vChip2.digitalPins, ...vJK.digitalPins,
-        nand3, ...vresetFF.digitalPins,
-    ];
-    for (const p of all) if (p.state === State.Passive) p.inputUpdated(null);
+    // Every element whose output isn't otherwise consumed within the feedback loops needs an
+    // external sink to survive circuit.ts's dead-code elimination: notQ of every D/JK flip-flop,
+    // and any V bit not already read by nand3.
+    const sinks: any[] = [];
+    const keepAlive = (elm: any, num: number) => {
+        const sink = probe();
+        connect({ elm, num }, { elm: sink, num: 0 });
+        sinks.push(sink);
+    };
+    keepAlive(hresetFF, 2); // notQ
+    keepAlive(vresetFF, 2); // notQ
+    keepAlive(vJK, 4); // notQ
+    for (const weight of [1, 2, 4, 8, 16, 32, 64, 128, 256]) keepAlive(hCounter, bitPost(9, weight));
+    for (const weight of [1, 2, 4, 8]) { keepAlive(vChip1, bitPost(4, weight)); keepAlive(vChip2, bitPost(4, weight)); }
 
-    return { scheduler, hCounter, nand5, hresetFF, vChip1, vChip2, vJK, nand3, vresetFF, hbit, vbit };
+    const elmList = [clock, vcc, hCounter, nand5, hresetFF, nand3, vresetFF, vChip1, vChip2, vJK, ...sinks];
+    const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
+
+    const chipAt = (elm: any, post: number): Chip => {
+        const { pinMap, desc } = elm.digitalSynthesis();
+        const pin = pinMap.get(post)!;
+        const idx = desc.findIndex((d: any) => d.outPin === pin);
+        return chipsByElm.get(elm)![idx];
+    };
+
+    const hbit = (weight: number) => chipAt(hCounter, bitPost(9, weight));
+    const vbit = (weight: number) => {
+        const p = vbitPost(weight);
+        return chipAt(p.elm, p.num);
+    };
+
+    return { circuit, hCounter, nand5, hresetFF, vChip1, vChip2, vJK, nand3, vresetFF, hbit, vbit };
 }
 
 describe("full self-resetting H+V (corrected structure)", () => {
-    it("report settling after a long run", () => {
-        DigitalElm.promotionEnabled = true;
-        const c = buildCircuit(new Scheduler());
-        c.scheduler.runUntil(2_000_000);
-        const report = (label: string, pin: any) =>
-            console.log(`${label}: state=${State[pin.state]} cycleTime=${pin.cycleTime} historyLen=${pin.history.length}`);
-        report("nand5", c.nand5);
-        report("hresetFF.Q", c.hresetFF.digitalPins[0]);
+    it("settles after a long run", () => {
+        const c = buildCircuit();
+        c.circuit.run(2_000_000n);
+        const report = (label: string, chip: Chip) =>
+            console.log(`${label}: state=${ChipState[chip.state]} cycleTime=${chip.cycleTime} historyLen=${chip.history.length}`);
+        report("nand5", c.hbit(2)); // representative - see per-signal reports below
         for (const w of [1, 4, 16, 64, 256]) report(`V bit${w}`, c.vbit(w));
-        report("nand3", c.nand3);
-        report("vresetFF.Q", c.vresetFF.digitalPins[0]);
     }, 30000);
 
     it("matches an always-correct baseline over 2,000,000 ticks (V bit 256 and 128)", () => {
-        DigitalElm.promotionEnabled = false;
-        const base = buildCircuit(new Scheduler());
-        base.scheduler.runUntil(2_000_000);
+        const runTicks = 2_000_000n;
 
-        DigitalElm.promotionEnabled = true;
-        const opt = buildCircuit(new Scheduler());
-        opt.scheduler.runUntil(2_000_000);
+        const base = buildCircuit();
+        for (const chip of base.circuit.chips) chip.optimizationDisabled = true;
+        base.circuit.run(runTicks);
+
+        const opt = buildCircuit();
+        opt.circuit.run(runTicks);
 
         for (const w of [128, 256]) {
             const baseHist = base.vbit(w).history;
-            const optPin = opt.vbit(w);
-            if (optPin.state === State.Asleep) optPin._backfillHistory(2_000_000);
-            const optHist = optPin.history.filter(([t]: [number, boolean]) => t <= 2_000_000);
+            const optChip = opt.vbit(w);
+            if (optChip.state === ChipState.ASLEEP) optChip.backfillHistory(opt.circuit.globalTime);
+            const optHist = optChip.history.filter(h => h.time <= runTicks);
 
-            let bi = 0, oi = 0, mismatches = 0, drops = 0;
-            const realMismatches: any[] = [];
-            while (bi < baseHist.length && oi < optHist.length) {
-                const b = baseHist[bi], o = optHist[oi];
-                if (b[0] === o[0] && b[1] === o[1]) { bi++; oi++; continue; }
-                let matched = false;
-                for (let k = 1; k <= 6 && !matched; k++) {
-                    if (bi + k < baseHist.length && baseHist[bi + k][0] === o[0] && baseHist[bi + k][1] === o[1]) { drops += k; bi += k; matched = true; }
-                }
-                if (matched) continue;
-                for (let k = 1; k <= 6 && !matched; k++) {
-                    if (oi + k < optHist.length && optHist[oi + k][0] === b[0] && optHist[oi + k][1] === b[1]) { drops += k; oi += k; matched = true; }
-                }
-                if (matched) continue;
-                mismatches++;
-                if (realMismatches.length < 10) realMismatches.push({ base_i: bi, base: b, opt_i: oi, opt: o });
-                bi++; oi++;
-            }
-            console.log(`V bit${w}: baseLen=${baseHist.length} optLen=${optHist.length} drops=${drops} realMismatches=${mismatches} leftoverBase=${baseHist.length - bi} leftoverOpt=${optHist.length - oi}`);
-            if (mismatches > 0) console.log("examples:", JSON.stringify(realMismatches));
-            expect(mismatches, `V bit${w} real mismatches`).toBe(0);
+            expect(optHist, `V bit${w} transition count`).toHaveLength(baseHist.length);
+            for (let i = 0; i < baseHist.length; i++)
+                expect(optHist[i], `V bit${w} transition ${i}`).toEqual(baseHist[i]);
         }
     }, 60000);
 });
