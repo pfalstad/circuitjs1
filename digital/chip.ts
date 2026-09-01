@@ -817,7 +817,19 @@ export class Chip extends Cycle {
 
                 if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' asleep`);
 
-                if (this.currentCycle !== (this as Cycle) && (this.currentCycle.parentCycle !== (this as Cycle) || this.activeOutputs !== 0n))
+                // If currentCycle isn't the root cycle, schedule an event to wake up.
+                // This must run whenever currentCycle !== this (root), regardless of
+                // activeOutputs / currentCycle.parentCycle. The root Cycle has an
+                // unbounded endTime, so it's never safe to compute a delay from it, but
+                // any non-root currentCycle always has a real, finite endTime, and this
+                // chip's own future output events (self-clocking) depend on this timer
+                // firing to advance currentCycle -- not on activeOutputs, which only
+                // tracks whether *downstream consumers* still need updates. Skipping
+                // this when currentCycle.parentCycle === this && activeOutputs === 0n
+                // (the previous condition) left chips with no self-wake timer AND no
+                // live upstream delivery path (already pruned by activateInputs()), so
+                // they went to sleep forever with no way to ever be woken again.
+                if (this.currentCycle !== (this as Cycle))
                     this.pendingEvent = this.circuit.queuePush(this, this.currentCycle.endTime - globalTime);
 
                 return;
