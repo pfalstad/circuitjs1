@@ -189,6 +189,80 @@ function buildCircuit() {
     return { circuit, hCounter, nand5, hresetFF, vChip1, vChip2, vJK, nand3, vresetFF, hbit, vbit };
 }
 
+/** Simpler self-resetting circuit than buildCircuit() above: a 4-bit counter (1H,2H,4H,8H)
+ * driven directly by the clock, whose MSB (8H) clocks a second 4-bit counter (16H,32H,64H,128H).
+ * A single 3-input NAND on 2H, 4H, 16H feeds a D flip-flop clocked by the SAME clock as the first
+ * counter; its /Q output resets both counters. Unlike buildCircuit()'s H/V structure (where most
+ * chips settle to ASLEEP - see ../dice-ts/src/games/pong.ts, of which both are simplifications),
+ * this smaller circuit runs forever without any chip going to sleep. */
+function buildSimpleCircuit() {
+    const clock = fakeRail(clockFrequencyForPeriodTicks(4));
+
+    const counter1 = counterElm(4, NEG);
+    connect({ elm: clock, num: 0 }, { elm: counter1, num: 0 }); // clk
+    const counter1MSB = { elm: counter1, num: bitPost(4, 8) };
+
+    const counter2 = counterElm(4, NEG);
+    connect(counter1MSB, { elm: counter2, num: 0 }); // clk
+
+    const nand3 = nand(3);
+    connect({ elm: counter1, num: bitPost(4, 2) }, { elm: nand3, num: 0 }); // 2H
+    connect({ elm: counter1, num: bitPost(4, 4) }, { elm: nand3, num: 1 }); // 4H
+    connect({ elm: counter2, num: bitPost(4, 1) }, { elm: nand3, num: 2 }); // 16H
+
+    const ff = dff();
+    connect({ elm: nand3, num: 3 }, { elm: ff, num: 0 }); // D
+    connect({ elm: clock, num: 0 }, { elm: ff, num: 3 }); // clk - same clock as counter1
+    const RESET = { elm: ff, num: 2 }; // /Q (restored)
+
+    connect(RESET, { elm: counter1, num: 1 }); // reset
+    connect(RESET, { elm: counter2, num: 1 }); // reset
+
+    // Every output not otherwise consumed needs an external sink so circuit.ts's dead-code
+    // elimination doesn't drop it: Q of the flip-flop, and any counter bit not read by nand3.
+    const sinks: any[] = [];
+    const keepAlive = (elm: any, num: number) => {
+        const sink = probe();
+        connect({ elm, num }, { elm: sink, num: 0 });
+        sinks.push(sink);
+    };
+    keepAlive(ff, 1); // Q
+    for (const weight of [1, 8]) keepAlive(counter1, bitPost(4, weight));
+    for (const weight of [2, 4, 8]) keepAlive(counter2, bitPost(4, weight));
+
+    const elmList = [clock, counter1, counter2, nand3, ff, ...sinks];
+    const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
+
+    const chipAt = (elm: any, post: number): Chip => {
+        const { pinMap, desc } = elm.digitalSynthesis();
+        const pin = pinMap.get(post)!;
+        const idx = desc.findIndex((d: any) => d.outPin === pin);
+        return chipsByElm.get(elm)![idx];
+    };
+
+    return {
+        circuit, counter1, counter2, nand3, ff, chipAt,
+        bit1: (weight: number) => chipAt(counter1, bitPost(4, weight)),
+        bit2: (weight: number) => chipAt(counter2, bitPost(4, weight / 16)), // weight is external (16..128)
+    };
+}
+
+describe("simplified self-resetting counter pair (single reset domain)", () => {
+    it("settles after a long run", () => {
+        const c = buildSimpleCircuit();
+        c.circuit.run(2_000_000n);
+        const report = (label: string, chip: Chip) =>
+            console.log(`${label}: state=${ChipState[chip.state]} cycleTime=${chip.cycleTime} historyLen=${chip.history.length}`);
+        for (const w of [1, 2, 4, 8]) report(`counter1 bit${w}`, c.bit1(w));
+        for (const w of [16, 32, 64, 128]) report(`counter2 bit${w}`, c.bit2(w));
+
+        for (const w of [1, 2, 4, 8])
+            expect(c.bit1(w).state, `counter1 bit${w} should settle to ASLEEP`).toBe(ChipState.ASLEEP);
+        for (const w of [16, 32, 64, 128])
+            expect(c.bit2(w).state, `counter2 bit${w} should settle to ASLEEP`).toBe(ChipState.ASLEEP);
+    }, 30000);
+});
+
 describe("full self-resetting H+V (corrected structure)", () => {
     it("settles after a long run", () => {
         const c = buildCircuit();
@@ -221,3 +295,4 @@ describe("full self-resetting H+V (corrected structure)", () => {
         }
     }, 60000);
 });
+

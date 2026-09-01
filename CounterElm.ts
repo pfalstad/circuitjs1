@@ -53,27 +53,103 @@ export class CounterElm extends ChipElm {
             k++;
         }
     }
-    /** Phase 3 (see noble-stirring-rabin.md): one LUT cell per bit, each cell's own real Q pin
-     * doubling as its prevOutputPin (see DFlipFlopElm.digitalSynthesis()'s identical convention),
-     * with the OTHER bits' current values wired in as plain inPins - every bit-cell reconstructs
-     * the whole register's value (its own bit from prevPin, every other bit from its real wired
-     * pin, which reflects that sibling's PRE-edge output since dice-ts's engine always defers an
-     * output's own `.output` mutation through the event queue - see chip.ts's updateOutput() -
-     * even at zero delay, so no sibling can appear to have already advanced when this cell reads
-     * it off the same clock edge), applies +/-1 and the configured modulus exactly per evaluate()
-     * above, then re-extracts its own bit. When idle (no edge), the reconstruction trivially
-     * reproduces the bit it started from (nothing else touches position w), which is why this
-     * needs no separate "hold" branch - matches evaluate()'s "genuine synchronous design"
-     * docstring, just with the whole register visible to every bit-cell instead of a chain.
-     * Deliberately NOT the doc's originally-sketched ripple/9316-style carry chain (chained
-     * bit-to-bit dependency, doc.txt's "extra internal-pin cell" compare-and-clear trick): this
-     * needs no internal pins at all (every bit's real Q pin already carries what a sibling needs,
-     * both as data and via its own prevOutputPin), which sidesteps chip_desc.ts's 24-internal-pin
-     * ceiling entirely - and it's a direct restatement of the already-validated evaluate(), not a
-     * fresh derivation. Trade-off: each bit-cell's LUT is `2^(bits+2+hasUpDown)` truth-table
-     * entries, so this doesn't scale to very wide (~20+ bit) counters - fine for this editor's
-     * realistic range. */
+    /** Phase 3 (see noble-stirring-rabin.md), revised: plain binary counting (modulus===0, no
+     * Up/Down pin) now synthesizes as a genuine ripple chain - see digitalSynthesisRipple()
+     * below, which is the whole point (see its own docstring for why). Modulus and Up/Down keep
+     * the original whole-register-reconstruction synthesis (digitalSynthesisWholeRegister()
+     * below): an arbitrary non-power-of-2 modulus needs every bit-cell to see the whole register
+     * to apply a synchronous compare-and-clear, and Up/Down's dynamic direction pin would need an
+     * extra XOR-carry-select cell per ripple stage - both real, separable follow-ups, not bundled
+     * into this change (see the digitalSynthesisRipple() docstring's own note). */
     digitalSynthesis(): DigitalSynthesis {
+        if (this.modulus === 0 && !this.hasUpDown()) return this.digitalSynthesisRipple();
+        return this.digitalSynthesisWholeRegister();
+    }
+
+    /** A genuine asynchronous ripple counter, structured exactly like a real 7493 (see
+     * dice-ts/src/chips/7493.ts): bit 0 (the LSB) toggles on the configured edge of the real
+     * clock pin; each subsequent bit w toggles on bit (w-1)'s OWN falling edge - the real carry
+     * condition for binary up-counting (incrementing only ever carries out of a bit at the exact
+     * moment that bit falls from 1 to 0), always negedge-triggered regardless of the top-level
+     * Negative Edge Triggered flag (which only configures the EXTERNAL clock at bit 0 - the
+     * internal ripple carry's edge sense is a fixed consequence of "what carrying means", not a
+     * user setting - matching every cell of the real 7493, which is unconditionally negedge
+     * regardless of any polarity option). Reset is the same broadcast, level-sensitive pin every
+     * bit already had.
+     *
+     * Each bit-cell's only inputs are its own {resetPin, clockSourcePin} - never a sibling bit's
+     * value - unlike digitalSynthesisWholeRegister()'s one-LUT-cell-reads-every-other-bit design.
+     * That whole-register design is fine as long as a counter's reset stays a pure function of
+     * its OWN bits (a single self-contained feedback loop can still jointly settle), but it makes
+     * literal ChipState.ASLEEP structurally unreachable for ANY bit with more than one sibling:
+     * ASLEEP requires a chip's activeOutputs to reach zero, which needs every consumer to
+     * release its interest via activateInputs()'s cross-reference-the-upstream's-own-cycle
+     * handshake (chip.ts) - a handshake that depends on catching that specific upstream chip
+     * still mid-relearning (ACTIVE) at the moment the consumer itself (re)activates. With every
+     * bit of a counter mutually watching every other bit and all sharing the exact same clock,
+     * every bit tends to settle into PASSIVE at essentially the same moment, so none ever catches
+     * a sibling still ACTIVE and the release never fires for any sibling-to-sibling edge -
+     * permanently pinning activeOutputs nonzero. (PASSIVE, note, is NOT an optimization: every
+     * updateInputs() call re-runs the full LUT lookup regardless of ACTIVE/PASSIVE - see
+     * chip.ts's updateInputs() - so a mutually-clique-coupled counter's bits get fully
+     * resimulated on literally every clock edge forever, same cost as if unoptimized.) A real
+     * 7493-style bit's only real per-edge dependency is its own single ripple/clock source, so
+     * this same handshake has a real chance to succeed and does - confirmed empirically against
+     * dice-ts's actual 7493-based Pong circuit, which settles every relevant chip to ASLEEP
+     * within its first few hundred clock cycles. */
+    private digitalSynthesisRipple(): DigitalSynthesis {
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const clkPin = 1, resetPin = 2;
+        const qPin = (w: number) => bits + 2 - w; // w=0 is LSB, matches execute()'s pins[lastBit-i] layout
+        const neg = this.negativeEdgeTriggered();
+        const invertBit = this.invertreset ? 1 : 0;
+
+        const desc: ChipDesc[] = [];
+        for (let w = 0; w < bits; w++) {
+            const out = qPin(w);
+            const clockSource = w === 0 ? clkPin : qPin(w - 1);
+            const edgeFn = w === 0 ? (neg ? negEdge : posEdge) : negEdge;
+
+            const logic: ChipLogic = (pin, prevPin, eventPin) => {
+                let bitW: number;
+                if (edgeFn(pin, eventPin, clockSource)) bitW = prevPin[out] ^ 1;
+                else bitW = prevPin[out];
+                if (pin[resetPin] ^ invertBit) bitW = 0;
+                pin[out] = bitW;
+            };
+
+            desc.push(
+                chipStart(logic).inputPins(resetPin, clockSource).eventPins(clockSource).outputPin(out).prevOutputPin(out)
+                    .outputDelayS(this.propagationDelay, this.propagationDelay)
+            );
+        }
+        return { desc, pinMap };
+    }
+
+    /** Original Phase 3 synthesis (see noble-stirring-rabin.md): one LUT cell per bit, each
+     * cell's own real Q pin doubling as its prevOutputPin (see DFlipFlopElm.digitalSynthesis()'s
+     * identical convention), with the OTHER bits' current values wired in as plain inPins - every
+     * bit-cell reconstructs the whole register's value (its own bit from prevPin, every other bit
+     * from its real wired pin, which reflects that sibling's PRE-edge output since dice-ts's
+     * engine always defers an output's own `.output` mutation through the event queue - see
+     * chip.ts's updateOutput() - even at zero delay, so no sibling can appear to have already
+     * advanced when this cell reads it off the same clock edge), applies +/-1 and the configured
+     * modulus exactly per evaluate() above, then re-extracts its own bit. When idle (no edge),
+     * the reconstruction trivially reproduces the bit it started from (nothing else touches
+     * position w), which is why this needs no separate "hold" branch - matches evaluate()'s
+     * "genuine synchronous design" docstring, just with the whole register visible to every
+     * bit-cell instead of a chain. Still used for modulus!==0 (an arbitrary non-power-of-2
+     * modulus needs a synchronous compare-and-clear against the WHOLE register - see
+     * digitalSynthesisRipple()'s docstring) and for Up/Down (a real ripple up/down counter needs
+     * an extra per-stage XOR-carry-select cell, not yet implemented) - see digitalSynthesis()
+     * above. Trade-off: each bit-cell's LUT is `2^(bits+2+hasUpDown)` truth-table entries, so
+     * this doesn't scale to very wide (~20+ bit) counters - fine for this editor's realistic
+     * range. */
+    private digitalSynthesisWholeRegister(): DigitalSynthesis {
         const bits = this.bits;
         const postCount = this.getPostCount();
         const pinMap = new Map<number, number>();

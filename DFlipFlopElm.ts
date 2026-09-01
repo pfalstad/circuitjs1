@@ -22,7 +22,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
-import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
+import { chipStart, i1 as internalQ, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
@@ -43,13 +43,30 @@ export class DFlipFlopElm extends ChipElm {
         appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
     }
 
-    /** Phase 3 (see noble-stirring-rabin.md): a state cell (own real Q pin doubles as its
-     * prevOutputPin, per-pin post index -> pin number is postIndex+1 throughout, matching
-     * GateElm.digitalSynthesis()'s convention) computes Q exactly per evaluate() above - captures
-     * D on the configured clock edge, or forces to isSet/isReset on that same quirky
-     * independent-per-pin basis - then a /Q buffer cell reads it back, re-deriving the same
-     * isSet/isReset override rather than simply inverting Q (see evaluate()'s own docstring for
-     * why DFlipFlopElm's /Q isn't strictly !Q during a set/reset collision). */
+    /** Phase 3 (see noble-stirring-rabin.md), revised: matches dice-ts's real chips/7474.ts
+     * structure, which this originally didn't - the state cell computes Q onto an INTERNAL pin
+     * (own prevOutputPin, per-pin post index -> pin number is postIndex+1 throughout otherwise,
+     * matching GateElm.digitalSynthesis()'s convention) rather than the real external Q pin
+     * directly; a separate buffer cell copies that onto the real Q pin, and /Q is derived from
+     * the SAME internal pin, not from the buffered external one. So the state cell's only
+     * consumers are ever its own two same-macro siblings (the buffer and /Q) - never whatever
+     * external element happens to be wired to this flip-flop's real Q pin.
+     *
+     * That indirection matters far beyond matching the reference chip byte-for-byte: chip.ts's
+     * ASLEEP/promotion machinery lets a chip stop needing live pushes to a given consumer only
+     * once THAT CONSUMER completes a "catch my upstream still mid-relearning" handshake at its
+     * own next activation (activateInputs() in chip.ts) - and it needs to happen for every
+     * consumer before the chip can go fully quiet. Wire external consumers straight to the state
+     * cell (as this used to) and its consumer set is whatever the rest of the circuit happens to
+     * be - here, in a self-resetting counter's reset path, that's every bit of every counter
+     * reset feeds, all of which have their own independent, slow-to-align activation schedules.
+     * Confirmed empirically: a synthetic single-counter-plus-flip-flop self-reset circuit (no
+     * second counter, nothing else) made ZERO promotion progress after 500,000 clock periods
+     * with the direct-to-Qpin version, forever; wired the dice-ts way (buffer decouples the state
+     * cell down to just 2 fixed, local, fast-settling consumers), the equivalent dice-ts circuit
+     * settles within tens of periods. /Q isn't strictly !Q during a set/reset collision - see
+     * evaluate()'s own docstring - so notQ re-derives the same isSet/isReset override rather than
+     * simply inverting the buffered Q. */
     digitalSynthesis(): DigitalSynthesis {
         const postCount = this.getPostCount();
         const pinMap = new Map<number, number>();
@@ -68,23 +85,26 @@ export class DFlipFlopElm extends ChipElm {
         const state: ChipLogic = (pin, prevPin, eventPin) => {
             const isSet = hasS ? (pin[Spin] ^ invertBit) : 0;
             const isReset = hasR ? (pin[Rpin] ^ invertBit) : 0;
-            if (isSet || isReset) pin[Qpin] = isSet;
-            else if (posEdge(pin, eventPin, clkPin)) pin[Qpin] = pin[Dpin];
-            else pin[Qpin] = prevPin[Qpin];
+            if (isSet || isReset) pin[internalQ] = isSet;
+            else if (posEdge(pin, eventPin, clkPin)) pin[internalQ] = pin[Dpin];
+            else pin[internalQ] = prevPin[internalQ];
         };
 
-        const notQIn: number[] = [Qpin];
+        const qBuf: ChipLogic = (pin) => { pin[Qpin] = pin[internalQ]; };
+
+        const notQIn: number[] = [internalQ];
         if (hasR) notQIn.push(Rpin);
         if (hasS) notQIn.push(Spin);
         const notQ: ChipLogic = (pin) => {
             const isSet = hasS ? (pin[Spin] ^ invertBit) : 0;
             const isReset = hasR ? (pin[Rpin] ^ invertBit) : 0;
-            pin[notQpin] = (isSet || isReset) ? isReset : (pin[Qpin] ^ 1);
+            pin[notQpin] = (isSet || isReset) ? isReset : (pin[internalQ] ^ 1);
         };
 
         const desc: ChipDesc[] = [
-            chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(Qpin).prevOutputPin(Qpin)
+            chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(internalQ).prevOutputPin(internalQ)
                 .outputDelayS(this.propagationDelay, this.propagationDelay),
+            chipStart(qBuf).inputPins(internalQ).outputPin(Qpin),
             chipStart(notQ).inputPins(...notQIn).outputPin(notQpin),
         ];
         return { desc, pinMap };
