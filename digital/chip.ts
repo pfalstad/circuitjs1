@@ -150,6 +150,220 @@ export class Cycle {
 
 export interface HistoryEntry { time: bigint; value: number; }
 
+// A backfill replay position, mirroring a (possibly nested) Cycle.currentCycle chain but held
+// entirely separately so backfillHistory()/currentValue() can advance it without touching any
+// real Cycle's live currentOutputEvent/activationTime/endTime (see backfillPos's own field
+// comment on Chip for why that separation matters). `level` is the Cycle whose
+// outputEvents/firstOutputEvent/cycleTime `idx` indexes (a Chip for the outermost frame, a plain
+// Cycle for any `sub` frame) - stored directly rather than re-derived from the parent frame's own
+// idx, because that idx moves on past whatever placeholder led here (see the "descend" step
+// below), so it can no longer be relied on to name the child once this frame is revisited later.
+// `entryTime` is the absolute time this frame's level was entered (needed, mirroring
+// climbToValidCycle()'s own `globalTime - currentCycle.activationTime` term, to figure out how
+// much of a level's own span has already been consumed when climbing back out of it) - meaningless
+// for the outermost frame (never climbed out of - its exitBound is MAX_U64) so left as 0n there.
+// `exitBound` is the absolute time at which control must return to the enclosing frame - MAX_U64
+// for the outermost frame, otherwise `entryTime` plus `level`'s own cycleDuration, capped by the
+// enclosing frame's own exitBound (mirroring nextOutputCycle()'s own endTime capping, computed
+// fresh here rather than trusting the real (transient, only valid mid-live-traversal) Cycle
+// object's own .endTime field). `sub` is the next frame in - null once `idx` refers to a plain
+// (non-SUBCYCLE_MASK) event.
+interface BackfillPos { level: Cycle; idx: number; entryTime: bigint; exitBound: bigint; sub: BackfillPos | null }
+
+// Rebuilds a BackfillPos chain from a flat top-to-bottom array of frames (the inverse of walking
+// `.sub` pointers) - used by advanceBackfillPos() after mutating one frame in place.
+function rebuildBackfillPos(frames: BackfillPos[]): BackfillPos {
+    let pos: BackfillPos | null = null;
+    for (let i = frames.length - 1; i >= 0; i--) pos = { level: frames[i].level, idx: frames[i].idx, entryTime: frames[i].entryTime, exitBound: frames[i].exitBound, sub: pos };
+    return pos!;
+}
+
+// Captures `chip`'s current (possibly nested) currentCycle chain as a BackfillPos, for seeding
+// the resumable backfill cursor at the exact moment this chip falls ASLEEP. Reads each level's
+// real (but, once this chip is dormant, frozen-in-place) currentOutputEvent/endTime - safe
+// precisely because nothing mutates them again until this chip genuinely wakes, at which point
+// backfillHistory()/currentValue() stop being called at all (see currentValue()'s ASLEEP guard).
+//
+// Deliberately does NOT try to resolve a SUBCYCLE_MASK (type===1) entry the innermost
+// currentOutputEvent might itself be resting on (the case updateOutput()'s ASLEEP-wake path's own
+// `while (c.outputEvents.front().type) c = ...` peek exists for) - "resting on" that entry means
+// its OWN crossing hasn't happened yet, at some absTime yet to be computed from ITS OWN .time via
+// the same delay formula every other position uses; there is no "entryAbsTime" to eagerly resolve
+// it against here. advanceBackfillPos() below resolves this (and any position it advances onto)
+// uniformly, at the moment it actually knows what absTime that crossing happens at.
+function captureBackfillPos(chip: Chip): BackfillPos {
+    const frames: BackfillPos[] = [];
+    for (let c: Cycle = chip.currentCycle; ; c = c.parentCycle!) {
+        frames.push({ level: c, idx: c.currentOutputEvent, entryTime: c.activationTime, exitBound: c.endTime, sub: null });
+        if (c === (chip as unknown as Cycle)) break;
+    }
+    frames.reverse(); // frames[0] = chip (outermost) ... frames[last] = currentCycle (innermost)
+    return rebuildBackfillPos(frames);
+}
+
+// Pushes the frame(s) for "freshly entering `cycle` at `absTime`" onto `frames`, mirroring
+// nextOutputCycle()'s own entry semantics exactly: a newly-entered cycle's bookmark is
+// IMMEDIATELY advanced one step past its own firstOutputEvent (real production code does this
+// too - see nextOutputCycle()'s flat branch, run against a freshly-set `cycle.currentOutputEvent
+// = cycle.firstOutputEvent` right before it), and if firstOutputEvent's own entry is itself
+// another placeholder, that descent recurses (matching nextOutputCycle()'s own recursive call)
+// before the one-step advance happens at whatever level actually turns out to be real. Every
+// level touched here starts its `exitBound` from the SAME `absTime` (the whole nested chain is
+// being entered simultaneously), each capped by the enclosing level's own bound.
+function pushEnteredCycle(frames: BackfillPos[], cycle: Cycle, absTime: bigint, exitBound: bigint): void {
+    let level = cycle;
+    let bound = exitBound;
+    for (; ;) {
+        const oe = level.outputEvents;
+        const ev = oe.get(level.firstOutputEvent);
+        let after = oe.inc(level.firstOutputEvent);
+        if (after === oe.end()) after = level.firstOutputEvent;
+        frames.push({ level, idx: after, entryTime: absTime, exitBound: bound, sub: null });
+        if (!ev.type) return;
+        const sub = ev.subCycle!;
+        const rawExit = absTime + sub.cycleDuration;
+        bound = rawExit < bound ? rawExit : bound;
+        level = sub;
+    }
+}
+
+// The raw per-level delay formula (nextOutputEventDelay()'s own, evaluated against a given
+// (level, idx) pair instead of that Cycle's live currentOutputEvent) - shared by the normal
+// per-step computation and the climb adjustment below, which both need it.
+function rawDelay(level: Cycle, idx: number): bigint {
+    const oe = level.outputEvents;
+    return idx === level.firstOutputEvent
+        ? oe.get(level.firstOutputEvent).time + level.cycleTime - oe.back().time
+        : oe.get(idx).time - oe.get(oe.dec(idx)).time;
+}
+
+// The one real implementation of "replay this chip's learned periodic schedule forward from
+// (pos, absTime, value) to `now`" - shared by backfillHistory() (which must enumerate and record
+// every individual toggle, for ScopePlot) and currentValue() (which only wants the final value,
+// and never writes the result back - see currentValue()'s own docstring for why that matters).
+// Entirely local/non-mutating with respect to every real Cycle object it reads (outputEvents,
+// cycleTime, firstOutputEvent, cycleDuration) - never touches currentOutputEvent/activationTime/
+// endTime, so it's safe to call while a chip is genuinely ASLEEP regardless of how many times
+// it's called or in what order relative to any other read.
+//
+// The value toggles on EVERY transition, unconditionally - exactly like updateOutput()'s ACTIVE
+// branch's own unconditional `this.output ^= 1`, called once per transition regardless of how
+// many levels nextOutputCycle() ends up touching underneath it. Descending into (or popping out
+// of) a nested sub-cycle is pure bookkeeping about which Cycle the FOLLOWING delay computation
+// should reference - orthogonal to the toggle itself (the KNOWN GAP this whole function
+// replaces). `record`, when given, is called with every (absTime, value) the walk passes through
+// (enumerate mode, for ScopePlot); when omitted, whole repeats of a level's own period are
+// skipped via arithmetic instead of being stepped one at a time (fast mode, for currentValue()).
+function advanceBackfillPos(
+    startPos: BackfillPos,
+    startAbsTime: bigint,
+    startValue: number,
+    now: bigint,
+    record: ((absTime: bigint, value: number) => void) | null,
+): { pos: BackfillPos; absTime: bigint; value: number } {
+    let pos = startPos;
+    let absTime = startAbsTime;
+    let value = startValue;
+
+    const watchdog = new Watchdog(1_000_000);
+
+    for (; ;) {
+        watchdog.tick(() => 'advanceBackfillPos stuck');
+
+        // Resolve the innermost frame - walk `.sub` down, collecting every frame along the way
+        // (top-to-bottom) so a frame can be popped or replaced in place below.
+        const frames: BackfillPos[] = [pos];
+        for (let p = pos; p.sub !== null; p = p.sub) frames.push(p.sub);
+        const inner = frames[frames.length - 1];
+        const level = inner.level;
+        const oe = level.outputEvents;
+
+        // Fast mode: skip whole periods of `level` via arithmetic when nothing needs recording -
+        // same trick wakeUp() itself relies on (`time = (globalTime - sleepTime) % cycleTime`):
+        // walking exactly `level.cycleTime` ticks from anywhere always lands back on the same idx
+        // with the same value, by definition of what "this level repeats with period cycleTime"
+        // means - true regardless of what's inside the period (nested sub-cycles included), so
+        // unlike an approach that tries to count toggles-per-period, this needs no per-level
+        // "is it a clean/flat template" check at all. Only `absTime` moves; `idx`/`value` don't.
+        if (record === null && level.cycleTime > 0n) {
+            const bound = inner.exitBound < now ? inner.exitBound : now;
+            const elapsed = bound - absTime;
+            if (elapsed > level.cycleTime) {
+                // "- 1n" keeps at least one period's worth of normal stepping below, so the usual
+                // tie-breaking at `now`/exitBound never needs to be reproduced here.
+                const periods = (elapsed - 1n) / level.cycleTime;
+                if (periods > 0n) {
+                    absTime += periods * level.cycleTime;
+                    continue;
+                }
+            }
+        }
+
+        let delay = rawDelay(level, inner.idx);
+
+        // Climb: mirrors updateOutput()'s own ACTIVE-branch climb loop exactly - `absTime` stays
+        // FIXED throughout (matching that loop's fixed `globalTime`), and each climb step
+        // recomputes `delay` relative to the next parent up, subtracting however much of the
+        // level being abandoned had already been consumed (`absTime - abandoned.entryTime`,
+        // matching `globalTime - currentCycle.activationTime`) - only when the parent's own raw
+        // delay is bigger than that (same conditional the real loop uses). This is NOT the same
+        // as jumping `absTime` to the exit boundary and recomputing fresh from there; the
+        // adjustment keeps the ORIGINAL `absTime` and folds the abandoned level's remaining span
+        // into one combined `delay`.
+        // Climbing is only ever tentative until we know the crossing actually happens THIS call -
+        // popping a level discards its own `entryTime`, which is exactly what a LATER call would
+        // need to redo this same climb-and-adjust math correctly if this call returns without
+        // committing. So compute `climbIdx`/`delay` against the frame array without truncating it
+        // yet; only slice it down (below) once `candidate <= now` confirms we're committing.
+        let climbIdx = frames.length - 1;
+        while (frames[climbIdx].exitBound <= now && absTime + delay >= frames[climbIdx].exitBound && climbIdx > 0) {
+            const abandoned = frames[climbIdx];
+            climbIdx--;
+            const parent = frames[climbIdx];
+            const parentDelay = rawDelay(parent.level, parent.idx);
+            const consumed = absTime - abandoned.entryTime;
+            if (parentDelay > consumed) delay = parentDelay - consumed;
+        }
+
+        const candidate = absTime + delay;
+
+        // `now` matches the original (proven) flat formula's own convention: a transition
+        // landing exactly ON `now` still counts as having happened (only `candidate > now`
+        // withholds it - see chip.backfillHistory.test.ts's own asserted traces). Not committing
+        // the climb here means returning `pos` completely unchanged - the abandoned level(s)'
+        // frames, `entryTime` included, are still there for next time.
+        if (candidate > now) return { pos, absTime, value };
+
+        // Committing now: truncate away whatever got climbed past above.
+        frames.length = climbIdx + 1;
+        const climbed = frames[climbIdx];
+        const climbedLevel = climbed.level;
+        const climbedOe = climbedLevel.outputEvents;
+
+        // The crossing always toggles the value, whether the position names a real entry or a
+        // placeholder - see this function's own docstring.
+        value ^= 1;
+        absTime = candidate;
+        if (record) record(absTime, value);
+
+        const justCrossed = climbedOe.get(climbed.idx);
+        let nextIdx = climbedOe.inc(climbed.idx);
+        if (nextIdx === climbedOe.end()) nextIdx = climbedLevel.firstOutputEvent;
+        frames[frames.length - 1] = { level: climbedLevel, idx: nextIdx, entryTime: climbed.entryTime, exitBound: climbed.exitBound, sub: null };
+
+        // If the position we just crossed (not `nextIdx` - `climbed.idx` itself) was a
+        // placeholder, descend into it now, anchored at the absTime we just landed on.
+        if (justCrossed.type) {
+            const subCycle = justCrossed.subCycle!;
+            const rawExit = absTime + subCycle.cycleDuration;
+            const subExit = rawExit < climbed.exitBound ? rawExit : climbed.exitBound;
+            pushEnteredCycle(frames, subCycle, absTime, subExit);
+        }
+
+        pos = rebuildBackfillPos(frames);
+    }
+}
+
 export class Chip extends Cycle {
     circuit: Circuit;
 
@@ -205,8 +419,9 @@ export class Chip extends Cycle {
     // backfillHistory() itself as it's called. Deliberately separate from currentOutputEvent/
     // currentCycle (which wakeUp() needs untouched at their sleep-time values to replay from
     // scratch) - see backfillHistory()'s own docstring for why sharing those would corrupt live
-    // replay.
-    private backfillIdx = 0;
+    // replay. `backfillPos` mirrors currentCycle's own (possibly nested) position - see
+    // BackfillPos's own docstring.
+    private backfillPos: BackfillPos = { level: this, idx: 0, entryTime: 0n, exitBound: MAX_U64, sub: null };
     private backfillAbsTime = 0n;
     private backfillValue = 0;
 
@@ -591,12 +806,12 @@ export class Chip extends Cycle {
                 this.state = ChipState.ASLEEP;
                 this.sleepTime = globalTime;
 
-                // Seed the backfill cursor at exactly this position - currentOutputEvent still
-                // indexes the entry just applied (this.output above), and wakeUp() itself starts
-                // its own replay from this same (currentCycle, currentOutputEvent, sleepTime)
-                // triple, so this is the correct starting point for backfillHistory()'s
-                // independent forward walk too.
-                this.backfillIdx = this.currentCycle.currentOutputEvent;
+                // Seed the backfill cursor at exactly this position - currentOutputEvent (at
+                // every nesting level from currentCycle up to `this`) still indexes the entry
+                // just applied (this.output above), and wakeUp() itself starts its own replay
+                // from this same (currentCycle chain, sleepTime) state, so this is the correct
+                // starting point for backfillHistory()'s independent forward walk too.
+                this.backfillPos = captureBackfillPos(this);
                 this.backfillAbsTime = globalTime;
                 this.backfillValue = this.output;
 
@@ -936,52 +1151,20 @@ export class Chip extends Cycle {
     // corrupt live replay state (wakeUp() itself always restarts from (currentCycle,
     // currentOutputEvent, sleepTime) as they stood at the moment this chip fell ASLEEP - see
     // updateOutput()'s ASLEEP-entry branch). Instead this walks the same outputEvents structure
-    // with its own resumable, side-effect-free cursor (backfillIdx/backfillAbsTime/
-    // backfillValue - seeded at that same ASLEEP-entry point), inlining
-    // nextOutputEventDelay()'s exact formula against the local cursor instead of the real
-    // (mutating) currentOutputEvent field.
-    //
-    // KNOWN GAP: only handles a chip that was at its own ROOT cycle (no promoted sub-cycle) when
-    // it fell asleep - bails out immediately if `currentCycle !== this`, and mid-walk if it ever
-    // reaches a SUBCYCLE_MASK entry (`type === 1`), rather than descending into nested Cycle
-    // replay (wakeUp()'s own nested-cycle handling - endTime/activationTime bookkeeping across
-    // `parentCycle` - would need the same side-effect-free treatment, not yet done here). history
-    // just stops short of `now` in that case rather than producing wrong data; ScopePlot draws
-    // whatever prefix is available.
+    // (including descending into any nested sub-cycle, same as wakeUp()'s own traversal) via
+    // advanceBackfillPos()'s side-effect-free cursor (backfillPos/backfillAbsTime/backfillValue -
+    // seeded at that same ASLEEP-entry point).
     backfillHistory(now: bigint): void {
         if (this.state !== ChipState.ASLEEP) return;
-        if (this.currentCycle !== (this as Cycle)) return; // nested sub-cycle at sleep time - see KNOWN GAP above
         if (this.outputEvents.empty()) return;
         if (this.backfillAbsTime >= now) return;
 
-        const oe = this.outputEvents;
-        let idx = this.backfillIdx;
-        let absTime = this.backfillAbsTime;
-        let value = this.backfillValue;
+        const result = advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, now,
+            (t, v) => this.history.push({ time: t, value: v }));
 
-        const watchdog = new Watchdog(1_000_000);
-        for (;;) {
-            if (oe.get(idx).type) break; // KNOWN GAP: nested sub-cycle replay not implemented
-
-            const delay = idx === this.firstOutputEvent
-                ? oe.get(this.firstOutputEvent).time + this.cycleTime - oe.back().time
-                : oe.get(idx).time - oe.get(oe.dec(idx)).time;
-
-            if (absTime + delay > now) break;
-            watchdog.tick(() => `backfillHistory stuck: chip=${this.debugName}`);
-
-            absTime += delay;
-            value ^= 1;
-            this.history.push({ time: absTime, value });
-
-            let next = oe.inc(idx);
-            if (next === oe.end()) next = this.firstOutputEvent;
-            idx = next;
-        }
-
-        this.backfillIdx = idx;
-        this.backfillAbsTime = absTime;
-        this.backfillValue = value;
+        this.backfillPos = result.pos;
+        this.backfillAbsTime = result.absTime;
+        this.backfillValue = result.value;
     }
 
     // The chip's own logical output as of right now - unlike the raw `output` field/setter
@@ -993,15 +1176,23 @@ export class Chip extends Cycle {
     // value keeps changing on its own schedule. That's the correct, efficient behavior for the
     // periodicity engine itself (nothing downstream ever needs the intermediate values), but a
     // live circuit editor's own rendering - every wire's voltage color, not just a Scope's trace -
-    // needs "the value right now" regardless of whether any other CHIP is watching. Reuses
-    // backfillHistory()'s own side-effect-free resumable cursor (doesn't wake the chip or disturb
-    // its real schedule) rather than sampling `output` directly. Same KNOWN GAP as
-    // backfillHistory() itself: a chip that was mid-nested-subcycle when it fell asleep just
-    // returns its frozen sleep-time value here too.
+    // needs "the value right now" regardless of whether any other CHIP is watching. Computes the
+    // answer via the same advanceBackfillPos() replay backfillHistory() uses (so it correctly
+    // descends into a nested sub-cycle instead of freezing there), but WITHOUT recording (no
+    // `history` growth for a call that doesn't need a trace) and WITHOUT writing the result back
+    // to backfillPos/backfillAbsTime/backfillValue: this is called every render frame, for every
+    // ASLEEP chip on screen, so it must stay cheap regardless of how long the chip has been
+    // dormant - reading the shared cursor as a fixed anchor and computing forward from it locally
+    // (skipping whole periods via arithmetic rather than stepping through every intermediate
+    // toggle - see advanceBackfillPos()'s own docstring) gets that. Leaving the shared cursor
+    // untouched also means nothing is lost: whenever something actually does need the trace (a
+    // Scope), backfillHistory() will walk and record every toggle from wherever that cursor still
+    // is, exactly as if currentValue() had never been called in between.
     currentValue(): number {
         if (this.state !== ChipState.ASLEEP) return this.output;
-        this.backfillHistory(this.circuit.globalTime);
-        return this.backfillValue;
+        if (this.outputEvents.empty() || this.backfillAbsTime >= this.circuit.globalTime) return this.backfillValue;
+
+        return advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, this.circuit.globalTime, null).value;
     }
 
     static nextBit(x: number): number {

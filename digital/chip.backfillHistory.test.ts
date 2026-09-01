@@ -8,6 +8,7 @@
 // code paths (see the comment above each expectation below for the trace).
 import { describe, it, expect } from "vitest";
 import { Chip, ChipState, Cycle, Event } from "./chip";
+import { MAX_U64 } from "./constants";
 
 const fakeCircuit = { globalTime: 0n } as any;
 
@@ -31,10 +32,69 @@ function asleepClockChip(d0: bigint, d1: bigint, sleepIdx: number, sleepAbsTime:
     chip.currentCycle = chip as unknown as Cycle;
 
     chip.state = ChipState.ASLEEP;
-    (chip as any).backfillIdx = sleepIdx;
+    (chip as any).backfillPos = { level: chip, idx: sleepIdx, entryTime: 0n, exitBound: MAX_U64, sub: null };
     (chip as any).backfillAbsTime = sleepAbsTime;
     (chip as any).backfillValue = sleepValue;
     return chip;
+}
+
+/** Builds a Cycle for a nested sub-cycle placeholder, matching exactly what deactivateOutputs()
+ * produces: its own small periodic `entries` (each a [time, state] pair), `cycleTime` (its own
+ * period) and `cycleDuration` (how much of the parent's slot for it is "active" before the parent
+ * regains control - see deactivateOutputs()'s own `globalTime - activationTime + 1n`). */
+function makeSubCycle(entries: [bigint, number][], cycleTime: bigint, cycleDuration: bigint): Cycle {
+    const c = new Cycle(8, 8);
+    for (const [t, s] of entries) c.outputEvents.push_back(new Event(t, s));
+    c.firstOutputEvent = c.outputEvents.begin();
+    c.cycleTime = cycleTime;
+    c.cycleDuration = cycleDuration;
+    return c;
+}
+
+/** Builds a chip whose outputEvents match a real self-resetting counter's LSB exactly as captured
+ * from a live repro of the reported bug (a 4-bit counter, Q2/Q3 -> AND -> reset): top-level period
+ * 23976 ticks, containing 3 real toggles interleaved with 3 nested sub-cycle placeholders (each
+ * period 3996, active for 3997 of those ticks) - plus one leftover placeholder before
+ * firstOutputEvent, from an earlier learning round, that's never actually visited. Frozen ASLEEP
+ * with currentOutputEvent resting directly ON a placeholder (matching updateOutput()'s own
+ * ASLEEP-wake peek path - see captureBackfillPos()'s docstring), the exact condition that froze
+ * currentValue()/backfillHistory() before this file's KNOWN GAP was fixed. Captures the actual
+ * Cirque index of each pushed entry via oe.end() rather than assuming a fixed numbering - a fresh
+ * Cirque's own index base is an implementation detail, not something to hardcode. */
+function asleepNestedCounterChip(): Chip {
+    const chip = bareChip();
+    chip.currentCycle = chip as unknown as Cycle;
+    chip.cycleTime = 23976n;
+    const oe = chip.outputEvents;
+
+    oe.push_back(new Event(2997n, 0, 1, makeSubCycle([[2997n, 0], [4995n, 1]], 3996n, 3997n))); // leftover, never visited
+    const first = oe.end();
+    oe.push_back(new Event(8991n, 1)); // = firstOutputEvent
+    chip.firstOutputEvent = first;
+    const sleepIdx = oe.end();
+    oe.push_back(new Event(10989n, 0, 1, makeSubCycle([[10989n, 0], [12987n, 1]], 3996n, 3997n))); // the placeholder we fall asleep on
+    oe.push_back(new Event(16983n, 1));
+    oe.push_back(new Event(18981n, 0, 1, makeSubCycle([[18981n, 0], [20979n, 1]], 3996n, 3997n)));
+    oe.push_back(new Event(24975n, 1));
+    oe.push_back(new Event(26973n, 0, 1, makeSubCycle([[26973n, 0], [28971n, 1]], 3996n, 3997n)));
+
+    chip.state = ChipState.ASLEEP;
+    chip.sleepTime = 32967n;
+    (chip as any).backfillPos = { level: chip as unknown as Cycle, idx: sleepIdx, entryTime: 0n, exitBound: MAX_U64, sub: null };
+    (chip as any).backfillAbsTime = 32967n;
+    (chip as any).backfillValue = 1;
+    return chip;
+}
+
+// Ground truth for asleepNestedCounterChip(), computed independently: every transition happens
+// exactly 1998 ticks after the last (a self-resetting counter's LSB toggles at half the clock
+// period, unaffected by the reset since it divides evenly - see the bug investigation), starting
+// value 1 at t=32967 (the sleep-time seed).
+function expectedNestedSequence(count: number): { time: bigint; value: number }[] {
+    const out: { time: bigint; value: number }[] = [];
+    let t = 32967n, v = 1;
+    for (let i = 0; i < count; i++) { t += 1998n; v ^= 1; out.push({ time: t, value: v }); }
+    return out;
 }
 
 describe("Chip.backfillHistory()", () => {
@@ -102,5 +162,47 @@ describe("Chip.backfillHistory()", () => {
         const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
         chip.backfillHistory(110n); // now === backfillAbsTime already
         expect(chip.history).toEqual([]);
+    });
+
+    // Regression coverage for the KNOWN GAP this file's backfillHistory()/currentValue() used to
+    // have: a chip asleep with currentOutputEvent resting on (or, mid-walk, wrapping onto) a
+    // nested SUBCYCLE_MASK placeholder - the exact shape a self-resetting counter's irregular
+    // period compiles to (see chip.ts's Chip.currentValue() and BackfillPos's own docstrings).
+    describe("nested sub-cycles", () => {
+        it("backfillHistory() descends into and out of nested sub-cycles correctly", () => {
+            const chip = asleepNestedCounterChip();
+            const expected = expectedNestedSequence(20);
+            chip.backfillHistory(expected[expected.length - 1].time);
+            expect(chip.history).toEqual(expected);
+        });
+
+        it("currentValue() matches at every point along the way, without mutating backfillHistory()'s own cursor", () => {
+            const chip = asleepNestedCounterChip();
+            const expected = expectedNestedSequence(20);
+            for (const { time, value } of expected) {
+                (chip.circuit as any).globalTime = time;
+                expect(chip.currentValue()).toBe(value);
+            }
+            // currentValue() never wrote back to the shared cursor - backfillHistory() from
+            // scratch still walks (and records) the exact same full sequence.
+            chip.backfillHistory(expected[expected.length - 1].time);
+            expect(chip.history).toEqual(expected);
+        });
+
+        it("is resumable across many small, irregularly-spaced calls (as ScopePlot really drives it) - regression for a real bug where a call that climbed out of a sub-cycle but landed short of `now` lost track of how much of the sub-cycle's span it had already consumed, corrupting the next call's result", () => {
+            const chip = asleepNestedCounterChip();
+            const expected = expectedNestedSequence(30);
+            const finalTime = expected[expected.length - 1].time;
+
+            let t = chip.sleepTime;
+            let step = 733n; // deliberately not a multiple of 1998, like an unrelated render rate
+            while (t < finalTime) {
+                t += step;
+                step = (step * 7n + 91n) % 3000n + 500n; // keep the spacing irregular call to call
+                chip.backfillHistory(t < finalTime ? t : finalTime);
+            }
+
+            expect(chip.history).toEqual(expected);
+        });
     });
 });
