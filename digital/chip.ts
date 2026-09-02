@@ -461,6 +461,16 @@ export class Chip extends Cycle {
     private backfillAbsTime = 0n;
     private backfillValue = 0;
 
+    // Set once (never cleared) by ScopePlot.setDigitalChip() the first time some Scope resolves
+    // its digitalChip to this Chip - see catchUpHistoryBeforeWake()'s own comment for why this
+    // exists: waking a NEVER-watched chip can safely skip the granular backfill walk (nothing
+    // will ever read the gap it leaves), but a chip a Scope has shown interest in must not be
+    // allowed to grow one, even across a sleep episode nobody happened to poll mid-flight. Never
+    // reset back to false - a Scope can detach and reattach (or a second Scope attach later), and
+    // re-arming this cheaply on every attach isn't worth the bookkeeping when leaving it set is
+    // already correct (just occasionally-unnecessary) for a chip nothing is watching any more.
+    historyWatched = false;
+
     debugName = "";
 
     subCycles: (Cycle | null)[];
@@ -639,11 +649,43 @@ export class Chip extends Cycle {
     // guarantees `history` gets each real transition from exactly one of the two writers, never
     // both.
     //
-    // A no-op whenever nobody's actually been watching this chip (backfillAbsTime is still
-    // sitting at sleepTime, untouched since captureBackfillPos() seeded it) - backfillHistory()'s
-    // own guards make that free to check, so the common case (an unwatched chip waking after a
-    // long sleep) keeps using the cheap modulo path with no granular walk at all, and lets that
-    // path's own setter-triggered writes populate `history` for the first and only time.
+    // A no-op when NEITHER of two things is true: (a) something already polled backfillHistory()
+    // during this particular sleep episode (`backfillAbsTime > sleepTime` - cheap to keep taking
+    // advantage of when it happens to be true, since the walk from there to `now` is normally
+    // short), or (b) `historyWatched` is true - i.e. some Scope has EVER resolved its digitalChip
+    // to this Chip (see that field's own comment). (b) is the one that matters: skipping the
+    // granular walk and falling back to wakeUp()'s/updateOutput()'s own cheaper modulo-shortcut
+    // replay is only actually safe for a chip nothing is watching.
+    //
+    // It is NOT safe merely because nobody happened to poll backfillHistory() during THIS
+    // PARTICULAR sleep episode (the guard used to check ONLY (a), unconditionally treating
+    // "unpolled this episode" as "safe to skip" - the real bug behind the reported
+    // white-streaks/missing-detail corruption, confirmed via chip.wakeUpHistoryTruncation.test.ts).
+    // The modulo-shortcut replay does NOT populate `history` for the whole elapsed sleep: `time =
+    // (globalTime - sleepTime) %
+    // cycleTime` reduces the walk to at most one (possibly partial) period, by design - the
+    // whole point of the promotion optimization is that `this.output`'s FINAL value doesn't need
+    // every intermediate toggle replayed to be correct. Any whole periods elapsed before that
+    // final partial one are simply never visited by that path, so their setter-triggered writes
+    // never happen - not "deferred", genuinely dropped (worse the more periods a wake's modulo
+    // shortcut collapses - i.e. worse the faster the sim runs, or the longer between Scope draws -
+    // matching the reported symptom). The single transition that final partial-period step DOES
+    // compute and write can also, less often, land on a time/value the granular walk itself would
+    // NOT have produced for that instant (see chip.wakeUpHistoryTruncation.test.ts's own header
+    // comment) - `this.output` still converges back to correct once a subsequent real input event
+    // forces a fresh, fully-informed re-promotion, but whatever got written into `history` in the
+    // meantime doesn't un-write itself. A Scope calling backfillHistory() once per draw() only
+    // closes the gap (and avoids that occasional bad write) if a draw() happens to land WHILE this
+    // chip is still ASLEEP; a fast-running sim can easily complete an entire (real, event-driven)
+    // sleep->wake cycle between two draws, and unlike the live simulation - which only needs
+    // `this.output`'s eventual value, so this is invisible to it - a Scope's `history`-
+    // reconstructed trace needs every one of those transitions right, and once one is dropped or
+    // misrecorded it's permanent: a solid gap or a wrong-colored pixel (the reported "white
+    // streak"/missing block, or an occasional stray one). Also gating this
+    // on `historyWatched` keeps the fast, gap-tolerant modulo path for the (common) case of a
+    // chip nothing is scoping - unwatched chips have no `history` reader to ever notice a gap -
+    // while any chip a Scope cares about pays the granular-walk cost on every wake, whether or
+    // not that specific episode happened to get polled first.
     // Returns true when `history` is now known-complete through `now` - i.e. whether the caller's
     // own replay (about to walk the very same span again purely for `this.output`/`currentCycle`
     // bookkeeping) must write `this._output` directly, bypassing the history-appending setter, to
@@ -662,7 +704,7 @@ export class Chip extends Cycle {
     // replay's normal setter writes cover it (re-covering the already-backfilled prefix too, in
     // that rare case, rather than silently dropping the tail).
     private catchUpHistoryBeforeWake(): boolean {
-        if (this.backfillAbsTime <= this.sleepTime) return false;
+        if (!this.historyWatched && this.backfillAbsTime <= this.sleepTime) return false;
         const now = this.circuit.globalTime;
         return this.backfillHistory(now) >= now;
     }

@@ -162,6 +162,10 @@ export class ScopePlot {
         if (chip === null) return;
         this.historyEpoch = chip.circuit.globalTime;
         chip.skipBackfillTo(this.historyEpoch);
+        // Marks this chip as needing a gapless `history` from now on - see Chip.historyWatched's
+        // own comment for why waking it can no longer take the cheap modulo-only shortcut that's
+        // fine for a chip nothing is scoping.
+        chip.historyWatched = true;
     }
 
     startIndex(w: number): number {

@@ -3,22 +3,37 @@
 // scope-plot trace - see its own field comment) can end up different depending on nothing but how
 // often it's polled, for the exact same underlying circuit run over the exact same tick range.
 //
-// Mechanism: a chip's promoted/ASLEEP schedule (activateInputs()'s periodicity proof) is
-// sometimes wrong - built from too little evidence, particularly for a chip whose inputs are
-// themselves two independently-clocked signals (e.g. an AND of two counter bits with unrelated
-// periods - the exact shape of scopebug.txt/scopebug2.txt's "16H AND 16V"/"64H AND 64V"). While
-// ASLEEP, `this.output` never actually changes except via wakeUp()'s own replay - backfillHistory()
-// (driven once per Scope.draw(), see ScopePlot.fillFromDigitalHistory()/ScopePlot2d.fillDigitalRaster())
-// is deliberately non-mutating with respect to `this.output` (see its own docstring), but it DOES
-// record into `history` - so a scope polling with small, frequent steps can catch a chip mid-sleep,
-// walk its (eventually-falsified) schedule, and permanently record transitions that group up into
-// blocks nothing in the real circuit ever produced - while a scope polling with large, infrequent
-// steps might jump clean over the same sleep episode without ever seeing it mid-flight, recording
-// only the one real transition at the far end. Same circuit, same tick range, different `history` -
-// purely a function of how the caller happened to chop up its calls to backfillHistory(). This is
-// NOT a promotion-correctness bug (the live simulation - `this.output`/`currentValue()` once the
-// chip has actually woken - is unaffected either way); it's specifically about what gets
-// permanently written into the scope's own trace.
+// Confirmed mechanism (via a ground-truth `optimizationDisabled` baseline - see the second test
+// below): large-step polling mostly DROPS genuine transitions, plus occasionally records a
+// handful of extra ones at times the real signal never actually transitions at. Both trace back
+// to the same root cause. A sleeping chip's real wake (wakeUp()/updateOutput()'s ASLEEP branch)
+// only ever fast-forwards `this.output` through at most one (possibly partial) trailing period -
+// `time = (globalTime - sleepTime) % cycleTime` - because that's all live simulation correctness
+// needs (the value only has to be right by the time something real reads it again); any whole
+// periods elapsed before that trailing one are never visited, so their `this.output`-setter-
+// triggered writes into `history` simply never happen (the dropped majority of the gap), and the
+// ONE transition this cheap replay does compute and write can itself land on a time/value the
+// verified-correct granular walk (backfillHistory()'s own advanceBackfillPos(), which does visit
+// every period) would NOT have produced for that same span (the occasional spurious extra entry -
+// `this.output`/`currentValue()` still converges back to correct once a subsequent real input
+// event forces a fresh, fully-informed re-promotion; only the momentary value recorded into
+// `history` before that point can be wrong). The ONLY thing that ever records the intermediate
+// transitions correctly is backfillHistory()'s own granular walk - and (before the fix below) that
+// walk was skipped on wake whenever nobody had polled `backfillHistory()` during that SPECIFIC
+// sleep episode (chip.ts's old `catchUpHistoryBeforeWake()` guard: `backfillAbsTime <=
+// sleepTime`), leaving the cheap/unreliable replay as `history`'s only writer for that episode.
+// Small-step ("slow") polling calls `backfillHistory()` often enough to almost always catch each
+// sleep episode mid-flight; large-step ("fast") polling - or, more precisely, ANY gap between
+// polls wide enough to let a whole sleep-wake-resleep cycle complete unpolled - hits this every
+// time instead. This gets worse the faster the sim runs (more ticks, hence more whole sleep
+// episodes, elapse per Scope.draw()) - matching the reported symptom ("white streaks" from the
+// drops, occasional wrong-colored pixels from the rarer spurious entries).
+//
+// Fix: chip.ts's `historyWatched` flag (set by ScopePlot.setDigitalChip() the first time a Scope
+// resolves its digitalChip to a given Chip) makes `catchUpHistoryBeforeWake()` do the granular
+// walk on EVERY wake for a watched chip, regardless of whether that specific episode got polled
+// first - closing the gap for any chip an actual Scope can display, while leaving unwatched chips
+// (the common case - most chips in a circuit have no Scope attached) on the old cheap path.
 import { describe, it, expect, beforeEach } from "vitest";
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
@@ -84,10 +99,12 @@ const NEG = CounterElm.FLAG_NEGATIVE_EDGE;
 /** Same self-resetting H+V counter shape as _fullSelfReset.test.ts's buildCircuit() (see its own
  * comment), plus one extra AND gate combining "16H" and "16V" - matching scopebug.txt/
  * scopebug2.txt's real repro circuits ("16H AND 16V" / "64H AND 64V" feeding the raster scope's
- * brightness input) - the shape that actually triggers the false-period promotion: two
- * independently-clocked counter bits, ANDed, with no other consumer forcing a real correction
- * until one of them happens to toggle again. */
-function buildCircuit(clockPeriodTicks: number) {
+ * brightness input) - the shape whose promoted schedule sleeps and re-wakes often enough, with
+ * short-enough periods relative to a "fast" step, to make the dropped-transitions gap (see this
+ * file's header comment) show up reliably. `optDisabled`, when true, forces every chip's
+ * optimizationDisabled (real per-tick simulation, no promotion/sleep at all) for the
+ * always-correct ground-truth baseline the third test below compares against. */
+function buildCircuit(clockPeriodTicks: number, optDisabled = false) {
     const clock = fakeRail(clockFrequencyForPeriodTicks(clockPeriodTicks));
 
     const hCounter = counterElm(9, NEG);
@@ -144,6 +161,7 @@ function buildCircuit(clockPeriodTicks: number) {
 
     const elmList = [clock, vcc, hCounter, nand5, hresetFF, nand3, vresetFF, vChip1, vChip2, vJK, and];
     const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
+    if (optDisabled) for (const chip of circuit.chips) chip.optimizationDisabled = true;
 
     const andChip = chipsByElm.get(and)![0];
     return { circuit, andChip };
@@ -153,9 +171,12 @@ function buildCircuit(clockPeriodTicks: number) {
  * ticks advanced per call - the same shape ScopePlot really drives this in (once per draw(), with
  * however many ticks happen to have elapsed since the last draw - see SimulationManager.runCircuit()).
  * A small `step` models a slow-running sim (few ticks accumulate per draw); a large `step` models a
- * fast one (many ticks accumulate per draw, well past a single ASLEEP episode in one jump). */
-function runWithStep(totalTicks: bigint, step: bigint): { time: bigint; value: number }[] {
+ * fast one (many ticks accumulate per draw, well past a single ASLEEP episode in one jump).
+ * `watched`, when true, mirrors ScopePlot.setDigitalChip() marking the chip historyWatched - the
+ * fix under test. */
+function runWithStep(totalTicks: bigint, step: bigint, watched = false): { time: bigint; value: number }[] {
     const { circuit, andChip } = buildCircuit(4);
+    if (watched) andChip.historyWatched = true;
     let t = 0n;
     while (t < totalTicks) {
         t += step;
@@ -175,13 +196,50 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
         const slow = runWithStep(totalTicks, 100n);
         const fast = runWithStep(totalTicks, 5_000n);
 
-        // Not a promotion bug - the live circuit converges to the same real transitions either
-        // way (compare only entries each trace agrees are genuine wake-driven transitions, i.e.
-        // strip out the disputed span nobody but the granular walk ever claimed). What this
-        // documents is that they're NOT identical: `history` itself depends on polling cadence.
+        // Documents that an UNWATCHED chip's `history` still depends on polling cadence - that's
+        // the deliberate, cheap-by-default tradeoff (see this file's header comment): nothing
+        // reads `history` for a chip no Scope has ever resolved its digitalChip to, so there's no
+        // reason to pay for a gapless one. The next two tests pin down, against a ground-truth
+        // baseline, that (a) this cadence-dependence really is large-step polling DROPPING real
+        // transitions rather than small-step polling inventing fictional ones, and (b) marking
+        // the chip historyWatched (what ScopePlot.setDigitalChip() does) fixes it.
         console.log("slow (step=100) history length:", slow.length);
         console.log("fast (step=5000) history length:", fast.length);
 
         expect(slow).not.toEqual(fast);
+    }, 60000);
+
+    it("large-step ('fast') polling both drops and misrecords transitions relative to an always-correct baseline", () => {
+        const totalTicks = 40_000n;
+
+        const base = buildCircuit(4, true);
+        base.circuit.run(totalTicks);
+        const baseHist = base.andChip.history.filter(h => h.time <= totalTicks);
+        const baseline = new Set(baseHist.map(h => `${h.time}:${h.value}`));
+
+        const fast = runWithStep(totalTicks, 5_000n).filter(h => h.time <= totalTicks);
+
+        console.log("baseline length:", baseHist.length, "fast length:", fast.length);
+
+        // Mostly missing detail: substantially fewer entries than the ground truth.
+        expect(fast.length).toBeLessThan(baseHist.length * 0.8);
+
+        // ...plus at least one entry the real signal never actually produced - see this file's
+        // header comment on why the cheap wake-time replay can occasionally get this wrong too,
+        // not just drop entries.
+        const spurious = fast.filter(h => !baseline.has(`${h.time}:${h.value}`));
+        expect(spurious.length).toBeGreaterThan(0);
+    }, 60000);
+
+    it("historyWatched=true makes large-step ('fast') polling match the always-correct baseline", () => {
+        const totalTicks = 40_000n;
+
+        const base = buildCircuit(4, true);
+        base.circuit.run(totalTicks);
+        const baseline = base.andChip.history.filter(h => h.time <= totalTicks);
+
+        const fastWatched = runWithStep(totalTicks, 5_000n, true).filter(h => h.time <= totalTicks);
+
+        expect(fastWatched).toEqual(baseline);
     }, 60000);
 });
