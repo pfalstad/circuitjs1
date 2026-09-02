@@ -192,9 +192,13 @@ function buildCircuit() {
 /** Simpler self-resetting circuit than buildCircuit() above: a 4-bit counter (1H,2H,4H,8H)
  * driven directly by the clock, whose MSB (8H) clocks a second 4-bit counter (16H,32H,64H,128H).
  * A single 3-input NAND on 2H, 4H, 16H feeds a D flip-flop clocked by the SAME clock as the first
- * counter; its /Q output resets both counters. Unlike buildCircuit()'s H/V structure (where most
- * chips settle to ASLEEP - see ../dice-ts/src/games/pong.ts, of which both are simplifications),
- * this smaller circuit runs forever without any chip going to sleep. */
+ * counter; its Q output resets both counters. Q (not /Q) is correct here: NAND(2H,4H,16H) is 0
+ * only once the target count is reached, and D=0 latched into Q=0 is exactly the "reset asserted"
+ * level counterElm.invertreset expects - using /Q instead inverts that, asserting reset whenever
+ * the target ISN'T yet reached and releasing it only once it is, which permanently deadlocks both
+ * counters at 0 the first time it triggers (NAND(0,0,0)=1 forever after, keeping D=1, keeping
+ * /Q=0 asserted forever). See ../dice-ts/src/games/pong.ts for the equivalent real-chip circuit
+ * this was modeled on. */
 function buildSimpleCircuit() {
     const clock = fakeRail(clockFrequencyForPeriodTicks(4));
 
@@ -213,20 +217,20 @@ function buildSimpleCircuit() {
     const ff = dff();
     connect({ elm: nand3, num: 3 }, { elm: ff, num: 0 }); // D
     connect({ elm: clock, num: 0 }, { elm: ff, num: 3 }); // clk - same clock as counter1
-    const RESET = { elm: ff, num: 2 }; // /Q (restored)
+    const RESET = { elm: ff, num: 1 }; // Q
 
     connect(RESET, { elm: counter1, num: 1 }); // reset
     connect(RESET, { elm: counter2, num: 1 }); // reset
 
     // Every output not otherwise consumed needs an external sink so circuit.ts's dead-code
-    // elimination doesn't drop it: Q of the flip-flop, and any counter bit not read by nand3.
+    // elimination doesn't drop it: /Q of the flip-flop, and any counter bit not read by nand3.
     const sinks: any[] = [];
     const keepAlive = (elm: any, num: number) => {
         const sink = probe();
         connect({ elm, num }, { elm: sink, num: 0 });
         sinks.push(sink);
     };
-    keepAlive(ff, 1); // Q
+    keepAlive(ff, 2); // /Q
     for (const weight of [1, 8]) keepAlive(counter1, bitPost(4, weight));
     for (const weight of [2, 4, 8]) keepAlive(counter2, bitPost(4, weight));
 
