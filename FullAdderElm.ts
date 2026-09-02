@@ -22,6 +22,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class FullAdderElm extends ChipElm {
@@ -121,6 +122,19 @@ export class FullAdderElm extends ChipElm {
         desc.push(chipStart(coutLogic).inputPins(...coutInPins).outputPin(coutPin));
 
         return { desc, pinMap };
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        // One line per bit (not a summary): see CounterElm.getInfo()'s docstring for why -
+        // uses each pin's own real label (pins[i].text, e.g. "S0") rather than a made-up
+        // index, since S/C ordering depends on setupPins()'s layout, not a fixed index.
+        let k = 0;
+        for (const pin of this.pins) {
+            if (!pin.output) continue;
+            appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
+            k++;
+        }
     }
 
     getDumpType(): number { return 196; }

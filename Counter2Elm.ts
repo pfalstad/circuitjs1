@@ -25,6 +25,7 @@ import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
 import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class Counter2Elm extends ChipElm {
@@ -55,6 +56,19 @@ export class Counter2Elm extends ChipElm {
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.modulus = xml.parseIntAttr("mo", this.modulus);
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        // One line per bit (not a summary): see CounterElm.getInfo()'s docstring for why -
+        // uses each pin's own real label (pins[i].text, e.g. "Q0") rather than a made-up
+        // index, since Q/RCO ordering depends on setupPins()'s layout, not a fixed index.
+        let k = 0;
+        for (const pin of this.pins) {
+            if (!pin.output) continue;
+            appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
+            k++;
+        }
     }
 
     needsBits(): boolean { return true; }
