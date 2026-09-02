@@ -23,6 +23,9 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
+import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class Counter2Elm extends ChipElm {
     modulus: number = 0;
@@ -170,6 +173,85 @@ export class Counter2Elm extends ChipElm {
         this.lastClock = this.pins[this.clk].value;
         this.writeOutput(this.rco, this.carry && this.pins[this.ent].value);
     }
+
+    /** Whole-register reconstruction, one LUT cell per bit - same technique as
+     * CounterElm.digitalSynthesisWholeRegister() (see its docstring for the rationale): LOAD and
+     * an arbitrary non-power-of-2 modulus both need every bit-cell to see the whole register, so
+     * this can't be a genuine per-bit ripple chain like CounterElm.digitalSynthesisRipple()'s
+     * modulus===0 fast path (not attempted here - see dice-ts/src/chips/9316.ts for what a real
+     * ripple/gated-toggle version of this exact chip - the 74163 - looks like, if that's ever
+     * worth doing for Counter2Elm too).
+     *
+     * LOAD (active low, unconditional bubble, no invert option) is a synchronous straight-through
+     * per-bit passthrough that overrides counting whenever active - matching execute()'s
+     * ordering, where the LOAD branch's writeOutput() runs strictly after the increment branch's
+     * and so wins outright when both would otherwise apply on the same edge. CLR (active low, no
+     * invert option either) is checked every call, independent of the clock edge, i.e. genuinely
+     * asynchronous/level-sensitive - matching execute()'s own unconditional `if
+     * (!this.pins[this.clr].value)` outside the edge block, and CounterElm's identical
+     * reset handling.
+     *
+     * RCO is a separate, purely combinational cell: ENT AND (register === realmod-1), read
+     * straight off the live Q pins. This is equivalent to execute()'s private `carry` field (which
+     * only ever gets set to that same comparison, right when Q itself changes) but needs no shadow
+     * bit of state, and is correct even in the degenerate modulus===1 case where execute()'s
+     * `carry: boolean = false` initializer disagrees with the true comparison at power-up. */
+    digitalSynthesis(): DigitalSynthesis {
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const qPin = (w: number) => bits - w;      // w=0 is LSB, matches execute()'s pins[lastBit-i] layout
+        const iPin = (w: number) => 2 * bits - w;  // I pin straight-through to the Q pin of the same weight
+        const clkPin  = 2 * bits + 1;
+        const clrPin  = 2 * bits + 2;
+        const enpPin  = 2 * bits + 3;
+        const rcoPin  = 2 * bits + 4;
+        const loadPin = 2 * bits + 5;
+        const entPin  = 2 * bits + 6;
+        const realmod = (this.modulus === 0) ? (1 << bits) : this.modulus;
+
+        const desc: ChipDesc[] = [];
+        for (let w = 0; w < bits; w++) {
+            const out = qPin(w);
+            const inPins = [clkPin, clrPin, loadPin, enpPin, entPin, iPin(w)];
+            for (let j = 0; j < bits; j++) if (j !== w) inPins.push(qPin(j));
+
+            const logic: ChipLogic = (pin, prevPin, eventPin) => {
+                let bitW = prevPin[out];
+                if (posEdge(pin, eventPin, clkPin)) {
+                    if (!pin[loadPin]) {
+                        bitW = pin[iPin(w)];
+                    } else if (pin[enpPin] && pin[entPin]) {
+                        let value = 0;
+                        for (let j = 0; j < bits; j++) {
+                            const bit = j === w ? prevPin[out] : pin[qPin(j)];
+                            if (bit) value |= 1 << j;
+                        }
+                        value = (value + 1) % realmod;
+                        bitW = (value >> w) & 1;
+                    }
+                }
+                if (!pin[clrPin]) bitW = 0;
+                pin[out] = bitW;
+            };
+
+            desc.push(chipStart(logic).inputPins(...inPins).eventPins(clkPin).outputPin(out).prevOutputPin(out));
+        }
+
+        const rcoLogic: ChipLogic = (pin) => {
+            let value = 0;
+            for (let j = 0; j < bits; j++) if (pin[qPin(j)]) value |= 1 << j;
+            pin[rcoPin] = (pin[entPin] && value === realmod - 1) ? 1 : 0;
+        };
+        const rcoIn: number[] = [entPin];
+        for (let j = 0; j < bits; j++) rcoIn.push(qPin(j));
+        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin));
+
+        return { desc, pinMap };
+    }
+
     getDumpType(): number { return 421; }
     getXmlDumpType(): string { return "ctr2"; }
 }

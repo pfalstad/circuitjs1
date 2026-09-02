@@ -20,6 +20,9 @@
 import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class FullAdderElm extends ChipElm {
     constructor(xx: number, yy: number);
@@ -73,6 +76,53 @@ export class FullAdderElm extends ChipElm {
         }
         this.writeOutput(this.carryOut, (c === 1));
     }
+
+    /** Purely combinational, generalized to `bits` from dice-ts/src/chips/7483.ts's fixed 4-bit
+     * shape: rather than a real per-bit carry chain of internal pins, each sum cell reconstructs
+     * the running total of just the bits at or below its own weight (its own A/B pair plus every
+     * lower one, plus Cin) and extracts its own bit - exactly 7483's s0..s3 cells, just built by
+     * a loop instead of hand-unrolled per bit. carryOut is the same reconstruction carried one bit
+     * further, over the whole word. No clock, no prevOutputPin/eventPins - matches
+     * GateElm.digitalSynthesis()'s plain-combinational convention. */
+    digitalSynthesis(): DigitalSynthesis {
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const aPin = (w: number) => w + 1;
+        const bPin = (w: number) => w + bits + 1;
+        const sPin = (w: number) => w + bits * 2 + 1;
+        const cinPin = bits * 3 + 1;
+        const coutPin = bits * 3 + 2;
+
+        const desc: ChipDesc[] = [];
+        for (let w = 0; w < bits; w++) {
+            const out = sPin(w);
+            const inPins = [cinPin];
+            for (let j = 0; j <= w; j++) inPins.push(aPin(j), bPin(j));
+
+            const logic: ChipLogic = (pin) => {
+                let value = pin[cinPin];
+                for (let j = 0; j <= w; j++) value += (pin[aPin(j)] + pin[bPin(j)]) << j;
+                pin[out] = (value >> w) & 1;
+            };
+
+            desc.push(chipStart(logic).inputPins(...inPins).outputPin(out));
+        }
+
+        const coutInPins = [cinPin];
+        for (let j = 0; j < bits; j++) coutInPins.push(aPin(j), bPin(j));
+        const coutLogic: ChipLogic = (pin) => {
+            let value = pin[cinPin];
+            for (let j = 0; j < bits; j++) value += (pin[aPin(j)] + pin[bPin(j)]) << j;
+            pin[coutPin] = (value >> bits) & 1;
+        };
+        desc.push(chipStart(coutLogic).inputPins(...coutInPins).outputPin(coutPin));
+
+        return { desc, pinMap };
+    }
+
     getDumpType(): number { return 196; }
     needsBits(): boolean { return (this.flags & FullAdderElm.FLAG_BITS) !== 0; }
     allowBus(): boolean { return this.needsBits(); }
