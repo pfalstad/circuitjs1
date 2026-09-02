@@ -13,7 +13,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
-import { customChipStart } from "./chip_desc";
 import { buildDigitalCircuit } from "./DigitalGraphBuilder";
 import { CounterElm } from "../CounterElm";
 import { DFlipFlopElm } from "../DFlipFlopElm";
@@ -49,13 +48,6 @@ function clockFrequencyForPeriodTicks(periodTicks: number): number {
 
 function tieSource(tie: "VCC" | "GND") {
     return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
-}
-
-function probe() {
-    return {
-        digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
-        nodes: [] as { links: { num: number; elm: any }[] }[],
-    };
 }
 
 function connect(...posts: { elm: any; num: number }[]): void {
@@ -155,22 +147,20 @@ function buildCircuit() {
     for (const [k, weight] of [1, 4, 256].entries())
         connect(vbitPost(weight), { elm: nand3, num: k });
 
-    // Every element whose output isn't otherwise consumed within the feedback loops needs an
-    // external sink to survive circuit.ts's dead-code elimination: notQ of every D/JK flip-flop,
-    // and any V bit not already read by nand3.
-    const sinks: any[] = [];
-    const keepAlive = (elm: any, num: number) => {
-        const sink = probe();
-        connect({ elm, num }, { elm: sink, num: 0 });
-        sinks.push(sink);
-    };
-    keepAlive(hresetFF, 2); // notQ
-    keepAlive(vresetFF, 2); // notQ
-    keepAlive(vJK, 4); // notQ
-    for (const weight of [1, 2, 4, 8, 16, 32, 64, 128, 256]) keepAlive(hCounter, bitPost(9, weight));
-    for (const weight of [1, 2, 4, 8]) { keepAlive(vChip1, bitPost(4, weight)); keepAlive(vChip2, bitPost(4, weight)); }
-
-    const elmList = [clock, vcc, hCounter, nand5, hresetFF, nand3, vresetFF, vChip1, vChip2, vJK, ...sinks];
+    // Every element gets a Chip regardless of whether anything consumes its output -
+    // circuit.ts no longer prunes unconsumed chips (see its makeAllConnections() comment), so
+    // notQ of every D/JK flip-flop and any V bit not read by nand3 don't need an external sink
+    // just to exist. They previously got one anyway, as a workaround for dead-code elimination
+    // that has since been removed (72d2de3) - but a sink wired via connect() is a real consumer
+    // as far as Chip is concerned, and the probe()/keepAlive() sink used here was a CUSTOM_CHIP
+    // (see chip_desc.ts's customChipStart()), which bypasses activateInputs()/deactivateOutputs()
+    // entirely (chip.ts's updateInputs() CUSTOM_CHIP branch returns before either is ever
+    // called) - so it never released its interest in the chip driving it, permanently pinning
+    // that producer's activeOutputs bit and blocking it from ever reaching ASLEEP. That's why
+    // "settles after a long run" below saw components stuck ACTIVE forever: not the promotion
+    // engine failing to detect periodicity, but this test's own keepAlive sinks preventing
+    // sleep from ever becoming possible.
+    const elmList = [clock, vcc, hCounter, nand5, hresetFF, nand3, vresetFF, vChip1, vChip2, vJK];
     const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
 
     const chipAt = (elm: any, post: number): Chip => {
@@ -222,19 +212,11 @@ function buildSimpleCircuit() {
     connect(RESET, { elm: counter1, num: 1 }); // reset
     connect(RESET, { elm: counter2, num: 1 }); // reset
 
-    // Every output not otherwise consumed needs an external sink so circuit.ts's dead-code
-    // elimination doesn't drop it: /Q of the flip-flop, and any counter bit not read by nand3.
-    const sinks: any[] = [];
-    const keepAlive = (elm: any, num: number) => {
-        const sink = probe();
-        connect({ elm, num }, { elm: sink, num: 0 });
-        sinks.push(sink);
-    };
-    keepAlive(ff, 2); // /Q
-    for (const weight of [1, 8]) keepAlive(counter1, bitPost(4, weight));
-    for (const weight of [2, 4, 8]) keepAlive(counter2, bitPost(4, weight));
-
-    const elmList = [clock, counter1, counter2, nand3, ff, ...sinks];
+    // No external sink needed for /Q or the unread counter bits - circuit.ts no longer prunes
+    // unconsumed chips (see buildCircuit()'s equivalent comment above for why a sink would
+    // actively be harmful here, not just unnecessary: it would permanently block the chip
+    // driving it from ever reaching ASLEEP).
+    const elmList = [clock, counter1, counter2, nand3, ff];
     const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
 
     const chipAt = (elm: any, post: number): Chip => {
