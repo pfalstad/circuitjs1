@@ -242,7 +242,17 @@ export class ScopePlot2d {
             const mid = (lo + hi) >> 1;
             if (Number(hist[mid].time) <= fillFromTick) lo = mid + 1; else hi = mid;
         }
-        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? hist[0].value : chip.output);
+        // Before the first recorded transition (lo === 0, hist non-empty): `history` only ever
+        // records real toggles (see Chip's `output` setter), so whatever value hist[0] toggles TO
+        // is exactly the opposite of what was in effect immediately before it - using hist[0].value
+        // itself here (as this used to) paints the entire pre-first-transition span with the WRONG
+        // level, retroactively flipping it the moment the real first transition finally happens
+        // (reported bug: a scope showing AND(16H,16V) - held at 0 until 16V's first rising edge -
+        // shows a spurious flat HIGH block for that whole initial span instead of the correct flat
+        // LOW, right as the real toggling starts). Only when `history` is still completely empty
+        // (nothing has EVER toggled, so there's no "before" to invert) does chip.output - the
+        // chip's actual, unchanging value so far - apply.
+        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
         let cursor = fillFromTick;
         for (let i = lo; i < hist.length && Number(hist[i].time) < now; i++) {
             const t = Number(hist[i].time);

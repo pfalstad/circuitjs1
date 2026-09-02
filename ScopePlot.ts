@@ -285,7 +285,14 @@ export class ScopePlot {
             if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
         }
         let hIdx = lo;
-        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? hist[0].value : chip.output);
+        // Before the first recorded transition (lo === 0, hist non-empty): `history` only ever
+        // records real toggles (see Chip's `output` setter), so whatever value hist[0] toggles TO
+        // is exactly the opposite of what was in effect immediately before it - see
+        // ScopePlot2d.fillDigitalRaster()'s identical fix for the full reasoning and the bug this
+        // produced (a scope's flat pre-first-transition segment retroactively showing the WRONG
+        // level the moment the real first transition happens). Only when `history` is still
+        // completely empty does chip.output - the chip's actual, unchanging value so far - apply.
+        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
 
         for (let col = 0; col < spc; col++) {
             const colEnd = windowStart + (col + 1) * sp;
