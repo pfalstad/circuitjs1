@@ -78,21 +78,21 @@ describe("DFlipFlopElm truth table", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([d, clk, r, s, chip, notQSink]);
         r.chip = chipsByElm.get(r)![0];
         s.chip = chipsByElm.get(s)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         s.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // isSet only
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0);
 
         s.set(0);
         r.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // isReset only
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1);
 
         s.set(1); // both asserted at once
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // Q
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // /Q - forbidden state, not simply !Q
     });
@@ -119,14 +119,14 @@ describe("JKFlipFlopElm truth table", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([j, clk, k, r, chip, qSink]);
         clk.chip = chipsByElm.get(clk)![0];
         r.chip = chipsByElm.get(r)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         clk.set(0); // falling edge
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // J=1,K=0 -> set
 
         r.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // async reset overrides immediately, no edge needed
     });
 });
@@ -152,7 +152,7 @@ describe("CounterElm truth table", () => {
         clk.chip = chipsByElm.get(clk)![0];
         reset.chip = chipsByElm.get(reset)![0];
         updown.chip = chipsByElm.get(updown)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         const readValue = () => {
             let v = 0;
@@ -161,10 +161,10 @@ describe("CounterElm truth table", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(1n);
+            circuit.run(20n);
             const v = readValue();
             clk.set(0);
-            circuit.run(1n);
+            circuit.run(20n);
             return v;
         };
 
@@ -173,7 +173,7 @@ describe("CounterElm truth table", () => {
         expect(tick()).toBe(3);
 
         reset.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(readValue()).toBe(0);
     });
 });

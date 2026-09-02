@@ -94,18 +94,18 @@ describe("DFlipFlopElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([d, clk, chip, qSink, notQSink]);
         clk.chip = chipsByElm.get(clk)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // no edge yet
         clk.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // captured D=1
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // /Q
 
         clk.set(0);
-        circuit.run(1n);
+        circuit.run(20n);
         clk.set(1); // a second rising edge with D still high changes nothing observable
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1);
     });
 
@@ -130,16 +130,16 @@ describe("DFlipFlopElm.digitalSynthesis()", () => {
         clk.chip = chipsByElm.get(clk)![0];
         r.chip = chipsByElm.get(r)![0];
         s.chip = chipsByElm.get(s)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         s.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // Q
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // /Q
 
         s.set(0);
         r.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1);
     });
@@ -165,28 +165,28 @@ describe("JKFlipFlopElm.digitalSynthesis()", () => {
         j.chip = chipsByElm.get(j)![0];
         clk.chip = chipsByElm.get(clk)![0];
         k.chip = chipsByElm.get(k)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         // clk.set() must run alone, after J/K have already settled - setting J/K and clk in the
         // same circuit.run() would race two independently-scheduled 0-delay events through the
         // queue in unspecified order, risking the clock edge sampling J/K before their own
         // just-queued change has actually propagated.
-        const pulse = () => { clk.set(1); circuit.run(1n); clk.set(0); circuit.run(1n); };
+        const pulse = () => { clk.set(1); circuit.run(20n); clk.set(0); circuit.run(20n); };
 
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // set
 
-        j.set(0); k.set(0); circuit.run(1n);
+        j.set(0); k.set(0); circuit.run(20n);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // hold
 
-        j.set(1); k.set(1); circuit.run(1n);
+        j.set(1); k.set(1); circuit.run(20n);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // toggle from 1
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // toggle again
 
-        j.set(0); k.set(1); circuit.run(1n);
+        j.set(0); k.set(1); circuit.run(20n);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // reset
         expect(chipAt(chip, 4, chipsByElm).output).toBe(1); // /Q
@@ -210,7 +210,7 @@ describe("CounterElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([clk, reset, chip]);
         clk.chip = chipsByElm.get(clk)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         const readValue = () => {
             let v = 0;
@@ -219,10 +219,10 @@ describe("CounterElm.digitalSynthesis()", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(1n);
+            circuit.run(20n);
             const v = readValue();
             clk.set(0);
-            circuit.run(1n);
+            circuit.run(20n);
             return v;
         };
 
@@ -253,7 +253,7 @@ describe("CounterElm.digitalSynthesis()", () => {
         clk.chip = chipsByElm.get(clk)![0];
         reset.chip = chipsByElm.get(reset)![0];
         updown.chip = chipsByElm.get(updown)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         const readValue = () => {
             let v = 0;
@@ -262,10 +262,10 @@ describe("CounterElm.digitalSynthesis()", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(1n);
+            circuit.run(20n);
             const v = readValue();
             clk.set(0);
-            circuit.run(1n);
+            circuit.run(20n);
             return v;
         };
 
@@ -273,7 +273,7 @@ describe("CounterElm.digitalSynthesis()", () => {
         expect(tick()).toBe(3);
 
         reset.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(readValue()).toBe(0);
     });
 });
@@ -304,20 +304,20 @@ describe("MultiplexerElm.digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([...sources, sel0, sel1, chip, outSink]);
         sel0.chip = chipsByElm.get(sel0)![0];
         sel1.chip = chipsByElm.get(sel1)![0];
-        circuit.run(1n);
+        circuit.run(20n);
 
         expect(chipAt(chip, 6, chipsByElm).output).toBe(0); // channel 0
 
         sel0.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(1); // channel 1
 
         sel0.set(0); sel1.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(0); // channel 2
 
         sel0.set(1);
-        circuit.run(1n);
+        circuit.run(20n);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(1); // channel 3
     });
 });

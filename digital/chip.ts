@@ -456,9 +456,23 @@ export class Chip extends Cycle {
 
         const numInputPins = desc.inPins.length;
 
+        // Every chip's output delay is floored to at least 1 tick, even when the element
+        // specifies (or defaults to) 0s propagation delay. A true 0-tick delay means an
+        // output can change on the very same simulated instant as one of its own inputs
+        // (or as another chip driven by that same input event), and the engine has no
+        // rule for ordering same-instant events consistently with real hardware - two
+        // chips racing on the same tick will settle in whatever order they happen to be
+        // queued, not the order real (nonzero-delay) hardware would settle in. That's
+        // enough to permanently starve a downstream chip when a feedback loop's reset
+        // path and its gated signal land on the same tick every cycle (confirmed via
+        // ~/Downloads/po-hoz-2.txt: a same-tick race between a NAND-gated reset and the
+        // counter bit it was supposed to gate stalled that counter forever, identically
+        // in the fully-unoptimized reference path - not a promotion/cycle-detection bug).
+        // Forcing a minimum 1-tick delay everywhere breaks same-instant ties without
+        // requiring pd= support in the UI.
         this.delay = [
-            BigInt(Math.trunc(desc.delay[0] / TIMESCALE)),
-            BigInt(Math.trunc(desc.delay[1] / TIMESCALE)),
+            BigInt(Math.max(1, Math.trunc(desc.delay[0] / TIMESCALE))),
+            BigInt(Math.max(1, Math.trunc(desc.delay[1] / TIMESCALE))),
         ];
 
         this.inputLinks = new Array(numInputPins);
