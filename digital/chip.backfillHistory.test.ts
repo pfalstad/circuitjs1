@@ -164,6 +164,33 @@ describe("Chip.backfillHistory()", () => {
         expect(chip.history).toEqual([]);
     });
 
+    it("returns `now` once it actually catches up to it", () => {
+        const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
+        expect(chip.backfillHistory(125n)).toBe(125n);
+    });
+
+    it("returns partial progress (not `now`) when a single call's iteration budget runs out first - the resumable cursor callers MUST clamp to instead of assuming `history` is complete up to `now` (see ScopePlot.fillFromDigitalHistory()/ScopePlot2d.fillDigitalRaster())", () => {
+        // Period 2 ticks (d0=1, d1=1): reaching a `now` millions of ticks out needs one real
+        // toggle per tick - far more than advanceBackfillPos()'s own per-call iteration budget.
+        const chip = asleepClockChip(1n, 1n, 0, 0n, 0);
+        const reached = chip.backfillHistory(3_000_000n);
+
+        expect(reached).toBeGreaterThan(0n);
+        expect(reached).toBeLessThan(3_000_000n);
+        // Everything actually recorded is real (strictly increasing time, strictly alternating
+        // value) - the walk just hasn't reached `now` yet, it isn't wrong about what it recorded.
+        expect(chip.history.length).toBeGreaterThan(0);
+        for (let i = 1; i < chip.history.length; i++) {
+            expect(chip.history[i].time).toBeGreaterThan(chip.history[i - 1].time);
+            expect(chip.history[i].value).toBe(1 - chip.history[i - 1].value);
+        }
+
+        // Resumable: further calls make further progress and eventually do reach `now`.
+        let t = reached;
+        for (let i = 0; i < 5 && t < 3_000_000n; i++) t = chip.backfillHistory(3_000_000n);
+        expect(t).toBe(3_000_000n);
+    });
+
     // Regression coverage for the KNOWN GAP this file's backfillHistory()/currentValue() used to
     // have: a chip asleep with currentOutputEvent resting on (or, mid-walk, wrapping onto) a
     // nested SUBCYCLE_MASK placeholder - the exact shape a self-resetting counter's irregular

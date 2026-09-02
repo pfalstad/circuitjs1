@@ -10,14 +10,16 @@ import { buildDigitalCircuit, setCurrentDigitalGraph } from "./digital/DigitalGr
 // (circuit.globalTime, state, history, output, backfillHistory()) - for tests that only need to
 // exercise the history-fill math, not real resolution (digitalScopeSourceNew()/DigitalGraph -
 // see the "recognizes .../re-resolves ..." tests below, which exercise that separately against a
-// real built DigitalGraph).
-function fakeChip(history: { time: bigint; value: number }[], nowTicks: number, state = ChipState.PASSIVE) {
+// real built DigitalGraph). backfillReturn defaults to nowTicks (a call that fully catches up,
+// same as the real Chip.backfillHistory() does whenever its own per-call work budget isn't
+// exceeded) - pass a smaller value to simulate a call that only made partial progress.
+function fakeChip(history: { time: bigint; value: number }[], nowTicks: number, state = ChipState.PASSIVE, backfillReturn?: bigint) {
     return {
         circuit: { globalTime: BigInt(nowTicks) },
         state,
         history,
         output: history.length ? history[history.length - 1].value : 0,
-        backfillHistory: vi.fn(),
+        backfillHistory: vi.fn(() => backfillReturn ?? BigInt(nowTicks)),
     } as any;
 }
 
@@ -98,6 +100,26 @@ describe("ScopePlot digital history fill", () => {
         plot.fillFromDigitalHistory();
 
         expect(chip.backfillHistory).toHaveBeenCalledWith(100n);
+    });
+
+    it("clamps to what backfillHistory() actually reached rather than assuming it caught up to `now` (regression: a chip with a large backlog - e.g. the sim running fast enough that globalTime jumps far ahead each draw - must not have the un-backfilled gap treated as already-painted, which would freeze the trailing edge on a stale value and, for ScopePlot2d's raster, permanently skip the real transitions still to be backfilled)", () => {
+        const elm = fakeElm();
+        const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
+        // backfillHistory(100n) only actually reaches t=30 this call (its own per-call work
+        // budget ran out - see Chip.backfillHistory()'s docstring) - `history` has nothing past 25.
+        const chip = fakeChip([{ time: 0n, value: 1 }, { time: 25n, value: 0 }], 100, ChipState.ASLEEP, 30n);
+        plot.digitalChip = chip;
+        plot.scopePointCount = 4;
+        plot.scopePlotSpeed = 10;
+        plot.minValues = new Array(4).fill(0);
+        plot.maxValues = new Array(4).fill(0);
+
+        plot.fillFromDigitalHistory();
+
+        // Must record the clamped 30, not the requested 100 - otherwise a later call, once
+        // backfillHistory() has made more real progress, would be short-circuited by the
+        // "already caught up" check (this.lastDigitalFillTick === now) and never rebuild.
+        expect((plot as any).lastDigitalFillTick).toBe(30);
     });
 
     it("does not rebuild twice for the same tick", () => {

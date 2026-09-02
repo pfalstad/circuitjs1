@@ -209,8 +209,16 @@ export class ScopePlot2d {
         const linesPerFrame = Math.max(1, Math.round(this.rasterFrameLengthSec / (lineWidthTicks * maxTimeStep)));
         const frameLengthTicks = lineWidthTicks * linesPerFrame;
 
-        if (chip.state === ChipState.ASLEEP) chip.backfillHistory(chip.circuit.globalTime);
-        const now = Number(chip.circuit.globalTime);
+        const globalTime = chip.circuit.globalTime;
+        const backfilledTo = chip.state === ChipState.ASLEEP ? chip.backfillHistory(globalTime) : globalTime;
+        // backfillHistory() bounds how much work one call does (see its own docstring) - a chip
+        // with a large backlog to replay (e.g. running fast, so `globalTime` jumps far ahead
+        // between draw() calls) may not fully catch up in one call. Clamp to whatever `history`
+        // is actually complete up through rather than assuming it reached globalTime - otherwise
+        // the final drawRasterSpan() below paints the whole un-backfilled gap as one solid
+        // (stale) color, and rasterFilledTick would mark that gap as done, permanently skipping
+        // the real transitions backfillHistory() fills in on later calls.
+        const now = Number(backfilledTo < globalTime ? backfilledTo : globalTime);
 
         const frameIndex = Math.floor(now / frameLengthTicks);
         const frameStart = frameIndex * frameLengthTicks;

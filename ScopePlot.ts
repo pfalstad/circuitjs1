@@ -250,9 +250,14 @@ export class ScopePlot {
     fillFromDigitalHistory(): void {
         const chip = this.digitalChip;
         if (chip === null || this.scopePlotSpeed === 0) return;
-        const nowBig = chip.circuit.globalTime;
-        if (chip.state === ChipState.ASLEEP) chip.backfillHistory(nowBig);
-        const now = Number(nowBig);
+        const globalTime = chip.circuit.globalTime;
+        const backfilledTo = chip.state === ChipState.ASLEEP ? chip.backfillHistory(globalTime) : globalTime;
+        // Clamp to what backfillHistory() actually reached, same reasoning as
+        // ScopePlot2d.fillDigitalRaster()'s own clamp - a chip with a large backlog may not
+        // fully catch up in one call, and treating `now` as reached anyway would freeze this
+        // plot's trailing edge at a stale value instead of genuinely lagging (and then catching
+        // up over subsequent draws, as this plot's rebuild-from-scratch-every-call design allows).
+        const now = Number(backfilledTo < globalTime ? backfilledTo : globalTime);
         if (this.lastDigitalFillTick === now) return;
         this.lastDigitalFillTick = now;
 

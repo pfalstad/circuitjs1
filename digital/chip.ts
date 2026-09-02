@@ -260,7 +260,7 @@ function advanceBackfillPos(
     startValue: number,
     now: bigint,
     record: ((absTime: bigint, value: number) => void) | null,
-): { pos: BackfillPos; absTime: bigint; value: number } {
+): { pos: BackfillPos; absTime: bigint; value: number; complete: boolean } {
     let pos = startPos;
     let absTime = startAbsTime;
     let value = startValue;
@@ -278,12 +278,17 @@ function advanceBackfillPos(
     // at the normal `candidate > now` return below, so the next call (backfillHistory() is
     // driven once per Scope.draw()) just picks up and makes more progress, same as any other
     // partial call - see chip.backfillHistory.test.ts's "small, irregularly-spaced calls" test.
+    // `complete` tells the two returns apart: false here (this bail is NOT proof `value` holds
+    // all the way to `now` - there's real, unwalked backlog beyond `absTime`), true at the normal
+    // `candidate > now` return below (there genuinely is no transition before `now` left to find,
+    // so `value` is known-good all the way to `now`, not just up to the last recorded `absTime` -
+    // see backfillHistory()'s own docstring on why callers must tell these apart).
     const maxIterations = 1_000_000;
 
     for (let iterations = 0; ; iterations++) {
         if (iterations >= maxIterations) {
             console.warn(`advanceBackfillPos: exceeded ${maxIterations} iterations without reaching now=${now} (at absTime=${absTime}) - deferring the rest to a later call`);
-            return { pos, absTime, value };
+            return { pos, absTime, value, complete: false };
         }
 
         // Resolve the innermost frame - walk `.sub` down, collecting every frame along the way
@@ -331,8 +336,23 @@ function advanceBackfillPos(
         // need to redo this same climb-and-adjust math correctly if this call returns without
         // committing. So compute `climbIdx`/`delay` against the frame array without truncating it
         // yet; only slice it down (below) once `candidate <= now` confirms we're committing.
+        //
+        // Climbing itself must NOT be gated on `now` (it once was, via `exitBound <= now` here -
+        // a real bug: for a small/incremental `now`, as backfillHistory() is always driven with
+        // one real ScopePlot draw at a time - see its own docstring - `now` can sit well short of
+        // a nested level's exitBound even once `absTime + delay` has already crossed it. Skipping
+        // the climb then leaves `delay` at the abandoned (inner) level's own un-climbed value,
+        // which can be SMALLER than the correctly-climbed delay - producing a `candidate` that
+        // wrongly satisfies `candidate <= now` and gets committed as a bogus transition, over and
+        // over, replaying the inner level's own short period forever instead of ever handing
+        // control back to the parent. currentValue() never surfaces this: it's always called with
+        // `now` = the current globalTime, virtually always far past any nearby exitBound, so the
+        // gate was ~always satisfied there regardless - the bug was invisible from that caller.
+        // Whether a crossing has passed a level's boundary is exactly `absTime + delay >=
+        // frames[climbIdx].exitBound` on its own; `now` only ever decides whether the resulting
+        // `candidate` gets committed (below), never whether the climb math itself runs.
         let climbIdx = frames.length - 1;
-        while (frames[climbIdx].exitBound <= now && absTime + delay >= frames[climbIdx].exitBound && climbIdx > 0) {
+        while (absTime + delay >= frames[climbIdx].exitBound && climbIdx > 0) {
             const abandoned = frames[climbIdx];
             climbIdx--;
             const parent = frames[climbIdx];
@@ -348,7 +368,7 @@ function advanceBackfillPos(
         // withholds it - see chip.backfillHistory.test.ts's own asserted traces). Not committing
         // the climb here means returning `pos` completely unchanged - the abandoned level(s)'
         // frames, `entryTime` included, are still there for next time.
-        if (candidate > now) return { pos, absTime, value };
+        if (candidate > now) return { pos, absTime, value, complete: true };
 
         // Committing now: truncate away whatever got climbed past above.
         frames.length = climbIdx + 1;
@@ -600,6 +620,53 @@ export class Chip extends Cycle {
         return delay;
     }
 
+    // Finishes backfillHistory()'s own granular walk up through `now`, right as this chip wakes
+    // (from either wakeUp() or updateOutput()'s own ASLEEP branch) - BEFORE either goes on to
+    // (re)compute `this.output`/`currentCycle` via its own, separate, cheaper method (a modulo
+    // shortcut - see wakeUp()'s own comment on why it can't just always do this walk itself: it'd
+    // trade away the whole point of the promotion optimization for a chip nobody's watching).
+    //
+    // The actual bug this fixes: `this.output`'s setter (see its own comment) appends to `history`
+    // on every real change - including the ones wakeUp()'s/updateOutput()'s own replay makes while
+    // fast-forwarding through a sleep. If backfillHistory() had ALSO already walked (part of) that
+    // same span - because a scope polled it mid-sleep - both walks independently push entries for
+    // the same transitions into the same append-only array: not "disagreeing" so much as each
+    // being written TWICE, once by backfillHistory()'s explicit push and once more via the
+    // replay's setter-triggered push, since the two use separate cursors (backfillPos vs.
+    // currentCycle) that don't know about each other. That's what produced the fictional streaks -
+    // not a wrong value, a duplicated/overlapping one. Calling this first, and then having the
+    // replay bypass the setter for any span it just finished (see historyIsSynced() below),
+    // guarantees `history` gets each real transition from exactly one of the two writers, never
+    // both.
+    //
+    // A no-op whenever nobody's actually been watching this chip (backfillAbsTime is still
+    // sitting at sleepTime, untouched since captureBackfillPos() seeded it) - backfillHistory()'s
+    // own guards make that free to check, so the common case (an unwatched chip waking after a
+    // long sleep) keeps using the cheap modulo path with no granular walk at all, and lets that
+    // path's own setter-triggered writes populate `history` for the first and only time.
+    // Returns true when `history` is now known-complete through `now` - i.e. whether the caller's
+    // own replay (about to walk the very same span again purely for `this.output`/`currentCycle`
+    // bookkeeping) must write `this._output` directly, bypassing the history-appending setter, to
+    // avoid duplicating entries backfillHistory() already recorded. Deliberately checks
+    // backfillHistory()'s RETURN VALUE, not `this.backfillAbsTime` directly: a call can legitimately
+    // prove "nothing changes before `now`" (and so report itself complete through `now`) without
+    // ever moving `backfillAbsTime` up to `now` itself - it only advances that cursor to wherever
+    // the last real transition actually was (see backfillHistory()'s own docstring on `complete`).
+    // Comparing the field instead of the return value looks plausible but is always false in
+    // exactly the common case this exists to catch, silently defeating the whole bypass.
+    //
+    // Returns false both when nobody was watching (no catch-up was attempted, so nothing to
+    // duplicate - the replay's own setter writes are the only record) and in the rare case a
+    // catch-up call's iteration budget ran out before reaching `now` (see backfillHistory()'s own
+    // docstring) - the still-missing tail must still be recorded somehow, so it's safer to let the
+    // replay's normal setter writes cover it (re-covering the already-backfilled prefix too, in
+    // that rare case, rather than silently dropping the tail).
+    private catchUpHistoryBeforeWake(): boolean {
+        if (this.backfillAbsTime <= this.sleepTime) return false;
+        const now = this.circuit.globalTime;
+        return this.backfillHistory(now) >= now;
+    }
+
     // Deactivates every output link chip whose bit is set in `mask` (a bitmask of indices into
     // outputLinks, MSB-first via nextBit64).
     private deactivateOutputsInMask(mask: bigint): void {
@@ -639,9 +706,11 @@ export class Chip extends Cycle {
     }
 
     wakeUp(): void {
+        // requires state still ASLEEP - see its own docstring
+        const historySynced = this.catchUpHistoryBeforeWake();
+        const globalTime = this.circuit.globalTime;
         this.state = ChipState.ACTIVE;
 
-        const globalTime = this.circuit.globalTime;
         let time = (globalTime - this.sleepTime) % this.cycleTime;
         let delay = this.currentCycle.nextOutputEventDelay();
         this.lastOutputEvent = globalTime - time;
@@ -661,7 +730,7 @@ export class Chip extends Cycle {
             wakeWatchdog.tick(() => `wakeUp stuck: chip=${this.debugName} time=${time} delay=${delay}`);
             time -= delay;
 
-            this.output ^= 1;
+            if (historySynced) this._output ^= 1; else this.output ^= 1;
             this.inputs ^= this.prevOutputMask;
 
             this.currentCycle = this.currentCycle.nextOutputCycle(globalTime - time);
@@ -788,6 +857,8 @@ export class Chip extends Cycle {
         const globalTime = this.circuit.globalTime;
 
         if (this.state === ChipState.ASLEEP) {
+            // requires state still ASLEEP - see its own docstring
+            const historySynced = this.catchUpHistoryBeforeWake();
             this.state = ChipState.ACTIVE;
 
             const actOut = this.currentCycle.activeOutputs;
@@ -800,13 +871,15 @@ export class Chip extends Cycle {
             this.pendingEvent = this.circuit.queuePush(this, delay);
 
             const curEv = this.currentCycle.outputEvents.get(this.currentCycle.currentOutputEvent);
+            let newOutput: number;
             if (curEv.type) {
                 let c = curEv.subCycle!;
                 while (c.outputEvents.front().type) c = c.outputEvents.front().subCycle!;
-                this.output = c.outputEvents.front().state;
+                newOutput = c.outputEvents.front().state;
             } else {
-                this.output = curEv.state;
+                newOutput = curEv.state;
             }
+            if (historySynced) this._output = newOutput; else this.output = newOutput;
 
             this.lastOutputEvent = globalTime;
 
@@ -1196,10 +1269,25 @@ export class Chip extends Cycle {
     // (including descending into any nested sub-cycle, same as wakeUp()'s own traversal) via
     // advanceBackfillPos()'s side-effect-free cursor (backfillPos/backfillAbsTime/backfillValue -
     // seeded at that same ASLEEP-entry point).
-    backfillHistory(now: bigint): void {
-        if (this.state !== ChipState.ASLEEP) return;
-        if (this.outputEvents.empty()) return;
-        if (this.backfillAbsTime >= now) return;
+    //
+    // Returns the absTime `history` is now known-complete up through - `now` itself whenever the
+    // walk genuinely reaches it (either a transition lands exactly there, or - just as validly -
+    // the walk proves there's no transition before `now` left to find, so `history`'s last real
+    // entry already holds all the way to `now`), but something EARLIER than `now` if a single
+    // call's iteration budget ran out first (see advanceBackfillPos()'s own maxIterations
+    // comment): a chip with a long backlog and a short learned period (e.g. one that just went
+    // ASLEEP a long real-time-equivalent ago, or a sim running fast enough that `now` jumps far
+    // ahead between calls) can need more individual toggles than one call is willing to walk, and
+    // returns having made only partial progress - same as it does whenever the caller itself only
+    // asks for partial progress (see chip.backfillHistory.test.ts's resumable-calls tests). A
+    // caller that assumes `history` is complete up to `now` just because this was called (rather
+    // than clamping to this return value) will treat the un-backfilled gap as if it were a single
+    // instant holding whatever value `history` last happened to record - see ScopePlot2d's own
+    // fillDigitalRaster()/ScopePlot's fillFromDigitalHistory() for what that clamp looks like.
+    backfillHistory(now: bigint): bigint {
+        if (this.state !== ChipState.ASLEEP) return now;
+        if (this.outputEvents.empty()) return now;
+        if (this.backfillAbsTime >= now) return now;
 
         const result = advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, now,
             (t, v) => this.history.push({ time: t, value: v }));
@@ -1207,6 +1295,7 @@ export class Chip extends Cycle {
         this.backfillPos = result.pos;
         this.backfillAbsTime = result.absTime;
         this.backfillValue = result.value;
+        return result.complete ? now : this.backfillAbsTime;
     }
 
     // Advances the backfill cursor to `target` WITHOUT recording anything into `history` - for
