@@ -265,10 +265,26 @@ function advanceBackfillPos(
     let absTime = startAbsTime;
     let value = startValue;
 
-    const watchdog = new Watchdog(1_000_000);
+    // Unlike every other Watchdog in this file (which guards against a genuine no-progress
+    // infinite loop and throwing is the right response - there's no sane partial result),
+    // this walk always makes real forward progress each iteration (`absTime` only ever
+    // advances or stays put for one committed crossing before moving on) - it can just need
+    // an enormous number of individual real toggles to reach `now` (e.g. a chip asleep a long
+    // time with a short learned period, or - see chip.ts's header + dicebug.txt - a
+    // self-resetting counter whose promoted schedule has picked up more real transitions per
+    // period than it should, a separate still-open bug). Bailing out with whatever partial
+    // progress was made, instead of throwing, keeps that a performance ceiling instead of a
+    // crash: `pos`/`absTime`/`value` are exactly as valid a resumable cursor here as they are
+    // at the normal `candidate > now` return below, so the next call (backfillHistory() is
+    // driven once per Scope.draw()) just picks up and makes more progress, same as any other
+    // partial call - see chip.backfillHistory.test.ts's "small, irregularly-spaced calls" test.
+    const maxIterations = 1_000_000;
 
-    for (; ;) {
-        watchdog.tick(() => 'advanceBackfillPos stuck');
+    for (let iterations = 0; ; iterations++) {
+        if (iterations >= maxIterations) {
+            console.warn(`advanceBackfillPos: exceeded ${maxIterations} iterations without reaching now=${now} (at absTime=${absTime}) - deferring the rest to a later call`);
+            return { pos, absTime, value };
+        }
 
         // Resolve the innermost frame - walk `.sub` down, collecting every frame along the way
         // (top-to-bottom) so a frame can be popped or replaced in place below.
@@ -1188,6 +1204,28 @@ export class Chip extends Cycle {
         const result = advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, now,
             (t, v) => this.history.push({ time: t, value: v }));
 
+        this.backfillPos = result.pos;
+        this.backfillAbsTime = result.absTime;
+        this.backfillValue = result.value;
+    }
+
+    // Advances the backfill cursor to `target` WITHOUT recording anything into `history` - for
+    // a fresh consumer (a newly-attached Scope) that only cares about the trace from here on,
+    // not everything that happened while nobody was watching. Uses the exact same side-effect-
+    // free advanceBackfillPos() walk backfillHistory() does, just with `record` omitted (so it's
+    // just as cheap over a huge gap as currentValue()'s own fast path - see advanceBackfillPos()'s
+    // own docstring on skipping whole periods via arithmetic). `backfillPos`/`backfillAbsTime`/
+    // `backfillValue` are shared per-Chip state, not per-Scope, so this only ever discards
+    // history NOTHING has read yet: if another Scope is already watching this same chip, its own
+    // draws have kept the cursor near "now" already, making this a no-op (guarded below exactly
+    // like backfillHistory() itself) - it can only ever fast-forward past a backlog nobody has
+    // consumed, never past something an existing consumer still needs.
+    skipBackfillTo(target: bigint): void {
+        if (this.state !== ChipState.ASLEEP) return;
+        if (this.outputEvents.empty()) return;
+        if (this.backfillAbsTime >= target) return;
+
+        const result = advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, target, null);
         this.backfillPos = result.pos;
         this.backfillAbsTime = result.absTime;
         this.backfillValue = result.value;

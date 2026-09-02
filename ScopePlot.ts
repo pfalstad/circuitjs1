@@ -72,6 +72,16 @@ export class ScopePlot {
     // redundant draw() within the same tick (e.g. no simulation progress
     // between frames) doesn't repeat the O(new history entries) rebuild.
     private lastDigitalFillTick: number = -1;
+    // globalTime at the moment this plot most recently acquired digitalChip
+    // (constructor, or refreshDigitalSource() resolving a new one) - a scope
+    // has no use for whatever happened on the signal before it existed, so
+    // fillFromDigitalHistory() never displays history older than this, and
+    // setDigitalChip() below fast-forwards the chip's own backfill cursor
+    // past it too (Chip.skipBackfillTo()) so it's never even walked/recorded
+    // in the first place. See setDigitalChip()'s own docstring for the one
+    // case (another Scope already watching the same chip) this doesn't fully
+    // isolate against.
+    private historyEpoch: bigint = 0n;
 
     static readonly FLAG_AC = 1;
 
@@ -89,7 +99,8 @@ export class ScopePlot {
         this.color = "#FFFFFF";
         this.minValues = [];
         this.maxValues = [];
-        this.digitalChip = (u === UNITS_V) ? digitalScopeSourceNew(e) : null;
+        this.digitalChip = null;
+        this.setDigitalChip((u === UNITS_V) ? digitalScopeSourceNew(e) : null);
         if (v !== undefined && manS !== undefined) {
             this.value = v;
             this.manScale = manS;
@@ -119,13 +130,38 @@ export class ScopePlot {
     refreshDigitalSource(): void {
         if (this.units !== UNITS_V) return;
         const resolved = digitalScopeSourceNew(this.elm);
-        if (resolved !== this.digitalChip) {
-            this.digitalChip = resolved;
-            // The old arrays (if any) belonged to a different signal (or to
-            // no signal at all) - don't let a stale lastDigitalFillTick
-            // suppress the rebuild fillFromDigitalHistory() needs to do now.
-            this.lastDigitalFillTick = -1;
-        }
+        if (resolved !== this.digitalChip) this.setDigitalChip(resolved);
+    }
+
+    // Points this plot at `chip` (or at nothing) and, if it's a genuinely new signal, marks "now"
+    // as the earliest time this plot will ever display for it - see historyEpoch's own docstring
+    // for the display side of that (fillFromDigitalHistory()'s searchFloor clamp), which holds
+    // regardless of whether `chip` was ASLEEP or already ACTIVE/PASSIVE (recording unconditionally
+    // - see Chip's `output` setter) at the moment of attachment: either way, nothing timestamped
+    // before historyEpoch is ever scanned into this plot's columns.
+    //
+    // Also fast-forwards the chip's own backfill cursor past that point (skipBackfillTo() - a
+    // no-op if it's already there, e.g. another Scope is already watching this same chip and
+    // keeping it caught up) so attaching to a chip that's been ASLEEP a long time with nobody
+    // watching doesn't cost this first draw an expensive replay of history it's not going to show
+    // anyway (see chip.ts's advanceBackfillPos()/skipBackfillTo() for why that replay can
+    // otherwise be arbitrarily expensive - this is what actually avoids it).
+    //
+    // Known gap: that cursor is shared per-Chip, not per-Scope. If a SECOND, earlier-epoch Scope
+    // is already attached to this same chip (wider/older window, still relying on the cursor to
+    // keep recording from before this plot's own epoch), this skip can jump the shared cursor
+    // past a stretch that Scope hasn't drawn (and thus recorded) yet, leaving a real gap on ITS
+    // left edge - self-healing (it fills back in as time moves on), never wrong values, so not
+    // worth a full per-Scope private history/cursor to close.
+    private setDigitalChip(chip: Chip | null): void {
+        this.digitalChip = chip;
+        // The old arrays (if any) belonged to a different signal (or to no
+        // signal at all) - don't let a stale lastDigitalFillTick suppress
+        // the rebuild fillFromDigitalHistory() needs to do now.
+        this.lastDigitalFillTick = -1;
+        if (chip === null) return;
+        this.historyEpoch = chip.circuit.globalTime;
+        chip.skipBackfillTo(this.historyEpoch);
     }
 
     startIndex(w: number): number {
@@ -230,12 +266,14 @@ export class ScopePlot {
         // digitalScopeSourceNew()).
         const hv = (this.elm as any)?.highVoltage ?? 5;
         const windowStart = now - spc * sp;
+        // Never look further back than this plot's own historyEpoch - see its docstring.
+        const searchFloor = Math.max(windowStart, Number(this.historyEpoch));
 
-        // Binary search: first history index with tick > windowStart.
+        // Binary search: first history index with tick > searchFloor.
         let lo = 0, hi = hist.length;
         while (lo < hi) {
             const mid = (lo + hi) >> 1;
-            if (Number(hist[mid].time) <= windowStart) lo = mid + 1; else hi = mid;
+            if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
         }
         let hIdx = lo;
         let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? hist[0].value : chip.output);
