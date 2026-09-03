@@ -90,6 +90,26 @@ export class ScopePlot2d implements HistoryWatcher {
     // scope's OWN window - already correctly clamped to ITS historyEpoch - ends up far narrower
     // than this raster's frame width, making the mismatch far more likely to bite.
     private historyEpoch: number = 0;
+    // The raw 0/1 digital value in effect as of rasterFilledTick - persisted across calls, the
+    // same way ScopePlot.curDigitalVal is, and for the same reason: fillDigitalRaster() used to
+    // re-derive "what was the value here" from scratch every call, via hist[lo-1] (or, when
+    // nothing survives before the search point, hist[0].value^1, or - the actually broken case -
+    // chip.output when `history` has nothing at all). chip.output tracks reality live only while
+    // the chip is ACTIVE/PASSIVE - see its own field comment - and STAYS FROZEN at whatever value
+    // was in effect when the chip fell ASLEEP, even as the chip's true value keeps changing on
+    // its own schedule (Chip.currentValue() is the one that tracks it correctly). Once
+    // Chip.trimHistory() can actually empty `history` between calls (rather than it only ever
+    // growing, before that fix), that frozen chip.output stopped being merely "unlikely to be
+    // asked for" and became "asked for constantly, every call `history` is empty regardless of
+    // WHY" - painting long streaks of one frozen color across most of a scanline once the raster
+    // has consumed enough that `history` sits empty between real toggles (the reported "white
+    // streaks" bug, worse the more idle time passes between draws - i.e. worse the slower the
+    // simulated signal runs, exactly matching the report). Keeping this as a persisted field,
+    // maintained incrementally by the very same loop that already walks new `history` entries
+    // (see fillDigitalRaster()'s own body), makes the raster self-sufficient - never dependent on
+    // stale live state or on history not having been trimmed - the same guarantee ScopePlot's own
+    // incremental rewrite already gives the 1-D scope.
+    private curVal: number = 0;
     // The chip fillDigitalRaster() is currently registered with (Chip.addHistoryWatcher()) -
     // separate from any particular ScopePlot's own digitalChip since the raster's actual signal
     // (scope.plots[plotBrightness].digitalChip) can change at runtime as the user reconfigures
@@ -263,7 +283,12 @@ export class ScopePlot2d implements HistoryWatcher {
             this.rasterFrameIndex = -1;
         }
         if (chip === null) return;
-        if (this.rasterFilledTick < 0) {
+        // Captured before anything below can touch rasterFilledTick - both the historyEpoch
+        // refresh just below and the curVal seeding further down need to know whether this call
+        // is a true cold (re)start (nothing to resume from) or a continuation (a persisted
+        // this.curVal to trust), and rasterFilledTick is the only signal for that.
+        const coldStart = this.rasterFilledTick < 0;
+        if (coldStart) {
             // Cold (re)start - either the chip switch just above, or Scope.ts's allocImage()
             // reset us (a resize, or a maxTimeStep/speed change forcing resetGraph()) WITHOUT a
             // chip switch, which zeroes rasterFilledTick/rasterFrameIndex directly and has no way
@@ -314,39 +339,80 @@ export class ScopePlot2d implements HistoryWatcher {
         }
 
         const hist = chip.history; // ascending {time, value}
+        // Where to start WALKING `history` from for curVal bookkeeping - NOT necessarily
+        // `fillFromTick`: a fresh frame boundary crossed mid-stride (frameIndex just changed,
+        // but NOT a cold restart) can leave `fillFromTick` (clamped to frameStart) later than
+        // rasterFilledTick, the true last point this watcher's curVal is known correct as of -
+        // any transitions in between still have to be walked to keep curVal right, just not
+        // painted (the old frame's canvas content is gone, cleared above). At a genuine cold
+        // start there's no such gap - walking starts exactly at fillFromTick, same as painting.
+        const walkFrom = coldStart ? fillFromTick : this.rasterFilledTick;
         let lo = 0, hi = hist.length;
         while (lo < hi) {
             const mid = (lo + hi) >> 1;
-            if (Number(hist[mid].time) <= fillFromTick) lo = mid + 1; else hi = mid;
+            if (Number(hist[mid].time) <= walkFrom) lo = mid + 1; else hi = mid;
         }
-        // Before the first recorded transition at/after `fillFromTick` (lo === 0, hist
-        // non-empty): `history` only ever records real toggles (see Chip's `output` setter), so
-        // whatever value hist[0] toggles TO is exactly the opposite of what was in effect
-        // immediately before it - using hist[0].value itself here (as this used to) paints the
-        // entire pre-first-transition span with the WRONG level, retroactively flipping it the
-        // moment the real first transition finally happens (reported bug: a scope showing
-        // AND(16H,16V) - held at 0 until 16V's first rising edge - shows a spurious flat HIGH
-        // block for that whole initial span instead of the correct flat LOW, right as the real
-        // toggling starts). Only when `history` is still completely empty (nothing has EVER
-        // toggled, so there's no "before" to invert) does chip.output - the chip's actual,
-        // unchanging value so far - apply. This inversion is only valid because `fillFromTick`
-        // is clamped to historyEpoch (see its own comment) - `history` only records once
-        // Chip.historyWatched is true, so without that clamp hist[0] could be well after
-        // `fillFromTick` for a completely different reason (recording hadn't started yet), and
-        // inverting it would answer a question about a span with no data at all, not even data
-        // that was recorded and later trimmed.
-        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
-        let cursor = fillFromTick;
-        for (let i = lo; i < hist.length && Number(hist[i].time) < now; i++) {
+        let curVal: number;
+        if (coldStart) {
+            // Before the first recorded transition at/after `walkFrom` (lo === 0, hist
+            // non-empty): `history` only ever records real toggles (see Chip's `output`
+            // setter), so whatever value hist[0] toggles TO is exactly the opposite of what was
+            // in effect immediately before it - using hist[0].value itself here (as this used
+            // to) paints the entire pre-first-transition span with the WRONG level,
+            // retroactively flipping it the moment the real first transition finally happens
+            // (reported bug: a scope showing AND(16H,16V) - held at 0 until 16V's first rising
+            // edge - shows a spurious flat HIGH block for that whole initial span instead of the
+            // correct flat LOW, right as the real toggling starts). Only when `history` is still
+            // completely empty (nothing has EVER toggled since watching began, so there's no
+            // "before" to invert) does chip.output apply - safe ONLY here, at a genuine cold
+            // start: backfillHistory() above has already walked and recorded every real
+            // transition through `now`, so an empty `history` at this point means chip.output
+            // (unconditionally accurate while ACTIVE/PASSIVE, and un-stale here even if ASLEEP,
+            // precisely because nothing has actually changed) really is correct - see curVal's
+            // own field comment for why that stops being true on a later, non-cold call. This
+            // inversion is only valid because `walkFrom` is clamped to historyEpoch (see its own
+            // comment) - `history` only records once Chip.historyWatched is true, so without
+            // that clamp hist[0] could be well after `walkFrom` for a completely different
+            // reason (recording hadn't started yet), and inverting it would answer a question
+            // about a span with no data at all, not even data that was recorded and later
+            // trimmed.
+            curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
+        } else {
+            // Steady state - trust the value this same call chain already established as of
+            // `walkFrom` (= rasterFilledTick) at the end of the LAST call, never chip.output
+            // (frozen while ASLEEP - see curVal's own field comment) and never a re-derivation
+            // from `history`, which trimHistory() may by now have emptied of exactly the entries
+            // that would need.
+            curVal = this.curVal;
+        }
+        let cursor = fillFromTick; // painting starts here regardless of where walking started
+        let i = lo;
+        for (; i < hist.length && Number(hist[i].time) < now; i++) {
             const t = Number(hist[i].time);
-            this.drawRasterSpan(cursor - frameStart, t - frameStart, !!curVal,
-                lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+            if (t > fillFromTick) {
+                this.drawRasterSpan(cursor - frameStart, t - frameStart, !!curVal,
+                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+                cursor = t;
+            }
+            // Still applied even when t <= fillFromTick (walked but not painted) - this is
+            // exactly what keeps curVal correct across a frame-boundary crossing (see walkFrom's
+            // own comment).
             curVal = hist[i].value;
-            cursor = t;
         }
         this.drawRasterSpan(cursor - frameStart, now - frameStart, !!curVal,
             lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+        // A transition landing EXACTLY at `now` is correctly excluded from the loop/paint above
+        // (`[fillFromTick, now)` is half-open - it doesn't affect anything actually painted this
+        // call) but must still be folded into curVal here: rasterFilledTick becomes `now`, i.e.
+        // this call's `now` becomes the NEXT call's walkFrom/fillFromTick, and this.curVal is
+        // what that next call will trust as "value as of walkFrom" - if this transition were
+        // left for the next call to pick up instead, its own walkFrom search (`time <= walkFrom`)
+        // would SKIP it too (already "before or at" the new floor), permanently losing it from
+        // curVal bookkeeping in EITHER call - the bug caught by
+        // ScopePlot2d.raster.integration.test.ts's per-tick-trim cases.
+        if (i < hist.length && Number(hist[i].time) === now) curVal = hist[i].value;
 
+        this.curVal = curVal;
         this.rasterFilledTick = now;
     }
 

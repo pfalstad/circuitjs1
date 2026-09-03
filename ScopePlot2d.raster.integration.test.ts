@@ -62,6 +62,14 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
         plot2d.rasterLineWidthSec = 1;
         plot2d.rasterFrameLengthSec = FRAME_LEN;
 
+        // Sets frameStartNow (needed for the fillRect hook above to tag rows correctly) and
+        // draws - no toggle-checking, for callers that manage globalTime/toggles themselves.
+        function draw(t: number, opts: { trim: boolean } = { trim: true }) {
+            frameStartNow = Math.floor(t / FRAME_LEN) * FRAME_LEN;
+            plot2d.fillDigitalRaster();
+            if (opts.trim) chip.trimHistory();
+        }
+
         let nextToggleIdx = 0;
         function stepTo(t: number, opts: { trim: boolean } = { trim: true }) {
             circuit.globalTime = BigInt(t);
@@ -69,13 +77,11 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
                 chip.output ^= 1;
                 nextToggleIdx++;
             }
-            frameStartNow = Math.floor(t / FRAME_LEN) * FRAME_LEN;
-            plot2d.fillDigitalRaster();
-            if (opts.trim) chip.trimHistory();
+            draw(t, opts);
         }
 
         return {
-            chip, circuit, plot2d, rows, stepTo,
+            chip, circuit, plot2d, rows, stepTo, draw,
             advanceToggleIdxPast(t: number) { while (nextToggleIdx < toggles.length && toggles[nextToggleIdx] <= t) nextToggleIdx++; },
             get historyEpoch(): number { return (plot2d as any).historyEpoch; },
         };
@@ -130,6 +136,91 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
             if (resetAt.has(t)) {
                 (d.plot2d as any).rasterFilledTick = -1;
                 (d.plot2d as any).rasterFrameIndex = -1;
+            }
+        }
+        expect(checkAgainstGroundTruth(d.rows, 0)).toEqual([]);
+    });
+
+    // Regression for a real off-by-one caught while fixing curVal persistence: a toggle landing
+    // EXACTLY at a call's `now` is correctly excluded from that call's paint loop
+    // (`[fillFromTick, now)` is half-open), but was never folded into the persisted curVal in
+    // EITHER that call or the next - the next call's own walkFrom search treats `time <= walkFrom`
+    // as "already accounted for" and skips right past it too, permanently losing it. Every
+    // toggle in this schedule is deliberately placed to land exactly on a `stepTo` call's `now`
+    // (steps of 1, matching this test's every-tick cadence), covering the case the earlier
+    // tests' toggle schedule happened to also exercise, but in deliberate isolation.
+    it("every toggle lands exactly on a call's `now` (the boundary curVal-persistence regression)", () => {
+        const circuit: any = { globalTime: 0n, historyWatchedChips: new Set() };
+        const chip = bareChip(circuit);
+        const localToggles = [3, 9, 10, 11, 20, 21, 41, 79, 80, 119, 120, 121, 160];
+        function localValueAt(t: number): number {
+            let v = 0;
+            for (const tt of localToggles) { if (t >= tt) v ^= 1; else break; }
+            return v;
+        }
+
+        let fillStyle = "";
+        const rows = new Map<number, string>();
+        let frameStartNow = 0;
+        const imageContext: any = {
+            get fillStyle() { return fillStyle; },
+            set fillStyle(v: string) { fillStyle = v; },
+            fillRect: (_x: number, y: number, _w: number, h: number) => {
+                if (h === FRAME_LEN && y === 0) return;
+                for (let row = y; row < y + h; row++) rows.set(frameStartNow + row, fillStyle);
+            },
+        };
+        const scope: any = {
+            plots: [{ digitalChip: chip }],
+            sim: { maxTimeStep: 1 },
+            rect: { width: 10, height: FRAME_LEN },
+            app: { isPrintable: () => false },
+        };
+        const plot2d = new ScopePlot2d(scope);
+        (plot2d as any).imageContext = imageContext;
+        plot2d.plotBrightness = 0;
+        plot2d.rasterLineWidthSec = 1;
+        plot2d.rasterFrameLengthSec = FRAME_LEN;
+
+        let nextToggleIdx = 0;
+        for (let t = 0; t <= 179; t++) {
+            circuit.globalTime = BigInt(t);
+            if (nextToggleIdx < localToggles.length && t === localToggles[nextToggleIdx]) {
+                chip.output ^= 1;
+                nextToggleIdx++;
+            }
+            frameStartNow = Math.floor(t / FRAME_LEN) * FRAME_LEN;
+            plot2d.fillDigitalRaster();
+            chip.trimHistory(); // every tick - the aggressive case that actually exposes this
+        }
+
+        const bad: string[] = [];
+        for (const [t, actual] of rows) {
+            const expected = localValueAt(t) ? ON : OFF;
+            if (actual !== expected) bad.push(`t=${t}: expected ${expected}, painted ${actual}`);
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it("irregular multi-tick step sizes between draws (uneven real draw cadence), trimming every call", () => {
+        // Every real tick actually happens (toggles land at their true time, exactly like the
+        // simulation itself ticking one at a time) - only DRAWING is decoupled, happening at
+        // irregular multi-tick intervals, the way Scope.draw() really is relative to
+        // SimulationManager.runCircuit()'s own tick advancement.
+        const d = driver();
+        let nextToggleIdx = 0;
+        const steps = [1, 1, 3, 1, 5, 2, 1, 1, 7, 1, 2, 1, 4, 1, 1, 9, 1, 3, 1, 1];
+        let drawAt = 0, stepIdx = 0;
+        for (let t = 0; t <= 179; t++) {
+            d.circuit.globalTime = BigInt(t);
+            if (nextToggleIdx < toggles.length && t === toggles[nextToggleIdx]) {
+                d.chip.output ^= 1;
+                nextToggleIdx++;
+            }
+            if (t === drawAt) {
+                d.draw(t, { trim: true });
+                drawAt = t + steps[stepIdx % steps.length];
+                stepIdx++;
             }
         }
         expect(checkAgainstGroundTruth(d.rows, 0)).toEqual([]);
