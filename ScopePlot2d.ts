@@ -69,6 +69,27 @@ export class ScopePlot2d implements HistoryWatcher {
     // painted, a raster span is never revisited, so nothing before this tick
     // is ever read again - see historyFloor()'s own comment.
     private rasterFilledTick: number = -1;
+    // globalTime as of the start of the current "cold" catch-up - refreshed in fillDigitalRaster()
+    // any time rasterFilledTick is -1 (a chip switch, OR Scope.ts's allocImage() resetting us for
+    // a resize/maxTimeStep-change WITHOUT a chip switch), never left stale across one - mirrors
+    // ScopePlot.historyEpoch's role, but (unlike that field, set once per attach) has to be
+    // refreshed on EVERY cold restart, not just the first: `history` only records a transition
+    // once Chip.historyWatched is true (see chip.ts's `output` setter), so `hist[0]` is NOT
+    // necessarily the chip's first-ever transition - only the first one SINCE recording began,
+    // which could be well before an OLD historyEpoch value if THIS SAME watcher's own earlier
+    // progress already let trimHistory() discard everything up to its old rasterFilledTick before
+    // the reset happened (an old historyEpoch would then wrongly claim protection over a span
+    // that's simply gone - the reported real-world symptom: a raster showing "white glitches"
+    // partway through drawing a frame, right as the simulation speed changes mid-run). A frame
+    // boundary's own `frameStart` is computed purely from `now` and the frame width, with no
+    // awareness of any of this on its own - without this clamp it can land before historyEpoch,
+    // at which point fillDigitalRaster()'s "invert hist[0]" bootstrap (correct for "no toggle
+    // since I started watching", see its own comment) is answering a question about a span it
+    // has no data for at all. Worse the slower the simulated signal runs: a slow/low-frequency
+    // signal needs a much smaller ScopePlot.scopePlotSpeed to show any 1-D detail, so the 1-D
+    // scope's OWN window - already correctly clamped to ITS historyEpoch - ends up far narrower
+    // than this raster's frame width, making the mismatch far more likely to bite.
+    private historyEpoch: number = 0;
     // The chip fillDigitalRaster() is currently registered with (Chip.addHistoryWatcher()) -
     // separate from any particular ScopePlot's own digitalChip since the raster's actual signal
     // (scope.plots[plotBrightness].digitalChip) can change at runtime as the user reconfigures
@@ -237,11 +258,23 @@ export class ScopePlot2d implements HistoryWatcher {
             // frame index as "already showing the right thing".
             this.watchedChip?.removeHistoryWatcher(this);
             this.watchedChip = chip;
-            chip?.addHistoryWatcher(this);
+            if (chip !== null) chip.addHistoryWatcher(this);
             this.rasterFilledTick = -1;
             this.rasterFrameIndex = -1;
         }
         if (chip === null) return;
+        if (this.rasterFilledTick < 0) {
+            // Cold (re)start - either the chip switch just above, or Scope.ts's allocImage()
+            // reset us (a resize, or a maxTimeStep/speed change forcing resetGraph()) WITHOUT a
+            // chip switch, which zeroes rasterFilledTick/rasterFrameIndex directly and has no way
+            // to reach this private field itself. Either way, historyEpoch has to be refreshed to
+            // right now, not left at whatever it was from an earlier attach: by the time a
+            // mid-simulation reset like this happens, THIS SAME watcher's own prior progress has
+            // likely already let trimHistory() discard everything it no longer needed, well past
+            // that old value - see historyEpoch's own comment. Refreshing it here is always safe
+            // (nothing at or after "right now" has ever been trimmed, trivially).
+            this.historyEpoch = Number(chip.circuit.globalTime);
+        }
         const maxTimeStep = this.scope.sim.maxTimeStep;
         if (!(maxTimeStep > 0)) return;
 
@@ -270,7 +303,11 @@ export class ScopePlot2d implements HistoryWatcher {
             this.rasterFrameIndex = frameIndex;
             this.imageContext.fillStyle = this.rasterOffColor();
             this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
-            fillFromTick = frameStart;
+            // Never claim to paint from before this watcher started (see historyEpoch's own
+            // comment) - the [frameStart, historyEpoch) stretch, when frameStart predates it,
+            // just stays whatever the clear above painted (the off color), same as "nothing has
+            // happened yet" everywhere else `history` has no data for a span.
+            fillFromTick = Math.max(frameStart, this.historyEpoch);
         } else {
             if (this.rasterFilledTick === now) return; // already caught up
             fillFromTick = this.rasterFilledTick;
@@ -282,16 +319,22 @@ export class ScopePlot2d implements HistoryWatcher {
             const mid = (lo + hi) >> 1;
             if (Number(hist[mid].time) <= fillFromTick) lo = mid + 1; else hi = mid;
         }
-        // Before the first recorded transition (lo === 0, hist non-empty): `history` only ever
-        // records real toggles (see Chip's `output` setter), so whatever value hist[0] toggles TO
-        // is exactly the opposite of what was in effect immediately before it - using hist[0].value
-        // itself here (as this used to) paints the entire pre-first-transition span with the WRONG
-        // level, retroactively flipping it the moment the real first transition finally happens
-        // (reported bug: a scope showing AND(16H,16V) - held at 0 until 16V's first rising edge -
-        // shows a spurious flat HIGH block for that whole initial span instead of the correct flat
-        // LOW, right as the real toggling starts). Only when `history` is still completely empty
-        // (nothing has EVER toggled, so there's no "before" to invert) does chip.output - the
-        // chip's actual, unchanging value so far - apply.
+        // Before the first recorded transition at/after `fillFromTick` (lo === 0, hist
+        // non-empty): `history` only ever records real toggles (see Chip's `output` setter), so
+        // whatever value hist[0] toggles TO is exactly the opposite of what was in effect
+        // immediately before it - using hist[0].value itself here (as this used to) paints the
+        // entire pre-first-transition span with the WRONG level, retroactively flipping it the
+        // moment the real first transition finally happens (reported bug: a scope showing
+        // AND(16H,16V) - held at 0 until 16V's first rising edge - shows a spurious flat HIGH
+        // block for that whole initial span instead of the correct flat LOW, right as the real
+        // toggling starts). Only when `history` is still completely empty (nothing has EVER
+        // toggled, so there's no "before" to invert) does chip.output - the chip's actual,
+        // unchanging value so far - apply. This inversion is only valid because `fillFromTick`
+        // is clamped to historyEpoch (see its own comment) - `history` only records once
+        // Chip.historyWatched is true, so without that clamp hist[0] could be well after
+        // `fillFromTick` for a completely different reason (recording hadn't started yet), and
+        // inverting it would answer a question about a span with no data at all, not even data
+        // that was recorded and later trimmed.
         let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
         let cursor = fillFromTick;
         for (let i = lo; i < hist.length && Number(hist[i].time) < now; i++) {
