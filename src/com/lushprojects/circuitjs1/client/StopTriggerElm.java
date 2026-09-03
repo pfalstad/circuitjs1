@@ -25,8 +25,9 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 class StopTriggerElm extends CircuitElm {
 	double triggerVoltage;
-	boolean triggered, stopped, conditionActive;
+	boolean triggered, stopped, conditionActive, durationMet;
 	double delay, triggerTime;
+	double requiredDuration, conditionStartTime;
 	int type;
 	int count;
 	int triggerCount;
@@ -50,6 +51,7 @@ class StopTriggerElm extends CircuitElm {
 	    XMLSerializer.dumpAttr(elem, "tp", type);
 	    XMLSerializer.dumpAttr(elem, "dl", delay);
 	    XMLSerializer.dumpAttr(elem, "ct", count);
+	    XMLSerializer.dumpAttr(elem, "rd", requiredDuration);
 	}
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
@@ -59,10 +61,12 @@ class StopTriggerElm extends CircuitElm {
 	    count = xml.parseIntAttr("ct", 1);
 	    if (count < 1)
 		count = 1;
+	    requiredDuration = xml.parseDoubleAttr("rd", 0);
 	}
 	void reset() {
 	    triggered = false;
 	    conditionActive = false;
+	    durationMet = false;
 	    triggerCount = 0;
 	}
 	int getDumpType() { return 408; }
@@ -93,6 +97,11 @@ class StopTriggerElm extends CircuitElm {
 	    boolean condition = (type == 0 && volts[0] >= triggerVoltage) || (type == 1 && volts[0] <= triggerVoltage);
 	    if (!conditionActive && condition) {
 		conditionActive = true;
+		conditionStartTime = sim.t;
+		durationMet = false;
+	    }
+	    if (conditionActive && condition && !durationMet && sim.t-conditionStartTime >= requiredDuration) {
+		durationMet = true;
 		triggerCount++;
 		if (!triggered && triggerCount >= count) {
 		    triggered = true;
@@ -136,6 +145,10 @@ class StopTriggerElm extends CircuitElm {
 		return ei;
 	    }
 	    if (n == 3) {
+		EditInfo ei = new EditInfo("Required Duration (s)", requiredDuration);
+		return ei;
+	    }
+	    if (n == 4) {
 		EditInfo ei = new EditInfo("Required Count", count, -1, -1);
 		return ei.setDimensionless().setPositive();
 	    }
@@ -149,6 +162,11 @@ class StopTriggerElm extends CircuitElm {
 	    if (n == 2)
 		delay = ei.value;
 	    if (n == 3) {
+		requiredDuration = ei.value;
+		if (requiredDuration < 0)
+		    requiredDuration = 0;
+	    }
+	    if (n == 4) {
 		count = (int) ei.value;
 		if (count < 1)
 		    count = 1;
