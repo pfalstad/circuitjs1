@@ -88,10 +88,14 @@ describe("CounterElm modulus promotion", () => {
         const runTicks = 500_000n;
 
         const base = buildModulusCounter();
-        for (const chip of base.circuit.chips) chip.optimizationDisabled = true;
+        // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -
+        // both circuits' chips need it marked directly (standing in for a Scope having attached)
+        // since this test reads `.history` straight off them as ground truth.
+        for (const chip of base.circuit.chips) { chip.optimizationDisabled = true; chip.historyWatched = true; }
         base.circuit.run(runTicks);
 
         const opt = buildModulusCounter();
+        for (const chip of opt.circuit.chips) chip.historyWatched = true;
         opt.circuit.run(runTicks);
 
         for (let k = 0; k < 4; k++) {

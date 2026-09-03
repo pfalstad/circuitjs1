@@ -220,6 +220,15 @@ export class Circuit {
     chips: Chip[] = [];
     globalTime = 0n;
 
+    // Every chip Chip.addHistoryWatcher() has ever been called on (i.e. every chip
+    // `historyWatched` has ever been set true for) - see Chip.trimHistory()'s own comment.
+    // SimulationManager.runCircuit() sweeps exactly this set once per frame, rather than every
+    // chip in the circuit, since only a chip that's ever had a watcher can possibly have
+    // anything in `history` worth trimming. Membership is permanent, mirroring
+    // `historyWatched`'s own stays-true-forever design - trimHistory() itself is what shrinks an
+    // abandoned entry's chip back to nothing once its last live watcher is gone.
+    historyWatchedChips: Set<Chip> = new Set();
+
     private queueSize = 0;
     private queue: QueueEntry[] = new Array(MAX_QUEUE_SIZE + 1);
 

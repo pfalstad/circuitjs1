@@ -188,8 +188,10 @@ export class Scope {
             }
         } else {
             for (let i = this.plots.length - 1; i >= 0; i--) {
-                if (this.plots[i].value === val && this.plots.length > 1)
+                if (this.plots[i].value === val && this.plots.length > 1) {
+                    this.plots[i].detach();
                     this.plots.splice(i, 1);
+                }
             }
         }
         this.calcVisiblePlots();
@@ -362,7 +364,25 @@ export class Scope {
 
     rightEdge(): number { return this.rect.x + this.rect.width; }
 
+    // Detaches every plot in `plots` from whatever chip it's watching (Chip.trimHistory()'s
+    // floor bookkeeping - see ScopePlot.detach()'s own comment) before it's discarded for good -
+    // called everywhere this.plots gets emptied/replaced outright, so an abandoned plot doesn't
+    // keep pinning its old chip's history until GC happens to notice (see Chip.historyWatchers'
+    // own comment on why that's only ever a fallback, not relied on here).
+    private static detachPlots(plots: ScopePlot[]): void {
+        for (const p of plots) p.detach();
+    }
+
+    // Same, but for replacing this.plots with a filtered SUBSET of itself (e.g. this.visiblePlots)
+    // - only the plots being dropped (present in `oldPlots`, absent from `newPlots`) get detached;
+    // whatever's kept is still in active use and must keep watching its chip.
+    private static detachDroppedPlots(oldPlots: ScopePlot[], newPlots: ScopePlot[]): void {
+        for (const p of oldPlots) if (!newPlots.includes(p)) p.detach();
+    }
+
     setElm(ce: CircuitElm | null): void {
+        Scope.detachPlots(this.plots);
+        this.plot2d.detach();
         this.plots = [];
         if (ce !== null && ce.isTransistorElm())
             this.setValue(VAL_VCE, ce);
@@ -423,6 +443,7 @@ export class Scope {
 
     setValue(val: number, ce?: CircuitElm | null): void {
         if (ce !== undefined) {
+            Scope.detachPlots(this.plots);
             this.plots = [];
             this.addValue(val, ce);
         } else {
@@ -432,6 +453,7 @@ export class Scope {
 
     setValues(val: number, ival: number, ce: CircuitElm | null, yelm: CircuitElm | null): void {
         if (ival > 0) {
+            Scope.detachPlots(this.plots);
             this.plots = [];
             if (ce === null) return;
             this.plots.push(new ScopePlot(ce, ce.getScopeUnits(val),  val,  this.getManScaleFromMaxScale(ce.getScopeUnits(val), false)));
@@ -439,6 +461,7 @@ export class Scope {
             return;
         }
         if (yelm !== null) {
+            Scope.detachPlots(this.plots);
             this.plots = [];
             if (ce === null) return;
             this.plots.push(new ScopePlot(ce,   ce.getScopeUnits(val),  0, this.getManScaleFromMaxScale(ce.getScopeUnits(val), false)));
@@ -522,8 +545,10 @@ export class Scope {
         if (plot < this.visiblePlots.length) {
             const p = this.visiblePlots[plot];
             const idx = this.plots.indexOf(p);
-            if (idx >= 0)
+            if (idx >= 0) {
+                p.detach();
                 this.plots.splice(idx, 1);
+            }
             this.calcVisiblePlots();
         }
     }
@@ -1402,6 +1427,7 @@ export class Scope {
             this.plot2d.plotXY = this.plot2d.enabled = state;
             this.plot2d.digitalRaster = false;
             if (this.plot2d.enabled) {
+                Scope.detachDroppedPlots(this.plots, this.visiblePlots);
                 this.plots = this.visiblePlots;
                 this.plot2d.plotX = 0;
                 this.plot2d.plotY = Math.min(1, this.plots.length - 1);
@@ -1415,6 +1441,7 @@ export class Scope {
             this.plot2d.digitalRaster = this.plot2d.enabled = state;
             this.plot2d.plotXY = false;
             if (this.plot2d.enabled) {
+                Scope.detachDroppedPlots(this.plots, this.visiblePlots);
                 this.plots = this.visiblePlots;
                 // Default the raster signal to whichever visible plot is
                 // actually a digital source, if any - otherwise leave
@@ -1537,6 +1564,7 @@ export class Scope {
         for (i = 0; i !== this.plots.length; i++) {
             const plot = this.plots[i];
             if (this.app.locateElm(plot.elm) < 0) {
+                plot.detach();
                 this.plots.splice(i--, 1);
                 removed = true;
             } else
@@ -1544,6 +1572,11 @@ export class Scope {
         }
         if (removed)
             this.calcVisiblePlots();
+        // `ret` true means every plot just turned out dead (or there were none to begin with) -
+        // this whole Scope is about to be dropped from ScopeManager.scopes[] and never draw()n
+        // again, so plot2d (not touched by the loop above - it isn't one of `this.plots`) needs
+        // detaching here too, or it keeps pinning whatever chip it was last watching forever.
+        if (ret) this.plot2d.detach();
         return ret;
     }
 

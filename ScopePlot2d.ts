@@ -22,8 +22,9 @@ import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Scope } from "./Scope";
 import { ChipState } from "./digital/chip";
+import type { Chip, HistoryWatcher } from "./digital/chip";
 
-export class ScopePlot2d {
+export class ScopePlot2d implements HistoryWatcher {
     enabled: boolean = false;
     plotXY: boolean = false;
     scaleX: number;
@@ -64,8 +65,16 @@ export class ScopePlot2d {
     private rasterFrameIndex: number = -1;
     // Tick (relative to the scheduler, not the frame) already painted up
     // to - fillDigitalRaster() resumes from here instead of rescanning
-    // history it already drew.
+    // history it already drew. Also this watcher's own historyFloor(): once
+    // painted, a raster span is never revisited, so nothing before this tick
+    // is ever read again - see historyFloor()'s own comment.
     private rasterFilledTick: number = -1;
+    // The chip fillDigitalRaster() is currently registered with (Chip.addHistoryWatcher()) -
+    // separate from any particular ScopePlot's own digitalChip since the raster's actual signal
+    // (scope.plots[plotBrightness].digitalChip) can change at runtime as the user reconfigures
+    // which plot feeds it. Kept in sync with that at the top of fillDigitalRaster() itself, the
+    // only place this class ever looks at what chip it's currently drawing from.
+    private watchedChip: Chip | null = null;
 
     private imageCanvas: HTMLCanvasElement | null = null;
     private imageContext: CanvasRenderingContext2D | null = null;
@@ -178,6 +187,22 @@ export class ScopePlot2d {
         return idx;
     }
 
+    // HistoryWatcher: everything fillDigitalRaster() has already painted (i.e. everything
+    // before rasterFilledTick) is gone for good - a raster span, once drawn into the persistent
+    // canvas bitmap, is never read from `history` again. -1 (nothing painted yet, or just
+    // switched signals - see fillDigitalRaster()'s own sync check) reports no floor at all, so
+    // Chip.trimHistory() won't discard anything on this watcher's account until it catches up.
+    historyFloor(): bigint {
+        return this.rasterFilledTick < 0 ? -1n : BigInt(this.rasterFilledTick);
+    }
+
+    // Stops watching this raster's current chip (if any) for good - called wherever the owning
+    // Scope itself is being discarded rather than just reconfigured (see Scope.ts's setElm()).
+    detach(): void {
+        this.watchedChip?.removeHistoryWatcher(this);
+        this.watchedChip = null;
+    }
+
     /** Rebuilds the raster image from the signal's own change-list history
      * (Chip.history - see digital/chip.ts) instead of sampling a pixel
      * every simulation timestep, for the same reason
@@ -201,6 +226,21 @@ export class ScopePlot2d {
         const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
             ? this.scope.plots[this.plotBrightness] : null;
         const chip = bp?.digitalChip ?? null;
+        if (chip !== this.watchedChip) {
+            // The brightness source just changed (or disappeared) - stop counting against
+            // whatever chip we were registered with (Chip.trimHistory()'s floor - see
+            // historyFloor() below) and, if there's a new one, register with it instead. Reset
+            // the raster cursor/frame too: rasterFilledTick is a raw tick relative to the OLD
+            // chip's own history, meaningless (and possibly a wildly wrong span to paint) against
+            // a different signal; rasterFrameIndex=-1 forces the frame-boundary branch below to
+            // clear-and-restart from a real frameStart rather than treating a coincidentally-equal
+            // frame index as "already showing the right thing".
+            this.watchedChip?.removeHistoryWatcher(this);
+            this.watchedChip = chip;
+            chip?.addHistoryWatcher(this);
+            this.rasterFilledTick = -1;
+            this.rasterFrameIndex = -1;
+        }
         if (chip === null) return;
         const maxTimeStep = this.scope.sim.maxTimeStep;
         if (!(maxTimeStep > 0)) return;

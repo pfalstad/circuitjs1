@@ -1446,6 +1446,13 @@ export class SimulationManager {
 
 	syncDigitalToNodesNew(this.elmArr, this.digitalGraph.chipsByElm);
 	syncNodesToPassiveChips(this.elmArr);
+
+	// Bound Chip.history for every chip a Scope has ever watched - see Chip.trimHistory()'s own
+	// comment. Once per frame is plenty (history only needs to stay small, not instantaneously
+	// minimal), and doing it here rather than after Scope drawing means it still runs (keeping
+	// abandoned-watcher chips bounded) even on a frame with no scopes to draw at all.
+	for (const chip of circuit.historyWatchedChips) chip.trimHistory();
+
 	this.app.onTimeStep();
 
 	this.lastIterTime = tm;

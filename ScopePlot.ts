@@ -26,11 +26,11 @@ import {
     V_POSITION_STEPS,
 } from "./ScopeConstants";
 import { ChipState } from "./digital/chip";
-import type { Chip } from "./digital/chip";
+import type { Chip, HistoryWatcher } from "./digital/chip";
 import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
 
 // plot of single value on a scope
-export class ScopePlot {
+export class ScopePlot implements HistoryWatcher {
     minValues: number[];
     maxValues: number[];
     scopePointCount: number;
@@ -68,10 +68,21 @@ export class ScopePlot {
     // element - only the voltage trace goes through the digital fast path).
     // NOT readonly: see refreshDigitalSource().
     digitalChip: Chip | null;
-    // scheduler tick this plot's arrays were last rebuilt for, so a
-    // redundant draw() within the same tick (e.g. no simulation progress
-    // between frames) doesn't repeat the O(new history entries) rebuild.
+    // Tick fillFromDigitalHistory() has folded `history` into minValues/maxValues through so
+    // far - so a redundant draw() within the same tick (e.g. no simulation progress between
+    // frames) doesn't repeat the work, AND (once >= 0) the point at which the NEXT call resumes
+    // incrementally rather than rebuilding the whole visible window from scratch - see that
+    // method's own docstring. -1 means "no incremental state yet - do a from-scratch seed pass
+    // next call" (set by setDigitalChip()/reset() below); also this watcher's own historyFloor().
     private lastDigitalFillTick: number = -1;
+    // The tick at which the currently-open column (index `ptr`) closes and the next one opens -
+    // the incremental counterpart of the seed loop's local `colEnd = windowStart + (col+1)*sp`.
+    // Meaningless (overwritten) whenever lastDigitalFillTick is -1; see fillFromDigitalHistory().
+    private colEnd: number = 0;
+    // The raw 0/1 digital value in effect as of lastDigitalFillTick - the incremental
+    // counterpart of the seed loop's local `curVal`, carried across calls instead of being
+    // re-derived from `history` each time.
+    private curDigitalVal: number = 0;
     // globalTime at the moment this plot most recently acquired digitalChip
     // (constructor, or refreshDigitalSource() resolving a new one) - a scope
     // has no use for whatever happened on the signal before it existed, so
@@ -154,6 +165,10 @@ export class ScopePlot {
     // left edge - self-healing (it fills back in as time moves on), never wrong values, so not
     // worth a full per-Scope private history/cursor to close.
     private setDigitalChip(chip: Chip | null): void {
+        // Stop counting against the OLD chip's Chip.trimHistory() floor before switching - it's
+        // still alive (just no longer watching this signal), so nothing else will ever do this
+        // for us (contrast detach() below, for when this plot itself is being discarded).
+        if (this.digitalChip !== null) this.digitalChip.removeHistoryWatcher(this);
         this.digitalChip = chip;
         // The old arrays (if any) belonged to a different signal (or to no
         // signal at all) - don't let a stale lastDigitalFillTick suppress
@@ -164,8 +179,30 @@ export class ScopePlot {
         chip.skipBackfillTo(this.historyEpoch);
         // Marks this chip as needing a gapless `history` from now on - see Chip.historyWatched's
         // own comment for why waking it can no longer take the cheap modulo-only shortcut that's
-        // fine for a chip nothing is scoping.
-        chip.historyWatched = true;
+        // fine for a chip nothing is scoping - and registers this plot so Chip.trimHistory() knows
+        // not to discard anything this plot might still need (see historyFloor() below).
+        chip.addHistoryWatcher(this);
+    }
+
+    // HistoryWatcher: the earliest `history` entry this plot might still look at on its next
+    // fillFromDigitalHistory() call - see that interface's own comment. Once lastDigitalFillTick
+    // is established, everything before it has already been folded into minValues/maxValues and
+    // will never be read again (the whole point of going incremental - see
+    // fillFromDigitalHistory()'s docstring).
+    historyFloor(): bigint {
+        return this.lastDigitalFillTick < 0 ? -1n : BigInt(this.lastDigitalFillTick);
+    }
+
+    // Stops watching this plot's chip (if any) for good - called wherever a ScopePlot is
+    // dropped rather than just re-pointed (see Scope.ts's various `this.plots = ...`/splice
+    // sites). Distinct from setDigitalChip(null): this plot is being discarded, not reused, so
+    // there's no reason to touch lastDigitalFillTick/historyEpoch/etc, only to stop pinning the
+    // old chip's history to wherever this plot last happened to be.
+    detach(): void {
+        if (this.digitalChip !== null) {
+            this.digitalChip.removeHistoryWatcher(this);
+            this.digitalChip = null;
+        }
     }
 
     startIndex(w: number): number {
@@ -233,24 +270,36 @@ export class ScopePlot {
         }
     }
 
-    /** Rebuilds minValues/maxValues (the same per-pixel-column min/max
-     * arrays timeStep() accretes one simulation tick at a time for an
-     * analog plot) in a single pass over digitalChip.history - the Chip's
-     * own append-only list of (tick, value) changes (see digital/chip.ts).
-     * This is *not* called once per simulation timestep the way timeStep()
-     * is: under the digital fast-path optimization, a promoted/sleeping
-     * chip can skip real work for thousands of ticks at a stretch (that's
-     * the whole point of the optimization), so sampling "the current
-     * value" every tick would either force it to keep doing that work
-     * anyway (defeating the optimization) or read a stale value that was
-     * never updated live while asleep. Instead this runs once per draw()
-     * (see Scope.draw()), walking however many genuine transitions
-     * actually happened - typically far fewer than the number of simulated
-     * ticks - and fills the display arrays exactly as if per-tick sampling
-     * had produced them, so downstream drawing code (drawPlot(),
-     * calcMaxAndMin(), the FFT/trigger machinery, etc.) sees an
-     * ordinary-looking analog-shaped plot and needs no digital-specific
-     * cases of its own. */
+    /** Folds digitalChip.history - the Chip's own append-only list of (tick, value) changes
+     * (see digital/chip.ts) - into minValues/maxValues, the same per-pixel-column min/max arrays
+     * timeStep() accretes one simulation tick at a time for an analog plot. This is *not* called
+     * once per simulation timestep the way timeStep() is: under the digital fast-path
+     * optimization, a promoted/sleeping chip can skip real work for thousands of ticks at a
+     * stretch (that's the whole point of the optimization), so sampling "the current value"
+     * every tick would either force it to keep doing that work anyway (defeating the
+     * optimization) or read a stale value that was never updated live while asleep. Instead this
+     * runs once per draw() (see Scope.draw()), walking however many genuine transitions actually
+     * happened since the LAST call - typically far fewer than the number of simulated ticks, and
+     * (past the first call - see below) never more than that, however long the sim has been
+     * running - and threads them into the display arrays exactly as if per-tick sampling had
+     * produced them, so downstream drawing code (drawPlot(), calcMaxAndMin(), the FFT/trigger
+     * machinery, etc.) sees an ordinary-looking analog-shaped plot and needs no digital-specific
+     * cases of its own.
+     *
+     * Two modes, selected by lastDigitalFillTick:
+     *  - Cold start (-1: just attached to a new chip, or reset() just threw away/resized the
+     *    column buffers - see its own comment) - seeds the WHOLE visible window
+     *    [now - scopePointCount*scopePlotSpeed, now) from `history` in one pass, exactly the way
+     *    this method used to work on EVERY call. `ptr`/colEnd/curDigitalVal end up seeded to
+     *    describe the just-filled last column, ready for the next call to continue from.
+     *  - Steady state (lastDigitalFillTick >= 0): only the slice of `history` strictly newer than
+     *    last time gets walked, advancing `ptr` through however many column boundaries that slice
+     *    crosses - the same circular-buffer bookkeeping timeStep() does per tick, just driven by
+     *    sparse transitions instead. A column, once closed, is never revisited - unlike the old
+     *    every-call full rebuild, this never needs to look at `history` before its own
+     *    lastDigitalFillTick again, which is exactly what makes Chip.trimHistory() safe (see
+     *    historyFloor() above): there is no "zoom back out and re-derive" capability being relied
+     *    on here to give up. */
     fillFromDigitalHistory(): void {
         const chip = this.digitalChip;
         if (chip === null || this.scopePlotSpeed === 0) return;
@@ -260,10 +309,9 @@ export class ScopePlot {
         // ScopePlot2d.fillDigitalRaster()'s own clamp - a chip with a large backlog may not
         // fully catch up in one call, and treating `now` as reached anyway would freeze this
         // plot's trailing edge at a stale value instead of genuinely lagging (and then catching
-        // up over subsequent draws, as this plot's rebuild-from-scratch-every-call design allows).
+        // up over subsequent draws, as this method's incremental design allows).
         const now = Number(backfilledTo < globalTime ? backfilledTo : globalTime);
         if (this.lastDigitalFillTick === now) return;
-        this.lastDigitalFillTick = now;
 
         const spc = this.scopePointCount;
         const sp = this.scopePlotSpeed; // ticks per pixel column (1 tick = 1 maxTimeStep)
@@ -274,48 +322,112 @@ export class ScopePlot {
         // whatever elm digitalChip actually came from may differ - see
         // digitalScopeSourceNew()).
         const hv = (this.elm as any)?.highVoltage ?? 5;
-        const windowStart = now - spc * sp;
-        // Never look further back than this plot's own historyEpoch - see its docstring.
-        const searchFloor = Math.max(windowStart, Number(this.historyEpoch));
 
-        // Binary search: first history index with tick > searchFloor.
-        let lo = 0, hi = hist.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
-        }
-        let hIdx = lo;
-        // Before the first recorded transition (lo === 0, hist non-empty): `history` only ever
-        // records real toggles (see Chip's `output` setter), so whatever value hist[0] toggles TO
-        // is exactly the opposite of what was in effect immediately before it - see
-        // ScopePlot2d.fillDigitalRaster()'s identical fix for the full reasoning and the bug this
-        // produced (a scope's flat pre-first-transition segment retroactively showing the WRONG
-        // level the moment the real first transition happens). Only when `history` is still
-        // completely empty does chip.output - the chip's actual, unchanging value so far - apply.
-        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
+        if (this.lastDigitalFillTick < 0) {
+            // Cold start - seed every column from scratch, same algorithm this method used to
+            // run every single call.
+            const windowStart = now - spc * sp;
+            // Never look further back than this plot's own historyEpoch - see its docstring.
+            const searchFloor = Math.max(windowStart, Number(this.historyEpoch));
 
-        for (let col = 0; col < spc; col++) {
-            const colEnd = windowStart + (col + 1) * sp;
-            const v0 = curVal ? hv : 0;
-            let mn = v0, mx = v0;
-            while (hIdx < hist.length && Number(hist[hIdx].time) < colEnd) {
-                curVal = hist[hIdx].value;
-                const v = curVal ? hv : 0;
-                if (v < mn) mn = v;
-                if (v > mx) mx = v;
-                hIdx++;
+            // Binary search: first history index with tick > searchFloor.
+            let lo = 0, hi = hist.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
             }
-            this.minValues[col] = mn;
-            this.maxValues[col] = mx;
+            let hIdx = lo;
+            // Before the first recorded transition (lo === 0, hist non-empty): `history` only
+            // ever records real toggles (see Chip's `output` setter), so whatever value hist[0]
+            // toggles TO is exactly the opposite of what was in effect immediately before it -
+            // see ScopePlot2d.fillDigitalRaster()'s identical fix for the full reasoning and the
+            // bug this produced (a scope's flat pre-first-transition segment retroactively
+            // showing the WRONG level the moment the real first transition happens). Only when
+            // `history` is still completely empty does chip.output - the chip's actual,
+            // unchanging value so far - apply.
+            let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
+
+            for (let col = 0; col < spc; col++) {
+                const colEnd = windowStart + (col + 1) * sp;
+                const v0 = curVal ? hv : 0;
+                let mn = v0, mx = v0;
+                while (hIdx < hist.length && Number(hist[hIdx].time) < colEnd) {
+                    curVal = hist[hIdx].value;
+                    const v = curVal ? hv : 0;
+                    if (v < mn) mn = v;
+                    if (v > mx) mx = v;
+                    hIdx++;
+                }
+                this.minValues[col] = mn;
+                this.maxValues[col] = mx;
+            }
+            // See startIndex()/reset()'s (ptr - i) & (spc - 1) convention: ptr is the newest
+            // column. minValues/maxValues were just filled oldest-to-newest at indices
+            // 0..spc-1, so ptr = spc - 1 makes index spc-1 (the last one written, i.e. newest)
+            // resolve to offset 0 from ptr - exactly matching that convention without needing an
+            // actual circular write. `colEnd` for that last column is exactly `now` (windowStart
+            // + spc*sp), which is also where the incremental branch below picks up next call.
+            this.ptr = spc - 1;
+            this.colEnd = now;
+            this.curDigitalVal = curVal;
+        } else {
+            // Steady state - fold in only what's new since lastDigitalFillTick, advancing `ptr`/
+            // colEnd exactly the way timeStep() advances its own ptr/lastUpdateTime per tick for
+            // an analog plot, just driven by (fewer) sparse transitions instead of every tick.
+            const searchFloor = this.lastDigitalFillTick;
+            let lo = 0, hi = hist.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
+            }
+            let hIdx = lo;
+            let val = this.curDigitalVal;
+            let cursor = searchFloor;
+            let colEnd = this.colEnd;
+            // Each iteration advances `cursor` to the sooner of: the next transition, or the
+            // current column's own boundary (both capped at `now`) - applying whichever it hit.
+            // A transition exactly AT a column boundary belongs to the column that STARTS there,
+            // never the one that just closed (matches the seed loop's own `< colEnd` exclusion).
+            while (cursor < now) {
+                const nextHistTime = hIdx < hist.length ? Number(hist[hIdx].time) : Infinity;
+                const boundary = Math.min(now, colEnd);
+                if (nextHistTime < boundary) {
+                    // A transition happens before the current column closes (and before `now`) -
+                    // fold the new value into the still-open column. The value that was in effect
+                    // BEFORE this transition is already reflected (from when this column opened,
+                    // or from the previous transition within it), so only the new one needs adding.
+                    val = hist[hIdx].value;
+                    const v = val ? hv : 0;
+                    if (v < this.minValues[this.ptr]) this.minValues[this.ptr] = v;
+                    if (v > this.maxValues[this.ptr]) this.maxValues[this.ptr] = v;
+                    cursor = nextHistTime;
+                    hIdx++;
+                } else {
+                    // No transition before the column boundary (or `now`) - jump straight there.
+                    cursor = boundary;
+                    // Only close the column when its own boundary is what got us here - NOT when
+                    // `now` simply happens to land exactly on it too (colEnd === now): that column
+                    // still needs to end up fully populated through `now`, via `ptr` staying put
+                    // (matching the seed loop's own last column, whose span ends exactly at `now`
+                    // and which is very much NOT empty) - opening a fresh one here would leave
+                    // `ptr` pointing at an empty column with nothing accumulated into it yet, one
+                    // real column short of what a from-scratch rebuild at this same `now` produces.
+                    if (cursor === colEnd && colEnd < now) {
+                        // Column boundary reached with more time left before `now` - close it and
+                        // open the next one flat at the currently-held value, same as timeStep()'s
+                        // own ptr advance.
+                        this.ptr = (this.ptr + 1) & (spc - 1);
+                        const v = val ? hv : 0;
+                        this.minValues[this.ptr] = this.maxValues[this.ptr] = v;
+                        colEnd += sp;
+                    }
+                }
+            }
+            this.colEnd = colEnd;
+            this.curDigitalVal = val;
         }
-        // See startIndex()/reset()'s (ptr - i) & (spc - 1) convention: ptr
-        // is the newest column. minValues/maxValues were just filled
-        // oldest-to-newest at indices 0..spc-1, so ptr = spc - 1 makes
-        // index spc-1 (the last one written, i.e. newest) resolve to
-        // offset 0 from ptr - exactly matching that convention without
-        // needing an actual circular write.
-        this.ptr = spc - 1;
-        this.lastValue = curVal ? hv : 0;
+        this.lastDigitalFillTick = now;
+        this.lastValue = this.curDigitalVal ? hv : 0;
     }
 
     getUnitText(v: number): string {

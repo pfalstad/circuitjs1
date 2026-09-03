@@ -34,6 +34,15 @@
 // walk on EVERY wake for a watched chip, regardless of whether that specific episode got polled
 // first - closing the gap for any chip an actual Scope can display, while leaving unwatched chips
 // (the common case - most chips in a circuit have no Scope attached) on the old cheap path.
+//
+// Later addition (unbounded `history` growth fix): the `output` setter itself now only records
+// when `historyWatched` is true, rather than unconditionally for every chip. This makes the
+// "occasional spurious extra entry" half of the mechanism above moot for an UNWATCHED chip
+// specifically - that entry was always written by the setter's own live/wake-time-replay path,
+// which is exactly what's now silent when nobody's watching - see the second test below, updated
+// to match: an unwatched chip's `history` is now purely a (still cadence-dependent, still
+// incomplete) SUBSET of the truth from backfillHistory()'s own explicit-poll writes, never a
+// wrong one.
 import { describe, it, expect, beforeEach } from "vitest";
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
@@ -213,6 +222,10 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
         const totalTicks = 40_000n;
 
         const base = buildCircuit(4, true);
+        // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -
+        // this baseline chip is optimizationDisabled (never sleeps, so historyWatched has no
+        // effect on ITS replay correctness), used purely to read `history` back as ground truth.
+        base.andChip.historyWatched = true;
         base.circuit.run(totalTicks);
         const baseHist = base.andChip.history.filter(h => h.time <= totalTicks);
         const baseline = new Set(baseHist.map(h => `${h.time}:${h.value}`));
@@ -224,17 +237,22 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
         // Mostly missing detail: substantially fewer entries than the ground truth.
         expect(fast.length).toBeLessThan(baseHist.length * 0.8);
 
-        // ...plus at least one entry the real signal never actually produced - see this file's
-        // header comment on why the cheap wake-time replay can occasionally get this wrong too,
-        // not just drop entries.
+        // ...but, post the `output`-setter-gating fix (see this file's header comment), never a
+        // WRONG one: an unwatched chip's setter no longer writes anything at all, so the only
+        // writer left for it is backfillHistory()'s own verified-correct granular walk - it can
+        // still miss whole episodes nobody polled during (the drops above), but can no longer
+        // invent a transition the real signal never actually produced.
         const spurious = fast.filter(h => !baseline.has(`${h.time}:${h.value}`));
-        expect(spurious.length).toBeGreaterThan(0);
+        expect(spurious.length).toBe(0);
     }, 60000);
 
     it("historyWatched=true makes large-step ('fast') polling match the always-correct baseline", () => {
         const totalTicks = 40_000n;
 
         const base = buildCircuit(4, true);
+        // See the previous test's identical comment on why this baseline needs historyWatched
+        // set even though it's optimizationDisabled.
+        base.andChip.historyWatched = true;
         base.circuit.run(totalTicks);
         const baseline = base.andChip.history.filter(h => h.time <= totalTicks);
 

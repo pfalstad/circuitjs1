@@ -150,6 +150,15 @@ export class Cycle {
 
 export interface HistoryEntry { time: bigint; value: number; }
 
+// Implemented by anything that reads a Chip's `history` after the fact (ScopePlot, ScopePlot2d)
+// so the chip can bound how much of it to keep - see Chip.trimHistory()'s own comment. Returns
+// the earliest `history[i].time` this watcher might still need to look at on its NEXT call -
+// everything strictly before that is provably dead weight for this watcher. -1n means "haven't
+// established a real floor yet" (e.g. just attached/reset and about to do a from-scratch seed
+// pass over whatever's currently available) - trimHistory() treats that as "don't discard
+// anything on this watcher's account" since -1n sorts below every real (>= 0n) history time.
+export interface HistoryWatcher { historyFloor(): bigint; }
+
 // A backfill replay position, mirroring a (possibly nested) Cycle.currentCycle chain but held
 // entirely separately so backfillHistory()/currentValue() can advance it without touching any
 // real Cycle's live currentOutputEvent/activationTime/endTime (see backfillPos's own field
@@ -414,7 +423,12 @@ export class Chip extends Cycle {
 
     get output(): number { return this._output; }
     set output(v: number) {
-        if (v !== this._output) this.history.push({ time: this.circuit.globalTime, value: v });
+        // Only bother recording when something's actually reading `history` - see
+        // `historyWatched`'s own comment. Gated the same way backfillHistory()'s push already
+        // was (catchUpHistoryBeforeWake() only ever calls it once historyWatched is true) - this
+        // just closes the other writer, the common live-transition path, which used to record
+        // unconditionally for every chip whether or not anything was ever watching it.
+        if (this.historyWatched && v !== this._output) this.history.push({ time: this.circuit.globalTime, value: v });
         this._output = v;
     }
 
@@ -470,6 +484,61 @@ export class Chip extends Cycle {
     // re-arming this cheaply on every attach isn't worth the bookkeeping when leaving it set is
     // already correct (just occasionally-unnecessary) for a chip nothing is watching any more.
     historyWatched = false;
+
+    // Registered/unregistered by ScopePlot/ScopePlot2d (addHistoryWatcher()/removeHistoryWatcher())
+    // as they attach to/detach from this chip - used only to compute trimHistory()'s safe floor.
+    // Held as WeakRefs, not the watchers themselves: Scope.ts (and ScopeSerializer.ts) drop
+    // ScopePlots from a good many scattered call sites (removing one trace, switching modes,
+    // loading a saved circuit, ...), and an explicit removeHistoryWatcher() call is made from
+    // the ones that are easy to reach (setDigitalChip() switching to a different chip while
+    // still alive, in particular, which MUST be explicit - the watcher isn't garbage, so nothing
+    // else would ever stop it counting against its old chip's floor). For anywhere a plot is
+    // simply dropped and left to be garbage-collected, a WeakRef here means a stale entry prunes
+    // itself out of the next trimHistory() sweep on its own, instead of permanently pinning that
+    // chip's history to whatever floor the abandoned watcher last reported.
+    private historyWatchers: Set<WeakRef<HistoryWatcher>> = new Set();
+
+    addHistoryWatcher(w: HistoryWatcher): void {
+        this.historyWatchers.add(new WeakRef(w));
+        this.historyWatched = true;
+        this.circuit.historyWatchedChips.add(this);
+    }
+
+    removeHistoryWatcher(w: HistoryWatcher): void {
+        for (const ref of this.historyWatchers) {
+            if (ref.deref() === w) { this.historyWatchers.delete(ref); break; }
+        }
+    }
+
+    // Drops every `history` entry no currently-registered (and still-live) watcher can possibly
+    // still need - see HistoryWatcher's own comment for what "still need" means. With zero live
+    // watchers left (the common eventual end state for a chip that used to be watched - see
+    // `historyWatched`'s own comment on why that flag itself stays true forever) this clears
+    // `history` outright: nothing is reading it, so there's nothing worth keeping. Called once
+    // per simulation frame for every chip `historyWatched` has ever been set on (see
+    // SimulationManager.runCircuit()) - cheap to call on a chip with nothing to trim (the common
+    // case), so no separate bookkeeping tracks whether it's actually needed this particular call.
+    trimHistory(): void {
+        let floor: bigint | null = null;
+        for (const ref of this.historyWatchers) {
+            const w = ref.deref();
+            if (w === undefined) { this.historyWatchers.delete(ref); continue; }
+            const f = w.historyFloor();
+            if (floor === null || f < floor) floor = f;
+        }
+        if (floor === null) {
+            if (this.history.length !== 0) this.history.length = 0;
+            return;
+        }
+        if (this.history.length === 0 || this.history[0].time >= floor) return;
+        // Binary search: first index with time >= floor, then drop everything before it.
+        let lo = 0, hi = this.history.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (this.history[mid].time < floor) lo = mid + 1; else hi = mid;
+        }
+        if (lo > 0) this.history.splice(0, lo);
+    }
 
     debugName = "";
 

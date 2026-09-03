@@ -261,8 +261,10 @@ export class ScopeSerializer {
                     this.scope.scale[u] = parseFloat(st.nextToken());
                 this.scope.setValue(value);
                 // setValue(0) creates an extra plot for current, so remove that
-                while (this.scope.plots.length > 1)
+                while (this.scope.plots.length > 1) {
+                    this.scope.plots[1].detach();
                     this.scope.plots.splice(1, 1);
+                }
                 let plotFlags = 0;
                 for (let i = 0; i !== sz; i++) {
                     if (hasPlotFlags)

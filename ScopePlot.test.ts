@@ -46,6 +46,36 @@ function connect(...posts: { elm: any; num: number }[]): void {
 
 afterEach(() => setCurrentDigitalGraph(null));
 
+// Builds a fresh plot cold-started directly at `nowTicks` over the full `history` - the
+// ground truth an incremental (steady-state) call is supposed to match exactly, since it's
+// only ever supposed to fold in what changed, never produce a different answer than rebuilding
+// from scratch would. spc/sp match the "fills columns..." test above (8 columns, 10 ticks each).
+function coldRebuild(elm: any, history: { time: bigint; value: number }[], nowTicks: number) {
+    const plot = new ScopePlot(elm, UNITS_V, VAL_VOLTAGE, 1);
+    plot.digitalChip = fakeChip(history, nowTicks);
+    plot.scopePointCount = 8;
+    plot.scopePlotSpeed = 10;
+    plot.minValues = new Array(8).fill(0);
+    plot.maxValues = new Array(8).fill(0);
+    plot.fillFromDigitalHistory();
+    return plot;
+}
+
+// Reads minValues/maxValues out in oldest-to-newest order via the same (ptr - i) & mask
+// convention startIndex()/Scope.ts's readers use - the only way to compare two plots whose
+// `ptr` may have wrapped a different number of times (a circular buffer's raw array order is
+// an implementation detail, not something callers - or this test - should compare directly).
+function orderedValues(plot: ScopePlot): { min: number[]; max: number[] } {
+    const spc = plot.scopePointCount;
+    const min: number[] = [], max: number[] = [];
+    for (let i = spc - 1; i >= 0; i--) {
+        const idx = (plot.ptr - i) & (spc - 1);
+        min.push(plot.minValues[idx]);
+        max.push(plot.maxValues[idx]);
+    }
+    return { min, max };
+}
+
 describe("ScopePlot digital history fill", () => {
     it("recognizes a digital-capable element as a digital scope source", () => {
         const elm = fakeElm();
@@ -135,6 +165,85 @@ describe("ScopePlot digital history fill", () => {
         plot.minValues[0] = 999; // sentinel - a second rebuild would overwrite this
         plot.fillFromDigitalHistory();
         expect(plot.minValues[0]).toBe(999);
+    });
+
+    describe("steady-state (incremental) calls", () => {
+        // Same shape as the "fills columns..." test above, but exercised across TWO calls (a
+        // cold start, then one incremental step covering several more columns and transitions,
+        // including one landing exactly on a column boundary at t=110 and one landing exactly at
+        // the new `now` boundary at t=150) rather than one - the incremental path must land on
+        // exactly the same answer coldRebuild() (a from-scratch rebuild at the same final `now`)
+        // produces, since it's only ever supposed to fold in what's new, never compute a
+        // different trace. This is also a regression test for a real bug caught while writing
+        // it: closing a column and advancing `ptr` to a fresh, still-empty one whenever a column
+        // boundary happened to coincide exactly with `now` - one real (fully populated) column
+        // short of what a from-scratch rebuild at that same `now` has.
+        it("folding in several new columns/transitions matches a from-scratch rebuild at the same `now`", () => {
+            const elm = fakeElm();
+            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
+            plot.digitalChip = fakeChip(history, 100);
+            plot.scopePointCount = 8;
+            plot.scopePlotSpeed = 10;
+            plot.minValues = new Array(8).fill(0);
+            plot.maxValues = new Array(8).fill(0);
+            plot.fillFromDigitalHistory(); // cold start through t=100
+
+            history.push({ time: 105n, value: 0 }, { time: 110n, value: 1 }, { time: 135n, value: 0 });
+            (plot.digitalChip as any).circuit.globalTime = 150n;
+            plot.fillFromDigitalHistory(); // incremental: folds in only what's new since t=100
+
+            const rebuilt = coldRebuild(elm, history, 150);
+            expect(orderedValues(plot)).toEqual(orderedValues(rebuilt));
+            expect(plot.lastValue).toBe(rebuilt.lastValue);
+        });
+
+        it("several calls in a row, each advancing by less than one column, still matches a from-scratch rebuild", () => {
+            const elm = fakeElm();
+            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
+            plot.digitalChip = fakeChip(history, 100);
+            plot.scopePointCount = 8;
+            plot.scopePlotSpeed = 10;
+            plot.minValues = new Array(8).fill(0);
+            plot.maxValues = new Array(8).fill(0);
+            plot.fillFromDigitalHistory(); // cold start through t=100
+
+            // Small, irregular steps (like ScopePlot really gets driven - see
+            // chip.backfillHistory.test.ts's identical irregular-step regression) - several
+            // land mid-column, several exactly on a column boundary (multiples of 10 past 100).
+            const steps = [3n, 2n, 5n, 5n, 5n, 10n, 15n, 5n];
+            let t = 100n;
+            for (const step of steps) {
+                t += step;
+                (plot.digitalChip as any).circuit.globalTime = t;
+                plot.fillFromDigitalHistory();
+            }
+            expect(t).toBe(150n);
+
+            const rebuilt = coldRebuild(elm, history, 150);
+            expect(orderedValues(plot)).toEqual(orderedValues(rebuilt));
+            expect(plot.lastValue).toBe(rebuilt.lastValue);
+        });
+
+        it("a call that advances `now` without crossing any column boundary just extends the current column", () => {
+            const elm = fakeElm();
+            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
+            plot.digitalChip = fakeChip(history, 100);
+            plot.scopePointCount = 8;
+            plot.scopePlotSpeed = 10;
+            plot.minValues = new Array(8).fill(0);
+            plot.maxValues = new Array(8).fill(0);
+            plot.fillFromDigitalHistory();
+
+            history.push({ time: 103n, value: 0 });
+            (plot.digitalChip as any).circuit.globalTime = 105n; // still within the same 10-tick column
+            plot.fillFromDigitalHistory();
+
+            const rebuilt = coldRebuild(elm, history, 105);
+            expect(orderedValues(plot)).toEqual(orderedValues(rebuilt));
+        });
     });
 
     it("re-resolves digitalChip once wiring/the DigitalGraph becomes available (save/reload regression)", () => {

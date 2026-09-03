@@ -170,6 +170,9 @@ describe("RailElm.digitalTie() / digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([r, sink]);
 
         const clockChip = chipsByElm.get(r)![0];
+        // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -
+        // mark it directly, standing in for a Scope having attached (see ScopePlot.setDigitalChip()).
+        clockChip.historyWatched = true;
         // Requested half-period (500ns) is below TIMESCALE's default 1us tick, so
         // digitalSynthesis()'s Math.max(1, ...) floor kicks in: 1 tick each phase, a 2-tick
         // period - checking history (not just a before/after output compare) avoids a flaky
