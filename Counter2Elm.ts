@@ -23,7 +23,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
-import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
+import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge, i1, i2 } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -188,13 +188,111 @@ export class Counter2Elm extends ChipElm {
         this.writeOutput(this.rco, this.carry && this.pins[this.ent].value);
     }
 
+    /** modulus===0 (plain power-of-2 binary counting, realmod = 1<<bits) gets a genuine
+     * ripple/gated-toggle synthesis - see digitalSynthesisRipple() below, structured like the real
+     * 74163 (dice-ts/src/chips/9316.ts) and like CounterElm.digitalSynthesisRipple(). An arbitrary
+     * non-power-of-2 modulus still needs every bit-cell to see the whole register for the
+     * synchronous compare-and-clear against realmod-1, so that case (and modulus===1, the
+     * degenerate always-zero case) keeps the original digitalSynthesisWholeRegister() below - see
+     * its own docstring for why that one can't be a ripple chain. */
+    digitalSynthesis(): DigitalSynthesis {
+        if (this.modulus === 0) return this.digitalSynthesisRipple();
+        return this.digitalSynthesisWholeRegister();
+    }
+
+    /** A genuine ripple/gated-toggle counter, structured exactly like the real 74163
+     * (dice-ts/src/chips/9316.ts) and like CounterElm.digitalSynthesisRipple() (see its own
+     * docstring for why a whole-register design structurally prevents ChipState.ASLEEP - the
+     * same problem applies here). Two internal gating cells (cntPin, ldPin) reproduce 9316.ts's
+     * `clk`/`ld` cells: each latches high on the real clock's rising edge (if its condition holds)
+     * and drops low on the clock's falling edge, so downstream bit-cells see gated edges that
+     * track the real clock's period without depending on ENP/ENT/LOAD directly (avoiding the
+     * mutual-whole-register coupling that blocks sleep).
+     *
+     * Per-bit logic then only ever depends on {clrPin, ldPin, its own I pin, its own clock
+     * source} - bit 0's clock source is cntPin (the gated "counting" edge); bit w>0's clock source
+     * is bit (w-1)'s own Q pin, toggling on ITS falling edge, the real ripple-carry condition for
+     * binary up-counting - never a sibling's live value read combinationally, unlike
+     * digitalSynthesisWholeRegister()'s design. LOAD is checked first (posEdge(ldPin) wins),
+     * matching execute()'s ordering where the LOAD branch's writeOutput() runs strictly after the
+     * increment branch's. CLR remains the same unconditional, asynchronous/level-sensitive check
+     * every cell already had. RCO stays the separate whole-register combinational cell described
+     * below - it doesn't block any Q bit's own ability to sleep. */
+    private digitalSynthesisRipple(): DigitalSynthesis {
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const qPin = (w: number) => bits - w;
+        const iPin = (w: number) => 2 * bits - w;
+        const clkPin  = 2 * bits + 1;
+        const clrPin  = 2 * bits + 2;
+        const enpPin  = 2 * bits + 3;
+        const rcoPin  = 2 * bits + 4;
+        const loadPin = 2 * bits + 5;
+        const entPin  = 2 * bits + 6;
+        const realmod = 1 << bits;
+
+        const cntPin = i1; // gated "counting enabled at this clock edge" pulse, like 9316.ts's i5
+        const ldPin  = i2; // gated "loading at this clock edge" pulse, like 9316.ts's i6
+
+        const desc: ChipDesc[] = [];
+
+        const cntLogic: ChipLogic = (pin, prevPin, eventPin) => {
+            if (posEdge(pin, eventPin, clkPin) && pin[loadPin] && pin[enpPin] && pin[entPin]) pin[cntPin] = 1;
+            else if (negEdge(pin, eventPin, clkPin)) pin[cntPin] = 0;
+            else pin[cntPin] = prevPin[cntPin];
+        };
+        desc.push(chipStart(cntLogic).inputPins(clkPin, loadPin, enpPin, entPin).eventPins(clkPin).outputPin(cntPin).prevOutputPin(cntPin));
+
+        const ldLogic: ChipLogic = (pin, prevPin, eventPin) => {
+            if (posEdge(pin, eventPin, clkPin) && !pin[loadPin]) pin[ldPin] = 1;
+            else if (negEdge(pin, eventPin, clkPin)) pin[ldPin] = 0;
+            else pin[ldPin] = prevPin[ldPin];
+        };
+        desc.push(chipStart(ldLogic).inputPins(clkPin, loadPin).eventPins(clkPin).outputPin(ldPin).prevOutputPin(ldPin));
+
+        for (let w = 0; w < bits; w++) {
+            const out = qPin(w);
+            const clockSource = w === 0 ? cntPin : qPin(w - 1);
+
+            const logic: ChipLogic = (pin, prevPin, eventPin) => {
+                let bitW = prevPin[out];
+                if (posEdge(pin, eventPin, ldPin)) bitW = pin[iPin(w)];
+                // The `&& !pin[ldPin]` guard matches 9316.ts's own bit cells exactly (every one
+                // of them, including the LSB): without it, a neighbor loading a falling edge onto
+                // its own Q (a byproduct of ITS load, not a real count pulse) would ripple into
+                // this bit's toggle too, corrupting whichever bits happen to see a high-to-low
+                // load transition upstream while LOAD is asserted.
+                else if ((w === 0 ? posEdge(pin, eventPin, cntPin) : negEdge(pin, eventPin, clockSource)) && !pin[ldPin])
+                    bitW = prevPin[out] ^ 1;
+                if (!pin[clrPin]) bitW = 0;
+                pin[out] = bitW;
+            };
+
+            desc.push(
+                chipStart(logic).inputPins(clrPin, ldPin, iPin(w), clockSource).eventPins(ldPin, clockSource).outputPin(out).prevOutputPin(out)
+            );
+        }
+
+        const rcoLogic: ChipLogic = (pin) => {
+            let value = 0;
+            for (let j = 0; j < bits; j++) if (pin[qPin(j)]) value |= 1 << j;
+            pin[rcoPin] = (pin[entPin] && value === realmod - 1) ? 1 : 0;
+        };
+        const rcoIn: number[] = [entPin];
+        for (let j = 0; j < bits; j++) rcoIn.push(qPin(j));
+        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin));
+
+        return { desc, pinMap };
+    }
+
     /** Whole-register reconstruction, one LUT cell per bit - same technique as
      * CounterElm.digitalSynthesisWholeRegister() (see its docstring for the rationale): LOAD and
      * an arbitrary non-power-of-2 modulus both need every bit-cell to see the whole register, so
-     * this can't be a genuine per-bit ripple chain like CounterElm.digitalSynthesisRipple()'s
-     * modulus===0 fast path (not attempted here - see dice-ts/src/chips/9316.ts for what a real
-     * ripple/gated-toggle version of this exact chip - the 74163 - looks like, if that's ever
-     * worth doing for Counter2Elm too).
+     * this can't be a genuine per-bit ripple chain like digitalSynthesisRipple() above (which only
+     * handles modulus===0).
      *
      * LOAD (active low, unconditional bubble, no invert option) is a synchronous straight-through
      * per-bit passthrough that overrides counting whenever active - matching execute()'s
@@ -210,7 +308,7 @@ export class Counter2Elm extends ChipElm {
      * only ever gets set to that same comparison, right when Q itself changes) but needs no shadow
      * bit of state, and is correct even in the degenerate modulus===1 case where execute()'s
      * `carry: boolean = false` initializer disagrees with the true comparison at power-up. */
-    digitalSynthesis(): DigitalSynthesis {
+    private digitalSynthesisWholeRegister(): DigitalSynthesis {
         const bits = this.bits;
         const postCount = this.getPostCount();
         const pinMap = new Map<number, number>();
