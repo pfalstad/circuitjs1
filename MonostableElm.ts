@@ -24,6 +24,11 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
+import { chipStart, customChipStart, i1 } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { Chip } from "./digital/chip";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
+import { TIMESCALE } from "./digital/constants";
 
 export class MonostableElm extends ChipElm {
     private prevInputValue: boolean = false;
@@ -66,6 +71,53 @@ export class MonostableElm extends ChipElm {
 
     getPostCount(): number { return 3; }
     getVoltageSourceCount(): number { return 2; }
+
+    digitalSynthesis(): DigitalSynthesis {
+        const T = 1, Q = 2, QBAR = 3;
+        const EXP = i1;
+        const fallDelayTicks = () => BigInt(Math.max(1, Math.round(this.delay / TIMESCALE)));
+
+        const shared: { expireChip: Chip | null; lastT: boolean } = { expireChip: null, lastT: false };
+
+        const qUpdate = (chip: Chip, mask: number): void => {
+            chip.inputs ^= mask;
+            const tHigh = (chip.inputs & 1) !== 0;
+            const expHigh = (chip.inputs & 2) !== 0;
+            const risingT = tHigh && !shared.lastT;
+            shared.lastT = tHigh;
+
+            if (expHigh && chip.output === 1) {
+                chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // fall
+            } else if (risingT) {
+                if (chip.output === 0) {
+                    chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // rise
+                } else if (this.retriggerable && shared.expireChip) {
+                    const ec = shared.expireChip;
+                    ec.pendingEvent = ec.circuit.queuePush(ec, fallDelayTicks()); // restart timer
+                }
+            }
+        };
+
+        const expUpdate = (chip: Chip, mask: number): void => {
+            shared.expireChip = chip;
+            chip.inputs ^= mask;
+            const qHigh = (chip.inputs & 1) !== 0;
+            if (qHigh) {
+                chip.pendingEvent = chip.circuit.queuePush(chip, fallDelayTicks()); // arm countdown
+            } else if (chip.output === 1) {
+                chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // reset immediately
+            }
+        };
+
+        const qbarLogic: ChipLogic = (pin) => { pin[QBAR] = pin[Q] ? 0 : 1; };
+
+        const desc: ChipDesc[] = [
+            customChipStart(qUpdate).inputPins(T, EXP).outputPin(Q),
+            customChipStart(expUpdate).inputPins(Q).outputPin(EXP),
+            chipStart(qbarLogic).inputPins(Q).outputPin(QBAR),
+        ];
+        return { desc, pinMap: new Map([[0, T], [1, Q], [2, QBAR]]) };
+    }
 
     execute(): void {
         if (this.pins[0].value && this.prevInputValue !== this.pins[0].value && (this.retriggerable || !this.triggered)) {
