@@ -46,75 +46,20 @@ export class ScopePlot2d implements HistoryWatcher {
 
     // --- Digital raster mode ---
     //
-    // A CRT-style raster view for a single digital signal: scans left to
-    // right across a horizontal line lasting rasterLineWidthSec, then top
-    // to bottom one line per rasterLineWidthSec, wrapping to a new frame
-    // every rasterFrameLengthSec - exactly what's needed to view something
-    // like a video generator's output as an actual image, rather than as a
-    // 1-d waveform. Mutually exclusive with plotXY (see Scope.handleMenu()).
-    // Which plot supplies the signal is plotBrightness, reused from the X-Y
-    // brightness-modulator concept above - only one of the two modes is
-    // ever active, so sharing the field avoids a redundant one.
     digitalRaster: boolean = false;
     rasterLineWidthSec: number = 1e-5;
     rasterFrameLengthSec: number = 1e-3;
-    // Which frame (now / frameLengthTicks, floored) the canvas currently
-    // shows - a change means a new frame has started and the canvas needs
-    // clearing before drawing anything into it. -1 (impossible for a real
-    // frame index) forces that clear-and-restart on the very first fill.
     private rasterFrameIndex: number = -1;
-    // Tick (relative to the scheduler, not the frame) already painted up
-    // to - fillDigitalRaster() resumes from here instead of rescanning
-    // history it already drew. Also this watcher's own historyFloor(): once
-    // painted, a raster span is never revisited, so nothing before this tick
-    // is ever read again - see historyFloor()'s own comment.
+
+    // Tick (relative to the scheduler, not the frame) already painted up to
     private rasterFilledTick: number = -1;
+
     // globalTime as of the start of the current "cold" catch-up - refreshed in fillDigitalRaster()
-    // any time rasterFilledTick is -1 (a chip switch, OR Scope.ts's allocImage() resetting us for
-    // a resize/maxTimeStep-change WITHOUT a chip switch), never left stale across one - mirrors
-    // ScopePlot.historyEpoch's role, but (unlike that field, set once per attach) has to be
-    // refreshed on EVERY cold restart, not just the first: `history` only records a transition
-    // once Chip.historyWatched is true (see chip.ts's `output` setter), so `hist[0]` is NOT
-    // necessarily the chip's first-ever transition - only the first one SINCE recording began,
-    // which could be well before an OLD historyEpoch value if THIS SAME watcher's own earlier
-    // progress already let trimHistory() discard everything up to its old rasterFilledTick before
-    // the reset happened (an old historyEpoch would then wrongly claim protection over a span
-    // that's simply gone - the reported real-world symptom: a raster showing "white glitches"
-    // partway through drawing a frame, right as the simulation speed changes mid-run). A frame
-    // boundary's own `frameStart` is computed purely from `now` and the frame width, with no
-    // awareness of any of this on its own - without this clamp it can land before historyEpoch,
-    // at which point fillDigitalRaster()'s "invert hist[0]" bootstrap (correct for "no toggle
-    // since I started watching", see its own comment) is answering a question about a span it
-    // has no data for at all. Worse the slower the simulated signal runs: a slow/low-frequency
-    // signal needs a much smaller ScopePlot.scopePlotSpeed to show any 1-D detail, so the 1-D
-    // scope's OWN window - already correctly clamped to ITS historyEpoch - ends up far narrower
-    // than this raster's frame width, making the mismatch far more likely to bite.
     private historyEpoch: number = 0;
-    // The raw 0/1 digital value in effect as of rasterFilledTick - persisted across calls, the
-    // same way ScopePlot.curDigitalVal is, and for the same reason: fillDigitalRaster() used to
-    // re-derive "what was the value here" from scratch every call, via hist[lo-1] (or, when
-    // nothing survives before the search point, hist[0].value^1, or - the actually broken case -
-    // chip.output when `history` has nothing at all). chip.output tracks reality live only while
-    // the chip is ACTIVE/PASSIVE - see its own field comment - and STAYS FROZEN at whatever value
-    // was in effect when the chip fell ASLEEP, even as the chip's true value keeps changing on
-    // its own schedule (Chip.currentValue() is the one that tracks it correctly). Once
-    // Chip.trimHistory() can actually empty `history` between calls (rather than it only ever
-    // growing, before that fix), that frozen chip.output stopped being merely "unlikely to be
-    // asked for" and became "asked for constantly, every call `history` is empty regardless of
-    // WHY" - painting long streaks of one frozen color across most of a scanline once the raster
-    // has consumed enough that `history` sits empty between real toggles (the reported "white
-    // streaks" bug, worse the more idle time passes between draws - i.e. worse the slower the
-    // simulated signal runs, exactly matching the report). Keeping this as a persisted field,
-    // maintained incrementally by the very same loop that already walks new `history` entries
-    // (see fillDigitalRaster()'s own body), makes the raster self-sufficient - never dependent on
-    // stale live state or on history not having been trimmed - the same guarantee ScopePlot's own
-    // incremental rewrite already gives the 1-D scope.
+
+    // The raw 0/1 digital value in effect as of rasterFilledTick
     private curVal: number = 0;
-    // The chip fillDigitalRaster() is currently registered with (Chip.addHistoryWatcher()) -
-    // separate from any particular ScopePlot's own digitalChip since the raster's actual signal
-    // (scope.plots[plotBrightness].digitalChip) can change at runtime as the user reconfigures
-    // which plot feeds it. Kept in sync with that at the top of fillDigitalRaster() itself, the
-    // only place this class ever looks at what chip it's currently drawing from.
+
     private watchedChip: Chip | null = null;
 
     private imageCanvas: HTMLCanvasElement | null = null;
@@ -348,17 +293,8 @@ export class ScopePlot2d implements HistoryWatcher {
         }
         let curVal: number;
         if (coldStart) {
-            // `history` only records toggles, so hist[0]'s value is the opposite of whatever was
-            // in effect just before it - using hist[0].value directly would paint the
-            // pre-first-transition span with the wrong level. Empty history means nothing has
-            // ever toggled since watching began, so chip.output is trusted instead - safe only
-            // here at a cold start, since backfillHistory() has already caught history up to
-            // `now`. Valid only because walkFrom is clamped to historyEpoch (see its comment).
             curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
         } else {
-            // Steady state - trust curVal as this same call chain established it last time.
-            // Never chip.output (frozen while ASLEEP) and never re-derived from `history`
-            // (trimHistory() may have emptied exactly the entries that'd need).
             curVal = this.curVal;
         }
         let cursor = fillFromTick; // painting starts here regardless of where walking started
@@ -386,13 +322,8 @@ export class ScopePlot2d implements HistoryWatcher {
         this.rasterFilledTick = now;
     }
 
-    /** Paints one constant-value run of raster time [fromTick, toTick)
-     * (already relative to the current frame's own start) as filled
-     * rects. A run can span many lines (e.g. held low through many lines
-     * of blanking) - rather than looping line by line, any stretch of
-     * whole lines is painted as a single rect, so the number of fillRect
-     * calls stays proportional to (history transitions x lines they
-     * straddle), not to the frame's total line count. */
+    // Paints one constant-value run of raster time [fromTick, toTick)
+    // (already relative to the current frame's own start) as filled rects.
     private drawRasterSpan(fromTick: number, toTick: number, value: boolean,
             lineWidthTicks: number, linesPerFrame: number, canvasWidth: number, canvasHeight: number): void {
         if (toTick <= fromTick) return;
