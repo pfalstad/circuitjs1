@@ -28,17 +28,19 @@ import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGrap
 import { customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
-import { clockLogic } from "./digital/clockChip";
+import { phasedClockLogic } from "./digital/clockChip";
 import { TIMESCALE } from "./digital/constants";
 
 export class RailElm extends VoltageElm {
-    // Two RailElm waveforms are digital sources: a square-wave clock rail (ClockElm; see
-    // isDigitalClock()) becomes a real periodic source, and a DC rail (a +5V/VCC or 0V/GND tie -
+    // Two RailElm waveforms are digital sources: a square-wave rail (any WF_SQUARE RailElm, not
+    // just one FLAG_CLOCK-labeled like ClockElm - FLAG_CLOCK only ever controlled the "CLK" label
+    // drawn in drawRail() below, so a plain square-wave source used as a rail is just as valid a
+    // digital driver) becomes a real periodic source, and a DC rail (a +5V/VCC or 0V/GND tie -
     // extremely common in real digital circuits) becomes a constant source (see digitalTie()).
     // Other waveforms (variable/sine/etc., analog sources) aren't part of the digital-only
     // version - isDigitalSource() below reflects that.
     isDigitalClock(): boolean {
-        return this.waveform === VoltageElm.WF_SQUARE && (this.flags & this.FLAG_CLOCK) !== 0;
+        return this.waveform === VoltageElm.WF_SQUARE;
     }
 
     isDigitalConstant(): boolean {
@@ -75,20 +77,72 @@ export class RailElm extends VoltageElm {
         return this.getVoltage() > 0 ? "VCC" : "GND";
     }
 
-    /** Phase 2 (see noble-stirring-rabin.md): a clock rail becomes a per-instance CUSTOM_CHIP
-     * built around clockChip.ts's clockLogic() - a direct port of dice-ts's own chips/clock.ts,
-     * replacing the old initDigitalSource()'s hand-rolled Cycle/outputEvents setup. delay (real
-     * seconds) is TIMESCALE-converted to ticks by Chip's own constructor - unlike a gate's
-     * propagationDelay, though, a clock's half-period must never round down to 0 ticks (that
-     * degenerates to a zero-length cycle - an infinite loop, since the chip never advances
-     * globalTime). The old initDigitalSource() guarded this the same way
-     * (`Math.max(1, Math.round(...))`); reproduced here in real-seconds terms so Chip's own
-     * seconds->ticks conversion still owns the actual rounding. */
+    /** Phase 2 (see noble-stirring-rabin.md), extended for duty cycle and phase offset: a clock
+     * rail becomes a per-instance CUSTOM_CHIP built around clockChip.ts's phasedClockLogic() - a
+     * parameterized variant of the verbatim-ported dice-ts clockLogic(), replacing the old
+     * initDigitalSource()'s hand-rolled Cycle/outputEvents setup. Durations (real seconds) are
+     * TIMESCALE-converted to ticks here (not left to Chip's own constructor flooring, unlike a
+     * gate's propagationDelay) because low/high each need their OWN independent >=1-tick floor:
+     * either duration rounding down to 0 ticks degenerates that phase into a zero-length cycle -
+     * an infinite loop, since the chip never advances globalTime. The old initDigitalSource()
+     * guarded the (then always-equal) half-periods the same way; done per-phase here so an
+     * extreme duty cycle (e.g. 99%) can't let the SHORT phase round away to nothing while the
+     * long phase still has headroom.
+     *
+     * `phaseShift`=0 reproduces the engine's long-standing digital-clock convention exactly
+     * (unaffected by `dutyCycle`): the rail starts in its LOW phase and its first edge is a rise
+     * at the low-duration mark - this is a deliberate CHOICE of reference point, not a derivation
+     * from VoltageElm's own analog square-wave formula (whose phase=0 instead reads HIGH at t=0 -
+     * see getVoltage()'s WF_SQUARE case), made specifically so every existing circuit and test
+     * built against the old always-phase-0 clock keeps behaving identically; increasing
+     * `phaseShift` (radians, same units VoltageElm's own edit field already uses) delays that
+     * first rise, wrapping every 2*pi.
+     *
+     * A chip's `output` field always starts at 0 (a hardcoded Chip default - see
+     * phasedClockLogic()'s own docstring), and only the very FIRST scheduled toggle's delay can be
+     * freely chosen without corrupting every later period's duty cycle
+     * (Cycle.nextOutputEventDelay()'s cyclic formula in chip.ts derives every SUBSEQUENT delay
+     * from the stored outputEvents/cycleTime alone, never from how long the engine actually waited
+     * for the first one) - so a phase offset landing in the rail's HIGH portion at t=0 can only be
+     * represented as "reads low until that first real rise, then correct forever after," not as
+     * truly high from t=0. (An earlier version used an inverted internal signal plus a
+     * combinational NOT to get that initial instant exactly right - reverted: every real
+     * chip-to-chip link carries a mandatory >=1-tick propagation floor (see the Chip constructor's
+     * own comment on why same-tick races are disallowed), so that extra cell would measurably
+     * shift this rail's edges by a tick versus a direct one - a worse tradeoff, for anything
+     * downstream expecting exact edge timing, than a startup-only polarity glitch.)
+     */
     digitalSynthesis(): DigitalSynthesis | null {
         if (!this.isDigitalClock()) return null;
-        const halfPeriodTicks = Math.max(1, Math.round(1 / (2 * this.frequency * TIMESCALE)));
-        const halfPeriod = halfPeriodTicks * TIMESCALE; // seconds - an exact multiple, so Chip's own trunc() below recovers halfPeriodTicks exactly
-        const desc: ChipDesc[] = [customChipStart(clockLogic).outputDelayS(halfPeriod, halfPeriod).outputPin(1)];
+        const dutyCycle = this.dutyCycle ?? 0.5;
+        const phaseShift = this.phaseShift ?? 0;
+        const twoPi = 2 * Math.PI;
+
+        const period = 1 / this.frequency; // seconds
+        const highTicks = Math.max(1, Math.round(period * dutyCycle / TIMESCALE));
+        const lowTicks = Math.max(1, Math.round(period * (1 - dutyCycle) / TIMESCALE));
+        const periodTicks = lowTicks + highTicks;
+
+        // This rail's own phase layout (deliberately LOW-phase-first - see the docstring above,
+        // NOT VoltageElm's HIGH-phase-first analog convention): [0, lowAngle) is low, [lowAngle,
+        // 2pi) is high, and the rise happens at lowAngle.
+        const wm = ((phaseShift % twoPi) + twoPi) % twoPi;
+        const lowAngle = twoPi * (1 - dutyCycle);
+
+        // Ticks from t=0 until the first real rise: if phase places us in the low portion, that's
+        // just the remaining low time (at phaseShift=0 this is exactly `lowTicks`, matching the
+        // engine's old fixed behavior); if it places us in the high portion (which this synthesis
+        // can't represent starting from t=0 - see the docstring above), wait out the remainder of
+        // that high portion AND the following nominal low portion instead, so every edge after
+        // this first one lands exactly on the intended phase/duty grid.
+        const initialDelay = wm < lowAngle
+            ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
+            : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks));
+
+        const desc: ChipDesc[] = [
+            customChipStart(phasedClockLogic(initialDelay))
+                .outputDelayS(lowTicks * TIMESCALE, highTicks * TIMESCALE).outputPin(1),
+        ];
         return { desc, pinMap: new Map([[0, 1]]) };
     }
 
