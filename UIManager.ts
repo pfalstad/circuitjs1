@@ -1165,7 +1165,7 @@ export class UIManager {
         this.verticalPanel.appendChild(l);
 
         // was max of 140
-        this.speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, 0, 460);
+        this.speedBar = new Scrollbar(Scrollbar.HORIZONTAL, 3, 1, 0, 660);
         this.verticalPanel.appendChild(this.speedBar.element);
 
         l = document.createElement('div');

@@ -685,13 +685,11 @@ export class Scope {
 
         // Digital plots weren't kept up to date by timeStep() (see there) -
         // catch them up now, once per draw, from their own change-list
-        // history rather than per simulation tick. Re-resolve digitalChip
-        // first (see ScopePlot.refreshDigitalSource()'s docstring) - a
-        // plot restored from a saved circuit may not have been able to
-        // find its driver yet the moment it was constructed.
+        // history
+        const isRaster = this.plot2d.enabled && this.plot2d.digitalRaster;
         for (const p of this.plots) {
             p.refreshDigitalSource();
-            if (p.digitalChip !== null)
+            if (p.digitalChip !== null && !isRaster)
                 p.fillFromDigitalHistory();
         }
 
@@ -1227,10 +1225,6 @@ export class Scope {
     }
 
     setSpeed(sp: number): void {
-        if (sp < 1)
-            sp = 1;
-        if (sp > 1024)
-            sp = 1024;
         this.speed = sp;
         this.resetGraph();
     }
@@ -1289,15 +1283,12 @@ export class Scope {
     }
 
     speedUp(): void {
-        if (this.speed > 1) {
-            this.speed /= 2;
-            this.resetGraph();
-        }
+        this.speed /= 2;
+        this.resetGraph();
     }
 
     slowDown(): void {
-        if (this.speed < 1024)
-            this.speed *= 2;
+        this.speed *= 2;
         this.resetGraph();
     }
 
