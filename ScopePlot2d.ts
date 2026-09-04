@@ -244,48 +244,25 @@ export class ScopePlot2d implements HistoryWatcher {
         this.watchedChip = null;
     }
 
-    /** Rebuilds the raster image from the signal's own change-list history
-     * (Chip.history - see digital/chip.ts) instead of sampling a pixel
-     * every simulation timestep, for the same reason
-     * ScopePlot.fillFromDigitalHistory() does: under the digital fast-path
-     * optimization most timesteps never touch the analog solver at all, so
-     * per-tick sampling would either force live evaluation on every tick
-     * (defeating the optimization) or silently miss whatever happened while
-     * asleep. Called once per draw() (see Scope.draw()), not once per tick -
-     * unlike timeStep() above (the X-Y trail mode this replaces), which IS
-     * driven by the real per-timestep simulation loop.
+    /** Rebuilds the raster image from the signal's own change-list history (Chip.history)
+     * instead of sampling every timestep - see ScopePlot.fillFromDigitalHistory() for why
+     * (digital fast-path sleep would otherwise be defeated or missed). Called once per draw(),
+     * not once per tick.
      *
-     * Shows the current, in-progress frame - built up left-to-right,
-     * top-to-bottom exactly like a real raster scan as `now` advances - and
-     * repaints over the previous frame's content line by line as the beam
-     * reaches it (rather than blanking the whole image the instant a new
-     * frame starts): drawRasterSpan() already paints every pixel the beam
-     * newly sweeps over, in the correct on/off color, covering the full
-     * width of every line it touches - so once a frame wraps, simply
-     * continuing to paint from column 0 naturally overwrites the old
-     * frame's image at exactly the rate a real CRT's phosphor would, with
-     * no separate clear needed. A one-time full clear still happens on a
-     * genuine cold start (first-ever draw, a chip switch, or a resize/
-     * speed-change reset - see `coldStart` below) so the canvas never shows
-     * stale content from an unrelated earlier signal or leftover garbage.
-     * If rasterLineWidthSec/rasterFrameLengthSec don't exactly match the
-     * real signal's own timing the image won't lock - same as an old TV's
-     * manual hold controls - but nothing is erased out from under it while
-     * it drifts. */
+     * Paints the in-progress frame left-to-right/top-to-bottom as `now` advances, overwriting
+     * the previous frame's content line by line as the beam reaches it (CRT-phosphor style) -
+     * no separate clear needed except on a genuine cold start (see `coldStart`). If
+     * rasterLineWidthSec/rasterFrameLengthSec don't match the signal's real timing the image
+     * won't lock, like an old TV's hold controls. */
     fillDigitalRaster(): void {
         if (this.imageContext === null) return;
         const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
             ? this.scope.plots[this.plotBrightness] : null;
         const chip = bp?.digitalChip ?? null;
         if (chip !== this.watchedChip) {
-            // The brightness source just changed (or disappeared) - stop counting against
-            // whatever chip we were registered with (Chip.trimHistory()'s floor - see
-            // historyFloor() below) and, if there's a new one, register with it instead. Reset
-            // the raster cursor/frame too: rasterFilledTick is a raw tick relative to the OLD
-            // chip's own history, meaningless (and possibly a wildly wrong span to paint) against
-            // a different signal; rasterFrameIndex=-1 forces the frame-boundary branch below to
-            // clear-and-restart from a real frameStart rather than treating a coincidentally-equal
-            // frame index as "already showing the right thing".
+            // Brightness source changed - rebind the history watcher and reset the raster
+            // cursor/frame (rasterFilledTick/rasterFrameIndex are meaningless against a
+            // different chip's history).
             this.watchedChip?.removeHistoryWatcher(this);
             this.watchedChip = chip;
             if (chip !== null) chip.addHistoryWatcher(this);
@@ -293,21 +270,13 @@ export class ScopePlot2d implements HistoryWatcher {
             this.rasterFrameIndex = -1;
         }
         if (chip === null) return;
-        // Captured before anything below can touch rasterFilledTick - both the historyEpoch
-        // refresh just below and the curVal seeding further down need to know whether this call
-        // is a true cold (re)start (nothing to resume from) or a continuation (a persisted
-        // this.curVal to trust), and rasterFilledTick is the only signal for that.
+        // Captured before anything below can mutate rasterFilledTick - tells historyEpoch/curVal
+        // seeding below whether this is a true cold (re)start or a continuation.
         const coldStart = this.rasterFilledTick < 0;
         if (coldStart) {
-            // Cold (re)start - either the chip switch just above, or Scope.ts's allocImage()
-            // reset us (a resize, or a maxTimeStep/speed change forcing resetGraph()) WITHOUT a
-            // chip switch, which zeroes rasterFilledTick/rasterFrameIndex directly and has no way
-            // to reach this private field itself. Either way, historyEpoch has to be refreshed to
-            // right now, not left at whatever it was from an earlier attach: by the time a
-            // mid-simulation reset like this happens, THIS SAME watcher's own prior progress has
-            // likely already let trimHistory() discard everything it no longer needed, well past
-            // that old value - see historyEpoch's own comment. Refreshing it here is always safe
-            // (nothing at or after "right now" has ever been trimmed, trivially).
+            // Also covers Scope.ts's allocImage() reset (resize/speed change) without a chip
+            // switch. historyEpoch must track "now", not a stale earlier attach time - see its
+            // own field comment.
             this.historyEpoch = Number(chip.circuit.globalTime);
         }
         const maxTimeStep = this.scope.sim.maxTimeStep;
@@ -319,13 +288,8 @@ export class ScopePlot2d implements HistoryWatcher {
 
         const globalTime = chip.circuit.globalTime;
         const backfilledTo = chip.state === ChipState.ASLEEP ? chip.backfillHistory(globalTime) : globalTime;
-        // backfillHistory() bounds how much work one call does (see its own docstring) - a chip
-        // with a large backlog to replay (e.g. running fast, so `globalTime` jumps far ahead
-        // between draw() calls) may not fully catch up in one call. Clamp to whatever `history`
-        // is actually complete up through rather than assuming it reached globalTime - otherwise
-        // the final drawRasterSpan() below paints the whole un-backfilled gap as one solid
-        // (stale) color, and rasterFilledTick would mark that gap as done, permanently skipping
-        // the real transitions backfillHistory() fills in on later calls.
+        // backfillHistory() may not fully catch up in one call (see its own docstring) - clamp
+        // to what it actually reached, or the gap gets painted stale and marked done for good.
         const now = Number(backfilledTo < globalTime ? backfilledTo : globalTime);
 
         const frameIndex = Math.floor(now / frameLengthTicks);
@@ -341,23 +305,13 @@ export class ScopePlot2d implements HistoryWatcher {
             this.rasterFrameIndex = frameIndex;
             if (coldStart) {
                 // Only a genuine cold start clears the whole canvas - an ordinary frame wrap
-                // leaves the previous frame's image in place, to be overwritten line by line as
-                // the beam reaches it below (see this function's own docstring).
+                // leaves the previous frame's image in place, overwritten line by line below.
                 this.imageContext.fillStyle = this.rasterOffColor();
                 this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
             } else {
-                // Finish painting the OUTGOING frame's own tail - from wherever the last call
-                // left off through that frame's real end - in ITS OWN coordinate space, before
-                // switching to the new frame. Without this, the beam simply restarts at row 0 of
-                // the new frame and never comes back to paint the old one's last few lines with
-                // real content - contrary to this function's own docstring, which assumed the
-                // NEW frame's later sweep would eventually revisit and repaint those same rows.
-                // It does, but by then IT's tail gets clipped the exact same way on ITS OWN
-                // wrap - so at a roughly steady call cadence (the normal case), the SAME span
-                // near the bottom of every frame lands past `now` on every single wrap and is
-                // never actually redrawn, leaving it stuck on whatever was painted there
-                // frames ago (reported: persistent stale/debug-marked rows at the bottom of the
-                // raster that never refresh, while the rest of the image updates normally).
+                // Finish the outgoing frame's tail (wherever the last call left off, through
+                // that frame's real end) before switching frames - otherwise the beam restarts
+                // at row 0 and the tail near the bottom is dropped on every wrap, never refreshed.
                 const prevFrameStart = prevFrameIndex * frameLengthTicks;
                 const prevFrameEnd = prevFrameStart + frameLengthTicks;
                 let lo3 = 0, hi3 = hist.length;
@@ -377,24 +331,15 @@ export class ScopePlot2d implements HistoryWatcher {
                 this.drawRasterSpan(tCursor - prevFrameStart, prevFrameEnd - prevFrameStart, !!v,
                     lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
             }
-            // Never claim to paint from before this watcher started (see historyEpoch's own
-            // comment) - the [frameStart, historyEpoch) stretch, when frameStart predates it,
-            // just stays whatever was already there (the cold-start clear's off color, or - on an
-            // ordinary frame wrap, where historyEpoch can't newly exceed frameStart since it's
-            // only ever set at a cold start - the previous frame's real content), same as
-            // "nothing has happened yet" everywhere else `history` has no data for a span.
+            // Never claim to paint from before this watcher started - see historyEpoch's comment.
             fillFromTick = Math.max(frameStart, this.historyEpoch);
         } else {
             if (this.rasterFilledTick === now) return; // already caught up
             fillFromTick = this.rasterFilledTick;
         }
-        // Where to start WALKING `history` from for curVal bookkeeping - NOT necessarily
-        // `fillFromTick`: a fresh frame boundary crossed mid-stride (frameIndex just changed,
-        // but NOT a cold restart) can leave `fillFromTick` (clamped to frameStart) later than
-        // rasterFilledTick, the true last point this watcher's curVal is known correct as of -
-        // any transitions in between still have to be walked to keep curVal right, just not
-        // painted (the old frame's canvas content is gone, cleared above). At a genuine cold
-        // start there's no such gap - walking starts exactly at fillFromTick, same as painting.
+        // curVal bookkeeping must WALK from rasterFilledTick even when fillFromTick (a frame
+        // boundary) is later - transitions in that gap aren't painted (old frame, already
+        // handled above) but still have to update curVal.
         const walkFrom = coldStart ? fillFromTick : this.rasterFilledTick;
         let lo = 0, hi = hist.length;
         while (lo < hi) {
@@ -403,35 +348,17 @@ export class ScopePlot2d implements HistoryWatcher {
         }
         let curVal: number;
         if (coldStart) {
-            // Before the first recorded transition at/after `walkFrom` (lo === 0, hist
-            // non-empty): `history` only ever records real toggles (see Chip's `output`
-            // setter), so whatever value hist[0] toggles TO is exactly the opposite of what was
-            // in effect immediately before it - using hist[0].value itself here (as this used
-            // to) paints the entire pre-first-transition span with the WRONG level,
-            // retroactively flipping it the moment the real first transition finally happens
-            // (reported bug: a scope showing AND(16H,16V) - held at 0 until 16V's first rising
-            // edge - shows a spurious flat HIGH block for that whole initial span instead of the
-            // correct flat LOW, right as the real toggling starts). Only when `history` is still
-            // completely empty (nothing has EVER toggled since watching began, so there's no
-            // "before" to invert) does chip.output apply - safe ONLY here, at a genuine cold
-            // start: backfillHistory() above has already walked and recorded every real
-            // transition through `now`, so an empty `history` at this point means chip.output
-            // (unconditionally accurate while ACTIVE/PASSIVE, and un-stale here even if ASLEEP,
-            // precisely because nothing has actually changed) really is correct - see curVal's
-            // own field comment for why that stops being true on a later, non-cold call. This
-            // inversion is only valid because `walkFrom` is clamped to historyEpoch (see its own
-            // comment) - `history` only records once Chip.historyWatched is true, so without
-            // that clamp hist[0] could be well after `walkFrom` for a completely different
-            // reason (recording hadn't started yet), and inverting it would answer a question
-            // about a span with no data at all, not even data that was recorded and later
-            // trimmed.
+            // `history` only records toggles, so hist[0]'s value is the opposite of whatever was
+            // in effect just before it - using hist[0].value directly would paint the
+            // pre-first-transition span with the wrong level. Empty history means nothing has
+            // ever toggled since watching began, so chip.output is trusted instead - safe only
+            // here at a cold start, since backfillHistory() has already caught history up to
+            // `now`. Valid only because walkFrom is clamped to historyEpoch (see its comment).
             curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
         } else {
-            // Steady state - trust the value this same call chain already established as of
-            // `walkFrom` (= rasterFilledTick) at the end of the LAST call, never chip.output
-            // (frozen while ASLEEP - see curVal's own field comment) and never a re-derivation
-            // from `history`, which trimHistory() may by now have emptied of exactly the entries
-            // that would need.
+            // Steady state - trust curVal as this same call chain established it last time.
+            // Never chip.output (frozen while ASLEEP) and never re-derived from `history`
+            // (trimHistory() may have emptied exactly the entries that'd need).
             curVal = this.curVal;
         }
         let cursor = fillFromTick; // painting starts here regardless of where walking started
@@ -443,23 +370,16 @@ export class ScopePlot2d implements HistoryWatcher {
                     lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
                 cursor = t;
             }
-            // Still applied even when t <= fillFromTick (walked but not painted) - this is
-            // exactly what keeps curVal correct across a frame-boundary crossing (see walkFrom's
-            // own comment).
+            // Still applied even when t <= fillFromTick (walked but not painted) - keeps curVal
+            // correct across a frame-boundary crossing.
             curVal = hist[i].value;
         }
         this.drawRasterSpan(cursor - frameStart, now - frameStart, !!curVal,
             lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
 
-        // A transition landing EXACTLY at `now` is correctly excluded from the loop/paint above
-        // (`[fillFromTick, now)` is half-open - it doesn't affect anything actually painted this
-        // call) but must still be folded into curVal here: rasterFilledTick becomes `now`, i.e.
-        // this call's `now` becomes the NEXT call's walkFrom/fillFromTick, and this.curVal is
-        // what that next call will trust as "value as of walkFrom" - if this transition were
-        // left for the next call to pick up instead, its own walkFrom search (`time <= walkFrom`)
-        // would SKIP it too (already "before or at" the new floor), permanently losing it from
-        // curVal bookkeeping in EITHER call - the bug caught by
-        // ScopePlot2d.raster.integration.test.ts's per-tick-trim cases.
+        // A transition exactly at `now` is excluded from the paint above (half-open range) but
+        // must still be folded into curVal, since `now` becomes the next call's walkFrom - left
+        // for that call instead, its own walkFrom search would skip it too, losing it for good.
         if (i < hist.length && Number(hist[i].time) === now) curVal = hist[i].value;
 
         this.curVal = curVal;
