@@ -321,8 +321,8 @@ export class ScopePropertiesDialog extends Dialog {
         hRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
         this.speedBar = document.createElement('input');
         this.speedBar.type = 'range';
-        this.speedBar.min  = '0';
-        this.speedBar.max  = '11';
+        this.speedBar.min  = '-40';
+        this.speedBar.max  = '40';
         this.speedBar.value = '2';
         this.speedBar.style.flex = '1';
         this.speedBar.addEventListener('input', () => this.scrollbarChanged());
@@ -641,7 +641,7 @@ export class ScopePropertiesDialog extends Dialog {
 
     private scrollbarChanged(): void {
         const scope = this.scope;
-        const newsp = Math.pow(2, 10 - Number(this.speedBar.value)) | 0;
+        const newsp = Math.pow(2, 10 - Number(this.speedBar.value));
         if (scope.speed !== newsp) scope.setSpeed(newsp);
         this.setScopeSpeedLabel();
     }
