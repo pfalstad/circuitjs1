@@ -21,6 +21,7 @@ import { CirSim } from "./CirSim";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ScopeManager } from "./ScopeManager";
+import { Scope } from "./Scope";
 import { CircuitElm } from "./CircuitElm";
 import { Color } from "./Color";
 import { Graphics } from "./Graphics";
@@ -1690,7 +1691,7 @@ export class UIManager {
         let ct = this.app.scopeManager.scopeCount;
         if (this.app.stopMessage != null)
             ct = 0;
-        (this.app.scopeManager as any).Scope?.clearCursorInfo?.();
+        Scope.clearCursorInfo();
         for (let i = 0; i !== ct; i++)
             this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
         if (this.app.scopeElmArr != null)
