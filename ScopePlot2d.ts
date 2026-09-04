@@ -257,11 +257,21 @@ export class ScopePlot2d implements HistoryWatcher {
      *
      * Shows the current, in-progress frame - built up left-to-right,
      * top-to-bottom exactly like a real raster scan as `now` advances - and
-     * clears to black the moment a new frame starts (rather than trying to
-     * average/overlay repeated frames, which would just look like noise
-     * unless rasterLineWidthSec/rasterFrameLengthSec exactly matches the
-     * real signal's own timing - the user is expected to tune them until
-     * the image locks, the same way an old TV's manual hold controls work). */
+     * repaints over the previous frame's content line by line as the beam
+     * reaches it (rather than blanking the whole image the instant a new
+     * frame starts): drawRasterSpan() already paints every pixel the beam
+     * newly sweeps over, in the correct on/off color, covering the full
+     * width of every line it touches - so once a frame wraps, simply
+     * continuing to paint from column 0 naturally overwrites the old
+     * frame's image at exactly the rate a real CRT's phosphor would, with
+     * no separate clear needed. A one-time full clear still happens on a
+     * genuine cold start (first-ever draw, a chip switch, or a resize/
+     * speed-change reset - see `coldStart` below) so the canvas never shows
+     * stale content from an unrelated earlier signal or leftover garbage.
+     * If rasterLineWidthSec/rasterFrameLengthSec don't exactly match the
+     * real signal's own timing the image won't lock - same as an old TV's
+     * manual hold controls - but nothing is erased out from under it while
+     * it drifts. */
     fillDigitalRaster(): void {
         if (this.imageContext === null) return;
         const bp = (this.plotBrightness >= 0 && this.plotBrightness < this.scope.plots.length)
@@ -326,12 +336,19 @@ export class ScopePlot2d implements HistoryWatcher {
         let fillFromTick: number;
         if (frameIndex !== this.rasterFrameIndex) {
             this.rasterFrameIndex = frameIndex;
-            this.imageContext.fillStyle = this.rasterOffColor();
-            this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
+            if (coldStart) {
+                // Only a genuine cold start clears the whole canvas - an ordinary frame wrap
+                // leaves the previous frame's image in place, to be overwritten line by line as
+                // the beam reaches it below (see this function's own docstring).
+                this.imageContext.fillStyle = this.rasterOffColor();
+                this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
+            }
             // Never claim to paint from before this watcher started (see historyEpoch's own
             // comment) - the [frameStart, historyEpoch) stretch, when frameStart predates it,
-            // just stays whatever the clear above painted (the off color), same as "nothing has
-            // happened yet" everywhere else `history` has no data for a span.
+            // just stays whatever was already there (the cold-start clear's off color, or - on an
+            // ordinary frame wrap, where historyEpoch can't newly exceed frameStart since it's
+            // only ever set at a cold start - the previous frame's real content), same as
+            // "nothing has happened yet" everywhere else `history` has no data for a span.
             fillFromTick = Math.max(frameStart, this.historyEpoch);
         } else {
             if (this.rasterFilledTick === now) return; // already caught up

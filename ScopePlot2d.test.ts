@@ -246,4 +246,48 @@ describe("ScopePlot2d digital raster history watching", () => {
         // with literally no surviving data behind it.)
         expect(paintedOnRows.length).toBe(0);
     });
+
+    // The behavior this test file is named for: a genuine cold start (first-ever draw here) still
+    // clears the whole canvas, so a fresh raster never shows stale content from an unrelated
+    // earlier signal or leftover canvas garbage.
+    it("clears the whole canvas on a genuine cold start", () => {
+        const chip = fakeChip(5);
+        const scope = fakeScope([{ digitalChip: chip }]);
+        const plot2d = new ScopePlot2d(scope);
+        const ctx = fakeCanvasContext();
+        (plot2d as any).imageContext = ctx;
+        plot2d.plotBrightness = 0;
+
+        plot2d.fillDigitalRaster();
+
+        const fullClear = ctx.calls.some((c: any) => c.x === 0 && c.y === 0 && c.w === 10 && c.h === 10);
+        expect(fullClear).toBe(true);
+    });
+
+    // The actual fix: an ordinary frame wrap (the raster beam simply starting a new pass, with no
+    // chip switch or reset involved) must NOT blank the whole canvas - the previous frame's image
+    // stays on screen and gets overwritten only line by line as the beam sweeps over it again (see
+    // fillDigitalRaster()'s own docstring). Previously every frame wrap did a full-canvas
+    // fillRect() first, flashing the display to black once per frame.
+    it("does not clear the whole canvas on an ordinary frame wrap", () => {
+        const chip = fakeChip(0);
+        const scope = fakeScope([{ digitalChip: chip }]);
+        scope.sim.maxTimeStep = 1;
+        scope.rect = { width: 10, height: 10 };
+        const plot2d = new ScopePlot2d(scope);
+        plot2d.plotBrightness = 0;
+        plot2d.rasterLineWidthSec = 1;
+        plot2d.rasterFrameLengthSec = 10; // frameLengthTicks = 10
+
+        (plot2d as any).imageContext = fakeCanvasContext();
+        plot2d.fillDigitalRaster(); // cold start, frame [0,10)
+
+        const ctx = fakeCanvasContext();
+        (plot2d as any).imageContext = ctx;
+        chip.circuit.globalTime = 15n; // now in frame [10,20) - an ordinary wrap, not a reset
+        plot2d.fillDigitalRaster();
+
+        const fullClear = ctx.calls.some((c: any) => c.x === 0 && c.y === 0 && c.w === 10 && c.h === 10);
+        expect(fullClear).toBe(false);
+    });
 });
