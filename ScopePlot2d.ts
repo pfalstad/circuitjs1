@@ -333,8 +333,11 @@ export class ScopePlot2d implements HistoryWatcher {
         const canvasWidth = this.scope.rect.width;
         const canvasHeight = this.scope.rect.height;
 
+        const hist = chip.history; // ascending {time, value}
+
         let fillFromTick: number;
         if (frameIndex !== this.rasterFrameIndex) {
+            const prevFrameIndex = this.rasterFrameIndex;
             this.rasterFrameIndex = frameIndex;
             if (coldStart) {
                 // Only a genuine cold start clears the whole canvas - an ordinary frame wrap
@@ -342,6 +345,37 @@ export class ScopePlot2d implements HistoryWatcher {
                 // the beam reaches it below (see this function's own docstring).
                 this.imageContext.fillStyle = this.rasterOffColor();
                 this.imageContext.fillRect(0, 0, canvasWidth, canvasHeight);
+            } else {
+                // Finish painting the OUTGOING frame's own tail - from wherever the last call
+                // left off through that frame's real end - in ITS OWN coordinate space, before
+                // switching to the new frame. Without this, the beam simply restarts at row 0 of
+                // the new frame and never comes back to paint the old one's last few lines with
+                // real content - contrary to this function's own docstring, which assumed the
+                // NEW frame's later sweep would eventually revisit and repaint those same rows.
+                // It does, but by then IT's tail gets clipped the exact same way on ITS OWN
+                // wrap - so at a roughly steady call cadence (the normal case), the SAME span
+                // near the bottom of every frame lands past `now` on every single wrap and is
+                // never actually redrawn, leaving it stuck on whatever was painted there
+                // frames ago (reported: persistent stale/debug-marked rows at the bottom of the
+                // raster that never refresh, while the rest of the image updates normally).
+                const prevFrameStart = prevFrameIndex * frameLengthTicks;
+                const prevFrameEnd = prevFrameStart + frameLengthTicks;
+                let lo3 = 0, hi3 = hist.length;
+                while (lo3 < hi3) {
+                    const mid = (lo3 + hi3) >> 1;
+                    if (Number(hist[mid].time) <= this.rasterFilledTick) lo3 = mid + 1; else hi3 = mid;
+                }
+                let tCursor = this.rasterFilledTick;
+                let v = this.curVal;
+                for (let j = lo3; j < hist.length && Number(hist[j].time) < prevFrameEnd; j++) {
+                    const t3 = Number(hist[j].time);
+                    this.drawRasterSpan(tCursor - prevFrameStart, t3 - prevFrameStart, !!v,
+                        lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+                    tCursor = t3;
+                    v = hist[j].value;
+                }
+                this.drawRasterSpan(tCursor - prevFrameStart, prevFrameEnd - prevFrameStart, !!v,
+                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
             }
             // Never claim to paint from before this watcher started (see historyEpoch's own
             // comment) - the [frameStart, historyEpoch) stretch, when frameStart predates it,
@@ -354,8 +388,6 @@ export class ScopePlot2d implements HistoryWatcher {
             if (this.rasterFilledTick === now) return; // already caught up
             fillFromTick = this.rasterFilledTick;
         }
-
-        const hist = chip.history; // ascending {time, value}
         // Where to start WALKING `history` from for curVal bookkeeping - NOT necessarily
         // `fillFromTick`: a fresh frame boundary crossed mid-stride (frameIndex just changed,
         // but NOT a cold restart) can leave `fillFromTick` (clamped to frameStart) later than
@@ -418,6 +450,7 @@ export class ScopePlot2d implements HistoryWatcher {
         }
         this.drawRasterSpan(cursor - frameStart, now - frameStart, !!curVal,
             lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+
         // A transition landing EXACTLY at `now` is correctly excluded from the loop/paint above
         // (`[fillFromTick, now)` is half-open - it doesn't affect anything actually painted this
         // call) but must still be folded into curVal here: rasterFilledTick becomes `now`, i.e.
