@@ -389,22 +389,16 @@ export function digitalStateTextForOutput(elm: any, outputIndex: number): string
     return digitalStateTextNew(digitalOutputChipAt(elm, outputIndex, currentGraph.chipsByElm));
 }
 
-/** Resolves `elm` to the single real Chip that supplies "this element's own digital output
- * voltage", for ScopePlot to source a 1-d trace from history/backfillHistory() instead of
- * per-frame analog sampling - replaces CircuitWiring.digitalScopeSource(). Same single-output
- * scope as the old function: a multi-output chip (CounterElm, ...) isn't resolved here even
- * though digitalOutputChip() COULD reach any one of its posts by index - ScopePlot's own
- * constructor only ever identifies a plotted element, not which specific post of it, so there's
- * no post index to resolve against without a broader ScopePlot API change (a real gap, same as
- * the old engine's - left as-is per noble-stirring-rabin.md Phase 5's own scope). A
- * wire-equivalent passthrough (LabeledNodeElm, a bare WireElm, ...) resolves through to whatever
- * actually drives its node, same as before. */
+// Resolves `elm` to the single real Chip that supplies this element's digital output
+// voltage, for ScopePlot to source a 1-d trace from history/backfillHistory() instead of
+// per-frame analog sampling.
 export function digitalScopeSourceNew(elm: any): Chip | null {
     if (elm == null || currentGraph == null) return null;
     const posts = digitalOutputPosts(elm);
     if (posts.length === 1) return digitalOutputChip(elm, posts[0], currentGraph.chipsByElm);
-    if (posts.length === 0 && typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent() &&
-            Array.isArray(elm.nodes) && elm.nodes.length === 1) {
+    const isPassthrough = (typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent()) ||
+        (typeof elm.isOutputElm === "function" && elm.isOutputElm());
+    if (posts.length === 0 && isPassthrough && Array.isArray(elm.nodes) && elm.nodes.length === 1) {
         const driver = findDigitalDriver(elm, 0);
         if (driver) return digitalOutputChip(driver.elm, driver.postIndex, currentGraph.chipsByElm);
     }

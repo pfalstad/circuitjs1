@@ -518,6 +518,7 @@ export class Scope {
         this.plots.push(...s.visiblePlots);
         s.plots.length = 0;
         this.calcVisiblePlots();
+        this.resetGraph();
     }
 
     // separate this scope's plots into separate scopes and return them in arr[pos], arr[pos+1], etc.  return new length of array.
