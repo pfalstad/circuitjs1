@@ -323,7 +323,8 @@ export class ScopePlot implements HistoryWatcher {
         // digitalScopeSourceNew()).
         const hv = (this.elm as any)?.highVoltage ?? 5;
 
-        if (this.lastDigitalFillTick < 0) {
+        // do cold-start the first time, or if the entire window has scrolled past (to avoid slowdown)
+        if (this.lastDigitalFillTick < 0 || now - this.lastDigitalFillTick >= spc * sp) {
             // Cold start - seed every column from scratch, same algorithm this method used to
             // run every single call.
             const windowStart = now - spc * sp;
