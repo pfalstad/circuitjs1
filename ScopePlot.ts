@@ -378,7 +378,7 @@ export class ScopePlot implements HistoryWatcher {
             let lo = 0, hi = hist.length;
             while (lo < hi) {
                 const mid = (lo + hi) >> 1;
-                if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
+                if (Number(hist[mid].time) < searchFloor) lo = mid + 1; else hi = mid;
             }
             let hIdx = lo;
             let val = this.curDigitalVal;
