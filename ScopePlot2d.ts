@@ -49,6 +49,10 @@ export class ScopePlot2d implements HistoryWatcher {
     digitalRaster: boolean = false;
     rasterLineWidthSec: number = 1e-5;
     rasterFrameLengthSec: number = 1e-3;
+    // Retrace/blanking delays: consumed at the start of each line/frame but not painted
+    // (the beam is "off" during them, like a real CRT's horizontal/vertical retrace).
+    rasterHBlankSec: number = 0;
+    rasterVBlankSec: number = 0;
     private rasterFrameIndex: number = -1;
 
     // Tick (relative to the scheduler, not the frame) already painted up to
@@ -227,9 +231,22 @@ export class ScopePlot2d implements HistoryWatcher {
         const maxTimeStep = this.scope.sim.maxTimeStep;
         if (!(maxTimeStep > 0)) return;
 
-        const lineWidthTicks = Math.max(1, Math.round(this.rasterLineWidthSec / maxTimeStep));
-        const linesPerFrame = Math.max(1, Math.round(this.rasterFrameLengthSec / (lineWidthTicks * maxTimeStep)));
-        const frameLengthTicks = lineWidthTicks * linesPerFrame;
+        // rasterLineWidthSec/rasterFrameLengthSec are TOTAL periods (active + blanking), like a
+        // real CRT's line/frame time - hBlankTicks/vBlankTicks are carved out of them, not added
+        // on top.
+        const totalLineTicks = Math.max(1, Math.round(this.rasterLineWidthSec / maxTimeStep));
+        const hBlankTicks = Math.min(totalLineTicks - 1, Math.max(0, Math.round(this.rasterHBlankSec / maxTimeStep)));
+        const lineWidthTicks = totalLineTicks - hBlankTicks; // active portion only
+        // Quantized to a whole number of lines (like a real TV's vblank, always some whole count
+        // of line periods) - frameLengthTicks (derived straight from this) then always lands on
+        // an exact multiple of totalLineTicks, so every frame starts at the SAME horizontal phase.
+        // Letting vBlankTicks be an arbitrary fraction of a line instead would shift that phase by
+        // a few ticks every frame - drifting the whole image sideways over time.
+        const totalFrameLines = Math.max(1, Math.round(this.rasterFrameLengthSec / maxTimeStep / totalLineTicks));
+        const vBlankLines = Math.min(totalFrameLines - 1, Math.max(0, Math.round(this.rasterVBlankSec / maxTimeStep / totalLineTicks)));
+        const linesPerFrame = totalFrameLines - vBlankLines;
+        const vBlankTicks = vBlankLines * totalLineTicks;
+        const frameLengthTicks = totalFrameLines * totalLineTicks;
 
         const globalTime = chip.circuit.globalTime;
         const backfilledTo = chip.state === ChipState.ASLEEP ? chip.backfillHistory(globalTime) : globalTime;
@@ -269,12 +286,12 @@ export class ScopePlot2d implements HistoryWatcher {
                 for (let j = lo3; j < hist.length && Number(hist[j].time) < prevFrameEnd; j++) {
                     const t3 = Number(hist[j].time);
                     this.drawRasterSpan(tCursor - prevFrameStart, t3 - prevFrameStart, !!v,
-                        lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+                        lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight, hBlankTicks, vBlankTicks);
                     tCursor = t3;
                     v = hist[j].value;
                 }
                 this.drawRasterSpan(tCursor - prevFrameStart, prevFrameEnd - prevFrameStart, !!v,
-                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight, hBlankTicks, vBlankTicks);
             }
             // Never claim to paint from before this watcher started - see historyEpoch's comment.
             fillFromTick = Math.max(frameStart, this.historyEpoch);
@@ -303,7 +320,7 @@ export class ScopePlot2d implements HistoryWatcher {
             const t = Number(hist[i].time);
             if (t > fillFromTick) {
                 this.drawRasterSpan(cursor - frameStart, t - frameStart, !!curVal,
-                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+                    lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight, hBlankTicks, vBlankTicks);
                 cursor = t;
             }
             // Still applied even when t <= fillFromTick (walked but not painted) - keeps curVal
@@ -311,7 +328,7 @@ export class ScopePlot2d implements HistoryWatcher {
             curVal = hist[i].value;
         }
         this.drawRasterSpan(cursor - frameStart, now - frameStart, !!curVal,
-            lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight);
+            lineWidthTicks, linesPerFrame, canvasWidth, canvasHeight, hBlankTicks, vBlankTicks);
 
         // A transition exactly at `now` is excluded from the paint above (half-open range) but
         // must still be folded into curVal, since `now` becomes the next call's walkFrom - left
@@ -324,22 +341,44 @@ export class ScopePlot2d implements HistoryWatcher {
 
     // Paints one constant-value run of raster time [fromTick, toTick)
     // (already relative to the current frame's own start) as filled rects.
+    //
+    // hBlankTicks/vBlankTicks are retrace delays consumed at the start of each line/frame -
+    // ticks falling in those ranges are skipped (not painted), like a real CRT's beam being
+    // blanked during horizontal/vertical retrace. lineWidthTicks/canvasWidth still map only the
+    // ACTIVE portion of a line to pixels; the blanking gap before it is purely tick time.
     private drawRasterSpan(fromTick: number, toTick: number, value: boolean,
-            lineWidthTicks: number, linesPerFrame: number, canvasWidth: number, canvasHeight: number): void {
+            lineWidthTicks: number, linesPerFrame: number, canvasWidth: number, canvasHeight: number,
+            hBlankTicks: number, vBlankTicks: number): void {
         if (toTick <= fromTick) return;
         this.imageContext!.fillStyle = value ? this.rasterOnColor() : this.rasterOffColor();
+        const totalLineTicks = lineWidthTicks + hBlankTicks;
         let t = fromTick;
         while (t < toTick) {
-            const line = Math.floor(t / lineWidthTicks);
-            const lineStartTick = line * lineWidthTicks;
-            const offsetInLine = t - lineStartTick;
+            if (t < vBlankTicks) {
+                // Still in the frame's vertical blanking - nothing to paint yet.
+                t = Math.min(vBlankTicks, toTick);
+                continue;
+            }
+            const line = Math.floor((t - vBlankTicks) / totalLineTicks);
+            const lineStart = vBlankTicks + line * totalLineTicks;
+            const activeStart = lineStart + hBlankTicks;
+            if (t < activeStart) {
+                // In this line's horizontal blanking - nothing to paint yet.
+                t = Math.min(activeStart, toTick);
+                continue;
+            }
+            const offsetInLine = t - activeStart;
             const remaining = toTick - t;
             if (offsetInLine === 0 && remaining >= lineWidthTicks) {
-                const fullLines = Math.min(Math.floor(remaining / lineWidthTicks), linesPerFrame - line);
+                // How many further complete lines (active span + trailing hblank gap) fit -
+                // the trailing hblank of the LAST one doesn't need to be consumed here.
+                const fullLines = Math.min(
+                    Math.max(1, Math.floor((remaining + hBlankTicks) / totalLineTicks)),
+                    linesPerFrame - line);
                 const py0 = line / linesPerFrame * canvasHeight;
                 const py1 = (line + fullLines) / linesPerFrame * canvasHeight;
                 this.imageContext!.fillRect(0, py0, canvasWidth, py1 - py0);
-                t += fullLines * lineWidthTicks;
+                t = activeStart + (fullLines - 1) * totalLineTicks + lineWidthTicks;
             } else {
                 const segTicks = Math.min(lineWidthTicks - offsetInLine, remaining);
                 const px0 = offsetInLine / lineWidthTicks * canvasWidth;

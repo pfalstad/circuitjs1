@@ -167,6 +167,8 @@ export class ScopePropertiesDialog extends Dialog {
     private rasterSignalBox: HTMLSelectElement;
     private rasterLineWidthTextBox: HTMLInputElement;
     private rasterFrameLengthTextBox: HTMLInputElement;
+    private rasterHBlankTextBox: HTMLInputElement;
+    private rasterVBlankTextBox: HTMLInputElement;
 
     // Show info
     private showInfoSection: ExpandingSection;
@@ -469,7 +471,7 @@ export class ScopePropertiesDialog extends Dialog {
         this.rasterSignalBox = this.makeXYSelect('Signal:', this.rasterSettingsDiv,
             (idx) => { scope.plot2d.plotBrightness = idx; scope.resetGraph(); });
         const lineWidthLbl = document.createElement('span');
-        lineWidthLbl.textContent = Locale.LS('Line Width:');
+        lineWidthLbl.textContent = Locale.LS('Line Period:');
         this.rasterSettingsDiv.appendChild(lineWidthLbl);
         this.rasterLineWidthTextBox = document.createElement('input');
         this.rasterLineWidthTextBox.type = 'text';
@@ -477,13 +479,29 @@ export class ScopePropertiesDialog extends Dialog {
         this.rasterLineWidthTextBox.addEventListener('change', () => this.applyRasterTiming());
         this.rasterSettingsDiv.appendChild(this.rasterLineWidthTextBox);
         const frameLengthLbl = document.createElement('span');
-        frameLengthLbl.textContent = Locale.LS('Frame Length:');
+        frameLengthLbl.textContent = Locale.LS('Frame Period:');
         this.rasterSettingsDiv.appendChild(frameLengthLbl);
         this.rasterFrameLengthTextBox = document.createElement('input');
         this.rasterFrameLengthTextBox.type = 'text';
         this.rasterFrameLengthTextBox.className = 'scalebox';
         this.rasterFrameLengthTextBox.addEventListener('change', () => this.applyRasterTiming());
         this.rasterSettingsDiv.appendChild(this.rasterFrameLengthTextBox);
+        const hBlankLbl = document.createElement('span');
+        hBlankLbl.textContent = Locale.LS('H Blanking:');
+        this.rasterSettingsDiv.appendChild(hBlankLbl);
+        this.rasterHBlankTextBox = document.createElement('input');
+        this.rasterHBlankTextBox.type = 'text';
+        this.rasterHBlankTextBox.className = 'scalebox';
+        this.rasterHBlankTextBox.addEventListener('change', () => this.applyRasterTiming());
+        this.rasterSettingsDiv.appendChild(this.rasterHBlankTextBox);
+        const vBlankLbl = document.createElement('span');
+        vBlankLbl.textContent = Locale.LS('V Blanking:');
+        this.rasterSettingsDiv.appendChild(vBlankLbl);
+        this.rasterVBlankTextBox = document.createElement('input');
+        this.rasterVBlankTextBox.type = 'text';
+        this.rasterVBlankTextBox.className = 'scalebox';
+        this.rasterVBlankTextBox.addEventListener('change', () => this.applyRasterTiming());
+        this.rasterSettingsDiv.appendChild(this.rasterVBlankTextBox);
 
         // ---- Show Info ----
         this.showInfoSection = new ExpandingSection('Show Info', displayAll, fp);
@@ -676,6 +694,14 @@ export class ScopePropertiesDialog extends Dialog {
             const fl = EditDialog.parseUnits(this.rasterFrameLengthTextBox.value);
             if (fl > 0) this.scope.plot2d.rasterFrameLengthSec = fl;
         } catch (e) {}
+        try {
+            const hb = EditDialog.parseUnits(this.rasterHBlankTextBox.value);
+            if (hb >= 0) this.scope.plot2d.rasterHBlankSec = hb;
+        } catch (e) {}
+        try {
+            const vb = EditDialog.parseUnits(this.rasterVBlankTextBox.value);
+            if (vb >= 0) this.scope.plot2d.rasterVBlankSec = vb;
+        } catch (e) {}
         this.scope.resetGraph();
         this.updateUi();
     }
@@ -772,6 +798,8 @@ export class ScopePropertiesDialog extends Dialog {
             this.populatePlotListBox(this.rasterSignalBox, scope.plot2d.plotBrightness, true);
             this.rasterLineWidthTextBox.value   = EditDialog.unitStringVal(null, scope.plot2d.rasterLineWidthSec);
             this.rasterFrameLengthTextBox.value = EditDialog.unitStringVal(null, scope.plot2d.rasterFrameLengthSec);
+            this.rasterHBlankTextBox.value       = EditDialog.unitStringVal(null, scope.plot2d.rasterHBlankSec);
+            this.rasterVBlankTextBox.value       = EditDialog.unitStringVal(null, scope.plot2d.rasterVBlankSec);
         }
 
         this.setScopeSpeedLabel();

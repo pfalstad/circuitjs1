@@ -130,6 +130,8 @@ export class ScopeSerializer {
             if (this.scope.plot2d.plotBrightness >= 0) CircuitXMLSerializer.dumpAttr(xmlElm, "dr2br", this.scope.plot2d.plotBrightness);
             CircuitXMLSerializer.dumpAttr(xmlElm, "dr2lw", this.scope.plot2d.rasterLineWidthSec);
             CircuitXMLSerializer.dumpAttr(xmlElm, "dr2fl", this.scope.plot2d.rasterFrameLengthSec);
+            if (this.scope.plot2d.rasterHBlankSec > 0) CircuitXMLSerializer.dumpAttr(xmlElm, "dr2hb", this.scope.plot2d.rasterHBlankSec);
+            if (this.scope.plot2d.rasterVBlankSec > 0) CircuitXMLSerializer.dumpAttr(xmlElm, "dr2vb", this.scope.plot2d.rasterVBlankSec);
         }
         root.appendChild(xmlElm);
         for (let i = 0; i < this.scope.plots.length; i++) {
@@ -179,6 +181,8 @@ export class ScopeSerializer {
         const dr2br = xml.parseIntAttr("dr2br", -1);
         const dr2lw = xml.parseDoubleAttr("dr2lw", this.scope.plot2d.rasterLineWidthSec);
         const dr2fl = xml.parseDoubleAttr("dr2fl", this.scope.plot2d.rasterFrameLengthSec);
+        const dr2hb = xml.parseDoubleAttr("dr2hb", 0);
+        const dr2vb = xml.parseDoubleAttr("dr2vb", 0);
         for (const elem of xml.getChildElements()) {
             xml.parseChildElement(elem);
             const plotFlags = parseInt(xml.parseStringAttr("f", "0")!, 16);
@@ -213,6 +217,8 @@ export class ScopeSerializer {
             this.scope.plot2d.plotBrightness    = dr2br;
             this.scope.plot2d.rasterLineWidthSec   = dr2lw;
             this.scope.plot2d.rasterFrameLengthSec = dr2fl;
+            this.scope.plot2d.rasterHBlankSec      = dr2hb;
+            this.scope.plot2d.rasterVBlankSec      = dr2vb;
         }
         // restore scaleX/scaleY for 2d plots
         if (this.scope.plot2d.enabled && this.scope.plots.length >= 1) {
