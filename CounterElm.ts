@@ -33,7 +33,8 @@ export class CounterElm extends ChipElm {
     invertreset: boolean = false;
     modulus: number = 0;
 
-    propagationDelay: number = 0;
+    // matches dice-ts's 7493 per-stage toggle delay (~/Projects/dice-ts/src/chips/7493.ts)
+    propagationDelay: number = 17.0e-9;
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);

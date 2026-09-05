@@ -271,8 +271,10 @@ export class Counter2Elm extends ChipElm {
                 pin[out] = bitW;
             };
 
+            // per-bit output delay matches dice-ts's 9316 buffered Q delay (~/Projects/dice-ts/src/chips/9316.ts)
             desc.push(
                 chipStart(logic).inputPins(clrPin, ldPin, iPin(w), clockSource).eventPins(ldPin, clockSource).outputPin(out).prevOutputPin(out)
+                    .outputDelayNs(12.0, 15.0)
             );
         }
 
@@ -283,7 +285,8 @@ export class Counter2Elm extends ChipElm {
         };
         const rcoIn: number[] = [entPin];
         for (let j = 0; j < bits; j++) rcoIn.push(qPin(j));
-        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin));
+        // matches dice-ts's 9316 TC (ripple carry) delay
+        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin).outputDelayNs(18.0, 17.0));
 
         return { desc, pinMap };
     }
@@ -349,7 +352,9 @@ export class Counter2Elm extends ChipElm {
                 pin[out] = bitW;
             };
 
-            desc.push(chipStart(logic).inputPins(...inPins).eventPins(clkPin).outputPin(out).prevOutputPin(out));
+            // matches dice-ts's 9316 buffered Q delay (~/Projects/dice-ts/src/chips/9316.ts)
+            desc.push(chipStart(logic).inputPins(...inPins).eventPins(clkPin).outputPin(out).prevOutputPin(out)
+                .outputDelayNs(12.0, 15.0));
         }
 
         const rcoLogic: ChipLogic = (pin) => {
@@ -359,7 +364,8 @@ export class Counter2Elm extends ChipElm {
         };
         const rcoIn: number[] = [entPin];
         for (let j = 0; j < bits; j++) rcoIn.push(qPin(j));
-        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin));
+        // matches dice-ts's 9316 TC (ripple carry) delay
+        desc.push(chipStart(rcoLogic).inputPins(...rcoIn).outputPin(rcoPin).outputDelayNs(18.0, 17.0));
 
         return { desc, pinMap };
     }

@@ -109,7 +109,8 @@ export class FullAdderElm extends ChipElm {
                 pin[out] = (value >> w) & 1;
             };
 
-            desc.push(chipStart(logic).inputPins(...inPins).outputPin(out));
+            // matches dice-ts's 7483 sum-output delay (~/Projects/dice-ts/src/chips/7483.ts)
+            desc.push(chipStart(logic).inputPins(...inPins).outputPin(out).outputDelayNs(16.0, 16.0));
         }
 
         const coutInPins = [cinPin];
@@ -119,7 +120,8 @@ export class FullAdderElm extends ChipElm {
             for (let j = 0; j < bits; j++) value += (pin[aPin(j)] + pin[bPin(j)]) << j;
             pin[coutPin] = (value >> bits) & 1;
         };
-        desc.push(chipStart(coutLogic).inputPins(...coutInPins).outputPin(coutPin));
+        // matches dice-ts's 7483 carry-out delay
+        desc.push(chipStart(coutLogic).inputPins(...coutInPins).outputPin(coutPin).outputDelayNs(9.0, 11.0));
 
         return { desc, pinMap };
     }

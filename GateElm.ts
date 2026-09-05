@@ -32,6 +32,11 @@ import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
+// dice-ts's 7400 (quad 2-input NAND) propagation delay - used as the shared default for every
+// GateElm subtype (AND/OR/XOR/NAND/NOR/XNOR), since dice-ts has no plain AND/OR chip to match
+// against (see ~/Projects/dice-ts/src/chips/7400.ts).
+export const DEFAULT_GATE_DELAY_S = 11.0e-9;
+
 export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
     static readonly FLAG_SCHMITT = 1<<1;
@@ -40,7 +45,7 @@ export abstract class GateElm extends CircuitElm {
     lastOutput: boolean = false;
     justLoaded: boolean = false;
     highVoltage: number;
-    propagationDelay: number = 0; // seconds; 0 = instant (default)
+    propagationDelay: number = DEFAULT_GATE_DELAY_S; // seconds; matches dice-ts 7400 NAND delay
     delayEndTime: number = 0;     // time at which pending output change takes effect
     static lastHighVoltage: number = 5;
     static lastSchmitt: boolean = false;

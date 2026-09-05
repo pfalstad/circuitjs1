@@ -207,7 +207,8 @@ export class SevenSegDecoderElm extends ChipElm {
                 const en = !hasBI || pin[biPin];
                 pin[outPin] = (!en || (input === 15 && blankOnF)) ? 0 : (sym[input][seg] ? 1 : 0);
             };
-            desc.push(chipStart(logic).inputPins(...inPins).outputPin(outPin));
+            // matches dice-ts's 7448 per-segment delay (~/Projects/dice-ts/src/chips/7448.ts)
+            desc.push(chipStart(logic).inputPins(...inPins).outputPin(outPin).outputDelayNs(50.0, 50.0));
         }
         return { desc, pinMap };
     }

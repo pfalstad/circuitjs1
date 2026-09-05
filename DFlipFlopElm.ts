@@ -35,7 +35,8 @@ export class DFlipFlopElm extends ChipElm {
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
 
-    propagationDelay: number = 0;
+    // matches dice-ts's 7474 clock-to-Q delay (~/Projects/dice-ts/src/chips/7474.ts)
+    propagationDelay: number = 10.0e-9;
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);

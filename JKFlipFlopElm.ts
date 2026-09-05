@@ -35,7 +35,8 @@ export class JKFlipFlopElm extends ChipElm {
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
     invertReset():        boolean { return (this.flags & JKFlipFlopElm.FLAG_INVERT_RESET ) !== 0; }
 
-    propagationDelay: number = 0;
+    // matches dice-ts's 74107 master-stage delay (~/Projects/dice-ts/src/chips/74107.ts)
+    propagationDelay: number = 15.0e-9;
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);

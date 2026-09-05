@@ -118,19 +118,20 @@ export class MultiplexerElm extends ChipElm {
             });
             const muxOut = buildMuxTree(leaves, selectPins, allocPin, desc);
 
+            // final output-stage delay matches dice-ts's 74153 dual mux delay (~/Projects/dice-ts/src/chips/74153.ts)
             const outPin = this.outputPin + bit + 1;
             if (strobePin) {
                 const strobed: ChipLogic = (pin) => { pin[outPin] = pin[strobePin] ? 0 : pin[muxOut]; };
-                desc.push(chipStart(strobed).inputPins(strobePin, muxOut).outputPin(outPin));
+                desc.push(chipStart(strobed).inputPins(strobePin, muxOut).outputPin(outPin).outputDelayNs(16.0, 18.0));
             } else {
                 const buf: ChipLogic = (pin) => { pin[outPin] = pin[muxOut]; };
-                desc.push(chipStart(buf).inputPins(muxOut).outputPin(outPin));
+                desc.push(chipStart(buf).inputPins(muxOut).outputPin(outPin).outputDelayNs(16.0, 18.0));
             }
 
             if (this.hasFlag(M.FLAG_INVERTED_OUTPUT)) {
                 const invPin = this.outputPin + width + bit + 1;
                 const inv: ChipLogic = (pin) => { pin[invPin] = pin[outPin] ^ 1; };
-                desc.push(chipStart(inv).inputPins(outPin).outputPin(invPin));
+                desc.push(chipStart(inv).inputPins(outPin).outputPin(invPin).outputDelayNs(16.0, 18.0));
             }
         }
 

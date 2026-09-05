@@ -142,9 +142,12 @@ export class InverterElm extends CircuitElm {
 
     /** Phase 2 (see noble-stirring-rabin.md): a 1-input/1-output NOT cell - collapses to a
      * single LUT cell like GateElm.digitalSynthesis(), just with no propagationDelay field of
-     * its own (unlike GateElm) so the delay is fixed at 0. */
+     * its own (unlike GateElm) so the delay is fixed at dice-ts's 7404 hex-inverter delay
+     * (~/Projects/dice-ts/src/chips/7404.ts). */
     digitalSynthesis(): DigitalSynthesis {
-        const desc: ChipDesc[] = [chipStart((pin) => { pin[2] = pin[1] ^ 1; }).inputPins(1).outputPin(2)];
+        const desc: ChipDesc[] = [
+            chipStart((pin) => { pin[2] = pin[1] ^ 1; }).inputPins(1).outputPin(2).outputDelayNs(12.0, 8.0),
+        ];
         return { desc, pinMap: new Map([[0, 1], [1, 2]]) };
     }
 
