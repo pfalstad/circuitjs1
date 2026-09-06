@@ -30,7 +30,7 @@ import { Locale } from "./Locale";
  * setExtVoltage() - an analog value the digital engine can't cheaply drive from its own free-
  * running Cycle/outputEvents machinery), this is a real WF_SQUARE RailElm - the same
  * phasedClockLogic()-based CUSTOM_CHIP RailElm.digitalSynthesis() already builds for any digital
- * clock rail - just with a JS-facing name attached so JSInterface.setSignalPhase() can find it by
+ * clock rail - just with a JS-facing name attached so JSInterface.setExtClock() can find it by
  * name and nudge its phase live (see RailElm.retimePhase()) without JS having to call in on every
  * timestep: the engine keeps the signal running on its own between nudges. */
 export class ExtClockElm extends RailElm {

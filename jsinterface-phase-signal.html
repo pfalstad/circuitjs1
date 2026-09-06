@@ -11,7 +11,7 @@
        image. Two rasters here, sharing the same code: D0 (the 8-bit counter's LSB, exactly as in
        the 2D scope example) and PHASE (an ExtClockElm named "extclock" in the circuit - see
        circuits/jsinterface-phase.txt - whose edge position within each line is nudged live by the
-       slider below via CircuitJS1.setSignalPhase()). -->
+       slider below via CircuitJS1.setExtClock()). -->
   <div>
     <div>2D scope: signal "D0" (8-bit counter LSB)</div>
     <canvas id="scope2d" width=300 height=150 style="background:#111; border:1px solid #888;"></canvas>
@@ -22,6 +22,11 @@
       <input id="phaseSlider" type="range" min="0" max="360" value="0" step="1" style="width:250px;">
       <span id="phaseLabel">0&deg;</span>
     </div>
+    <div style="margin-top:4px;">
+      Duty cycle:
+      <input id="dutySlider" type="range" min="1" max="99" value="50" step="1" style="width:250px;">
+      <span id="dutyLabel">50%</span>
+    </div>
     <div id="scopeInfo" style="font-family:monospace;font-size:11px;"></div>
   </div>
 </div>
@@ -30,7 +35,7 @@
 <button onclick="sim.setSimRunning(true)">Start</button>
 <button onclick="sim.setSimRunning(false)">Stop</button>
 <p>
-This example shows CircuitJS1.setSignalPhase() - a way to introduce a signal that JS can adjust on
+This example shows CircuitJS1.setExtClock() - a way to introduce a signal that JS can adjust on
 the fly WITHOUT defeating the digital fast path. The circuit (circuits/jsinterface-phase.txt)
 contains an ExtClockElm named "extclock": a JS-nameable digital clock rail (see ExtClockElm.ts).
 Unlike CircuitJS1.setExtVoltage() - which only works because JS calls it again every single frame
@@ -38,9 +43,9 @@ to push in a fresh analog value, an approach the digital engine can't cheaply su
 "sleeping" chip that skips real ticks entirely - an ExtClockElm is a genuine periodic source built
 from the same phasedClockLogic()-based Cycle/outputEvents machinery every other digital clock rail
 uses (see clockChip.ts/RailElm.digitalSynthesis()). It free-runs entirely inside the simulator; the
-slider below only calls CircuitJS1.setSignalPhase("extclock", phaseRadians) once per drag, which
-re-primes that one rail's next edge in place (RailElm.retimePhase()) - no per-timestep JS callback
-needed to keep the signal alive between nudges. The PHASE raster below plots "extclock" the same
+sliders below only call CircuitJS1.setExtClock("extclock", phaseRadians, dutyCycleFraction) once
+per drag, which re-primes that one rail's next edge in place (RailElm.retimePhase()) - no
+per-timestep JS callback needed to keep the signal alive between nudges. The PHASE raster below plots "extclock" the same
 change-list-driven way the D0 raster does, so dragging the slider visibly slides the edge within
 each line in real time.
 
@@ -172,12 +177,17 @@ function onSignalUpdate(sim, signals, secondsPerTick) {
   }
 }
 
-function onPhaseSliderInput() {
+// setExtClock() takes phase and duty cycle together, so either slider re-sends both current
+// values - retimePhase() always re-derives the full schedule from scratch, so there's no benefit
+// to only sending the one that actually changed.
+function applyExtClock() {
   const degrees = Number(document.getElementById("phaseSlider").value);
+  const dutyPercent = Number(document.getElementById("dutySlider").value);
   document.getElementById("phaseLabel").innerHTML = degrees + "&deg;";
+  document.getElementById("dutyLabel").innerHTML = dutyPercent + "%";
   // One call per slider move - the engine keeps the "extclock" rail free-running on its own
   // between calls, so this never needs to run on a timer or per-frame.
-  sim.setSignalPhase("extclock", degrees * Math.PI / 180);
+  sim.setExtClock("extclock", degrees * Math.PI / 180, dutyPercent / 100);
 }
 
 function simLoaded() {
@@ -189,7 +199,8 @@ function simLoaded() {
   sim.watchSignal("D0");
   sim.watchSignal("extclock");
 
-  document.getElementById("phaseSlider").addEventListener("input", onPhaseSliderInput);
+  document.getElementById("phaseSlider").addEventListener("input", applyExtClock);
+  document.getElementById("dutySlider").addEventListener("input", applyExtClock);
 }
 
 iframe.contentWindow.oncircuitjsloaded = simLoaded;
