@@ -30,6 +30,7 @@ import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { phasedClockLogic } from "./digital/clockChip";
 import { TIMESCALE } from "./digital/constants";
+import type { Chip } from "./digital/chip";
 
 export class RailElm extends VoltageElm {
     // Two RailElm waveforms are digital sources: a square-wave rail (any WF_SQUARE RailElm, not
@@ -112,38 +113,76 @@ export class RailElm extends VoltageElm {
      * shift this rail's edges by a tick versus a direct one - a worse tradeoff, for anything
      * downstream expecting exact edge timing, than a startup-only polarity glitch.)
      */
-    digitalSynthesis(): DigitalSynthesis | null {
-        if (!this.isDigitalClock()) return null;
-        const dutyCycle = this.dutyCycle ?? 0.5;
-        const phaseShift = this.phaseShift ?? 0;
+    /** Tick-domain layout shared by digitalSynthesis() (t=0 case, below) and retimePhase() (live
+     * re-phase relative to "now" - see that method's own docstring): high/low/period durations in
+     * ticks, plus how many ticks into the cycle the given `phaseShift` (radians, same convention
+     * as VoltageElm's analog phase field) falls before the next rise. Split out so both call
+     * sites derive the exact same grid from the same dutyCycle/frequency instead of duplicating
+     * this arithmetic. */
+    private static phaseLayout(period: number, dutyCycle: number, phaseShift: number):
+            { highTicks: bigint, lowTicks: bigint, periodTicks: bigint, initialDelay: bigint } {
         const twoPi = 2 * Math.PI;
-
-        const period = 1 / this.frequency; // seconds
         const highTicks = Math.max(1, Math.round(period * dutyCycle / TIMESCALE));
         const lowTicks = Math.max(1, Math.round(period * (1 - dutyCycle) / TIMESCALE));
         const periodTicks = lowTicks + highTicks;
 
-        // This rail's own phase layout (deliberately LOW-phase-first - see the docstring above,
-        // NOT VoltageElm's HIGH-phase-first analog convention): [0, lowAngle) is low, [lowAngle,
-        // 2pi) is high, and the rise happens at lowAngle.
+        // This rail's own phase layout (deliberately LOW-phase-first - see digitalSynthesis()'s
+        // docstring, NOT VoltageElm's HIGH-phase-first analog convention): [0, lowAngle) is low,
+        // [lowAngle, 2pi) is high, and the rise happens at lowAngle.
         const wm = ((phaseShift % twoPi) + twoPi) % twoPi;
         const lowAngle = twoPi * (1 - dutyCycle);
 
-        // Ticks from t=0 until the first real rise: if phase places us in the low portion, that's
-        // just the remaining low time (at phaseShift=0 this is exactly `lowTicks`, matching the
-        // engine's old fixed behavior); if it places us in the high portion (which this synthesis
-        // can't represent starting from t=0 - see the docstring above), wait out the remainder of
-        // that high portion AND the following nominal low portion instead, so every edge after
-        // this first one lands exactly on the intended phase/duty grid.
+        // Ticks from the reference instant until the first real rise: if phase places us in the
+        // low portion, that's just the remaining low time (at phaseShift=0 this is exactly
+        // `lowTicks`, matching the engine's old fixed behavior); if it places us in the high
+        // portion (which a from-scratch priming can't represent starting AT the reference instant
+        // - see digitalSynthesis()'s docstring), wait out the remainder of that high portion AND
+        // the following nominal low portion instead, so every edge after this first one lands
+        // exactly on the intended phase/duty grid.
         const initialDelay = wm < lowAngle
             ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
             : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks));
 
+        return { highTicks: BigInt(highTicks), lowTicks: BigInt(lowTicks), periodTicks: BigInt(periodTicks), initialDelay };
+    }
+
+    digitalSynthesis(): DigitalSynthesis | null {
+        if (!this.isDigitalClock()) return null;
+        const dutyCycle = this.dutyCycle ?? 0.5;
+        const phaseShift = this.phaseShift ?? 0;
+        const period = 1 / this.frequency; // seconds
+        const { highTicks, lowTicks, initialDelay } = RailElm.phaseLayout(period, dutyCycle, phaseShift);
+
         const desc: ChipDesc[] = [
             customChipStart(phasedClockLogic(initialDelay))
-                .outputDelayS(lowTicks * TIMESCALE, highTicks * TIMESCALE).outputPin(1),
+                .outputDelayS(RailElm.ticksToSeconds(lowTicks), RailElm.ticksToSeconds(highTicks)).outputPin(1),
         ];
         return { desc, pinMap: new Map([[0, 1]]) };
+    }
+
+    // convert ticks with rounding
+    private static ticksToSeconds(ticks: bigint): number {
+        return (Number(ticks) + 0.5) * TIMESCALE;
+    }
+
+    /** Live phase nudge for an already-running digital clock rail, without a full circuit
+     * re-analyze - used by JSInterface.setSignalPhase(). phasedClockLogic() anchors its delay to
+     * "now", so `initialDelay` (ticks from tick 0) must be re-derived as ticks from `now` to the
+     * next tick congruent to it mod the period - otherwise the same phaseShift would land at a
+     * different absolute edge depending on when this is called. `chip.output` is forced low first
+     * since the primed schedule always assumes "currently low, next event is a rise". */
+    retimePhase(chip: Chip, phaseShift: number): void {
+        this.phaseShift = phaseShift;
+        if (!this.isDigitalClock()) return;
+        const dutyCycle = this.dutyCycle ?? 0.5;
+        const period = 1 / this.frequency;
+        const { periodTicks, initialDelay } = RailElm.phaseLayout(period, dutyCycle, phaseShift);
+        const now = chip.circuit.globalTime;
+        let delay = ((initialDelay - now) % periodTicks + periodTicks) % periodTicks;
+        if (delay === 0n) delay = periodTicks;
+        chip.output = 0;
+        chip.customUpdate = phasedClockLogic(delay);
+        chip.initialize();
     }
 
     getInfo(arr: string[]): void {

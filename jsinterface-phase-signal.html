@@ -1,0 +1,198 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1100">
+<title>Circuit Simulator Applet - JS Phase-Controlled Signal Example</title>
+<link rel="SHORTCUT ICON" href="favicon.ico">
+<body>
+<div style="display: flex; align-items: flex-start; gap: 10px;">
+  <iframe id="circuitFrame" width=800 height=550 src="circuitjs.html?startCircuit=jsinterface-phase.txt"></iframe>
+
+  <!-- Same JS-painted-canvas raster approach as jsinterface-2dscope.html - see that file's own
+       comments for how paintSpan()/updateRaster() turn a watchSignal() change-list into a raster
+       image. Two rasters here, sharing the same code: D0 (the 8-bit counter's LSB, exactly as in
+       the 2D scope example) and PHASE (an ExtClockElm named "extclock" in the circuit - see
+       circuits/jsinterface-phase.txt - whose edge position within each line is nudged live by the
+       slider below via CircuitJS1.setSignalPhase()). -->
+  <div>
+    <div>2D scope: signal "D0" (8-bit counter LSB)</div>
+    <canvas id="scope2d" width=300 height=150 style="background:#111; border:1px solid #888;"></canvas>
+    <div style="margin-top:8px;">2D scope: signal "extclock" (phase-controlled)</div>
+    <canvas id="scopePhase" width=300 height=150 style="background:#111; border:1px solid #888;"></canvas>
+    <div style="margin-top:8px;">
+      Phase:
+      <input id="phaseSlider" type="range" min="0" max="360" value="0" step="1" style="width:250px;">
+      <span id="phaseLabel">0&deg;</span>
+    </div>
+    <div id="scopeInfo" style="font-family:monospace;font-size:11px;"></div>
+  </div>
+</div>
+
+<p>
+<button onclick="sim.setSimRunning(true)">Start</button>
+<button onclick="sim.setSimRunning(false)">Stop</button>
+<p>
+This example shows CircuitJS1.setSignalPhase() - a way to introduce a signal that JS can adjust on
+the fly WITHOUT defeating the digital fast path. The circuit (circuits/jsinterface-phase.txt)
+contains an ExtClockElm named "extclock": a JS-nameable digital clock rail (see ExtClockElm.ts).
+Unlike CircuitJS1.setExtVoltage() - which only works because JS calls it again every single frame
+to push in a fresh analog value, an approach the digital engine can't cheaply support for a
+"sleeping" chip that skips real ticks entirely - an ExtClockElm is a genuine periodic source built
+from the same phasedClockLogic()-based Cycle/outputEvents machinery every other digital clock rail
+uses (see clockChip.ts/RailElm.digitalSynthesis()). It free-runs entirely inside the simulator; the
+slider below only calls CircuitJS1.setSignalPhase("extclock", phaseRadians) once per drag, which
+re-primes that one rail's next edge in place (RailElm.retimePhase()) - no per-timestep JS callback
+needed to keep the signal alive between nudges. The PHASE raster below plots "extclock" the same
+change-list-driven way the D0 raster does, so dragging the slider visibly slides the edge within
+each line in real time.
+
+<script>
+
+var iframe = document.getElementById("circuitFrame");
+var sim;
+
+// ---- JS port of ScopePlot2d's digital raster mode (verbatim from jsinterface-2dscope.html -
+// see that file's own comments for the full explanation of every field/function here) ----
+
+function makeRaster(canvas, lineWidthSec, frameLengthSec, hBlankSec, vBlankSec) {
+  return {
+    canvas: canvas,
+    ctx: canvas.getContext("2d"),
+    lineWidthSec: lineWidthSec,
+    frameLengthSec: frameLengthSec,
+    hBlankSec: hBlankSec || 0,
+    vBlankSec: vBlankSec || 0,
+    onColor: "#0f0",
+    offColor: "#111",
+    secondsPerTick: null,
+    frameIndex: -1,
+    filledTick: -1,
+    curVal: 0,
+  };
+}
+
+function retimeRaster(r, secondsPerTick) {
+  if (r.secondsPerTick === secondsPerTick)
+    return;
+  r.secondsPerTick = secondsPerTick;
+  r.totalLineTicks = Math.max(1, Math.round(r.lineWidthSec / secondsPerTick));
+  r.hBlankTicks = Math.min(r.totalLineTicks - 1, Math.max(0, Math.round(r.hBlankSec / secondsPerTick)));
+  r.lineWidthTicks = r.totalLineTicks - r.hBlankTicks;
+  r.totalFrameLines = Math.max(1, Math.round(r.frameLengthSec / secondsPerTick / r.totalLineTicks));
+  r.vBlankLines = Math.min(r.totalFrameLines - 1, Math.max(0, Math.round(r.vBlankSec / secondsPerTick / r.totalLineTicks)));
+  r.linesPerFrame = r.totalFrameLines - r.vBlankLines;
+  r.vBlankTicks = r.vBlankLines * r.totalLineTicks;
+  r.frameIndex = -1;
+}
+
+function paintSpan(r, fromTick, toTick, value) {
+  while (fromTick < toTick) {
+    const frameLengthTicks = r.totalLineTicks * r.totalFrameLines;
+    const frameIndex = Math.floor(fromTick / frameLengthTicks);
+    const frameStart = frameIndex * frameLengthTicks;
+    const frameEnd = frameStart + frameLengthTicks;
+    const chunkEnd = Math.min(toTick, frameEnd);
+    if (r.frameIndex === -1) {
+      r.ctx.fillStyle = r.offColor;
+      r.ctx.fillRect(0, 0, r.canvas.width, r.canvas.height);
+    }
+    r.frameIndex = frameIndex;
+    paintWithinFrame(r, fromTick - frameStart, chunkEnd - frameStart, value);
+    fromTick = chunkEnd;
+  }
+}
+
+function paintWithinFrame(r, fromRel, toRel, value) {
+  r.ctx.fillStyle = value ? r.onColor : r.offColor;
+  let t = fromRel;
+  while (t < toRel) {
+    if (t < r.vBlankTicks) {
+      t = Math.min(r.vBlankTicks, toRel);
+      continue;
+    }
+    const line = Math.floor((t - r.vBlankTicks) / r.totalLineTicks);
+    const lineStart = r.vBlankTicks + line * r.totalLineTicks;
+    const activeStart = lineStart + r.hBlankTicks;
+    if (t < activeStart) {
+      t = Math.min(activeStart, toRel);
+      continue;
+    }
+    const offsetInLine = t - activeStart;
+    const segTicks = Math.min(r.lineWidthTicks - offsetInLine, toRel - t);
+    const px0 = offsetInLine / r.lineWidthTicks * r.canvas.width;
+    const px1 = (offsetInLine + segTicks) / r.lineWidthTicks * r.canvas.width;
+    const py0 = line / r.linesPerFrame * r.canvas.height;
+    const py1 = (line + 1) / r.linesPerFrame * r.canvas.height;
+    r.ctx.fillRect(px0, py0, Math.max(1, px1 - px0), py1 - py0);
+    t += segTicks;
+  }
+}
+
+function updateRaster(r, changes, nowTick) {
+  let cursor, curVal;
+  if (r.filledTick < 0) {
+    if (changes.length === 0) return;
+    cursor = changes[0].tick;
+    curVal = changes[0].value;
+    changes = changes.slice(1);
+  } else {
+    cursor = r.filledTick;
+    curVal = r.curVal;
+  }
+  for (const c of changes) {
+    paintSpan(r, cursor, c.tick, curVal);
+    cursor = c.tick;
+    curVal = c.value;
+  }
+  paintSpan(r, cursor, nowTick, curVal);
+  r.curVal = curVal;
+  r.filledTick = nowTick;
+}
+
+// D0 raster: same timing as jsinterface-2dscope.html.
+var raster = makeRaster(document.getElementById("scope2d"), 2e-3, 2e-2, 2e-4, 2e-3);
+
+// PHASE raster: one line per period of "extclock" (100Hz -> 10ms), ten lines per frame, so a
+// phase change is immediately visible as the edge sliding sideways within every line at once.
+var phaseRaster = makeRaster(document.getElementById("scopePhase"), 1e-2, 1e-1, 0, 0);
+
+function didUpdate(sim) {
+  document.getElementById("scopeInfo").innerHTML =
+      "time = " + sim.getTime().toFixed(4) + "<br>running = " + sim.isRunning();
+}
+
+function onSignalUpdate(sim, signals, secondsPerTick) {
+  const d0 = signals["D0"];
+  if (d0) {
+    retimeRaster(raster, secondsPerTick);
+    updateRaster(raster, d0.changes, d0.now);
+  }
+  const ph = signals["extclock"];
+  if (ph) {
+    retimeRaster(phaseRaster, secondsPerTick);
+    updateRaster(phaseRaster, ph.changes, ph.now);
+  }
+}
+
+function onPhaseSliderInput() {
+  const degrees = Number(document.getElementById("phaseSlider").value);
+  document.getElementById("phaseLabel").innerHTML = degrees + "&deg;";
+  // One call per slider move - the engine keeps the "extclock" rail free-running on its own
+  // between calls, so this never needs to run on a timer or per-frame.
+  sim.setSignalPhase("extclock", degrees * Math.PI / 180);
+}
+
+function simLoaded() {
+  sim = iframe.contentWindow.CircuitJS1;
+
+  sim.onupdate = didUpdate;
+  sim.onsignalupdate = onSignalUpdate;
+
+  sim.watchSignal("D0");
+  sim.watchSignal("extclock");
+
+  document.getElementById("phaseSlider").addEventListener("input", onPhaseSliderInput);
+}
+
+iframe.contentWindow.oncircuitjsloaded = simLoaded;
+
+</script>
+</body>

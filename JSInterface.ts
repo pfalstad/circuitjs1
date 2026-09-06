@@ -80,6 +80,21 @@ export class JSInterface {
         }
     }
 
+    /** Live phase nudge for a named digital clock rail (e.g. an ExtClockElm) without a full
+     * circuit re-analyze - see RailElm.retimePhase()'s own docstring for why this stays on the
+     * fast digital path (no per-tick JS callback: the engine's own free-running
+     * Cycle/outputEvents machinery keeps driving the signal after this one-shot re-prime).
+     * `phaseShift` is in radians, same convention as the rail's own phaseShift property/
+     * VoltageElm's analog phase field. No-op if `name` isn't a digital clock rail or hasn't been
+     * wired into the circuit yet. */
+    setSignalPhase(name: string, phaseShift: number): void {
+        const elm = this.findElmByName(name);
+        if (elm === null || typeof elm.retimePhase !== "function") return;
+        const chip = digitalScopeSourceNew(elm);
+        if (chip === null) return;
+        elm.retimePhase(chip, phaseShift);
+    }
+
     getJSElements(): object[] {
         const arr: object[] = [];
         for (let i = 0; i !== this.app.elmList.length; i++) {
@@ -215,6 +230,7 @@ export class JSInterface {
             getElements:    () => that.getJSElements(),
             watchSignal:    (n: string) => that.watchSignal(n),
             unwatchSignal:  (n: string) => that.unwatchSignal(n),
+            setSignalPhase: (n: string, phaseShift: number) => that.setSignalPhase(n, phaseShift),
             getCircuitAsSVG: () => that.doExportAsSVGFromAPI(),
             exportCircuit:  () => that.dumpCircuit(),
             importCircuit:  (circuit: string, subcircuitsOnly: boolean) => that.importCircuitFromText(circuit, subcircuitsOnly),
