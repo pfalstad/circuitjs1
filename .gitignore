@@ -1,1 +1,5 @@
 todo
+
+# tsc build output (dev builds via vite, tsc is type-check only)
+*.js.map
+*.d.ts.map

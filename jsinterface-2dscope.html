@@ -1,3 +1,4 @@
+<meta charset="UTF-8">
 <meta name="viewport" content="width=1100">
 <title>Circuit Simulator Applet - JS 2D Scope Example</title>
 <link rel="SHORTCUT ICON" href="favicon.ico">
@@ -179,7 +180,7 @@ function updateRaster(r, changes, nowTick) {
 // are set to 10% of the line/frame period, just to make the blanking gaps visible: each line's
 // leftmost 10% and each frame's topmost row(s) are skipped rather than painted, like a real
 // CRT's retrace.
-var raster = makeRaster(document.getElementById("scope2d"), 0.00006355622, 0.016652, 0.00001119933392, 0.001271145);
+var raster = makeRaster(document.getElementById("scope2d"), 2e-3, 2e-2, 2e-4, 2e-3);
 
 function didUpdate(sim) {
   document.getElementById("scopeInfo").innerHTML =
@@ -195,7 +196,7 @@ function didAnalyze(sim) {
 // signals. `signals` is keyed by the name passed to watchSignal(); `secondsPerTick` converts a
 // change's `tick` into real seconds (1 tick = 1 simulator maxTimeStep).
 function onSignalUpdate(sim, signals, secondsPerTick) {
-  const d0 = signals["VIDEO"];
+  const d0 = signals["D0"];
   if (!d0) return;
   retimeRaster(raster, secondsPerTick);
   updateRaster(raster, d0.changes, d0.now);
@@ -208,7 +209,7 @@ function simLoaded() {
   sim.onanalyze = didAnalyze;
   sim.onsignalupdate = onSignalUpdate;
 
-  sim.watchSignal("VIDEO");
+  sim.watchSignal("D0");
 }
 
 iframe.contentWindow.oncircuitjsloaded = simLoaded;

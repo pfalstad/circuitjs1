@@ -128,6 +128,10 @@ export abstract class CompositeElm extends CircuitElm {
                     (className === "GroundElm" && childElem.getAttribute("x") != null))
                 continue;
             const newce: CircuitElm = CirSim.constructElement(className, 0, 0);
+            if (newce == null) {
+                CirSim.console("loadCompositeXml: couldn't construct " + className + " (tag " + tagName + ")");
+                continue;
+            }
             if (newce.isGroundElm())
                 (newce as any).setOldStyle();
             xml.parseChildElement(childElem);
