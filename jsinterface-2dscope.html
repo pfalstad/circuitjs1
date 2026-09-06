@@ -41,7 +41,8 @@ var sim;
 //
 // lineWidthSec/frameLengthSec are TOTAL periods (like a real CRT's line/frame time, active
 // portion + retrace/blanking); painting wraps to a new line once lineWidthSec of signal time has
-// been painted, and wraps back to the top (clearing the canvas) once frameLengthSec has elapsed.
+// been painted, and wraps back to the top (overwriting the previous frame line-by-line, like a
+// real CRT's phosphor trail - see paintSpan() below) once frameLengthSec has elapsed.
 // Pick lineWidthSec/frameLengthSec to match the signal you're watching - e.g. lineWidthSec = 1
 // bit period, frameLengthSec = however many bits you want to see per row, the same way you'd tune
 // a real scope's timebase.
@@ -91,10 +92,14 @@ function retimeRaster(r, secondsPerTick) {
 }
 
 // Paints one constant-value run of absolute tick time [fromTick, toTick), splitting it across
-// however many raster frames it crosses (each new frame clears the canvas and starts again at
-// the top-left, like a real CRT's frame wrap - unlike the simulator's own ScopePlot2d, which
-// keeps last frame's image showing until overwritten line-by-line; this simpler version is
-// easier to follow for an example).
+// however many raster frames it crosses. Only a genuine cold start (r.frameIndex === -1 - the
+// very first paint ever, or right after retimeRaster() resets it because the geometry changed)
+// clears the canvas; an ordinary frame wrap leaves the previous frame's image in place, painted
+// over line-by-line as the beam reaches it (CRT-phosphor style) - same as
+// ScopePlot2d.fillDigitalRaster(). This works because each iteration below paints all the way to
+// either `toTick` or the current frame's own end before looping, so a span that crosses into a
+// new frame always finishes the outgoing frame's tail first - nothing is ever left half-painted
+// from a previous call.
 function paintSpan(r, fromTick, toTick, value) {
   while (fromTick < toTick) {
     const frameLengthTicks = r.totalLineTicks * r.totalFrameLines;
@@ -102,11 +107,11 @@ function paintSpan(r, fromTick, toTick, value) {
     const frameStart = frameIndex * frameLengthTicks;
     const frameEnd = frameStart + frameLengthTicks;
     const chunkEnd = Math.min(toTick, frameEnd);
-    if (frameIndex !== r.frameIndex) {
-      r.frameIndex = frameIndex;
+    if (r.frameIndex === -1) {
       r.ctx.fillStyle = r.offColor;
       r.ctx.fillRect(0, 0, r.canvas.width, r.canvas.height);
     }
+    r.frameIndex = frameIndex;
     paintWithinFrame(r, fromTick - frameStart, chunkEnd - frameStart, value);
     fromTick = chunkEnd;
   }
@@ -174,7 +179,7 @@ function updateRaster(r, changes, nowTick) {
 // are set to 10% of the line/frame period, just to make the blanking gaps visible: each line's
 // leftmost 10% and each frame's topmost row(s) are skipped rather than painted, like a real
 // CRT's retrace.
-var raster = makeRaster(document.getElementById("scope2d"), 2e-3, 2e-2, 2e-4, 2e-3);
+var raster = makeRaster(document.getElementById("scope2d"), 0.00006355622, 0.016652, 0.00001119933392, 0.001271145);
 
 function didUpdate(sim) {
   document.getElementById("scopeInfo").innerHTML =
@@ -190,7 +195,7 @@ function didAnalyze(sim) {
 // signals. `signals` is keyed by the name passed to watchSignal(); `secondsPerTick` converts a
 // change's `tick` into real seconds (1 tick = 1 simulator maxTimeStep).
 function onSignalUpdate(sim, signals, secondsPerTick) {
-  const d0 = signals["D0"];
+  const d0 = signals["VIDEO"];
   if (!d0) return;
   retimeRaster(raster, secondsPerTick);
   updateRaster(raster, d0.changes, d0.now);
@@ -203,7 +208,7 @@ function simLoaded() {
   sim.onanalyze = didAnalyze;
   sim.onsignalupdate = onSignalUpdate;
 
-  sim.watchSignal("D0");
+  sim.watchSignal("VIDEO");
 }
 
 iframe.contentWindow.oncircuitjsloaded = simLoaded;
