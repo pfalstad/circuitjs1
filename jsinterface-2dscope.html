@@ -39,17 +39,26 @@ var sim;
 
 // ---- JS port of ScopePlot2d's digital raster mode ----
 //
-// lineWidthSec/frameLengthSec are TOTAL periods (like a real CRT's line/frame time); painting
-// wraps to a new line once lineWidthSec of signal time has been painted, and wraps back to the
-// top (clearing the canvas) once frameLengthSec has elapsed. Pick lineWidthSec/frameLengthSec to
-// match the signal you're watching - e.g. lineWidthSec = 1 bit period, frameLengthSec = however
-// many bits you want to see per row, the same way you'd tune a real scope's timebase.
-function makeRaster(canvas, lineWidthSec, frameLengthSec) {
+// lineWidthSec/frameLengthSec are TOTAL periods (like a real CRT's line/frame time, active
+// portion + retrace/blanking); painting wraps to a new line once lineWidthSec of signal time has
+// been painted, and wraps back to the top (clearing the canvas) once frameLengthSec has elapsed.
+// Pick lineWidthSec/frameLengthSec to match the signal you're watching - e.g. lineWidthSec = 1
+// bit period, frameLengthSec = however many bits you want to see per row, the same way you'd tune
+// a real scope's timebase.
+//
+// hBlankSec/vBlankSec are retrace delays consumed at the start of each line/frame but not
+// painted - like a real CRT's beam being blanked during horizontal/vertical retrace. They carve
+// their time out of lineWidthSec/frameLengthSec (not added on top), so the active portion actually
+// mapped to pixels is lineWidthSec-hBlankSec wide, and there are fewer than frameLengthSec/
+// lineWidthSec active lines per frame once vBlankSec eats a few of them.
+function makeRaster(canvas, lineWidthSec, frameLengthSec, hBlankSec, vBlankSec) {
   return {
     canvas: canvas,
     ctx: canvas.getContext("2d"),
     lineWidthSec: lineWidthSec,
     frameLengthSec: frameLengthSec,
+    hBlankSec: hBlankSec || 0,
+    vBlankSec: vBlankSec || 0,
     onColor: "#0f0",
     offColor: "#111",
     secondsPerTick: null,
@@ -65,8 +74,17 @@ function retimeRaster(r, secondsPerTick) {
   if (r.secondsPerTick === secondsPerTick)
     return;
   r.secondsPerTick = secondsPerTick;
+  // totalLineTicks/totalFrameLines are the FULL line/frame period, same as
+  // ScopePlot2d.fillDigitalRaster() - hBlankTicks/vBlankLines are then carved out of them below,
+  // not added on top, so every frame still starts at the same horizontal phase (see that
+  // method's own comment on why vBlankLines is quantized to whole lines).
   r.totalLineTicks = Math.max(1, Math.round(r.lineWidthSec / secondsPerTick));
+  r.hBlankTicks = Math.min(r.totalLineTicks - 1, Math.max(0, Math.round(r.hBlankSec / secondsPerTick)));
+  r.lineWidthTicks = r.totalLineTicks - r.hBlankTicks; // active portion only
   r.totalFrameLines = Math.max(1, Math.round(r.frameLengthSec / secondsPerTick / r.totalLineTicks));
+  r.vBlankLines = Math.min(r.totalFrameLines - 1, Math.max(0, Math.round(r.vBlankSec / secondsPerTick / r.totalLineTicks)));
+  r.linesPerFrame = r.totalFrameLines - r.vBlankLines;
+  r.vBlankTicks = r.vBlankLines * r.totalLineTicks;
   // Force a fresh frame (and clear) next time something is painted - the old frame's geometry
   // (built against the old timing) no longer matches this canvas.
   r.frameIndex = -1;
@@ -79,8 +97,8 @@ function retimeRaster(r, secondsPerTick) {
 // easier to follow for an example).
 function paintSpan(r, fromTick, toTick, value) {
   while (fromTick < toTick) {
-    const frameIndex = Math.floor(fromTick / (r.totalLineTicks * r.totalFrameLines));
     const frameLengthTicks = r.totalLineTicks * r.totalFrameLines;
+    const frameIndex = Math.floor(fromTick / frameLengthTicks);
     const frameStart = frameIndex * frameLengthTicks;
     const frameEnd = frameStart + frameLengthTicks;
     const chunkEnd = Math.min(toTick, frameEnd);
@@ -94,19 +112,32 @@ function paintSpan(r, fromTick, toTick, value) {
   }
 }
 
-// fromRel/toRel are tick offsets from the start of the CURRENT frame.
+// fromRel/toRel are tick offsets from the start of the CURRENT frame. Ticks falling in
+// vBlankTicks (start of frame) or a line's hBlankTicks (start of that line) are skipped - not
+// painted - same as ScopePlot2d.drawRasterSpan()'s identical blanking gaps.
 function paintWithinFrame(r, fromRel, toRel, value) {
   r.ctx.fillStyle = value ? r.onColor : r.offColor;
   let t = fromRel;
   while (t < toRel) {
-    const line = Math.floor(t / r.totalLineTicks);
-    const lineStart = line * r.totalLineTicks;
-    const offsetInLine = t - lineStart;
-    const segTicks = Math.min(r.totalLineTicks - offsetInLine, toRel - t);
-    const px0 = offsetInLine / r.totalLineTicks * r.canvas.width;
-    const px1 = (offsetInLine + segTicks) / r.totalLineTicks * r.canvas.width;
-    const py0 = line / r.totalFrameLines * r.canvas.height;
-    const py1 = (line + 1) / r.totalFrameLines * r.canvas.height;
+    if (t < r.vBlankTicks) {
+      // Still in the frame's vertical blanking - nothing to paint yet.
+      t = Math.min(r.vBlankTicks, toRel);
+      continue;
+    }
+    const line = Math.floor((t - r.vBlankTicks) / r.totalLineTicks);
+    const lineStart = r.vBlankTicks + line * r.totalLineTicks;
+    const activeStart = lineStart + r.hBlankTicks;
+    if (t < activeStart) {
+      // In this line's horizontal blanking - nothing to paint yet.
+      t = Math.min(activeStart, toRel);
+      continue;
+    }
+    const offsetInLine = t - activeStart;
+    const segTicks = Math.min(r.lineWidthTicks - offsetInLine, toRel - t);
+    const px0 = offsetInLine / r.lineWidthTicks * r.canvas.width;
+    const px1 = (offsetInLine + segTicks) / r.lineWidthTicks * r.canvas.width;
+    const py0 = line / r.linesPerFrame * r.canvas.height;
+    const py1 = (line + 1) / r.linesPerFrame * r.canvas.height;
     r.ctx.fillRect(px0, py0, Math.max(1, px1 - px0), py1 - py0);
     t += segTicks;
   }
@@ -139,8 +170,11 @@ function updateRaster(r, changes, nowTick) {
 }
 
 // D0 is the LSB of the 8-bit counter in jsinterface.txt (see the original jsinterface.html
-// example) - it toggles every tick, so a couple of periods make a good demo raster.
-var raster = makeRaster(document.getElementById("scope2d"), 2e-3, 2e-2);
+// example) - it toggles every tick, so a couple of periods make a good demo raster. hBlank/vBlank
+// are set to 10% of the line/frame period, just to make the blanking gaps visible: each line's
+// leftmost 10% and each frame's topmost row(s) are skipped rather than painted, like a real
+// CRT's retrace.
+var raster = makeRaster(document.getElementById("scope2d"), 2e-3, 2e-2, 2e-4, 2e-3);
 
 function didUpdate(sim) {
   document.getElementById("scopeInfo").innerHTML =
