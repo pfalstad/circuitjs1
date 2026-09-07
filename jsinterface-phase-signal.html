@@ -11,7 +11,12 @@
        image. Two rasters here, sharing the same code: D0 (the 8-bit counter's LSB, exactly as in
        the 2D scope example) and PHASE (an ExtClockElm named "extclock" in the circuit - see
        circuits/jsinterface-phase.txt - whose edge position within each line is nudged live by the
-       slider below via CircuitJS1.setExtClock()). -->
+       slider below via CircuitJS1.setExtClock()). recordPhaseTransitions() below reads the exact
+       same "extclock" change list the PHASE raster paints from and console.log()s, for every real
+       transition, which raster line it landed on and how far into that line (in degrees, 0-360) -
+       a numeric cross-check for what the raster is showing, since an anomaly like an unexpectedly
+       short pulse is far easier to spot as two nearby numbers in the console than as a sliver of
+       color in a 300px-wide canvas. -->
   <div>
     <div>2D scope: signal "D0" (8-bit counter LSB)</div>
     <canvas id="scope2d" width=300 height=150 style="background:#111; border:1px solid #888;"></canvas>
@@ -131,6 +136,39 @@ function paintWithinFrame(r, fromRel, toRel, value) {
   }
 }
 
+// Maps an absolute tick to which raster line it falls on (a running count across frames, not
+// reset each frame - so consecutive log entries stay easy to compare) and how far into that
+// line's active span it is, as a phase in degrees (0-360). Mirrors paintWithinFrame()'s own
+// tick -> (line, offsetInLine) math exactly, but doesn't paint anything - just used below to log
+// where each real transition actually landed. Returns null for a tick that falls in a blanking
+// gap (phaseRaster has none, but this stays correct if that ever changes).
+function tickToLinePhase(r, tick) {
+  const frameLengthTicks = r.totalLineTicks * r.totalFrameLines;
+  const frameIndex = Math.floor(tick / frameLengthTicks);
+  const withinFrame = tick - frameIndex * frameLengthTicks;
+  if (withinFrame < r.vBlankTicks) return null;
+  const line = Math.floor((withinFrame - r.vBlankTicks) / r.totalLineTicks);
+  const lineStart = r.vBlankTicks + line * r.totalLineTicks;
+  const activeStart = lineStart + r.hBlankTicks;
+  if (withinFrame < activeStart) return null;
+  const offsetInLine = withinFrame - activeStart;
+  if (offsetInLine >= r.lineWidthTicks) return null;
+  return { absLine: frameIndex * r.linesPerFrame + line, degrees: offsetInLine / r.lineWidthTicks * 360 };
+}
+
+// Logs, for every real "extclock" transition, which raster line it landed on and how far into
+// that line (degrees) - straight to the console, so dragging the phase/duty slider prints a
+// running trace of exactly where each rise/fall actually fell, easy to eyeball for something like
+// an unexpectedly short pulse (a rise and fall a few degrees apart instead of ~180 apart).
+function recordPhaseTransitions(r, changes) {
+  for (const c of changes) {
+    const p = tickToLinePhase(r, c.tick);
+    if (!p) continue;
+    console.log("extclock line " + p.absLine + ": " + (c.value ? "HIGH" : "LOW ") +
+        " at " + p.degrees.toFixed(1) + "°");
+  }
+}
+
 function updateRaster(r, changes, nowTick) {
   let cursor, curVal;
   if (r.filledTick < 0) {
@@ -174,6 +212,7 @@ function onSignalUpdate(sim, signals, secondsPerTick) {
   if (ph) {
     retimeRaster(phaseRaster, secondsPerTick);
     updateRaster(phaseRaster, ph.changes, ph.now);
+    recordPhaseTransitions(phaseRaster, ph.changes);
   }
 }
 
@@ -187,6 +226,7 @@ function applyExtClock() {
   document.getElementById("dutyLabel").innerHTML = dutyPercent + "%";
   // One call per slider move - the engine keeps the "extclock" rail free-running on its own
   // between calls, so this never needs to run on a timer or per-frame.
+  console.log( "extclock", degrees * Math.PI / 180, dutyPercent / 100);
   sim.setExtClock("extclock", degrees * Math.PI / 180, dutyPercent / 100);
 }
 

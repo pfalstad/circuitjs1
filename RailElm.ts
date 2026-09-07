@@ -30,6 +30,7 @@ import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { phasedClockLogic } from "./digital/clockChip";
 import { TIMESCALE } from "./digital/constants";
+import { ChipState } from "./digital/chip";
 import type { Chip } from "./digital/chip";
 
 export class RailElm extends VoltageElm {
@@ -121,9 +122,30 @@ export class RailElm extends VoltageElm {
      * ticks, plus how many ticks into the cycle the given `phaseShift` (radians, same convention
      * as VoltageElm's analog phase field) falls before the next rise. Split out so both call
      * sites derive the exact same grid from the same dutyCycle/frequency instead of duplicating
-     * this arithmetic. */
-    private static phaseLayout(period: number, dutyCycle: number, phaseShift: number):
-            { highTicks: bigint, lowTicks: bigint, periodTicks: bigint, initialDelay: bigint } {
+     * this arithmetic.
+     *
+     * `nowSeconds` (default 0, matching digitalSynthesis()'s build-time call) is the elapsed
+     * simulator time this layout is being evaluated AT, folded into the phase angle the exact way
+     * VoltageElm.getVoltage() folds elapsed time into its own analog waveform: `w = 2*pi*frequency*
+     * nowSeconds + phaseShift` (compare getVoltage()'s `w = 2*pi*(t-freqTimeZero)*frequency +
+     * phaseShift`). This matters for more than build time: `phaseShift` describes where the
+     * EDGES should sit relative to a continuously-running reference clock, NOT "the instantaneous
+     * state at the exact moment retimePhase() happens to be called" - those are only the same
+     * thing at a period boundary. retimePhase() passing `nowSeconds=0` (i.e. the old
+     * `wm = phaseShift mod 2pi` with no time term) would answer "is 23 degrees low or high"
+     * unconditionally and force THAT verdict onto whatever real instant the call landed on - if
+     * the rail had genuinely risen a moment earlier (say it's actually 183 degrees into its
+     * CURRENT cycle, not the reference's own 23 degrees), that forces a real, already-in-progress
+     * pulse to fall immediately, truncating it to a sliver - confirmed via a real setExtClock()
+     * call landing 25.8 degrees into an actual pulse, forced low instead of correctly reading
+     * high. Folding elapsed time in makes `wm` track the rail's actual real-time position
+     * (mod 2pi) with `phaseShift` acting as a fixed offset on top of it - exactly how a phase
+     * argument works for a live, continuously-running oscillator - while still reducing to
+     * today's formula, and today's steady-state edge positions, whenever `nowSeconds` is 0 or an
+     * exact multiple of the period. */
+    private static phaseLayout(period: number, dutyCycle: number, phaseShift: number, nowSeconds: number = 0):
+            { highTicks: bigint, lowTicks: bigint, periodTicks: bigint, initialDelay: bigint,
+              highAtReference: boolean, edgeDelay: bigint } {
         const twoPi = 2 * Math.PI;
         const highTicks = Math.max(1, Math.round(period * dutyCycle / TIMESCALE));
         const lowTicks = Math.max(1, Math.round(period * (1 - dutyCycle) / TIMESCALE));
@@ -131,9 +153,12 @@ export class RailElm extends VoltageElm {
 
         // This rail's own phase layout (deliberately LOW-phase-first - see digitalSynthesis()'s
         // docstring, NOT VoltageElm's HIGH-phase-first analog convention): [0, lowAngle) is low,
-        // [lowAngle, 2pi) is high, and the rise happens at lowAngle.
-        const wm = ((phaseShift % twoPi) + twoPi) % twoPi;
+        // [lowAngle, 2pi) is high, and the rise happens at lowAngle. `w` (see this method's own
+        // docstring) is the CURRENT angle on that circle, not just the caller's raw phaseShift.
+        const w = (twoPi * nowSeconds / period) + phaseShift;
+        const wm = ((w % twoPi) + twoPi) % twoPi;
         const lowAngle = twoPi * (1 - dutyCycle);
+        const highAtReference = wm >= lowAngle;
 
         // Ticks from the reference instant until the first real rise: if phase places us in the
         // low portion, that's just the remaining low time (at phaseShift=0 this is exactly
@@ -142,11 +167,24 @@ export class RailElm extends VoltageElm {
         // - see digitalSynthesis()'s docstring), wait out the remainder of that high portion AND
         // the following nominal low portion instead, so every edge after this first one lands
         // exactly on the intended phase/duty grid.
-        const initialDelay = wm < lowAngle
+        const initialDelay = !highAtReference
             ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
             : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks));
 
-        return { highTicks: BigInt(highTicks), lowTicks: BigInt(lowTicks), periodTicks: BigInt(periodTicks), initialDelay };
+        // Ticks from `nowSeconds` to the NEXT real edge in whichever direction is actually due (a
+        // fall if `highAtReference`, a rise otherwise) - unlike `initialDelay` above, doesn't pad
+        // out an extra low portion to fake "starting low": only retimePhase() uses this, and
+        // unlike digitalSynthesis()'s brand-new Chip it's free to set `chip.output` to either
+        // value directly, so there's no need to misrepresent the current instant as low just to
+        // make the delay-to-next-toggle representable. Since `wm` already folds `nowSeconds` in,
+        // this is directly "ticks from now" - retimePhase() no longer needs its own separate
+        // modulo re-anchoring against `now` the way it did when `wm` was `nowSeconds`-independent. */
+        const edgeDelay = !highAtReference
+            ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
+            : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks)));
+
+        return { highTicks: BigInt(highTicks), lowTicks: BigInt(lowTicks), periodTicks: BigInt(periodTicks),
+                 initialDelay, highAtReference, edgeDelay };
     }
 
     digitalSynthesis(): DigitalSynthesis | null {
@@ -169,13 +207,24 @@ export class RailElm extends VoltageElm {
     }
 
     /** Live phase (and, optionally, duty cycle) nudge for an already-running digital clock rail,
-     * without a full circuit re-analyze - used by JSInterface.setExtClock(). phasedClockLogic()
-     * anchors its delay to "now", so `initialDelay` (ticks from tick 0) must be re-derived as
-     * ticks from `now` to the next tick congruent to it mod the period - otherwise the same
-     * phaseShift would land at a different absolute edge depending on when this is called.
-     * `chip.output` is forced low first since the primed schedule always assumes "currently low,
-     * next event is a rise". `dutyCycle` (0-1 fraction, same convention as VoltageElm's own field)
-     * is left unchanged when omitted.
+     * without a full circuit re-analyze - used by JSInterface.setExtClock(). `edgeDelay` is
+     * computed with `now` (elapsed simulator time) folded into phaseLayout()'s phase angle - see
+     * that method's own docstring - so it already comes back as ticks-from-`now` directly; no
+     * separate re-anchoring against `now` is needed here the way an earlier version required.
+     * `chip.output` is set to the CORRECT instantaneous value for the new phase/duty
+     * cycle (`highAtReference`) rather than unconditionally forced low: unlike
+     * digitalSynthesis()'s brand-new Chip (whose `output` field is hardcoded to start at 0 - see
+     * that method's own docstring), a live chip's `output` is freely settable, so there's no need
+     * to misrepresent "currently high" as "currently low, about to rise" here. This matters for
+     * more than accuracy at the instant of the call: if `retimePhase()` is invoked again (e.g. a
+     * slider being dragged) before the still-pending edge from a PRIOR call ever fires, forcing
+     * `output = 0` every single time meant the rail could get stuck reading low indefinitely - a
+     * fresh "wait out the whole low portion" restarting on every call faster than that wait ever
+     * elapses. Using the real instantaneous value plus the correspondingly short delay to the
+     * actual next edge (a fall if currently high, a rise otherwise) means rapid retiming always
+     * shows the phase/duty cycle's true instantaneous state, not one artificially biased low.
+     * `dutyCycle` (0-1 fraction, same convention as VoltageElm's own field) is left unchanged when
+     * omitted.
      *
      * `chip.delay` (the [low, high] tick durations phasedClockLogic() bakes into every period
      * AFTER the first - see that function's own docstring) has to be overwritten here too, not
@@ -184,37 +233,80 @@ export class RailElm extends VoltageElm {
      * would only nudge where the next edge falls (indistinguishable from a phase change) before
      * every period after that reverted back to the original duty cycle.
      *
-     * Directly-connected chips also need to be forced to re-sync, not just re-primed here:
-     * chip.ts's ASLEEP/promotion optimization lets a downstream consumer with no further
-     * interested consumers of ITS OWN stop being pushed live updates and instead lazily
-     * self-derive its value from a `currentCycle`/`cycleTime` snapshot of the pattern it observed
-     * BEFORE this call - which still bakes in the rail's old phase/duty cycle. Simply waking such
-     * a chip (Chip.wakeUp()) would correctly replay it up through "now" (nothing about the past
-     * changed) but then keep extrapolating with that same stale period forever after, silently
-     * reverting to the old duty cycle exactly like the chip.delay bug above, just one hop
-     * downstream instead of on this chip. `Chip.deactivateOutputs()` - the same primitive the
-     * engine already calls on itself whenever a chip's promoted assumptions are invalidated by an
-     * upstream change it didn't predict (chip.ts's updateOutput()/wakeUp() cycle-climbing) - both
-     * wakes it AND re-derives its `inputs` from the rail's just-updated `chip.output`, folding
-     * whatever it learned before `now` into a completed sub-cycle and re-arming this rail's own
-     * activeOutputs interest bit for that link so future edges reach it live again; it also
-     * recurses to further-downstream chips left stale the same way, so one call per direct link
-     * here is enough to fix the whole fan-out. */
+     * Directly-connected chips also need to be forced to re-sync, not just re-primed here, and
+     * how depends on whether OUR OWN output actually changed value just now:
+     *
+     * - If it DID change, that's exactly equivalent to a genuine toggle - so it's propagated the
+     *   exact same way chip.ts's own updateOutput() propagates a real one: calling
+     *   `link.chip.updateInputs(mask)` on each output link. updateInputs() alone is a complete,
+     *   self-contained "handle this input change, no matter what state the chip was in" op - it
+     *   wakes an ASLEEP chip (and, having just woken, demotes itself back to PASSIVE via its own
+     *   internal deactivateOutputs() call, re-arming this rail's activeOutputs interest bit for
+     *   next time in the process), THEN toggles `inputs`, recomputes the LUT-based output, and
+     *   propagates further downstream - all of it. A prior version of this method called
+     *   Chip.deactivateOutputs() directly on each link instead, on the theory that it was the
+     *   general "resync a stale consumer" primitive - but deactivateOutputs() only ever resyncs
+     *   `inputs`/promotion bookkeeping, it never recomputes a plain combinational consumer's own
+     *   `output` from those inputs (that's updateInputs()'s/initialize()'s job) - so an inverter
+     *   directly fed by this rail never actually updated while dragging a slider that changes the
+     *   rail's value every call, only catching up once dragging stopped and a real scheduled edge
+     *   eventually fired on its own.
+     * - If it did NOT change value, there's no toggle to propagate, but a currently-ASLEEP
+     *   consumer still needs waking + re-syncing so it picks up the NEW schedule for whatever
+     *   real edge comes next (the ASLEEP/promotion optimization lets a downstream consumer with no
+     *   further interested consumers of ITS OWN stop being pushed live updates and instead lazily
+     *   self-derive its value from a `currentCycle`/`cycleTime` snapshot of the pattern it learned
+     *   BEFORE this call, which still bakes in the OLD phase/duty cycle) - `Chip.deactivateOutputs()`
+     *   is exactly that: wakes it, re-derives its `inputs` from the rail's current `chip.output`,
+     *   and re-arms this rail's own activeOutputs interest bit for that link, all without needing
+     *   an actual value change to justify it. Simply calling Chip.wakeUp() instead would correctly
+     *   replay up through "now" (nothing about the past changed) but then keep extrapolating with
+     *   that same stale period forever after - silently reverting to the old duty cycle exactly
+     *   like the chip.delay bug above, just one hop downstream instead of on this chip.
+     *
+     * Both paths recurse to further-downstream chips left stale the same way on their own, so one
+     * call per direct link here is enough to fix the whole fan-out either way.
+     *
+     * `chip` itself also needs bringing up to date BEFORE any of the above, if it's currently
+     * ASLEEP under its OLD schedule (a free-running clock with no live consumer - e.g. nothing's
+     * downstream yet, or everything downstream also fell asleep - legitimately stops recording
+     * real transitions and just remembers a `currentCycle`/`cycleTime` snapshot to replay lazily;
+     * see Chip.currentValue()'s own comment). Skipping this would compare the NEW instantaneous
+     * value (`highAtReference`) against a stale `chip.output` the setter below hasn't touched
+     * since it fell asleep, and would silently drop every transition that should have been
+     * recorded into `history` between then and `now` - both symptoms a `historyWatched` consumer
+     * (a JS watchSignal(), a Scope) would see as a big, wrongly-uniform gap in its trace.
+     * Chip.backfillHistory() is the correct, non-destructive way to catch it up: it walks the
+     * OLD schedule forward and records every transition up through `now`, without touching
+     * `chip.output` itself - the `chip.output = ...` line below still does that (via the normal
+     * setter, so it compares against the now-accurate `_output` and records one further
+     * transition only if the new phase/duty cycle actually changes the state). */
     retimePhase(chip: Chip, phaseShift: number, dutyCycle?: number): void {
         this.phaseShift = phaseShift;
         if (dutyCycle !== undefined) this.dutyCycle = dutyCycle;
         if (!this.isDigitalClock()) return;
         const effectiveDutyCycle = this.dutyCycle ?? 0.5;
         const period = 1 / this.frequency;
-        const { highTicks, lowTicks, periodTicks, initialDelay } = RailElm.phaseLayout(period, effectiveDutyCycle, phaseShift);
         const now = chip.circuit.globalTime;
-        let delay = ((initialDelay - now) % periodTicks + periodTicks) % periodTicks;
-        if (delay === 0n) delay = periodTicks;
+        if (chip.state === ChipState.ASLEEP) chip.backfillHistory(now);
+        // Elapsed simulator time this call is happening at, folded into phaseLayout()'s phase
+        // angle so `edgeDelay` below answers "what does THIS rail, continuously running with
+        // `phaseShift`, actually look like right now" instead of "what would phaseShift alone
+        // mean if evaluated as though `now` were tick 0" - see phaseLayout()'s own docstring.
+        const nowSeconds = Number(now) * TIMESCALE;
+        const { highTicks, lowTicks, highAtReference, edgeDelay } =
+            RailElm.phaseLayout(period, effectiveDutyCycle, phaseShift, nowSeconds);
+        const oldOutput = chip.output;
+        const delay = edgeDelay; // already ticks-from-`now` - see phaseLayout()'s own docstring
         chip.delay = [lowTicks, highTicks];
-        chip.output = 0;
+        chip.output = highAtReference ? 1 : 0;
+        const valueChanged = chip.output !== oldOutput;
         chip.customUpdate = phasedClockLogic(delay);
         chip.initialize();
-        for (const link of chip.outputLinks) link.chip.deactivateOutputs();
+        for (const link of chip.outputLinks) {
+            if (valueChanged) link.chip.updateInputs(Number(link.mask));
+            else link.chip.deactivateOutputs();
+        }
     }
 
     getInfo(arr: string[]): void {
