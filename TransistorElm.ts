@@ -175,7 +175,6 @@ export class TransistorElm extends CircuitElm {
         this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.emit[0], this.emit[1]);
         // draw arrow
-        g.setColor(CircuitElm.lightGrayColor);
         g.fillPolygon(this.arrowPoly);
         // draw base
         this.setVoltageColor(g, this.nodes[0].v);
@@ -194,14 +193,19 @@ export class TransistorElm extends CircuitElm {
         this.setPowerColor(g, true);
         g.fillPolygon(this.rectPoly);
 
-        if ((this.needsHighlight() || this.isCreating()) && this.dy === 0) {
+        if (this.needsHighlight() || this.isCreating()) {
             g.setColor(CircuitElm.whiteColor);
 // IES
 //		g.setFont(unitsFont);
-            const ds = CircuitElm.sign(this.dx);
-            g.drawString("B", this.base.x - 10*ds, this.base.y - 5);
-            g.drawString("C", this.coll[0].x - 3 + 9*ds, this.coll[0].y + 4); // x+6 if ds=1, -12 if -1
-            g.drawString("E", this.emit[0].x - 3 + 9*ds, this.emit[0].y + 4);
+            if (this.dy === 0) {
+                g.drawString("B", this.base.x - (this.dx < 0 ? -2 : 10), this.base.y - 4);
+                g.drawString("C", this.coll[0].x - (this.dx < 0 ? 13 : -6), this.coll[0].y + 4);
+                g.drawString("E", this.emit[0].x - (this.dx < 0 ? 13 : -6), this.emit[0].y + 4);
+            } else if (this.dx === 0) {
+                g.drawString("B", this.base.x + 3, this.base.y - (this.dy < 0 ? -11 : 3));
+                g.drawString("C", this.coll[0].x - 4, this.coll[0].y - (this.dy < 0 ? 7 : -14));
+                g.drawString("E", this.emit[0].x - 4, this.emit[0].y - (this.dy < 0 ? 7 : -14));
+            }
         }
         this.drawPosts(g);
     }
@@ -247,12 +251,10 @@ export class TransistorElm extends CircuitElm {
         this.rectPoly = this.createPolygon(this.rect[0], this.rect[2], this.rect[3], this.rect[1]);
 
         // arrow
-        if (this.pnp === 1)
+        if (this.pnp === 1) // npn
             this.arrowPoly = this.calcArrow(this.emit[1], this.emit[0], 8, 4);
-        else {
-            const pt = this.interpPoint(this.point1, this.point2, 1 - 11/this.dn, -5*this.dsign*this.pnp) as Point;
-            this.arrowPoly = this.calcArrow(this.emit[0], pt, 8, 4);
-        }
+        else                // pnp
+            this.arrowPoly = this.calcArrow(this.emit[0], this.emit[1], 8, 4);
 
         this.circleCenter = this.interpPoint(this.base, this.point2, 0.5) as Point;
     }
