@@ -25,29 +25,11 @@ export function clockLogic(chip: Chip): void {
     chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[0]);
 }
 
-/** Phase-offset variant of clockLogic() above, for RailElm.digitalSynthesis()'s duty-cycle/phase
- * support: identical Active-cycle/outputEvents setup (still built from the chip's own nominal
- * chip.delay[0]/chip.delay[1] pair, so every period AFTER the first is exactly the configured
- * duty cycle), except the very first scheduled toggle uses `initialDelayTicks` instead of
- * `chip.delay[chip.output]` - the only thing a phase offset can shift without corrupting the
- * free-running period from the second toggle onward, since Cycle.nextOutputEventDelay()'s cyclic
- * formula (see chip.ts) derives every SUBSEQUENT delay from the stored outputEvents/cycleTime
- * alone, never from how long the engine actually waited to fire the first one - it reads that
- * seeded pair back as "the interval ending at the upcoming first toggle has length
- * outputEvents[1].time - outputEvents[0].time", then keeps alternating delay[0]/delay[1] from
- * there purely by outputEvents-index parity, with no further reference to chip.output. So that
- * seeded interval MUST equal chip.delay[chip.output] - the duration of whichever state the chip
- * is ACTUALLY starting from - or the two independently-advancing sequences (chip.output's real
- * toggles vs. the index-parity-driven delay pattern) fall out of sync on the very first toggle
- * and apply the wrong duration to every state from then on (confirmed via RailElm.retimePhase()
- * setting a 180 degree phase shift plus a duty cycle above 50%: with this hardcoded to
- * chip.delay[0], the engine measurably produced the INVERTED duty cycle forever after, not just a
- * one-off transient). digitalSynthesis()'s own cold-start caller never needs anything but
- * chip.delay[0] here, since a Chip's `output` field always starts at its hardcoded default of 0
- * (see this function's return value being invoked before anything else can change `output`) -
- * this only diverges from that default when a caller (RailElm.retimePhase(), to represent
- * "currently high" without the propagation-delay cost of an inverted signal + NOT gate) sets
- * `chip.output` itself before invoking the returned closure. */
+/** Phase-offset variant of clockLogic(): same Active-cycle/outputEvents setup, but the first
+ * toggle uses `initialDelayTicks` instead of `chip.delay[chip.output]`, and the seeded interval
+ * (`outputEvents[1]-outputEvents[0]`) uses `chip.delay[chip.output]` rather than a hardcoded
+ * `delay[0]` - otherwise Cycle.nextOutputEventDelay()'s index-parity alternation desyncs from
+ * chip.output's real starting value and applies the wrong duration to every state after. */
 export function phasedClockLogic(initialDelayTicks: bigint): (chip: Chip) => void {
     return (chip: Chip): void => {
         chip.state = ChipState.ACTIVE;
