@@ -521,7 +521,7 @@ export class Menus {
             "Add Voltmeter/Scope Probe",      "ProbeElm",
             "Add Ohmmeter",                   "OhmMeterElm",
             "Add Ammeter",                    "AmmeterElm",
-            "Add Wattmeter",                  "WattmeterElm",
+            "Add Wattmeter",                  "WattmeterTrueElm",
             "Add Test Point",                 "TestPointElm",
             "Add Decimal Display",            "DecimalDisplayElm",
             "Add Instruction Display",        "InstructionDisplayElm",
@@ -531,6 +531,7 @@ export class Menus {
             "Add Stop Trigger",               "StopTriggerElm",
             "Add DC Motor",                   "DCMotorElm",
             "Add 3-Phase Motor",              "ThreePhaseMotorElm",
+            "Add Wattmeter (old)",            "WattmeterElm",
         ]);
         menu.addSubmenu(subheadHtml + Locale.LS("Outputs and Labels"), outputMenu);
 
