@@ -19,12 +19,7 @@ and set the voltage of external voltage nodes.
 <button onclick="sim.setMaxTimeStep(sim.getMaxTimeStep()/2)">Halve Timestep</button>
 <button onclick="console.log(sim.exportCircuit())">Circuit to console</button>
 <button onclick="sim.getCircuitAsSVG()">Circuit As SVG to console</button>
-<p>
-extsin frequency:
-<input id="freq" value="10" />
-<br>
-extsin amplitude:
-<input id="ampl" value="10" />
+<button id="extvoltButton" onclick="toggleExtVolt()">extvolt: false</button>
 <div id="info"></div>
 
 <script>
@@ -33,8 +28,16 @@ extsin amplitude:
 var iframe = document.getElementById("circuitFrame");
 
 var sim;
-var freq, ampl;
 var elmList = [];
+
+// toggles the external voltage node "extvolt" between true and false each time the button is pressed
+var extVoltState = false;
+
+function toggleExtVolt() {
+  extVoltState = !extVoltState;
+  sim.setExtVoltage("extvolt", extVoltState);
+  document.getElementById("extvoltButton").textContent = "extvolt: " + extVoltState;
+}
 
 function round(x) {
   return Math.round(x*1000)/1000;
@@ -48,9 +51,6 @@ function didUpdate(sim) {
   // get voltage of labeled node "vsense"
   var vsense = sim.getNodeVoltage("vsense");
   info.innerHTML += "<br>V(vsense) = " + round(vsense);
-
-  freq = parseFloat(document.getElementById("freq").value);
-  ampl = parseFloat(document.getElementById("ampl").value);
 
   var bstr = "";
   var bval = 0;
@@ -97,15 +97,6 @@ function didAnalyze(sim) {
   }
 }
 
-// called every timestep
-function didStep(sim) {
-  var t = sim.getTime();
-  var q = ampl*Math.sin(freq*Math.PI*2*t);
-
-  // set voltage of external voltage "extsin"
-  sim.setExtVoltage("extsin", ampl*Math.sin(freq*Math.PI*2*t));
-}
-
 function svgRendered(sim, svg) {
   console.log(svg);
 }
@@ -115,9 +106,8 @@ function simLoaded() {
   // get simulator object
   sim = iframe.contentWindow.CircuitJS1;
 
-  // set up callbacks on update and timestep
+  // set up callbacks on update and analyze
   sim.onupdate = didUpdate;
-  sim.ontimestep = didStep;
   sim.onanalyze = didAnalyze;
   sim.onsvgrendered = svgRendered;
 }

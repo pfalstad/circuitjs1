@@ -16,6 +16,7 @@ import { AndGateElm, OrGateElm, XorGateElm, NandGateElm, NorGateElm, XnorGateElm
 import { InverterElm } from "../InverterElm";
 import { RailElm } from "../RailElm";
 import { LogicInputElm } from "../LogicInputElm";
+import { ExtVoltageElm } from "../ExtVoltageElm";
 import { VoltageElm } from "../VoltageElm";
 import { CircuitElm } from "../CircuitElm";
 
@@ -235,5 +236,53 @@ describe("LogicInputElm.digitalSynthesis() / toggle()", () => {
         const li = fakeLogicInput(1);
         (li as any).flags = LogicInputElm.FLAG_TERNARY;
         expect(li.digitalSynthesis()).toBeNull();
+    });
+});
+
+describe("ExtVoltageElm.digitalSynthesis() / setVoltage()", () => {
+    function fakeExtVoltage(initialVoltage: number) {
+        const ev = Object.create(ExtVoltageElm.prototype) as ExtVoltageElm;
+        (ev as any).name = "extvolt";
+        ev.voltage = initialVoltage;
+        ev.nodes = [];
+        ev.digitalChip = null;
+        return ev;
+    }
+
+    it("never ties to VCC/GND (always needs its own live-pushable chip)", () => {
+        const ev = fakeExtVoltage(5);
+        expect(ev.digitalTie()).toBeNull();
+    });
+
+    it("a nonzero initial voltage drives its output high", () => {
+        const ev = fakeExtVoltage(1);
+        const sink = probe();
+        connect({ elm: ev, num: 0 }, { elm: sink, num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([ev, sink]);
+        circuit.run(1n); // apply the 0-delay initial-value event scheduled at construction
+
+        expect(chipsByElm.get(ev)![0].output).toBe(1);
+    });
+
+    it("setVoltage() pushes a live change into its own already-built chip - this is the bug " +
+        "JSInterface.setExtVoltage() used to hit: without a digitalChip handle, setVoltage() had " +
+        "nothing to notify and the change never reached the digital graph", () => {
+        const ev = fakeExtVoltage(0);
+        const sink = probe();
+        connect({ elm: ev, num: 0 }, { elm: sink, num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([ev, sink]);
+        ev.digitalChip = chipsByElm.get(ev)![0];
+        circuit.run(1n);
+        expect(ev.digitalChip.output).toBe(0);
+
+        ev.setVoltage(true as any); // JSInterface.setExtVoltage("extvolt", true)
+        circuit.run(1n);
+        expect(ev.digitalChip.output).toBe(1);
+
+        ev.setVoltage(false as any); // JSInterface.setExtVoltage("extvolt", false)
+        circuit.run(1n);
+        expect(ev.digitalChip.output).toBe(0);
     });
 });
