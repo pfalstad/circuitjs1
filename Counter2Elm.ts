@@ -23,7 +23,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
-import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge, i1, i2 } from "./digital/chip_desc";
+import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge, i1, i2, i3 } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -209,15 +209,28 @@ export class Counter2Elm extends ChipElm {
      * track the real clock's period without depending on ENP/ENT/LOAD directly (avoiding the
      * mutual-whole-register coupling that blocks sleep).
      *
-     * Per-bit logic then only ever depends on {clrPin, ldPin, its own I pin, its own clock
-     * source} - bit 0's clock source is cntPin (the gated "counting" edge); bit w>0's clock source
-     * is bit (w-1)'s own Q pin, toggling on ITS falling edge, the real ripple-carry condition for
-     * binary up-counting - never a sibling's live value read combinationally, unlike
-     * digitalSynthesisWholeRegister()'s design. LOAD is checked first (posEdge(ldPin) wins),
-     * matching execute()'s ordering where the LOAD branch's writeOutput() runs strictly after the
-     * increment branch's. CLR remains the same unconditional, asynchronous/level-sensitive check
-     * every cell already had. RCO stays the separate whole-register combinational cell described
-     * below - it doesn't block any Q bit's own ability to sleep. */
+     * Unlike CounterElm.digitalSynthesisRipple() (which models a real 7493 - a genuinely
+     * asynchronous chip whose stages really do ripple, each with its own full propagation delay
+     * stacking onto the next), the 9316/74163 this models is internally synchronous: every Q pin
+     * changes together, at essentially the same moment, no matter how many bits carry. dice-ts's
+     * actual 9316.ts achieves that with two speeds - an internal toggle chain (its `a`/`b`/`c`/`d`
+     * cells) wired bit-to-bit through internal-only pins with a near-zero delay (0.01ns), so the
+     * whole internal ripple finishes many orders of magnitude faster than the real output delay;
+     * then a separate per-bit buffer cell (`buf()`) copies each settled internal pin out to its
+     * real Q pin with the actual ~12-15ns delay, depending on nothing but that one internal pin.
+     * Every buffer fires within ~0.01ns of the others, so externally all Q pins move together -
+     * this is what makes a real 74163 synchronous despite internally being a ripple/carry chain.
+     *
+     * Each internal bit-cell here (intPin(w)) only ever depends on {clrPin, ldPin, its own I pin,
+     * its own clock source} - bit 0's clock source is cntPin (the gated "counting" edge); bit w>0's
+     * clock source is bit (w-1)'s own INTERNAL pin (not its real Q pin), toggling on ITS falling
+     * edge, the real ripple-carry condition for binary up-counting - never a sibling's live value
+     * read combinationally, unlike digitalSynthesisWholeRegister()'s design. LOAD is checked first
+     * (posEdge(ldPin) wins), matching execute()'s ordering where the LOAD branch's writeOutput()
+     * runs strictly after the increment branch's. CLR remains the same unconditional,
+     * asynchronous/level-sensitive check every cell already had. RCO stays the separate
+     * whole-register combinational cell described below - it doesn't block any Q bit's own
+     * ability to sleep, and correctly sees only the buffered (externally-synchronous) Q pins. */
     private digitalSynthesisRipple(): DigitalSynthesis {
         const bits = this.bits;
         const postCount = this.getPostCount();
@@ -236,6 +249,7 @@ export class Counter2Elm extends ChipElm {
 
         const cntPin = i1; // gated "counting enabled at this clock edge" pulse, like 9316.ts's i5
         const ldPin  = i2; // gated "loading at this clock edge" pulse, like 9316.ts's i6
+        const intPin = (w: number) => i3 + w; // fast internal ripple-chain pin for bit w, like 9316.ts's i4/i3/i2/i1
 
         const desc: ChipDesc[] = [];
 
@@ -255,25 +269,37 @@ export class Counter2Elm extends ChipElm {
 
         for (let w = 0; w < bits; w++) {
             const out = qPin(w);
-            const clockSource = w === 0 ? cntPin : qPin(w - 1);
+            const internal = intPin(w);
+            const clockSource = w === 0 ? cntPin : intPin(w - 1);
 
             const logic: ChipLogic = (pin, prevPin, eventPin) => {
-                let bitW = prevPin[out];
+                let bitW = prevPin[internal];
                 if (posEdge(pin, eventPin, ldPin)) bitW = pin[iPin(w)];
                 // The `&& !pin[ldPin]` guard matches 9316.ts's own bit cells exactly (every one
                 // of them, including the LSB): without it, a neighbor loading a falling edge onto
-                // its own Q (a byproduct of ITS load, not a real count pulse) would ripple into
-                // this bit's toggle too, corrupting whichever bits happen to see a high-to-low
-                // load transition upstream while LOAD is asserted.
+                // its own internal pin (a byproduct of ITS load, not a real count pulse) would
+                // ripple into this bit's toggle too, corrupting whichever bits happen to see a
+                // high-to-low load transition upstream while LOAD is asserted.
                 else if ((w === 0 ? posEdge(pin, eventPin, cntPin) : negEdge(pin, eventPin, clockSource)) && !pin[ldPin])
-                    bitW = prevPin[out] ^ 1;
+                    bitW = prevPin[internal] ^ 1;
                 if (!pin[clrPin]) bitW = 0;
-                pin[out] = bitW;
+                pin[internal] = bitW;
             };
 
-            // per-bit output delay matches dice-ts's 9316 buffered Q delay (~/Projects/dice-ts/src/chips/9316.ts)
+            // Near-zero delay: matches 9316.ts's internal a/b/c/d cells (0.01ns), so the whole
+            // internal ripple (up to `bits` hops) settles long before the buffer below ever fires.
             desc.push(
-                chipStart(logic).inputPins(clrPin, ldPin, iPin(w), clockSource).eventPins(ldPin, clockSource).outputPin(out).prevOutputPin(out)
+                chipStart(logic).inputPins(clrPin, ldPin, iPin(w), clockSource).eventPins(ldPin, clockSource)
+                    .outputPin(internal).prevOutputPin(internal).outputDelayNs(0.01, 0.01)
+            );
+
+            // Buffer: matches 9316.ts's buf() cells - a pure passthrough from the (already
+            // settled) internal pin to the real, externally-visible Q pin, with the actual per-bit
+            // delay applied here and only here. Depends on nothing but this bit's own internal
+            // pin, so it can no longer stack with a sibling's delay the way the old
+            // direct-external-ripple design did.
+            desc.push(
+                chipStart((pin) => { pin[out] = pin[internal]; }).inputPins(internal).outputPin(out)
                     .outputDelayNs(12.0, 15.0)
             );
         }
