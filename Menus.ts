@@ -248,6 +248,7 @@ export class Menus {
     showValuesCheckItem      = new CheckItem(true);
     conductanceCheckItem     = new CheckItem();
     euroResistorCheckItem    = new CheckItem();
+    showOhmCheckItem         = new CheckItem();
     euroGatesCheckItem       = new CheckItem();
     printableCheckItem       = new CheckItem();
     conventionCheckItem      = new CheckItem(true);
@@ -414,6 +415,7 @@ export class Menus {
         this.crossHairCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("crossHair", this.crossHairCheckItem.getState()) });
         optMenu.addCheckItem(this.euroResistorCheckItem, "European Resistors");
+        optMenu.addCheckItem(this.showOhmCheckItem, "Show Ω Unit");
         optMenu.addCheckItem(this.euroGatesCheckItem, "IEC Gates");
         optMenu.addCheckItem(this.printableCheckItem, "White Background");
         optMenu.addCheckItem(this.conventionCheckItem, "Conventional Current Motion");

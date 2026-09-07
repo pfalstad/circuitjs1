@@ -293,8 +293,8 @@ export class PotElm extends CircuitElm {
             const reverseX = (this.post3.y < this.lead1!.y && this.lead1!.x !== this.lead2!.x);
             const rev = (this.lead1!.x === this.lead2!.x && this.lead1!.y < this.lead2!.y) ||
                         (this.lead1!.y === this.lead2!.y && this.lead1!.x > this.lead2!.x);
-            const s1 = CircuitElm.getShortUnitText(rev ? this.resistance2 : this.resistance1, "");
-            const s2 = CircuitElm.getShortUnitText(rev ? this.resistance1 : this.resistance2, "");
+            const s1 = CircuitElm.getShortUnitText(rev ? this.resistance2 : this.resistance1, this.showOhmSymbol() ? Locale.ohmString : "");
+            const s2 = CircuitElm.getShortUnitText(rev ? this.resistance1 : this.resistance2, this.showOhmSymbol() ? Locale.ohmString : "");
             g.save();
             g.setFont(CircuitElm.valueFont);
             g.setColor(CircuitElm.whiteColor);

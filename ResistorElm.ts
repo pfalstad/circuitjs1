@@ -110,7 +110,7 @@ export class ResistorElm extends CircuitElm {
         }
         g.context.restore();
         if (this.showValues()) {
-            const s = CircuitElm.getShortUnitText(this.resistance, "");
+            const s = CircuitElm.getShortUnitText(this.resistance, this.showOhmSymbol() ? Locale.ohmString : "");
             this.drawValues(g, s, hs+2);
         }
         this.doDots(g);
