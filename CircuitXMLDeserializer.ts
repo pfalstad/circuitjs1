@@ -49,7 +49,10 @@ export class CircuitXMLDeserializer {
             const sim = this.app.sim;
             sim.maxTimeStep = sim.timeStep = this.parseDoubleAttr("ts", sim.maxTimeStep);
             const sp  = this.parseDoubleAttr("ic", this.app.getIterCount());
-            const sp2 = Math.trunc(Math.log(10 * sp) * 24 + 61.5);
+            // Exact inverse of CirSim.getIterCount() (including its SPEED_CALIBRATION divisor -
+            // see that constant's own comment), so a saved iterCount maps back onto the same
+            // speed bar notch it was saved from instead of drifting off by one.
+            const sp2 = Math.trunc(Math.log(10 * sp * CirSim.SPEED_CALIBRATION) * 24 + 61.5);
             const ui  = this.app.ui;
             ui.speedBar.setValue(sp2);
             ui.currentBar.setValue(this.parseIntAttr("cb", ui.currentBar.getValue()));

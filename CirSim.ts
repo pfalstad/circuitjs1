@@ -82,6 +82,11 @@ export class CirSim {
     static readonly HINT_TWINT: number = 4;
     static readonly HINT_3DB_L: number = 5;
 
+    // Recalibrates the speed bar's exponential curve (see getIterCount()) so that one of its
+    // integer notches lands on exactly 1x real-time playback at maxTimeStep = 1ps (digital/
+    // constants.ts's default TIMESCALE) instead of straddling 1x between neighboring notches.
+    static readonly SPEED_CALIBRATION: number = 1.01670561017853792000;
+
     static theApp: CirSim;
 
     elmList: any[] = [];  // CircuitElm[]
@@ -354,7 +359,7 @@ export class CirSim {
         if (this.ui.speedBar.getValue() == 0)
             return 0;
 
-        return .1 * Math.exp((this.ui.speedBar.getValue() - 61) / 24.);
+        return .1 * Math.exp((this.ui.speedBar.getValue() - 61) / 24.) / CirSim.SPEED_CALIBRATION;
     }
 
     getHint(): string | null {

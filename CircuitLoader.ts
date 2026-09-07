@@ -257,7 +257,10 @@ export class CircuitLoader {
         this.readCircuitFlags(flags);
         this.sim.maxTimeStep = this.sim.timeStep = parseFloat(st.nextToken());
         const sp = parseFloat(st.nextToken());
-        const sp2 = Math.trunc(Math.log(10 * sp) * 24 + 61.5);
+        // Exact inverse of CirSim.getIterCount() (including its SPEED_CALIBRATION divisor - see
+        // that constant's own comment), so a saved iterCount maps back onto the same speed bar
+        // notch it was saved from instead of drifting off by one.
+        const sp2 = Math.trunc(Math.log(10 * sp * CirSim.SPEED_CALIBRATION) * 24 + 61.5);
         this.app.ui.speedBar.setValue(sp2);
         this.app.ui.currentBar.setValue(parseInt(st.nextToken()));
         CircuitElm.voltageRange = parseFloat(st.nextToken());
