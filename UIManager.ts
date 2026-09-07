@@ -320,7 +320,8 @@ class Toolbar {
 
         this.element.appendChild(this.createIconButtonForClass(this.inverterIcon, "InverterElm"));
         const gateInfo = [this.andIcon, "AndGateElm", this.nandIcon, "NandGateElm",
-                          this.orIcon, "OrGateElm", this.norIcon, "NorGateElm", this.xorIcon, "XorGateElm"];
+                          this.orIcon, "OrGateElm", this.norIcon, "NorGateElm", this.xorIcon, "XorGateElm",
+                          this.xnorIcon, "XnorGateElm"];
         this.element.appendChild(this.createButtonSet(gateInfo));
 
         // Create and add the mode label
@@ -950,6 +951,7 @@ export class UIManager {
             euroRes       = qp.getBooleanValue("euroResistors", false);
             euroGates     = qp.getBooleanValue("IECGates", this.getOptionFromStorage("euroGates", Locale.weAreInGermany()));
             usRes         = qp.getBooleanValue("usResistors", false);
+            showOhm       = qp.getBooleanValue("showOhm", this.getOptionFromStorage("showOhm", false));
             running       = qp.getBooleanValue("running", true);
             hideSidebar   = qp.getBooleanValue("hideSidebar", false);
             this.hideMenu = qp.getBooleanValue("hideMenu", false);
