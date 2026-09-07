@@ -41,7 +41,7 @@ export class SevenSegDecoderElm extends ChipElm {
         [true,false,true,true,true,true,true],      //6
         [true,true,true,false,false,false,false],   //7
         [true,true,true,true,true,true,true],       //8
-        [true,true,true,false,false,true,true],     //9
+        [true,true,true,true,false,true,true],      //9
         [true,true,true,false,true,true,true],      //A
         [false,false,true,true,true,true,true],     //B
         [true,false,false,true,true,true,false],    //C
@@ -97,6 +97,7 @@ export class SevenSegDecoderElm extends ChipElm {
 
     static readonly FLAG_ENABLE = (1 << 1);
     static readonly FLAG_BLANK_F = (1 << 2);
+    static readonly FLAG_148_FONT = (1 << 3);
 
     segmentType: number = 0; // 0=7-seg, 1=14-seg, 2=16-seg
 
@@ -170,6 +171,18 @@ export class SevenSegDecoderElm extends ChipElm {
 
     hasBlank(): boolean { return (this.flags & SevenSegDecoderElm.FLAG_ENABLE) !== 0; }
     blankOnF(): boolean { return (this.flags & SevenSegDecoderElm.FLAG_BLANK_F) !== 0; }
+    use148Font(): boolean { return (this.flags & SevenSegDecoderElm.FLAG_148_FONT) !== 0; }
+
+    /** 7-segment mode only: by default 6 has a "hat" (top segment) and 9 has its bottom
+     * segment filled in, matching the symbols table above. The '148 Font option (named for
+     * the 74'148-style font some chips use) drops both, matching older 7-segment decoders. */
+    private segVal(segCount: number, sym: boolean[][], digit: number, seg: number): boolean {
+        if (segCount === 7 && this.use148Font()) {
+            if (digit === 6 && seg === 0) return false; // no hat on 6
+            if (digit === 9 && seg === 3) return false; // no bottom on 9
+        }
+        return sym[digit][seg];
+    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
@@ -205,7 +218,7 @@ export class SevenSegDecoderElm extends ChipElm {
             const logic: ChipLogic = (pin) => {
                 const input = (pin[iPin3] << 3) | (pin[iPin2] << 2) | (pin[iPin1] << 1) | pin[iPin0];
                 const en = !hasBI || pin[biPin];
-                pin[outPin] = (!en || (input === 15 && blankOnF)) ? 0 : (sym[input][seg] ? 1 : 0);
+                pin[outPin] = (!en || (input === 15 && blankOnF)) ? 0 : (this.segVal(segCount, sym, input, seg) ? 1 : 0);
             };
             // matches dice-ts's 7448 per-segment delay (~/Projects/dice-ts/src/chips/7448.ts)
             desc.push(chipStart(logic).inputPins(...inPins).outputPin(outPin).outputDelayNs(50.0, 50.0));
@@ -238,7 +251,7 @@ export class SevenSegDecoderElm extends ChipElm {
                         (segCount === 16) ? SevenSegDecoderElm.symbols16 :
                                             SevenSegDecoderElm.symbols;
             for (let i = 0; i < segCount; i++)
-                this.writeOutput(i, sym[input][i]);
+                this.writeOutput(i, this.segVal(segCount, sym, input, i));
         }
     }
 
@@ -262,6 +275,11 @@ export class SevenSegDecoderElm extends ChipElm {
             ei.checkbox = new Checkbox("Blank on 1111", this.blankOnF());
             return ei;
         }
+        if (n === 3 && this.getSegmentCount() === 7) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("'148 Font", this.use148Font());
+            return ei;
+        }
         return super.getChipEditInfo(n);
     }
 
@@ -280,6 +298,8 @@ export class SevenSegDecoderElm extends ChipElm {
         }
         if (n === 2)
             this.flags = ei.changeFlag(this.flags, SevenSegDecoderElm.FLAG_BLANK_F);
+        if (n === 3)
+            this.flags = ei.changeFlag(this.flags, SevenSegDecoderElm.FLAG_148_FONT);
         super.setChipEditValue(n, ei);
     }
 
