@@ -22,6 +22,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
+import { MosfetModel } from "./MosfetModel";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
@@ -395,6 +396,10 @@ export class SubcircuitModel {
                     TransistorModel.undumpModelXml(xml);
                 else if (tagName === "clm")
                     CustomLogicModel.undumpModelXml(xml);
+                else if (tagName === "mm")
+                    MosfetModel.undumpModelXml(xml);
+                else if (tagName === "ccm")
+                    SubcircuitModel.undumpModelXml(xml);
             }
         }
     }

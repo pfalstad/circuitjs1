@@ -75,7 +75,9 @@ export class SubcircuitElm extends CompositeElm {
         if (this.compElmList) {
             for (const ce of this.compElmList) ce.dumpXmlModel(doc);
         }
-        if (!(this.model.builtin || this.model.dumped))
+        // model may be missing (e.g. wasn't available under its scope in this circuit); modelName
+        // is still dumped by dumpXml() so the reference is preserved for a future retry
+        if (this.model != null && !(this.model.builtin || this.model.dumped))
             this.model.dumpXml(doc);
     }
 
@@ -112,6 +114,19 @@ export class SubcircuitElm extends CompositeElm {
         this.chip.x2 = this.x2;
         this.chip.y2 = this.y2;
         this.chip.flags = (this.flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
+
+        if (this.model == null) {
+            // model couldn't be resolved (missing/not in scope); draw as a labeled placeholder
+            // instead of crashing, so the rest of the circuit stays usable
+            this.chip.setSize((this.flags & SubcircuitElm.FLAG_SMALL) !== 0 ? 1 : 2);
+            this.chip.setLabel("?");
+            this.chip.sizeX = this.chip.sizeY = 2;
+            this.chip.allocPins(0);
+            this.chip.setPoints();
+            this.boundingBox = this.chip.boundingBox;
+            return;
+        }
+
         if (this.x2 - this.x > this.model.sizeX * 16 && this.isCreating())
             this.flags &= ~SubcircuitElm.FLAG_SMALL;
         this.chip.setSize((this.flags & SubcircuitElm.FLAG_SMALL) !== 0 ? 1 : 2);
@@ -147,7 +162,19 @@ export class SubcircuitElm extends CompositeElm {
     private _updateModels(st: StringTokenizer | null): void {
         if (this.model !== null && this.model.name === this.modelName) return;
         this.model = SubcircuitModel.getModelWithName(this.modelName)!;
-        if (!this.model) return;
+        if (!this.model) {
+            // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
+            // fall back to an empty/placeholder state instead of leaving fields uninitialized,
+            // so the rest of the circuit keeps working; modelName is preserved so a later
+            // updateModels() call (if the model becomes available) can still resolve it
+            this.postCount = 0;
+            this.compElmList = [];
+            this.numPosts = this.numNodes = 0;
+            this.posts = [];
+            this.allocNodes();
+            this.setPoints();
+            return;
+        }
         this.postCount = this.model.extList.length;
         const externalNodes = new Array(this.postCount);
         for (let i = 0; i < this.postCount; i++)
@@ -240,6 +267,8 @@ export class SubcircuitElm extends CompositeElm {
     }
 
     canViewComponents(): boolean {
+        if (this.model == null)
+            return false;
         const elmEntries = this.model.getElmEntries();
         for (const childElem of elmEntries) {
             if (childElem.getAttribute("x") !== null) return true;
@@ -263,6 +292,10 @@ export class SubcircuitElm extends CompositeElm {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
+        if (this.model == null) {
+            arr[0] = Locale.LS("subcircuit") + " (" + Locale.LS("missing: ") + this.modelName + ")";
+            return;
+        }
         if (this.model.builtin && this.model.name.startsWith("~"))
             arr[0] = this.model.name.substring(1);
         else
@@ -289,10 +322,13 @@ export class SubcircuitElm extends CompositeElm {
 
     getEditInfo(n: number): EditInfo | null {
         // if model is internal, don't allow it to be changed
-        if (this.model.internal) n += 2;
+        if (this.model != null && this.model.internal) n += 2;
 
         if (n === 0) {
-            const ei = new EditInfo(EditInfo.makeLink("subcircuits.html", "Model Name"), 0, -1, -1);
+            const label = (this.model == null) ?
+                Locale.LS("Model not found: ") + this.modelName :
+                EditInfo.makeLink("subcircuits.html", "Model Name");
+            const ei = new EditInfo(label, 0, -1, -1);
             this.models = SubcircuitModel.getModelList();
             ei.choice = new Choice();
             for (let i = 0; i < this.models.length; i++) {
@@ -302,6 +338,9 @@ export class SubcircuitElm extends CompositeElm {
             }
             return ei;
         }
+        // remaining fields all depend on having a resolved model
+        if (this.model == null)
+            return null;
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.button = { label: Locale.LS("Edit Pin Layout") };
@@ -324,7 +363,7 @@ export class SubcircuitElm extends CompositeElm {
     }
 
     setEditValue(n: number, ei: EditInfo): void {
-        if (this.model.internal) n += 2;
+        if (this.model != null && this.model.internal) n += 2;
         if (n === 0) {
             this.model = this.models[ei.choice.getSelectedIndex()];
             SubcircuitElm.lastModelName = this.modelName = this.model.name;
@@ -332,6 +371,8 @@ export class SubcircuitElm extends CompositeElm {
             this.setPoints();
             return;
         }
+        if (this.model == null)
+            return;
         if (n === 1) {
             if (this.model.name === "default") {
                 window.alert(Locale.LS("Can't edit this model."));

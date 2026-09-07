@@ -34,6 +34,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Point } from "./Point";
+import { SubcircuitModel } from "./SubcircuitModel";
 
 export abstract class CompositeElm extends CircuitElm {
     // need to use escape() instead of converting spaces to _'s so composite elements can be nested
@@ -117,6 +118,16 @@ export abstract class CompositeElm extends CircuitElm {
 
         for (const childElem of elmEntries) {
             const tagName = childElem.tagName;
+            if (tagName === "ccm") {
+                // referenced subcircuit model definition, embedded here when this model was
+                // originally created from a selection that included an instance of it (see
+                // SimulationManager.getCircuitAsComposite()).  Register it so any instance
+                // below that references it by name can resolve it, same as
+                // CircuitXMLDeserializer's element loading does for a whole-circuit load.
+                xml.parseChildElement(childElem);
+                SubcircuitModel.undumpModelXml(xml);
+                continue;
+            }
             const className = CirSim.xmlDumpTypeMap.get(tagName);
             if (className == null)
                 continue;
