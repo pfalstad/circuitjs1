@@ -26,6 +26,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
+import { CirSim } from "./CirSim";
+import { Locale } from "./Locale";
 
 export class SRAMElm extends ChipElm {
     static readonly FLAG_HEX_DISPLAY = 4;
@@ -153,7 +155,20 @@ export class SRAMElm extends ChipElm {
             ei.checkbox = new Checkbox("Hex Display", this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY));
             return ei;
         }
-        const reloadIdx = 4;
+        if (n === 4 && SRAMElm.loadFileSupported()) {
+            const ei = new EditInfo(
+                this.loadedFileName !== null ? "Loaded: " + this.loadedFileName : "",
+                0, -1, -1);
+            const input = document.createElement("input");
+            input.type = "file";
+            input.addEventListener("change", () => {
+                const file = input.files?.[0];
+                if (file) SRAMElm.fetchLoadFileData(this, file);
+            });
+            ei.widget = input;
+            return ei;
+        }
+        const reloadIdx = SRAMElm.loadFileSupported() ? 5 : 4;
         if (n === reloadIdx) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Restore Contents on Reset",
@@ -161,6 +176,47 @@ export class SRAMElm extends ChipElm {
             return ei;
         }
         return super.getChipEditInfo(n);
+    }
+
+    static loadFileSupported(): boolean {
+        return typeof File !== "undefined" && typeof FileReader !== "undefined";
+    }
+
+    // Load Contents From File: reads the raw bytes of the chosen file and turns them into the
+    // same "addr: val val val..." text the Contents field understands, one value per byte (or,
+    // for dataBits > 8, per big-endian 16-bit pair) - matching circuitjs1's SRAMLoadFile.
+    static fetchLoadFileData(elm: SRAMElm, file: File): void {
+        if (file.size >= 128000) {
+            window.alert(Locale.LS("Cannot load: That file is too large!"));
+            return;
+        }
+        const bytesPerValue = elm.dataBits > 8 ? 2 : 1;
+        const hexDigits = bytesPerValue * 2;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const arr = new Uint8Array(reader.result as ArrayBuffer);
+            const n = arr.length - (arr.length % bytesPerValue);
+            let str = "0x0:";
+            for (let i = 0; i < n; i += bytesPerValue) {
+                let val = 0;
+                for (let j = 0; j < bytesPerValue; j++)
+                    val = (val << 8) | arr[i + j];
+                let hex = val.toString(16).toUpperCase();
+                while (hex.length < hexDigits)
+                    hex = "0" + hex;
+                str += " 0x" + hex;
+            }
+            SRAMElm.doLoadCallback(str, file.name);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    static doLoadCallback(data: string, fileName: string): void {
+        SRAMElm.contentsOverride = data;
+        SRAMElm.fileNameOverride = fileName;
+        CirSim.editDialog?.resetDialog();
+        SRAMElm.contentsOverride = null;
+        SRAMElm.fileNameOverride = null;
     }
 
     contentsToString(): string {
@@ -252,7 +308,7 @@ export class SRAMElm extends ChipElm {
                 ei.newDialog = true;
             }
         }
-        const reloadIdx = 4;
+        const reloadIdx = SRAMElm.loadFileSupported() ? 5 : 4;
         if (n === reloadIdx) {
             this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_RELOAD_ON_RESET);
             if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
