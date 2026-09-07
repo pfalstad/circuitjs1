@@ -30,6 +30,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class InverterElm extends CircuitElm {
+    static readonly FLAG_DEMORGAN = 1<<3;
     slewRate: number; // V/ns
     highVoltage: number;
     gatePoly: Polygon;
@@ -98,7 +99,18 @@ export class InverterElm extends CircuitElm {
             ww = Math.floor(this.dn / 2);
         this.lead1 = this.interpPoint(this.point1, this.point2, .5 - ww / this.dn);
         this.lead2 = this.interpPoint(this.point1, this.point2, .5 + (ww + 2) / this.dn);
-        this.pcircle = this.interpPoint(this.point1, this.point2, .5 + (ww - 2) / this.dn);
+
+        let start: Point;
+        let end: number;
+        if (this.hasFlag(InverterElm.FLAG_DEMORGAN)) {
+            this.pcircle = this.interpPoint(this.point1, this.point2, .5 - (ww - 4) / this.dn);   // Move circle to front
+            start = this.interpPoint(this.point1, this.point2, .5 - (ww - 8) / this.dn);          // Shift triangle so overall
+            end = .5 + (ww + 2) / this.dn;                                                        // symbol takes up same space
+        } else {
+            this.pcircle = this.interpPoint(this.point1, this.point2, .5 + (ww - 1) / this.dn);   // Normal symbol circle
+            start = this.lead1!;
+            end = .5 + (ww - 5) / this.dn;
+        }
 
         if (GateElm.useEuroGates()) {
             const pts = this.newPointArray(4);
@@ -109,8 +121,8 @@ export class InverterElm extends CircuitElm {
             this.center = this.interpPoint(this.lead1!, l2, .5);
         } else {
             const triPoints = this.newPointArray(3);
-            this.interpPoint2(this.lead1!, this.lead2!, triPoints[0], triPoints[1], 0, hs);
-            triPoints[2] = this.interpPoint(this.point1, this.point2, .5 + (ww - 5) / this.dn);
+            this.interpPoint2(start, this.lead2!, triPoints[0], triPoints[1], 0, hs);
+            triPoints[2] = this.interpPoint(this.point1, this.point2, end);
             this.gatePoly = this.createPolygon(triPoints);
         }
         this.setBbox(this.point1, this.point2, hs);
@@ -149,6 +161,8 @@ export class InverterElm extends CircuitElm {
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);
         if (n === 1)
             return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
+        if (n === 2)
+            return EditInfo.createCheckbox("DeMorgan's Symbol", this.hasFlag(InverterElm.FLAG_DEMORGAN));
         return null;
     }
 
@@ -157,6 +171,13 @@ export class InverterElm extends CircuitElm {
             this.slewRate = ei.value;
         if (n === 1)
             this.highVoltage = GateElm.lastHighVoltage = ei.value;
+        if (n === 2) {
+            if (ei.checkbox!.getState())
+                this.flags |= InverterElm.FLAG_DEMORGAN;
+            else
+                this.flags &= ~InverterElm.FLAG_DEMORGAN;
+            this.setPoints();
+        }
     }
 
     // no current path through inverter input, but indirect path through output to ground
