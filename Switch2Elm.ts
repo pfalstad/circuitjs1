@@ -35,7 +35,7 @@ export class Switch2Elm extends SwitchElm {
     link: number = 0;
     throwCount: number;
     static readonly FLAG_CENTER_OFF = 1;
-    positionFlipped: boolean = false; // tracks runtime flip state for sync
+    static readonly FLAG_FLIPPED = 8; // tracks runtime flip state for sync
 
     constructor(xx: number, yy: number);
     constructor(xx: number, yy: number, mm: boolean);
@@ -176,7 +176,7 @@ export class Switch2Elm extends SwitchElm {
                     const s2 = o as Switch2Elm;
                     if (s2.link === this.link) {
                         let pos = this.position;
-                        if (s2.positionFlipped !== this.positionFlipped)
+                        if (s2.isPositionFlipped() !== this.isPositionFlipped())
                             pos = this.posCount - 1 - pos;
                         if (pos < s2.posCount)
                             s2.position = pos;
@@ -242,6 +242,7 @@ export class Switch2Elm extends SwitchElm {
 
     // this is for backwards compatibility only.  we only support it if throwCount = 2
     hasCenterOff(): boolean { return (this.flags & Switch2Elm.FLAG_CENTER_OFF) !== 0 && this.throwCount === 2; }
+    isPositionFlipped(): boolean { return (this.flags & Switch2Elm.FLAG_FLIPPED) !== 0; }
 
     addRoutingObstacle(router: WireRouter): void {
         router.addWire(this.point1.x, this.point1.y, this.lead1!.x, this.lead1!.y);
@@ -264,19 +265,19 @@ export class Switch2Elm extends SwitchElm {
     flipX(c2: number, count: number): void {
         super.flipX(c2, count);
         this.position = this.posCount - 1 - this.position;
-        this.positionFlipped = !this.positionFlipped;
+        this.flags ^= Switch2Elm.FLAG_FLIPPED;
     }
 
     flipY(c2: number, count: number): void {
         super.flipY(c2, count);
         this.position = this.posCount - 1 - this.position;
-        this.positionFlipped = !this.positionFlipped;
+        this.flags ^= Switch2Elm.FLAG_FLIPPED;
     }
 
     flipXY(c2: number, count: number): void {
         super.flipXY(c2, count);
         this.position = this.posCount - 1 - this.position;
-        this.positionFlipped = !this.positionFlipped;
+        this.flags ^= Switch2Elm.FLAG_FLIPPED;
     }
 
     validate(): boolean {
