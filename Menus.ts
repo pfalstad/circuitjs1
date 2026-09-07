@@ -678,13 +678,13 @@ export class Menus {
         fetch(url)
             .then(r => {
                 if (!r.ok) {
-                    if (!this.hideMenu) alert(Locale.LS("Can't load circuit list!"));
+                    CirSim.console("Can't load circuit list!");
                     return null;
                 }
                 return r.text();
             })
             .then(text => { if (text) this.processSetupList(text, openDefault); })
-            .catch(() => { if (!this.hideMenu) alert(Locale.LS("Can't load circuit list!")); });
+            .catch(() => { CirSim.console("Can't load circuit list!"); });
     }
 
     processSetupList(text: string, openDefault: boolean): void {
