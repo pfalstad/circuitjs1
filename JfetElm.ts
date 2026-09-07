@@ -82,6 +82,26 @@ export class JfetElm extends MosfetElm {
             this.drawDots(g, this.drn[1], this.drn[2], -this.addCurCount(this.curcountd, 8));
             this.drawDots(g, this.point1, this.gatePt, this.curcountg);
         }
+
+        // label pins when highlighted (copied from MosfetElm.ts)
+        if (this.needsHighlight()) {
+            g.setColor(CircuitElm.whiteColor);
+            g.setFont(CircuitElm.unitsFont);
+
+            // make fiddly adjustments to pin label locations depending on orientation
+            const dsx = CircuitElm.sign(this.dx);
+            const dsyn = this.dy === 0 ? 0 : 1;
+            if (this.dy === 0) {
+                g.drawString("G", this.gate[1].x - (this.dx < 0 ? -2 : 12), this.gate[1].y + ((this.dy > 0) ? -5 : 12));
+                g.drawString(this.pnp === -1 ? "D" : "S", this.src[0].x - 3 + 9 * (dsx - dsyn * this.pnp), this.src[0].y + 4);
+                g.drawString(this.pnp === -1 ? "S" : "D", this.drn[0].x - 3 + 9 * (dsx - dsyn * this.pnp), this.drn[0].y + 4);
+            } else if (this.dx === 0) {
+                g.drawString("G", this.gate[1].x - (this.dx < 0 ? -2 : 12), this.gate[1].y + ((this.dy > 0) ? -5 : 12));
+                g.drawString(this.pnp === -1 ? "D" : "S", this.src[0].x - 4, this.src[0].y - (this.dy < 0 ? 7 : -14));
+                g.drawString(this.pnp === -1 ? "S" : "D", this.drn[0].x - 4, this.drn[0].y - (this.dy < 0 ? 7 : -14));
+            }
+        }
+
         this.drawPosts(g);
     }
 
@@ -98,7 +118,9 @@ export class JfetElm extends MosfetElm {
 
         // find the coordinates of the various points we need to draw
         // the JFET.
-        const hs2 = this.hs * this.dsign;
+        let hs2 = this.hs * this.dsign;
+        if ((this.flags & this.FLAG_FLIP) !== 0)
+            hs2 = -hs2;
         this.src = this.newPointArray(3);
         this.drn = this.newPointArray(3);
         this.interpPoint2(this.point1, this.point2, this.src[0], this.drn[0], 1, -hs2);
@@ -113,9 +135,9 @@ export class JfetElm extends MosfetElm {
         this.gatePoly = this.createPolygon(ra[0], ra[1], ra[3], ra[2]);
         if (this.pnp === -1) {
             const x = this.interpPoint(this.gatePt, this.point1, 18 / this.dn);
-            this.arrowPoly = this.calcArrow(this.gatePt, x, 8, 3);
+            this.arrowPoly = this.calcArrow(this.gatePt, x, 12, 5);
         } else
-            this.arrowPoly = this.calcArrow(this.point1, this.gatePt, 8, 3);
+            this.arrowPoly = this.calcArrow(this.point1, this.gatePt, 12, 5);
     }
 
     stamp(): void {
@@ -137,7 +159,7 @@ export class JfetElm extends MosfetElm {
 
     showBulk(): boolean { return false; }
     isJfet(): boolean { return true; }
-    hasSwapDS(): boolean { return false; }
+    hasSwapDS(): boolean { return true; }
 
     static lastJfetModelName: string = "default-jfet";
     getLastModelName(): string { return JfetElm.lastJfetModelName; }
@@ -151,6 +173,12 @@ export class JfetElm extends MosfetElm {
 
     getInfo(arr: string[]): void {
         this.getFetInfo(arr, "JFET");
+    }
+
+    getEditInfo(n: number): EditInfo | null {
+        if (n < 3)
+            return super.getEditInfo(n);
+        return null;
     }
 
     getConnection(n1: number, n2: number): boolean {
