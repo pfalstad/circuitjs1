@@ -26,7 +26,6 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { VoltageSource } from "./VoltageSource";
 import { WireRouter } from "./WireRouter";
-import { FindPathInfo } from "./FindPathInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
@@ -54,6 +53,11 @@ export class Switch2Elm extends SwitchElm {
             } catch (e) {}
             this.noDiagonal = true;
         }
+        // super()'s constructor chain calls allocNodes() before this.throwCount above is set
+        // (getPostCount() is already virtually dispatched to this class, but reads throwCount as
+        // still undefined at that point), so it allocates a 1-node array instead of throwCount+1.
+        // Redo it now that throwCount is actually in place.
+        this.allocNodes();
     }
 
     getDumpType(): number { return 'S'.charCodeAt(0); }
@@ -153,19 +157,16 @@ export class Switch2Elm extends SwitchElm {
     }
 
     stamp(): void {
-        if (this.position === 2 && this.hasCenterOff())
-            return;
         if (this.resistance > 0)
             CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[this.position + 1], this.resistance);
-        else
-            CircuitElm.sim.stampVoltageSource(this.nodes[0], this.nodes[this.position + 1], this.voltSource!, 0);
+        // resistance === 0 (isWireEquivalent()) or centered off: nothing to stamp - the thrown
+        // side's node is either already merged with the common terminal by wire-closure, or (when
+        // centered off) genuinely disconnected. Stamping a 0V source on top of an
+        // already-merged node used to make validate() below misread its own stamp as a
+        // voltage-source loop.
     }
 
-    getVoltageSourceCount(): number {
-        if (this.position === 2 && this.hasCenterOff())
-            return 0;
-        return this.resistance > 0 ? 0 : 1;
-    }
+    getVoltageSourceCount(): number { return 0; }
 
     toggle(): void {
         super.toggle();
@@ -192,10 +193,23 @@ export class Switch2Elm extends SwitchElm {
         return this.comparePair(n1, n2, 0, 1 + this.position);
     }
 
-    isWireEquivalent(): boolean { return this.resistance === 0; }
+    isWireEquivalent(): boolean {
+        return this.resistance === 0 && !(this.position === 2 && this.hasCenterOff());
+    }
 
-    // optimizing out this element is too complicated to be worth it (see #646)
-    isRemovableWire(): boolean { return false; }
+    // The old analog engine kept this element in the matrix rather than optimizing it out (too
+    // complicated to be worth it, see #646) - but this version's digital-only fast path
+    // (SimulationManager.runCircuit()) never runs that matrix, and digital connectivity comes
+    // entirely from wire-closure merging (isRemovableWire()/getConnectedPost() below), the same
+    // mechanism SwitchElm's own isRemovableWire() already relies on. Without this, the switch's
+    // common terminal never actually connects to whichever throw is selected.
+    isRemovableWire(): boolean { return this.isWireEquivalent(); }
+
+    // merge the common terminal (post 0) with whichever throw is currently selected (post
+    // 1+position) - the other throws stay on their own, unconnected node.
+    getConnectedPost(n?: number): Point {
+        return this.swposts[this.position];
+    }
 
     getElmType(): string { return "switch (SPDT)"; }
 
@@ -279,17 +293,11 @@ export class Switch2Elm extends SwitchElm {
         this.positionFlipped = !this.positionFlipped;
     }
 
-    validate(): boolean {
-        if (this.position === 2 && this.hasCenterOff())
-            return true;
-        if (this.resistance > 0)
-            return true;
-        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(0), CircuitElm.sim);
-        if (fpi.findPath(this.getNode(1 + this.position))) {
-            //CircuitElm.sim.stop("Voltage source/wire loop with no resistance!", this);
-            this.resistance = .001;
-            return false;
-        }
-        return true;
-    }
+    // This used to loop-check for a voltage-source/wire loop, back when the resistance === 0
+    // case was stamped as its own 0V voltage source (see stamp() above). Now that case is
+    // instead merged directly into the wire graph by wire-closure (isWireEquivalent()), so
+    // this.getNode(0) and this.getNode(1 + this.position) are already the very same node by the
+    // time validate() runs - the old check would misread that as a loop against itself. Nothing
+    // left to validate: resistance > 0 stamps as a plain resistor, and center-off stamps nothing.
+    validate(): boolean { return true; }
 }
