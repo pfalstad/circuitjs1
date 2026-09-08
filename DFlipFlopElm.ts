@@ -22,11 +22,12 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
 import { chipStart, i1 as internalQ, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class DFlipFlopElm extends ChipElm {
+export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
     static readonly FLAG_RESET            = 2;
     static readonly FLAG_SET              = 4;
     static readonly FLAG_INVERT_SET_RESET = 8;
@@ -34,6 +35,16 @@ export class DFlipFlopElm extends ChipElm {
     hasReset():       boolean { return (this.flags & DFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
+
+    /** DigitalInitialState - see its own docstring. this.pins[1].value (Q) already holds what
+     * ChipElm.undumpXml() restored generically from the "v1" XML attr dumpXmlState() wrote, so an
+     * imported flip-flop resumes at its saved state instead of restarting cleared. Named by the
+     * state cell's own internal pin (see digitalSynthesis() below) rather than Q's post, since
+     * Q/notQ are driven by separate, memoryless buffer cells with no state of their own to seed -
+     * only the state cell actually needs (and can use) a direct seed. */
+    digitalInitialState(): { pin: number, value: number }[] | null {
+        return [{ pin: internalQ, value: this.pins[1].value ? 1 : 0 }];
+    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
