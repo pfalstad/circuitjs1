@@ -25,11 +25,21 @@ import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
 import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge, i1, i2, i3 } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
-import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput, digitalOutputPosts } from "./digital/DigitalGraphBuilder";
+import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class Counter2Elm extends ChipElm {
+export class Counter2Elm extends ChipElm implements DigitalInitialState {
     modulus: number = 0;
+
+    /** DigitalInitialState - see its own docstring. this.pins[post].value already holds the
+     * count ChipElm.undumpXml() restored (from the "v"+i XML attrs dumpXmlState() wrote - the
+     * generic per-pin state save/restore every ChipElm gets, not anything specific to this
+     * class) so an imported counter resumes where it was saved instead of silently restarting
+     * from 0. */
+    digitalInitialState(): (number | null)[] | null {
+        return digitalOutputPosts(this).map(post => this.pins[post].value ? 1 : 0);
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -42,10 +52,6 @@ export class Counter2Elm extends ChipElm {
                 this.modulus = parseInt(st!.nextToken());
             } catch (e) {}
         }
-    }
-
-    dump(): string {
-        return super.dump() + " " + this.modulus;
     }
 
     dumpXml(doc: Document, elem: Element): void {

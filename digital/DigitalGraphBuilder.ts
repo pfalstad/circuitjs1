@@ -248,11 +248,34 @@ export function digitalOutputPosts(elm: any): number[] {
 export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
     if (isDigitalTieSource(elm) && elm.digitalTie() != null)
         return postIndex === 0 ? (chipsByElm.get(elm)?.[0] ?? null) : null;
+    const pin = digitalOutputPin(elm, postIndex);
+    if (pin == null) return null;
+    return digitalChipForPin(elm, pin, chipsByElm);
+}
+
+/** The internal pin number (as used in `elm`'s own digitalSynthesis() ChipDesc) that post
+ * `postIndex` maps to - what seedInitialDigitalState() below needs a stateful element's own
+ * output-post-is-the-state-cell case (e.g. CounterElm, where the post's pin IS its state cell -
+ * see digitalSynthesisWholeRegister()) to name via DigitalInitialState, without that element
+ * needing to know its own internal pin numbering. */
+export function digitalOutputPin(elm: any, postIndex: number): number | null {
     if (!isDigitalSynthesizable(elm)) return null;
     const synth = elm.digitalSynthesis();
     if (synth == null) return null;
-    const pin = synth.pinMap.get(postIndex);
-    if (pin === undefined) return null;
+    return synth.pinMap.get(postIndex) ?? null;
+}
+
+/** The real, already-built Chip whose desc entry's own `outPin` is `pin` - `pin` here is an
+ * INTERNAL pin number exactly as used in `elm`'s own digitalSynthesis() ChipDesc, not a post
+ * index/pinMap value (digitalOutputChip() above resolves those first, then delegates here). Lets
+ * seedInitialDigitalState() below reach a state cell that has no externally-visible post of its
+ * own - e.g. JKFlipFlopElm's master cell, which outputs onto an internal-only pin later buffered
+ * out to the real Q/notQ posts by separate, memoryless cells (see
+ * JKFlipFlopElm.digitalSynthesis()'s own docstring). */
+function digitalChipForPin(elm: any, pin: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+    if (!isDigitalSynthesizable(elm)) return null;
+    const synth = elm.digitalSynthesis();
+    if (synth == null) return null;
     const idx = synth.desc.findIndex(d => d.outPin === pin);
     if (idx < 0) return null;
     return chipsByElm.get(elm)?.[idx] ?? null;
@@ -266,6 +289,126 @@ export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<a
 export function digitalOutputChipAt(elm: any, outputIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
     const post = digitalOutputPosts(elm)[outputIndex];
     return post === undefined ? null : digitalOutputChip(elm, post, chipsByElm);
+}
+
+/** `elm`'s own current output values, one per output post in the same ascending order
+ * digitalOutputPosts()/digitalOutputChipAt() use (the "k-th output pin" convention getInfo()
+ * panels already rely on) - for a stateful element's dumpXml() to save what it's CURRENTLY
+ * showing (e.g. CounterElm's running count) rather than always writing a power-up default. Reads
+ * Chip.currentValue() (not the raw `.output` field) so an ASLEEP/optimized-away chip still
+ * resolves correctly - see Chip.currentValue()'s own docstring. Empty for anything not digital-
+ * capable right now, or if no digital graph has been built yet. */
+export function digitalCurrentOutputValues(elm: any, chipsByElm: Map<any, Chip[]> | undefined): number[] {
+    if (!chipsByElm) return [];
+    return digitalOutputPosts(elm).map(post => digitalOutputChip(elm, post, chipsByElm)?.currentValue() ?? 0);
+}
+
+/** Implemented by an element whose undumpXml()-restored state needs seeding onto specific digital
+ * chip(s) right after the FIRST digital build following a circuit load - e.g. CounterElm
+ * restoring its saved running count, or JKFlipFlopElm restoring its saved Q - instead of every
+ * such element silently restarting from 0/false. Called once per build by
+ * seedInitialDigitalState() below. Each entry names an INTERNAL pin number exactly as used in
+ * that element's own digitalSynthesis() ChipDesc - for an element whose externally-visible output
+ * post's own chip IS the state cell (e.g. CounterElm - see digitalSynthesisWholeRegister()),
+ * that's just digitalOutputPin(elm, post); for one where the post is instead driven by a separate
+ * downstream buffer cell with no memory of its own (e.g. JKFlipFlopElm's Q, buffered from its
+ * master cell - see its own digitalSynthesis() docstring), it's whichever internal pin the master
+ * cell itself outputs onto - and the value to seed that cell to. A `null` return means nothing to
+ * seed right now. */
+export interface DigitalInitialState {
+    digitalInitialState(): { pin: number, value: number }[] | null;
+}
+
+export function isDigitalInitialStateSource(elm: any): elm is DigitalInitialState {
+    return elm != null && typeof elm.digitalInitialState === "function";
+}
+
+/** Applies every element's digitalInitialState() (see above) against the just-built `chipsByElm`
+ * - called once from SimulationManager.initDigitalCircuit() right after a build, before the
+ * circuit has processed a single real tick.
+ *
+ * Sets a PASSIVE chip's `output`/`prevOutputPin` feedback bit directly rather than scheduling a
+ * same-tick self-toggle event the way LogicInputElm.pushDigitalValue() does for a LIVE external
+ * change: a multi-cell element (a CounterElm's own bit-cells, wired to read each OTHER's current
+ * value - see digitalSynthesisWholeRegister()) needs every one of its own cells seeded together,
+ * atomically, in one pass. Scheduling them as SEPARATE queued events instead (tried first - see
+ * git history) lets one seeded cell's own cascade reach a SIBLING cell before that sibling's own
+ * queued seed event has fired; since the sibling's cascaded recompute (using its still-cold,
+ * not-yet-seeded value) can spuriously match its current (also still-cold) output, Chip.
+ * updateInputs()'s own "input changed back to already-matching output -> cancel the pending
+ * event" branch fires and silently drops that sibling's seed before it ever takes effect.
+ * A direct field write sidesteps this - there is no event to cancel.
+ *
+ * This is safe here in a way it is NOT for carrying live state across an edit mid-simulation (a
+ * harder, unsolved problem - see git history): every chip this ever runs against has never
+ * processed a single real event, so there is no pre-existing bookkeeping (inputEventTable/
+ * outputEvents/activeInputs/...) for a raw field write to fall out of sync with - it's simply
+ * choosing a different cold-start value than all-zero, the same class of thing Circuit's own
+ * constructor already does when a source's digitalSynthesis() customUpdate seeds a non-zero
+ * value (see e.g. LogicInputElm.pushDigitalValue() called from Chip.initialize()).
+ *
+ * Every other chip a seeded chip's output is actually WIRED to - via Chip.connect()'s own
+ * outputLinks/mask, not just the self-referential prevOutputPin bit above - also needs its
+ * `.inputs` bit corrected to match: a multi-cell whole-register element's own sibling cells read
+ * each OTHER's current value through real inPins (see digitalSynthesisWholeRegister()), not only
+ * their own memory bit, so leaving a sibling's "what does cell W currently show" bit at its cold
+ * 0 default - even though cell W itself just got seeded to 1 - corrupts that sibling's very next
+ * real recompute (it reconstructs the whole register's value from these bits). This applies to
+ * EVERY outputLink a seeded chip has, whether the receiving chip is itself being seeded (a
+ * sibling) or is a genuinely external, still-cold consumer - direct field writes don't cascade on
+ * their own the way a real event does, so nothing else will ever correct this bit for either
+ * kind of receiver. A sibling's own `output` is left exactly as externally specified though -
+ * only a genuinely external (non-seeded) receiver gets Chip.initialize() called on it afterward,
+ * to derive (and cascade) ITS OWN combinational value from the now-corrected inputs; calling
+ * initialize() on a sibling would instead overwrite its externally-specified seed value with
+ * whatever combinational logic recomputes from current inputs, which is not the same value in
+ * general (a whole-register cell's "value" only equals prevPin[out] verbatim absent a clock
+ * edge - see digitalSynthesisWholeRegister()'s own logic - so this is not a redundant no-op). */
+export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
+    const seeded = new Set<Chip>();
+
+    for (const elm of elmList) {
+        if (!isDigitalInitialStateSource(elm)) continue;
+        const entries = elm.digitalInitialState();
+        if (entries == null) continue;
+        // Only the chip a named pin actually resolves to is added to `seeded` - not every chip
+        // belonging to `elm`. A CounterElm names every one of its own bit cells (one per output
+        // post), so in practice all of them end up seeded, same as before; a JKFlipFlopElm names
+        // only its master cell, leaving its qBuf/notQ buffer cells (which hold no state of their
+        // own) out of `seeded` - which is what lets the loop below fall them into
+        // `freshlySynced` and Chip.initialize() them from the master's now-corrected output,
+        // exactly like any other genuinely external, still-cold consumer.
+        for (const { pin, value } of entries) {
+            const chip = digitalChipForPin(elm, pin, chipsByElm);
+            if (!chip || chip.state !== ChipState.PASSIVE) continue;
+            seeded.add(chip);
+            if (chip.output === value) continue;
+            chip.output = value;
+            if (value) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
+        }
+    }
+
+    const freshlySynced = new Set<Chip>();
+    for (const chip of seeded) {
+        for (const link of chip.outputLinks) {
+            if (chip.output) link.chip.inputs ^= Number(link.mask);
+            // `link.mask` covers BOTH the plain value bit AND, when this pin is also declared an
+            // eventPin (an edge-sensitive input - e.g. a ripple counter's inter-stage clock, see
+            // digitalSynthesisRipple()), the "this pin just transitioned" event bit (see Chip.
+            // connect()) - the XOR above sets both indiscriminately. A real transition earns that
+            // event bit; a seed correction (nothing actually just happened) must not appear to
+            // one, or the receiving chip's own edge detector (posEdge()/negEdge() - see
+            // chip_desc.ts) misreads it as a genuine clock edge and fires a phantom count.
+            // Chip.initialize()/updateInputs() already strip this via `eventMask` (bits cleared
+            // at every event-pin position) before using `.inputs` for anything; freshlySynced
+            // chips get that for free below via initialize(), but a SIBLING (still in `seeded`,
+            // never initialize()'d - its own externally-specified value must not be
+            // recomputed) needs it applied explicitly right here.
+            link.chip.inputs &= link.chip.eventMask;
+            if (!seeded.has(link.chip)) freshlySynced.add(link.chip);
+        }
+    }
+    for (const chip of freshlySynced) chip.initialize();
 }
 
 /** Finds whichever OTHER element's real output post shares `elm`'s node at `postIndex` - the

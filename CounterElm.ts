@@ -24,14 +24,24 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
-import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import { appendInfoLine, digitalStateTextForOutput, digitalOutputPosts, digitalOutputPin } from "./digital/DigitalGraphBuilder";
+import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
 import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class CounterElm extends ChipElm {
+export class CounterElm extends ChipElm implements DigitalInitialState {
     invertreset: boolean = false;
     modulus: number = 0;
+
+    /** DigitalInitialState - see its own docstring. this.pins[post].value already holds the
+     * count ChipElm.undumpXml() restored (from the "v"+i XML attrs dumpXmlState() wrote - the
+     * generic per-pin state save/restore every ChipElm gets, not anything specific to this
+     * class) so an imported counter resumes where it was saved instead of silently restarting
+     * from 0. */
+    digitalInitialState(): { pin: number, value: number }[] | null {
+        return digitalOutputPosts(this).map(post => ({ pin: digitalOutputPin(this, post)!, value: this.pins[post].value ? 1 : 0 }));
+    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
@@ -212,10 +222,6 @@ export class CounterElm extends ChipElm {
             } catch (e) {}
             this.pins[1].bubble = this.invertreset;
         }
-    }
-
-    dump(): string {
-        return super.dump() + " " + this.invertreset + " " + this.modulus;
     }
 
     dumpXml(doc: Document, elem: Element): void {

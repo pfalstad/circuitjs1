@@ -29,7 +29,7 @@ import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
 import { setTimescale, promotionEnabled } from "./digital/constants";
-import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips } from "./digital/DigitalGraphBuilder";
+import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedInitialDigitalState } from "./digital/DigitalGraphBuilder";
 import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 
 // declared before SimulationManager so they can be referenced in static members
@@ -1142,6 +1142,8 @@ export class SimulationManager {
         // later user click has something to push a value change into.
         for (const [elm, chips] of this.digitalGraph.chipsByElm)
             if ("digitalChip" in elm) (elm as any).digitalChip = chips[0] ?? null;
+
+        seedInitialDigitalState(this.elmArr, this.digitalGraph.chipsByElm);
 
         this.digitalReady = true;
     }
