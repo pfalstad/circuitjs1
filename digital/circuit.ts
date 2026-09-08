@@ -229,6 +229,11 @@ export class Circuit {
     // abandoned entry's chip back to nothing once its last live watcher is gone.
     historyWatchedChips: Set<Chip> = new Set();
 
+    haltRequested = false;
+
+    // for stop trigger
+    requestHalt(): void { this.haltRequested = true; }
+
     private queueSize = 0;
     private queue: QueueEntry[] = new Array(MAX_QUEUE_SIZE + 1);
 
@@ -297,6 +302,7 @@ export class Circuit {
     }
 
     run(runTimeIn: bigint): void {
+        this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         let runTime = runTimeIn;
 
         while (runTime > 0n) {
@@ -310,6 +316,7 @@ export class Circuit {
 
             if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
             this.queuePop();
+            if (this.haltRequested) return;
         }
     }
 
@@ -317,15 +324,10 @@ export class Circuit {
      * Like run(), but bounded by wall-clock time as well as `runTimeIn` ticks - needed because
      * SimulationManager drives this from a real-time animation loop and per-tick cost is not
      * uniform under the promotion/sleep optimization (a big demote/re-promote cascade can land
-     * in any single tick). `deadlineMs` is an absolute Date.now()-comparable timestamp, not a
-     * duration. Returns the number of ticks actually advanced, which may be less than
-     * `runTimeIn` if the deadline was hit - the caller should advance whatever it derives from
-     * wall-clock time by the ACTUAL ticks processed, not by how many were requested. Guarantees
-     * real forward progress every call (never bails before at least one event/timestamp has been
-     * processed) even if the deadline has already passed by the time this is called - mirrors
-     * digital/Scheduler.ts's old runWhile()'s same guarantee.
+     * in any single tick). `deadlineMs` is an absolute Date.now()-comparable timestamp.
      */
     runWithDeadline(runTimeIn: bigint, deadlineMs?: number): bigint {
+        this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         const startTime = this.globalTime;
         const endTime = this.globalTime + runTimeIn;
         let first = true;
@@ -345,6 +347,7 @@ export class Circuit {
 
             if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
             this.queuePop();
+            if (this.haltRequested) break;
         }
 
         return this.globalTime - startTime;
