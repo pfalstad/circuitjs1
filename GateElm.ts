@@ -32,10 +32,11 @@ import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-// dice-ts's 7400 (quad 2-input NAND) propagation delay - used as the shared default for every
-// GateElm subtype (AND/OR/XOR/NAND/NOR/XNOR), since dice-ts has no plain AND/OR chip to match
-// against (see ~/Projects/dice-ts/src/chips/7400.ts).
-export const DEFAULT_GATE_DELAY_S = 11.0e-9;
+// DICE's 7400 (quad 2-input NAND) propagation delays - used as the shared LH/HL defaults for
+// every GateElm subtype (AND/OR/XOR/NAND/NOR/XNOR), since DICE has no plain AND/OR chip to
+// match against (see chips/7400.ts, outputDelayNs(11.0, 7.0)).
+export const DEFAULT_GATE_DELAY_LH_S = 11.0e-9;
+export const DEFAULT_GATE_DELAY_HL_S = 7.0e-9;
 
 export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
@@ -45,7 +46,8 @@ export abstract class GateElm extends CircuitElm {
     lastOutput: boolean = false;
     justLoaded: boolean = false;
     highVoltage: number;
-    propagationDelay: number = DEFAULT_GATE_DELAY_S; // seconds; matches dice-ts 7400 NAND delay
+    propagationDelayLH: number = DEFAULT_GATE_DELAY_LH_S; // seconds; matches DICE's 7400 NAND LH delay
+    propagationDelayHL: number = DEFAULT_GATE_DELAY_HL_S; // seconds; matches DICE's 7400 NAND HL delay
     delayEndTime: number = 0;     // time at which pending output change takes effect
     static lastHighVoltage: number = 5;
     static lastSchmitt: boolean = false;
@@ -104,8 +106,10 @@ export abstract class GateElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
         if (this.inputCount !== 2)
             CircuitXMLSerializer.dumpAttr(elem, "in", this.inputCount);
-        if (this.propagationDelay !== 0)
-            CircuitXMLSerializer.dumpAttr(elem, "pd", this.propagationDelay);
+        if (this.propagationDelayLH !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "pd", this.propagationDelayLH);
+        if (this.propagationDelayHL !== this.propagationDelayLH)
+            CircuitXMLSerializer.dumpAttr(elem, "pdhl", this.propagationDelayHL);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -125,7 +129,9 @@ export abstract class GateElm extends CircuitElm {
         super.undumpXml(xml);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);
         this.inputCount = xml.parseIntAttr("in", this.inputCount);
-        this.propagationDelay = xml.parseDoubleAttr("pd", this.propagationDelay);
+        this.propagationDelayLH = xml.parseDoubleAttr("pd", this.propagationDelayLH);
+        // old saves had a single symmetric "pd" delay; default HL to it when "pdhl" is absent
+        this.propagationDelayHL = xml.parseDoubleAttr("pdhl", this.propagationDelayLH);
         const lastOutputVoltage = xml.parseDoubleAttr("o", 0);
         this.lastOutput = lastOutputVoltage > this.highVoltage * .5;
         this.setSize((this.flags & GateElm.FLAG_SMALL) !== 0 ? 1 : 2);
@@ -268,7 +274,7 @@ export abstract class GateElm extends CircuitElm {
     /** Phase 2 (see noble-stirring-rabin.md): a single LUT cell computing the same
      * AND/OR/XOR-of-inputs-then-optionally-inverted logic as calcFunction()/isInverting(), with
      * FLAG_INVERT_INPUTS applied per-input first (mirrors getInput()'s own per-input inversion
-     * for the analog path). propagationDelay (seconds) maps directly onto the cell's
+     * for the analog path). propagationDelayLH/HL (seconds) map directly onto the cell's
      * outputDelayS, replacing the old propagationDelayTicks() hop-scheduling trick. */
     digitalSynthesis(): DigitalSynthesis {
         const n = this.inputCount;
@@ -292,7 +298,7 @@ export abstract class GateElm extends CircuitElm {
 
         const desc: ChipDesc[] = [
             chipStart(logic).inputPins(...inPins).outputPin(outPin)
-                .outputDelayS(this.propagationDelay, this.propagationDelay),
+                .outputDelayS(this.propagationDelayLH, this.propagationDelayHL),
         ];
         return { desc, pinMap };
     }
@@ -301,8 +307,13 @@ export abstract class GateElm extends CircuitElm {
         arr[0] = this.getGateName();
         arr[1] = "Vout = " + CircuitElm.getVoltageText(this.nodes[this.inputCount].v);
         arr[2] = "Iout = " + CircuitElm.getCurrentText(this.getCurrent());
-        if (this.propagationDelay > 0)
-            arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelay, "s");
+        if (this.propagationDelayLH > 0 || this.propagationDelayHL > 0) {
+            if (this.propagationDelayLH === this.propagationDelayHL)
+                arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelayLH, "s");
+            else
+                arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelayLH, "s") + " (LH), "
+                    + CircuitElm.getUnitText(this.propagationDelayHL, "s") + " (HL)";
+        }
         appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
@@ -342,7 +353,10 @@ export abstract class GateElm extends CircuitElm {
         if (this.isInverting())
             f = !f;
 
-        if (this.propagationDelay === 0 && this.lastTime !== CircuitElm.sim.t) {
+        // delay for the edge direction being requested (f is the new output value)
+        const effectiveDelay = f ? this.propagationDelayLH : this.propagationDelayHL;
+
+        if (effectiveDelay === 0 && this.lastTime !== CircuitElm.sim.t) {
             // detect oscillation (using same strategy as Atanua)
             if (this.lastOutput === !f) {
                 if (this.oscillationCount++ > 50) {
@@ -358,12 +372,12 @@ export abstract class GateElm extends CircuitElm {
         }
 
         // apply propagation delay if configured
-        if (this.propagationDelay > 0) {
+        if (effectiveDelay > 0) {
             if (f !== this.lastOutput) {
                 // desired output differs from current output
                 if (this.delayEndTime === 0)
                     // start the delay timer on first detection of change
-                    this.delayEndTime = CircuitElm.sim.t + this.propagationDelay;
+                    this.delayEndTime = CircuitElm.sim.t + effectiveDelay;
                 else if (CircuitElm.sim.t >= this.delayEndTime) {
                     // delay has elapsed, apply the change
                     this.lastOutput = f;
@@ -391,7 +405,9 @@ export abstract class GateElm extends CircuitElm {
         if (n === 3)
             return EditInfo.createCheckbox("Invert Inputs", this.hasFlag(GateElm.FLAG_INVERT_INPUTS));
         if (n === 4)
-            return new EditInfo("Propagation Delay (s)", this.propagationDelay, 0, 0);
+            return new EditInfo("Propagation Delay LH (s)", this.propagationDelayLH, 0, 0);
+        if (n === 5)
+            return new EditInfo("Propagation Delay HL (s)", this.propagationDelayHL, 0, 0);
         return null;
     }
 
@@ -420,7 +436,9 @@ export abstract class GateElm extends CircuitElm {
             this.setPoints();
         }
         if (n === 4)
-            this.propagationDelay = ei.value;
+            this.propagationDelayLH = ei.value;
+        if (n === 5)
+            this.propagationDelayHL = ei.value;
     }
 
     validate(): boolean { return this.validateRailNode(this.inputCount); }

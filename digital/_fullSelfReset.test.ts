@@ -84,7 +84,8 @@ function nand(inputCount: number) {
     const g = Object.create(NandGateElm.prototype) as any;
     g.inputCount = inputCount;
     g.flags = 0;
-    g.propagationDelay = DELAY_S;
+    g.propagationDelayLH = DELAY_S;
+    g.propagationDelayHL = DELAY_S;
     g.nodes = [];
     return g;
 }

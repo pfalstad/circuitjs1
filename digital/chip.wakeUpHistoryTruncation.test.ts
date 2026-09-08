@@ -95,12 +95,12 @@ function dff() {
 }
 function nand(inputCount: number) {
     const g = Object.create(NandGateElm.prototype) as any;
-    g.inputCount = inputCount; g.flags = 0; g.propagationDelay = DELAY_S; g.nodes = [];
+    g.inputCount = inputCount; g.flags = 0; g.propagationDelayLH = DELAY_S; g.propagationDelayHL = DELAY_S; g.nodes = [];
     return g;
 }
 function andGate() {
     const g = Object.create(AndGateElm.prototype) as any;
-    g.inputCount = 2; g.flags = 0; g.propagationDelay = DELAY_S; g.nodes = [];
+    g.inputCount = 2; g.flags = 0; g.propagationDelayLH = DELAY_S; g.propagationDelayHL = DELAY_S; g.nodes = [];
     return g;
 }
 const NEG = CounterElm.FLAG_NEGATIVE_EDGE;

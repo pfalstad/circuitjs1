@@ -35,16 +35,13 @@ export class DFlipFlopElm extends ChipElm {
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
 
-    // matches dice-ts's 7474 clock-to-Q delay (~/Projects/dice-ts/src/chips/7474.ts)
-    propagationDelay: number = 10.0e-9;
-
     getInfo(arr: string[]): void {
         super.getInfo(arr);
         appendInfoLine(arr, "opt Q: " + digitalStateTextForOutput(this, 0));
         appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
     }
 
-    /** Phase 3 (see noble-stirring-rabin.md), revised: matches dice-ts's real chips/7474.ts
+    /** Phase 3 (see noble-stirring-rabin.md), revised: matches DICE's real chips/7474.ts
      * structure, which this originally didn't - the state cell computes Q onto an INTERNAL pin
      * (own prevOutputPin, per-pin post index -> pin number is postIndex+1 throughout otherwise,
      * matching GateElm.digitalSynthesis()'s convention) rather than the real external Q pin
@@ -63,8 +60,8 @@ export class DFlipFlopElm extends ChipElm {
      * reset feeds, all of which have their own independent, slow-to-align activation schedules.
      * Confirmed empirically: a synthetic single-counter-plus-flip-flop self-reset circuit (no
      * second counter, nothing else) made ZERO promotion progress after 500,000 clock periods
-     * with the direct-to-Qpin version, forever; wired the dice-ts way (buffer decouples the state
-     * cell down to just 2 fixed, local, fast-settling consumers), the equivalent dice-ts circuit
+     * with the direct-to-Qpin version, forever; wired the DICE way (buffer decouples the state
+     * cell down to just 2 fixed, local, fast-settling consumers), the equivalent DICE circuit
      * settles within tens of periods. /Q isn't strictly !Q during a set/reset collision - see
      * evaluate()'s own docstring - so notQ re-derives the same isSet/isReset override rather than
      * simply inverting the buffered Q. */
@@ -102,11 +99,12 @@ export class DFlipFlopElm extends ChipElm {
             pin[notQpin] = (isSet || isReset) ? isReset : (pin[internalQ] ^ 1);
         };
 
+        // delays match DICE's chips/7474.ts (a1/aBuf/a2)
         const desc: ChipDesc[] = [
             chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(internalQ).prevOutputPin(internalQ)
-                .outputDelayS(this.propagationDelay, this.propagationDelay),
-            chipStart(qBuf).inputPins(internalQ).outputPin(Qpin),
-            chipStart(notQ).inputPins(...notQIn).outputPin(notQpin),
+                .outputDelayNs(10.0, 10.0),
+            chipStart(qBuf).inputPins(internalQ).outputPin(Qpin).outputDelayNs(4.0, 10.0),
+            chipStart(notQ).inputPins(...notQIn).outputPin(notQpin).outputDelayNs(4.0, 10.0),
         ];
         return { desc, pinMap };
     }

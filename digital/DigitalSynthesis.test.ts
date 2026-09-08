@@ -69,7 +69,7 @@ function gateOutput(gate: any, inputs: (0 | 1)[]): number {
 describe("GateElm.digitalSynthesis()", () => {
     it("AND gate: high only when every input is high", () => {
         const g = Object.create(AndGateElm.prototype) as AndGateElm;
-        g.inputCount = 2; g.flags = 0; g.propagationDelay = 0;
+        g.inputCount = 2; g.flags = 0; g.propagationDelayLH = 0; g.propagationDelayHL = 0;
         expect(gateOutput(g, [1, 1])).toBe(1);
         expect(gateOutput(g, [1, 0])).toBe(0);
         expect(gateOutput(g, [0, 0])).toBe(0);
@@ -77,14 +77,14 @@ describe("GateElm.digitalSynthesis()", () => {
 
     it("OR gate: high when any input is high", () => {
         const g = Object.create(OrGateElm.prototype) as OrGateElm;
-        g.inputCount = 2; g.flags = 0; g.propagationDelay = 0;
+        g.inputCount = 2; g.flags = 0; g.propagationDelayLH = 0; g.propagationDelayHL = 0;
         expect(gateOutput(g, [0, 0])).toBe(0);
         expect(gateOutput(g, [1, 0])).toBe(1);
     });
 
     it("XOR gate: high when an odd number of inputs are high", () => {
         const g = Object.create(XorGateElm.prototype) as XorGateElm;
-        g.inputCount = 3; g.flags = 0; g.propagationDelay = 0;
+        g.inputCount = 3; g.flags = 0; g.propagationDelayLH = 0; g.propagationDelayHL = 0;
         expect(gateOutput(g, [1, 1, 0])).toBe(0);
         expect(gateOutput(g, [1, 1, 1])).toBe(1);
         expect(gateOutput(g, [1, 0, 0])).toBe(1);
@@ -92,34 +92,34 @@ describe("GateElm.digitalSynthesis()", () => {
 
     it("NAND/NOR/XNOR invert their base family's output", () => {
         const nand = Object.create(NandGateElm.prototype) as NandGateElm;
-        nand.inputCount = 2; nand.flags = 0; nand.propagationDelay = 0;
+        nand.inputCount = 2; nand.flags = 0; nand.propagationDelayLH = 0; nand.propagationDelayHL = 0;
         expect(gateOutput(nand, [1, 1])).toBe(0);
         expect(gateOutput(nand, [1, 0])).toBe(1);
 
         const nor = Object.create(NorGateElm.prototype) as NorGateElm;
-        nor.inputCount = 2; nor.flags = 0; nor.propagationDelay = 0;
+        nor.inputCount = 2; nor.flags = 0; nor.propagationDelayLH = 0; nor.propagationDelayHL = 0;
         expect(gateOutput(nor, [0, 0])).toBe(1);
         expect(gateOutput(nor, [1, 0])).toBe(0);
 
         const xnor = Object.create(XnorGateElm.prototype) as XnorGateElm;
-        xnor.inputCount = 2; xnor.flags = 0; xnor.propagationDelay = 0;
+        xnor.inputCount = 2; xnor.flags = 0; xnor.propagationDelayLH = 0; xnor.propagationDelayHL = 0;
         expect(gateOutput(xnor, [1, 1])).toBe(1);
         expect(gateOutput(xnor, [1, 0])).toBe(0);
     });
 
     it("FLAG_INVERT_INPUTS inverts each input before the reduction", () => {
         const g = Object.create(AndGateElm.prototype) as AndGateElm;
-        g.inputCount = 2; g.flags = GateElm.FLAG_INVERT_INPUTS; g.propagationDelay = 0;
+        g.inputCount = 2; g.flags = GateElm.FLAG_INVERT_INPUTS; g.propagationDelayLH = 0; g.propagationDelayHL = 0;
         // Both real inputs low -> both become high after per-input inversion -> AND -> high.
         expect(gateOutput(g, [0, 0])).toBe(1);
         expect(gateOutput(g, [1, 0])).toBe(0);
     });
 
-    it("propagationDelay becomes the cell's outputDelayS in real seconds", () => {
+    it("propagationDelayLH/HL become the cell's outputDelayS in real seconds", () => {
         const g = Object.create(AndGateElm.prototype) as AndGateElm;
-        g.inputCount = 2; g.flags = 0; g.propagationDelay = 1e-6;
+        g.inputCount = 2; g.flags = 0; g.propagationDelayLH = 1e-6; g.propagationDelayHL = 2e-6;
         const { desc } = g.digitalSynthesis();
-        expect(desc[0].delay).toEqual([1e-6, 1e-6]);
+        expect(desc[0].delay).toEqual([1e-6, 2e-6]);
     });
 });
 

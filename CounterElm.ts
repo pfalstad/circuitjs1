@@ -33,9 +33,6 @@ export class CounterElm extends ChipElm {
     invertreset: boolean = false;
     modulus: number = 0;
 
-    // matches dice-ts's 7493 per-stage toggle delay (~/Projects/dice-ts/src/chips/7493.ts)
-    propagationDelay: number = 17.0e-9;
-
     getInfo(arr: string[]): void {
         super.getInfo(arr);
         // One line per bit (not a summary): with limited horizontal room in
@@ -68,7 +65,7 @@ export class CounterElm extends ChipElm {
     }
 
     /** A genuine asynchronous ripple counter, structured exactly like a real 7493 (see
-     * dice-ts/src/chips/7493.ts): bit 0 (the LSB) toggles on the configured edge of the real
+     * DICE's chips/7493.ts): bit 0 (the LSB) toggles on the configured edge of the real
      * clock pin; each subsequent bit w toggles on bit (w-1)'s OWN falling edge - the real carry
      * condition for binary up-counting (incrementing only ever carries out of a bit at the exact
      * moment that bit falls from 1 to 0), always negedge-triggered regardless of the top-level
@@ -96,7 +93,7 @@ export class CounterElm extends ChipElm {
      * resimulated on literally every clock edge forever, same cost as if unoptimized.) A real
      * 7493-style bit's only real per-edge dependency is its own single ripple/clock source, so
      * this same handshake has a real chance to succeed and does - confirmed empirically against
-     * dice-ts's actual 7493-based Pong circuit, which settles every relevant chip to ASLEEP
+     * DICE's actual 7493-based Pong circuit, which settles every relevant chip to ASLEEP
      * within its first few hundred clock cycles. */
     private digitalSynthesisRipple(): DigitalSynthesis {
         const bits = this.bits;
@@ -124,8 +121,9 @@ export class CounterElm extends ChipElm {
             };
 
             desc.push(
+                // matches DICE's 7493 per-stage toggle delay
                 chipStart(logic).inputPins(resetPin, clockSource).eventPins(clockSource).outputPin(out).prevOutputPin(out)
-                    .outputDelayS(this.propagationDelay, this.propagationDelay)
+                    .outputDelayNs(17.0, 19.0)
             );
         }
         return { desc, pinMap };
@@ -135,7 +133,7 @@ export class CounterElm extends ChipElm {
      * cell's own real Q pin doubling as its prevOutputPin (see DFlipFlopElm.digitalSynthesis()'s
      * identical convention), with the OTHER bits' current values wired in as plain inPins - every
      * bit-cell reconstructs the whole register's value (its own bit from prevPin, every other bit
-     * from its real wired pin, which reflects that sibling's PRE-edge output since dice-ts's
+     * from its real wired pin, which reflects that sibling's PRE-edge output since DICE's
      * engine always defers an output's own `.output` mutation through the event queue - see
      * chip.ts's updateOutput() - even at zero delay, so no sibling can appear to have already
      * advanced when this cell reads it off the same clock edge), applies +/-1 and the configured
@@ -189,8 +187,9 @@ export class CounterElm extends ChipElm {
             };
 
             desc.push(
+                // matches DICE's 7493 per-stage toggle delay
                 chipStart(logic).inputPins(...inPins).eventPins(clkPin).outputPin(out).prevOutputPin(out)
-                    .outputDelayS(this.propagationDelay, this.propagationDelay)
+                    .outputDelayNs(17.0, 19.0)
             );
         }
         return { desc, pinMap };

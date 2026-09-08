@@ -22,7 +22,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
-import { chipStart, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
+import { chipStart, i1 as internalQ, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
@@ -35,20 +35,23 @@ export class JKFlipFlopElm extends ChipElm {
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
     invertReset():        boolean { return (this.flags & JKFlipFlopElm.FLAG_INVERT_RESET ) !== 0; }
 
-    // matches dice-ts's 74107 master-stage delay (~/Projects/dice-ts/src/chips/74107.ts)
-    propagationDelay: number = 15.0e-9;
-
     getInfo(arr: string[]): void {
         super.getInfo(arr);
         appendInfoLine(arr, "opt Q: " + digitalStateTextForOutput(this, 0));
         appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
     }
 
-    /** Phase 3 (see noble-stirring-rabin.md): a state cell (own real Q pin doubles as its
-     * prevOutputPin - see DFlipFlopElm.digitalSynthesis()'s identical convention) computes Q
-     * exactly per evaluate() above (J/K transition on the configured edge, then an async reset
-     * override), then a /Q buffer strictly inverts it - unlike DFlipFlopElm, JK's /Q has no
-     * independent-forcing quirk (see evaluate()'s own `return [q, !q]`). */
+    /** Phase 3 (see noble-stirring-rabin.md), revised: matches DICE's real chips/74107.ts
+     * structure - a master cell computes Q onto an INTERNAL pin (own prevOutputPin, per-pin post
+     * index -> pin number is postIndex+1 throughout otherwise, matching
+     * DFlipFlopElm.digitalSynthesis()'s identical convention) exactly per evaluate() above (J/K
+     * transition on the configured edge, then an async reset override); separate slave cells then
+     * buffer that internal pin onto the real Q and /Q pins - unlike DFlipFlopElm, JK's /Q has no
+     * independent-forcing quirk (see evaluate()'s own `return [q, !q]`), so it's a strict inverse
+     * of the same internal pin rather than re-deriving a set/reset override. That indirection
+     * gives external consumers of Q/(/Q) their own fixed, local slave cells to settle against
+     * instead of the shared master state cell - see DFlipFlopElm's docstring for why that
+     * decoupling matters for ASLEEP promotion. */
     digitalSynthesis(): DigitalSynthesis {
         const postCount = this.getPostCount();
         const pinMap = new Map<number, number>();
@@ -63,23 +66,26 @@ export class JKFlipFlopElm extends ChipElm {
         const stateIn: number[] = [Jpin, clkPin, Kpin];
         if (hasR) stateIn.push(Rpin);
 
-        const state: ChipLogic = (pin, prevPin, eventPin) => {
-            let q = prevPin[Qpin];
+        const master: ChipLogic = (pin, prevPin, eventPin) => {
+            let q = prevPin[internalQ];
             const edge = edgeIsPositive ? posEdge(pin, eventPin, clkPin) : negEdge(pin, eventPin, clkPin);
             if (edge) {
                 if (pin[Jpin]) q = pin[Kpin] ? (q ^ 1) : 1;
                 else if (pin[Kpin]) q = 0;
             }
             if (hasR && (pin[Rpin] ^ invertBit)) q = 0;
-            pin[Qpin] = q;
+            pin[internalQ] = q;
         };
 
-        const notQ: ChipLogic = (pin) => { pin[notQpin] = pin[Qpin] ^ 1; };
+        const qBuf: ChipLogic = (pin) => { pin[Qpin] = pin[internalQ]; };
+        const notQ: ChipLogic = (pin) => { pin[notQpin] = pin[internalQ] ^ 1; };
 
+        // delays match DICE's chips/74107.ts (m1/s1/s1n)
         const desc: ChipDesc[] = [
-            chipStart(state).inputPins(...stateIn).eventPins(clkPin).outputPin(Qpin).prevOutputPin(Qpin)
-                .outputDelayS(this.propagationDelay, this.propagationDelay),
-            chipStart(notQ).inputPins(Qpin).outputPin(notQpin),
+            chipStart(master).inputPins(...stateIn).eventPins(clkPin).outputPin(internalQ).prevOutputPin(internalQ)
+                .outputDelayNs(15.0, 15.0),
+            chipStart(qBuf).inputPins(internalQ).outputPin(Qpin).outputDelayNs(16.0, 25.0),
+            chipStart(notQ).inputPins(internalQ).outputPin(notQpin).outputDelayNs(16.0, 25.0),
         ];
         return { desc, pinMap };
     }
