@@ -22,11 +22,12 @@ import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
+import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
 import { chipStart, i1 as internalQ, POS_EDGE_PIN as posEdge, NEG_EDGE_PIN as negEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class JKFlipFlopElm extends ChipElm {
+export class JKFlipFlopElm extends ChipElm implements DigitalInitialState {
     static readonly FLAG_RESET         = 2;
     static readonly FLAG_POSITIVE_EDGE = 4;
     static readonly FLAG_INVERT_RESET  = 8;
@@ -34,6 +35,16 @@ export class JKFlipFlopElm extends ChipElm {
     hasReset():           boolean { return (this.flags & JKFlipFlopElm.FLAG_RESET        ) !== 0; }
     positiveEdgeTriggered(): boolean { return (this.flags & JKFlipFlopElm.FLAG_POSITIVE_EDGE) !== 0; }
     invertReset():        boolean { return (this.flags & JKFlipFlopElm.FLAG_INVERT_RESET ) !== 0; }
+
+    /** DigitalInitialState - see its own docstring. this.pins[3].value (Q) already holds what
+     * ChipElm.undumpXml() restored generically from the "v3" XML attr dumpXmlState() wrote, so an
+     * imported flip-flop resumes at its saved state instead of restarting cleared. Named by the
+     * master cell's own internal pin (see digitalSynthesis() below) rather than Q's post, since
+     * Q/notQ are driven by separate, memoryless buffer cells with no state of their own to seed -
+     * only the master actually needs (and can use) a direct seed. */
+    digitalInitialState(): { pin: number, value: number }[] | null {
+        return [{ pin: internalQ, value: this.pins[3].value ? 1 : 0 }];
+    }
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
