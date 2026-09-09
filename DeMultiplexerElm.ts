@@ -54,6 +54,7 @@ export class DeMultiplexerElm extends ChipElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xa, ya);
+            this.setupPins();
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             try {

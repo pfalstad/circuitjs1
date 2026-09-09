@@ -187,6 +187,11 @@ export class ScopePropertiesDialog extends Dialog {
         const displayAll    = allowedHeight > 600;
         const displayScales = allowedHeight > 470;
 
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = Locale.LS('Scope Properties');
+        titleEl.style.margin = '0 0 8px 0';
+        this.dialogEl.appendChild(titleEl);
+
         const fp = document.createElement('div');
         fp.style.cssText = 'max-height:80vh;overflow-y:auto;min-width:420px;padding:8px;';
         this.dialogEl.appendChild(fp);
