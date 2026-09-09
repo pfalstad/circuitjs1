@@ -30,7 +30,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 
 import java.util.Vector;
 
-// Modal command palette (VS Code / Sublime style). Opened via double-tap Shift or a
+// Modal command palette (VS Code / Sublime style). Opened via double-tap Shift, /, or a
 // user-assigned shortcut (CommandManager "key"/"commandpalette"). Arrow keys, Enter,
 // and Escape are handled in UIManager.onPreviewNativeEvent so they work even when the
 // filter box has focus.

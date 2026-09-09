@@ -88,7 +88,7 @@ public class CommandManager {
     	    	app.dialogShowing = new SearchDialog(app);
     	    	app.dialogShowing.show();
     	}
-    	// Dispatched from double-tap Shift, ` shortcut, or the palette itself.
+    	// Dispatched from double-tap Shift, / shortcut, or the palette itself.
     	if (item=="commandpalette") {
     	    	app.commandPalette = new CommandPalette(app);
     	    	app.commandPalette.show();

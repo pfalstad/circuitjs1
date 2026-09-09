@@ -83,7 +83,7 @@ public class ShortcutsDialog extends Dialog {
 		    rowMenuItemIndex.add(i);
 		}
 		String runStopShortcut = "";
-		String commandPaletteShortcut = "`";
+		String commandPaletteShortcut = "/";
 		for (Map.Entry<Integer,String> entry : sim.shortcuts.entrySet()) {
 		    if (entry.getValue().equals(CirSim.RUNSTOP_SHORTCUT_ACTION)) {
 			runStopShortcut = String.valueOf((char)(int) entry.getKey());

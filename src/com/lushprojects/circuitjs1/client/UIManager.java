@@ -256,7 +256,7 @@ public class UIManager {
 	menus.mouseWheelEditCheckItem.setState(mouseWheelEdit);
 
 	loadShortcuts();
-	ensureDefaultCommandShortcut(CirSim.COMMAND_PALETTE_SHORTCUT_ACTION, '`'); // unless user remapped it
+	ensureDefaultCommandShortcut(CirSim.COMMAND_PALETTE_SHORTCUT_ACTION, '/'); // unless user remapped it
 
 	DOM.appendChild(layoutPanel.getElement(), topPanelCheckbox);
 	DOM.appendChild(layoutPanel.getElement(), topPanelCheckboxLabel);	
@@ -1175,7 +1175,8 @@ public class UIManager {
     		    e.cancel();
 		}
 		if (cc=='/' && app.shortcuts.get((int)'/') == null) {
-		    app.commands.menuPerformed("key", "search");
+			// app.commands.menuPerformed("key", "search"); // Previous command palette implementation
+		    app.commands.menuPerformed("key", "commandpalette");
 		    e.cancel();
 		}
     	}

@@ -172,7 +172,7 @@ public class CommandPaletteRegistry {
         add("tools:subcircuits", "Subcircuit Manager", "Tools", "subcircuit manager", "tools", "subcircuits");
 
         add("key:runstop", "Run/Stop Simulation", "Simulation", "run stop pause start simulation", "key", "runstop");
-        add("key:commandpalette", "Command Palette", "View", "command palette search", "key", "commandpalette");
+        add("key:commandpalette", "Command Palette", "View", "command palette search /", "key", "commandpalette");
 
         final CheckboxMenuItem dots = m.dotsCheckItem;
         addToggle("options:showcurrent", "Show Current", "Options", "current dots flow",
