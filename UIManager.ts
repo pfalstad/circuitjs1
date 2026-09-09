@@ -323,11 +323,79 @@ class CheckboxMenuItem {
     getLabel(): string { return this._label; }
 }
 
+class PerfEntry {
+    parent: PerfEntry | null;
+    children: Map<string, PerfEntry> = new Map();
+    startTime: number = 0;
+    endTime: number = 0;
+    length: number = 0;
+
+    constructor(p: PerfEntry | null) {
+        this.parent = p;
+    }
+
+    addChild(name: string, entry: PerfEntry): boolean {
+        if (!this.children.has(name)) {
+            this.children.set(name, entry);
+            return true;
+        }
+        return false;
+    }
+}
+
 class PerfMonitor {
-    startContext(name: string): void {}
-    stopContext(): void {}
-    static buildString(pm: PerfMonitor): { toString(): string } {
-        return { toString: () => "" };
+    rootCtxName: string = "";
+    rootCtx: PerfEntry | null = null;
+    ctx: PerfEntry | null = null;
+
+    startContext(name: string): void {
+        const newEntry = this.startNewEntry(this.ctx);
+        if (this.ctx == null) {
+            this.ctx = newEntry;
+            if (this.rootCtx == null) {
+                this.rootCtxName = name;
+                this.rootCtx = this.ctx;
+            }
+        } else {
+            if (this.ctx.addChild(name, newEntry))
+                this.ctx = newEntry;
+        }
+    }
+
+    stopContext(): void {
+        if (this.ctx != null) {
+            this.ctx.endTime = PerfMonitor.getTime();
+            this.ctx.length = this.ctx.endTime - this.ctx.startTime;
+            this.ctx = this.ctx.parent;
+        }
+    }
+
+    private startNewEntry(parent: PerfEntry | null): PerfEntry {
+        const newEntry = new PerfEntry(parent);
+        newEntry.startTime = PerfMonitor.getTime();
+        return newEntry;
+    }
+
+    static buildString(mon: PerfMonitor): { toString(): string } {
+        const sb: string[] = [];
+        if (mon.rootCtx != null)
+            PerfMonitor.buildStringInternal(sb, mon.rootCtxName, mon.rootCtx, 0);
+        return { toString: () => sb.join("") };
+    }
+
+    private static buildStringInternal(sb: string[], name: string, entry: PerfEntry, depth: number): void {
+        for (let x = 0; x < depth; x++)
+            sb.push("-");
+        sb.push(name);
+        sb.push(": ");
+        sb.push(entry.length.toString());
+        sb.push("\n");
+        for (const [key, child] of entry.children)
+            PerfMonitor.buildStringInternal(sb, key, child, depth + 1);
+    }
+
+    private static getTime(): number {
+        return window.performance.now();
     }
 }
 
