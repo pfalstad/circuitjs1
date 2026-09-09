@@ -291,18 +291,6 @@ export function digitalOutputChipAt(elm: any, outputIndex: number, chipsByElm: M
     return post === undefined ? null : digitalOutputChip(elm, post, chipsByElm);
 }
 
-/** `elm`'s own current output values, one per output post in the same ascending order
- * digitalOutputPosts()/digitalOutputChipAt() use (the "k-th output pin" convention getInfo()
- * panels already rely on) - for a stateful element's dumpXml() to save what it's CURRENTLY
- * showing (e.g. CounterElm's running count) rather than always writing a power-up default. Reads
- * Chip.currentValue() (not the raw `.output` field) so an ASLEEP/optimized-away chip still
- * resolves correctly - see Chip.currentValue()'s own docstring. Empty for anything not digital-
- * capable right now, or if no digital graph has been built yet. */
-export function digitalCurrentOutputValues(elm: any, chipsByElm: Map<any, Chip[]> | undefined): number[] {
-    if (!chipsByElm) return [];
-    return digitalOutputPosts(elm).map(post => digitalOutputChip(elm, post, chipsByElm)?.currentValue() ?? 0);
-}
-
 /** Implemented by an element whose undumpXml()-restored state needs seeding onto specific digital
  * chip(s) right after the FIRST digital build following a circuit load - e.g. CounterElm
  * restoring its saved running count, or JKFlipFlopElm restoring its saved Q - instead of every
@@ -436,7 +424,18 @@ export function findDigitalDriver(elm: any, postIndex: number): { elm: any; post
  * old code's three branches handled separately (a gate/chip's single/multiple `highVoltage`
  * posts, a rail/logic-input's `getDigitalVoltage()` post) - the two are told apart here by
  * whichever method the element actually exposes, same duck-typed convention this file already
- * uses throughout. */
+ * uses throughout.
+ *
+ * Also refreshes a ChipElm-style element's own `pins[post].value` (guarded by `Array.isArray` -
+ * a gate/rail/logic-input has no `pins` array at all) alongside `nodes[post].v`, piggybacking on
+ * the same currentValue() this loop already computes for every post every frame - so a
+ * DigitalInitialState implementation (CounterElm, the flip-flops, ...), which reads
+ * pins[...].value to seed a rebuild triggered by an edit (adding an element, ...), continues the
+ * running simulation's actual current state instead of whatever was loaded/reset to at the start
+ * of the session. This runs only while the simulation is actually running (see
+ * UIManager's simRunning gate on runCircuit()), but that's fine: pins[...].value simply holds
+ * whatever it was last synced to while paused, which is exactly the (unchanging, since nothing is
+ * ticking) live state at that moment. */
 export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
     for (const elm of elmList) {
         for (const post of digitalOutputPosts(elm)) {
@@ -452,6 +451,7 @@ export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[
                 elm.nodes[post].v = elm.getDigitalVoltage(high);
             else
                 elm.nodes[post].v = high ? elm.highVoltage : 0;
+            if (Array.isArray(elm.pins)) elm.pins[post].value = high;
         }
     }
 }
