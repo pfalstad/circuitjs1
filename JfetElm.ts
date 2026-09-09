@@ -166,6 +166,7 @@ export class JfetElm extends MosfetElm {
     setLastModelName(n: string): void { JfetElm.lastJfetModelName = n; }
 
     getDumpType(): number { return 'j'.charCodeAt(0); }
+    isJfetElm(): boolean { return true; }
     // these values are taken from Hayes+Horowitz p155
     getDefaultThreshold(): number { return -4; }
     getBackwardCompatibilityBeta(): number { return .00125; }

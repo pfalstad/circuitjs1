@@ -35,6 +35,8 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Scope } from "./Scope";
 import { Color } from "./Color";
 import { CirSim } from "./CirSim";
+import { ScrollValuePopup } from "./ScrollValuePopup";
+import { TypeScrollPopup } from "./TypeScrollPopup";
 
 export class TransistorElm extends CircuitElm {
     // node 0 = base
@@ -92,6 +94,14 @@ export class TransistorElm extends CircuitElm {
     }
 
     nonLinear(): boolean { return true; }
+
+    onMouseWheel(e: WheelEvent): void {
+        if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+            CirSim.typeScrollPopup.doDeltaY(ScrollValuePopup.normalizeWheelDelta(e));
+            return;
+        }
+        CirSim.typeScrollPopup = new TypeScrollPopup(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e), this, CircuitElm.app);
+    }
 
     reset(): void {
         this.lastvbc = this.lastvbe = this.curcount_c = this.curcount_e = this.curcount_b = 0;

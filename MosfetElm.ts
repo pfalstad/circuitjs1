@@ -35,6 +35,8 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { ScrollValuePopup } from "./ScrollValuePopup";
+import { TypeScrollPopup } from "./TypeScrollPopup";
 
 export class MosfetElm extends CircuitElm {
     pnp: number;
@@ -201,6 +203,15 @@ export class MosfetElm extends CircuitElm {
     getBackwardCompatibilityBeta(): number { return .02; }
 
     nonLinear(): boolean { return true; }
+
+    onMouseWheel(e: WheelEvent): void {
+        if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+            CirSim.typeScrollPopup.doDeltaY(ScrollValuePopup.normalizeWheelDelta(e));
+            return;
+        }
+        CirSim.typeScrollPopup = new TypeScrollPopup(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e), this, CircuitElm.app);
+    }
+
     drawDigital(): boolean { return this.digitalSymbolShown; }
     showBulk(): boolean { return this.bulkShown; }
     hasBodyTerminal(): boolean { return this.bodyTerminalShown; }
@@ -217,6 +228,8 @@ export class MosfetElm extends CircuitElm {
     }
 
     getDumpType(): number { return 'f'.charCodeAt(0); }
+
+    isMosfetElm(): boolean { return true; }
 
     dumpXml(doc: Document, elem: Element): void {
         if (!(this.model.builtIn || this.model.dumped))
