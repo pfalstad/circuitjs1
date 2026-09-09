@@ -43,7 +43,7 @@ export class RingCounterElm extends ChipElm {
     hasClockInhibit(): boolean { return (this.flags & RingCounterElm.FLAG_CLOCK_INHIBIT) !== 0 && this.bits >= 3; }
     hasInvertReset(): boolean { return (this.flags & RingCounterElm.FLAG_RESET_HIGH) === 0; }
 
-    clockInhibit: number = -1;
+    declare clockInhibit: number;
 
     setupPins(): void {
         if (!this.bits)
