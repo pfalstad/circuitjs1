@@ -21,6 +21,8 @@ package com.lushprojects.circuitjs1.client;
 
 import java.util.Vector;
 import com.google.gwt.storage.client.Storage;
+import com.google.gwt.user.client.Window;
+import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class UndoManager {
 
@@ -53,6 +55,17 @@ public class UndoManager {
     	undoStack.add(new UndoItem(s));
     	enableUndoRedo();
     	sim.savedFlag = false;
+    	sim.unsavedChanges = true;
+    }
+
+    boolean hasUnsavedWork() {
+		return sim.unsavedChanges;
+    }
+
+    boolean confirmDiscardChanges() {
+	if (!hasUnsavedWork())
+	    return true;
+		return Window.confirm(Locale.LS("Are you sure?  There are unsaved changes."));
     }
 
     void doUndo() {
@@ -81,10 +94,13 @@ public class UndoManager {
     }
 
     void doRecover() {
+	if (!confirmDiscardChanges())
+	    return;
 	pushUndo();
 	sim.loader.readCircuit(sim.recovery);
 	sim.allowSave(false);
 	sim.menus.recoverItem.setEnabled(false);
+	sim.unsavedChanges = false;
     }
 
     void enableUndoRedo() {

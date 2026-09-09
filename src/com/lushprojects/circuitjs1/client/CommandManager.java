@@ -26,10 +26,9 @@ public class CommandManager {
     	if (item=="about")
     		app.aboutBox = new AboutBox(circuitjs1.versionString);
     	if (item=="importfromlocalfile") {
-    		app.undoManager.pushUndo();
     		if (app.isElectron())
     		    electronOpenFile();
-    		else
+    		else if (app.ui.loadFileInput != null)
     		    app.ui.loadFileInput.click();
     	}
     	if (item=="newwindow") {
@@ -88,6 +87,11 @@ public class CommandManager {
     	if (item=="search") {
     	    	app.dialogShowing = new SearchDialog(app);
     	    	app.dialogShowing.show();
+    	}
+    	// Dispatched from double-tap Shift, ` shortcut, or the palette itself.
+    	if (item=="commandpalette") {
+    	    	app.commandPalette = new CommandPalette(app);
+    	    	app.commandPalette.show();
     	}
     	if (menu=="options" && item=="other")
     		doEdit(new EditOptions(app, app.sim));
@@ -276,12 +280,10 @@ public class CommandManager {
     		app.scopeManager.deleteUnusedScopeElms();
     	}
     	if (menu=="circuits" && item.indexOf("setup ") ==0) {
-    		app.undoManager.pushUndo();
     		int sp = item.indexOf(' ', 6);
     		app.menus.readSetupFile(item.substring(6, sp), item.substring(sp+1));
     	}
     	if (item=="newblankcircuit") {
-    	    app.undoManager.pushUndo();
     	    app.menus.readSetupFile("blank.txt", "Blank Circuit");
     	}
 

@@ -28,6 +28,7 @@ import com.google.gwt.user.client.ui.MenuBar;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.safehtml.shared.SafeHtmlUtils;
+import com.google.gwt.user.client.Window;
 import com.lushprojects.circuitjs1.client.util.Locale;
 import com.google.gwt.user.client.Window.Navigator;
 import com.google.gwt.http.client.Request;
@@ -37,7 +38,6 @@ import com.google.gwt.http.client.RequestBuilder;
 import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.user.client.Window;
 
 public class Menus {
 
@@ -549,6 +549,8 @@ public class Menus {
 	int len = b.length;
     	MenuBar currentMenuBar;
     	MenuBar stack[] = new MenuBar[6];
+    	String submenuStack[] = new String[6]; // submenu titles for palette circuit hints
+		submenuStack[0] = "";
     	int stackptr = 0;
     	currentMenuBar=new MenuBar(true);
     	currentMenuBar.setAutoOpen(true);
@@ -571,6 +573,7 @@ public class Menus {
 		n.setAutoOpen(true);
 		currentMenuBar.addItem(Locale.LS(line.substring(1)),n);
 		currentMenuBar = stack[stackptr++] = n;
+		submenuStack[stackptr - 1] = line.substring(1);
 	    } else if (line.charAt(0) == '-') {
 		    currentMenuBar = stack[--stackptr-1];
 	    } else {
@@ -583,6 +586,8 @@ public class Menus {
 		    String file = line.substring(first ? 1 : 0, i);
 		    currentMenuBar.addItem(new MenuItem(title,
 			    new MyCommand("circuits", "setup "+file+" " + title)));
+		    // Also searchable from the command palette (query length >= 2).
+		    CommandPaletteRegistry.registerCircuit(file, title, submenuStack[stackptr - 1]);
 		    String startCircuit = sim.startCircuit;
 		    String startLabel = sim.startLabel;
 		    if (file.equals(startCircuit) && startLabel == null) {
@@ -602,6 +607,9 @@ public class Menus {
     }
 
     void readSetupFile(String str, String title) {
+	if (!sim.undoManager.confirmDiscardChanges())
+	    return;
+	sim.undoManager.pushUndo();
 	System.out.println(str);
 	sim.resetEditingContext();
 	// don't avoid caching here, it's unnecessary and makes offline PWA's not work
@@ -610,6 +618,7 @@ public class Menus {
 	if (title != null)
 	    sim.setCircuitTitle(title);
 	sim.unsavedChanges = false;
+	sim.savedFlag = true;
 	ExportAsLocalFileDialog.setLastFileName(str.equals("blank.txt") ? null : str);
     }
 }

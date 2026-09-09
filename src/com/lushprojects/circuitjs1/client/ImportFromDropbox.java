@@ -28,8 +28,12 @@ public class ImportFromDropbox {
  	}-*/;
 	
 	static public void doLoadCallback(String s) {
+		if (!sim.undoManager.confirmDiscardChanges())
+		    return;
 		sim.undoManager.pushUndo();
 		sim.readCircuit(s);
+		sim.unsavedChanges = false;
+		sim.savedFlag = true;
 	}
 	
 	

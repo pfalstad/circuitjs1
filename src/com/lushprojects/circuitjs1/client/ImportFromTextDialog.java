@@ -57,6 +57,8 @@ TextArea textArea;
 		okButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
 				String s;
+				if (!sim.undoManager.confirmDiscardChanges())
+				    return;
 				sim.undoManager.pushUndo();
 				closeDialog();
 //				s=textBox.getHTML();

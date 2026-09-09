@@ -91,12 +91,14 @@ public class CirSim implements NativePreviewHandler {
     static TypeScrollPopup typeScrollPopup;
     static Dialog dialogShowing;
     static AboutBox aboutBox;
-    // Class dumpTypes[], shortcuts[];
+	// Class dumpTypes[], shortcuts[];
+    static CommandPalette commandPalette; // non-null while the palette popup is open
     static ElementFactory factory;
     // pseudo class name stored in shortcuts map for shortcuts that invoke a command
     // (via CommandManager.menuPerformed) instead of placing an element on the circuit.
     // format is "cmd:<menu>:<item>"
     static final String RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
+    static final String COMMAND_PALETTE_SHORTCUT_ACTION = "cmd:key:commandpalette";
     HashMap<Integer,String> shortcuts;
     String recovery;
     Rectangle circuitArea;
@@ -430,6 +432,10 @@ public class CirSim implements NativePreviewHandler {
 			loader.readCircuit(circuitText, flags);
 			ExportAsLocalFileDialog.setLastFileName(null);
 			allowSave(false);
+			if (!subcircuitsOnly) {
+			    unsavedChanges = false;
+			    savedFlag = true;
+			}
 		}
     }
 

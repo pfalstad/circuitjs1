@@ -101,6 +101,10 @@ public class UIManager {
     static int VERTICALPANELWIDTH = 166; // default
     long lastResizeTime;
 
+	// For tracking shift double-tap to open the command palette (see onPreviewNativeEvent).
+	long lastShiftKeyUpMs = 0;
+	boolean keyPressedSinceShiftUp = false;
+
     UIManager(CirSim app) {
 	this.app = app;
 	theUI = this;
@@ -166,6 +170,7 @@ public class UIManager {
 
 	app.menus = menus = new Menus(app);
 	menus.init();
+	CommandPaletteRegistry.buildStatic(app); // after menus so mainMenuItems exist
     	app.dumpTypeMap.put(403, "ScopeElm");
     	app.xmlDumpTypeMap.put("Scope", "ScopeElm");
 
@@ -251,6 +256,7 @@ public class UIManager {
 	menus.mouseWheelEditCheckItem.setState(mouseWheelEdit);
 
 	loadShortcuts();
+	ensureDefaultCommandShortcut(CirSim.COMMAND_PALETTE_SHORTCUT_ACTION, '`'); // unless user remapped it
 
 	DOM.appendChild(layoutPanel.getElement(), topPanelCheckbox);
 	DOM.appendChild(layoutPanel.getElement(), topPanelCheckboxLabel);	
@@ -387,7 +393,7 @@ public class UIManager {
 	Window.addWindowClosingHandler(new Window.ClosingHandler() {
 	    public void onWindowClosing(ClosingEvent event) {
 		// there is a bug in electron that makes it impossible to close the app if this warning is given
-		if (app.unsavedChanges && !app.isElectron())
+		if (app.undoManager.hasUnsavedWork() && !app.isElectron())
 		    event.setMessage(Locale.LS("Are you sure?  There are unsaved changes."));
 	    }
 	});
@@ -1035,6 +1041,8 @@ public class UIManager {
     		return true;
     	if (CirSim.aboutBox !=null && CirSim.aboutBox.isShowing())
     		return true;
+    	if (CirSim.commandPalette != null && CirSim.commandPalette.isShowing())
+    		return true; // blocks double-tap Shift while palette is open
     	return false;
     }
 
@@ -1065,18 +1073,32 @@ public class UIManager {
 
     	// Handle Shift key for net highlighting (works regardless of dialog state)
     	if (code == 16) {
-    	    if ((t & Event.ONKEYDOWN) != 0) {
+    	    if ((t & Event.ONKEYDOWN) != 0 && !isRepeatEvent(e.getNativeEvent())) {
     	    	mouse.netHighlightKeyHeld = true;
     	    	mouse.updateNetHighlight();
     	    	app.repaint();
     	    	mouse.toolbarDragOrientationChanged(true);
+
+				long now = System.currentTimeMillis();
+				// Second Shift within 400 ms, with no other key in between, opens the palette.
+				if (lastShiftKeyUpMs > 0 && now - lastShiftKeyUpMs < 400 &&
+						!keyPressedSinceShiftUp && !dialogIsShowing()) {
+					app.commands.menuPerformed("key", "commandpalette");
+					e.cancel();
+					lastShiftKeyUpMs = 0;
+				}
     	    }
     	    if ((t & Event.ONKEYUP) != 0) {
     	    	mouse.netHighlightKeyHeld = false;
     	    	mouse.updateNetHighlight();
     	    	app.repaint();
     	    	mouse.toolbarDragOrientationChanged(false);
+
+				lastShiftKeyUpMs = System.currentTimeMillis();
+				keyPressedSinceShiftUp = false;
     	    }
+    	} else if ((t & Event.ONKEYDOWN) != 0 && !isRepeatEvent(e.getNativeEvent())) {
+    	    keyPressedSinceShiftUp = true;
     	}
 
     	if (dialogIsShowing()) {
@@ -1109,6 +1131,33 @@ public class UIManager {
     			if (code==KEY_ENTER)
     			    dlg.enterPressed();
     		}
+
+			// Palette arrow/enter/esc handled here (not in the filter box) so selection
+			// isn't reset by refreshList() on every key-up.
+			if (CirSim.commandPalette != null && CirSim.commandPalette.isShowing() &&
+					(t & Event.ONKEYDOWN) != 0) {
+				if (code == KEY_DOWN) {
+					CirSim.commandPalette.moveSelection(1);
+					e.cancel();
+					return;
+				}
+				if (code == KEY_UP) {
+					CirSim.commandPalette.moveSelection(-1);
+					e.cancel();
+					return;
+				}
+				if (code == KEY_ENTER) {
+					CirSim.commandPalette.executeSelected();
+					e.cancel();
+					return;
+				}
+				if (code == KEY_ESCAPE) {
+					CirSim.commandPalette.close();
+					e.cancel();
+					return;
+				}
+			}
+
     		return;
     	}
 
@@ -1574,6 +1623,15 @@ public class UIManager {
         		}
             }
         }
+    }
+
+    void ensureDefaultCommandShortcut(String action, char key) {
+	for (String v : app.shortcuts.values()) {
+	    if (v.equals(action))
+		return;
+	}
+	if (!app.shortcuts.containsKey((int) key))
+	    app.shortcuts.put((int) key, action);
     }
 
     String getLabelTextForClass(String cls) {
