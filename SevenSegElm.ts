@@ -32,21 +32,21 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class SevenSegElm extends ChipElm {
     // base segment count not including decimal point or colon
-    baseSegmentCount: number;
+    baseSegmentCount: number = 0;
 
     // segment count including decimal point or colon
-    segmentCount: number;
+    segmentCount: number = 0;
 
-    extraSegment: number;
+    extraSegment: number = 0;
     static readonly ES_NONE  = 0;
     static readonly ES_DP    = 1;
     static readonly ES_COLON = 2;
 
-    pinCount: number;
-    commonPin: number;
+    pinCount: number = 0;
+    commonPin: number = 0;
 
     // 1 = common cathode, -1 = common anode, 0 = no diodes
-    diodeDirection: number;
+    diodeDirection: number = 0;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
