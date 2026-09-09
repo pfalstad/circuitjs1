@@ -60,7 +60,7 @@ export class VarRailElm extends RailElm {
         this.sliderText = xml.parseStringAttr("st", this.sliderText);
         if (this.labelEl != null)
             this.labelEl.textContent = Locale.LS(this.sliderText);
-        const value = Math.round((this.frequency - this.bias) * 100 / (this.maxVoltage - this.bias));
+        const value = Math.trunc((this.frequency - this.bias) * 100 / (this.maxVoltage - this.bias));
         this.slider?.setValue(value);
     }
 
@@ -75,7 +75,7 @@ export class VarRailElm extends RailElm {
     createSlider(): void {
         this.waveform = VoltageElm.WF_VAR;
         const denom = this.maxVoltage - this.bias;
-        const value = denom !== 0 ? Math.round((this.frequency - this.bias) * 100 / denom) : 0;
+        const value = denom !== 0 ? Math.trunc((this.frequency - this.bias) * 100 / denom) : 0;
 
         const lbl = document.createElement('div');
         lbl.textContent = Locale.LS(this.sliderText);
