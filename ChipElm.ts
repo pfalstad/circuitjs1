@@ -472,6 +472,14 @@ export abstract class ChipElm extends CircuitElm {
             if (!p.output)
                 p.value = this.nodes[i].v > this.getThreshold();
         }
+
+        // Skip the first execute() after a load to preserve pin state we just
+        // loaded.  analyzeCircuit() rebuilds fresh CircuitNode objects, setting
+        // voltages to zero.  So an unguarded execute() here would read
+        // stale/wrong input levels and can clobber restored sequential state (e.g.
+        // CounterElm reading an inverted reset pin as asserted and zeroing its
+        // count). The java version has no such guard and always calls execute()
+        // immediately, so chip state doesn't get preserved.
         if (this.justLoaded)
             this.justLoaded = false;
         else
