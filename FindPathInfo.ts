@@ -1,5 +1,3 @@
-// Stub — to be implemented from FindPathInfo.java
-
 import { CircuitNode } from "./CircuitNode";
 
 export class FindPathInfo {
