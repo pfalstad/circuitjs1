@@ -799,7 +799,7 @@ export class Scope {
     // Compute grid display parameters for a plot. Sets plot.plotOffset, plot.gridMult,
     // and this.gridStepY as side-effects; returns gridMid for use by callers.
     calcGridParams(plot: ScopePlot, allPlotsSameUnits: boolean): number {
-        const maxy = (this.rect.height - 1) / 2;
+        const maxy = Math.trunc((this.rect.height - 1) / 2);
         let gridMid: number, positionOffset: number, gridMax: number;
         if (!this.isManualScale()) {
             gridMax = this.scale[plot.units];
@@ -837,7 +837,7 @@ export class Scope {
     }
 
     drawHVGridLines(g: Graphics, plot: ScopePlot, gridMid: number, allPlotsSameUnits: boolean, allSelected: boolean): void {
-        const maxy = (this.rect.height - 1) / 2;
+        const maxy = Math.trunc((this.rect.height - 1) / 2);
         let minorDiv = "#404040";
         let majorDiv = "#A0A0A0";
         if (this.app.isPrintable()) {
@@ -881,7 +881,7 @@ export class Scope {
     drawPlot(g: Graphics, plot: ScopePlot, allPlotsSameUnits: boolean, selected: boolean, allSelected: boolean): void {
         if (plot.elm === null)
             return;
-        const maxy = (this.rect.height - 1) / 2;
+        const maxy = Math.trunc((this.rect.height - 1) / 2);
 
         let color = (this.somethingSelected) ? "#A0A0A0" : plot.color;
         if (allSelected || (this.app.scopeManager.scopeSelected === -1 && this.getSingleElm() === null && plot.elm.isMouseElm()))
@@ -991,7 +991,7 @@ export class Scope {
         }
         const ipa = this.displayStartIndex(this.plots[0], this.rect.width);
         const ip = (mouseX - this.rect.x + ipa) & (this.scopePointCount - 1);
-        const maxy = (this.rect.height - 1) / 2;
+        const maxy = Math.trunc((this.rect.height - 1) / 2);
         const y = maxy;
         let i;
         let bestdist = 10000;
@@ -1025,7 +1025,7 @@ export class Scope {
         const ip = (x - this.rect.x + ipa) & (this.scopePointCount - 1);
         const value = plot.maxValues[ip];
         const vy = plot.gridMult * (value + plot.plotOffset);
-        const dotY = this.rect.y + (this.rect.height - 1) / 2 - vy;
+        const dotY = this.rect.y + Math.trunc((this.rect.height - 1) / 2) - vy;
         g.setColor(plot.color);
         if (dotY >= this.rect.y && dotY < this.rect.y + this.rect.height)
             g.fillOval(x - 2, dotY - 2, 5, 5);
@@ -1264,7 +1264,7 @@ export class Scope {
     dragPlotY(mouseY: number): void {
         if (this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
             return;
-        const maxy = Math.max(1, (this.rect.height - 1) / 2);
+        const maxy = Math.max(1, Math.trunc((this.rect.height - 1) / 2));
         const dy = mouseY - this.dragPlotYMouseStart;
         let newPos = this.dragPlotYInitialPosition - Math.round(dy * V_POSITION_STEPS / (2.0 * maxy));
         newPos = Math.max(-V_POSITION_STEPS, Math.min(V_POSITION_STEPS, newPos));
