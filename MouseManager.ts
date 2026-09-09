@@ -24,6 +24,7 @@ import { Scope } from "./Scope";
 import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
+import { ScrollValuePopup } from "./ScrollValuePopup";
 
 // mode constants
 export class MouseManager {
@@ -1236,7 +1237,7 @@ export class MouseManager {
 	    zoomOnly = true;
 
 	if (!zoomOnly)
-	    this.scrollValues(e.clientX, e.clientY, e.deltaY);
+	    this.scrollValues(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e));
 
 	if (this.mouseElm != null && (this.mouseElm as any).onMouseWheel && !zoomOnly)
 	    (this.mouseElm as any).onMouseWheel(e);
@@ -1246,7 +1247,7 @@ export class MouseManager {
 	    const canvas = this.ui.cv as HTMLCanvasElement;
 	    this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
 	    this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
-	    this.zoomCircuit(-e.deltaY * this.wheelSensitivity, false);
+	    this.zoomCircuit(-ScrollValuePopup.normalizeWheelDelta(e) * this.wheelSensitivity, false);
 	    this.zoomTime = Date.now();
 	}
 	this.sim.repaint();
@@ -1277,7 +1278,7 @@ export class MouseManager {
     private scrollValues(x: number, y: number, deltay: number): void {
 	if (this.mouseElm != null && !this.sim.dialogIsShowing() && this.sim.scopeManager.scopeSelected === -1) {
 	    if (this.mouseElm.isResistorElm() || this.mouseElm.isCapacitorElm() || this.mouseElm.isInductorElm()) {
-		(window as any).ScrollValuePopup?.new(x, y, deltay, this.mouseElm, this.sim);
+		CirSim.scrollValuePopup = new ScrollValuePopup(x, y, deltay, this.mouseElm, this.sim);
 	    }
 	}
     }

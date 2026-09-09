@@ -33,6 +33,7 @@ import { ScopeFFT } from "./ScopeFFT";
 import { ScopeOverlays } from "./ScopeOverlays";
 import { ScopeTrigger } from "./ScopeTrigger";
 import type { ScopePropertiesDialog } from "./ScopePropertiesDialog";
+import { ScrollValuePopup } from "./ScrollValuePopup";
 import { Locale } from "./Locale";
 import { HookRegistry } from "./HookRegistry";
 import {
@@ -1417,7 +1418,7 @@ export class Scope {
     }
 
     onMouseWheel(e: WheelEvent): void {
-        this.wheelDeltaY += e.deltaY * this.app.mouse.wheelSensitivity;
+        this.wheelDeltaY += ScrollValuePopup.normalizeWheelDelta(e) * this.app.mouse.wheelSensitivity;
         if (this.wheelDeltaY > 5) {
             this.slowDown();
             this.wheelDeltaY = 0;

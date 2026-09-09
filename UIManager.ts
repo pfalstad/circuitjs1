@@ -33,6 +33,7 @@ import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { KeyNames } from "./KeyNames";
+import { ScrollValuePopup } from "./ScrollValuePopup";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -114,7 +115,7 @@ export class Scrollbar {
         });
         can.addEventListener('wheel', (e) => {
             e.preventDefault();
-            if (this.enabled) this.setValue(this.val + Math.round(e.deltaY / 3));
+            if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
         }, { passive: false });
 
         can.addEventListener('touchstart', (e) => {

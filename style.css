@@ -251,6 +251,41 @@ td.gwt-MenuItem.open > .menuDropdown {
     min-width: 160px;
 }
 
+/* Scroll-to-adjust popup shown when the mouse wheel is scrolled over a resistor/
+   capacitor/inductor (see ScrollValuePopup.ts) */
+.scrollValuePopup {
+    position: fixed;
+    z-index: 200;
+    background: #f8f8f8;
+    border: 1px solid #bbb;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    padding: 4px 8px;
+    text-align: center;
+    font-size: small;
+    cursor: default;
+}
+
+.scrollValuePopup-name {
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+
+.scrollValuePopup-label.selected {
+    font-size: 1.3em;
+    font-weight: 700;
+    border-top: 1px solid black;
+    border-bottom: 1px solid black;
+}
+
+.scrollValuePopup-label.off1 {
+    color: darkgray;
+}
+
+.scrollValuePopup-label.off2 {
+    font-size: 0.8em;
+    color: lightgray;
+}
+
 /* ---- Layout panels ---- */
 
 .verticalPanel {
