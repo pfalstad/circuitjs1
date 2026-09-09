@@ -639,6 +639,11 @@ export class SimulationManager {
 		    cnl.elm = ce;
 		    cn2.links.push(cnl);
 		    ce.setNode(j, cn2);
+		    // if it's the ground node, make sure calculateCurrent() gets called for
+		    // this element, since it's never in m.nodeList (ground has no matrix row)
+		    // and so setNodeVoltages() will never call it for this link otherwise
+		    if (cn2 === CircuitNode.ground)
+			ce.calculateCurrent();
 		}
 	    }
 	    for (j = 0; j !== inodes; j++) {
