@@ -89,7 +89,7 @@ export class DeMultiplexerElm extends ChipElm {
 
     setupPins(): void {
 	if (!this.selectBitCount)
-	    return;
+	    this.selectBitCount = 2;
         this.outputCount = 1 << this.selectBitCount;
         const D = DeMultiplexerElm;
         let i: number, n: number;
