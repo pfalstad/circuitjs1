@@ -155,9 +155,6 @@ public class CommandPalette extends PopupPanel {
             row.add(hint);
         }
 
-        if (!CommandPaletteRegistry.isAvailable(cmd, sim))
-            row.addStyleName("command-palette-item-disabled");
-
         row.addDomHandler(new ClickHandler() {
             public void onClick(ClickEvent event) {
                 selectedIndex = index;
@@ -215,8 +212,6 @@ public class CommandPalette extends PopupPanel {
         if (visibleCommands.size() == 0 || selectedIndex < 0 || selectedIndex >= visibleCommands.size())
             return;
         CommandPaletteRegistry.PaletteCommand cmd = visibleCommands.get(selectedIndex);
-        if (!CommandPaletteRegistry.isAvailable(cmd, sim))
-            return;
         // Close before running the command so modal overlay doesn't block native
         // file/print dialogs (Open File, Save As, etc.).
         close();
@@ -225,9 +220,6 @@ public class CommandPalette extends PopupPanel {
 
     static void execute(CommandPaletteRegistry.PaletteCommand cmd) {
         CirSim app = CirSim.theApp;
-        // Context commands (elm:*) need menuElm set the same way as choosing from the right-click menu.
-        if (cmd.contextRequired)
-            app.mouse.menuElm = app.mouse.getMouseElm();
         if (cmd.custom != null)
             cmd.custom.execute();
         else

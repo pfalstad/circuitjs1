@@ -46,6 +46,33 @@ public class CommandPaletteHistory {
         ids.insertElementAt(id, 0);
         while (ids.size() > MAX)
             ids.removeElementAt(ids.size() - 1);
+        save(ids);
+    }
+
+    static Vector<String> getRecentIds() {
+        Vector<String> ids = load();
+        pruneStale(ids);
+        return ids;
+    }
+
+    // Drop ids that no longer exist in CommandPaletteRegistry (e.g. after palette changes).
+    static void pruneStale(Vector<String> ids) {
+        int i;
+        boolean changed = false;
+        for (i = ids.size() - 1; i >= 0; i--) {
+            if (CommandPaletteRegistry.get(ids.get(i)) == null) {
+                ids.remove(i);
+                changed = true;
+            }
+        }
+        if (changed)
+            save(ids);
+    }
+
+    static void save(Vector<String> ids) {
+        Storage stor = Storage.getLocalStorageIfSupported();
+        if (stor == null)
+            return;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i != ids.size(); i++) {
             if (i > 0)
@@ -53,10 +80,6 @@ public class CommandPaletteHistory {
             sb.append(ids.get(i));
         }
         stor.setItem(KEY, sb.toString());
-    }
-
-    static Vector<String> getRecentIds() {
-        return load();
     }
 
     static Vector<String> load() {

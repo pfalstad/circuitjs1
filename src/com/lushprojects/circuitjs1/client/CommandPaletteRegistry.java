@@ -41,22 +41,20 @@ public class CommandPaletteRegistry {
         String menu;        // first arg to CommandManager.menuPerformed, unless custom is set
         String item;        // second arg to CommandManager.menuPerformed
         Command custom;     // toggles and other actions that don't map to a menu item
-        boolean contextRequired; // true => needs an element under the cursor (elm:* commands)
         String hint;        // secondary label on the right (e.g. Circuits submenu name)
 
         PaletteCommand(String id, String label, String category, String keywords,
-                       String menu, String item, boolean contextRequired) {
+                       String menu, String item) {
             this.id = id;
             this.label = label;
             this.category = category;
             this.keywords = keywords;
             this.menu = menu;
             this.item = item;
-            this.contextRequired = contextRequired;
         }
 
         PaletteCommand(String id, String label, String category, String keywords, Command custom) {
-            this(id, label, category, keywords, null, null, false);
+            this(id, label, category, keywords, null, null);
             this.custom = custom;
         }
 
@@ -88,12 +86,7 @@ public class CommandPaletteRegistry {
 
     static void add(String id, String label, String category, String keywords,
                     String menu, String item) {
-        add(new PaletteCommand(id, label, category, keywords, menu, item, false));
-    }
-
-    static void addContext(String id, String label, String category, String keywords,
-                           String menu, String item) {
-        add(new PaletteCommand(id, label, category, keywords, menu, item, true));
+        add(new PaletteCommand(id, label, category, keywords, menu, item));
     }
 
     static void addToggle(String id, String label, String category, String keywords, Command custom) {
@@ -294,21 +287,6 @@ public class CommandPaletteRegistry {
         add("options:other", "Other Options...", "Options", "options settings preferences", "options", "other");
         if (m.isElectron())
             add("options:devtools", "Toggle Dev Tools", "Options", "developer tools debug", "options", "devtools");
-
-        addContext("elm:edit", "Edit Element...", "Element", "edit properties", "elm", "edit");
-        addContext("elm:viewInScope", "View in New Scope", "Element", "scope view", "elm", "viewInScope");
-        addContext("elm:viewInFloatScope", "View in New Undocked Scope", "Element", "float scope undock", "elm", "viewInFloatScope");
-        addContext("elm:cut", "Cut Element", "Element", "cut", "elm", "cut");
-        addContext("elm:copy", "Copy Element", "Element", "copy", "elm", "copy");
-        addContext("elm:delete", "Delete Element", "Element", "delete remove backspace", "elm", "delete");
-        addContext("elm:duplicate", "Duplicate Element", "Element", "duplicate clone", "elm", "duplicate");
-        addContext("elm:flip", "Swap Terminals", "Element", "swap flip terminals", "elm", "flip");
-        addContext("elm:mirrorX", "Mirror Element X", "Element", "mirror flip x", "elm", "mirrorX");
-        addContext("elm:mirrorY", "Mirror Element Y", "Element", "mirror flip y", "elm", "mirrorY");
-        addContext("elm:rotateCCW", "Rotate Element CCW", "Element", "rotate ccw", "elm", "rotateCCW");
-        addContext("elm:rotateCW", "Rotate Element CW", "Element", "rotate cw", "elm", "rotateCW");
-        addContext("elm:split", "Split Wire Manually", "Element", "split wire", "elm", "split");
-        addContext("elm:sliders", "Element Sliders...", "Element", "sliders adjust", "elm", "sliders");
     }
 
     // Called from Menus.processSetupList() for each circuit entry in setuplist.txt.
@@ -323,7 +301,7 @@ public class CommandPaletteRegistry {
         if (submenuPath != null && submenuPath.length() > 0)
             kw += " " + submenuPath;
         PaletteCommand cmd = new PaletteCommand(id, label, "Circuits", kw,
-                "circuits", "setup " + file + " " + title, false);
+                "circuits", "setup " + file + " " + title);
         if (submenuPath != null && submenuPath.length() > 0)
             cmd.hint = submenuPath;
         if (byId.containsKey(id))
@@ -395,13 +373,6 @@ public class CommandPaletteRegistry {
                 result.add(cmd);
         }
         return result;
-    }
-
-    static boolean isAvailable(PaletteCommand cmd, CirSim app) {
-        if (!cmd.contextRequired)
-            return true;
-        // Shown but styled disabled when nothing is under the cursor.
-        return app.mouse.getMouseElm() != null;
     }
 
     // Returns HTML with matched portions wrapped in <b> (label is escaped).
