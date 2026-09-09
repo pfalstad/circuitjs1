@@ -263,8 +263,6 @@ export class Scrollbar {
     addChangeHandler(fn: () => void): void { this.command = fn; }
 }
 
-// Stubs for classes not yet translated from Java
-
 class LoadFile {
     element: HTMLInputElement;
     static isSupported(): boolean { return !!(window.File && window.FileReader); }
