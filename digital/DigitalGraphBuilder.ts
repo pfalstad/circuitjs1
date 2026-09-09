@@ -354,6 +354,14 @@ export function isDigitalInitialStateSource(elm: any): elm is DigitalInitialStat
  * edge - see digitalSynthesisWholeRegister()'s own logic - so this is not a redundant no-op). */
 export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
     const seeded = new Set<Chip>();
+    // Chips whose `.output` this loop actually overwrote to a DIFFERENT value than what
+    // Circuit's constructor had already computed for them via its own blanket initialize()
+    // pass over every chip (see circuit.ts) - NOT "every chip named by some digitalInitialState()
+    // entry" (that's `seeded`, used only for the freshlySynced membership test below). Only a
+    // chip in this set has stale consumer-side `.inputs` bits that need correcting: one whose
+    // seeded value MATCHED what it had already cold-computed needs nothing fixed, since every
+    // consumer's cached bit for it was already set correctly by that same constructor pass.
+    const changed = new Set<Chip>();
 
     for (const elm of elmList) {
         if (!isDigitalInitialStateSource(elm)) continue;
@@ -372,14 +380,26 @@ export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chi
             seeded.add(chip);
             if (chip.output === value) continue;
             chip.output = value;
+            changed.add(chip);
             if (value) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
         }
     }
 
     const freshlySynced = new Set<Chip>();
-    for (const chip of seeded) {
+    // Only `changed` chips need their consumers corrected - and unconditionally, not "only when
+    // the new value is 1" (the previous `if (chip.output) ...` here): each such chip's
+    // constructor-time cold value already got XORed into every consumer's `.inputs` once (via
+    // Circuit's own initialize() pass, before this function ever runs - see this function's own
+    // docstring), so flipping from THAT stale bit to the corrected one is a single XOR regardless
+    // of which direction the correction goes. Gating on the new value's truthiness left a 1->0
+    // correction (e.g. DFlipFlopElm's inverted-Set/Reset cold value: with S/R both floating 0 at
+    // construction, invertBit forces both isSet/isReset "active" and the state cell cold-computes
+    // Q=1 before this function corrects it back down to the real saved value of 0) never patching
+    // notQ/qBuf's cached view of that pin, permanently stuck at the stale 1 - reproduced via
+    // DFlipFlopElm with FLAG_INVERT_SET_RESET set.
+    for (const chip of changed) {
         for (const link of chip.outputLinks) {
-            if (chip.output) link.chip.inputs ^= Number(link.mask);
+            link.chip.inputs ^= Number(link.mask);
             // `link.mask` covers BOTH the plain value bit AND, when this pin is also declared an
             // eventPin (an edge-sensitive input - e.g. a ripple counter's inter-stage clock, see
             // digitalSynthesisRipple()), the "this pin just transitioned" event bit (see Chip.
