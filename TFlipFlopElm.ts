@@ -23,10 +23,10 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 
 export class TFlipFlopElm extends ChipElm {
-    readonly FLAG_RESET = 2;
-    readonly FLAG_SET = 4;
-    hasReset(): boolean { return (this.flags & this.FLAG_RESET) !== 0 || this.hasSet(); }
-    hasSet(): boolean { return (this.flags & this.FLAG_SET) !== 0; }
+    static readonly FLAG_RESET = 2;
+    static readonly FLAG_SET = 4;
+    hasReset(): boolean { return (this.flags & TFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
+    hasSet(): boolean { return (this.flags & TFlipFlopElm.FLAG_SET) !== 0; }
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
@@ -100,18 +100,18 @@ export class TFlipFlopElm extends ChipElm {
     setChipEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
             if (ei.checkbox!.getState())
-                this.flags |= this.FLAG_RESET;
+                this.flags |= TFlipFlopElm.FLAG_RESET;
             else
-                this.flags &= ~this.FLAG_RESET | this.FLAG_SET;
+                this.flags &= ~TFlipFlopElm.FLAG_RESET | TFlipFlopElm.FLAG_SET;
             this.setupPins();
             this.allocNodes();
             this.setPoints();
         }
         if (n === 1) {
             if (ei.checkbox!.getState())
-                this.flags |= this.FLAG_SET;
+                this.flags |= TFlipFlopElm.FLAG_SET;
             else
-                this.flags &= ~this.FLAG_SET;
+                this.flags &= ~TFlipFlopElm.FLAG_SET;
             this.setupPins();
             this.allocNodes();
             this.setPoints();
