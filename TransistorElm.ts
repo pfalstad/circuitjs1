@@ -67,8 +67,12 @@ export class TransistorElm extends CircuitElm {
             this.pnp = parseInt(st!.nextToken());
             this.beta = 100;
             try {
-                this.lastvbe = parseFloat(st!.nextToken());
+                // the on-disk format stores these two tokens in the order
+                // (volts[0]-volts[1]), (volts[0]-volts[2]) -- i.e. vbc then vbe --
+                // even though Java's own field names call them lastvbe/lastvbc;
+                // we store them here under their true electrical meaning instead
                 this.lastvbc = parseFloat(st!.nextToken());
+                this.lastvbe = parseFloat(st!.nextToken());
                 this.justLoaded = true;
                 this.beta = parseFloat(st!.nextToken());
                 this.modelName = CustomLogicModel.unescape(st!.nextToken());
@@ -109,8 +113,10 @@ export class TransistorElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        CircuitXMLSerializer.dumpAttr(elem, "vbe", this.nodes[0].v - this.nodes[1].v);
-        CircuitXMLSerializer.dumpAttr(elem, "vbc", this.nodes[0].v - this.nodes[2].v);
+        // "vBE"/"vBC" (mixed case) are correctly-named, not cross-wired like Java's
+        // lowercase "vbe"/"vbc" (see undumpXml, which still accepts the old names)
+        CircuitXMLSerializer.dumpAttr(elem, "vBE", this.nodes[0].v - this.nodes[2].v);
+        CircuitXMLSerializer.dumpAttr(elem, "vBC", this.nodes[0].v - this.nodes[1].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -118,8 +124,15 @@ export class TransistorElm extends CircuitElm {
         this.pnp = xml.parseIntAttr("pn", this.pnp);
         this.beta = xml.parseDoubleAttr("be", this.beta);
         this.modelName = xml.parseStringAttr("mo", this.modelName);
-        this.lastvbe = xml.parseDoubleAttr("vbe", 0);
-        this.lastvbc = xml.parseDoubleAttr("vbc", 0);
+        if (xml.currentXmlElement.getAttribute("vBE") != null || xml.currentXmlElement.getAttribute("vBC") != null) {
+            this.lastvbe = xml.parseDoubleAttr("vBE", 0);
+            this.lastvbc = xml.parseDoubleAttr("vBC", 0);
+        } else {
+            // legacy Java-compatible attributes: "vbe"/"vbc" are cross-wired relative
+            // to their true electrical meaning, so swap them back here
+            this.lastvbc = xml.parseDoubleAttr("vbe", 0);
+            this.lastvbe = xml.parseDoubleAttr("vbc", 0);
+        }
         this.justLoaded = true;
         TransistorElm.globalFlags = this.flags & TransistorElm.FLAGS_GLOBAL;
         this.setup();
@@ -352,11 +365,8 @@ export class TransistorElm extends CircuitElm {
     }
 
     doStep(): void {
-        // note: the saved lastvbe/lastvbc fields are named for volts[1]/volts[2] (collector/emitter),
-        // not for vbc/vbe directly, so they're cross-wired and pnp-scaled here to match doStep's
-        // vbc/vbe convention (see the constructor and undumpXml, which seed them the same way Java does)
-        let vbc = this.justLoaded ? this.pnp * this.lastvbe : this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
-        let vbe = this.justLoaded ? this.pnp * this.lastvbc : this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
+        let vbc = this.justLoaded ? this.pnp * this.lastvbc : this.pnp * (this.nodes[0].v - this.nodes[1].v); // typically negative
+        let vbe = this.justLoaded ? this.pnp * this.lastvbe : this.pnp * (this.nodes[0].v - this.nodes[2].v); // typically positive
         this.justLoaded = false;
         const notConverged = Math.abs(vbc - this.lastvbc) > .01 ||
             Math.abs(vbe - this.lastvbe) > .01;
