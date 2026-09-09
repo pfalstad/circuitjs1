@@ -59,9 +59,9 @@ export class DeMultiplexerElm extends ChipElm {
             super(xa, ya, xb, yb!, f!, st!);
             try {
                 this.selectBitCount = parseInt(st!.nextToken());
-                this.setupPins();
-                this.allocNodes();
             } catch (e) {}
+	    this.setupPins();
+	    this.allocNodes();
         }
     }
 
