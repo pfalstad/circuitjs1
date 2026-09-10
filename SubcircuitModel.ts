@@ -204,7 +204,7 @@ export class SubcircuitModel {
 
         for (const line of modelLines) {
             const stModel = new StringTokenizer(line, " +\t\n\r\f");
-            const ceType = stModel.nextToken();
+            let ceType = stModel.nextToken();
 
             let nn = "";
             while (stModel.hasMoreTokens()) {
@@ -212,6 +212,8 @@ export class SubcircuitModel {
                 nn += stModel.nextToken();
             }
 
+	    if (ceType == 'CustomCompositeElm')
+		ceType = 'SubcircuitElm';
             let ce = CirSim.constructElement(ceType, 0, 0);
 
 	    if (ce == null) {
