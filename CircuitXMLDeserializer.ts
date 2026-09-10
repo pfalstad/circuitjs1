@@ -169,7 +169,7 @@ export class CircuitXMLDeserializer {
                 continue;
             const className = CirSim.xmlDumpTypeMap.get(tagName);
             if (className == null) {
-                this.app.console("unrecognized xml element: " + tagName);
+                console.log("unrecognized xml element: " + tagName);
                 continue;
             }
             const elm = this.app.constructElement(className, 0, 0);
@@ -187,7 +187,7 @@ export class CircuitXMLDeserializer {
             return def;
         const n = parseFloat(v);
         if (isNaN(n)) {
-            this.app.console("invalid value for attribute " + attr + ": " + JSON.stringify(v));
+            console.log("invalid value for attribute " + attr + ": " + JSON.stringify(v));
             return def;
         }
         return n;
@@ -199,7 +199,7 @@ export class CircuitXMLDeserializer {
             return def;
         const n = parseInt(v);
         if (isNaN(n)) {
-            this.app.console("invalid value for attribute " + attr + ": " + JSON.stringify(v));
+            console.log("invalid value for attribute " + attr + ": " + JSON.stringify(v));
             return def;
         }
         return n;
