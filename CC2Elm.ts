@@ -24,6 +24,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class CC2Elm extends ChipElm {
     gain: number;
@@ -33,7 +34,7 @@ export class CC2Elm extends ChipElm {
     constructor(xa: number, ya: number, xbOrG?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (st !== undefined) {
             super(xa, ya, xbOrG!, yb!, f!, st);
-            this.gain = parseFloat(st.nextToken());
+            this.gain = parseFloatStrict(st.nextToken());
         } else {
             super(xa, ya);
             this.gain = (xbOrG !== undefined) ? xbOrG : 1;

@@ -28,6 +28,7 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { parseIntStrict } from "./NumberParse";
 
 export class SRAMElm extends ChipElm {
     static readonly FLAG_HEX_DISPLAY = 4;
@@ -54,21 +55,21 @@ export class SRAMElm extends ChipElm {
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
             this.map = new Map();
-            this.addressBits = parseInt(st!.nextToken());
-            this.dataBits    = parseInt(st!.nextToken());
+            this.addressBits = parseIntStrict(st!.nextToken());
+            this.dataBits    = parseIntStrict(st!.nextToken());
             this.setupPins();
             try {
                 // load contents
                 // format: addr val(addr) val(addr+1) val(addr+2) ... -1 addr val val ... -1 ... -2
                 while (true) {
                     const a_str = st!.nextToken();
-                    let a = parseInt(a_str);
+                    let a = parseIntStrict(a_str);
                     if (a < 0)
                         break;
-                    let v = parseInt(st!.nextToken());
+                    let v = parseIntStrict(st!.nextToken());
                     this.map.set(a, v);
                     while (true) {
-                        v = parseInt(st!.nextToken());
+                        v = parseIntStrict(st!.nextToken());
                         if (v < 0)
                             break;
                         this.map.set(++a, v);
@@ -268,12 +269,12 @@ export class SRAMElm extends ChipElm {
 
     parseNumber(str: string): number {
         if (str.startsWith("0x"))
-            return parseInt(str.substring(2), 16);
+            return parseIntStrict(str.substring(2), 16);
         if (this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY))
-            return parseInt(str, 16);
+            return parseIntStrict(str, 16);
         if (str.startsWith("0b"))
-            return parseInt(str.substring(2), 2);
-        return parseInt(str);
+            return parseIntStrict(str.substring(2), 2);
+        return parseIntStrict(str);
     }
 
     setChipEditValue(n: number, ei: EditInfo): void {

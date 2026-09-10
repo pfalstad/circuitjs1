@@ -29,6 +29,7 @@ import { Point } from "./Point";
 import { RelayCoilElm } from "./RelayCoilElm";
 import { RelayContactElm } from "./RelayContactElm";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class MotorProtectionSwitchElm extends CircuitElm {
     resistance: number;
@@ -47,8 +48,8 @@ export class MotorProtectionSwitchElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.resistance = parseFloat(st.nextToken());
-            this.i2t = parseFloat(st.nextToken());
+            this.resistance = parseFloatStrict(st.nextToken());
+            this.i2t = parseFloatStrict(st.nextToken());
             this.blown = st.nextToken() === "true";
             this.label = "";
             try { this.label = CustomLogicModel.unescape(st.nextToken()); } catch (e) {}

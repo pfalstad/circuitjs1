@@ -33,6 +33,7 @@ import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class SCRElm extends CircuitElm {
     readonly anode = 0;
@@ -50,13 +51,13 @@ export class SCRElm extends CircuitElm {
         this.setDefaults();
         if (st !== undefined) {
             try {
-                this.lastvac = parseFloat(st.nextToken());
-                this.lastvag = parseFloat(st.nextToken());
+                this.lastvac = parseFloatStrict(st.nextToken());
+                this.lastvag = parseFloatStrict(st.nextToken());
                 // volts[anode/cnode/gnode] were initialized here in Java, but nodes[]
                 // isn't allocated until analyzeCircuit; initial voltages start at 0
-                this.triggerI = parseFloat(st.nextToken());
-                this.holdingI = parseFloat(st.nextToken());
-                this.gresistance = parseFloat(st.nextToken());
+                this.triggerI = parseFloatStrict(st.nextToken());
+                this.holdingI = parseFloatStrict(st.nextToken());
+                this.gresistance = parseFloatStrict(st.nextToken());
             } catch (e) {}
         } else {
             this.flags |= this.FLAG_GATE_FIX;

@@ -27,6 +27,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { UIManager } from "./UIManager";
 import { Rectangle } from "./Rectangle";
+import { parseIntStrict } from "./NumberParse";
 
 export class RoutedWireElm extends WireElm {
     routePoints: Point[] | null = null;
@@ -70,7 +71,7 @@ export class RoutedWireElm extends WireElm {
                 const points: Point[] = [];
                 for (const pair of contents.split(";")) {
                     const xy = pair.split(",");
-                    points.push(new Point(parseInt(xy[0]), parseInt(xy[1])));
+                    points.push(new Point(parseIntStrict(xy[0]), parseIntStrict(xy[1])));
                 }
                 if (points.length >= 2)
                     this.routePoints = points;

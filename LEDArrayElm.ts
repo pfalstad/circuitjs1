@@ -27,6 +27,7 @@ import { Graphics } from "./Graphics";
 import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class LEDArrayElm extends ChipElm {
     diodes: Diode[] | null = null;
@@ -45,8 +46,8 @@ export class LEDArrayElm extends ChipElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             try {
-                this.sizeX = parseInt(st!.nextToken());
-                this.sizeY = parseInt(st!.nextToken());
+                this.sizeX = parseIntStrict(st!.nextToken());
+                this.sizeY = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.allocNodes();
             this.setupPins();

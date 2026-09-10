@@ -28,6 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
@@ -59,12 +60,12 @@ export abstract class GateElm extends CircuitElm {
             this.setSize(this.useSmallGrid() ? 1 : 2);
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.inputCount = parseInt(st!.nextToken());
-            const lastOutputVoltage = parseFloat(st!.nextToken());
+            this.inputCount = parseIntStrict(st!.nextToken());
+            const lastOutputVoltage = parseFloatStrict(st!.nextToken());
             this.noDiagonal = true;
             this.highVoltage = 5;
             try {
-                this.highVoltage = parseFloat(st!.nextToken());
+                this.highVoltage = parseFloatStrict(st!.nextToken());
             } catch (e) {}
             this.lastOutput = lastOutputVoltage > this.highVoltage * .5;
             this.setSize((f! & GateElm.FLAG_SMALL) !== 0 ? 1 : 2);

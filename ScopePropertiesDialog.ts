@@ -26,6 +26,7 @@ import { Locale } from "./Locale";
 import { ScopeTrigger } from "./ScopeTrigger";
 import { ScopePlot } from "./ScopePlot";
 import { HookRegistry } from "./HookRegistry";
+import { parseIntStrict } from "./NumberParse";
 
 // A checkbox with an associated scope menu command string.
 class ScopeCheckBox {
@@ -540,7 +541,7 @@ export class ScopePropertiesDialog extends Dialog {
     private getSelectValue(sel: HTMLSelectElement): number {
         const idx = sel.selectedIndex;
         if (idx < 0) return -1;
-        try { return parseInt(sel.options[idx].value); } catch (e) { return -1; }
+        try { return parseIntStrict(sel.options[idx].value); } catch (e) { return -1; }
     }
 
     private populatePlotListBox(sel: HTMLSelectElement, selectedIdx: number, includeNone: boolean): void {
@@ -560,7 +561,7 @@ export class ScopePropertiesDialog extends Dialog {
             sel.appendChild(opt);
         }
         for (let i = 0; i < sel.options.length; i++) {
-            if (parseInt(sel.options[i].value) === selectedIdx) { sel.selectedIndex = i; return; }
+            if (parseIntStrict(sel.options[i].value) === selectedIdx) { sel.selectedIndex = i; return; }
         }
         sel.selectedIndex = 0;
     }
@@ -788,7 +789,7 @@ export class ScopePropertiesDialog extends Dialog {
     }
 
     private getDivisionsValue(): number {
-        try { return parseInt(this.divisionsTextBox.value); } catch (e) { return 0; }
+        try { return parseIntStrict(this.divisionsTextBox.value); } catch (e) { return 0; }
     }
 
     apply(): boolean {

@@ -37,6 +37,7 @@ import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 // circuit element class
 export abstract class CircuitElm implements Editable {
@@ -161,12 +162,12 @@ export abstract class CircuitElm implements Editable {
             const s1 = stor.getItem("decimalDigits");
             const s2 = stor.getItem("decimalDigitsShort");
             if (s1 != null)
-                CircuitElm.decimalDigits = parseInt(s1);
+                CircuitElm.decimalDigits = parseIntStrict(s1);
             if (s2 != null)
-                CircuitElm.shortDecimalDigits = parseInt(s2);
+                CircuitElm.shortDecimalDigits = parseIntStrict(s2);
             const sf = stor.getItem("valueFontSize");
             if (sf != null)
-                CircuitElm.valueFontSize = parseInt(sf);
+                CircuitElm.valueFontSize = parseIntStrict(sf);
         }
         CircuitElm.setDecimalDigits(CircuitElm.decimalDigits, false, false);
         CircuitElm.setDecimalDigits(CircuitElm.shortDecimalDigits, true, false);
@@ -653,8 +654,8 @@ export abstract class CircuitElm implements Editable {
         if (x == null)
             return;
         const xs = x.split(" ");
-        this.setPosition(parseInt(xs[0]), parseInt(xs[1]),
-                         parseInt(xs[2]), parseInt(xs[3]));
+        this.setPosition(parseIntStrict(xs[0]), parseIntStrict(xs[1]),
+                         parseIntStrict(xs[2]), parseIntStrict(xs[3]));
     }
 
     // determine if moving this element by (dx,dy) will put it on top of another element

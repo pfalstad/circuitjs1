@@ -29,6 +29,7 @@ import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class Pin {
     chip: ChipElm;
@@ -206,18 +207,18 @@ export abstract class ChipElm extends CircuitElm {
         } else {
             super(xa, ya, xb, yb!, f!);
             if (this.needsBits())
-                this.bits = st!.hasMoreTokens() ? parseInt(st!.nextToken()) : this.defaultBitCount();
-            this.highVoltage = this.hasCustomVoltage() ? parseFloat(st!.nextToken()) : 5;
+                this.bits = st!.hasMoreTokens() ? parseIntStrict(st!.nextToken()) : this.defaultBitCount();
+            this.highVoltage = this.hasCustomVoltage() ? parseFloatStrict(st!.nextToken()) : 5;
             this.noDiagonal = true;
             this.setupPins();
             this.allocNodes();
             this.setSize((f! & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
             for (let i = 0; i !== this.getPostCount(); i++) {
                 //if (this.pins == null)
-                //    this.volts[i] = parseFloat(st!.nextToken());
+                //    this.volts[i] = parseFloatStrict(st!.nextToken());
                 //else
                 if (this.pins[i].state) {
-                    const v = parseFloat(st!.nextToken());
+                    const v = parseFloatStrict(st!.nextToken());
                     this.pins[i].value = v > this.getThreshold();
                 }
             }
@@ -751,7 +752,7 @@ export abstract class ChipElm extends CircuitElm {
         for (let i = 0; i < output.length; i++) {
             if (bitIndex >= 32) {
                 if (st.hasMoreTokens()) {
-                    integer  = parseInt(st.nextToken());
+                    integer  = parseIntStrict(st.nextToken());
                     bitIndex = 0;
                 } else
                     break;
@@ -788,7 +789,7 @@ export abstract class ChipElm extends CircuitElm {
         for (let i = 0; i < output.length; i++) {
             if (bitIndex >= 32) {
                 if (st.hasMoreTokens()) {
-                    integer  = parseInt(st.nextToken());
+                    integer  = parseIntStrict(st.nextToken());
                     bitIndex = 0;
                 } else
                     break;

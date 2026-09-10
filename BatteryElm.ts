@@ -28,6 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { parseFloatStrict } from "./NumberParse";
 
 // Battery model: drawn like a DC voltage source, but internally modeled as
 //   (-) terminal -- Vsrc -- nodeA -- R0 -- nodeB -- (R1 parallel C1) -- (+) terminal
@@ -174,8 +175,8 @@ export class BatteryElm extends CircuitElm {
                 continue;
             }
             try {
-                const socPct = parseFloat(line.substring(0, eq).trim());
-                const v = parseFloat(line.substring(eq + 1).trim());
+                const socPct = parseFloatStrict(line.substring(0, eq).trim());
+                const v = parseFloatStrict(line.substring(eq + 1).trim());
                 if (isNaN(socPct) || isNaN(v))
                     throw new Error("bad number");
                 this.socTable.push([socPct, v]);

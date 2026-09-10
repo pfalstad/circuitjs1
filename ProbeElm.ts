@@ -30,6 +30,7 @@ import { Choice } from "./Choice";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class ProbeElm extends CircuitElm {
     static readonly FLAG_SHOWVOLTAGE = 1;
@@ -95,9 +96,9 @@ export class ProbeElm extends CircuitElm {
             this.scale = CircuitElm.SCALE_AUTO;
             this.resistance = 0;
             try {
-                this.meter     = parseInt(st!.nextToken());
-                this.scale     = parseInt(st!.nextToken());
-                this.resistance = parseFloat(st!.nextToken());
+                this.meter     = parseIntStrict(st!.nextToken());
+                this.scale     = parseIntStrict(st!.nextToken());
+                this.resistance = parseFloatStrict(st!.nextToken());
             } catch (e) {}
         }
     }

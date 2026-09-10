@@ -22,6 +22,7 @@ import { EditInfo } from "./EditInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
+import { parseIntStrict } from "./NumberParse";
 
 export class CustomLogicModel implements Editable {
     static readonly FLAG_SCHMITT = 1;
@@ -96,7 +97,7 @@ export class CustomLogicModel implements Editable {
     }
 
     undump(st: { nextToken(): string }): void {
-        this.flags   = parseInt(st.nextToken());
+        this.flags   = parseIntStrict(st.nextToken());
         this.inputs  = this.listToArray(CustomLogicModel.unescape(st.nextToken()));
         this.outputs = this.listToArray(CustomLogicModel.unescape(st.nextToken()));
         this.infoText = CustomLogicModel.unescape(st.nextToken());

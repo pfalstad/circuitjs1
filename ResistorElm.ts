@@ -26,6 +26,7 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class ResistorElm extends CircuitElm {
     resistance: number;
@@ -38,7 +39,7 @@ export class ResistorElm extends CircuitElm {
             this.resistance = 1000;
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.resistance = parseFloat(st!.nextToken());
+            this.resistance = parseFloatStrict(st!.nextToken());
         }
     }
 

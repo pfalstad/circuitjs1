@@ -30,6 +30,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseIntStrict } from "./NumberParse";
 
 export class AmmeterElm extends CircuitElm {
     meter: number = 0;
@@ -64,9 +65,9 @@ export class AmmeterElm extends CircuitElm {
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
             this.scale = CircuitElm.SCALE_AUTO;
-            this.meter = parseInt(st!.nextToken());
+            this.meter = parseIntStrict(st!.nextToken());
             try {
-                this.scale = parseInt(st!.nextToken());
+                this.scale = parseIntStrict(st!.nextToken());
             } catch (e) {}
         }
     }

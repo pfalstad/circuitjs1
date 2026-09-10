@@ -26,6 +26,7 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TransformerElm extends CircuitElm {
     inductance: number;
@@ -71,17 +72,17 @@ export class TransformerElm extends CircuitElm {
                 this.width = -Math.max(32, Math.abs(xb-xa));
             else
                 this.width = Math.max(32, Math.abs(yb!-ya));
-            this.inductance = parseFloat(st!.nextToken());
-            this.ratio = parseFloat(st!.nextToken());
+            this.inductance = parseFloatStrict(st!.nextToken());
+            this.ratio = parseFloatStrict(st!.nextToken());
             this.currents  = new Array(2).fill(0);
             this.curcounts = new Array(2).fill(0);
-            this.currents[0] = parseFloat(st!.nextToken());
-            this.currents[1] = parseFloat(st!.nextToken());
+            this.currents[0] = parseFloatStrict(st!.nextToken());
+            this.currents[1] = parseFloatStrict(st!.nextToken());
             this.couplingCoef = .999;
 	    this.curSourceValue1 = this.curSourceValue2 = this.a1 = this.a2 = this.a3 = this.a4 = 0;
             try {
-                this.couplingCoef = parseFloat(st!.nextToken());
-                this.saturationCurrent = parseFloat(st!.nextToken());
+                this.couplingCoef = parseFloatStrict(st!.nextToken());
+                this.saturationCurrent = parseFloatStrict(st!.nextToken());
             } catch (e) { }
             this.noDiagonal = true;
             this.polarity = (this.hasFlag(TransformerElm.FLAG_REVERSE)) ? -1 : 1;

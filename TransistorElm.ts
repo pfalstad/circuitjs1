@@ -37,6 +37,7 @@ import { Color } from "./Color";
 import { CirSim } from "./CirSim";
 import { ScrollValuePopup } from "./ScrollValuePopup";
 import { TypeScrollPopup } from "./TypeScrollPopup";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class TransistorElm extends CircuitElm {
     // node 0 = base
@@ -66,17 +67,17 @@ export class TransistorElm extends CircuitElm {
             this.setup();
         } else {
             super(xa, ya, xbOrPnp!, yb!, f!);
-            this.pnp = parseInt(st!.nextToken());
+            this.pnp = parseIntStrict(st!.nextToken());
             this.beta = 100;
             try {
                 // the on-disk format stores these two tokens in the order
                 // (volts[0]-volts[1]), (volts[0]-volts[2]) -- i.e. vbc then vbe --
                 // even though Java's own field names call them lastvbe/lastvbc;
                 // we store them here under their true electrical meaning instead
-                this.lastvbc = parseFloat(st!.nextToken());
-                this.lastvbe = parseFloat(st!.nextToken());
+                this.lastvbc = parseFloatStrict(st!.nextToken());
+                this.lastvbe = parseFloatStrict(st!.nextToken());
                 this.justLoaded = true;
-                this.beta = parseFloat(st!.nextToken());
+                this.beta = parseFloatStrict(st!.nextToken());
                 this.modelName = CustomLogicModel.unescape(st!.nextToken());
             } catch (e) {
                 this.modelName = "default";

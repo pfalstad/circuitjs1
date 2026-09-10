@@ -28,6 +28,7 @@ import { Locale } from "./Locale";
 import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
+import { parseIntStrict } from "./NumberParse";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -115,7 +116,7 @@ export class SimulationManager {
 	    let stor = localStorage;
 	    if (stor != null) {
 		let s = stor.getItem("solverType");
-		if (s != null) this.solverType = parseInt(s);
+		if (s != null) this.solverType = parseIntStrict(s);
 	    }
 	} catch (e) {}
 	*/

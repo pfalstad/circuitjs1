@@ -13,6 +13,7 @@ import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { StringTokenizer } from "./StringTokenizer";
 import { Scrollbar } from "./UIManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class ThermistorNTCElm extends CircuitElm {
     position: number;
@@ -35,11 +36,11 @@ export class ThermistorNTCElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.r25 = parseFloat(st.nextToken());
-            this.r50 = parseFloat(st.nextToken());
-            this.minTempr = parseFloat(st.nextToken());
-            this.maxTempr = parseFloat(st.nextToken());
-            this.position = parseFloat(st.nextToken());
+            this.r25 = parseFloatStrict(st.nextToken());
+            this.r50 = parseFloatStrict(st.nextToken());
+            this.minTempr = parseFloatStrict(st.nextToken());
+            this.maxTempr = parseFloatStrict(st.nextToken());
+            this.position = parseFloatStrict(st.nextToken());
             this.sliderText = CustomLogicModel.unescape(st.nextToken());
         } else {
             this.position = 0.34;

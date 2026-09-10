@@ -26,6 +26,7 @@ import { Graphics } from "./Graphics";
 import { Inductor } from "./Inductor";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TappedTransformerElm extends CircuitElm {
     inductance: number;
@@ -52,16 +53,16 @@ export class TappedTransformerElm extends CircuitElm {
         this.curSourceValue = [0, 0, 0];
         this.a = new Array(9).fill(0);
         if (st !== undefined) {
-            this.inductance = parseFloat(st.nextToken());
-            this.ratio = parseFloat(st.nextToken());
-            this.currents[0] = parseFloat(st.nextToken());
-            this.currents[1] = parseFloat(st.nextToken());
+            this.inductance = parseFloatStrict(st.nextToken());
+            this.ratio = parseFloatStrict(st.nextToken());
+            this.currents[0] = parseFloatStrict(st.nextToken());
+            this.currents[1] = parseFloatStrict(st.nextToken());
             try {
-                this.currents[2] = parseFloat(st.nextToken());
+                this.currents[2] = parseFloatStrict(st.nextToken());
             } catch (e) {}
             this.couplingCoef = 0.99;
             try {
-                this.couplingCoef = parseFloat(st.nextToken());
+                this.couplingCoef = parseFloatStrict(st.nextToken());
             } catch (e) {}
         } else {
             this.inductance = 4;

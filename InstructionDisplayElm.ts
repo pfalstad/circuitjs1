@@ -27,6 +27,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { ExprParser, ExprState } from "./Expr";
 import { CirSim } from "./CirSim";
+import { parseIntStrict } from "./NumberParse";
 
 class LookupEntry {
     lo: number;
@@ -262,10 +263,10 @@ export class InstructionDisplayElm extends CircuitElm {
     parseNumber(s: string): number {
         s = s.trim();
         if (s.startsWith("0x") || s.startsWith("0X"))
-            return parseInt(s.substring(2), 16);
+            return parseIntStrict(s.substring(2), 16);
         if (s.startsWith("0b") || s.startsWith("0B"))
-            return parseInt(s.substring(2), 2);
-        return parseInt(s);
+            return parseIntStrict(s.substring(2), 2);
+        return parseIntStrict(s);
     }
 
     getConnection(n1: number, n2: number): boolean { return false; }

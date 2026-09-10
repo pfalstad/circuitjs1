@@ -30,6 +30,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TriStateElm extends CircuitElm {
     resistance: number = 0;
@@ -58,10 +59,10 @@ export class TriStateElm extends CircuitElm {
         if (st !== undefined) {
             this.r_on = 0.1; this.r_off = 1e10; this.r_off_ground = 0; this.highVoltage = 5;
             try {
-                this.r_on = parseFloat(st.nextToken());
-                this.r_off = parseFloat(st.nextToken());
-                this.r_off_ground = parseFloat(st.nextToken());
-                this.highVoltage = parseFloat(st.nextToken());
+                this.r_on = parseFloatStrict(st.nextToken());
+                this.r_off = parseFloatStrict(st.nextToken());
+                this.r_off_ground = parseFloatStrict(st.nextToken());
+                this.highVoltage = parseFloatStrict(st.nextToken());
             } catch (e) {}
         } else {
             this.r_on = 0.1; this.r_off = 1e10; this.r_off_ground = 1e8;

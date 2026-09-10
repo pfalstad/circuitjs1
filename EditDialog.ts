@@ -24,6 +24,7 @@ import { VoltageElm } from "./VoltageElm";
 import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
+import { parseFloatStrict } from "./NumberParse";
 
 const ROOT2 = 1.41421356237309504880;
 
@@ -381,7 +382,7 @@ export class EditDialog extends Dialog {
 
         // handle scientific notation before checking unit suffixes
         if (/^-?[0-9]*\.?[0-9]+[eE][+-]?[0-9]+$/.test(s))
-            return parseFloat(s) * rmsMult;
+            return parseFloatStrict(s) * rmsMult;
 
         const uc = s.charAt(s.length - 1);
         let mult = 1;
@@ -397,7 +398,7 @@ export class EditDialog extends Dialog {
         }
         if (mult !== 1)
             s = s.slice(0, -1).trim();
-        return parseFloat(s) * mult * rmsMult;
+        return parseFloatStrict(s) * mult * rmsMult;
     }
 
     apply(): boolean {

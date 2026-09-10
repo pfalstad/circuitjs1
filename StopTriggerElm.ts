@@ -26,6 +26,7 @@ import { Font } from "./Font";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class StopTriggerElm extends CircuitElm {
     triggerVoltage: number = 1;
@@ -46,9 +47,9 @@ export class StopTriggerElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.triggerVoltage = parseFloat(st.nextToken());
-            this.type = parseInt(st.nextToken());
-            this.delay = parseFloat(st.nextToken());
+            this.triggerVoltage = parseFloatStrict(st.nextToken());
+            this.type = parseIntStrict(st.nextToken());
+            this.delay = parseFloatStrict(st.nextToken());
             this.count = 1;
         }
     }

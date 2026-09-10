@@ -28,6 +28,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { parseFloatStrict } from "./NumberParse";
 
 export class CustomLogicElm extends ChipElm {
     modelName: string;
@@ -53,7 +54,7 @@ export class CustomLogicElm extends ChipElm {
             this.updateModels();
             for (let i = 0; i !== this.getPostCount(); i++) {
                 if (this.pins[i].output) {
-                    const v = parseFloat(st!.nextToken());
+                    const v = parseFloatStrict(st!.nextToken());
                     this.pins[i].value = v > this.getThreshold();
                 }
             }

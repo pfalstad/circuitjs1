@@ -32,6 +32,7 @@ import { Polygon } from "./Polygon";
 import { ResistorElm } from "./ResistorElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { TransistorElm } from "./TransistorElm";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class OpAmpRealElm extends CompositeElm {
     private static model741String =
@@ -104,13 +105,13 @@ export class OpAmpRealElm extends CompositeElm {
         if (st !== undefined) {
             super(xa, ya, xb!, yb!, f!);
             this.noDiagonal = true;
-            this.slewRate = parseFloat(st.nextToken());
-            this.capValue = parseFloat(st.nextToken());
+            this.slewRate = parseFloatStrict(st.nextToken());
+            this.capValue = parseFloatStrict(st.nextToken());
             this.currentLimit = this.defaultCurrentLimit;
             this.modelType = OpAmpRealElm.MODEL_741;
             try {
-                this.currentLimit = parseFloat(st.nextToken());
-                this.modelType = parseInt(st.nextToken());
+                this.currentLimit = parseFloatStrict(st.nextToken());
+                this.modelType = parseIntStrict(st.nextToken());
             } catch (e) {}
         } else {
             super(xa, ya);

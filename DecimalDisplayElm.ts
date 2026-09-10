@@ -26,6 +26,7 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class DecimalDisplayElm extends ChipElm {
     bitCount: number;
@@ -42,8 +43,8 @@ export class DecimalDisplayElm extends ChipElm {
             super(xa, ya, xb, yb!, f!, st!);
             this.bitCount = 4;
             try {
-                this.bitCount    = parseInt(st!.nextToken());
-                this.displayMode = parseInt(st!.nextToken());
+                this.bitCount    = parseIntStrict(st!.nextToken());
+                this.displayMode = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.setupPins();
         }

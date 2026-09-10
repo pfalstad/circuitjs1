@@ -29,6 +29,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { TransistorElm } from "./TransistorElm";
+import { parseIntStrict } from "./NumberParse";
 
 export class DarlingtonElm extends CompositeElm {
     private rectPoly: Polygon;
@@ -53,7 +54,7 @@ export class DarlingtonElm extends CompositeElm {
         if (st !== undefined) {
             super(xa, ya, xbOrPnp as number, yb!, f!);
             this.loadComposite(st, DarlingtonElm.modelString, DarlingtonElm.modelExternalNodes);
-            this.pnp = parseInt(st.nextToken());
+            this.pnp = parseIntStrict(st.nextToken());
             this.noDiagonal = true;
         } else {
             super(xa, ya);

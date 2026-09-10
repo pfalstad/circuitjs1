@@ -27,6 +27,7 @@ import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class TransLineElm extends CircuitElm {
     delay: number;
@@ -59,9 +60,9 @@ export class TransLineElm extends CircuitElm {
             this.reset();
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.delay = parseFloat(st!.nextToken());
-            this.imped = parseFloat(st!.nextToken());
-            this.width = parseInt(st!.nextToken());
+            this.delay = parseFloatStrict(st!.nextToken());
+            this.imped = parseFloatStrict(st!.nextToken());
+            this.width = parseIntStrict(st!.nextToken());
             // next slot is for resistance (losses), not implemented
             st!.nextToken();
             this.noDiagonal = true;

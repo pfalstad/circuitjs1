@@ -18,6 +18,7 @@
 */
 
 import { Point } from "./Point";
+import { parseIntStrict } from "./NumberParse";
 
 interface RoutableElm {
     x: number; y: number; x2: number; y2: number;
@@ -503,7 +504,7 @@ export class WireRouter {
 
     private parseKey(key: string): number[] {
         const parts = key.split(",");
-        return [parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2])];
+        return [parseIntStrict(parts[0]), parseIntStrict(parts[1]), parseIntStrict(parts[2])];
     }
 
     drawGrid(ctx: CanvasRenderingContext2D, showGridLines: boolean): void {

@@ -27,6 +27,7 @@ import { Checkbox } from "./Checkbox";
 import { FindPathInfo } from "./FindPathInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class InductorElm extends CircuitElm {
     ind: Inductor;
@@ -47,13 +48,13 @@ export class InductorElm extends CircuitElm {
         } else {
             super(xa, ya, xb, yb!, f!);
             this.ind = new Inductor(CircuitElm.sim);
-            this.inductance = parseFloat(st!.nextToken());
-            this.current = parseFloat(st!.nextToken());
+            this.inductance = parseFloatStrict(st!.nextToken());
+            this.current = parseFloatStrict(st!.nextToken());
             this.initialCurrent = 0;
             this.saturationCurrent = 0;
             try {
-                this.initialCurrent = parseFloat(st!.nextToken());
-                this.saturationCurrent = parseFloat(st!.nextToken());
+                this.initialCurrent = parseFloatStrict(st!.nextToken());
+                this.saturationCurrent = parseFloatStrict(st!.nextToken());
             } catch (e) {}
             this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
         }

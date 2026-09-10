@@ -25,6 +25,7 @@ import { Font } from "./Font";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict } from "./NumberParse";
 
 export class DataRecorderElm extends CircuitElm {
     dataCount: number;
@@ -38,7 +39,7 @@ export class DataRecorderElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.setDataCount(parseInt(st.nextToken()));
+            this.setDataCount(parseIntStrict(st.nextToken()));
         } else {
             this.setDataCount(10240);
         }

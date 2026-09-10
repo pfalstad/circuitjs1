@@ -27,6 +27,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class AudioOutputElm extends CircuitElm {
     dataCount: number = 0;
@@ -54,9 +55,9 @@ export class AudioOutputElm extends CircuitElm {
             this.createButton();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.duration = parseFloat(st!.nextToken());
-            this.samplingRate = parseInt(st!.nextToken());
-            this.labelNum = parseInt(st!.nextToken());
+            this.duration = parseFloatStrict(st!.nextToken());
+            this.samplingRate = parseIntStrict(st!.nextToken());
+            this.labelNum = parseIntStrict(st!.nextToken());
             this.setDataCount();
             this.createButton();
         }

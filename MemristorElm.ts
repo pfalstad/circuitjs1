@@ -26,6 +26,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { VAL_R, UNITS_OHMS } from "./ScopeConstants";
+import { parseFloatStrict } from "./NumberParse";
 
 export class MemristorElm extends CircuitElm {
     r_on: number;
@@ -40,13 +41,13 @@ export class MemristorElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.r_on = parseFloat(st.nextToken());
-            this.r_off = parseFloat(st.nextToken());
-            this.dopeWidth = parseFloat(st.nextToken());
-            this.totalWidth = parseFloat(st.nextToken());
-            this.mobility = parseFloat(st.nextToken());
+            this.r_on = parseFloatStrict(st.nextToken());
+            this.r_off = parseFloatStrict(st.nextToken());
+            this.dopeWidth = parseFloatStrict(st.nextToken());
+            this.totalWidth = parseFloatStrict(st.nextToken());
+            this.mobility = parseFloatStrict(st.nextToken());
             try {
-                this.current = parseFloat(st.nextToken());
+                this.current = parseFloatStrict(st.nextToken());
             } catch (e) {}
         } else {
             this.r_on = 100;

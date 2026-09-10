@@ -28,6 +28,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { StringTokenizer } from "./StringTokenizer";
 import { HookRegistry } from "./HookRegistry";
+import { parseIntStrict } from "./NumberParse";
 
 // model for subcircuits
 
@@ -177,16 +178,16 @@ export class SubcircuitModel {
     }
 
     undump(st: StringTokenizer): void {
-        this.flags = parseInt(st.nextToken());
-        this.sizeX = parseInt(st.nextToken());
-        this.sizeY = parseInt(st.nextToken());
-        const extCount = parseInt(st.nextToken());
+        this.flags = parseIntStrict(st.nextToken());
+        this.sizeX = parseIntStrict(st.nextToken());
+        this.sizeY = parseIntStrict(st.nextToken());
+        const extCount = parseIntStrict(st.nextToken());
         this.extList = [];
         for (let i = 0; i < extCount; i++) {
             const s  = CustomLogicModel.unescape(st.nextToken());
-            const n  = parseInt(st.nextToken());
-            const p  = parseInt(st.nextToken());
-            const sd = parseInt(st.nextToken());
+            const n  = parseIntStrict(st.nextToken());
+            const p  = parseIntStrict(st.nextToken());
+            const sd = parseIntStrict(st.nextToken());
             this.extList.push(new ExtListEntry(s, n, p, sd));
         }
         const nodeList = CustomLogicModel.unescape(st.nextToken());
@@ -224,7 +225,7 @@ export class SubcircuitModel {
             if (elmTokenizer.hasMoreTokens()) {
                 const dumpedCe = CustomLogicModel.unescape(elmTokenizer.nextToken());
                 const stCe = new StringTokenizer(dumpedCe, " ");
-                const ceFlags = parseInt(stCe.nextToken());
+                const ceFlags = parseIntStrict(stCe.nextToken());
                 ce = CirSim.createCe(ce.getDumpType(), 0, 0, 0, 0, ceFlags, stCe);
             }
 

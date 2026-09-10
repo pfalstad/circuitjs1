@@ -27,6 +27,7 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { WireRouter } from "./WireRouter";
+import { parseIntStrict } from "./NumberParse";
 
 // SPST switch
 export class SwitchElm extends CircuitElm {
@@ -67,7 +68,7 @@ export class SwitchElm extends CircuitElm {
             else if (str === 'false')
                 this.position = isLogicInput ? 1 : 0;
             else
-                this.position = parseInt(str);
+                this.position = parseIntStrict(str);
             this.momentary = st!.nextToken() === 'true';
             this.posCount = 2;
             this.label = null;

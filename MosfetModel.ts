@@ -25,6 +25,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
@@ -246,22 +247,22 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
     }
 
     undump(st: StringTokenizer): void {
-        this.flags = parseInt(st.nextToken());
-        this.threshold = parseFloat(st.nextToken());
-        this.beta = parseFloat(st.nextToken());
+        this.flags = parseIntStrict(st.nextToken());
+        this.threshold = parseFloatStrict(st.nextToken());
+        this.beta = parseFloatStrict(st.nextToken());
         try {
-            this.lambda = parseFloat(st.nextToken());
+            this.lambda = parseFloatStrict(st.nextToken());
         } catch (e) {}
         try {
-            this.capGS = parseFloat(st.nextToken());
-            this.capGD = parseFloat(st.nextToken());
+            this.capGS = parseFloatStrict(st.nextToken());
+            this.capGD = parseFloatStrict(st.nextToken());
         } catch (e) {}
         try {
-            this.showBulk = parseInt(st.nextToken()) !== 0;
-            this.digitalSymbol = parseInt(st.nextToken()) !== 0;
-            this.bodyDiode = parseInt(st.nextToken()) !== 0;
-            this.bodyTerminal = parseInt(st.nextToken()) !== 0;
-            this.showBodyDiodeSymbol = parseInt(st.nextToken()) !== 0;
+            this.showBulk = parseIntStrict(st.nextToken()) !== 0;
+            this.digitalSymbol = parseIntStrict(st.nextToken()) !== 0;
+            this.bodyDiode = parseIntStrict(st.nextToken()) !== 0;
+            this.bodyTerminal = parseIntStrict(st.nextToken()) !== 0;
+            this.showBodyDiodeSymbol = parseIntStrict(st.nextToken()) !== 0;
         } catch (e) {}
     }
 

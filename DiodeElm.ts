@@ -33,6 +33,7 @@ import { Choice } from "./Choice";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class DiodeElm extends CircuitElm {
     diode: Diode;
@@ -63,7 +64,7 @@ export class DiodeElm extends CircuitElm {
             } else {
                 if ((f! & DiodeElm.FLAG_FWDROP) > 0) {
                     try {
-                        fwdrop = parseFloat(st!.nextToken());
+                        fwdrop = parseFloatStrict(st!.nextToken());
                     } catch (e) {}
                 }
                 this.model = DiodeModel.getModelWithParameters(fwdrop, zvoltage);

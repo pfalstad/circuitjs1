@@ -18,6 +18,7 @@
 */
 
 import { SimulationManager } from "./SimulationManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class ExprState {
     values: number[];
@@ -524,7 +525,7 @@ export class ExprParser {
         if (this.skip("pwr"))   return this.parseFuncMulti(Expr.E_PWR, 2, 2);
         if (this.skip("pwrs"))  return this.parseFuncMulti(Expr.E_PWRS, 2, 2);
         try {
-            const v = parseFloat(this.token);
+            const v = parseFloatStrict(this.token);
             if (isNaN(v)) throw new Error("NaN");
             this.getToken();
             return new Expr(Expr.E_VAL, v);

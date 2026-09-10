@@ -29,6 +29,7 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class SevenSegElm extends ChipElm {
     // base segment count not including decimal point or colon
@@ -59,9 +60,9 @@ export class SevenSegElm extends ChipElm {
             super(xa, ya, xb, yb!, f!, st!);
             this.setDefaults();
             try {
-                this.baseSegmentCount = parseInt(st!.nextToken());
-                this.extraSegment     = parseInt(st!.nextToken());
-                this.diodeDirection   = parseInt(st!.nextToken());
+                this.baseSegmentCount = parseIntStrict(st!.nextToken());
+                this.extraSegment     = parseIntStrict(st!.nextToken());
+                this.diodeDirection   = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.setPinCount();
         }

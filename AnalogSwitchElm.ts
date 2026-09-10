@@ -27,6 +27,7 @@ import { Point } from "./Point";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { SimulationManager } from "./SimulationManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class AnalogSwitchElm extends CircuitElm {
     readonly FLAG_INVERT   = 1;
@@ -64,9 +65,9 @@ export class AnalogSwitchElm extends CircuitElm {
             this.threshold = 2.5;
             this.noDiagonal = true;
             try {
-                this.r_on       = parseFloat(st!.nextToken());
-                this.r_off      = parseFloat(st!.nextToken());
-                this.threshold  = parseFloat(st!.nextToken());
+                this.r_on       = parseFloatStrict(st!.nextToken());
+                this.r_off      = parseFloatStrict(st!.nextToken());
+                this.threshold  = parseFloatStrict(st!.nextToken());
             } catch (_e) {}
         }
     }

@@ -29,6 +29,7 @@ import { Checkbox } from "./Checkbox";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class TextElm extends GraphicElm {
     text: string;
@@ -50,7 +51,7 @@ export class TextElm extends GraphicElm {
             this.size = 24;
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.size = parseInt(st!.nextToken());
+            this.size = parseIntStrict(st!.nextToken());
             this.text = st!.nextToken();
             if ((this.flags & TextElm.FLAG_ESCAPE) === 0) {
                 // old-style dump before escape/unescape

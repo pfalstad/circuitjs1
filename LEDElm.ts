@@ -27,6 +27,7 @@ import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class LEDElm extends DiodeElm {
     colorR: number;
@@ -57,12 +58,12 @@ export class LEDElm extends DiodeElm {
                 this.modelName = this.model.name;
                 this.setup();
             }
-            this.colorR = parseFloat(st!.nextToken());
-            this.colorG = parseFloat(st!.nextToken());
-            this.colorB = parseFloat(st!.nextToken());
+            this.colorR = parseFloatStrict(st!.nextToken());
+            this.colorG = parseFloatStrict(st!.nextToken());
+            this.colorB = parseFloatStrict(st!.nextToken());
             this.maxBrightnessCurrent = .01;
             try {
-                this.maxBrightnessCurrent = parseFloat(st!.nextToken());
+                this.maxBrightnessCurrent = parseFloatStrict(st!.nextToken());
             } catch (e) {}
         }
     }

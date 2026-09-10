@@ -28,6 +28,7 @@ import { Rectangle } from "./Rectangle";
 import { StringTokenizer } from "./StringTokenizer";
 import { SwitchElm } from "./SwitchElm";
 import { VoltageSource } from "./VoltageSource";
+import { parseIntStrict } from "./NumberParse";
 
 export class DPDTSwitchElm extends SwitchElm {
     poleCount: number;
@@ -39,7 +40,7 @@ export class DPDTSwitchElm extends SwitchElm {
         if (st !== undefined) {
             super(xa, ya, xbOrMm as number, yb!, f!, st);
             try {
-                this.poleCount = parseInt(st.nextToken());
+                this.poleCount = parseIntStrict(st.nextToken());
             } catch (e) {
                 this.poleCount = 2;
             }

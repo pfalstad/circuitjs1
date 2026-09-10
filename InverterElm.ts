@@ -28,6 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { GateElm } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class InverterElm extends CircuitElm {
     static readonly FLAG_DEMORGAN = 1<<3;
@@ -51,8 +52,8 @@ export class InverterElm extends CircuitElm {
             this.slewRate = .5;
             this.highVoltage = 5;
             try {
-                this.slewRate = parseFloat(st!.nextToken());
-                this.highVoltage = parseFloat(st!.nextToken());
+                this.slewRate = parseFloatStrict(st!.nextToken());
+                this.highVoltage = parseFloatStrict(st!.nextToken());
             } catch (e) {}
         }
     }

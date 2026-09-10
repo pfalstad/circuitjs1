@@ -29,6 +29,7 @@ import { Font } from "./Font";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict } from "./NumberParse";
 
 export class TestPointElm extends CircuitElm {
     meter: number;
@@ -81,7 +82,7 @@ export class TestPointElm extends CircuitElm {
             this.label = "TP";
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.meter = parseInt(st!.nextToken());
+            this.meter = parseIntStrict(st!.nextToken());
             if ((this.flags & TestPointElm.FLAG_LABEL) !== 0)
                 this.label = CustomLogicModel.unescape(st!.nextToken());
             else

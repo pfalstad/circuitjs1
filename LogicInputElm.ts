@@ -29,6 +29,7 @@ import { Rectangle } from "./Rectangle";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class LogicInputElm extends SwitchElm {
     static readonly FLAG_TERNARY = 1;
@@ -46,8 +47,8 @@ export class LogicInputElm extends SwitchElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             try {
-                this.hiV = parseFloat(st!.nextToken());
-                this.loV = parseFloat(st!.nextToken());
+                this.hiV = parseFloatStrict(st!.nextToken());
+                this.loV = parseFloatStrict(st!.nextToken());
             } catch (e) {
                 this.hiV = 5;
                 this.loV = 0;

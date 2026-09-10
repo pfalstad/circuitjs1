@@ -28,6 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class OutputElm extends CircuitElm {
     static readonly FLAG_VALUE = 1;
@@ -44,7 +45,7 @@ export class OutputElm extends CircuitElm {
             super(xa, ya, xb, yb!, f!);
             this.scale = CircuitElm.SCALE_AUTO;
             try {
-                this.scale = parseInt(st!.nextToken());
+                this.scale = parseIntStrict(st!.nextToken());
             } catch (e) {}
         }
     }

@@ -24,6 +24,7 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { parseIntStrict } from "./NumberParse";
 
 export class CounterElm extends ChipElm {
     invertreset: boolean = false;
@@ -41,7 +42,7 @@ export class CounterElm extends ChipElm {
             this.invertreset = true;
             try {
                 this.invertreset = st!.nextToken() === "true";
-                this.modulus = parseInt(st!.nextToken());
+                this.modulus = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.pins[1].bubble = this.invertreset;
         }

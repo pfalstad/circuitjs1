@@ -26,6 +26,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict } from "./NumberParse";
 
 export class SeqGenElm extends ChipElm {
     readonly FLAG_NEW_VERSION = 2;
@@ -46,7 +47,7 @@ export class SeqGenElm extends ChipElm {
                 if ((this.flags & this.FLAG_NEW_VERSION) === 0) {
                     this.flags |= this.FLAG_NEW_VERSION;
                     // old format: single byte read backwards
-                    let oldData = parseInt(st.nextToken());
+                    let oldData = parseIntStrict(st.nextToken());
                     let newData = 0;
                     for (let i = 0; i < 32; i++) {
                         if (((~(0x7FFFFFFF - 1) >> i) !== 0) && (oldData & (1 << i)))
@@ -55,11 +56,11 @@ export class SeqGenElm extends ChipElm {
                     this.bitCount = 8;
                     this.data = new Int32Array([newData]);
                 } else {
-                    this.bitCount = parseInt(st.nextToken());
+                    this.bitCount = parseIntStrict(st.nextToken());
                     const wordCount = Math.trunc(this.bitCount / 32) + (this.bitCount % 32 !== 0 ? 1 : 0);
                     this.data = new Int32Array(wordCount);
                     for (let i = 0; i < wordCount; i++)
-                        this.data[i] = parseInt(st.nextToken());
+                        this.data[i] = parseIntStrict(st.nextToken());
                 }
             } catch (e) {}
             if (this.bitCount > this.data.length * 32)
@@ -150,7 +151,7 @@ export class SeqGenElm extends ChipElm {
         if (dt !== null) {
             const st = new StringTokenizer(dt, " ");
             const words: number[] = [];
-            while (st.hasMoreTokens()) words.push(parseInt(st.nextToken()));
+            while (st.hasMoreTokens()) words.push(parseIntStrict(st.nextToken()));
             this.data = new Int32Array(words);
         }
         if (this.bitCount > this.data.length * 32)

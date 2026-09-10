@@ -13,6 +13,7 @@ import { Locale } from "./Locale";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { StringTokenizer } from "./StringTokenizer";
 import { Scrollbar } from "./UIManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class LDRElm extends CircuitElm {
     position: number;
@@ -29,7 +30,7 @@ export class LDRElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.position = parseFloat(st.nextToken());
+            this.position = parseFloatStrict(st.nextToken());
             this.sliderText = CustomLogicModel.unescape(st.nextToken());
         } else {
             this.position = 0.34;

@@ -28,6 +28,7 @@ import { Inductor } from "./Inductor";
 import { Point } from "./Point";
 import { SimulationManager } from "./SimulationManager";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class CustomTransformerElm extends CircuitElm {
     coilCurrents: number[];
@@ -66,13 +67,13 @@ export class CustomTransformerElm extends CircuitElm {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
             this.width = 32;
-            this.inductance = parseFloat(st.nextToken());
-            this.couplingCoef = parseFloat(st.nextToken());
+            this.inductance = parseFloatStrict(st.nextToken());
+            this.couplingCoef = parseFloatStrict(st.nextToken());
             this.description = CustomLogicModel.unescape(st.nextToken());
-            this.coilCount = parseInt(st.nextToken());
+            this.coilCount = parseIntStrict(st.nextToken());
             this.coilCurrents = new Array(this.coilCount).fill(0);
             for (let i = 0; i !== this.coilCount; i++)
-                this.coilCurrents[i] = parseFloat(st.nextToken());
+                this.coilCurrents[i] = parseFloatStrict(st.nextToken());
             this.noDiagonal = true;
             this.parseDescription(this.description);
         } else {
@@ -124,7 +125,7 @@ export class CustomTransformerElm extends CircuitElm {
         if (ci !== null) {
             const st = new StringTokenizer(ci, " ");
             for (let i = 0; i !== this.coilCount && st.hasMoreTokens(); i++)
-                this.coilCurrents[i] = parseFloat(st.nextToken());
+                this.coilCurrents[i] = parseFloatStrict(st.nextToken());
         }
         this.parseDescription(this.description);
     }
@@ -179,7 +180,7 @@ export class CustomTransformerElm extends CircuitElm {
         while (true) {
             const tok = tokens[ti++];
             let n = 0;
-            const parsed = parseFloat(tok);
+            const parsed = parseFloatStrict(tok);
             if (isNaN(parsed)) {
                 if (ei !== undefined)
                     ei.setError("expected number, got '" + tok + "'");

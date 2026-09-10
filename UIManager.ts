@@ -37,6 +37,7 @@ import { ScrollValuePopup } from "./ScrollValuePopup";
 import { Toolbar } from "./Toolbar";
 import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -1949,7 +1950,7 @@ export class UIManager {
         try {
             const s = localStorage.getItem("wheelSensitivity");
             if (s != null)
-                this.mouse.wheelSensitivity = parseFloat(s);
+                this.mouse.wheelSensitivity = parseFloatStrict(s);
         } catch (e) {}
     }
 
@@ -1995,7 +1996,7 @@ export class UIManager {
             for (let i = 1; i < keys.length; i++) {
                 const arr = keys[i].split("=");
                 if (arr.length !== 2) continue;
-                const c = parseInt(arr[0]);
+                const c = parseIntStrict(arr[0]);
                 const className = arr[1];
                 this.app.shortcuts.set(c, className);
 

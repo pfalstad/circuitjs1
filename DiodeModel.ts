@@ -26,6 +26,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
@@ -248,13 +249,13 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     }
 
     undump(st: StringTokenizer): void {
-        this.flags = parseInt(st.nextToken());
-        this.saturationCurrent = parseFloat(st.nextToken());
-        this.seriesResistance = parseFloat(st.nextToken());
-        this.emissionCoefficient = parseFloat(st.nextToken());
-        this.breakdownVoltage = parseFloat(st.nextToken());
+        this.flags = parseIntStrict(st.nextToken());
+        this.saturationCurrent = parseFloatStrict(st.nextToken());
+        this.seriesResistance = parseFloatStrict(st.nextToken());
+        this.emissionCoefficient = parseFloatStrict(st.nextToken());
+        this.breakdownVoltage = parseFloatStrict(st.nextToken());
         try {
-            this.forwardCurrent = parseFloat(st.nextToken());
+            this.forwardCurrent = parseFloatStrict(st.nextToken());
         } catch (e) {}
         this.updateModel();
     }

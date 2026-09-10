@@ -28,6 +28,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { RelayCoilElm } from "./RelayCoilElm";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class RelayContactElm extends CircuitElm {
     r_on: number;
@@ -53,9 +54,9 @@ export class RelayContactElm extends CircuitElm {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
             this.label = CustomLogicModel.unescape(st.nextToken());
-            this.r_on = parseFloat(st.nextToken());
-            this.r_off = parseFloat(st.nextToken());
-            try { this.i_position = parseInt(st.nextToken()); } catch (e) {}
+            this.r_on = parseFloatStrict(st.nextToken());
+            this.r_off = parseFloatStrict(st.nextToken());
+            try { this.i_position = parseIntStrict(st.nextToken()); } catch (e) {}
             this.noDiagonal = true;
             this.allocNodes();
         } else {

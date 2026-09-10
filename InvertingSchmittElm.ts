@@ -28,6 +28,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
+import { parseFloatStrict } from "./NumberParse";
 
 export class InvertingSchmittElm extends CircuitElm {
     slewRate: number; // V/ns
@@ -58,11 +59,11 @@ export class InvertingSchmittElm extends CircuitElm {
             this.logicOnLevel = 5;
             this.logicOffLevel = 0;
             try {
-                this.slewRate = parseFloat(st!.nextToken());
-                this.lowerTrigger = parseFloat(st!.nextToken());
-                this.upperTrigger = parseFloat(st!.nextToken());
-                this.logicOnLevel = parseFloat(st!.nextToken());
-                this.logicOffLevel = parseFloat(st!.nextToken());
+                this.slewRate = parseFloatStrict(st!.nextToken());
+                this.lowerTrigger = parseFloatStrict(st!.nextToken());
+                this.upperTrigger = parseFloatStrict(st!.nextToken());
+                this.logicOnLevel = parseFloatStrict(st!.nextToken());
+                this.logicOffLevel = parseFloatStrict(st!.nextToken());
             } catch (e) {
             }
         }

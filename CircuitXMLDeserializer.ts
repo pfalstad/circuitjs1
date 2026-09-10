@@ -185,14 +185,24 @@ export class CircuitXMLDeserializer {
         const v = this.currentXmlElement.getAttribute(attr);
         if (v == null)
             return def;
-        return parseFloat(v);
+        const n = parseFloat(v);
+        if (isNaN(n)) {
+            this.app.console("invalid value for attribute " + attr + ": " + JSON.stringify(v));
+            return def;
+        }
+        return n;
     }
 
     parseIntAttr(attr: string, def: number): number {
         const v = this.currentXmlElement.getAttribute(attr);
         if (v == null)
             return def;
-        return parseInt(v);
+        const n = parseInt(v);
+        if (isNaN(n)) {
+            this.app.console("invalid value for attribute " + attr + ": " + JSON.stringify(v));
+            return def;
+        }
+        return n;
     }
 
     parseBooleanAttr(attr: string, def: boolean): boolean {

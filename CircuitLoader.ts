@@ -31,6 +31,7 @@ import { DiodeModel } from "./DiodeModel";
 import { TransistorModel } from "./TransistorModel";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 /**
  * Handles all circuit loading, parsing, clearing, setup-file fetching,
@@ -171,7 +172,7 @@ export class CircuitLoader {
                     }
 
                     if (tint >= '0'.charCodeAt(0) && tint <= '9'.charCodeAt(0))
-                        tint = parseInt(type);
+                        tint = parseIntStrict(type);
 
                     if (tint === 34) {
                         DiodeModel.undumpModel(st);
@@ -192,11 +193,11 @@ export class CircuitLoader {
                         break;
                     }
 
-                    const x1 = parseInt(st.nextToken());
-                    const y1 = parseInt(st.nextToken());
-                    const x2 = parseInt(st.nextToken());
-                    const y2 = parseInt(st.nextToken());
-                    const f  = parseInt(st.nextToken());
+                    const x1 = parseIntStrict(st.nextToken());
+                    const y1 = parseIntStrict(st.nextToken());
+                    const x2 = parseIntStrict(st.nextToken());
+                    const y2 = parseIntStrict(st.nextToken());
+                    const f  = parseIntStrict(st.nextToken());
 
                     const newce = CirSim.createCe(tint, x1, y1, x2, y2, f, st);
                     if (newce == null) {
@@ -241,13 +242,13 @@ export class CircuitLoader {
     }
 
     private readHint(st: StringTokenizer): void {
-        this.app.hintType  = parseInt(st.nextToken());
-        this.app.hintItem1 = parseInt(st.nextToken());
-        this.app.hintItem2 = parseInt(st.nextToken());
+        this.app.hintType  = parseIntStrict(st.nextToken());
+        this.app.hintItem1 = parseIntStrict(st.nextToken());
+        this.app.hintItem2 = parseIntStrict(st.nextToken());
     }
 
     private readOptions(st: StringTokenizer, importFlags: number): void {
-        const flags = parseInt(st.nextToken());
+        const flags = parseIntStrict(st.nextToken());
         if ((importFlags & CircuitLoader.RC_RETAIN) != 0) {
             if ((flags & 2) != 0)
                 this.menus.smallGridCheckItem.setState(true);
@@ -255,15 +256,15 @@ export class CircuitLoader {
         }
 
         this.readCircuitFlags(flags);
-        this.sim.maxTimeStep = this.sim.timeStep = parseFloat(st.nextToken());
-        const sp = parseFloat(st.nextToken());
+        this.sim.maxTimeStep = this.sim.timeStep = parseFloatStrict(st.nextToken());
+        const sp = parseFloatStrict(st.nextToken());
         const sp2 = Math.trunc(Math.log(10 * sp) * 24 + 61.5);
         this.app.ui.speedBar.setValue(sp2);
-        this.app.ui.currentBar.setValue(parseInt(st.nextToken()));
-        CircuitElm.voltageRange = parseFloat(st.nextToken());
+        this.app.ui.currentBar.setValue(parseIntStrict(st.nextToken()));
+        CircuitElm.voltageRange = parseFloatStrict(st.nextToken());
         try {
-            this.app.ui.powerBar.setValue(parseInt(st.nextToken()));
-            this.sim.minTimeStep = parseFloat(st.nextToken());
+            this.app.ui.powerBar.setValue(parseIntStrict(st.nextToken()));
+            this.sim.minTimeStep = parseFloatStrict(st.nextToken());
         } catch (ignored) {}
         this.app.setGrid();
     }

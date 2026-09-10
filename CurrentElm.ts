@@ -27,6 +27,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { FindPathInfo } from "./FindPathInfo";
 import { SimulationManager } from "./SimulationManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class CurrentElm extends CircuitElm {
     currentValue: number = 0.01;
@@ -50,8 +51,8 @@ export class CurrentElm extends CircuitElm {
         } else {
             super(xa, ya, xb, yb!, f!);
             try {
-                this.currentValue = parseFloat(st!.nextToken());
-                this.maxVoltage   = parseFloat(st!.nextToken());
+                this.currentValue = parseFloatStrict(st!.nextToken());
+                this.maxVoltage   = parseFloatStrict(st!.nextToken());
             } catch (_e) {}
             if (this.currentValue === 0)
                 this.currentValue = 0.01;

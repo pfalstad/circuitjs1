@@ -25,6 +25,7 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class PolarCapacitorElm extends CapacitorElm {
     maxNegativeVoltage: number;
@@ -34,7 +35,7 @@ export class PolarCapacitorElm extends CapacitorElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f, st);
         if (st !== undefined) {
-            this.maxNegativeVoltage = parseFloat(st.nextToken());
+            this.maxNegativeVoltage = parseFloatStrict(st.nextToken());
         } else {
             this.maxNegativeVoltage = 1;
         }

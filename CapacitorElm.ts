@@ -31,6 +31,7 @@ import { CirSim } from "./CirSim";
 import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class CapacitorElm extends CircuitElm {
     capacitance: number;
@@ -59,17 +60,17 @@ export class CapacitorElm extends CircuitElm {
             this.curSourceValue = 0;
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.capacitance = parseFloat(st!.nextToken());
-            this.voltdiff = parseFloat(st!.nextToken());
+            this.capacitance = parseFloatStrict(st!.nextToken());
+            this.voltdiff = parseFloatStrict(st!.nextToken());
             this.initialVoltage = 1e-3;
             this.compResistance = 0;
             this.capNode2 = 0;
             this.seriesResistance = 0;
             this.curSourceValue = 0;
             try {
-                this.initialVoltage = parseFloat(st!.nextToken());
+                this.initialVoltage = parseFloatStrict(st!.nextToken());
                 if ((this.flags & CapacitorElm.FLAG_RESISTANCE) !== 0)
-                    this.seriesResistance = parseFloat(st!.nextToken());
+                    this.seriesResistance = parseFloatStrict(st!.nextToken());
 
                 // if you add more things here, check PolarCapacitorElm.  It loads more state after this
             } catch (e) {}

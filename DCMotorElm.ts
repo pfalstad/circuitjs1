@@ -31,6 +31,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseFloatStrict } from "./NumberParse";
 
 export class DCMotorElm extends CircuitElm {
     ind: Inductor;
@@ -56,14 +57,14 @@ export class DCMotorElm extends CircuitElm {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
             this.angle = CircuitElm.pi / 2;
-            this.inductance = parseFloat(st.nextToken());
-            this.resistance = parseFloat(st.nextToken());
-            this.K  = parseFloat(st.nextToken());
-            this.Kb = parseFloat(st.nextToken());
-            this.J  = parseFloat(st.nextToken());
-            this.b  = parseFloat(st.nextToken());
-            this.gearRatio = parseFloat(st.nextToken());
-            this.tau = parseFloat(st.nextToken());
+            this.inductance = parseFloatStrict(st.nextToken());
+            this.resistance = parseFloatStrict(st.nextToken());
+            this.K  = parseFloatStrict(st.nextToken());
+            this.Kb = parseFloatStrict(st.nextToken());
+            this.J  = parseFloatStrict(st.nextToken());
+            this.b  = parseFloatStrict(st.nextToken());
+            this.gearRatio = parseFloatStrict(st.nextToken());
+            this.tau = parseFloatStrict(st.nextToken());
         } else {
             this.inductance = 0.5; this.resistance = 1;
             this.angle = CircuitElm.pi / 2;

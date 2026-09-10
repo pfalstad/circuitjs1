@@ -40,6 +40,7 @@ import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class RelayElm extends CircuitElm {
     readonly FLAG_SWAP_COIL      = 1;
@@ -116,19 +117,19 @@ export class RelayElm extends CircuitElm {
         } else {
             // old text-format constructor: build a model from the per-element parameters for backward compat
             super(xa, ya, xb, yb!, f!);
-            const poleCount    = parseInt(st!.nextToken());
-            const inductance   = parseFloat(st!.nextToken());
-            this.coilCurrent   = parseFloat(st!.nextToken());
-            const r_on         = parseFloat(st!.nextToken());
-            const r_off        = parseFloat(st!.nextToken());
-            const onCurrent    = parseFloat(st!.nextToken());
-            const coilR        = parseFloat(st!.nextToken());
+            const poleCount    = parseIntStrict(st!.nextToken());
+            const inductance   = parseFloatStrict(st!.nextToken());
+            this.coilCurrent   = parseFloatStrict(st!.nextToken());
+            const r_on         = parseFloatStrict(st!.nextToken());
+            const r_off        = parseFloatStrict(st!.nextToken());
+            const onCurrent    = parseFloatStrict(st!.nextToken());
+            const coilR        = parseFloatStrict(st!.nextToken());
             let offCurrent     = onCurrent;
             let switchingTime  = 0;
             try {
-                offCurrent    = parseFloat(st!.nextToken());
-                switchingTime = parseFloat(st!.nextToken());
-                this.d_position = this.i_position = parseInt(st!.nextToken());
+                offCurrent    = parseFloatStrict(st!.nextToken());
+                switchingTime = parseFloatStrict(st!.nextToken());
+                this.d_position = this.i_position = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.model = RelayModel.getModelWithParameters(inductance, r_on, r_off, onCurrent, offCurrent, coilR,
                 switchingTime, this.coilStyleFromFlags(f!), (f! & this.FLAG_SHOW_BOX) !== 0,

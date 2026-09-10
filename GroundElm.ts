@@ -28,6 +28,7 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { HookRegistry } from "./HookRegistry";
+import { parseIntStrict } from "./NumberParse";
 
 export class GroundElm extends CircuitElm {
     static lastSymbolType: number = 0;
@@ -50,7 +51,7 @@ export class GroundElm extends CircuitElm {
             this.symbolType = 0;
             if (st!.hasMoreTokens()) {
                 try {
-                    this.symbolType = parseInt(st!.nextToken());
+                    this.symbolType = parseIntStrict(st!.nextToken());
                 } catch (e) {}
             }
         }

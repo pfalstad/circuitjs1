@@ -28,6 +28,7 @@ import { GateElm } from "./GateElm";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class DelayBufferElm extends CircuitElm {
     delay: number = 0;
@@ -48,12 +49,12 @@ export class DelayBufferElm extends CircuitElm {
         } else {
             super(xa, ya, xb, yb!, f!);
             this.noDiagonal = true;
-            this.delay = parseFloat(st!.nextToken());
+            this.delay = parseFloatStrict(st!.nextToken());
             this.threshold = 2.5;
             this.highVoltage = 5;
             try {
-                this.threshold = parseFloat(st!.nextToken());
-                this.highVoltage = parseFloat(st!.nextToken());
+                this.threshold = parseFloatStrict(st!.nextToken());
+                this.highVoltage = parseFloatStrict(st!.nextToken());
             } catch (e) {}
         }
     }

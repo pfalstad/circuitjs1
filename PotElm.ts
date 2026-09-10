@@ -28,6 +28,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Scrollbar } from "./UIManager";
 import { Locale } from "./Locale";
 import { SimulationManager } from "./SimulationManager";
+import { parseFloatStrict } from "./NumberParse";
 
 export class PotElm extends CircuitElm {
     readonly FLAG_SHOW_VALUES = 1;
@@ -72,8 +73,8 @@ export class PotElm extends CircuitElm {
             this.createSlider();
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.maxResistance = parseFloat(st!.nextToken());
-            this.position = parseFloat(st!.nextToken());
+            this.maxResistance = parseFloatStrict(st!.nextToken());
+            this.position = parseFloatStrict(st!.nextToken());
             let text = st!.nextToken();
             while (st!.hasMoreTokens())
                 text += ' ' + st!.nextToken();

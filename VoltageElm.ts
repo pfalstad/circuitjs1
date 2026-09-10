@@ -30,6 +30,7 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 // RailElm not imported here — it extends VoltageElm, so importing it would create a cycle.
 // Use 'getRailText' in this as a duck-type check for instanceof RailElm.
 
@@ -93,12 +94,12 @@ export class VoltageElm extends CircuitElm {
 	    this.riseTime = 0;
 	    this.freqTimeZero = 0;
 	    try {
-		this.waveform = parseInt(st!.nextToken());
-		this.frequency = parseFloat(st!.nextToken());
-		this.maxVoltage = parseFloat(st!.nextToken());
-		this.bias = parseFloat(st!.nextToken());
-		this.phaseShift = parseFloat(st!.nextToken());
-		this.dutyCycle = parseFloat(st!.nextToken());
+		this.waveform = parseIntStrict(st!.nextToken());
+		this.frequency = parseFloatStrict(st!.nextToken());
+		this.maxVoltage = parseFloatStrict(st!.nextToken());
+		this.bias = parseFloatStrict(st!.nextToken());
+		this.phaseShift = parseFloatStrict(st!.nextToken());
+		this.dutyCycle = parseFloatStrict(st!.nextToken());
 		// don't change this, we don't generate this format anymore, plus VarRailElm adds more stuff here
 	    } catch (e) {
 	    }

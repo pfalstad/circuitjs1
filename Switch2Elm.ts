@@ -29,6 +29,7 @@ import { WireRouter } from "./WireRouter";
 import { FindPathInfo } from "./FindPathInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 // SPDT switch
 export class Switch2Elm extends SwitchElm {
@@ -47,10 +48,10 @@ export class Switch2Elm extends SwitchElm {
             this.throwCount = 2;
         } else {
             super(xa, ya, xbOrMm as number, yb, f!, st!);
-            this.link = parseInt(st!.nextToken());
+            this.link = parseIntStrict(st!.nextToken());
             this.throwCount = 2;
             try {
-                this.throwCount = parseInt(st!.nextToken());
+                this.throwCount = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.noDiagonal = true;
         }

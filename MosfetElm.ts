@@ -37,6 +37,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Locale } from "./Locale";
 import { ScrollValuePopup } from "./ScrollValuePopup";
 import { TypeScrollPopup } from "./TypeScrollPopup";
+import { parseFloatStrict } from "./NumberParse";
 
 export class MosfetElm extends CircuitElm {
     pnp: number;
@@ -126,8 +127,8 @@ export class MosfetElm extends CircuitElm {
             let vt0 = this.getDefaultThreshold();
             let beta0 = this.getBackwardCompatibilityBeta();
             try {
-                vt0 = parseFloat(st!.nextToken());
-                beta0 = parseFloat(st!.nextToken());
+                vt0 = parseFloatStrict(st!.nextToken());
+                beta0 = parseFloatStrict(st!.nextToken());
             } catch (e) {}
             this.model = this.legacyModel(vt0, beta0, this.flags);
             this.modelName = this.model.name;

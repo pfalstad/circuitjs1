@@ -27,6 +27,7 @@ import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class OpAmpElm extends CircuitElm {
     opsize: number;
@@ -62,14 +63,14 @@ export class OpAmpElm extends CircuitElm {
             // retain it to keep the file format the same
             this.gbw = 1e6;
             try {
-                this.maxOut = parseFloat(st!.nextToken());
-                this.minOut = parseFloat(st!.nextToken());
-                this.gbw = parseFloat(st!.nextToken());
-                const v0 = parseFloat(st!.nextToken());
-                const v1 = parseFloat(st!.nextToken());
+                this.maxOut = parseFloatStrict(st!.nextToken());
+                this.minOut = parseFloatStrict(st!.nextToken());
+                this.gbw = parseFloatStrict(st!.nextToken());
+                const v0 = parseFloatStrict(st!.nextToken());
+                const v1 = parseFloatStrict(st!.nextToken());
                 this.savedVd = v1 - v0;
                 this.justLoaded = true;
-                this.gain = parseFloat(st!.nextToken());
+                this.gain = parseFloatStrict(st!.nextToken());
             } catch (e) {}
             this.noDiagonal = true;
             this.setSize((f! & this.FLAG_SMALL) !== 0 ? 1 : 2);

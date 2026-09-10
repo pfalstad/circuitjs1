@@ -24,6 +24,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TimeDelayRelayElm extends ChipElm {
     lastTransition: number = 0;
@@ -41,10 +42,10 @@ export class TimeDelayRelayElm extends ChipElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f, st);
         if (st !== undefined) {
-            this.onDelay = parseFloat(st.nextToken());
-            this.offDelay = parseFloat(st.nextToken());
-            this.onResistance = parseFloat(st.nextToken());
-            this.offResistance = this.resistance = parseFloat(st.nextToken());
+            this.onDelay = parseFloatStrict(st.nextToken());
+            this.offDelay = parseFloatStrict(st.nextToken());
+            this.onResistance = parseFloatStrict(st.nextToken());
+            this.offResistance = this.resistance = parseFloatStrict(st.nextToken());
         } else {
             this.onDelay = 1;
             this.offDelay = 0;

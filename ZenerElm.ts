@@ -26,6 +26,7 @@ import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class ZenerElm extends DiodeElm {
     static lastZenerModelName: string = "default-zener";
@@ -40,7 +41,7 @@ export class ZenerElm extends DiodeElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             if ((f! & DiodeElm.FLAG_MODEL) === 0) {
-                const zvoltage = parseFloat(st!.nextToken());
+                const zvoltage = parseFloatStrict(st!.nextToken());
                 this.model = DiodeModel.getModelWithParameters(this.model.fwdrop, zvoltage);
                 this.modelName = this.model.name;
 //              CirSim.console("model name wparams = " + modelName);

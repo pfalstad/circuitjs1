@@ -29,6 +29,7 @@ import { Font } from "./Font";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class AMElm extends CircuitElm {
     static readonly FLAG_COS = 2;
@@ -42,9 +43,9 @@ export class AMElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.carrierfreq = parseFloat(st.nextToken());
-            this.signalfreq = parseFloat(st.nextToken());
-            this.maxVoltage = parseFloat(st.nextToken());
+            this.carrierfreq = parseFloatStrict(st.nextToken());
+            this.signalfreq = parseFloatStrict(st.nextToken());
+            this.maxVoltage = parseFloatStrict(st.nextToken());
             if ((this.flags & AMElm.FLAG_COS) !== 0)
                 this.flags &= ~AMElm.FLAG_COS;
         } else {

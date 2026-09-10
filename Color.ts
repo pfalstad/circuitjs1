@@ -16,6 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
+import { parseIntStrict } from "./NumberParse";
 
 export class Color {
     static readonly white     = new Color(255, 255, 255);
@@ -47,9 +48,9 @@ export class Color {
         if (typeof arg0 === "string") {
             this.colorText = arg0;
             if (arg0.startsWith("#") && arg0.length === 7) {
-                this.r = parseInt(arg0.substring(1, 3), 16);
-                this.g = parseInt(arg0.substring(3, 5), 16);
-                this.b = parseInt(arg0.substring(5, 7), 16);
+                this.r = parseIntStrict(arg0.substring(1, 3), 16);
+                this.g = parseIntStrict(arg0.substring(3, 5), 16);
+                this.b = parseIntStrict(arg0.substring(5, 7), 16);
             }
         } else if (arg0 instanceof Color) {
             const c1 = arg0;

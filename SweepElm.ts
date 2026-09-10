@@ -27,6 +27,7 @@ import { Checkbox } from "./Checkbox";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class SweepElm extends CircuitElm {
     maxV: number;
@@ -49,10 +50,10 @@ export class SweepElm extends CircuitElm {
             this.reset();
         } else {
             super(xa, ya, xb, yb!, f!);
-            this.minF = parseFloat(st!.nextToken());
-            this.maxF = parseFloat(st!.nextToken());
-            this.maxV = parseFloat(st!.nextToken());
-            this.sweepTime = parseFloat(st!.nextToken());
+            this.minF = parseFloatStrict(st!.nextToken());
+            this.maxF = parseFloatStrict(st!.nextToken());
+            this.maxV = parseFloatStrict(st!.nextToken());
+            this.sweepTime = parseFloatStrict(st!.nextToken());
             this.reset();
         }
     }

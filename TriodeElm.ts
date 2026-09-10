@@ -24,6 +24,7 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TriodeElm extends CircuitElm {
     static readonly FLAG_FLIP     = 1;
@@ -49,8 +50,8 @@ export class TriodeElm extends CircuitElm {
             this.flags |= TriodeElm.FLAG_DSIGN_FIX;
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.mu  = parseFloat(st!.nextToken());
-            this.kg1 = parseFloat(st!.nextToken());
+            this.mu  = parseFloatStrict(st!.nextToken());
+            this.kg1 = parseFloatStrict(st!.nextToken());
         }
         this.setup();
     }

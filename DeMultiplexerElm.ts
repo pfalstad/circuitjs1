@@ -25,6 +25,7 @@ import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class DeMultiplexerElm extends ChipElm {
     static readonly FLAG_BUS_SELECT = 1 << 3;
@@ -58,7 +59,7 @@ export class DeMultiplexerElm extends ChipElm {
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             try {
-                this.selectBitCount = parseInt(st!.nextToken());
+                this.selectBitCount = parseIntStrict(st!.nextToken());
             } catch (e) {}
 	    this.setupPins();
 	    this.allocNodes();

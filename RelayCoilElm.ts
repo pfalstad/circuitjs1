@@ -29,6 +29,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { RelayContactElm } from "./RelayContactElm";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class RelayCoilElm extends CircuitElm {
     inductance: number;
@@ -79,15 +80,15 @@ export class RelayCoilElm extends CircuitElm {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
             this.label = CustomLogicModel.unescape(st.nextToken());
-            this.inductance = parseFloat(st.nextToken());
-            this.coilCurrent = parseFloat(st.nextToken());
-            this.onCurrent = parseFloat(st.nextToken());
-            this.coilR = parseFloat(st.nextToken());
-            this.offCurrent = parseFloat(st.nextToken());
-            this.switchingTime = parseFloat(st.nextToken());
-            this.type = parseInt(st.nextToken());
-            this.state = parseInt(st.nextToken());
-            this.switchPosition = parseInt(st.nextToken());
+            this.inductance = parseFloatStrict(st.nextToken());
+            this.coilCurrent = parseFloatStrict(st.nextToken());
+            this.onCurrent = parseFloatStrict(st.nextToken());
+            this.coilR = parseFloatStrict(st.nextToken());
+            this.offCurrent = parseFloatStrict(st.nextToken());
+            this.switchingTime = parseFloatStrict(st.nextToken());
+            this.type = parseIntStrict(st.nextToken());
+            this.state = parseIntStrict(st.nextToken());
+            this.switchPosition = parseIntStrict(st.nextToken());
             this.noDiagonal = true;
             this.ind = new Inductor(CircuitElm.sim);
             this.ind.setup(this.inductance, this.coilCurrent, Inductor.FLAG_BACK_EULER);

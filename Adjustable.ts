@@ -25,6 +25,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { Scrollbar } from "./UIManager";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class Adjustable {
     elm: CircuitElm | null;
@@ -87,7 +88,7 @@ export class Adjustable {
             this.label = null;
             this.slider = null;
             this.settingValue = false;
-            const e = parseInt(st.nextToken());
+            const e = parseIntStrict(st.nextToken());
             if (e === -1)
                 return;
             try {
@@ -95,22 +96,22 @@ export class Adjustable {
 
                 // forgot to dump a "flags" field in the initial code, so we have to do this to support backward compatibility
                 if (ei.startsWith("F")) {
-                    this.flags = parseInt(ei.substring(1));
+                    this.flags = parseIntStrict(ei.substring(1));
                     ei = st.nextToken();
                 }
 
-                this.editItem = parseInt(ei);
-                this.minValue = parseFloat(st.nextToken());
-                this.maxValue = parseFloat(st.nextToken());
+                this.editItem = parseIntStrict(ei);
+                this.minValue = parseFloatStrict(st.nextToken());
+                this.maxValue = parseFloatStrict(st.nextToken());
                 if ((this.flags & this.FLAG_SHARED) !== 0) {
-                    const ano = parseInt(st.nextToken());
+                    const ano = parseIntStrict(st.nextToken());
                     this.sharedSlider = ano === -1 ? null : sim.adjustables[ano];
                 }
                 this.sliderText = CustomLogicModel.unescape(st.nextToken());
             } catch (ex) {}
             this.logarithmic = (this.flags & this.FLAG_LOG) !== 0;
             try {
-                this.sliderStep = parseFloat(st.nextToken());
+                this.sliderStep = parseFloatStrict(st.nextToken());
             } catch (ex) {}
             try {
                 this.elm = sim.getElm(e);

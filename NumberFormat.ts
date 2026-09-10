@@ -1,3 +1,4 @@
+import { parseFloatStrict } from "./NumberParse";
 // Stub for GWT's com.google.gwt.i18n.client.NumberFormat
 
 export class NumberFormat {
@@ -28,6 +29,6 @@ export class NumberFormat {
         if (isFixed)
             return v.toFixed(digits);
         // Optional digits (#) — trim trailing zeros
-        return parseFloat(v.toFixed(digits)).toString();
+        return parseFloatStrict(v.toFixed(digits)).toString();
     }
 }

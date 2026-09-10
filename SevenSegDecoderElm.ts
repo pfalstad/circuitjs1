@@ -24,6 +24,7 @@ import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseIntStrict } from "./NumberParse";
 
 export class SevenSegDecoderElm extends ChipElm {
 
@@ -103,7 +104,7 @@ export class SevenSegDecoderElm extends ChipElm {
         if (xb !== undefined) {
             super(xa, ya, xb, yb!, f!, st!);
             try {
-                this.segmentType = parseInt(st!.nextToken());
+                this.segmentType = parseIntStrict(st!.nextToken());
                 this.setupPins();
                 this.setPoints();
             } catch (e) {}

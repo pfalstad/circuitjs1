@@ -36,6 +36,7 @@ import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
+import { parseIntStrict } from "./NumberParse";
 
 export class CommandManager {
 
@@ -231,7 +232,7 @@ export class CommandManager {
         }
 
         if (item.startsWith("addToScope") && this.app.mouse.menuElm != null) {
-            const n = parseInt(item.substring(10));
+            const n = parseIntStrict(item.substring(10));
             const sm = this.app.scopeManager as any;
             if (n < sm.scopeCount + (sm.countScopeElms?.() ?? 0)) {
                 if (n < sm.scopeCount)

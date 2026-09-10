@@ -34,6 +34,7 @@ import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class TriacElm extends CircuitElm {
     readonly mt1node = 1;
@@ -65,9 +66,9 @@ export class TriacElm extends CircuitElm {
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
             this.setDefaults();
-            this.triggerI   = parseFloat(st!.nextToken());
-            this.holdingI   = parseFloat(st!.nextToken());
-            this.cresistance = parseFloat(st!.nextToken());
+            this.triggerI   = parseFloatStrict(st!.nextToken());
+            this.holdingI   = parseFloatStrict(st!.nextToken());
+            this.cresistance = parseFloatStrict(st!.nextToken());
             this.state       = st!.nextToken() === "true";
         }
         this.setup();

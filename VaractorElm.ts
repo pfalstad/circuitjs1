@@ -26,6 +26,7 @@ import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseFloatStrict } from "./NumberParse";
 
 export class VaractorElm extends DiodeElm {
     baseCapacitance: number;
@@ -48,8 +49,8 @@ export class VaractorElm extends DiodeElm {
             this.baseCapacitance = 4e-12;
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
-            this.capvoltdiff      = parseFloat(st!.nextToken());
-            this.baseCapacitance  = parseFloat(st!.nextToken());
+            this.capvoltdiff      = parseFloatStrict(st!.nextToken());
+            this.baseCapacitance  = parseFloatStrict(st!.nextToken());
         }
     }
 

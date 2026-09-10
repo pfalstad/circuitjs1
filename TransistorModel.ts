@@ -26,6 +26,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
@@ -258,32 +259,32 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
     }
 
     undump(st: StringTokenizer): void {
-        this.flags = parseInt(st.nextToken());
-        this.satCur = parseFloat(st.nextToken());
-        this.invRollOffF = parseFloat(st.nextToken());
-        this.BEleakCur = parseFloat(st.nextToken());
-        this.leakBEemissionCoeff = parseFloat(st.nextToken());
-        this.invRollOffR = parseFloat(st.nextToken());
-        this.BCleakCur = parseFloat(st.nextToken());
-        this.leakBCemissionCoeff = parseFloat(st.nextToken());
-        this.emissionCoeffF = parseFloat(st.nextToken());
-        this.emissionCoeffR = parseFloat(st.nextToken());
-        this.invEarlyVoltF = parseFloat(st.nextToken());
-        this.invEarlyVoltR = parseFloat(st.nextToken());
-        this.betaR = parseFloat(st.nextToken());
+        this.flags = parseIntStrict(st.nextToken());
+        this.satCur = parseFloatStrict(st.nextToken());
+        this.invRollOffF = parseFloatStrict(st.nextToken());
+        this.BEleakCur = parseFloatStrict(st.nextToken());
+        this.leakBEemissionCoeff = parseFloatStrict(st.nextToken());
+        this.invRollOffR = parseFloatStrict(st.nextToken());
+        this.BCleakCur = parseFloatStrict(st.nextToken());
+        this.leakBCemissionCoeff = parseFloatStrict(st.nextToken());
+        this.emissionCoeffF = parseFloatStrict(st.nextToken());
+        this.emissionCoeffR = parseFloatStrict(st.nextToken());
+        this.invEarlyVoltF = parseFloatStrict(st.nextToken());
+        this.invEarlyVoltR = parseFloatStrict(st.nextToken());
+        this.betaR = parseFloatStrict(st.nextToken());
 
         // Junction capacitance params (optional, for backward compatibility)
         try {
-            this.junctionCapBE = parseFloat(st.nextToken());
-            this.junctionPotBE = parseFloat(st.nextToken());
-            this.junctionExpBE = parseFloat(st.nextToken());
-            this.junctionCapBC = parseFloat(st.nextToken());
-            this.junctionPotBC = parseFloat(st.nextToken());
-            this.junctionExpBC = parseFloat(st.nextToken());
+            this.junctionCapBE = parseFloatStrict(st.nextToken());
+            this.junctionPotBE = parseFloatStrict(st.nextToken());
+            this.junctionExpBE = parseFloatStrict(st.nextToken());
+            this.junctionCapBC = parseFloatStrict(st.nextToken());
+            this.junctionPotBC = parseFloatStrict(st.nextToken());
+            this.junctionExpBC = parseFloatStrict(st.nextToken());
         } catch (e) {}
         try {
-            this.transitTimeF = parseFloat(st.nextToken());
-            this.transitTimeR = parseFloat(st.nextToken());
+            this.transitTimeF = parseFloatStrict(st.nextToken());
+            this.transitTimeR = parseFloatStrict(st.nextToken());
         } catch (e) {}
 
         this.updateModel();

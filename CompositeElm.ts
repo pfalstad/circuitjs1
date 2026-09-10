@@ -35,6 +35,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { Point } from "./Point";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { parseIntStrict } from "./NumberParse";
 
 export abstract class CompositeElm extends CircuitElm {
     // need to use escape() instead of converting spaces to _'s so composite elements can be nested
@@ -87,7 +88,7 @@ export abstract class CompositeElm extends CircuitElm {
                 if (this.useEscape())
                     dumpedCe = CustomLogicModel.unescape(dumpedCe);
                 const stCe = new StringTokenizer(dumpedCe, this.useEscape() ? " " : "_");
-                const flags = parseInt(stCe.nextToken());
+                const flags = parseIntStrict(stCe.nextToken());
                 newce = CirSim.createCe(tint, 0, 0, 0, 0, flags, stCe);
             }
             if (newce == null) {
@@ -171,7 +172,7 @@ export abstract class CompositeElm extends CircuitElm {
             const stNodes = new StringTokenizer(this.compNodeInfo[i], " +\t");
             let thisPost = 0;
             while (stNodes.hasMoreTokens()) {
-                const nodeOfThisPost = parseInt(stNodes.nextToken());
+                const nodeOfThisPost = parseIntStrict(stNodes.nextToken());
 
                 // node = 0 means ground
                 if (nodeOfThisPost === 0) {

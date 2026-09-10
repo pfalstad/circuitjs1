@@ -27,6 +27,7 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import {
     UNITS_V, UNITS_A, UNITS_W, UNITS_OHMS, UNITS_C,
 } from "./ScopeConstants";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class ScopeSerializer {
     scope: Scope;
@@ -170,7 +171,7 @@ export class ScopeSerializer {
         const xy2b  = xml.parseIntAttr("xy2b",  -1);
         for (const elem of xml.getChildElements()) {
             xml.parseChildElement(elem);
-            const plotFlags = parseInt(xml.parseStringAttr("f", "0")!, 16);
+            const plotFlags = parseIntStrict(xml.parseStringAttr("f", "0")!, 16);
             const plotElm = this.scope.app.getElm(xml.parseIntAttr("e", e));
             const val = xml.parseIntAttr("v", -1);
             const u = plotElm.getScopeUnits(val);
@@ -209,19 +210,19 @@ export class ScopeSerializer {
 
     undump(st: StringTokenizer): void {
         this.scope.initialize();
-        const e = parseInt(st.nextToken());
+        const e = parseIntStrict(st.nextToken());
         if (e === -1)
             return;
         const ce = this.scope.app.getElm(e);
         this.scope.setElm(ce);
-        this.scope.speed = parseInt(st.nextToken());
-        let value = parseInt(st.nextToken());
+        this.scope.speed = parseIntStrict(st.nextToken());
+        let value = parseIntStrict(st.nextToken());
         // fix old value for VAL_POWER which doesn't work for transistors
         if (!ce.isTransistorElm() && value === Scope.VAL_POWER_OLD)
             value = Scope.VAL_POWER;
         const flags = ScopeSerializer.importDecOrHex(st.nextToken());
-        this.scope.scale[UNITS_V] = parseFloat(st.nextToken());
-        this.scope.scale[UNITS_A] = parseFloat(st.nextToken());
+        this.scope.scale[UNITS_V] = parseFloatStrict(st.nextToken());
+        this.scope.scale[UNITS_A] = parseFloatStrict(st.nextToken());
         if (this.scope.scale[UNITS_V] === 0)
             this.scope.scale[UNITS_V] = 0.5;
         if (this.scope.scale[UNITS_A] === 0)
@@ -235,14 +236,14 @@ export class ScopeSerializer {
         if ((flags & ScopeSerializer.FLAG_PLOTS) !== 0) {
             // new-style dump
             try {
-                this.scope.position = parseInt(st.nextToken());
-                const sz = parseInt(st.nextToken());
+                this.scope.position = parseIntStrict(st.nextToken());
+                const sz = parseIntStrict(st.nextToken());
                 this.scope.manDivisions = 8;
                 if ((flags & ScopeSerializer.FLAG_DIVISIONS) !== 0)
-                    this.scope.manDivisions = Scope.lastManDivisions = parseInt(st.nextToken());
+                    this.scope.manDivisions = Scope.lastManDivisions = parseIntStrict(st.nextToken());
                 let u = ce.getScopeUnits(value);
                 if (u > UNITS_A)
-                    this.scope.scale[u] = parseFloat(st.nextToken());
+                    this.scope.scale[u] = parseFloatStrict(st.nextToken());
                 this.scope.setValue(value);
                 // setValue(0) creates an extra plot for current, so remove that
                 while (this.scope.plots.length > 1)
@@ -250,22 +251,22 @@ export class ScopeSerializer {
                 let plotFlags = 0;
                 for (let i = 0; i !== sz; i++) {
                     if (hasPlotFlags)
-                        plotFlags = parseInt(st.nextToken(), 16);
+                        plotFlags = parseIntStrict(st.nextToken(), 16);
                     if (i !== 0) {
-                        const ne = parseInt(st.nextToken());
-                        const val = parseInt(st.nextToken());
+                        const ne = parseIntStrict(st.nextToken());
+                        const val = parseIntStrict(st.nextToken());
                         const elm2 = this.scope.app.getElm(ne);
                         u = elm2.getScopeUnits(val);
                         if (u > UNITS_A)
-                            this.scope.scale[u] = parseFloat(st.nextToken());
+                            this.scope.scale[u] = parseFloatStrict(st.nextToken());
                         this.scope.plots.push(new ScopePlot(elm2, u, val, this.scope.getManScaleFromMaxScale(u, false)));
                     }
                     const p = this.scope.plots[i];
                     p.acCoupled = (plotFlags & ScopePlot.FLAG_AC) !== 0;
                     if ((flags & ScopeSerializer.FLAG_PERPLOT_MAN_SCALE) !== 0) {
                         p.manScaleSet = true;
-                        p.manScale = parseFloat(st.nextToken());
-                        p.manVPosition = parseInt(st.nextToken());
+                        p.manScale = parseFloatStrict(st.nextToken());
+                        p.manVPosition = parseIntStrict(st.nextToken());
                     }
                 }
                 while (st.hasMoreTokens()) {
@@ -282,10 +283,10 @@ export class ScopeSerializer {
             let ivalue = 0;
             this.scope.manDivisions = 8;
             try {
-                this.scope.position = parseInt(st.nextToken());
+                this.scope.position = parseIntStrict(st.nextToken());
                 let ye = -1;
                 if ((flags & ScopeSerializer.FLAG_YELM) !== 0) {
-                    ye = parseInt(st.nextToken());
+                    ye = parseIntStrict(st.nextToken());
                     if (ye !== -1)
                         yElm = this.scope.app.getElm(ye);
                     // sinediode.txt has yElm set to something even though there's no xy plot
@@ -293,7 +294,7 @@ export class ScopeSerializer {
                         yElm = null;
                 }
                 if ((flags & ScopeSerializer.FLAG_IVALUE) !== 0)
-                    ivalue = parseInt(st.nextToken());
+                    ivalue = parseIntStrict(st.nextToken());
                 while (st.hasMoreTokens()) {
                     if (this.scope.text === null)
                         this.scope.text = st.nextToken();
@@ -330,11 +331,11 @@ export class ScopeSerializer {
         if (str === null)
             return false;
         const arr = str.split(" ");
-        const flags = parseInt(arr[1]);
+        const flags = parseIntStrict(arr[1]);
         this.setFlags(flags);
-        this.scope.speed = parseInt(arr[2]);
+        this.scope.speed = parseIntStrict(arr[2]);
         if (arr.length > 3 && (flags & ScopeSerializer.FLAG_TRIGGER) !== 0)
-            this.scope.trigger.level = parseFloat(arr[3]);
+            this.scope.trigger.level = parseFloatStrict(arr[3]);
         return true;
     }
 
@@ -347,8 +348,8 @@ export class ScopeSerializer {
 
     private static importDecOrHex(s: string): number {
         if (s.charAt(0) === 'x')
-            return parseInt(s.substring(1), 16);
+            return parseIntStrict(s.substring(1), 16);
         else
-            return parseInt(s);
+            return parseIntStrict(s);
     }
 }

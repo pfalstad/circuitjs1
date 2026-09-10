@@ -31,6 +31,7 @@ import { Point } from "./Point";
 import { SimulationManager } from "./SimulationManager";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseFloatStrict } from "./NumberParse";
 
 export class ThreePhaseMotorElm extends CircuitElm {
     Rs: number; Rr: number; Ls: number; Lr: number; Lm: number;
@@ -61,13 +62,13 @@ export class ThreePhaseMotorElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.Rs = parseFloat(st.nextToken());
-            this.Rr = parseFloat(st.nextToken());
-            this.Ls = parseFloat(st.nextToken());
-            this.Lr = parseFloat(st.nextToken());
-            this.Lm = parseFloat(st.nextToken());
-            this.b  = parseFloat(st.nextToken());
-            try { this.J = parseFloat(st.nextToken()); } catch (e) { this.J = 1; }
+            this.Rs = parseFloatStrict(st.nextToken());
+            this.Rr = parseFloatStrict(st.nextToken());
+            this.Ls = parseFloatStrict(st.nextToken());
+            this.Lr = parseFloatStrict(st.nextToken());
+            this.Lm = parseFloatStrict(st.nextToken());
+            this.b  = parseFloatStrict(st.nextToken());
+            try { this.J = parseFloatStrict(st.nextToken()); } catch (e) { this.J = 1; }
         } else {
             this.Rs = 0.435; this.Rr = 0.816; this.Ls = 0.0294; this.Lr = 0.0297; this.Lm = 0.0287;
             this.J = 1; this.b = 0.05;

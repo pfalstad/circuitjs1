@@ -25,6 +25,7 @@ import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class SparkGapElm extends CircuitElm {
     resistance: number;
@@ -39,10 +40,10 @@ export class SparkGapElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.onresistance = parseFloat(st.nextToken());
-            this.offresistance = parseFloat(st.nextToken());
-            this.breakdown = parseFloat(st.nextToken());
-            this.holdcurrent = parseFloat(st.nextToken());
+            this.onresistance = parseFloatStrict(st.nextToken());
+            this.offresistance = parseFloatStrict(st.nextToken());
+            this.breakdown = parseFloatStrict(st.nextToken());
+            this.holdcurrent = parseFloatStrict(st.nextToken());
         } else {
             this.offresistance = 1e9;
             this.onresistance = 1e3;

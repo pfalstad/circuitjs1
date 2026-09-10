@@ -27,6 +27,7 @@ import { Checkbox } from "./Checkbox";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class LogicOutputElm extends CircuitElm {
     static readonly FLAG_TERNARY = 1;
@@ -44,7 +45,7 @@ export class LogicOutputElm extends CircuitElm {
         } else {
             super(xa, ya, xb, yb!, f!);
             try {
-                this.threshold = parseFloat(st!.nextToken());
+                this.threshold = parseFloatStrict(st!.nextToken());
             } catch (e) {
                 this.threshold = 2.5;
             }

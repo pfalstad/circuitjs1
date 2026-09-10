@@ -27,6 +27,7 @@ import { Locale } from "./Locale";
 import { RailElm } from "./RailElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageElm } from "./VoltageElm";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 class DataFileEntry {
     fileName: string = "";
@@ -51,9 +52,9 @@ export class DataInputElm extends RailElm {
         if (st !== undefined) {
             super(xa, ya, xb!, yb!, f!, st);
             this.waveform = VoltageElm.WF_AC;
-            this.sampleLength = parseFloat(st.nextToken());
-            this.scaleFactor = parseFloat(st.nextToken());
-            this.fileNum = parseInt(st.nextToken());
+            this.sampleLength = parseFloatStrict(st.nextToken());
+            this.scaleFactor = parseFloatStrict(st.nextToken());
+            this.fileNum = parseIntStrict(st.nextToken());
             const ent = DataInputElm.dataFileMap.get(this.fileNum);
             if (ent) { this.fileName = ent.fileName; this.data = ent.data; }
         } else {
@@ -164,7 +165,7 @@ export class DataInputElm extends RailElm {
             if (arr[i].length === 0) continue;
             // skip comments
             if (arr[i].charAt(0) === '#') continue;
-            const d = parseFloat(arr[i]);
+            const d = parseFloatStrict(arr[i]);
             if (isNaN(d)) {
                 CirSim.console("parse error on line " + i);
                 parseError = true;

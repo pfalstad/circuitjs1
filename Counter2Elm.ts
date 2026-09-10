@@ -23,6 +23,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
+import { parseIntStrict } from "./NumberParse";
 
 export class Counter2Elm extends ChipElm {
     modulus: number = 0;
@@ -35,7 +36,7 @@ export class Counter2Elm extends ChipElm {
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
             try {
-                this.modulus = parseInt(st!.nextToken());
+                this.modulus = parseIntStrict(st!.nextToken());
             } catch (e) {}
         }
     }

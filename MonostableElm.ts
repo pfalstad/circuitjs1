@@ -24,6 +24,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class MonostableElm extends ChipElm {
     private prevInputValue: boolean = false;
@@ -38,7 +39,7 @@ export class MonostableElm extends ChipElm {
         super(xa, ya, xb, yb, f, st);
         if (st !== undefined) {
             this.retriggerable = st.nextToken() === "true";
-            this.delay = parseFloat(st.nextToken());
+            this.delay = parseFloatStrict(st.nextToken());
         }
         this.reset();
     }

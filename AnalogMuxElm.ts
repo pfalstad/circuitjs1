@@ -24,6 +24,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class AnalogMuxElm extends ChipElm {
     static readonly FLAG_PULLDOWN = 2;
@@ -41,10 +42,10 @@ export class AnalogMuxElm extends ChipElm {
         super(xa, ya, xb, yb, f, st);
         if (st !== undefined) {
             try {
-                this.selectBitCount = parseInt(st.nextToken());
-                this.r_on = parseFloat(st.nextToken());
-                this.r_off = parseFloat(st.nextToken());
-                this.threshold = parseFloat(st.nextToken());
+                this.selectBitCount = parseIntStrict(st.nextToken());
+                this.r_on = parseFloatStrict(st.nextToken());
+                this.r_off = parseFloatStrict(st.nextToken());
+                this.threshold = parseFloatStrict(st.nextToken());
             } catch (e) {}
         } else {
             this.flags |= AnalogMuxElm.FLAG_PULLDOWN;

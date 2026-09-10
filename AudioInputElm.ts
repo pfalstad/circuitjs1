@@ -27,6 +27,7 @@ import { Locale } from "./Locale";
 import { RailElm } from "./RailElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageElm } from "./VoltageElm";
+import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 class AudioFileEntry {
     fileName: string;
@@ -54,9 +55,9 @@ export class AudioInputElm extends RailElm {
         if (st !== undefined) {
             super(xa, ya, xb!, yb!, f!, st);
             this.waveform = VoltageElm.WF_AC;
-            this.maxVoltage = parseFloat(st.nextToken());
-            this.startPosition = parseFloat(st.nextToken());
-            this.fileNum = parseInt(st.nextToken());
+            this.maxVoltage = parseFloatStrict(st.nextToken());
+            this.startPosition = parseFloatStrict(st.nextToken());
+            this.fileNum = parseIntStrict(st.nextToken());
             this.lookupFileNumber();
             this.samplingRate = AudioInputElm.lastSamplingRate;
         } else {

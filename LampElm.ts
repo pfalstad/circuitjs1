@@ -26,6 +26,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { VAL_R, UNITS_OHMS } from "./ScopeConstants";
+import { parseFloatStrict } from "./NumberParse";
 
 export class LampElm extends CircuitElm {
     resistance: number = 0;
@@ -49,13 +50,13 @@ export class LampElm extends CircuitElm {
             this.updateResistance();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.temp     = parseFloat(st!.nextToken());
+            this.temp     = parseFloatStrict(st!.nextToken());
             if (isNaN(this.temp))
                 this.temp = this.roomTemp;
-            this.nom_pow  = parseFloat(st!.nextToken());
-            this.nom_v    = parseFloat(st!.nextToken());
-            this.warmTime = parseFloat(st!.nextToken());
-            this.coolTime = parseFloat(st!.nextToken());
+            this.nom_pow  = parseFloatStrict(st!.nextToken());
+            this.nom_v    = parseFloatStrict(st!.nextToken());
+            this.warmTime = parseFloatStrict(st!.nextToken());
+            this.coolTime = parseFloatStrict(st!.nextToken());
             this.updateResistance();
         }
     }

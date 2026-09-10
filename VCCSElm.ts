@@ -29,6 +29,7 @@ import { Locale } from "./Locale";
 import { FindPathInfo } from "./FindPathInfo";
 import { Expr, ExprState, ExprParser } from "./Expr";
 import { SimulationManager } from "./SimulationManager";
+import { parseIntStrict } from "./NumberParse";
 
 export class VCCSElm extends ChipElm {
     gain: number = 0;
@@ -50,7 +51,7 @@ export class VCCSElm extends ChipElm {
             this.setupPins();
         } else {
             super(xa, ya, xb, yb!, f!, st!);
-            this.inputCount = parseInt(st!.nextToken());
+            this.inputCount = parseIntStrict(st!.nextToken());
             this.exprString = CustomLogicModel.unescape(st!.nextToken());
             this.parseExpr();
             this.setupPins();

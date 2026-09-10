@@ -25,6 +25,7 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class FuseElm extends CircuitElm {
     resistance: number;
@@ -39,9 +40,9 @@ export class FuseElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.resistance = parseFloat(st.nextToken());
-            this.i2t = parseFloat(st.nextToken());
-            this.heat = parseFloat(st.nextToken());
+            this.resistance = parseFloatStrict(st.nextToken());
+            this.i2t = parseFloatStrict(st.nextToken());
+            this.heat = parseFloatStrict(st.nextToken());
             this.blown = st.nextToken() === "true";
         } else {
             // from https://m.littelfuse.com/~/media/electronics/datasheets/fuses/littelfuse_fuse_218_datasheet.pdf.pdf

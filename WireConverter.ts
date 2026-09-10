@@ -22,6 +22,7 @@ import { CircuitElm } from "./CircuitElm";
 import { WireElm } from "./WireElm";
 import { RoutedWireElm } from "./RoutedWireElm";
 import { Point } from "./Point";
+import { parseIntStrict } from "./NumberParse";
 
 // Converts chains of WireElm into RoutedWireElm segments.
 // Two wires touching at a point are combined, but if 3+ wires
@@ -235,11 +236,11 @@ export class WireConverter {
     }
 
     private static keyX(k: string): number {
-        return parseInt(k.split(",")[0]);
+        return parseIntStrict(k.split(",")[0]);
     }
 
     private static keyY(k: string): number {
-        return parseInt(k.split(",")[1]);
+        return parseIntStrict(k.split(",")[1]);
     }
 
     private static inc(map: Map<string, number>, k: string): void {

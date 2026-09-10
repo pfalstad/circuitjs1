@@ -27,6 +27,7 @@ import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { parseIntStrict } from "./NumberParse";
 
 export class WattmeterElm extends CircuitElm {
     width: number = 0;
@@ -60,8 +61,8 @@ export class WattmeterElm extends CircuitElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb, yb, f);
         if (st !== undefined) {
-            this.width = parseInt(st.nextToken());
-            try { this.meter = parseInt(st.nextToken()); } catch (e) {}
+            this.width = parseIntStrict(st.nextToken());
+            try { this.meter = parseIntStrict(st.nextToken()); } catch (e) {}
         }
         this.setup();
     }

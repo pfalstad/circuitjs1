@@ -27,6 +27,7 @@ import { Locale } from "./Locale";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
+import { parseFloatStrict } from "./NumberParse";
 
 export class DiacElm extends CircuitElm {
     // resistor from 0 to 2, 3
@@ -50,10 +51,10 @@ export class DiacElm extends CircuitElm {
             this.holdcurrent   = .01;
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.onresistance  = parseFloat(st!.nextToken());
-            this.offresistance = parseFloat(st!.nextToken());
-            this.breakdown     = parseFloat(st!.nextToken());
-            this.holdcurrent   = parseFloat(st!.nextToken());
+            this.onresistance  = parseFloatStrict(st!.nextToken());
+            this.offresistance = parseFloatStrict(st!.nextToken());
+            this.breakdown     = parseFloatStrict(st!.nextToken());
+            this.holdcurrent   = parseFloatStrict(st!.nextToken());
         }
         this.createDiodes();
     }

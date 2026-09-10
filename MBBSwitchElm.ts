@@ -28,6 +28,7 @@ import { Rectangle } from "./Rectangle";
 import { StringTokenizer } from "./StringTokenizer";
 import { SwitchElm } from "./SwitchElm";
 import { VoltageSource } from "./VoltageSource";
+import { parseIntStrict } from "./NumberParse";
 
 export class MBBSwitchElm extends SwitchElm {
     link: number = 0;
@@ -41,7 +42,7 @@ export class MBBSwitchElm extends SwitchElm {
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         super(xa, ya, xb as any, yb, f, st as any);
         if (st !== undefined) {
-            this.link = parseInt(st.nextToken());
+            this.link = parseIntStrict(st.nextToken());
         }
         this.setup();
     }
