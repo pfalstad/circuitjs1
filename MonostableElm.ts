@@ -31,11 +31,15 @@ import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { TIMESCALE } from "./digital/constants";
 
 export class MonostableElm extends ChipElm {
+    static readonly FLAG_INVERT_TRIGGER = 2;
+
     private prevInputValue: boolean = false;
     private retriggerable: boolean = false;
     private triggered: boolean = false;
     private lastRisingEdge: number = 0;
     private delay: number = 0.01;
+
+    invertTrigger(): boolean { return (this.flags & MonostableElm.FLAG_INVERT_TRIGGER) !== 0; }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -56,6 +60,7 @@ export class MonostableElm extends ChipElm {
         this.pins = new Array(this.getPostCount());
         this.pins[0] = new Pin(this, 0, ChipElm.SIDE_W, "");
         this.pins[0].clock = true;
+        this.pins[0].bubble = this.invertTrigger();
         this.pins[1] = new Pin(this, 0, ChipElm.SIDE_E, "Q");
         this.pins[1].output = true;
         this.pins[2] = new Pin(this, 1, ChipElm.SIDE_E, "Q");
@@ -76,12 +81,13 @@ export class MonostableElm extends ChipElm {
         const T = 1, Q = 2, QBAR = 3;
         const EXP = i1;
         const fallDelayTicks = () => BigInt(Math.max(1, Math.round(this.delay / TIMESCALE)));
+        const invertBit = this.invertTrigger() ? 1 : 0;
 
         const shared: { expireChip: Chip | null; lastT: boolean } = { expireChip: null, lastT: false };
 
         const qUpdate = (chip: Chip, mask: number): void => {
             chip.inputs ^= mask;
-            const tHigh = (chip.inputs & 1) !== 0;
+            const tHigh = ((chip.inputs & 1) ^ invertBit) !== 0;
             const expHigh = (chip.inputs & 2) !== 0;
             const risingT = tHigh && !shared.lastT;
             shared.lastT = tHigh;
@@ -120,7 +126,8 @@ export class MonostableElm extends ChipElm {
     }
 
     execute(): void {
-        if (this.pins[0].value && this.prevInputValue !== this.pins[0].value && (this.retriggerable || !this.triggered)) {
+        const trigValue = this.pins[0].value !== this.invertTrigger();
+        if (trigValue && this.prevInputValue !== trigValue && (this.retriggerable || !this.triggered)) {
             this.lastRisingEdge = CircuitElm.sim.t;
             this.pins[1].value = true;
             this.pins[2].value = false;
@@ -131,7 +138,7 @@ export class MonostableElm extends ChipElm {
             this.pins[2].value = true;
             this.triggered = false;
         }
-        this.prevInputValue = this.pins[0].value;
+        this.prevInputValue = trigValue;
     }
 
     dumpXml(doc: Document, elem: Element): void {
@@ -157,6 +164,8 @@ export class MonostableElm extends ChipElm {
         }
         if (n === 1)
             return new EditInfo("Period (s)", this.delay, 0.001, 0.1);
+        if (n === 2)
+            return EditInfo.createCheckbox("Invert Trigger", this.invertTrigger());
         return super.getChipEditInfo(n);
     }
 
@@ -165,6 +174,18 @@ export class MonostableElm extends ChipElm {
             this.retriggerable = ei.checkbox!.getState();
         if (n === 1)
             this.delay = ei.value;
+        if (n === 2) {
+            this.flags = ei.changeFlag(this.flags, MonostableElm.FLAG_INVERT_TRIGGER);
+            this.setupPins();
+            this.setPoints();
+        }
         super.setChipEditValue(n, ei);
+    }
+
+    addJSMethods(): void {
+        super.addJSMethods();
+        const p = this._jsProxy!;
+        p['getPeriod'] = () => this.delay;
+        p['setPeriod'] = (v: number) => { this.delay = v; };
     }
 }

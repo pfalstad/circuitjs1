@@ -303,6 +303,12 @@ export class LabeledNodeElm extends CircuitElm {
 
     getName(): string { return this.text; }
     isLabeledNodeElm(): boolean { return true; }
+
+    addJSMethods(): void {
+        super.addJSMethods();
+        const p = this._jsProxy!;
+        p['getLabelName'] = () => this.getName();
+    }
 }
 
 HookRegistry.resetLabeledNodeList = () => LabeledNodeElm.resetNodeList();
