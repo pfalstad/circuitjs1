@@ -306,7 +306,9 @@ export class Scope {
         this.plot2d.scaleX = 5;
         this.plot2d.scaleY = 0.1;
         this.plot2d.enabled = false;
-        this.speed = 64;
+        this.speed = (this.app.ui?.speedBar != null)
+            ? Scope.computeAutoSpeed(this.app.getIterCount(), this.app.ui.canvasWidth)
+            : 64;
         this.showMax = true;
         this.showV = this.showI = false;
         this.showScale = this.showFreq = this.manualScale = this.showMin = this.showP2P = this.showElmInfo = false;
@@ -358,6 +360,21 @@ export class Scope {
         this.rect = r;
         if (this.rect.width !== w || (this.plot2d.plotXY && this.rect.height !== h))
             this.resetGraph();
+    }
+
+    // pick a speed (sim timestep units per pixel), rounded to a power of 2, so a
+    // freshly created scope takes about targetSeconds of WALL-CLOCK time to scroll
+    // across its width, at the current simulation-speed-slider setting.
+    // steprate (timesteps advanced per real second) = 160 * iterCount - see
+    // SimulationManager.runCircuit()/runCircuitAnalog() and CirSim.getIterCount().
+    static computeAutoSpeed(iterCount: number, width: number, targetSeconds: number = 6): number {
+        const steprate = 160 * iterCount;
+        if (!(steprate > 0) || !(width > 0))
+            return 64;
+        const raw = targetSeconds * steprate / width;
+        if (!(raw > 0) || !isFinite(raw))
+            return 64;
+        return Math.pow(2, Math.round(Math.log2(raw)));
     }
 
     getWidth(): number { return this.rect.width; }
