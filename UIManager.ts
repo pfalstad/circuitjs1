@@ -1304,8 +1304,12 @@ export class UIManager {
                 }
             } else {
                 info[0] = "t = " + CircuitElm.getTimeText(this.app.sim.t);
-                const timerate = 160 * this.app.getIterCount() * this.app.sim.timeStep;
-                if (timerate >= 0.1)
+                // nominal steprate assumes we're running at full speed; if the actual
+                // measured steprate falls well short of that (e.g. we're limited by
+                // minFrameRate), the "Nx" multiplier below would be misleading, so hide it
+                const nominalSteprate = 160 * this.app.getIterCount();
+                const timerate = nominalSteprate * this.app.sim.timeStep;
+                if (timerate >= 0.1 && this.steprate >= nominalSteprate * 0.9)
                     info[0] += " (" + CircuitElm.showFormat.format(timerate) + "x)";
                 info[1] = Locale.LS("time step = ") + CircuitElm.getTimeText(this.app.sim.timeStep);
             }
