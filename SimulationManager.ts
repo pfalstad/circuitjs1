@@ -140,6 +140,11 @@ export class SimulationManager {
     	this.timeStepCount = 0;
     }
 
+    resetNodeVoltages(): void {
+        for (const cn of this.nodeList)
+            cn.v = 0;
+    }
+
     getCircuitNode(n: number): CircuitNode | null {
 	if (n >= this.nodeList.length)
 	    return null;

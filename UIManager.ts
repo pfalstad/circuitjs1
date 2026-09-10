@@ -2250,6 +2250,7 @@ export class UIManager {
         if (this.app.sim.t === 0)
             this.setSimRunning(true);
         this.app.sim.resetTime();
+        this.app.sim.resetNodeVoltages();
         for (const ce of this.elmList)
             ce.reset();
         this.app.scopeManager.resetGraphs();
