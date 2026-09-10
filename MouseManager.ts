@@ -969,6 +969,11 @@ export class MouseManager {
 	e.preventDefault();
 	if (e.button === 1) // middle button
 	    this.scrollValues(e.clientX, e.clientY, 0);
+	if (this.mouseElm != null) {
+	    const index = this.sim.locateElm(this.mouseElm);
+	    if (index >= 0)
+		this.sim.jsInterface?.callClickElmHook(index, this.mouseElm);
+	}
     }
 
     private onDoubleClick(e: MouseEvent): void {

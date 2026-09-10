@@ -22,6 +22,9 @@ and set the voltage of external voltage nodes.
 <button onclick="sim.getCircuitAsSVG()">Circuit As SVG to console</button>
 <button id="extvoltButton" onclick="toggleExtVolt()">extvolt: false</button>
 <div id="info"></div>
+<p>
+Click on an element in the circuit above to see its index and class here:
+<div id="clickedElm">(none clicked yet)</div>
 
 <script>
 
@@ -117,6 +120,12 @@ function svgRendered(sim, svg) {
   console.log(svg);
 }
 
+// called when the user single-clicks on a circuit element
+function didClickElm(sim, index, elm) {
+  document.getElementById("clickedElm").innerHTML =
+    "clicked element index = " + index + ", class = " + elm.getType();
+}
+
 // callback called when simulation is done initializing
 function simLoaded() {
   // get simulator object
@@ -126,6 +135,7 @@ function simLoaded() {
   sim.onupdate = didUpdate;
   sim.onanalyze = didAnalyze;
   sim.onsvgrendered = svgRendered;
+  sim.onclickelm = didClickElm;
 }
 
 // set up callback

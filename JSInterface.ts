@@ -267,4 +267,14 @@ export class JSInterface {
         if (hook)
             hook((window as any).CircuitJS1, svgData);
     }
+
+    // Called on a single click that lands on a circuit element (see MouseManager.onClick()).
+    // `index` is the element's position in the list returned by getElements().
+    callClickElmHook(index: number, elm: any): void {
+        const hook = (window as any).CircuitJS1?.onclickelm;
+        if (hook == null)
+            return;
+        elm.addJSMethods();
+        hook((window as any).CircuitJS1, index, elm.getJavaScriptObject());
+    }
 }
