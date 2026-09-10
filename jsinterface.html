@@ -16,7 +16,8 @@ and set the voltage of external voltage nodes.
 <button onclick="sim.setSimRunning(false)">Stop</button>
 <button onclick="sim.setMaxTimeStep(sim.getMaxTimeStep()*2)">Double Timestep</button>
 <button onclick="sim.setMaxTimeStep(sim.getMaxTimeStep()/2)">Halve Timestep</button>
-<button onclick="console.log(sim.exportCircuit())">Circuit to console</button>
+<button onclick="exportCircuitToConsole()">Export Circuit To Console</button>
+<button onclick="importExportedCircuit()">Import Exported Circuit</button>
 <button onclick="sim.getCircuitAsSVG()">Circuit As SVG to console</button>
 <p>
 extsin frequency:
@@ -37,6 +38,21 @@ var elmList = [];
 
 function round(x) {
   return Math.round(x*1000)/1000;
+}
+
+var exportedCircuit = null;
+
+function exportCircuitToConsole() {
+  exportedCircuit = sim.exportCircuit();
+  console.log(exportedCircuit);
+}
+
+function importExportedCircuit() {
+  if (exportedCircuit == null) {
+    alert("No exported circuit found.");
+    return;
+  }
+  sim.importCircuit(exportedCircuit, false);
 }
 
 // called when simulator updates its display

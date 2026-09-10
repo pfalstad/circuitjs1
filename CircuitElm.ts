@@ -1527,7 +1527,6 @@ export abstract class CircuitElm implements Editable {
         p['getVoltageDiff'] = () => this.getVoltageDiff();
         p['getVoltage']     = (n: number) => this.getVoltageJS(n);
         p['getCurrent']     = () => this.getCurrent();
-        p['getLabelName']   = () => (this as any).getName?.();  // LabeledNodeElm only
         p['getPostCount']   = () => this.getPostCount();
     }
 
