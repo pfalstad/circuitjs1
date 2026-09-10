@@ -110,9 +110,6 @@ export abstract class CircuitElm implements Editable {
     lead1: Point | null = null;
     lead2: Point | null = null;
 
-    // voltages at each node
-    volts!: number[];
-
     current: number = 0;
     curcount: number = 0;
     boundingBox!: Rectangle;
