@@ -165,8 +165,8 @@ function createWindow () {
     argvConsumed = true;
   }
 // Create the browser window.
-  var mainWindow = new BrowserWindow({width: 800,
-    height: 600,
+  var mainWindow = new BrowserWindow({width: 1200,
+    height: 800,
     webPreferences: { nativeWindowOpen: true,
                       sandbox: false,
                       contextIsolation: false,
