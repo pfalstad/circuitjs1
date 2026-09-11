@@ -27,6 +27,10 @@ import { EditInfo } from "./EditInfo";
 
 export class BoxElm extends GraphicElm {
 
+    static readonly FLAG_ZOOM_IN = 1;
+
+    zoomIn(): boolean { return (this.flags & BoxElm.FLAG_ZOOM_IN) !== 0; }
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
@@ -71,10 +75,14 @@ export class BoxElm extends GraphicElm {
     }
 
     getEditInfo(n: number): EditInfo | null {
+        if (n === 0)
+            return EditInfo.createCheckbox("Zoom In", this.zoomIn());
         return null;
     }
 
     setEditValue(n: number, ei: EditInfo): void {
+        if (n === 0)
+            this.flags = ei.changeFlag(this.flags, BoxElm.FLAG_ZOOM_IN);
     }
 
     getInfo(arr: string[]): void {

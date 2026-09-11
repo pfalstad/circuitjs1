@@ -28,6 +28,7 @@ import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Point } from "./Point";
 import { SwitchElm } from "./SwitchElm";
+import { BoxElm } from "./BoxElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SubcircuitModel } from "./SubcircuitModel";
@@ -1312,7 +1313,7 @@ export class UIManager {
         if (this.elmList == null)
             return;
 
-        const bounds = this.getCircuitBounds();
+        const bounds = this.getZoomInBounds() ?? this.getCircuitBounds();
         this.setCircuitArea();
 
         let scale = 1;
@@ -1334,6 +1335,16 @@ export class UIManager {
             this.app.transform[4] = (this.app.circuitArea.width - bounds.width * scale) / 2 - bounds.x * scale;
             this.app.transform[5] = (cheight - bounds.height * scale) / 2 - bounds.y * scale;
         }
+    }
+
+    getZoomInBounds(): Rectangle | null {
+        if (this.elmList == null)
+            return null;
+        for (const ce of this.elmList) {
+            if (ce instanceof BoxElm && ce.zoomIn())
+                return ce.getBoundingBox();
+        }
+        return null;
     }
 
     getCircuitBounds(): Rectangle | null {
