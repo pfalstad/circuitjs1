@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
 import { customChipStart } from "./chip_desc";
-import { buildDigitalCircuit } from "./DigitalGraphBuilder";
+import { buildDigitalCircuit, seedInitialDigitalState } from "./DigitalGraphBuilder";
 import { Counter2Elm } from "../Counter2Elm";
 import { RailElm } from "../RailElm";
 import { VoltageElm } from "../VoltageElm";
@@ -96,7 +96,7 @@ function clockFrequencyForPeriodTicks(periodTicks: number): number {
  * default, since both are active-low) so a test can either leave them alone for a clean
  * free-running comparison or flip them once at a specific tick. ENP/ENT are tied active; the I
  * pins are tied to a fixed 1010 pattern so a LOAD pulse is observable. */
-function buildRippleCounter() {
+function buildRippleCounter(savedQ?: boolean[]) {
     const clock = fakeRail(VoltageElm.WF_SQUARE, { frequency: clockFrequencyForPeriodTicks(20) });
     const vcc = tie("VCC");
     const gnd = tie("GND");
@@ -108,6 +108,11 @@ function buildRippleCounter() {
     counter.modulus = 0;
     counter.flags = 0;
     counter.nodes = [];
+    // Only needed by the digitalInitialState() seeding test below - digitalInitialState() reads
+    // this.pins[post].value directly (see its own docstring), same as ChipElm.undumpXml()-restored
+    // state would after a real reimport. Left unset otherwise, matching every other test in this
+    // file (which never seeds, so never touches counter.pins at all).
+    if (savedQ) counter.pins = Array.from({ length: counter.getPostCount() }, (_, i) => ({ value: savedQ[i] ?? false }));
 
     // pin layout for bits=4 (see Counter2Elm.setupPins()): Q0-3 @ 0-3, I0-3 @ 4-7, clk=8, clr=9,
     // enp=10, rco=11, load=12, ent=13.
@@ -137,7 +142,7 @@ function buildRippleCounter() {
     };
     const bitChips: Chip[] = bitSinks.map((_, k) => chipFor(k));
     const rcoChip = chipFor(11);
-    return { circuit, bitChips, rcoChip, load, clr };
+    return { circuit, bitChips, rcoChip, load, clr, counter, chipsByElm };
 }
 
 function currentValue(bitChips: Chip[]): number {
@@ -233,5 +238,43 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
         bothSetClr("VCC");
         runUntil(340n); // a couple of clean edges after release
         expectMatch("counting resumed after CLR");
+    });
+});
+
+// Regression test for a digitalInitialState() bug: modulus===0's ripple synthesis holds its real
+// state on an internal-only pin (intPin(w)), buffered out to the external Q post by a separate,
+// memoryless cell (see digitalSynthesisRipple()'s own comments). digitalInitialState() used to
+// name the buffer's own outPin instead of the state cell's - seedInitialDigitalState() would seed
+// that buffer's `.output` directly, but the buffer recomputes as `pin[out] = pin[internal]` on its
+// very next tick, silently overwriting the seed with the still-cold (0) internal pin - so a
+// reimported counter's restored count got discarded before the very first real clock edge, and
+// that edge then counted up from 0 instead of from the saved value (reported as the count
+// "skipping backwards" after save/reimport).
+// currentValue() above reads post k as bit weight k, which happens to be backwards from the real
+// hardware weight order digitalSynthesisRipple() actually counts in (bit 0/LSB - the one clocked
+// directly off cntPin - lands on post bits-1, per that function's own qPin(w) = bits-w and
+// Counter2Elm.execute()'s identical pins[lastBit-i] convention). That reversal is harmless for the
+// other tests above (they only ever compare base vs. opt under the same convention), but a test
+// asserting a real arithmetic count needs the actual hardware order.
+function hardwareValue(bitChips: Chip[]): number {
+    const bits = bitChips.length;
+    let value = 0;
+    for (let w = 0; w < bits; w++) if (bitChips[bits - 1 - w].currentValue()) value |= 1 << w;
+    return value;
+}
+
+describe("Counter2Elm modulus===0 ripple synthesis - digitalInitialState seeding", () => {
+    it("resumes counting from a restored (reimported) count instead of restarting from 0", () => {
+        // pins[post].value for post 0..3, MSB-first per execute()'s pins[lastBit-i] convention -
+        // encodes a saved count of 5 (0b0101).
+        const savedQ = [false, true, false, true];
+        const { circuit, bitChips, rcoChip, counter, chipsByElm } = buildRippleCounter(savedQ);
+        seedInitialDigitalState([counter], chipsByElm);
+
+        expect(hardwareValue(bitChips), "seeded value before any clock edge").toBe(5);
+
+        circuit.run(20n); // one full clock period -> exactly one counting edge
+        expect(hardwareValue(bitChips), "value after first real clock edge").toBe(6);
+        expect(rcoChip.currentValue(), "RCO").toBe(0);
     });
 });

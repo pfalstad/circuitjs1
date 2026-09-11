@@ -32,13 +32,20 @@ import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 export class Counter2Elm extends ChipElm implements DigitalInitialState {
     modulus: number = 0;
 
-    /** DigitalInitialState - see its own docstring. this.pins[post].value already holds the
-     * count ChipElm.undumpXml() restored (from the "v"+i XML attrs dumpXmlState() wrote - the
-     * generic per-pin state save/restore every ChipElm gets, not anything specific to this
-     * class) so an imported counter resumes where it was saved instead of silently restarting
-     * from 0. */
+    /** DigitalInitialState - see its own docstring. this.pins[post].value holds the count
+     * ChipElm.undumpXml() restored, so an imported counter resumes instead of restarting from 0.
+     * modulus===0's ripple synthesis holds real state on `intPin(w)`, not the memoryless Q buffer
+     * digitalOutputPin() would otherwise name - seeding the buffer got silently overwritten by the
+     * still-cold internal pin on its next tick, which is what looked like the count skipping
+     * backwards after reimport. `w = bits-1-post` matches digitalSynthesisRipple()'s own qPin(w). */
     digitalInitialState(): { pin: number, value: number }[] | null {
-        return digitalOutputPosts(this).map(post => ({ pin: digitalOutputPin(this, post)!, value: this.pins[post].value ? 1 : 0 }));
+        const bits = this.bits;
+        return digitalOutputPosts(this).map(post => {
+            const pin = (this.modulus === 0 && post < bits)
+                ? i3 + (bits - 1 - post)
+                : digitalOutputPin(this, post)!;
+            return { pin, value: this.pins[post].value ? 1 : 0 };
+        });
     }
 
     constructor(xx: number, yy: number);
