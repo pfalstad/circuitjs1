@@ -48,8 +48,10 @@ export class JKFlipFlopElm extends ChipElm implements DigitalInitialState {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        appendInfoLine(arr, "opt Q: " + digitalStateTextForOutput(this, 0));
-        appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
+        if (ChipElm.app.developerMode) {
+            appendInfoLine(arr, "opt Q: " + digitalStateTextForOutput(this, 0));
+            appendInfoLine(arr, "opt /Q: " + digitalStateTextForOutput(this, 1));
+        }
     }
 
     /** Phase 3 (see noble-stirring-rabin.md), revised: matches DICE's real chips/74107.ts

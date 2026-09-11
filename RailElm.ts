@@ -222,7 +222,7 @@ export class RailElm extends VoltageElm {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
-        if (this.isDigitalSource())
+        if (this.isDigitalSource() && CircuitElm.app.developerMode)
             appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 

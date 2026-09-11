@@ -198,7 +198,7 @@ export class LogicInputElm extends SwitchElm {
             arr[1] = "" + this.position;
         arr[1] += " (" + CircuitElm.getVoltageText(this.nodes[0].v) + ")";
         arr[2] = "I = " + CircuitElm.getCurrentText(this.getCurrent());
-        if (this.isDigitalSource())
+        if (this.isDigitalSource() && CircuitElm.app.developerMode)
             appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 

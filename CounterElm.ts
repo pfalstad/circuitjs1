@@ -57,7 +57,8 @@ export class CounterElm extends ChipElm implements DigitalInitialState {
         let k = 0;
         for (const pin of this.pins) {
             if (!pin.output) continue;
-            appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
+            if (ChipElm.app.developerMode)
+                appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
             k++;
         }
     }

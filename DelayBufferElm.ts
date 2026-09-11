@@ -153,7 +153,8 @@ export class DelayBufferElm extends CircuitElm {
         arr[1] = Locale.LS("delay = ") + CircuitElm.getUnitText(this.delay, "s");
         arr[2] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
         arr[3] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
-        appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
+        if (CircuitElm.app.developerMode)
+            appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     getEditInfo(n: number): EditInfo | null {

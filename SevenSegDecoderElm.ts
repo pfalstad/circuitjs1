@@ -186,6 +186,7 @@ export class SevenSegDecoderElm extends ChipElm {
 
     getInfo(arr: string[]): void {
         super.getInfo(arr);
+        if (!ChipElm.app.developerMode) return;
         const segCount = this.getSegmentCount();
         for (let k = 0; k < segCount; k++)
             appendInfoLine(arr, `${this.pins[k].text}: ${digitalStateTextForOutput(this, k)}`);

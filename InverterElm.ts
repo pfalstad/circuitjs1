@@ -157,7 +157,8 @@ export class InverterElm extends CircuitElm {
         arr[0] = "inverter";
         arr[1] = "Vi = " + CircuitElm.getVoltageText(this.nodes[0].v);
         arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
-        appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
+        if (CircuitElm.app.developerMode)
+            appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     getEditInfo(n: number): EditInfo | null {

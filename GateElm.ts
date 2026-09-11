@@ -314,7 +314,8 @@ export abstract class GateElm extends CircuitElm {
                 arr[3] = "delay = " + CircuitElm.getUnitText(this.propagationDelayLH, "s") + " (LH), "
                     + CircuitElm.getUnitText(this.propagationDelayHL, "s") + " (HL)";
         }
-        appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
+        if (CircuitElm.app.developerMode)
+            appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
     setHighVoltage(hv: number): void { this.highVoltage = hv; }
