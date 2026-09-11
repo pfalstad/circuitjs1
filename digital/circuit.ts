@@ -207,13 +207,6 @@ class CircuitBuilder {
                 if (cd.chip === chip) return `${name}.${cd.desc.outPin}`;
         return "unknown";
     }
-
-    getInputInfo(chip: Chip, num: number): string {
-        for (const [name, list] of this.chipMap)
-            for (const cd of list)
-                if (cd.chip === chip) return `${name}.${cd.desc.inPins[num]}`;
-        return "unknown";
-    }
 }
 
 export class Circuit {
@@ -251,13 +244,11 @@ export class Circuit {
         builder.makeAllConnections();
 
         // Unconnected input pin -> tie to GND, same fallback the analog solver's own
-        // connectUnconnectedNodes() already uses for a floating node.
+        // connectUnconnectedNodes() already uses for a floating node. Silent: an unconnected
+        // digital input pin is routine (optional pins, in-progress wiring), not worth logging.
         for (let i = 2; i < this.chips.length; i++) {
             for (let j = 0; j < this.chips[i].inputLinks.length; j++) {
                 if (!this.chips[i].inputLinks[j]) {
-                    const name = builder.getInputInfo(this.chips[i], j);
-                    console.log(`WARNING: Unconnected input pin: ${name}, connecting to GND`);
-
                     this.chips[1].outputLinks.push(new ChipLink(this.chips[i], BigInt(1 << j)));
                     this.chips[i].inputLinks[j] = new ChipLink(this.chips[1], 0n);
                 }
