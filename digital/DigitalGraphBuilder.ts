@@ -560,8 +560,10 @@ export function digitalScopeSourceNew(elm: any): Chip | null {
     const posts = digitalOutputPosts(elm);
     if (posts.length === 1) return digitalOutputChip(elm, posts[0], currentGraph.chipsByElm);
     const isPassthrough = (typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent()) ||
-        (typeof elm.isOutputElm === "function" && elm.isOutputElm());
-    if (posts.length === 0 && isPassthrough && Array.isArray(elm.nodes) && elm.nodes.length === 1) {
+        (typeof elm.isOutputElm === "function" && elm.isOutputElm()) ||
+        (typeof elm.isLogicOutputElm === "function" && elm.isLogicOutputElm());
+    if (posts.length === 0 && isPassthrough && Array.isArray(elm.nodes) &&
+            new Set(elm.nodes).size === 1) {
         const driver = findDigitalDriver(elm, 0);
         if (driver) return digitalOutputChip(driver.elm, driver.postIndex, currentGraph.chipsByElm);
     }
