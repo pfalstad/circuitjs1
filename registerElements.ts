@@ -54,6 +54,7 @@ import { ExtVoltageElm } from "./ExtVoltageElm";
 import { FMElm } from "./FMElm";
 import { FullAdderElm } from "./FullAdderElm";
 import { FuseElm } from "./FuseElm";
+import { GangedMultiplexerElm } from "./GangedMultiplexerElm";
 import { GroundElm } from "./GroundElm";
 import { GyratorElm } from "./GyratorElm";
 import { HalfAdderElm } from "./HalfAdderElm";
@@ -205,6 +206,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("FMElm", FMElm as any);
     ElementFactory.registerClass("FullAdderElm", FullAdderElm as any);
     ElementFactory.registerClass("FuseElm", FuseElm as any);
+    ElementFactory.registerClass("GangedMultiplexerElm", GangedMultiplexerElm as any);
     ElementFactory.registerClass("GroundElm", GroundElm as any);
     ElementFactory.registerClass("GyratorElm", GyratorElm as any);
     ElementFactory.registerClass("HalfAdderElm", HalfAdderElm as any);
@@ -352,6 +354,7 @@ export function registerElements(): void {
     CirSim.theApp.register("FMElm", new FMElm(0, 0));
     CirSim.theApp.register("FullAdderElm", new FullAdderElm(0, 0));
     CirSim.theApp.register("FuseElm", new FuseElm(0, 0));
+    CirSim.theApp.register("GangedMultiplexerElm", new GangedMultiplexerElm(0, 0));
     CirSim.theApp.register("GroundElm", new GroundElm(0, 0));
     CirSim.theApp.register("GyratorElm", new GyratorElm(0, 0));
     CirSim.theApp.register("HalfAdderElm", new HalfAdderElm(0, 0));

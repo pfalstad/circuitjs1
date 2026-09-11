@@ -614,6 +614,7 @@ export class Menus {
             "Add 7 Segment Decoder",    "SevenSegDecoderElm",
             "Add Multiplexer",          "MultiplexerElm",
             "Add Demultiplexer",        "DeMultiplexerElm",
+            "Add Ganged Multiplexer (74157/74158)", "GangedMultiplexerElm",
             "Add SIPO shift register",  "SipoShiftElm",
             "Add PISO shift register",  "PisoShiftElm",
             "Add Counter",              "CounterElm",
