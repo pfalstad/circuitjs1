@@ -1175,7 +1175,6 @@ public class UIManager {
     		    e.cancel();
 		}
 		if (cc=='/' && app.shortcuts.get((int)'/') == null) {
-			// app.commands.menuPerformed("key", "search"); // Previous command palette implementation
 		    app.commands.menuPerformed("key", "commandpalette");
 		    e.cancel();
 		}

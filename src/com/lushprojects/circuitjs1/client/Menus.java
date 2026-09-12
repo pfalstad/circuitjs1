@@ -162,7 +162,7 @@ public class Menus {
 	m.addSeparator();
 	m.addItem(selectAllItem = menuItemWithShortcut("select-all", "Select All", Locale.LS(ctrlMetaKey + "A"), new MyCommand("edit","selectAll")));
 	m.addSeparator();
-	m.addItem(iconMenuItem("search", "Find Component...", new MyCommand("edit", "search")));
+	m.addItem(menuItemWithShortcut("search", "Find Component/Command...", "/", new MyCommand("edit", "search")));
 	m.addItem(iconMenuItem("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit", new MyCommand("edit", "centercircuit")));
 	m.addItem(menuItemWithShortcut("zoom-11", "Zoom 100%", "0", new MyCommand("zoom", "zoom100")));
 	m.addItem(menuItemWithShortcut("zoom-in", "Zoom In", "+", new MyCommand("zoom", "zoomin")));

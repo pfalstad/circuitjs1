@@ -146,7 +146,7 @@ public class CommandPaletteRegistry {
         add("edit:paste", "Paste", "Edit", "paste " + cm + "V", "edit", "paste");
         add("edit:duplicate", "Duplicate", "Edit", "duplicate clone " + cm + "D", "edit", "duplicate");
         add("edit:selectAll", "Select All", "Edit", "select all " + cm + "A", "edit", "selectAll");
-        add("edit:search", "Find Component...", "Edit", "find component search /", "edit", "search");
+        add("edit:search", "Find Component/Command...", "Edit", "find component search command palette /", "edit", "search");
         add("edit:centercircuit", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit", "Edit", "center centre fit", "edit", "centercircuit");
         add("zoom:zoom100", "Zoom 100%", "View", "zoom reset 0", "zoom", "zoom100");
         add("zoom:zoomin", "Zoom In", "View", "zoom in +", "zoom", "zoomin");
@@ -165,7 +165,6 @@ public class CommandPaletteRegistry {
         add("tools:subcircuits", "Subcircuit Manager", "Tools", "subcircuit manager", "tools", "subcircuits");
 
         add("key:runstop", "Run/Stop Simulation", "Simulation", "run stop pause start simulation", "key", "runstop");
-        add("key:commandpalette", "Command Palette", "View", "command palette search /", "key", "commandpalette");
 
         final CheckboxMenuItem dots = m.dotsCheckItem;
         addToggle("options:showcurrent", "Show Current", "Options", "current dots flow",
@@ -353,6 +352,10 @@ public class CommandPaletteRegistry {
         }
         Collections.sort(scored, new Comparator<ScoredCommand>() {
             public int compare(ScoredCommand a, ScoredCommand b) {
+                boolean aMode = "Mode".equals(a.cmd.category);
+                boolean bMode = "Mode".equals(b.cmd.category);
+                if (aMode != bMode)
+                    return aMode ? -1 : 1;
                 return b.score - a.score;
             }
         });
