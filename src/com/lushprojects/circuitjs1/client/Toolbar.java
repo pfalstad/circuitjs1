@@ -11,17 +11,28 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.DomEvent;
 import com.google.gwt.event.dom.client.MouseOutEvent;
 import com.google.gwt.event.dom.client.MouseOverEvent;
+import com.google.gwt.dom.client.EventTarget;
+import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.*;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class Toolbar extends FlowPanel {
 
     private Label modeLabel;
     private HashMap<String, Label> highlightableButtons = new HashMap<>();
     private Label activeButton;  // Currently active button
+
+    // variant popups (from createButtonSet) and the buttons that open them, so
+    // opening one can close the others, and tapping/clicking outside any of them
+    // can close them all (mainly needed on touch devices, which have no hover-out)
+    private List<FlowPanel> paletteContainers = new ArrayList<>();
+    private List<Label> paletteButtons = new ArrayList<>();
+    private boolean globalPopupCloserInstalled = false;
 
     Label resistorButton;
 
@@ -171,6 +182,12 @@ public class Toolbar extends FlowPanel {
 	    startX = t.clientX;
 	    startY = t.clientY;
 	    moved = false;
+	    // touchmove below calls preventDefault(), which suppresses the browser's own
+	    // synthetic mouseover/mousedown/click sequence for this touch -- so dispatch
+	    // mouseover ourselves, otherwise hover-triggered popups (e.g. the variant
+	    // palette) never appear on touch devices.
+	    var over = new MouseEvent('mouseover', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
+	    el.dispatchEvent(over);
 	    var me = new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true, button: 0 });
 	    el.dispatchEvent(me);
 	}, { passive: true });
@@ -288,8 +305,17 @@ public class Toolbar extends FlowPanel {
 	// Add the palette container to the document (or you could append it to the toolbar directly)
 	RootPanel.get().add(paletteContainer);
 
+	paletteContainers.add(paletteContainer);
+	paletteButtons.add(iconLabel);
+	installGlobalPopupCloser();
+
 	// Show palette on mouse-over
 	iconLabel.addMouseOverHandler(event -> {
+	    // close any other open palette first
+	    for (FlowPanel p : paletteContainers)
+		if (p != paletteContainer)
+		    p.setVisible(false);
+
 	    paletteContainer.setVisible(true);
 
 	    // Position the palette relative to the icon label
@@ -307,6 +333,37 @@ public class Toolbar extends FlowPanel {
 	paletteContainer.addDomHandler(event -> { paletteContainer.setVisible(false); }, MouseOutEvent.getType());
 
 	return iconLabel;
+    }
+
+    // Closes all open variant popups when the user taps/clicks anywhere that isn't
+    // one of the popups or one of the buttons that open them. Needed on touch
+    // devices, which never send a mouseout to close a popup the way hovering away
+    // does on desktop.
+    private void installGlobalPopupCloser() {
+	if (globalPopupCloserInstalled)
+	    return;
+	globalPopupCloserInstalled = true;
+
+	Event.addNativePreviewHandler(event -> {
+	    int type = event.getTypeInt();
+	    if (type != Event.ONMOUSEDOWN && type != Event.ONTOUCHSTART)
+		return;
+	    NativeEvent ne = event.getNativeEvent();
+	    EventTarget target = ne.getEventTarget();
+	    if (!com.google.gwt.dom.client.Element.is(target))
+		return;
+	    com.google.gwt.dom.client.Element t = com.google.gwt.dom.client.Element.as(target);
+
+	    for (FlowPanel p : paletteContainers)
+		if (p.getElement().isOrHasChild(t))
+		    return;
+	    for (Label b : paletteButtons)
+		if (b.getElement().isOrHasChild(t))
+		    return;
+
+	    for (FlowPanel p : paletteContainers)
+		p.setVisible(false);
+	});
     }
 
     private void styleModeLabel(Label label) {
