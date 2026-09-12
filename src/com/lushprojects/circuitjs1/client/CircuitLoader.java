@@ -279,11 +279,21 @@ public class CircuitLoader {
     }
 
     void loadFileFromURL(String url) {
+	loadFileFromURL(url, null);
+    }
+
+    // fallbackUrl, if non-null, is tried if url can't be loaded (e.g. a circuits/ lookup
+    // falling back to applied/)
+    void loadFileFromURL(String url, final String fallbackUrl) {
 	RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
-	
+
 	try {
 	    requestBuilder.sendRequest(null, new RequestCallback() {
 		public void onError(Request request, Throwable exception) {
+		    if (fallbackUrl != null) {
+			loadFileFromURL(fallbackUrl, null);
+			return;
+		    }
 		    Window.alert(Locale.LS("Can't load circuit!"));
 		    GWT.log("File Error Response", exception);
 		}
@@ -295,7 +305,10 @@ public class CircuitLoader {
 			app.allowSave(false);
 			app.unsavedChanges = false;
 		    }
-		    else { 
+		    else if (fallbackUrl != null) {
+			loadFileFromURL(fallbackUrl, null);
+		    }
+		    else {
 			Window.alert(Locale.LS("Can't load circuit!"));
 			GWT.log("Bad file server response:"+response.getStatusText() );
 		    }

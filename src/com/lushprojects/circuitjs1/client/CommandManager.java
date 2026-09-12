@@ -280,6 +280,12 @@ public class CommandManager {
     		int sp = item.indexOf(' ', 6);
     		app.menus.readSetupFile(item.substring(6, sp), item.substring(sp+1));
     	}
+    	if (menu.startsWith("extra:") && item.indexOf("setup ") ==0) {
+    		app.undoManager.pushUndo();
+    		String extraKey = menu.substring(6);
+    		int sp = item.indexOf(' ', 6);
+    		app.menus.readSetupExtraFile(extraKey, item.substring(6, sp), item.substring(sp+1));
+    	}
     	if (item=="newblankcircuit") {
     	    app.undoManager.pushUndo();
     	    app.menus.readSetupFile("blank.txt", "Blank Circuit");

@@ -38,6 +38,7 @@ import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.Window;
+import java.util.Vector;
 
 public class Menus {
 
@@ -525,6 +526,8 @@ public class Menus {
 		    if (!hideMenu)
 			Window.alert(Locale.LS("Can't load circuit list!"));
 		    GWT.log("File Error Response", exception);
+		    // still try to load the Applied menu even if Circuits failed
+		    getSetupExtraLists(openDefault);
 		}
 
 		public void onResponseReceived(Request request, Response response) {
@@ -534,17 +537,21 @@ public class Menus {
 		    processSetupList(text.getBytes(), openDefault);
 		    // end or processing
 		    }
-		    else { 
+		    else {
 			Window.alert(Locale.LS("Can't load circuit list!"));
 			GWT.log("Bad file server response:"+response.getStatusText() );
 		    }
+		    // load the Applied menu only after the Circuits menu above is fully
+		    // built, so "Circuits" always ends up before "Applied" regardless of
+		    // which network request happens to finish first
+		    getSetupExtraLists(openDefault);
 		}
 	    });
 	} catch (RequestException e) {
 	    GWT.log("failed file reading", e);
 	}
     }
-		
+
     void processSetupList(byte b[], final boolean openDefault) {
 	int len = b.length;
     	MenuBar currentMenuBar;
@@ -606,11 +613,191 @@ public class Menus {
 	sim.resetEditingContext();
 	// don't avoid caching here, it's unnecessary and makes offline PWA's not work
 	String url=GWT.getModuleBaseURL()+"circuits/"+str; // +"?v="+random.nextInt();
-	sim.loader.loadFileFromURL(url);
+	// if it's not in circuits/, fall back to applied/ before giving up
+	String appliedUrl=GWT.getModuleBaseURL()+"applied/"+str;
+	sim.loader.loadFileFromURL(url, appliedUrl);
 	if (title != null)
 	    sim.setCircuitTitle(title);
 	sim.unsavedChanges = false;
 	ExportAsLocalFileDialog.setLastFileName(str.equals("blank.txt") ? null : str);
+    }
+
+    // Optional per-topic menus. "applied" is Chris's own always-checked test-circuit
+    // area. Additional menus (e.g. course codes) are discovered from a small manifest
+    // file, extramenus.txt -- one key per line, blank lines and #-comments ignored --
+    // so adding or dropping a course is purely a server-side edit: no rebuild, ever.
+    // Each key only produces a menu if a matching setup<KEY>list.txt also exists,
+    // sourced from a directory of the same name. With no extramenus.txt present (or
+    // an empty one), this is a complete no-op beyond Applied -- matches stock
+    // circuitjs1 behavior, so Falstad's own deployment never needs to change.
+    //
+    // IMPORTANT for whoever edits extramenus.txt: each line is just the bare key
+    // (e.g. "ELTR1000"), NOT the filename. The code builds "setup"+key+"list.txt"
+    // itself, so a line of "setupELTR1000.txt" or "setupELTR1000list.txt" produces
+    // a mangled, 404ing URL like "setupsetupELTR1000.txtlist.txt". The key must also
+    // exactly match (case included) both the setup<KEY>list.txt filename and the
+    // circuit-files directory name it points into (e.g. key "ELTR1000" -> directory
+    // "ELTR1000/", not "ELTR1100" or any other near-miss).
+    //
+    // Also: this app registers a service worker for offline/PWA support, which can
+    // cache these .txt files. If a server-side edit to extramenus.txt or a
+    // setup<KEY>list.txt doesn't seem to take effect, hard-refresh (Ctrl+Shift+R)
+    // before assuming the code is wrong.
+    //
+    // Verified working end-to-end 2026-09-20 (manifest-driven ELTR1000 menu, plus
+    // Applied) against a live deployment.
+    void getSetupExtraLists(final boolean openDefault) {
+    	String url = GWT.getModuleBaseURL()+"extramenus.txt"; // +"?v="+random.nextInt();
+	RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
+	try {
+	    requestBuilder.sendRequest(null, new RequestCallback() {
+		public void onError(Request request, Throwable exception) {
+		    // no manifest present -- fine, just show Applied
+		    loadExtraMenuQueue(new Vector<String>(), openDefault);
+		}
+
+		public void onResponseReceived(Request request, Response response) {
+		    Vector<String> keys = new Vector<String>();
+		    if (response.getStatusCode()==Response.SC_OK)
+			parseExtraMenuList(response.getText(), keys);
+		    loadExtraMenuQueue(keys, openDefault);
+		}
+	    });
+	} catch (RequestException e) {
+	    GWT.log("failed file reading", e);
+	    loadExtraMenuQueue(new Vector<String>(), openDefault);
+	}
+    }
+
+    static void parseExtraMenuList(String text, Vector<String> out) {
+	int len = text.length();
+	int p = 0;
+	while (p < len) {
+	    int nl = text.indexOf('\n', p);
+	    int end = (nl == -1) ? len : nl;
+	    String line = text.substring(p, end);
+	    if (line.endsWith("\r"))
+		line = line.substring(0, line.length()-1);
+	    line = line.trim();
+	    if (line.length() != 0 && line.charAt(0) != '#')
+		out.add(line);
+	    p = end + 1;
+	}
+    }
+
+    // Load "Applied" first, then each manifest key in order, one request at a time
+    // (rather than firing every request in parallel) so the resulting menu order is
+    // deterministic -- Applied, then the manifest's own order -- instead of racing
+    // multiple simultaneous AJAX requests against each other, same reasoning as the
+    // Circuits-vs-Applied ordering fix above.
+    void loadExtraMenuQueue(final Vector<String> remainingKeys, final boolean openDefault) {
+	remainingKeys.add(0, "applied");
+	loadNextExtraMenu(remainingKeys, openDefault);
+    }
+
+    void loadNextExtraMenu(final Vector<String> remainingKeys, final boolean openDefault) {
+	if (remainingKeys.isEmpty())
+	    return;
+	final String key = remainingKeys.remove(0);
+	final String title = key.equals("applied") ? "Applied" : key;
+	getSetupExtraList(key, title, openDefault, new Runnable() {
+	    public void run() { loadNextExtraMenu(remainingKeys, openDefault); }
+	});
+    }
+
+    void getSetupExtraList(final String key, final String title, final boolean openDefault, final Runnable onDone) {
+
+    	String url;
+    	url = GWT.getModuleBaseURL()+"setup"+key+"list.txt"; // +"?v="+random.nextInt();
+	RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
+	try {
+	    requestBuilder.sendRequest(null, new RequestCallback() {
+		public void onError(Request request, Throwable exception) {
+		    GWT.log("Optional circuit list \""+key+"\" not present", exception);
+		    onDone.run();
+		}
+
+		public void onResponseReceived(Request request, Response response) {
+		    if (response.getStatusCode()==Response.SC_OK) {
+			String text = response.getText();
+			processSetupExtraList(key, title, text.getBytes(), openDefault);
+		    }
+		    else {
+			GWT.log("Optional circuit list \""+key+"\" not present: "+response.getStatusText());
+		    }
+		    onDone.run();
+		}
+	    });
+	} catch (RequestException e) {
+	    GWT.log("failed file reading", e);
+	    onDone.run();
+	}
+    }
+
+    void processSetupExtraList(final String key, String title, byte b[], final boolean openDefault) {
+	int len = b.length;
+    	MenuBar currentMenuBar;
+    	MenuBar stack[] = new MenuBar[6];
+    	int stackptr = 0;
+    	currentMenuBar=new MenuBar(true);
+    	currentMenuBar.setAutoOpen(true);
+    	menuBar.addItem(Locale.LS(title), currentMenuBar);
+    	stack[stackptr++] = currentMenuBar;
+    	int p;
+    	for (p = 0; p < len; ) {
+	    int l;
+	    for (l = 0; l != len-p; l++)
+		if (b[l+p] == '\n' || b[l+p] == '\r') {
+			l++;
+			break;
+		}
+	    String line = new String(b, p, l-1);
+	    if (line.isEmpty() || line.charAt(0) == '#')
+		    ;
+	    else if (line.charAt(0) == '+') {
+		MenuBar n = new MenuBar(true);
+		n.setAutoOpen(true);
+		currentMenuBar.addItem(Locale.LS(line.substring(1)),n);
+		currentMenuBar = stack[stackptr++] = n;
+	    } else if (line.charAt(0) == '-') {
+		    currentMenuBar = stack[--stackptr-1];
+	    } else {
+		int i = line.indexOf(' ');
+		if (i > 0) {
+		    String itemTitle = Locale.LS(line.substring(i+1));
+		    boolean first = false;
+		    if (line.charAt(0) == '>')
+			    first = true;
+		    String file = line.substring(first ? 1 : 0, i);
+		    currentMenuBar.addItem(new MenuItem(itemTitle,
+			    new MyCommand("extra:"+key, "setup "+file+" " + itemTitle)));
+		    String startCircuit = sim.startCircuit;
+		    String startLabel = sim.startLabel;
+		    if (file.equals(startCircuit) && startLabel == null) {
+			startLabel = itemTitle;
+			sim.setCircuitTitle(itemTitle);
+		    }
+		    if (first && startCircuit == null) {
+			startCircuit = file;
+			startLabel = itemTitle;
+			if (openDefault && sim.stopMessage == null)
+			    readSetupExtraFile(key, startCircuit, startLabel);
+		    }
+		}
+	    }
+	    p += l;
+    	}
+    }
+
+    void readSetupExtraFile(String key, String str, String title) {
+	System.out.println(str);
+	sim.resetEditingContext();
+	// don't avoid caching here, it's unnecessary and makes offline PWA's not work
+	String url=GWT.getModuleBaseURL()+key+"/"+str; // +"?v="+random.nextInt();
+	sim.loader.loadFileFromURL(url);
+	if (title != null)
+	    sim.setCircuitTitle(title);
+	sim.unsavedChanges = false;
     }
 }
 
