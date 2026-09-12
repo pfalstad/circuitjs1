@@ -30,6 +30,7 @@ import { CapacitorElm } from "./CapacitorElm";
 import { ClockElm } from "./ClockElm";
 import { ComparatorElm } from "./ComparatorElm";
 import { Counter2Elm } from "./Counter2Elm";
+import { Counter74177Elm } from "./Counter74177Elm";
 import { CounterElm } from "./CounterElm";
 import { CrossSwitchElm } from "./CrossSwitchElm";
 import { CrystalElm } from "./CrystalElm";
@@ -182,6 +183,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("ClockElm", ClockElm as any);
     ElementFactory.registerClass("ComparatorElm", ComparatorElm as any);
     ElementFactory.registerClass("Counter2Elm", Counter2Elm as any);
+    ElementFactory.registerClass("Counter74177Elm", Counter74177Elm as any);
     ElementFactory.registerClass("CounterElm", CounterElm as any);
     ElementFactory.registerClass("CrossSwitchElm", CrossSwitchElm as any);
     ElementFactory.registerClass("CrystalElm", CrystalElm as any);
@@ -330,6 +332,7 @@ export function registerElements(): void {
     CirSim.theApp.register("ClockElm", new ClockElm(0, 0));
     CirSim.theApp.register("ComparatorElm", new ComparatorElm(0, 0));
     CirSim.theApp.register("Counter2Elm", new Counter2Elm(0, 0));
+    CirSim.theApp.register("Counter74177Elm", new Counter74177Elm(0, 0));
     CirSim.theApp.register("CounterElm", new CounterElm(0, 0));
     CirSim.theApp.register("CrossSwitchElm", new CrossSwitchElm(0, 0));
     CirSim.theApp.register("CrystalElm", new CrystalElm(0, 0));

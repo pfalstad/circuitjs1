@@ -1142,6 +1142,14 @@ export class SimulationManager {
         if (!promotionEnabled)
             for (const chip of this.digitalGraph.circuit.chips) chip.optimizationDisabled = true;
 
+        // Let every cold-start self-correcting source (LogicInputElm and friends - see
+        // Circuit.drainZeroDelayEvents()'s own docstring) finish settling to its real configured
+        // value BEFORE seeding runs below - otherwise a downstream chip reading several such
+        // still-cold sources as plain inputs (e.g. Counter74177Elm's CLR/LOAD) can transiently
+        // recompute a stale value and schedule a real (wrong) pending correction that silently
+        // overwrites its just-seeded output a moment later.
+        this.digitalGraph.circuit.drainZeroDelayEvents();
+
         // Give every element exposing a live-pushable `digitalChip` field (LogicInputElm's own
         // toggle() - see its digitalChip docstring) a handle onto its own synthesized Chip, so a
         // later user click has something to push a value change into.

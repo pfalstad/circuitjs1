@@ -292,6 +292,40 @@ export class Circuit {
         this.queue[i] = qe;
     }
 
+    /** Processes every event still queued for RIGHT NOW (i.e. at the current globalTime),
+     * without consuming any tick budget - each such event's own `queue[1].time - globalTime`
+     * term (see run() below) is zero, so draining them here costs nothing a normal run() call
+     * wouldn't already absorb for free on its very next iteration anyway.
+     *
+     * Exists so a fresh Circuit's cold-start self-correcting sources - every LogicInputElm (and
+     * similar CUSTOM_CHIP sources) schedules a queuePush(chip, 0n) from its own customUpdate()
+     * during Chip.initialize() (see this class's own constructor, and
+     * LogicInputElm.pushDigitalValue()'s docstring) rather than flipping `.output` immediately -
+     * can finish settling to their real configured values BEFORE
+     * DigitalGraphBuilder.seedInitialDigitalState() applies a saved chip's initial state on top.
+     * Seeding runs before a single real tick's worth of simulation time has passed, so without
+     * this drain, a downstream chip whose logic reads several such still-cold sources as plain
+     * (non-edge) inputs - e.g. Counter74177Elm's CLR/LOAD, both real switches wired "high" - can
+     * transiently recompute a stale value if one source (say LOAD) has already corrected to its
+     * true value while another (CLR) hasn't yet. That transient disagreement doesn't just resolve
+     * itself once every source finishes settling: merely SCHEDULING the resulting delayed
+     * correction (Chip.updateInputs()'s `this.inputs ^= this.prevOutputMask`) poisons the chip's
+     * internal "previous output" bit to match the wrong pending value immediately, before the
+     * event even fires - so once every source truly settles a moment later, a subsequent correct
+     * recompute reads that already-poisoned bit for its own "hold" branch and reproduces the same
+     * wrong value, never un-poisoning it. The bad pending event still fires on schedule, silently
+     * overwriting the just-seeded output. (Root-caused interactively against a real Counter74177Elm
+     * import with CLK1/CLK2/LOAD/CLR wired to real LogicInputElms, from the actual chip.state/
+     * pendingEvent trace - not hypothesized.) Draining every cold-start self-correction here first
+     * means every driver has already reached its true configured value by the time seeding runs,
+     * so no such transient recompute - and no poisoned pending event - ever happens. */
+    drainZeroDelayEvents(): void {
+        while (this.queueSize && this.queue[1].time === this.globalTime) {
+            if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
+            this.queuePop();
+        }
+    }
+
     run(runTimeIn: bigint): void {
         this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         let runTime = runTimeIn;
