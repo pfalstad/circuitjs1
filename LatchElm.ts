@@ -26,8 +26,13 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
 import { Checkbox } from "./Checkbox";
+import { appendInfoLine, digitalStateTextForOutput, digitalOutputPosts, digitalOutputPin } from "./digital/DigitalGraphBuilder";
+import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
+import { chipStart, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
-export class LatchElm extends ChipElm {
+export class LatchElm extends ChipElm implements DigitalInitialState {
     readonly FLAG_STATE = 2;
     readonly FLAG_NO_EDGE = 4;
     readonly FLAG_RESET = 8;
@@ -179,6 +184,99 @@ export class LatchElm extends ChipElm {
             for (let i = 0; i !== this.bits; i++)
                 this.outputValues![i] = this.pins[i].value;
         this.lastLoad = this.pins[this.loadPin].value;
+    }
+
+    /** DigitalInitialState - see its own docstring. Each output post IS its own state cell (see
+     * digitalSynthesis() below, same direct-output convention as CounterElm's
+     * digitalSynthesisWholeRegister()/digitalSynthesisRipple()), so digitalOutputPin() names the
+     * right pin directly - no separate internal state pin to translate through. this.pins[post]
+     * already holds what ChipElm.undumpXml()/restoreOutputValues() restored, so an imported latch
+     * resumes at its saved value instead of restarting cleared. */
+    digitalInitialState(): { pin: number, value: number }[] | null {
+        return digitalOutputPosts(this).map(post => ({ pin: digitalOutputPin(this, post)!, value: this.pins[post].value ? 1 : 0 }));
+    }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        if (ChipElm.app.developerMode) {
+            let k = 0;
+            for (const pin of this.pins) {
+                if (!pin.output) continue;
+                appendInfoLine(arr, `${pin.text}: ${digitalStateTextForOutput(this, k)}`);
+                k++;
+            }
+        }
+    }
+
+    /** Tri-state output-enable mode (hasOutputEnable()) stamps a real resistor/high-Z network
+     * onto the Q pins (see doStep()/stamp() below) - there's no bus/high-Z concept in the digital
+     * engine at all yet, so such a latch simply isn't representable here (null, per
+     * DigitalSynthesis's own "not a digital source right now" convention) and falls back to the
+     * analog path. Otherwise each bit is its own single-cell state machine, exactly like
+     * CounterElm's direct-output bit-cells: no separate buffer is needed since a latch's Q pin has
+     * no /Q sibling and no cross-bit dependency the way DFlipFlopElm/JKFlipFlopElm's shared master
+     * cell does (see their own docstrings for why THEY need the indirection).
+     *
+     * Level-sensitive ("Latch") mode needs no eventPins at all: `pin[Qpin] = enabled ? pin[Dpin] :
+     * prevPin[Qpin]` is a pure function of currently-live inputs (the classic mux-with-feedback
+     * model of a transparent latch), so it's already a plain combinational LUT cell that
+     * re-evaluates on any input change - matching doLoad()'s own "copy every step the load pin is
+     * high, whatever bits[i] is doing" semantics exactly, transfers included mid-level rather than
+     * only at a detected edge. Edge-triggered ("Register") mode instead gates the copy on
+     * posEdge(Ldpin), matching doLoad()'s own `!this.lastLoad` rising-edge guard. Set/Reset (when
+     * present) are checked first in both modes, exactly per doLoad()'s own priority (Set, then
+     * Reset, then the load/edge logic) - both async overrides regardless of load/enable state. */
+    digitalSynthesis(): DigitalSynthesis | null {
+        if (this.hasOutputEnable()) return null;
+
+        const bits = this.bits;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+
+        const Ldpin = this.loadPin + 1;
+        const hasR = this.hasReset(), hasS = this.hasSet();
+        const Rpin = hasR ? this.resetPin + 1 : 0;
+        const Spin = hasS ? this.setPin + 1 : 0;
+        const ieCount = this.inputEnableCount();
+        const IE1pin = ieCount >= 1 ? this.ie1Pin + 1 : 0;
+        const IE2pin = ieCount >= 2 ? this.ie2Pin + 1 : 0;
+        const invertBit = this.resetActiveLow() ? 1 : 0;
+        const edgeTriggered = this.isEdgeTriggered();
+
+        const desc: ChipDesc[] = [];
+        for (let w = 0; w < bits; w++) {
+            const Dpin = w + 1;
+            const Qpin = bits + w + 1;
+
+            const stateIn: number[] = [Dpin, Ldpin];
+            if (hasR) stateIn.push(Rpin);
+            if (hasS) stateIn.push(Spin);
+            if (ieCount >= 1) stateIn.push(IE1pin);
+            if (ieCount >= 2) stateIn.push(IE2pin);
+
+            const logic: ChipLogic = (pin, prevPin, eventPin) => {
+                const isSet = hasS ? pin[Spin] : 0;
+                const isReset = hasR ? (pin[Rpin] ^ invertBit) : 0;
+                let inputEnabled = 1;
+                if (ieCount >= 1 && pin[IE1pin]) inputEnabled = 0;
+                if (ieCount >= 2 && pin[IE2pin]) inputEnabled = 0;
+
+                if (isSet) pin[Qpin] = 1;
+                else if (isReset) pin[Qpin] = 0;
+                else {
+                    const load = edgeTriggered ? posEdge(pin, eventPin, Ldpin) : pin[Ldpin] !== 0;
+                    pin[Qpin] = (inputEnabled && load) ? pin[Dpin] : prevPin[Qpin];
+                }
+            };
+
+            const builder = chipStart(logic).inputPins(...stateIn).outputPin(Qpin).prevOutputPin(Qpin);
+            if (edgeTriggered) builder.eventPins(Ldpin);
+            // no dice-ts reference part for a generic width latch/register; reuses
+            // DFlipFlopElm's state-cell delay as a placeholder
+            desc.push(builder.outputDelayNs(10.0, 10.0));
+        }
+        return { desc, pinMap };
     }
 
     startIteration(): void {
