@@ -214,11 +214,39 @@ public class Toolbar extends FlowPanel {
 		var click = new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
 		el.dispatchEvent(click);
 	    }
+	    // there's no touch equivalent of a real mouseout, so the hover highlight
+	    // this element's mouseover handler applied (on touchstart, above) would
+	    // otherwise be left stuck on -- just clear it directly
+	    el.style.color = '#333';
 	}, { passive: false });
 	el.addEventListener('touchcancel', function(e) {
 	    var t = e.changedTouches[0];
 	    var me = new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true });
 	    $doc.dispatchEvent(me);
+	    el.style.color = '#333';
+	}, { passive: true });
+    }-*/;
+
+    // Closes the palette once a touch that started on its owning button (which is
+    // where the popup opens from) moves off of both the button and the popup.
+    // Can't just close on touchstart/mousedown like a real mouse-drag effectively
+    // does via mouseout -- touchstart on this same element is also what opens the
+    // popup (see addTouchDragSupport's synthetic mouseover), so closing immediately
+    // there would close the popup the instant it appears.
+    private native void addPopupDismissOnLeave(com.google.gwt.dom.client.Element el, com.google.gwt.dom.client.Element popupEl) /*-{
+	var self = this;
+	el.addEventListener('touchmove', function(e) {
+	    if (e.touches.length != 1)
+		return;
+	    if (popupEl.style.display === 'none')
+		return;
+	    var t = e.touches[0];
+	    var pr = popupEl.getBoundingClientRect();
+	    var er = el.getBoundingClientRect();
+	    var inPopup = t.clientX >= pr.left && t.clientX <= pr.right && t.clientY >= pr.top && t.clientY <= pr.bottom;
+	    var inButton = t.clientX >= er.left && t.clientX <= er.right && t.clientY >= er.top && t.clientY <= er.bottom;
+	    if (!inPopup && !inButton)
+		self.@com.lushprojects.circuitjs1.client.Toolbar::closeAllPalettes()();
 	}, { passive: true });
     }-*/;
 
@@ -266,20 +294,20 @@ public class Toolbar extends FlowPanel {
 	    final MyCommand command = new MyCommand("main", info[i+1]);
 	    final String smallSvg = makeSvg(info[i], 24);
 
-	    // Change the icon of the main button to reflect the variant selected
+	    // Change the icon of the main button to reflect the variant selected, and
+	    // switch the mouse mode to it right away -- don't wait for a click event,
+	    // since hiding paletteContainer here means the browser won't deliver one
+	    // (hiding the click target between mousedown and mouseup suppresses it).
 	    final Runnable selectVariant = () -> {
 		iconLabel.getElement().setInnerHTML(smallSvg);
 		highlightableButtons.remove(mainCommand.getItemName());
                 highlightableButtons.put(command.getItemName(), iconLabel);
-		paletteContainer.setVisible(false);
 		mainCommand.setItemName(command.getItemName());
+		closeAllPalettes();
+		command.execute();  // switch to the mode for the selected variant
 	    };
 
-	    // Add click handler to update the main button and execute the command
-	    variantButton.addClickHandler(event -> {
-		selectVariant.run();
-		command.execute();  // Execute the corresponding command for the selected variant
-	    });
+	    variantButton.addClickHandler(event -> selectVariant.run());
 
 	    // pressing and dragging (rather than just clicking) a variant drops that
 	    // variant directly, instead of switching modes
@@ -309,6 +337,7 @@ public class Toolbar extends FlowPanel {
 	paletteContainers.add(paletteContainer);
 	paletteButtons.add(iconLabel);
 	installGlobalPopupCloser();
+	addPopupDismissOnLeave(iconLabel.getElement(), paletteContainer.getElement());
 
 	// Show palette on mouse-over
 	iconLabel.addMouseOverHandler(event -> {
@@ -334,6 +363,11 @@ public class Toolbar extends FlowPanel {
 	paletteContainer.addDomHandler(event -> { paletteContainer.setVisible(false); }, MouseOutEvent.getType());
 
 	return iconLabel;
+    }
+
+    private void closeAllPalettes() {
+	for (FlowPanel p : paletteContainers)
+	    p.setVisible(false);
     }
 
     // Closes all open variant popups when the user taps/clicks anywhere that isn't
@@ -362,8 +396,7 @@ public class Toolbar extends FlowPanel {
 		if (b.getElement().isOrHasChild(t))
 		    return;
 
-	    for (FlowPanel p : paletteContainers)
-		p.setVisible(false);
+	    closeAllPalettes();
 	});
     }
 
