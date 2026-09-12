@@ -48,7 +48,7 @@ public class ShortcutsDialog extends Dialog {
 	TextArea textArea;
 	Vector<TextBox> textBoxes;
 	Vector<String> shortcuts;
-	// target each row applies to: a mainMenuItems index, or -1 for the run/stop row
+	// target each row applies to: a mainMenuItems index, -1 for run/stop, -2 for command palette
 	Vector<Integer> rowMenuItemIndex;
 	Button okButton;
 	UIManager ui;
@@ -83,15 +83,20 @@ public class ShortcutsDialog extends Dialog {
 		    rowMenuItemIndex.add(i);
 		}
 		String runStopShortcut = "";
+		String commandPaletteShortcut = "/";
 		for (Map.Entry<Integer,String> entry : sim.shortcuts.entrySet()) {
 		    if (entry.getValue().equals(CirSim.RUNSTOP_SHORTCUT_ACTION)) {
 			runStopShortcut = String.valueOf((char)(int) entry.getKey());
-			break;
+		    } else if (entry.getValue().equals(CirSim.COMMAND_PALETTE_SHORTCUT_ACTION)) {
+			commandPaletteShortcut = String.valueOf((char)(int) entry.getKey());
 		    }
 		}
 		rowNames.add(Locale.LS("Start/Stop Simulation"));
 		rowInitialShortcuts.add(runStopShortcut);
 		rowMenuItemIndex.add(-1);
+		rowNames.add(Locale.LS("Command Palette"));
+		rowInitialShortcuts.add(commandPaletteShortcut);
+		rowMenuItemIndex.add(-2); // not a mainMenuItems row; see enterPressed()
 
 		FlexTable table = new FlexTable();
 		sp.add(table);
@@ -177,8 +182,13 @@ public class ShortcutsDialog extends Dialog {
 		    item.setShortcut(str);
 		    if (str.length() > 0)
 			sim.shortcuts.put((int) str.charAt(0), ui.mainMenuItemNames.get(menuItemIndex));
-		} else if (str.length() > 0)
-		    sim.shortcuts.put((int) str.charAt(0), CirSim.RUNSTOP_SHORTCUT_ACTION);
+		} else if (menuItemIndex == -1) {
+		    if (str.length() > 0)
+			sim.shortcuts.put((int) str.charAt(0), CirSim.RUNSTOP_SHORTCUT_ACTION);
+		} else if (menuItemIndex == -2) {
+		    if (str.length() > 0)
+			sim.shortcuts.put((int) str.charAt(0), CirSim.COMMAND_PALETTE_SHORTCUT_ACTION);
+		}
 	    }
 	    // save to local storage
 	    sim.saveShortcuts();

@@ -30,9 +30,13 @@ public class ImportFromDropboxDialog extends Dialog {
 	}
 	
 	static public void doLoadCallback(String s) {
+		if (!sim.undoManager.confirmDiscardChanges())
+		    return;
 		sim.undoManager.pushUndo();
 		sim.readCircuit(s);
 		sim.allowSave(false);
+		sim.unsavedChanges = false;
+		sim.savedFlag = true;
 	}
 	
 	

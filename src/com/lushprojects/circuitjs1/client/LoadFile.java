@@ -33,6 +33,8 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 		 }-*/;
 	
 	static public void doLoadCallback(String s, String t) {
+		if (!sim.undoManager.confirmDiscardChanges())
+		    return;
 		sim.undoManager.pushUndo();
 		sim.resetEditingContext();
 		sim.loader.readCircuit(s);
@@ -40,6 +42,7 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 		sim.setCircuitTitle(t);
 		ExportAsLocalFileDialog.setLastFileName(t);
 		sim.unsavedChanges = false;
+		sim.savedFlag = true;
 	}
 	
 	LoadFile(CirSim s) {
