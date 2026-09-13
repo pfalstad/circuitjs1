@@ -68,6 +68,7 @@ export class Counter74177Elm extends ChipElm implements DigitalInitialState {
     singleClock(): boolean { return this.hasFlag(Counter74177Elm.FLAG_SINGLE_CLOCK); }
     hasRipple(): boolean { return this.bits >= 2; }
     needsBits(): boolean { return true; }
+    allowBus(): boolean { return true; }
 
     dataPost(i: number): number { return i; }
     qPost(i: number): number { return this.outputBase + i; }
@@ -153,7 +154,7 @@ export class Counter74177Elm extends ChipElm implements DigitalInitialState {
 
         let row = bits;
         this.clk1Post = bits;
-        this.pins[this.clk1Post] = new Pin(this, row++, ChipElm.SIDE_W, "CLK1");
+        this.pins[this.clk1Post] = new Pin(this, row++, ChipElm.SIDE_W, clk2Needed ? "CLK1" : "");
         this.pins[this.clk1Post].clock = true;
         this.pins[this.clk1Post].bubble = true;
 
