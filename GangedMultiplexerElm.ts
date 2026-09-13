@@ -24,6 +24,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 /** A bank of independent 2:1 multiplexers (A1/B1->Y1, A2/B2->Y2, ...) that all share a single
@@ -40,6 +41,17 @@ export class GangedMultiplexerElm extends ChipElm {
     selectPin: number = 0;
 
     hasReset(): boolean { return false; }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        let k = 0;
+        for (const pin of this.pins) {
+            if (!pin.output) continue;
+            if (ChipElm.app.developerMode)
+                appendInfoLine(arr, `${pin.text}${pin.lineOver ? "'" : ""}: ${digitalStateTextForOutput(this, k)}`);
+            k++;
+        }
+    }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
