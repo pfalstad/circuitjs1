@@ -82,12 +82,16 @@ function chipAt(elm: any, post: number, chipsByElm: Map<any, Chip[]>): Chip {
     return chipsByElm.get(elm)![idx];
 }
 
-function makeSram(addressBits: number, dataBits: number, map: [number, number][] = []): any {
+function makeSram(addressBits: number, dataBits: number, map: [number, number][] = [],
+        separateIO = false): any {
     const sram = Object.create(SRAMElm.prototype) as any;
     sram.addressBits = addressBits;
     sram.dataBits = dataBits;
     sram.addressNodes = 2;
     sram.dataNodes = 2 + addressBits;
+    sram.dataInNodes = separateIO ? sram.dataNodes + dataBits : sram.dataNodes;
+    sram.internalNodes = sram.dataInNodes + dataBits; // == getPostCount()
+    sram.flags = separateIO ? SRAMElm.FLAG_SEPARATE_IO : 0;
     sram.map = new Map(map);
     sram.nodes = [];
     return sram;
@@ -189,5 +193,85 @@ describe("SRAMElm.digitalSynthesis() - write (via digitalTriStateReadbackPin)", 
         expect(chipAt(sram, 3, chipsByElm).output).toBe(0); // SRAM's own contribution stays 0
         expect(chipsByElm.get(sink)![0].inputLinks[0].chip.output).toBe(1); // bus shows writer's 1
         expect(sram.map.get(1)).toBe(1); // and it got captured
+    });
+});
+
+describe("SRAMElm.digitalSynthesis() - FLAG_SEPARATE_IO", () => {
+    it("writes from a plain (non-tri-state) source on the separate Din pin", () => {
+        const warn = vi.spyOn(console, "log").mockImplementation(() => { });
+        const sram = makeSram(1, 2, [], true);
+        const we = tieSource("GND"); // asserted
+        const oe = tieSource("VCC"); // deasserted - doesn't matter while writing
+        const addr = tieSource("VCC"); // address 1
+        // ordinary sources, NOT tri-state-marked - separate I/O needs no merge machinery at all.
+        const din = [tieSource("VCC"), tieSource("GND")]; // data = 0b10
+
+        connect({ elm: we, num: 0 }, { elm: sram, num: 0 });
+        connect({ elm: oe, num: 0 }, { elm: sram, num: 1 });
+        connect({ elm: addr, num: 0 }, { elm: sram, num: 2 });
+        connect({ elm: din[0], num: 0 }, { elm: sram, num: sram.dataInNodes });
+        connect({ elm: din[1], num: 0 }, { elm: sram, num: sram.dataInNodes + 1 });
+
+        const { circuit } = buildDigitalCircuit([we, oe, addr, sram, ...din]);
+        circuit.run(20n);
+
+        expect(warn).not.toHaveBeenCalled();
+        expect(sram.map.get(1)).toBe(0b10);
+        warn.mockRestore();
+    });
+
+    it("reads normally, and Dout is never wired to Din", () => {
+        const sram = makeSram(1, 1, [[1, 1]], true);
+        const we = tieSource("VCC"); // deasserted
+        const oe = tieSource("GND"); // asserted
+        const addr = tieSource("VCC");
+        const din = tieSource("GND"); // Din=0, irrelevant while reading
+        const sink = probe();
+
+        connect({ elm: we, num: 0 }, { elm: sram, num: 0 });
+        connect({ elm: oe, num: 0 }, { elm: sram, num: 1 });
+        connect({ elm: addr, num: 0 }, { elm: sram, num: 2 });
+        connect({ elm: din, num: 0 }, { elm: sram, num: sram.dataInNodes });
+        connect({ elm: sram, num: 3 }, { elm: sink, num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, din, sink]);
+        circuit.run(20n);
+        // Dout must resolve to SRAM's own chip directly - no OR-merge glue chip involved, since
+        // Din/Dout are separate physical posts and never share a node.
+        expect(chipAt(sram, 3, chipsByElm).output).toBe(1); // stored bit, unaffected by Din=0
+    });
+});
+
+describe("SRAMElm.setupPins() - FLAG_SEPARATE_IO analog pin layout", () => {
+    // Regression: internalNodes (the base index of the per-bit voltage-source nodes ChipElm's
+    // getNodeCount() = getPostCount() + getInternalNodeCount() places right after every real
+    // post - see setupPins()'s own comment) was computed as a fixed dataNodes+dataBits offset,
+    // which undercounted once separate I/O added a whole extra block of real Din posts - the
+    // Din pins ended up numbered PAST the end of the (correctly-sized) `pins` array, so
+    // ChipElm.setPoints() crashed reading `pins[i].side0` for the missing slots. Caught here by
+    // checking every pins[] slot is actually populated, rather than by asserting the specific
+    // numeric formula (which is what was wrong in the first place).
+    function makeBareSram(addressBits: number, dataBits: number): any {
+        const sram = Object.create(SRAMElm.prototype) as any;
+        sram.addressBits = addressBits;
+        sram.dataBits = dataBits;
+        sram.bitOrder = 0;
+        sram.flags = 0;
+        sram.map = new Map();
+        return sram;
+    }
+
+    it("populates every pins[] slot up to getPostCount(), with and without separate I/O", () => {
+        const sram = makeBareSram(2, 4);
+
+        sram.setupPins();
+        expect(sram.pins.length).toBe(sram.getPostCount());
+        for (let i = 0; i < sram.getPostCount(); i++) expect(sram.pins[i]).toBeDefined();
+
+        sram.flags |= SRAMElm.FLAG_SEPARATE_IO;
+        sram.setupPins();
+        expect(sram.pins.length).toBe(sram.getPostCount());
+        for (let i = 0; i < sram.getPostCount(); i++) expect(sram.pins[i]).toBeDefined();
+        expect(sram.internalNodes).toBe(sram.getPostCount());
     });
 });

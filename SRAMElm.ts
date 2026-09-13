@@ -36,6 +36,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     static readonly FLAG_HEX_DISPLAY = 4;
     addressNodes: number = 0;
     dataNodes: number = 0;
+    // Where a write reads its incoming data FROM. Equals dataNodes (the same bidirectional pins
+    // reads drive) unless FLAG_SEPARATE_IO is set, in which case it points at a second, distinct
+    // set of pins appended after dataNodes - see setupPins()/hasSeparateIO() below.
+    dataInNodes: number = 0;
     internalNodes: number = 0;
     addressBits: number = 0;
     dataBits: number = 0;
@@ -43,8 +47,15 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     initialMap: Map<number, number> | null = null; // saved initial contents for restore on reset
     loadedFileName: string | null = null; // remembers the last file loaded via "Load Contents From File"
     static readonly FLAG_RELOAD_ON_RESET = 2;
+    // Splits the single bidirectional data bus into separate Din/Dout pins - matching how real
+    // bipolar-RAM chips (82S16, 8225 - see digitalSynthesis()'s own docstring) are actually
+    // pinned out, and sidestepping the tri-state readback machinery entirely: Din becomes a
+    // plain, ordinary wired input once it's not also this element's own output post.
+    static readonly FLAG_SEPARATE_IO = 8;
     static contentsOverride: string | null = null;
     static fileNameOverride: string | null = null;
+
+    hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -120,9 +131,11 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 	if (this.dataBits === undefined)
 	    this.dataBits = 0;
         this.sizeX = 2;
+        const separate = this.hasSeparateIO();
         const addrY = this.useBus() ? 1 : this.addressBits;
         const dataY = this.useBus() ? 1 : this.dataBits;
-        this.sizeY = Math.max(addrY, dataY) + 1;
+        const westY = separate ? addrY + dataY : addrY;
+        this.sizeY = Math.max(westY, dataY) + 1;
         this.bits = this.addressBits;
         this.pins = new Array(this.getPostCount());
         this.pins[0] = new Pin(this, 0, ChipElm.SIDE_W, "WE");
@@ -131,13 +144,19 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         this.pins[1].lineOver = true;
         this.addressNodes = 2;
         this.dataNodes = 2 + this.addressBits;
-        this.internalNodes = 2 + this.addressBits + this.dataBits;
+        this.dataInNodes = separate ? this.dataNodes + this.dataBits : this.dataNodes;
+        // Internal (non-post) voltage-source nodes always come right after every real post -
+        // see CircuitElm.getNodeCount() - so this must track getPostCount() itself rather than a
+        // fixed offset, since separate I/O adds a whole extra block of real Din posts.
+        this.internalNodes = this.getPostCount();
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
+        if (separate)
+            this.makeBitPins(this.dataBits, 1, ChipElm.SIDE_W, this.dataInNodes, "DI", false, false, true);
         this.allocNodes();
     }
     getPostCount(): number {
-        return 2 + this.addressBits + this.dataBits;
+        return 2 + this.addressBits + this.dataBits + (this.hasSeparateIO() ? this.dataBits : 0);
     }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
@@ -163,6 +182,11 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Restore Contents on Reset",
                 (this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0);
+            return ei;
+        }
+        if (n === 5) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Separate Data In/Out", this.hasSeparateIO());
             return ei;
         }
         return super.getChipEditInfo(n);
@@ -265,6 +289,11 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             else
                 this.initialMap = null;
         }
+        if (n === 5) {
+            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_SEPARATE_IO);
+            this.setupPins();
+            this.setPoints();
+        }
     }
     getVoltageSourceCount(): number { return this.dataBits; }
     getInternalNodeCount(): number { return this.dataBits; }
@@ -323,9 +352,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         if (!writeEnabled)
             return;
 
-        // store data in RAM
+        // store data in RAM - reads from dataInNodes, which is dataNodes itself unless
+        // FLAG_SEPARATE_IO points it at a distinct set of pins (see setupPins()).
         for (let i = 0; i !== this.dataBits; i++) {
-            data |= (this.nodes[this.dataNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
+            data |= (this.nodes[this.dataInNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
         }
         this.map.set(this.address, data);
     }
@@ -336,26 +366,32 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
      * chip.inputs, read and write handled together in one update function - see doStep()/
      * stepFinished() above for the exact same active-low WE/OE and MSB-first bit convention this
      * mirrors. Those real chips have SEPARATE physical Din/Dout pins per bit though (no ambiguity
-     * about which one an update reads from); SRAMElm's data pins are genuinely bidirectional (the
-     * same real pin drives while reading, receives while writing), which is why each bit's cell
-     * also takes a `readback` input via digitalTriStateReadbackPin() below - a write must capture
-     * whatever's ACTUALLY on the shared bus (an external writer's driven value), not this bit's
-     * own output, which doStep()'s own outputEnabled logic forces to 0 while writing (see
+     * about which one an update reads from); with FLAG_SEPARATE_IO set, this element does too, and
+     * `dataInPin(i)` below is then just an ordinary wired input (its post is in pinMap as a
+     * regular INPUT, resolved through the normal connection-finding path - see
+     * DigitalGraphBuilder.ts's layoutFromSynth()). Without the flag, SRAMElm's data pins stay
+     * genuinely bidirectional (the same real pin drives while reading, receives while writing),
+     * so dataInPin(i) is instead wired via digitalTriStateReadbackPin() below - a write must
+     * capture whatever's ACTUALLY on the shared bus (an external writer's driven value), not this
+     * bit's own output, which doStep()'s own outputEnabled logic forces to 0 while writing (see
      * isTriStateOutput()'s "AND(enable, data)" convention) and would therefore only ever read
-     * back 0. */
+     * back 0. Either way the per-bit update() logic itself is identical - only where dataInPin(i)
+     * gets its value from differs. */
     digitalSynthesis(): DigitalSynthesis {
         const m = this.addressBits;
         const n = this.dataBits;
+        const separate = this.hasSeparateIO();
         const wePin = 1;
         const oePin = 2;
         const addrPin = (k: number) => 3 + k;
         const driverPin = (i: number) => 3 + m + i;
-        const readbackPin = (i: number) => 3 + m + n + i;
+        const dataInPin = (i: number) => 3 + m + n + i;
 
         const pinMap = new Map<number, number>();
         pinMap.set(0, wePin);
         pinMap.set(1, oePin);
         for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
+        if (separate) for (let i = 0; i < n; i++) pinMap.set(this.dataInNodes + i, dataInPin(i));
 
         const desc: ChipDesc[] = [];
         for (let i = 0; i < n; i++) {
@@ -367,12 +403,12 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 const oeActive = ((chip.inputs >> 1) & 1) === 0; // OE is active low
                 let address = 0;
                 for (let k = 0; k < m; k++) address |= ((chip.inputs >> (2 + k)) & 1) << (m - 1 - k);
-                const readback = (chip.inputs >> (2 + m)) & 1;
+                const dataIn = (chip.inputs >> (2 + m)) & 1;
 
                 let newOut: number;
                 if (weActive) {
                     const cur = this.map.get(address) ?? 0;
-                    this.map.set(address, readback ? (cur | bitMask) : (cur & ~bitMask));
+                    this.map.set(address, dataIn ? (cur | bitMask) : (cur & ~bitMask));
                     newOut = 0; // never drives while writing, same as doStep()'s outputEnabled
                 } else if (oeActive) {
                     newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
@@ -387,7 +423,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             };
 
             desc.push(customChipStart(update)
-                .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), readbackPin(i))
+                .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), dataInPin(i))
                 .outputPin(driverPin(i))
                 .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
             pinMap.set(this.dataNodes + i, driverPin(i));
@@ -401,6 +437,9 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     }
 
     digitalTriStateReadbackPin(postIndex: number): number | null {
+        // With separate I/O, dataInPin() is a plain wired-input post (see digitalSynthesis()'s
+        // own pinMap) - no readback wiring needed at all.
+        if (this.hasSeparateIO()) return null;
         if (postIndex < this.dataNodes || postIndex >= this.dataNodes + this.dataBits) return null;
         return 3 + this.addressBits + this.dataBits + (postIndex - this.dataNodes);
     }
