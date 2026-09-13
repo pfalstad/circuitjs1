@@ -22,8 +22,11 @@ import { ChipElm, Pin } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
 import { StringTokenizer } from "./StringTokenizer";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis, DigitalTriStateDriver } from "./digital/DigitalGraphBuilder";
 
-export class ROMElm extends SRAMElm {
+export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -94,4 +97,47 @@ export class ROMElm extends SRAMElm {
 
     // no writing
     stepFinished(): void {}
+
+    /** No WE pin means a ROM's data pins are ALWAYS outputs (never bidirectional the way SRAM's
+     * are), so unlike SRAM this needs no readback/write-capture cell - just one AND(OE active,
+     * stored bit) cell per data bit, exactly TriStateElm's own tri-state driver shape (see its
+     * digitalSynthesis()): a disabled (OE high) output contributes 0, and isTriStateOutput() below
+     * lets DigitalGraphBuilder OR-merge this ROM's outputs with any other tri-state driver sharing
+     * its data bus instead of restricting synthesis to the "OE permanently tied low" special case.
+     * A plain (non-custom) LUT cell is safe here specifically because this.map never changes while
+     * a build's Circuit is running (no WE pin to write through - see stepFinished() above): any
+     * edit to its contents is a circuit edit, which already triggers a full digital rebuild. */
+    digitalSynthesis(): DigitalSynthesis {
+        const m = this.addressBits;
+        const n = this.dataBits;
+        const oePin = 1;
+        const addrPin = (k: number) => 2 + k;
+        const outPin = (i: number) => 2 + m + i;
+
+        const pinMap = new Map<number, number>();
+        pinMap.set(0, oePin);
+        for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
+
+        const desc: ChipDesc[] = [];
+        for (let i = 0; i < n; i++) {
+            const thisOutPin = outPin(i);
+            const logic: ChipLogic = (pin) => {
+                let address = 0;
+                for (let k = 0; k < m; k++) address |= pin[addrPin(k)] << (m - 1 - k);
+                const stored = this.map.get(address) ?? 0;
+                const bit = (stored >> (n - 1 - i)) & 1;
+                const oeActive = pin[oePin] === 0; // OE is active low
+                pin[thisOutPin] = oeActive ? bit : 0;
+            };
+            desc.push(chipStart(logic).inputPins(oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)))
+                .outputPin(thisOutPin));
+            pinMap.set(this.dataNodes + i, thisOutPin);
+        }
+
+        return { desc, pinMap };
+    }
+
+    isTriStateOutput(postIndex: number): boolean {
+        return postIndex >= this.dataNodes && postIndex < this.dataNodes + this.dataBits;
+    }
 }

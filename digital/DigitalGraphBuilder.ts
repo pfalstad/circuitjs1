@@ -307,7 +307,12 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
 
     const triStateChipByNode = new Map<any, Chip>();
     for (const [node, driver] of resolved.byNode) {
-        const chip = byName.get(driver.entry.name)?.[0];
+        // Index by driver.pin's OWN cell, not [0] - an entry with several output cells (a
+        // multi-bit TriStateElm bus, ROMElm's per-bit driver cells, ...) would otherwise resolve
+        // every one of its nodes to its FIRST cell regardless of which bit actually drives that
+        // particular node.
+        const idx = driver.entry.desc.findIndex(d => d.outPin === driver.pin);
+        const chip = idx >= 0 ? byName.get(driver.entry.name)?.[idx] : undefined;
         if (chip) triStateChipByNode.set(node, chip);
     }
 
