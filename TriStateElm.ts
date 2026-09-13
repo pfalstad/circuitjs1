@@ -24,14 +24,17 @@ import { CircuitNode } from "./CircuitNode";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
-import { GateElm } from "./GateElm";
+import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S, GateElm } from "./GateElm";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis, DigitalTriStateDriver } from "./digital/DigitalGraphBuilder";
 
-export class TriStateElm extends CircuitElm {
+export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
     resistance: number = 0;
     r_on: number;
     r_off: number;
@@ -140,6 +143,36 @@ export class TriStateElm extends CircuitElm {
 
     controlNode(): number { return 2 * this.busWidth; }
     internalNode(bit: number): number { return 2 * this.busWidth + 1 + bit; }
+
+    /** One AND(control, data) cell per bit: the digital engine has no third (high-impedance)
+     * state, so a disabled bit contributes a plain 0 instead of floating - see
+     * DigitalTriStateDriver's own docstring in DigitalGraphBuilder.ts. Safe on its own for a
+     * single driver (a pulled-down bus reads 0 when nothing drives it); when several TriStateElm/
+     * SRAMElm outputs share one node, isTriStateOutput() below tells the graph builder it's safe
+     * to OR them together into one synthesized bus driver instead of flagging a wiring conflict. */
+    digitalSynthesis(): DigitalSynthesis {
+        const n = this.busWidth;
+        const controlPin = n + 1;
+        const pinMap = new Map<number, number>();
+        const desc: ChipDesc[] = [];
+
+        for (let i = 0; i < n; i++) {
+            const dataPin = i + 1;
+            const outPin = n + 2 + i;
+            const logic: ChipLogic = (pin) => { pin[outPin] = pin[dataPin] & pin[controlPin]; };
+            desc.push(chipStart(logic).inputPins(dataPin, controlPin).outputPin(outPin)
+                .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
+            pinMap.set(i, dataPin);
+            pinMap.set(this.busWidth + i, outPin);
+        }
+        pinMap.set(this.controlNode(), controlPin);
+
+        return { desc, pinMap };
+    }
+
+    isTriStateOutput(postIndex: number): boolean {
+        return postIndex >= this.busWidth && postIndex < 2 * this.busWidth;
+    }
 
     calculateCurrent(): void {
         this.current = 0;

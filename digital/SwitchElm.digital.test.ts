@@ -177,7 +177,7 @@ describe("Switch2Elm through the real SimulationManager pipeline", () => {
 
         sim.preStampAndStampCircuit();
         sim.digitalGraph!.circuit.run(1n);
-        syncDigitalToNodesNew(sim.elmArr, sim.digitalGraph!.chipsByElm);
+        syncDigitalToNodesNew(sim.elmArr, sim.digitalGraph!);
 
         return { thrown: sw.nodes[1 + position].v, other: sw.nodes[position === 0 ? 2 : 1].v };
     }

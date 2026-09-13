@@ -118,9 +118,9 @@ describe("syncDigitalToNodesNew", () => {
         const sink = fakeElm(sinkDesc(), [[0, 1]]);
         connect({ elm: src, num: 0 }, { elm: sink, num: 0 });
         src.nodes[0] = { v: 0, links: src.nodes[0].links } as any;
-        const { chipsByElm } = buildDigitalCircuit([src, sink]);
+        const graph = buildDigitalCircuit([src, sink]);
 
-        syncDigitalToNodesNew([src, sink], chipsByElm);
+        syncDigitalToNodesNew([src, sink], graph);
         expect((src.nodes[0] as any).v).toBe(5);
     });
 
@@ -129,9 +129,9 @@ describe("syncDigitalToNodesNew", () => {
         const sink = fakeElm(sinkDesc(), [[0, 1]]);
         connect({ elm: src, num: 0 }, { elm: sink, num: 0 });
         src.nodes[0] = { v: 0, links: src.nodes[0].links } as any;
-        const { chipsByElm } = buildDigitalCircuit([src, sink]);
+        const graph = buildDigitalCircuit([src, sink]);
 
-        syncDigitalToNodesNew([src, sink], chipsByElm);
+        syncDigitalToNodesNew([src, sink], graph);
         expect((src.nodes[0] as any).v).toBe(3.3);
     });
 
@@ -145,9 +145,9 @@ describe("syncDigitalToNodesNew", () => {
         connect({ elm: chip2, num: 2 }, { elm: sinkB, num: 0 });
         chip2.nodes[1] = { v: 0, links: chip2.nodes[1].links } as any;
         chip2.nodes[2] = { v: 0, links: chip2.nodes[2].links } as any;
-        const { chipsByElm } = buildDigitalCircuit([inSrc, chip2, sinkA, sinkB]);
+        const graph = buildDigitalCircuit([inSrc, chip2, sinkA, sinkB]);
 
-        syncDigitalToNodesNew([inSrc, chip2, sinkA, sinkB], chipsByElm);
+        syncDigitalToNodesNew([inSrc, chip2, sinkA, sinkB], graph);
         expect((chip2.nodes[1] as any).v).toBe(5); // out = in = 1
         expect((chip2.nodes[2] as any).v).toBe(0); // out = !in = 0
     });

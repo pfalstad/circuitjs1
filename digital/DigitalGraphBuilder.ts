@@ -15,7 +15,8 @@
 
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
-import type { ChipDesc } from "./chip_desc";
+import { chipStart } from "./chip_desc";
+import type { ChipDesc, ChipLogic } from "./chip_desc";
 import { CHIP, CONNECTION, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
 import { Circuit } from "./circuit";
@@ -87,30 +88,106 @@ export function isOutputPin(desc: ChipDesc[], pin: number): boolean {
     return desc.some(d => d.outPin === pin);
 }
 
-/** Finds whichever OTHER synthesized element's output post shares `elm`'s node at `postIndex` -
- * the thing actually driving this input. Assumes wire closure has already merged
- * purely-wire-connected posts into one CircuitNode (i.e. this must run after
- * SimulationManager.makeNodeList()/calcWireInfo()), same precondition CircuitWiring.findDriver()
- * has. Only considers other elements that are themselves digital-synthesizable and expose the
- * matching post as an output - anything else sharing the node (a non-digital sink, an unrelated
- * input) is not a driver. */
-function findDriver(elm: any, postIndex: number, synthMap: Map<any, SynthEntry>): { entry: SynthEntry; pin: number } | null {
-    const node = elm.nodes[postIndex];
-    const candidates = (node?.links ?? []).filter((link: any) => {
-        if (link.elm === elm && link.num === postIndex) return false;
-        const entry = synthMap.get(link.elm);
-        if (!entry) return false;
-        const pin = entry.pinMap.get(link.num);
-        return pin !== undefined && isOutputPin(entry.desc, pin);
-    });
+/**
+ * Implemented by an element (TriStateElm, SRAMElm's data pins) whose digital output post is only
+ * a REAL driver some of the time - the rest of the time it's meant to be high-impedance, which
+ * this optimizer has no third state to represent. Such an element's own digitalSynthesis() must
+ * instead compute AND(enable, data) for that post, so a disabled driver contributes a plain 0
+ * (matching a bus with an assumed pulldown - there's no true floating value here) rather than
+ * fighting whatever else is enabled. `isTriStateOutput(postIndex)` tells resolveNodeDrivers()
+ * below which of this element's OUTPUT posts (per digitalSynthesis()'s own pinMap) are built this
+ * way, so it knows it's safe to OR multiple such drivers together on one shared node instead of
+ * treating that sharing as a wiring mistake (see the plain "multiple drivers" warning path).
+ */
+export interface DigitalTriStateDriver {
+    isTriStateOutput(postIndex: number): boolean;
+}
 
-    if (candidates.length === 0) return null;
-    if (candidates.length > 1)
-        console.log("digital wiring: multiple drivers for " + (elm.getClassName?.() ?? elm) + " post " + postIndex);
+export function isDigitalTriStateDriver(elm: any): elm is DigitalTriStateDriver {
+    return elm != null && typeof elm.isTriStateOutput === "function";
+}
 
-    const winner = candidates[0];
-    const entry = synthMap.get(winner.elm)!;
-    return { entry, pin: entry.pinMap.get(winner.num)! };
+interface DriverCandidate {
+    entry: SynthEntry;
+    pin: number;
+    postIndex: number;
+    elm: any;
+}
+
+/** Every synthesized element's own OUTPUT posts, indexed by the CircuitNode object they land on
+ * (assumes wire closure already merged purely-wire-connected posts into one shared CircuitNode -
+ * i.e. this must run after SimulationManager.makeNodeList()/calcWireInfo()). The reverse of the
+ * old per-consumer findDriver()'s node.links walk: needed so a node fed by more than one output
+ * can be resolved as a GROUP (see resolveNodeDrivers() below) instead of one candidate at a
+ * time. */
+function collectOutputsByNode(synthMap: Map<any, SynthEntry>): Map<any, DriverCandidate[]> {
+    const byNode = new Map<any, DriverCandidate[]>();
+    for (const [elm, entry] of synthMap) {
+        for (const [postIndex, pin] of entry.pinMap) {
+            if (!isOutputPin(entry.desc, pin)) continue;
+            const node = elm.nodes?.[postIndex];
+            if (node == null) continue;
+            const candidate: DriverCandidate = { entry, pin, postIndex, elm };
+            const list = byNode.get(node);
+            if (list) list.push(candidate); else byNode.set(node, [candidate]);
+        }
+    }
+    return byNode;
+}
+
+/**
+ * Resolves every node that has at least one digital-output candidate down to a single
+ * (entry, pin) that actually drives it, plus any extra CircuitEntry[] needed to make that true.
+ * A node with exactly one candidate resolves to it directly, same as before. A node with several
+ * candidates that are NOT all tri-state outputs (see DigitalTriStateDriver above) is a genuine
+ * wiring conflict - same "multiple drivers, pick the first and warn" fallback as before. A node
+ * with several candidates that ARE all tri-state outputs gets a synthesized glue chip: one OR
+ * cell wide enough to combine every candidate's own AND(enable, data) output - each disabled
+ * driver already contributes 0 (see DigitalTriStateDriver's own docstring), so ORing them together
+ * reproduces "whichever one is enabled wins" without ever needing a real third state. That glue
+ * chip becomes the driver every other input sharing this node resolves to.
+ */
+function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
+    byNode: Map<any, { entry: SynthEntry; pin: number }>;
+    extra: CircuitEntry[];
+} {
+    const candidatesByNode = collectOutputsByNode(synthMap);
+    const byNode = new Map<any, { entry: SynthEntry; pin: number }>();
+    const extra: CircuitEntry[] = [];
+    let trisCounter = 0;
+
+    for (const [node, candidates] of candidatesByNode) {
+        if (candidates.length === 1) {
+            byNode.set(node, { entry: candidates[0].entry, pin: candidates[0].pin });
+            continue;
+        }
+
+        const allTriState = candidates.every(c =>
+            isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex));
+        if (!allTriState) {
+            console.log("digital wiring: multiple drivers for a shared node");
+            byNode.set(node, { entry: candidates[0].entry, pin: candidates[0].pin });
+            continue;
+        }
+
+        const name = "_tris" + trisCounter++;
+        const n = candidates.length;
+        const outPin = n + 1;
+        const logic: ChipLogic = (pin) => {
+            let result = 0;
+            for (let i = 1; i <= n; i++) result |= pin[i];
+            pin[outPin] = result;
+        };
+        const inPins = Array.from({ length: n }, (_, i) => i + 1);
+        const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin)];
+        const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
+
+        extra.push(CHIP(name, desc));
+        candidates.forEach((c, i) => extra.push(CONNECTION(c.entry.name, c.pin, name, i + 1)));
+        byNode.set(node, { entry: mergeEntry, pin: outPin });
+    }
+
+    return { byNode, extra };
 }
 
 /** Synthesizes every digital-capable element in `elmList`, checking digitalTie() before
@@ -146,17 +223,24 @@ function synthesizeAll(elmList: any[]): Map<any, SynthEntry> {
  * (under a name unique to this build) plus one ConnectionEntry per input post that has a
  * driver. A missing driver is simply omitted - Circuit's own constructor already grounds any
  * unconnected input pin to GND (see circuit.ts), so there's no need to fabricate a
- * DigitalConst-equivalent here the way the old wireDigitalCircuit() had to.
+ * DigitalConst-equivalent here the way the old wireDigitalCircuit() had to. Takes `resolved`
+ * (see resolveNodeDrivers() above) rather than recomputing it, so buildDigitalCircuit() below can
+ * reuse the very same byNode map to build triStateChipByNode afterward instead of resolving each
+ * node's driver twice.
  */
-function layoutFromSynth(synthMap: Map<any, SynthEntry>): CircuitDesc {
+function layoutFromSynth(synthMap: Map<any, SynthEntry>,
+        resolved: { byNode: Map<any, { entry: SynthEntry; pin: number }>; extra: CircuitEntry[] }): CircuitDesc {
     const entries: CircuitEntry[] = [];
     for (const entry of synthMap.values())
         if (!entry.isTie) entries.push(CHIP(entry.name, entry.desc));
 
+    entries.push(...resolved.extra);
+
     for (const [elm, entry] of synthMap) {
         for (const [postIndex, pin] of entry.pinMap) {
             if (isOutputPin(entry.desc, pin)) continue; // only inputs need a driving connection
-            const driver = findDriver(elm, postIndex, synthMap);
+            const node = elm.nodes?.[postIndex];
+            const driver = node != null ? resolved.byNode.get(node) : undefined;
             if (driver) entries.push(CONNECTION(driver.entry.name, driver.pin, entry.name, pin));
         }
     }
@@ -170,7 +254,8 @@ function layoutFromSynth(synthMap: Map<any, SynthEntry>): CircuitDesc {
  * running the engine.
  */
 export function buildCircuitDesc(elmList: any[]): CircuitDesc {
-    return layoutFromSynth(synthesizeAll(elmList));
+    const synthMap = synthesizeAll(elmList);
+    return layoutFromSynth(synthMap, resolveNodeDrivers(synthMap));
 }
 
 export interface DigitalGraph {
@@ -182,6 +267,17 @@ export interface DigitalGraph {
      * CUSTOM_CHIP), same object for every element tied to that rail. Absent for any element
      * digitalSynthesis()/digitalTie() didn't produce a netlist entry for. */
     chipsByElm: Map<any, Chip[]>;
+    /** The real Chip that actually determines a shared node's resolved value, keyed by the
+     * CircuitNode object itself - populated for every node resolveNodeDrivers() saw at least one
+     * digital-output candidate for, whether or not that node ended up merged. Needed because a
+     * tri-state output post's OWN chip (what chipsByElm would otherwise resolve to) only reflects
+     * that ONE element's own AND(enable, data) contribution, not the real bus value once merged
+     * with the rest of a shared tri-state node (see DigitalTriStateDriver's own docstring) -
+     * anything writing a tri-state post's value back to a real CircuitNode (syncDigitalToNodesNew
+     * below; digitalScopeSourceNew/digitalStateTextForOutput similarly) must resolve through here
+     * instead, or it silently shows whichever driver's own element happens to run last/first
+     * rather than the actual merged bus value. */
+    triStateChipByNode: Map<any, Chip>;
 }
 
 /** Full netlist build for a freshly-stamped circuit: synthesize + wire every digital-capable
@@ -190,7 +286,8 @@ export interface DigitalGraph {
  * CircuitWiring.wireDigitalCircuit()'s own precondition. */
 export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
     const synthMap = synthesizeAll(elmList);
-    const circuit = new Circuit(layoutFromSynth(synthMap));
+    const resolved = resolveNodeDrivers(synthMap);
+    const circuit = new Circuit(layoutFromSynth(synthMap, resolved));
 
     // circuit.chips[0]/[1] are the shared _VCC/_GND sentinels (see circuit.ts) - they have no
     // debugName of their own (only createChip()-built instances do), so ties are special-cased
@@ -208,7 +305,13 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
         else chipsByElm.set(elm, byName.get(entry.name) ?? []); // empty: pruned as dead code (see circuit.ts)
     }
 
-    return { circuit, chipsByElm };
+    const triStateChipByNode = new Map<any, Chip>();
+    for (const [node, driver] of resolved.byNode) {
+        const chip = byName.get(driver.entry.name)?.[0];
+        if (chip) triStateChipByNode.set(node, chip);
+    }
+
+    return { circuit, chipsByElm, triStateChipByNode };
 }
 
 // --- Phase 5 (see noble-stirring-rabin.md): sync/scope-source helpers against the built
@@ -251,6 +354,24 @@ export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<a
     const pin = digitalOutputPin(elm, postIndex);
     if (pin == null) return null;
     return digitalChipForPin(elm, pin, chipsByElm);
+}
+
+/** Resolves `postIndex` to whichever Chip actually determines this post's live value - ordinarily
+ * just digitalOutputChip() above, but for a tri-state-marked output post (see
+ * DigitalTriStateDriver), prefers the resolved bus driver recorded in graph.triStateChipByNode:
+ * this element's OWN chip only reflects its own AND(enable, data) contribution, not the real
+ * merged value once other drivers share the same node (see triStateChipByNode's own docstring on
+ * DigitalGraph). Anything writing/reading a tri-state post's value against a live graph -
+ * syncDigitalToNodesNew, digitalScopeSourceNew, digitalStateTextForOutput below - needs this
+ * instead of digitalOutputChip() directly, or it silently shows whichever driver on the shared
+ * node happens to resolve last rather than the actual bus value. */
+export function digitalOutputChipResolved(elm: any, postIndex: number, graph: DigitalGraph): Chip | null {
+    if (isDigitalTriStateDriver(elm) && elm.isTriStateOutput(postIndex)) {
+        const node = (elm as any).nodes?.[postIndex];
+        const chip = node != null ? graph.triStateChipByNode.get(node) : undefined;
+        if (chip) return chip;
+    }
+    return digitalOutputChip(elm, postIndex, graph.chipsByElm);
 }
 
 /** The internal pin number (as used in `elm`'s own digitalSynthesis() ChipDesc) that post
@@ -455,11 +576,16 @@ export function findDigitalDriver(elm: any, postIndex: number): { elm: any; post
  * of the session. This runs only while the simulation is actually running (see
  * UIManager's simRunning gate on runCircuit()), but that's fine: pins[...].value simply holds
  * whatever it was last synced to while paused, which is exactly the (unchanging, since nothing is
- * ticking) live state at that moment. */
-export function syncDigitalToNodesNew(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
+ * ticking) live state at that moment.
+ *
+ * Resolves each post through digitalOutputChipResolved() (not the plain per-element
+ * digitalOutputChip()) so a tri-state output post writes the actual merged bus value - see
+ * DigitalGraph.triStateChipByNode's own docstring for why using this element's own chip directly
+ * would be wrong whenever it shares a node with another tri-state driver. */
+export function syncDigitalToNodesNew(elmList: any[], graph: DigitalGraph): void {
     for (const elm of elmList) {
         for (const post of digitalOutputPosts(elm)) {
-            const chip = digitalOutputChip(elm, post, chipsByElm);
+            const chip = digitalOutputChipResolved(elm, post, graph);
             if (chip == null) continue;
             // currentValue(), not the raw output field: a chip with no live consumer (e.g. a
             // clock feeding nothing, or any dangling output) falls ASLEEP after its first
@@ -549,7 +675,8 @@ export function getCurrentDigitalGraph(): DigitalGraph | null {
  * old digitalPins[k] loop already computed - see digitalOutputChipAt()'s own docstring). */
 export function digitalStateTextForOutput(elm: any, outputIndex: number): string {
     if (currentGraph == null) return "not wired";
-    return digitalStateTextNew(digitalOutputChipAt(elm, outputIndex, currentGraph.chipsByElm));
+    const post = digitalOutputPosts(elm)[outputIndex];
+    return digitalStateTextNew(post === undefined ? null : digitalOutputChipResolved(elm, post, currentGraph));
 }
 
 // Resolves `elm` to the single real Chip that supplies this element's digital output
@@ -558,14 +685,14 @@ export function digitalStateTextForOutput(elm: any, outputIndex: number): string
 export function digitalScopeSourceNew(elm: any): Chip | null {
     if (elm == null || currentGraph == null) return null;
     const posts = digitalOutputPosts(elm);
-    if (posts.length === 1) return digitalOutputChip(elm, posts[0], currentGraph.chipsByElm);
+    if (posts.length === 1) return digitalOutputChipResolved(elm, posts[0], currentGraph);
     const isPassthrough = (typeof elm.isWireEquivalent === "function" && elm.isWireEquivalent()) ||
         (typeof elm.isOutputElm === "function" && elm.isOutputElm()) ||
         (typeof elm.isLogicOutputElm === "function" && elm.isLogicOutputElm());
     if (posts.length === 0 && isPassthrough && Array.isArray(elm.nodes) &&
             new Set(elm.nodes).size === 1) {
         const driver = findDigitalDriver(elm, 0);
-        if (driver) return digitalOutputChip(driver.elm, driver.postIndex, currentGraph.chipsByElm);
+        if (driver) return digitalOutputChipResolved(driver.elm, driver.postIndex, currentGraph);
     }
     return null;
 }

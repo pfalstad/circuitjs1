@@ -1459,7 +1459,7 @@ export class SimulationManager {
 	this.timeStepAccum = 0;
 	this.timeStepCount += actualTicks;
 
-	syncDigitalToNodesNew(this.elmArr, this.digitalGraph.chipsByElm);
+	syncDigitalToNodesNew(this.elmArr, this.digitalGraph);
 	syncNodesToPassiveChips(this.elmArr);
 
 	// Bound Chip.history for every chip a Scope has ever watched - see Chip.trimHistory()'s own
