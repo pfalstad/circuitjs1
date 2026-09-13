@@ -140,4 +140,10 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
     isTriStateOutput(postIndex: number): boolean {
         return postIndex >= this.dataNodes && postIndex < this.dataNodes + this.dataBits;
     }
+
+    // Shadows SRAMElm.digitalTriStateReadbackPin(): a ROM never writes, so its own
+    // digitalSynthesis() above declares no readback pin for resolveNodeDrivers() to wire into -
+    // without this override it would inherit SRAM's formula and try to connect into a pin this
+    // ROM's own chips never actually declared as an input.
+    digitalTriStateReadbackPin(): null { return null; }
 }

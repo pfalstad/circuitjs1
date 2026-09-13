@@ -26,8 +26,13 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
+import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S } from "./GateElm";
+import { customChipStart } from "./digital/chip_desc";
+import type { ChipDesc } from "./digital/chip_desc";
+import type { Chip } from "./digital/chip";
+import type { DigitalSynthesis, DigitalTriStateDriver, DigitalTriStateReadback } from "./digital/DigitalGraphBuilder";
 
-export class SRAMElm extends ChipElm {
+export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTriStateReadback {
     static readonly FLAG_HEX_DISPLAY = 4;
     addressNodes: number = 0;
     dataNodes: number = 0;
@@ -325,4 +330,78 @@ export class SRAMElm extends ChipElm {
         this.map.set(this.address, data);
     }
     getDumpType(): number { return 413; }
+
+    /** One CUSTOM_CHIP per data bit, matching how dice-ts's own real bipolar-RAM catalog entries
+     * (chips/82S16.cpp, chips/8225.cpp) are built: address/CE/WE decoded straight from
+     * chip.inputs, read and write handled together in one update function - see doStep()/
+     * stepFinished() above for the exact same active-low WE/OE and MSB-first bit convention this
+     * mirrors. Those real chips have SEPARATE physical Din/Dout pins per bit though (no ambiguity
+     * about which one an update reads from); SRAMElm's data pins are genuinely bidirectional (the
+     * same real pin drives while reading, receives while writing), which is why each bit's cell
+     * also takes a `readback` input via digitalTriStateReadbackPin() below - a write must capture
+     * whatever's ACTUALLY on the shared bus (an external writer's driven value), not this bit's
+     * own output, which doStep()'s own outputEnabled logic forces to 0 while writing (see
+     * isTriStateOutput()'s "AND(enable, data)" convention) and would therefore only ever read
+     * back 0. */
+    digitalSynthesis(): DigitalSynthesis {
+        const m = this.addressBits;
+        const n = this.dataBits;
+        const wePin = 1;
+        const oePin = 2;
+        const addrPin = (k: number) => 3 + k;
+        const driverPin = (i: number) => 3 + m + i;
+        const readbackPin = (i: number) => 3 + m + n + i;
+
+        const pinMap = new Map<number, number>();
+        pinMap.set(0, wePin);
+        pinMap.set(1, oePin);
+        for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
+
+        const desc: ChipDesc[] = [];
+        for (let i = 0; i < n; i++) {
+            const bitMask = 1 << (n - 1 - i);
+
+            const update = (chip: Chip, mask: number): void => {
+                chip.inputs ^= mask;
+                const weActive = (chip.inputs & 1) === 0; // WE is active low
+                const oeActive = ((chip.inputs >> 1) & 1) === 0; // OE is active low
+                let address = 0;
+                for (let k = 0; k < m; k++) address |= ((chip.inputs >> (2 + k)) & 1) << (m - 1 - k);
+                const readback = (chip.inputs >> (2 + m)) & 1;
+
+                let newOut: number;
+                if (weActive) {
+                    const cur = this.map.get(address) ?? 0;
+                    this.map.set(address, readback ? (cur | bitMask) : (cur & ~bitMask));
+                    newOut = 0; // never drives while writing, same as doStep()'s outputEnabled
+                } else if (oeActive) {
+                    newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
+                } else {
+                    newOut = 0; // tri-stated
+                }
+
+                if (newOut !== chip.output && chip.pendingEvent === 0n)
+                    chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);
+                else if (chip.pendingEvent !== 0n && newOut === chip.output)
+                    chip.pendingEvent = 0n;
+            };
+
+            desc.push(customChipStart(update)
+                .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), readbackPin(i))
+                .outputPin(driverPin(i))
+                .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
+            pinMap.set(this.dataNodes + i, driverPin(i));
+        }
+
+        return { desc, pinMap };
+    }
+
+    isTriStateOutput(postIndex: number): boolean {
+        return postIndex >= this.dataNodes && postIndex < this.dataNodes + this.dataBits;
+    }
+
+    digitalTriStateReadbackPin(postIndex: number): number | null {
+        if (postIndex < this.dataNodes || postIndex >= this.dataNodes + this.dataBits) return null;
+        return 3 + this.addressBits + this.dataBits + (postIndex - this.dataNodes);
+    }
 }

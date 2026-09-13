@@ -107,6 +107,29 @@ export function isDigitalTriStateDriver(elm: any): elm is DigitalTriStateDriver 
     return elm != null && typeof elm.isTriStateOutput === "function";
 }
 
+/**
+ * Implemented by a tri-state driver whose own output post is genuinely bidirectional - the same
+ * real pin also needs to OBSERVE the node's value, not just drive it (SRAM's data pins: an output
+ * while reading, but also the thing a write must capture ITS DATA from). A plain wire from this
+ * element's own output pin back to some internal "readback" pin would be wrong: per
+ * DigitalTriStateDriver's own docstring, THIS element's own output is forced to 0 while it isn't
+ * actively driving (e.g. SRAM mid-write) - exactly when an external writer is the one actually
+ * putting real data on the bus. So `digitalTriStateReadbackPin(postIndex)` instead names an
+ * INTERNAL pin (within this element's own digitalSynthesis() desc, not one of pinMap's external
+ * pins) that resolveNodeDrivers() below wires from the node's fully RESOLVED driver - itself, if
+ * this is the only thing driving the node (a no-op in practice: nothing is writing if nothing else
+ * is there to write from), or the OR-merge glue chip when the node is actually shared - rather
+ * than hardcoding a self-connection that would only ever read this element's own contribution.
+ * Returns null for a tri-state output post that doesn't need readback (TriStateElm/ROMElm's own
+ * data-out pins: pure drivers, nothing on this element ever needs to observe them). */
+export interface DigitalTriStateReadback {
+    digitalTriStateReadbackPin(postIndex: number): number | null;
+}
+
+export function isDigitalTriStateReadback(elm: any): elm is DigitalTriStateReadback {
+    return elm != null && typeof elm.digitalTriStateReadbackPin === "function";
+}
+
 interface DriverCandidate {
     entry: SynthEntry;
     pin: number;
@@ -157,34 +180,48 @@ function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
     let trisCounter = 0;
 
     for (const [node, candidates] of candidatesByNode) {
+        let resolved: { entry: SynthEntry; pin: number };
+
         if (candidates.length === 1) {
-            byNode.set(node, { entry: candidates[0].entry, pin: candidates[0].pin });
-            continue;
+            resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
+        } else {
+            const allTriState = candidates.every(c =>
+                isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex));
+            if (!allTriState) {
+                console.log("digital wiring: multiple drivers for a shared node");
+                resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
+            } else {
+                const name = "_tris" + trisCounter++;
+                const n = candidates.length;
+                const outPin = n + 1;
+                const logic: ChipLogic = (pin) => {
+                    let result = 0;
+                    for (let i = 1; i <= n; i++) result |= pin[i];
+                    pin[outPin] = result;
+                };
+                const inPins = Array.from({ length: n }, (_, i) => i + 1);
+                const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin)];
+                const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
+
+                extra.push(CHIP(name, desc));
+                candidates.forEach((c, i) => extra.push(CONNECTION(c.entry.name, c.pin, name, i + 1)));
+                resolved = { entry: mergeEntry, pin: outPin };
+            }
         }
 
-        const allTriState = candidates.every(c =>
-            isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex));
-        if (!allTriState) {
-            console.log("digital wiring: multiple drivers for a shared node");
-            byNode.set(node, { entry: candidates[0].entry, pin: candidates[0].pin });
-            continue;
+        byNode.set(node, resolved);
+
+        // Wire the node's fully resolved value into any candidate's own readback pin (see
+        // DigitalTriStateReadback's own docstring) - deliberately every candidate, not just the
+        // one(s) that lost the merge: a bidirectional driver still needs to observe the bus even
+        // while IT'S the one actively driving it (SRAM reading back its own just-written value is
+        // harmless - the resolved value equals its own contribution whenever it's the sole or
+        // winning driver).
+        for (const c of candidates) {
+            if (!isDigitalTriStateReadback(c.elm)) continue;
+            const readbackPin = c.elm.digitalTriStateReadbackPin(c.postIndex);
+            if (readbackPin != null) extra.push(CONNECTION(resolved.entry.name, resolved.pin, c.entry.name, readbackPin));
         }
-
-        const name = "_tris" + trisCounter++;
-        const n = candidates.length;
-        const outPin = n + 1;
-        const logic: ChipLogic = (pin) => {
-            let result = 0;
-            for (let i = 1; i <= n; i++) result |= pin[i];
-            pin[outPin] = result;
-        };
-        const inPins = Array.from({ length: n }, (_, i) => i + 1);
-        const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin)];
-        const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
-
-        extra.push(CHIP(name, desc));
-        candidates.forEach((c, i) => extra.push(CONNECTION(c.entry.name, c.pin, name, i + 1)));
-        byNode.set(node, { entry: mergeEntry, pin: outPin });
     }
 
     return { byNode, extra };
