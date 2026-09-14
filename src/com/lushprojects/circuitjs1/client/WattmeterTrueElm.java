@@ -32,10 +32,9 @@ class WattmeterTrueElm extends CircuitElm {
     final int PM_INST = 0;
     final int PM_AVG = 1;
 	int selectedValue=0;
-    double avgPower, totalPower, count;
-    int zerocount;
-    double maxP, lastMaxP, minP, lastMinP;
-    boolean increasingP = true, decreasingP = true;
+    double avgPower, totalEnergy, cycleTime, lastCycleTime;
+    double runEnergy, runTime, zeroTime, peak, trough, curPeak, curTrough;
+    boolean wasAboveMid, haveFullCycle;
 
     public WattmeterTrueElm(int xx, int yy) {
 	super(xx, yy);
@@ -196,50 +195,77 @@ class WattmeterTrueElm extends CircuitElm {
 
     void stepFinished(){
 	double p = getPower();
-	count++;
-	totalPower += p;
-	if (p > maxP && increasingP) {
-	    maxP = p;
-	    increasingP = true;
-	    decreasingP = false;
-	}
-	if (p < maxP && increasingP) {
-	    lastMaxP = maxP;
-	    minP = p;
-	    increasingP = false;
-	    decreasingP = true;
-	    avgPower = totalPower / count;
+	double dt = sim.timeStep;
+	cycleTime += dt;
+	totalEnergy += p * dt;
+	runTime += dt;
+	runEnergy += p * dt;
+
+	// Average over whole cycles, delimited by rising crossings of the long-run mean
+	// (ported from WattmeterElm.stepFinished(), which fixed the same averaging
+	// against local extrema of the power waveform that this element used to do).
+	double mid = runEnergy / runTime;
+
+	// Track this cycle's power swing to size next cycle's hysteresis band, instead
+	// of an all-time peak/trough. A resistor's instantaneous power settles near its
+	// steady-state range almost immediately, but a capacitor charging from an
+	// initial condition goes through a startup transient far outside its steady-state
+	// swing; an all-time extreme would get stuck there and oversize the band forever,
+	// so the detector would stop triggering cleanly once the load is reactive.
+	if (p > curPeak)
+	    curPeak = p;
+	if (p < curTrough)
+	    curTrough = p;
+
+	double band = (peak - trough) * .05 + Math.abs(peak) * 1e-9;
+	boolean above = wasAboveMid ? p > mid - band : p > mid + band;
+
+	if (above && !wasAboveMid) {
+	    if (haveFullCycle) {
+		avgPower = totalEnergy / cycleTime;
+		if (Double.isNaN(avgPower))
+		    avgPower = 0;
+		lastCycleTime = cycleTime;
+	    } else {
+		// The run up to the first crossing is a partial cycle. Measuring it would
+		// leave a period estimate far shorter than the real one.
+		haveFullCycle = true;
+	    }
+	    totalEnergy = 0;
+	    cycleTime = 0;
+	    peak = curPeak;
+	    trough = curTrough;
+	    curPeak = p;
+	    curTrough = p;
+	} else if (lastCycleTime > 0 && cycleTime > lastCycleTime * 8) {
+	    // the waveform stopped or changed shape; don't freeze on a stale reading
+	    avgPower = totalEnergy / cycleTime;
 	    if (Double.isNaN(avgPower))
 		avgPower = 0;
-	    count = 0;
-	    totalPower = 0;
+	    totalEnergy = 0;
+	    cycleTime = 0;
+	    peak = curPeak;
+	    trough = curTrough;
+	    curPeak = p;
+	    curTrough = p;
 	}
-	if (p < minP && decreasingP) {
-	    minP = p;
-	    increasingP = false;
-	    decreasingP = true;
-	}
-	if (p > minP && decreasingP) {
-	    lastMinP = minP;
-	    maxP = p;
-	    increasingP = true;
-	    decreasingP = false;
-	    avgPower = totalPower / count;
-	    if (Double.isNaN(avgPower))
-		avgPower = 0;
-	    count = 0;
-	    totalPower = 0;
-	}
+	wasAboveMid = above;
+
+	// Constant power never crosses its own mean, so no period is ever measured. Report
+	// the running mean until one is, which is the right answer for DC anyway.
+	if (lastCycleTime == 0)
+	    avgPower = mid;
+
+	// Clear the reading once the power has been off for longer than a period.
 	if (p == 0) {
-	    zerocount++;
-	    if (zerocount > 5) {
-		totalPower = 0;
+	    zeroTime += dt;
+	    if (lastCycleTime > 0 && zeroTime > lastCycleTime * 1.5) {
 		avgPower = 0;
-		maxP = 0;
-		minP = 0;
+		totalEnergy = 0;
+		cycleTime = 0;
 	    }
 	} else {
-	    zerocount = 0;
+	    zeroTime = 0;
 	}
     }
 
