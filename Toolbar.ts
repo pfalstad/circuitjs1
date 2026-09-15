@@ -56,7 +56,7 @@ export class Toolbar {
         this.element.appendChild(this.createIconButton("copy", "Copy", new MyCommand("edit", "copy")));
         this.element.appendChild(this.createIconButton("paste", "Paste", new MyCommand("edit", "paste")));
         this.element.appendChild(this.createIconButton("clone", "Duplicate", new MyCommand("edit", "duplicate")));
-        this.element.appendChild(this.createIconButton("search", "Find Component...", new MyCommand("edit", "search")));
+        this.element.appendChild(this.createIconButton("search", "Find Component/Command...", new MyCommand("edit", "search")));
 
         this.element.appendChild(this.createIconButton("zoom-11", "Zoom 100%", new MyCommand("zoom", "zoom100")));
         this.element.appendChild(this.createIconButton("zoom-in", "Zoom In", new MyCommand("zoom", "zoomin")));

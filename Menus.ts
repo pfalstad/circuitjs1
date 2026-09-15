@@ -21,6 +21,7 @@
 
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
+import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
 
 // ---- State classes used by UIManager ----
 
@@ -367,7 +368,7 @@ export class Menus {
         editMenu.addSeparator();
         editMenu.addMenuItem(this.selectAllItem, shortcutHtml("select-all", "Select All", Locale.LS(ck + "A")), "edit", "selectAll");
         editMenu.addSeparator();
-        editMenu.addCommand(shortcutHtml("search", "Find Component...", "/"),                 "edit", "search");
+        editMenu.addCommand(shortcutHtml("search", "Find Component/Command...", "/"),          "edit", "search");
         editMenu.addCommand(iconHtml("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit"), "edit", "centercircuit");
         editMenu.addCommand(shortcutHtml("zoom-11",  "Zoom 100%", "0"), "zoom", "zoom100");
         editMenu.addCommand(shortcutHtml("zoom-in",  "Zoom In",   "+"), "zoom", "zoomin");
@@ -690,6 +691,7 @@ export class Menus {
     processSetupList(text: string, openDefault: boolean): void {
         const lines = text.split(/\r?\n/);
         const stack: Menu[] = [];
+        const submenuStack: string[] = [""]; // submenu titles for palette circuit hints
         let currentMenu = new Menu(this.app);
         this.addTopItem(this.menuBarRow, Locale.LS("Circuits"), currentMenu);
         stack.push(currentMenu);
@@ -701,9 +703,11 @@ export class Menus {
                 currentMenu.addSubmenu(Locale.LS(line.substring(1)), sub);
                 currentMenu = sub;
                 stack.push(currentMenu);
+                submenuStack.push(line.substring(1));
             } else if (line[0] === '-') {
                 stack.pop();
                 currentMenu = stack[stack.length - 1];
+                submenuStack.pop();
             } else {
                 const sp = line.indexOf(' ');
                 if (sp > 0) {
@@ -711,6 +715,8 @@ export class Menus {
                     const file  = line.substring(first ? 1 : 0, sp);
                     const title = Locale.LS(line.substring(sp + 1));
                     currentMenu.addCommand(title, "circuits", "setup " + file + " " + title);
+                    // Also searchable from the command palette (query length >= 2).
+                    CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
 
                     const app = this.app as any;
                     if (file === app.startCircuit && app.startLabel == null) {

@@ -38,6 +38,7 @@ import { Toolbar } from "./Toolbar";
 import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
+import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -479,6 +480,10 @@ export class UIManager {
     static VERTICALPANELWIDTH = 166; // default
     lastResizeTime: number = 0;
 
+    // For tracking shift double-tap to open the command palette (see onKeyDown/onKeyUp).
+    private lastShiftKeyUpMs = 0;
+    private keyPressedSinceShiftUp = false;
+
     constructor(app: CirSim) {
         this.app = app;
         UIManager.theUI = this;
@@ -548,6 +553,7 @@ export class UIManager {
         this.app.ui = this;
         this.app.menus = this.menus = new Menus(this.app);
         this.menus.init();
+        CommandPaletteRegistry.buildStatic(this.app); // after menus so mainMenuItems exist
         (CirSim as any).dumpTypeMap  = (CirSim as any).dumpTypeMap  || new Map();
         (CirSim as any).xmlDumpTypeMap = (CirSim as any).xmlDumpTypeMap || new Map();
         (CirSim as any).dumpTypeMap.set(403, "ScopeElm");
@@ -1505,6 +1511,8 @@ export class UIManager {
             return true;
         if (CirSim.aboutBox != null && CirSim.aboutBox.isShowing())
             return true;
+        if (CirSim.commandPalette != null && CirSim.commandPalette.isShowing())
+            return true; // blocks double-tap Shift while palette is open
         return false;
     }
 
@@ -1526,10 +1534,23 @@ export class UIManager {
 
         // Handle Shift key for net highlighting (works regardless of dialog state)
         if (code === 16) {
-            this.mouse.netHighlightKeyHeld = true;
-            this.mouse.updateNetHighlight();
-            this.app.repaint();
-            this.mouse.toolbarDragOrientationChanged(true);
+            if (!e.repeat) {
+                this.mouse.netHighlightKeyHeld = true;
+                this.mouse.updateNetHighlight();
+                this.app.repaint();
+                this.mouse.toolbarDragOrientationChanged(true);
+
+                const now = Date.now();
+                // Second Shift within 400 ms, with no other key in between, opens the palette.
+                if (this.lastShiftKeyUpMs > 0 && now - this.lastShiftKeyUpMs < 400 &&
+                        !this.keyPressedSinceShiftUp && !this.dialogIsShowing()) {
+                    this.app.commands.menuPerformed("key", "commandpalette");
+                    e.preventDefault();
+                    this.lastShiftKeyUpMs = 0;
+                }
+            }
+        } else if (!e.repeat) {
+            this.keyPressedSinceShiftUp = true;
         }
 
         if (this.dialogIsShowing()) {
@@ -1553,6 +1574,31 @@ export class UIManager {
             if (dlg != null && dlg.isShowing()) {
                 if (code === KEY_ESCAPE) dlg.closeDialog();
                 if (code === KEY_ENTER)  dlg.enterPressed();
+            }
+
+            // Palette arrow/enter/esc handled here (not in the filter box) so selection
+            // isn't reset by refreshList() on every key-up.
+            if (CirSim.commandPalette != null && CirSim.commandPalette.isShowing()) {
+                if (code === KEY_DOWN) {
+                    CirSim.commandPalette.moveSelection(1);
+                    e.preventDefault();
+                    return;
+                }
+                if (code === KEY_UP) {
+                    CirSim.commandPalette.moveSelection(-1);
+                    e.preventDefault();
+                    return;
+                }
+                if (code === KEY_ENTER) {
+                    CirSim.commandPalette.executeSelected();
+                    e.preventDefault();
+                    return;
+                }
+                if (code === KEY_ESCAPE) {
+                    CirSim.commandPalette.close();
+                    e.preventDefault();
+                    return;
+                }
             }
             return;
         }
@@ -1659,6 +1705,9 @@ export class UIManager {
             this.mouse.updateNetHighlight();
             this.app.repaint();
             this.mouse.toolbarDragOrientationChanged(false);
+
+            this.lastShiftKeyUpMs = Date.now();
+            this.keyPressedSinceShiftUp = false;
         }
 
         if (this.dialogIsShowing())
@@ -1706,7 +1755,7 @@ export class UIManager {
             e.preventDefault();
         }
         if (cc === 47 /* '/' */ && this.app.shortcuts.get(47) == null) {
-            this.app.commands.menuPerformed("key", "search");
+            this.app.commands.menuPerformed("key", "commandpalette");
             e.preventDefault();
         }
 

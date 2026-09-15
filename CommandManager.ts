@@ -30,7 +30,7 @@ import { EditDialog } from "./EditDialog";
 import { EditOptions } from "./EditOptions";
 import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
-import { SearchDialog } from "./SearchDialog";
+import { CommandPalette } from "./CommandPalette";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import "./GetCircuitAsSubcircuit";
@@ -113,8 +113,11 @@ export class CommandManager {
             CirSim.dialogShowing = new (window as any).SubcircuitDialog(this.app);
             CirSim.dialogShowing.show();
         }
-        if (item == "search") {
-            new SearchDialog(this.app).show();
+        // "search" (Edit menu / toolbar) and "commandpalette" (double-tap Shift, / shortcut,
+        // or the palette itself) both open the same command palette.
+        if (item == "search" || item == "commandpalette") {
+            CirSim.commandPalette = new CommandPalette(this.app);
+            CirSim.commandPalette.show();
         }
         if (menu == "options" && item == "other")
             this.doEdit(new EditOptions(this.app, this.app.sim));

@@ -27,7 +27,7 @@ export class ShortcutsDialog extends Dialog {
     ui: any;
     textBoxes: HTMLInputElement[] = [];
     shortcuts: string[] = [];
-    // target each row applies to: a mainMenuItems index, or -1 for the run/stop row
+    // target each row applies to: a mainMenuItems index, -1 for run/stop, -2 for command palette
     rowMenuItemIndex: number[] = [];
     okButton!: HTMLButtonElement;
 
@@ -63,15 +63,19 @@ export class ShortcutsDialog extends Dialog {
             this.rowMenuItemIndex.push(i);
         }
         let runStopShortcut = "";
+        let commandPaletteShortcut = "/";
         for (const [key, value] of this.sim.shortcuts) {
-            if (value === CirSim.RUNSTOP_SHORTCUT_ACTION) {
+            if (value === CirSim.RUNSTOP_SHORTCUT_ACTION)
                 runStopShortcut = String.fromCharCode(key);
-                break;
-            }
+            else if (value === CirSim.COMMAND_PALETTE_SHORTCUT_ACTION)
+                commandPaletteShortcut = String.fromCharCode(key);
         }
         rowNames.push(Locale.LS("Start/Stop Simulation"));
         rowInitialShortcuts.push(runStopShortcut);
         this.rowMenuItemIndex.push(-1);
+        rowNames.push(Locale.LS("Command Palette"));
+        rowInitialShortcuts.push(commandPaletteShortcut);
+        this.rowMenuItemIndex.push(-2); // not a mainMenuItems row; see enterPressed()
 
         const table = document.createElement("table");
         sp.appendChild(table);
@@ -157,8 +161,13 @@ export class ShortcutsDialog extends Dialog {
                 item.setShortcut(str);
                 if (str.length > 0)
                     this.sim.shortcuts.set(str.charCodeAt(0), this.ui.mainMenuItemNames[menuItemIndex]);
-            } else if (str.length > 0)
-                this.sim.shortcuts.set(str.charCodeAt(0), CirSim.RUNSTOP_SHORTCUT_ACTION);
+            } else if (menuItemIndex === -1) {
+                if (str.length > 0)
+                    this.sim.shortcuts.set(str.charCodeAt(0), CirSim.RUNSTOP_SHORTCUT_ACTION);
+            } else if (menuItemIndex === -2) {
+                if (str.length > 0)
+                    this.sim.shortcuts.set(str.charCodeAt(0), CirSim.COMMAND_PALETTE_SHORTCUT_ACTION);
+            }
         }
         // save to local storage
         this.sim.saveShortcuts();

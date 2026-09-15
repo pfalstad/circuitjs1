@@ -141,6 +141,7 @@ export class CirSim {
     shortcuts: Map<number, string> = new Map();
     // format is "cmd:<menu>:<item>"
     static readonly RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
+    static readonly COMMAND_PALETTE_SHORTCUT_ACTION = "cmd:key:commandpalette";
     classToLabelMap: Map<string, string> = new Map();
 
     random: { nextInt(): number; nextDouble(): number } = {
@@ -162,6 +163,7 @@ export class CirSim {
     static typeScrollPopup: any = null;
     static dialogShowing: any = null;
     static aboutBox: any = null;
+    static commandPalette: any = null; // non-null while the command palette popup is open
 
     static readonly baseTitle: string = "Circuit Simulator";
     static readonly versionString: string = "4.1.5ts";
