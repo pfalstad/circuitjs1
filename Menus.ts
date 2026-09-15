@@ -114,6 +114,12 @@ class Menu {
     // Add a simple command item, returns the <li> for optional post-setup.
     addCommand(html: string, menuName: string, cmdName: string): HTMLLIElement {
         const li = this.makeLi(html);
+        // Without this, the tap's touchstart bubbles to the document-level "tap elsewhere
+        // closes everything" listener (see init()) before this item's own click fires,
+        // closing (and hiding) the menu out from under the tap -- which then suppresses
+        // the synthetic click entirely, so the command never runs. See addSubmenu() for
+        // the same fix applied there.
+        li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
         li.addEventListener('click', e => {
             if (li.classList.contains('menuItemDisabled')) return;
             e.stopPropagation();
@@ -139,6 +145,7 @@ class Menu {
         const mark = li.querySelector('.checkMark') as HTMLElement;
         mark.style.visibility = item.getState() ? 'visible' : 'hidden';
         item._li = li;
+        li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
         li.addEventListener('click', e => {
             e.stopPropagation();
             closeAllMenus();
@@ -157,6 +164,7 @@ class Menu {
             (sc ? `<span class="shortcutHint">${sc}</span>` : '');
         (li.querySelector('.checkMark') as HTMLElement).style.visibility = 'hidden';
         item._li = li;
+        li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
         li.addEventListener('click', e => {
             e.stopPropagation();
             closeAllMenus();
