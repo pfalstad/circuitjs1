@@ -774,6 +774,7 @@ export class Menus {
         if (title != null)
             this.app.setCircuitTitle(title);
         this.app.unsavedChanges = false;
+        this.app.savedFlag = true;
     }
 
     // ---- Private helpers ----

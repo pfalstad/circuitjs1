@@ -117,6 +117,7 @@ export class CircuitLoader {
                 this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
                 this.app.allowSave(false);
                 this.app.unsavedChanges = false;
+                this.app.savedFlag = true;
             } else {
                 window.alert(Locale.LS("Can't load circuit!"));
                 console.log("Bad file server response:" + response.statusText);
@@ -287,6 +288,7 @@ export class CircuitLoader {
 		this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
 		this.app.allowSave(false);
 		this.app.unsavedChanges = false;
+		this.app.savedFlag = true;
 	    } else {
 		window.alert(Locale.LS("Can't load circuit!"));
 		console.log("Bad file server response:" + response.statusText);

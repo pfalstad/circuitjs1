@@ -297,6 +297,7 @@ class LoadFile {
             app.setCircuitTitle(file.name);
             ExportAsLocalFileDialog.setLastFileName(file.name);
             app.unsavedChanges = false;
+            app.savedFlag = true;
         };
         reader.readAsText(file);
     }

@@ -446,6 +446,10 @@ export class CirSim {
             this.loader.readCircuit(circuitText, flags);
             ExportAsLocalFileDialog.setLastFileName(null);
             this.allowSave(false);
+            if (!subcircuitsOnly) {
+                this.unsavedChanges = false;
+                this.savedFlag = true;
+            }
         }
     }
 

@@ -54,6 +54,7 @@ export class UndoManager {
         this.undoStack.push(new UndoItem(this.sim, s));
         this.enableUndoRedo();
         this.sim.savedFlag = false;
+        this.sim.unsavedChanges = true;
     }
 
     doUndo(): void {
@@ -86,6 +87,7 @@ export class UndoManager {
         this.sim.loader.readCircuit(this.sim.recovery!);
         this.sim.allowSave(false);
         this.sim.menus.recoverItem.setEnabled(false);
+        this.sim.unsavedChanges = false;
     }
 
     enableUndoRedo(): void {

@@ -33,6 +33,8 @@ export class ImportFromDropboxDialog extends Dialog {
         ImportFromDropboxDialog.sim.undoManager?.pushUndo();
         ImportFromDropboxDialog.sim.readCircuit(s);
         ImportFromDropboxDialog.sim.allowSave(false);
+        ImportFromDropboxDialog.sim.unsavedChanges = false;
+        ImportFromDropboxDialog.sim.savedFlag = true;
     }
 
     static doDropboxImport(link: string): void {
