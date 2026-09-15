@@ -81,7 +81,7 @@ export class MenuItem {
 // ---- Internal menu-building helpers ----
 
 function closeAllMenus(): void {
-    document.querySelectorAll('.gwt-MenuItem.open, .topMenuItem.open').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('.gwt-MenuItem.open, .topMenuItem.open, li.hasSubmenu.open').forEach(el => el.classList.remove('open'));
 }
 
 function anyMenuOpen(): boolean {
@@ -165,12 +165,27 @@ class Menu {
         this.ul.appendChild(li);
     }
 
-    // Add a submenu entry (hover opens the child menu).
+    // Add a submenu entry (hover opens the child menu on desktop). Touch devices have no
+    // real hover, so relying on CSS :hover alone (as this used to) is unreliable there: a
+    // tap can register as hover without a click ever firing, or leave the hover state stuck
+    // since there's no mouseout when the finger lifts. Track visibility explicitly instead.
     addSubmenu(html: string, sub: Menu): HTMLLIElement {
         const li = this.makeLi(html + '<span class="submenuArrow">&#9658;</span>');
         li.classList.add('hasSubmenu');
         li.appendChild(sub.ul);
         this.ul.appendChild(li);
+
+        const openThis = () => {
+            for (const sib of Array.from(this.ul.children))
+                if (sib !== li) sib.classList.remove('open');
+            li.classList.add('open');
+        };
+        li.addEventListener('mouseover', e => { e.stopPropagation(); openThis(); });
+        // stopPropagation here (and on the click below) keeps the document-level "tap
+        // elsewhere closes everything" handler from firing on the very tap that opened
+        // this submenu -- it should only close on a *later* tap outside the menu.
+        li.addEventListener('touchstart', e => { e.stopPropagation(); openThis(); }, { passive: true });
+        li.addEventListener('click', e => e.stopPropagation());
         return li;
     }
 
@@ -446,8 +461,16 @@ export class Menus {
         // ---- Element right-click context menu ----
         this.buildElmMenuBar();
 
-        // Close any open dropdown when clicking outside the menu bar
+        // Close any open dropdown when clicking outside the menu bar. Also listen for
+        // touchstart: the canvas's own touchstart handler calls preventDefault() (needed
+        // for its drag/pinch gestures), which suppresses the browser's synthetic click for
+        // that tap -- so on touch devices, tapping the canvas to dismiss an open menu would
+        // otherwise never reach this listener via 'click' at all. touchstart still bubbles
+        // here fine since preventDefault() doesn't stop propagation; menu items that open
+        // something on their own touchstart (e.g. addSubmenu) call stopPropagation() so
+        // that doesn't also trigger this and immediately close what it just opened.
         document.addEventListener('click', () => closeAllMenus());
+        document.addEventListener('touchstart', () => closeAllMenus(), { passive: true });
     }
 
     // this is called twice, once for the Draw menu, once for the right mouse popup menu

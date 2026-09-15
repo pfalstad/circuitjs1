@@ -162,13 +162,15 @@ td.gwt-MenuItem.open > .menuDropdown {
     position: relative;
 }
 
-/* Show submenu on hover */
-.hasSubmenu:hover > .menuDropdown {
+/* Show submenu on hover (desktop) or when explicitly opened via JS (touch; see Menus.ts) */
+.hasSubmenu:hover > .menuDropdown,
+.hasSubmenu.open > .menuDropdown {
     display: block;
 }
 
 /* Keep submenu open when the mouse moves from the arrow into the submenu */
-.hasSubmenu:hover {
+.hasSubmenu:hover,
+.hasSubmenu.open {
     background: #c8d8f8;
 }
 
