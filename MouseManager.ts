@@ -139,14 +139,34 @@ export class MouseManager {
 	let lastScale = 1;
 
 	cv.addEventListener("touchstart", (e: TouchEvent) => {
-	    const touch1 = e.touches[0];
-	    const touch2 = e.touches[e.touches.length - 1];
-	    lastScale = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
-
-	    let etype = "mousedown";
 	    clearTimeout(tmout);
 	    e.preventDefault();
 
+	    const touch1 = e.touches[0];
+	    const touch2 = e.touches[e.touches.length - 1];
+	    lastScale = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+	    const midX = 0.5 * (touch1.clientX + touch2.clientX);
+	    const midY = 0.5 * (touch1.clientY + touch2.clientY);
+
+	    if (e.touches.length > 1) {
+		// A second finger landing (whether or not the first already dispatched its
+		// own mousedown below) means this is a pinch/pan gesture, not a click or
+		// double-click: cancel any element placement the first finger may have
+		// started -- otherwise it keeps getting resized to follow the pinch
+		// midpoint in touchmove and gets committed to the circuit on touchend --
+		// and switch to two-finger drag-all instead of dispatching another
+		// synthetic mousedown (which would just restart element placement at the
+		// new midpoint using whatever mode is currently active).
+		if (this.dragElm != null) {
+		    this.dragElm.delete();
+		    this.dragElm = null;
+		}
+		lastTap = 0; // a multi-touch gesture is never part of a double-tap sequence
+		this.twoFingerTouch(midX, midY - cv.getBoundingClientRect().top);
+		return;
+	    }
+
+	    let etype = "mousedown";
 	    if (e.timeStamp - lastTap < 300) {
 		etype = "dblclick";
 	    } else {
@@ -154,12 +174,8 @@ export class MouseManager {
 	    }
 	    lastTap = e.timeStamp;
 
-	    const midX = 0.5 * (touch1.clientX + touch2.clientX);
-	    const midY = 0.5 * (touch1.clientY + touch2.clientY);
 	    const mouseEvent = new MouseEvent(etype, { clientX: midX, clientY: midY });
 	    cv.dispatchEvent(mouseEvent);
-	    if (e.touches.length > 1)
-		this.twoFingerTouch(midX, midY - cv.getBoundingClientRect().top);
 	}, false);
 
 	cv.addEventListener("touchend", (e: TouchEvent) => {
