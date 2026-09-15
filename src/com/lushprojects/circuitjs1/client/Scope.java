@@ -19,6 +19,8 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.canvas.client.Canvas;
+import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
@@ -590,7 +592,11 @@ void showPlotValue(int val, boolean b) {
 	selectedPlot = 0;
     }
     
-    void draw(Graphics g) {
+    void draw(Graphics g) { draw(g, false); }
+
+    // forExport suppresses mouse-driven UI chrome (settings wheel, selection highlight
+    // wash, cursor readout) that shouldn't appear in an exported PNG/SVG
+    void draw(Graphics g, boolean forExport) {
 	if (plots.size() == 0)
 	    return;
     	
@@ -606,7 +612,8 @@ void showPlotValue(int val, boolean b) {
     		return;
     	}
 
-    	drawSettingsWheel(g);
+    	if (!forExport)
+    	    drawSettingsWheel(g);
     	g.context.save();
     	g.setColor(Color.red);
     	g.context.translate(rect.x, rect.y);    	
@@ -643,7 +650,7 @@ void showPlotValue(int val, boolean b) {
     	if (selectedPlot >= 0)
     	    somethingSelected = true;
 
-    	if (somethingSelectedHere || sel) {
+    	if (!forExport && (somethingSelectedHere || sel)) {
     	    g.context.save();
     	    g.context.setGlobalAlpha(0.15);
     	    g.setColor(CircuitElm.selectColor);
@@ -684,8 +691,9 @@ void showPlotValue(int val, boolean b) {
         overlays.draw(g);
     	
     	g.restore();
-    	
-    	drawCursor(g);
+
+    	if (!forExport)
+    	    drawCursor(g);
     	
     	if (plots.get(0).ptr > 5 && !manualScale) {
     	    for (i = 0; i != UNITS_COUNT; i++)
@@ -1179,6 +1187,55 @@ void showPlotValue(int val, boolean b) {
 
     static native void downloadCSV(String data, String filename) /*-{
 	var blob = new Blob([data], {type: 'text/csv'});
+	var url = URL.createObjectURL(blob);
+	var a = $doc.createElement('a');
+	a.href = url;
+	a.download = filename;
+	$doc.body.appendChild(a);
+	a.click();
+	$doc.body.removeChild(a);
+	URL.revokeObjectURL(url);
+    }-*/;
+
+    void exportPNG() {
+	Canvas cv = Canvas.createIfSupported();
+	cv.setCoordinateSpaceWidth(rect.width);
+	cv.setCoordinateSpaceHeight(rect.height);
+	drawForExport(cv.getContext2d());
+	downloadDataURL(cv.toDataUrl(), "scope.png");
+    }
+
+    void exportSVG() {
+	if (!app.imageExporter.initializeSVGScriptIfNecessary(() -> exportSVG()))
+	    return;
+	Context2d context = ImageExporter.createSVGContext(rect.width, rect.height);
+	drawForExport(context);
+	downloadSVG(ImageExporter.getSerializedSVG(context), "scope.svg");
+    }
+
+    // draws this scope, sized to its own rect, into a fresh context at (0,0) instead of
+    // its on-screen position, with a solid background and no mouse-driven UI chrome --
+    // shared by exportPNG/exportSVG
+    private void drawForExport(Context2d context) {
+	context.setLineCap(Context2d.LineCap.ROUND);
+	context.translate(-rect.x, -rect.y);
+	Graphics g = new Graphics(context);
+	g.setColor(app.isPrintable() ? Color.white : Color.black);
+	g.fillRect(0, 0, rect.width, rect.height);
+	draw(g, true);
+    }
+
+    static native void downloadDataURL(String dataURL, String filename) /*-{
+	var a = $doc.createElement('a');
+	a.href = dataURL;
+	a.download = filename;
+	$doc.body.appendChild(a);
+	a.click();
+	$doc.body.removeChild(a);
+    }-*/;
+
+    static native void downloadSVG(String data, String filename) /*-{
+	var blob = new Blob([data], {type: 'image/svg+xml'});
 	var url = URL.createObjectURL(blob);
 	var a = $doc.createElement('a');
 	a.href = url;

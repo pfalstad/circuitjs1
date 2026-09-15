@@ -272,6 +272,10 @@ public class CommandManager {
     			s.resetGraph(true);
     		if (item=="exportcsv")
     			s.exportCSV();
+    		if (item=="exportpng")
+    			s.exportPNG();
+    		if (item=="exportsvg")
+    			s.exportSVG();
     		if (item=="properties")
 			s.properties();
     		app.scopeManager.deleteUnusedScopeElms();

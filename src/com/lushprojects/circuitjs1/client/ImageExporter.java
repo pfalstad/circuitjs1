@@ -93,7 +93,7 @@ public class ImageExporter {
 	    printCanvas(cv.getCanvasElement());
 	}
 
-	boolean initializeSVGScriptIfNecessary(final String followupAction) {
+	boolean initializeSVGScriptIfNecessary(final Runnable followupAction) {
 		// load canvas2svg if we haven't already
 		if (!loadedCanvas2SVG) {
 			ScriptInjector.fromUrl("canvas2svg.js").setCallback(new Callback<Void,Exception>() {
@@ -102,11 +102,7 @@ public class ImageExporter {
 				}
 				public void onSuccess(Void result) {
 					loadedCanvas2SVG = true;
-					if (followupAction.equals("doExportAsSVG")) {
-						doExportAsSVG();
-					} else if (followupAction.equals("doExportAsSVGFromAPI")) {
-						doExportAsSVGFromAPI();
-					}
+					followupAction.run();
 				}
 			}).inject();
 			return false;
@@ -115,7 +111,7 @@ public class ImageExporter {
 	}
 
 	void doExportAsSVG() {
-		if (!initializeSVGScriptIfNecessary("doExportAsSVG")) {
+		if (!initializeSVGScriptIfNecessary(() -> doExportAsSVG())) {
 			return;
 		}
 		if (sim.isElectron()) {
@@ -127,7 +123,7 @@ public class ImageExporter {
 	}
 
 	public void doExportAsSVGFromAPI() {
-		if (!initializeSVGScriptIfNecessary("doExportAsSVGFromAPI")) {
+		if (!initializeSVGScriptIfNecessary(() -> doExportAsSVGFromAPI())) {
 			return;
 		}
 		String svg = getCircuitAsSVG();
