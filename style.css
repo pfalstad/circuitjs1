@@ -125,9 +125,18 @@ td.gwt-MenuItem {
     font-family: Arial Unicode MS, Arial, sans-serif;
 }
 
-td.gwt-MenuItem:hover,
 td.gwt-MenuItem.open {
     background: #c8d8f8;
+}
+
+/* Real :hover only, scoped to devices that have genuine hover (a mouse) -- on touch,
+   :hover has no equivalent of mouseout when the finger lifts, so a tapped item (e.g. the
+   top-level menu that was just closed via .open above) can otherwise stay highlighted
+   indefinitely. Touch relies solely on the .open class, toggled explicitly in Menus.ts. */
+@media (hover: hover) {
+    td.gwt-MenuItem:hover {
+        background: #c8d8f8;
+    }
 }
 
 /* Dropdown panel — hidden by default, shown when parent has .open */
@@ -162,16 +171,25 @@ td.gwt-MenuItem.open > .menuDropdown {
     position: relative;
 }
 
-/* Show submenu on hover (desktop) or when explicitly opened via JS (touch; see Menus.ts) */
-.hasSubmenu:hover > .menuDropdown,
+/* Show submenu when explicitly opened via JS (touch, and also used on desktop; see
+   Menus.ts) or, on devices with genuine hover, on :hover too */
 .hasSubmenu.open > .menuDropdown {
     display: block;
 }
 
-/* Keep submenu open when the mouse moves from the arrow into the submenu */
-.hasSubmenu:hover,
 .hasSubmenu.open {
     background: #c8d8f8;
+}
+
+@media (hover: hover) {
+    .hasSubmenu:hover > .menuDropdown {
+        display: block;
+    }
+
+    /* Keep submenu open when the mouse moves from the arrow into the submenu */
+    .hasSubmenu:hover {
+        background: #c8d8f8;
+    }
 }
 
 /* Close-all click target on the table (matches Java's onclick) */
