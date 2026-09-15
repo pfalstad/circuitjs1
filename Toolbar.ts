@@ -29,6 +29,13 @@ export class Toolbar {
     private activeButton: HTMLElement | null = null;
     resistorButton: HTMLElement;
 
+    // variant popups (from createButtonSet) and the buttons that open them, so
+    // opening one can close the others, and tapping/clicking outside any of them
+    // can close them all (mainly needed on touch devices, which have no hover-out)
+    private paletteContainers: HTMLElement[] = [];
+    private paletteButtons: HTMLElement[] = [];
+    private globalPopupCloserInstalled = false;
+
     constructor() {
         this.element = document.createElement('div');
         const style = this.element.style;
@@ -59,7 +66,8 @@ export class Toolbar {
         this.resistorButton = this.createIconButtonForClass(this.resistorIcon, "ResistorElm");
         this.element.appendChild(this.resistorButton);
         this.element.appendChild(this.createIconButtonForClass(this.groundIcon, "GroundElm"));
-        this.element.appendChild(this.createIconButtonForClass(this.capacitorIcon, "CapacitorElm"));
+        const capacitorInfo = [this.capacitorIcon, "CapacitorElm", this.polarCapacitorIcon, "PolarCapacitorElm"];
+        this.element.appendChild(this.createButtonSet(capacitorInfo));
         this.element.appendChild(this.createIconButtonForClass(this.inductIcon, "InductorElm"));
         this.element.appendChild(this.createIconButtonForClass(this.diodeIcon, "DiodeElm"));
         const srcInfo = [this.voltage2Icon, "DCVoltageElm", this.acSrcIcon, "ACVoltageElm"];
@@ -174,6 +182,11 @@ export class Toolbar {
             startX = t.clientX;
             startY = t.clientY;
             moved = false;
+            // touchmove below calls preventDefault(), which suppresses the browser's own
+            // synthetic mouseover/mousedown/click sequence for this touch -- so dispatch
+            // mouseover ourselves, otherwise hover-triggered popups (e.g. the variant
+            // palette) never appear on touch devices.
+            el.dispatchEvent(new MouseEvent('mouseover', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
             el.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true, button: 0 }));
         }, { passive: true });
         el.addEventListener('touchmove', (e: TouchEvent) => {
@@ -194,11 +207,68 @@ export class Toolbar {
             // so re-create it ourselves when the touch didn't turn into a drag.
             if (!moved)
                 el.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+            // there's no touch equivalent of a real mouseout, so the hover highlight
+            // this element's mouseover handler applied (on touchstart, above) would
+            // otherwise be left stuck on -- just clear it directly
+            el.style.color = '#333';
         }, { passive: false });
         el.addEventListener('touchcancel', (e: TouchEvent) => {
             const t = e.changedTouches[0];
             document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
+            el.style.color = '#333';
         }, { passive: true });
+    }
+
+    // Closes the palette once a touch that started on its owning button (which is
+    // where the popup opens from) moves off of both the button and the popup.
+    // Can't just close on touchstart/mousedown like a real mouse-drag effectively
+    // does via mouseout -- touchstart on this same element is also what opens the
+    // popup (see addTouchDragSupport's synthetic mouseover), so closing immediately
+    // there would close the popup the instant it appears.
+    private addPopupDismissOnLeave(el: HTMLElement, popupEl: HTMLElement): void {
+        el.addEventListener('touchmove', (e: TouchEvent) => {
+            if (e.touches.length !== 1)
+                return;
+            if (popupEl.style.display === 'none')
+                return;
+            const t = e.touches[0];
+            const pr = popupEl.getBoundingClientRect();
+            const er = el.getBoundingClientRect();
+            const inPopup = t.clientX >= pr.left && t.clientX <= pr.right && t.clientY >= pr.top && t.clientY <= pr.bottom;
+            const inButton = t.clientX >= er.left && t.clientX <= er.right && t.clientY >= er.top && t.clientY <= er.bottom;
+            if (!inPopup && !inButton)
+                this.closeAllPalettes();
+        }, { passive: true });
+    }
+
+    private closeAllPalettes(): void {
+        for (const p of this.paletteContainers)
+            p.style.display = 'none';
+    }
+
+    // Closes all open variant popups when the user taps/clicks anywhere that isn't
+    // one of the popups or one of the buttons that open them. Needed on touch
+    // devices, which never send a mouseout to close a popup the way hovering away
+    // does on desktop.
+    private installGlobalPopupCloser(): void {
+        if (this.globalPopupCloserInstalled)
+            return;
+        this.globalPopupCloserInstalled = true;
+
+        const handler = (e: Event) => {
+            const t = e.target;
+            if (!(t instanceof Node))
+                return;
+            for (const p of this.paletteContainers)
+                if (p.contains(t))
+                    return;
+            for (const b of this.paletteButtons)
+                if (b.contains(t))
+                    return;
+            this.closeAllPalettes();
+        };
+        document.addEventListener('mousedown', handler);
+        document.addEventListener('touchstart', handler, { passive: true });
     }
 
     makeSvg(s: string, size: number): string {
@@ -245,20 +315,21 @@ export class Toolbar {
             const command = new MyCommand("main", info[i + 1]);
             const smallSvg = this.makeSvg(info[i], 24);
 
-            // Change the icon of the main button to reflect the variant selected
+            // Change the icon of the main button to reflect the variant selected, and
+            // switch the mouse mode to it right away -- don't wait for a click event,
+            // since hiding paletteContainer here means the browser won't deliver one
+            // (hiding the click target between mousedown and mouseup suppresses it).
             const selectVariant = () => {
                 iconLabel.innerHTML = smallSvg;
                 this.highlightableButtons.delete(mainCommand.getItemName());
                 this.highlightableButtons.set(command.getItemName(), iconLabel);
-                paletteContainer.style.display = 'none';
                 mainCommand.setItemName(command.getItemName());
+                this.closeAllPalettes();
+                command.execute();  // switch to the mode for the selected variant
             };
 
             // Add click handler to update the main button and execute the command
-            variantButton.addEventListener('click', () => {
-                selectVariant();
-                command.execute();  // Execute the corresponding command for the selected variant
-            });
+            variantButton.addEventListener('click', () => selectVariant());
 
             // pressing and dragging (rather than just clicking) a variant drops that
             // variant directly, instead of switching modes
@@ -285,8 +356,18 @@ export class Toolbar {
         // Add the palette container to the document (or you could append it to the toolbar directly)
         document.body.appendChild(paletteContainer);
 
+        this.paletteContainers.push(paletteContainer);
+        this.paletteButtons.push(iconLabel);
+        this.installGlobalPopupCloser();
+        this.addPopupDismissOnLeave(iconLabel, paletteContainer);
+
         // Show palette on mouse-over
         iconLabel.addEventListener('mouseover', () => {
+            // close any other open palette first
+            for (const p of this.paletteContainers)
+                if (p !== paletteContainer)
+                    p.style.display = 'none';
+
             paletteContainer.style.display = 'flex';
 
             // Position the palette relative to the icon label
@@ -349,6 +430,10 @@ export class Toolbar {
     readonly groundIcon = "<svg><defs /><g transform='scale(.6) translate(-826.46,-231.31) scale(1.230769)'><path fill='none' stroke='currentColor' d=' M 688 192 L 688 208' stroke-linecap='round' stroke-width='3' /> <path fill='none' stroke='currentColor' d=' M 698 208 L 678 208' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 694 213 L 682 213' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 690 218 L 686 218' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 691 192 A 3 3 0 1 1 690.9997392252899 191.96044522459943 Z' /> </g></svg>";
 
     readonly capacitorIcon = "<svg><defs /><g transform='translate(-323.76,-71.18) scale(0.470588)'><path fill='none' stroke='currentColor' d=' M 688 176 L 708 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 708 164 L 708 188' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 736 176 L 716 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 716 164 L 716 188' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 691 176 A 3 3 0 1 1 690.9997392252899 175.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 739 176 A 3 3 0 1 1 738.9997392252899 175.96044522459943 Z' /></g></svg>";
+
+    // like capacitorIcon, but with one plate curved (the cathode) and a "+" marking
+    // the anode plate, matching the polarized-capacitor schematic symbol
+    readonly polarCapacitorIcon = "<svg><defs /><g transform='translate(-323.76,-71.18) scale(0.470588)'><path fill='none' stroke='currentColor' d=' M 688 176 L 708 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 708 164 L 708 188' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 736 176 L 716 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 716 164 Q 709 176 716 188' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 691 176 A 3 3 0 1 1 690.9997392252899 175.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 739 176 A 3 3 0 1 1 738.9997392252899 175.96044522459943 Z' /><g><text fill='currentColor' stroke='none' font-family='sans-serif' font-size='11px' font-weight='bold' x='700' y='157' text-anchor='middle' dominant-baseline='central'>+</text></g></g></svg>";
 
     readonly diodeIcon = "<svg><defs /><g transform='translate(-323.76,-72.06) scale(0.470588)'><path fill='none' stroke='currentColor' d=' M 688 176 L 704 176' stroke-linecap='round' stroke-width='3' /><path fill='none' stroke='currentColor' d=' M 720 176 L 736 176' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 704 168 L 704 184 L 720 176 Z' /><path fill='none' stroke='currentColor' d=' M 720 168 L 720 184' stroke-linecap='round' stroke-width='3' /><path fill='currentColor' stroke='currentColor' d=' M 691 176 A 3 3 0 1 1 690.9997392252899 175.96044522459943 Z' /><path fill='currentColor' stroke='currentColor' d=' M 739 176 A 3 3 0 1 1 738.9997392252899 175.96044522459943 Z' /></g></svg>";
 
