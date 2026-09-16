@@ -623,8 +623,18 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		double vgs_vt = vgs - vt;
 		gm  = beta*vgs_vt*(1 + lambda*vds);
 		Gds = .5*beta*vgs_vt*vgs_vt*lambda;
-		if (Gds < 1e-8) Gds = 1e-8;
-		ids = .5*beta*vgs_vt*vgs_vt*(1 + lambda*vds);
+		// enforce a minimum Gds to avoid a singular matrix when lambda is 0.  The extra
+		// current that minimum conductance carries has to be included in ids too, or the
+		// device current jumps discontinuously to zero at vgs == vt (where the off branch
+		// below gives vds*1e-8).  That discontinuity creates a bogus second operating point
+		// just below vgs == vt, which the solver can settle into (e.g. an NMOS inverter with
+		// an off pulldown would sit at vt below the supply instead of floating midway).
+		double gdsMin = 0;
+		if (Gds < 1e-8) {
+		    gdsMin = 1e-8 - Gds;
+		    Gds = 1e-8;
+		}
+		ids = .5*beta*vgs_vt*vgs_vt*(1 + lambda*vds) + (vds-vgs_vt)*gdsMin;
 		mode = 2;
 	    }
 	    
