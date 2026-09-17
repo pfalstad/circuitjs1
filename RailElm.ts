@@ -124,8 +124,8 @@ export class RailElm extends VoltageElm {
      * retimePhase() call would judge high/low from `phaseShift` alone and could truncate an
      * already-in-progress pulse. */
     private static phaseLayout(period: number, dutyCycle: number, phaseShift: number, nowSeconds: number = 0):
-            { highTicks: bigint, lowTicks: bigint, periodTicks: bigint, initialDelay: bigint,
-              highAtReference: boolean, edgeDelay: bigint } {
+            { highTicks: number, lowTicks: number, periodTicks: number, initialDelay: number,
+              highAtReference: boolean, edgeDelay: number } {
         const twoPi = 2 * Math.PI;
         const highTicks = Math.max(1, Math.round(period * dutyCycle / TIMESCALE));
         const lowTicks = Math.max(1, Math.round(period * (1 - dutyCycle) / TIMESCALE));
@@ -148,8 +148,8 @@ export class RailElm extends VoltageElm {
         // the following nominal low portion instead, so every edge after this first one lands
         // exactly on the intended phase/duty grid.
         const initialDelay = !highAtReference
-            ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
-            : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks));
+            ? Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks))
+            : Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks);
 
         // Ticks from `nowSeconds` to the NEXT real edge in whichever direction is actually due (a
         // fall if `highAtReference`, a rise otherwise) - unlike `initialDelay` above, doesn't pad
@@ -160,10 +160,10 @@ export class RailElm extends VoltageElm {
         // this is directly "ticks from now" - retimePhase() no longer needs its own separate
         // modulo re-anchoring against `now` the way it did when `wm` was `nowSeconds`-independent. */
         const edgeDelay = !highAtReference
-            ? BigInt(Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks)))
-            : BigInt(Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks)));
+            ? Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks))
+            : Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks));
 
-        return { highTicks: BigInt(highTicks), lowTicks: BigInt(lowTicks), periodTicks: BigInt(periodTicks),
+        return { highTicks: highTicks, lowTicks: lowTicks, periodTicks: periodTicks,
                  initialDelay, highAtReference, edgeDelay };
     }
 
@@ -182,7 +182,7 @@ export class RailElm extends VoltageElm {
     }
 
     // convert ticks with rounding
-    private static ticksToSeconds(ticks: bigint): number {
+    private static ticksToSeconds(ticks: number): number {
         return (Number(ticks) + 0.5) * TIMESCALE;
     }
 

@@ -30,7 +30,7 @@ export function clockLogic(chip: Chip): void {
  * (`outputEvents[1]-outputEvents[0]`) uses `chip.delay[chip.output]` rather than a hardcoded
  * `delay[0]` - otherwise Cycle.nextOutputEventDelay()'s index-parity alternation desyncs from
  * chip.output's real starting value and applies the wrong duration to every state after. */
-export function phasedClockLogic(initialDelayTicks: bigint): (chip: Chip) => void {
+export function phasedClockLogic(initialDelayTicks: number): (chip: Chip) => void {
     return (chip: Chip): void => {
         chip.state = ChipState.ACTIVE;
         chip.activationTime = chip.circuit.globalTime;

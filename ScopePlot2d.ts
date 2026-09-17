@@ -182,8 +182,8 @@ export class ScopePlot2d implements HistoryWatcher {
     // canvas bitmap, is never read from `history` again. -1 (nothing painted yet, or just
     // switched signals - see fillDigitalRaster()'s own sync check) reports no floor at all, so
     // Chip.trimHistory() won't discard anything on this watcher's account until it catches up.
-    historyFloor(): bigint {
-        return this.rasterFilledTick < 0 ? -1n : BigInt(this.rasterFilledTick);
+    historyFloor(): number {
+        return this.rasterFilledTick < 0 ? -1 : this.rasterFilledTick;
     }
 
     // Stops watching this raster's current chip (if any) for good - called wherever the owning

@@ -49,7 +49,7 @@ export class StopTriggerElm extends CircuitElm {
     // Absolute Circuit.globalTime tick the pending stop is scheduled to fire at, for getInfo()'s
     // countdown display - null when not currently counting down. Ticks, not seconds, since it's
     // compared against getCurrentDigitalGraph()'s own live globalTime.
-    private stopAtTick: bigint | null = null;
+    private stopAtTick: number | null = null;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -160,7 +160,7 @@ export class StopTriggerElm extends CircuitElm {
                 if (!this.triggered && this.triggerCount >= this.count) {
                     this.triggered = true;
                     this.stopped = false;
-                    const delayTicks = BigInt(Math.max(0, Math.round(this.delay / TIMESCALE)));
+                    const delayTicks = Math.max(0, Math.round(this.delay / TIMESCALE));
                     chip.pendingEvent = chip.circuit.queuePush(chip, delayTicks);
                     this.stopAtTick = chip.circuit.globalTime + delayTicks;
                 }

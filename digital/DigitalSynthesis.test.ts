@@ -178,7 +178,7 @@ describe("RailElm.digitalTie() / digitalSynthesis()", () => {
         // digitalSynthesis()'s Math.max(1, ...) floor kicks in: 1 tick each phase, a 2-tick
         // period - checking history (not just a before/after output compare) avoids a flaky
         // even-vs-odd-tick-count parity coincidence.
-        circuit.run(20n);
+        circuit.run(20);
         expect(clockChip.history.length).toBeGreaterThanOrEqual(10); // ~20 ticks / 2-tick period
     });
 
@@ -208,7 +208,7 @@ describe("LogicInputElm.digitalSynthesis() / toggle()", () => {
         connect({ elm: li, num: 0 }, { elm: sink, num: 0 });
 
         const { circuit, chipsByElm } = buildDigitalCircuit([li, sink]);
-        circuit.run(1n); // apply the 0-delay initial-value event scheduled at construction
+        circuit.run(1); // apply the 0-delay initial-value event scheduled at construction
 
         expect(chipsByElm.get(li)![0].output).toBe(1);
     });
@@ -220,15 +220,15 @@ describe("LogicInputElm.digitalSynthesis() / toggle()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([li, sink]);
         li.digitalChip = chipsByElm.get(li)![0];
-        circuit.run(1n);
+        circuit.run(1);
         expect(li.digitalChip.output).toBe(0);
 
         li.toggle(); // real SwitchElm.toggle() flips position 0 -> 1
-        circuit.run(1n);
+        circuit.run(1);
         expect(li.digitalChip.output).toBe(1);
 
         li.toggle(); // and back
-        circuit.run(1n);
+        circuit.run(1);
         expect(li.digitalChip.output).toBe(0);
     });
 
@@ -260,7 +260,7 @@ describe("ExtVoltageElm.digitalSynthesis() / setVoltage()", () => {
         connect({ elm: ev, num: 0 }, { elm: sink, num: 0 });
 
         const { circuit, chipsByElm } = buildDigitalCircuit([ev, sink]);
-        circuit.run(1n); // apply the 0-delay initial-value event scheduled at construction
+        circuit.run(1); // apply the 0-delay initial-value event scheduled at construction
 
         expect(chipsByElm.get(ev)![0].output).toBe(1);
     });
@@ -274,15 +274,15 @@ describe("ExtVoltageElm.digitalSynthesis() / setVoltage()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([ev, sink]);
         ev.digitalChip = chipsByElm.get(ev)![0];
-        circuit.run(1n);
+        circuit.run(1);
         expect(ev.digitalChip.output).toBe(0);
 
         ev.setVoltage(true as any); // JSInterface.setExtVoltage("extvolt", true)
-        circuit.run(1n);
+        circuit.run(1);
         expect(ev.digitalChip.output).toBe(1);
 
         ev.setVoltage(false as any); // JSInterface.setExtVoltage("extvolt", false)
-        circuit.run(1n);
+        circuit.run(1);
         expect(ev.digitalChip.output).toBe(0);
     });
 });

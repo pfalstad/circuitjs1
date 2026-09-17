@@ -13,13 +13,13 @@ import { buildDigitalCircuit, setCurrentDigitalGraph } from "./digital/DigitalGr
 // real built DigitalGraph). backfillReturn defaults to nowTicks (a call that fully catches up,
 // same as the real Chip.backfillHistory() does whenever its own per-call work budget isn't
 // exceeded) - pass a smaller value to simulate a call that only made partial progress.
-function fakeChip(history: { time: bigint; value: number }[], nowTicks: number, state = ChipState.PASSIVE, backfillReturn?: bigint) {
+function fakeChip(history: { time: number; value: number }[], nowTicks: number, state = ChipState.PASSIVE, backfillReturn?: number) {
     return {
-        circuit: { globalTime: BigInt(nowTicks) },
+        circuit: { globalTime: nowTicks },
         state,
         history,
         output: history.length ? history[history.length - 1].value : 0,
-        backfillHistory: vi.fn(() => backfillReturn ?? BigInt(nowTicks)),
+        backfillHistory: vi.fn(() => backfillReturn ?? nowTicks),
     } as any;
 }
 
@@ -50,7 +50,7 @@ afterEach(() => setCurrentDigitalGraph(null));
 // ground truth an incremental (steady-state) call is supposed to match exactly, since it's
 // only ever supposed to fold in what changed, never produce a different answer than rebuilding
 // from scratch would. spc/sp match the "fills columns..." test above (8 columns, 10 ticks each).
-function coldRebuild(elm: any, history: { time: bigint; value: number }[], nowTicks: number) {
+function coldRebuild(elm: any, history: { time: number; value: number }[], nowTicks: number) {
     const plot = new ScopePlot(elm, UNITS_V, VAL_VOLTAGE, 1);
     plot.digitalChip = fakeChip(history, nowTicks);
     plot.scopePointCount = 8;
@@ -98,7 +98,7 @@ describe("ScopePlot digital history fill", () => {
     it("fills columns from the change-list, marking any column a transition crossed", () => {
         const elm = fakeElm();
         const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
-        plot.digitalChip = fakeChip([{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }], 100);
+        plot.digitalChip = fakeChip([{ time: 0, value: 1 }, { time: 25, value: 0 }, { time: 50, value: 1 }], 100);
         plot.scopePointCount = 8; // power of 2, per the ptr-masking convention
         plot.scopePlotSpeed = 10; // ticks per column
         plot.minValues = new Array(8).fill(0);
@@ -120,7 +120,7 @@ describe("ScopePlot digital history fill", () => {
     it("backfills an Asleep chip's history before reading it", () => {
         const elm = fakeElm();
         const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
-        const chip = fakeChip([{ time: 0n, value: 0 }], 100, ChipState.ASLEEP);
+        const chip = fakeChip([{ time: 0, value: 0 }], 100, ChipState.ASLEEP);
         plot.digitalChip = chip;
         plot.scopePointCount = 4;
         plot.scopePlotSpeed = 10;
@@ -129,15 +129,15 @@ describe("ScopePlot digital history fill", () => {
 
         plot.fillFromDigitalHistory();
 
-        expect(chip.backfillHistory).toHaveBeenCalledWith(100n);
+        expect(chip.backfillHistory).toHaveBeenCalledWith(100);
     });
 
     it("clamps to what backfillHistory() actually reached rather than assuming it caught up to `now` (regression: a chip with a large backlog - e.g. the sim running fast enough that globalTime jumps far ahead each draw - must not have the un-backfilled gap treated as already-painted, which would freeze the trailing edge on a stale value and, for ScopePlot2d's raster, permanently skip the real transitions still to be backfilled)", () => {
         const elm = fakeElm();
         const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
-        // backfillHistory(100n) only actually reaches t=30 this call (its own per-call work
+        // backfillHistory(100) only actually reaches t=30 this call (its own per-call work
         // budget ran out - see Chip.backfillHistory()'s docstring) - `history` has nothing past 25.
-        const chip = fakeChip([{ time: 0n, value: 1 }, { time: 25n, value: 0 }], 100, ChipState.ASLEEP, 30n);
+        const chip = fakeChip([{ time: 0, value: 1 }, { time: 25, value: 0 }], 100, ChipState.ASLEEP, 30);
         plot.digitalChip = chip;
         plot.scopePointCount = 4;
         plot.scopePlotSpeed = 10;
@@ -155,7 +155,7 @@ describe("ScopePlot digital history fill", () => {
     it("does not rebuild twice for the same tick", () => {
         const elm = fakeElm();
         const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
-        plot.digitalChip = fakeChip([{ time: 0n, value: 1 }], 50);
+        plot.digitalChip = fakeChip([{ time: 0, value: 1 }], 50);
         plot.scopePointCount = 4;
         plot.scopePlotSpeed = 10;
         plot.minValues = new Array(4).fill(0);
@@ -180,7 +180,7 @@ describe("ScopePlot digital history fill", () => {
         // short of what a from-scratch rebuild at that same `now` has.
         it("folding in several new columns/transitions matches a from-scratch rebuild at the same `now`", () => {
             const elm = fakeElm();
-            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const history = [{ time: 0, value: 1 }, { time: 25, value: 0 }, { time: 50, value: 1 }];
             const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
             plot.digitalChip = fakeChip(history, 100);
             plot.scopePointCount = 8;
@@ -189,8 +189,8 @@ describe("ScopePlot digital history fill", () => {
             plot.maxValues = new Array(8).fill(0);
             plot.fillFromDigitalHistory(); // cold start through t=100
 
-            history.push({ time: 105n, value: 0 }, { time: 110n, value: 1 }, { time: 135n, value: 0 });
-            (plot.digitalChip as any).circuit.globalTime = 150n;
+            history.push({ time: 105, value: 0 }, { time: 110, value: 1 }, { time: 135, value: 0 });
+            (plot.digitalChip as any).circuit.globalTime = 150;
             plot.fillFromDigitalHistory(); // incremental: folds in only what's new since t=100
 
             const rebuilt = coldRebuild(elm, history, 150);
@@ -200,7 +200,7 @@ describe("ScopePlot digital history fill", () => {
 
         it("several calls in a row, each advancing by less than one column, still matches a from-scratch rebuild", () => {
             const elm = fakeElm();
-            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const history = [{ time: 0, value: 1 }, { time: 25, value: 0 }, { time: 50, value: 1 }];
             const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
             plot.digitalChip = fakeChip(history, 100);
             plot.scopePointCount = 8;
@@ -212,14 +212,14 @@ describe("ScopePlot digital history fill", () => {
             // Small, irregular steps (like ScopePlot really gets driven - see
             // chip.backfillHistory.test.ts's identical irregular-step regression) - several
             // land mid-column, several exactly on a column boundary (multiples of 10 past 100).
-            const steps = [3n, 2n, 5n, 5n, 5n, 10n, 15n, 5n];
-            let t = 100n;
+            const steps = [3, 2, 5, 5, 5, 10, 15, 5];
+            let t = 100;
             for (const step of steps) {
                 t += step;
                 (plot.digitalChip as any).circuit.globalTime = t;
                 plot.fillFromDigitalHistory();
             }
-            expect(t).toBe(150n);
+            expect(t).toBe(150);
 
             const rebuilt = coldRebuild(elm, history, 150);
             expect(orderedValues(plot)).toEqual(orderedValues(rebuilt));
@@ -228,7 +228,7 @@ describe("ScopePlot digital history fill", () => {
 
         it("a call that advances `now` without crossing any column boundary just extends the current column", () => {
             const elm = fakeElm();
-            const history = [{ time: 0n, value: 1 }, { time: 25n, value: 0 }, { time: 50n, value: 1 }];
+            const history = [{ time: 0, value: 1 }, { time: 25, value: 0 }, { time: 50, value: 1 }];
             const plot = new ScopePlot(elm as any, UNITS_V, VAL_VOLTAGE, 1);
             plot.digitalChip = fakeChip(history, 100);
             plot.scopePointCount = 8;
@@ -237,8 +237,8 @@ describe("ScopePlot digital history fill", () => {
             plot.maxValues = new Array(8).fill(0);
             plot.fillFromDigitalHistory();
 
-            history.push({ time: 103n, value: 0 });
-            (plot.digitalChip as any).circuit.globalTime = 105n; // still within the same 10-tick column
+            history.push({ time: 103, value: 0 });
+            (plot.digitalChip as any).circuit.globalTime = 105; // still within the same 10-tick column
             plot.fillFromDigitalHistory();
 
             const rebuilt = coldRebuild(elm, history, 105);

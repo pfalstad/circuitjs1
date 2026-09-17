@@ -33,13 +33,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -65,11 +65,11 @@ describe("TriStateElm.digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([data, control, ts, sink]);
         data.chip = chipsByElm.get(data)![0];
         control.chip = chipsByElm.get(control)![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipsByElm.get(ts)![0].output).toBe(0);
 
         control.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipsByElm.get(ts)![0].output).toBe(1);
     });
 });
@@ -97,7 +97,7 @@ describe("tri-state bus sharing (DigitalGraphBuilder OR-merge)", () => {
         controlA.chip = chipsByElm.get(controlA)![0];
         dataB.chip = chipsByElm.get(dataB)![0];
         controlB.chip = chipsByElm.get(controlB)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(warn).not.toHaveBeenCalled();
         const sinkChip = chipsByElm.get(sink)![0];
@@ -107,11 +107,11 @@ describe("tri-state bus sharing (DigitalGraphBuilder OR-merge)", () => {
         controlA.set(0);
         controlB.set(1);
         dataB.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(sinkChip.inputLinks[0].chip.output).toBe(1);
 
         dataB.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         expect(sinkChip.inputLinks[0].chip.output).toBe(0); // nothing enabled -> reads 0, not floating
 
         warn.mockRestore();
@@ -145,7 +145,7 @@ describe("tri-state bus sharing (DigitalGraphBuilder OR-merge)", () => {
         controlA.chip = graph.chipsByElm.get(controlA)![0];
         dataB.chip = graph.chipsByElm.get(dataB)![0];
         controlB.chip = graph.chipsByElm.get(controlB)![0];
-        graph.circuit.run(20n);
+        graph.circuit.run(20);
 
         syncDigitalToNodesNew(elmList, graph);
         expect(driverA.nodes[1].v).toBe(5); // driverA (enabled, data=1) should win the bus

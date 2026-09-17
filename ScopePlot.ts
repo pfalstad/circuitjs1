@@ -92,7 +92,7 @@ export class ScopePlot implements HistoryWatcher {
     // in the first place. See setDigitalChip()'s own docstring for the one
     // case (another Scope already watching the same chip) this doesn't fully
     // isolate against.
-    private historyEpoch: bigint = 0n;
+    private historyEpoch: number = 0;
 
     static readonly FLAG_AC = 1;
 
@@ -189,8 +189,8 @@ export class ScopePlot implements HistoryWatcher {
     // is established, everything before it has already been folded into minValues/maxValues and
     // will never be read again (the whole point of going incremental - see
     // fillFromDigitalHistory()'s docstring).
-    historyFloor(): bigint {
-        return this.lastDigitalFillTick < 0 ? -1n : BigInt(this.lastDigitalFillTick);
+    historyFloor(): number {
+        return this.lastDigitalFillTick < 0 ? -1 : this.lastDigitalFillTick;
     }
 
     // Stops watching this plot's chip (if any) for good - called wherever a ScopePlot is

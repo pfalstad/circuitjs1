@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { Chip, ChipState, Cycle, Event } from "./chip";
 import { MAX_U64 } from "./constants";
 
-const fakeCircuit = { globalTime: 0n } as any;
+const fakeCircuit = { globalTime: 0 } as any;
 
 // A 1-pin CUSTOM_CHIP shell (logic:null, custom:null) - the constructor takes the CUSTOM_CHIP
 // early-return path, leaving every Cycle/outputEvents field at its default, ready for us to
@@ -23,16 +23,16 @@ function bareChip(): Chip {
  * matching clockChip.ts's clockLogic() shape exactly) and puts the chip to sleep at
  * `sleepIdx`/`sleepAbsTime`/`sleepValue` - the same three fields updateOutput()'s ASLEEP-entry
  * branch seeds from `this.currentCycle.currentOutputEvent`/`globalTime`/`this.output`. */
-function asleepClockChip(d0: bigint, d1: bigint, sleepIdx: number, sleepAbsTime: bigint, sleepValue: number): Chip {
+function asleepClockChip(d0: number, d1: number, sleepIdx: number, sleepAbsTime: number, sleepValue: number): Chip {
     const chip = bareChip();
-    chip.outputEvents.push_back(new Event(0n));
+    chip.outputEvents.push_back(new Event(0));
     chip.outputEvents.push_back(new Event(d0));
     chip.cycleTime = d0 + d1;
     chip.firstOutputEvent = chip.outputEvents.begin();
     chip.currentCycle = chip as unknown as Cycle;
 
     chip.state = ChipState.ASLEEP;
-    (chip as any).backfillPos = { level: chip, idx: sleepIdx, entryTime: 0n, exitBound: MAX_U64, sub: null };
+    (chip as any).backfillPos = { level: chip, idx: sleepIdx, entryTime: 0, exitBound: MAX_U64, sub: null };
     (chip as any).backfillAbsTime = sleepAbsTime;
     (chip as any).backfillValue = sleepValue;
     return chip;
@@ -41,8 +41,8 @@ function asleepClockChip(d0: bigint, d1: bigint, sleepIdx: number, sleepAbsTime:
 /** Builds a Cycle for a nested sub-cycle placeholder, matching exactly what deactivateOutputs()
  * produces: its own small periodic `entries` (each a [time, state] pair), `cycleTime` (its own
  * period) and `cycleDuration` (how much of the parent's slot for it is "active" before the parent
- * regains control - see deactivateOutputs()'s own `globalTime - activationTime + 1n`). */
-function makeSubCycle(entries: [bigint, number][], cycleTime: bigint, cycleDuration: bigint): Cycle {
+ * regains control - see deactivateOutputs()'s own `globalTime - activationTime + 1`). */
+function makeSubCycle(entries: [number, number][], cycleTime: number, cycleDuration: number): Cycle {
     const c = new Cycle(8, 8);
     for (const [t, s] of entries) c.outputEvents.push_back(new Event(t, s));
     c.firstOutputEvent = c.outputEvents.begin();
@@ -64,24 +64,24 @@ function makeSubCycle(entries: [bigint, number][], cycleTime: bigint, cycleDurat
 function asleepNestedCounterChip(): Chip {
     const chip = bareChip();
     chip.currentCycle = chip as unknown as Cycle;
-    chip.cycleTime = 23976n;
+    chip.cycleTime = 23976;
     const oe = chip.outputEvents;
 
-    oe.push_back(new Event(2997n, 0, 1, makeSubCycle([[2997n, 0], [4995n, 1]], 3996n, 3997n))); // leftover, never visited
+    oe.push_back(new Event(2997, 0, 1, makeSubCycle([[2997, 0], [4995, 1]], 3996, 3997))); // leftover, never visited
     const first = oe.end();
-    oe.push_back(new Event(8991n, 1)); // = firstOutputEvent
+    oe.push_back(new Event(8991, 1)); // = firstOutputEvent
     chip.firstOutputEvent = first;
     const sleepIdx = oe.end();
-    oe.push_back(new Event(10989n, 0, 1, makeSubCycle([[10989n, 0], [12987n, 1]], 3996n, 3997n))); // the placeholder we fall asleep on
-    oe.push_back(new Event(16983n, 1));
-    oe.push_back(new Event(18981n, 0, 1, makeSubCycle([[18981n, 0], [20979n, 1]], 3996n, 3997n)));
-    oe.push_back(new Event(24975n, 1));
-    oe.push_back(new Event(26973n, 0, 1, makeSubCycle([[26973n, 0], [28971n, 1]], 3996n, 3997n)));
+    oe.push_back(new Event(10989, 0, 1, makeSubCycle([[10989, 0], [12987, 1]], 3996, 3997))); // the placeholder we fall asleep on
+    oe.push_back(new Event(16983, 1));
+    oe.push_back(new Event(18981, 0, 1, makeSubCycle([[18981, 0], [20979, 1]], 3996, 3997)));
+    oe.push_back(new Event(24975, 1));
+    oe.push_back(new Event(26973, 0, 1, makeSubCycle([[26973, 0], [28971, 1]], 3996, 3997)));
 
     chip.state = ChipState.ASLEEP;
-    chip.sleepTime = 32967n;
-    (chip as any).backfillPos = { level: chip as unknown as Cycle, idx: sleepIdx, entryTime: 0n, exitBound: MAX_U64, sub: null };
-    (chip as any).backfillAbsTime = 32967n;
+    chip.sleepTime = 32967;
+    (chip as any).backfillPos = { level: chip as unknown as Cycle, idx: sleepIdx, entryTime: 0, exitBound: MAX_U64, sub: null };
+    (chip as any).backfillAbsTime = 32967;
     (chip as any).backfillValue = 1;
     return chip;
 }
@@ -90,10 +90,10 @@ function asleepNestedCounterChip(): Chip {
 // exactly 1998 ticks after the last (a self-resetting counter's LSB toggles at half the clock
 // period, unaffected by the reset since it divides evenly - see the bug investigation), starting
 // value 1 at t=32967 (the sleep-time seed).
-function expectedNestedSequence(count: number): { time: bigint; value: number }[] {
-    const out: { time: bigint; value: number }[] = [];
-    let t = 32967n, v = 1;
-    for (let i = 0; i < count; i++) { t += 1998n; v ^= 1; out.push({ time: t, value: v }); }
+function expectedNestedSequence(count: number): { time: number; value: number }[] {
+    const out: { time: number; value: number }[] = [];
+    let t = 32967, v = 1;
+    for (let i = 0; i < count; i++) { t += 1998; v ^= 1; out.push({ time: t, value: v }); }
     return out;
 }
 
@@ -108,28 +108,28 @@ describe("Chip.backfillHistory()", () => {
         //                                            = 0 + 10 - 3 = 7  -> fires at 117, value 1
         //   next: idx=1 (!=first) -> delay = time[1]-time[0] = 3-0 = 3  -> fires at 120, value 0
         //   next: idx wraps to 0 -> delay = 7 again                     -> fires at 127, value 1
-        const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
+        const chip = asleepClockChip(3, 7, 0, 110, 0);
 
-        chip.backfillHistory(125n);
+        chip.backfillHistory(125);
 
         expect(chip.history).toEqual([
-            { time: 117n, value: 1 },
-            { time: 120n, value: 0 },
+            { time: 117, value: 1 },
+            { time: 120, value: 0 },
         ]);
     });
 
     it("is resumable: two partial calls land on the same history as one call to the later time", () => {
-        const chipTwoStep = asleepClockChip(3n, 7n, 0, 110n, 0);
-        chipTwoStep.backfillHistory(118n); // stops mid-way between the 117 and 120 transitions
-        chipTwoStep.backfillHistory(125n); // resumes from wherever it left off
+        const chipTwoStep = asleepClockChip(3, 7, 0, 110, 0);
+        chipTwoStep.backfillHistory(118); // stops mid-way between the 117 and 120 transitions
+        chipTwoStep.backfillHistory(125); // resumes from wherever it left off
 
-        const chipOneStep = asleepClockChip(3n, 7n, 0, 110n, 0);
-        chipOneStep.backfillHistory(125n);
+        const chipOneStep = asleepClockChip(3, 7, 0, 110, 0);
+        chipOneStep.backfillHistory(125);
 
         expect(chipTwoStep.history).toEqual(chipOneStep.history);
         expect(chipTwoStep.history).toEqual([
-            { time: 117n, value: 1 },
-            { time: 120n, value: 0 },
+            { time: 117, value: 1 },
+            { time: 120, value: 0 },
         ]);
     });
 
@@ -142,41 +142,41 @@ describe("Chip.backfillHistory()", () => {
         // special-cased construction-time schedule (see clockChip.ts), never straight from
         // activation, so idx=0 always means "just wrapped" in practice). Period is 10 ticks
         // (3+7), alternating +7/+3 forever: 107,110,117,120,127,130,137,140,(147 > 145, stop).
-        const chip = asleepClockChip(3n, 7n, 0, 100n, 0);
-        chip.backfillHistory(145n);
+        const chip = asleepClockChip(3, 7, 0, 100, 0);
+        chip.backfillHistory(145);
 
-        const expectedTimes = [107n, 110n, 117n, 120n, 127n, 130n, 137n, 140n];
+        const expectedTimes = [107, 110, 117, 120, 127, 130, 137, 140];
         expect(chip.history.map(h => h.time)).toEqual(expectedTimes);
         // Values alternate strictly (2 flips/period keeps parity across each wrap).
         expect(chip.history.map(h => h.value)).toEqual([1, 0, 1, 0, 1, 0, 1, 0]);
     });
 
     it("does nothing for a chip that isn't ASLEEP", () => {
-        const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
+        const chip = asleepClockChip(3, 7, 0, 110, 0);
         chip.state = ChipState.ACTIVE;
-        chip.backfillHistory(200n);
+        chip.backfillHistory(200);
         expect(chip.history).toEqual([]);
     });
 
     it("does nothing (rather than mutating anything) once already caught up to `now`", () => {
-        const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
-        chip.backfillHistory(110n); // now === backfillAbsTime already
+        const chip = asleepClockChip(3, 7, 0, 110, 0);
+        chip.backfillHistory(110); // now === backfillAbsTime already
         expect(chip.history).toEqual([]);
     });
 
     it("returns `now` once it actually catches up to it", () => {
-        const chip = asleepClockChip(3n, 7n, 0, 110n, 0);
-        expect(chip.backfillHistory(125n)).toBe(125n);
+        const chip = asleepClockChip(3, 7, 0, 110, 0);
+        expect(chip.backfillHistory(125)).toBe(125);
     });
 
     it("returns partial progress (not `now`) when a single call's iteration budget runs out first - the resumable cursor callers MUST clamp to instead of assuming `history` is complete up to `now` (see ScopePlot.fillFromDigitalHistory()/ScopePlot2d.fillDigitalRaster())", () => {
         // Period 2 ticks (d0=1, d1=1): reaching a `now` millions of ticks out needs one real
         // toggle per tick - far more than advanceBackfillPos()'s own per-call iteration budget.
-        const chip = asleepClockChip(1n, 1n, 0, 0n, 0);
-        const reached = chip.backfillHistory(3_000_000n);
+        const chip = asleepClockChip(1, 1, 0, 0, 0);
+        const reached = chip.backfillHistory(3_000_000);
 
-        expect(reached).toBeGreaterThan(0n);
-        expect(reached).toBeLessThan(3_000_000n);
+        expect(reached).toBeGreaterThan(0);
+        expect(reached).toBeLessThan(3_000_000);
         // Everything actually recorded is real (strictly increasing time, strictly alternating
         // value) - the walk just hasn't reached `now` yet, it isn't wrong about what it recorded.
         expect(chip.history.length).toBeGreaterThan(0);
@@ -187,8 +187,8 @@ describe("Chip.backfillHistory()", () => {
 
         // Resumable: further calls make further progress and eventually do reach `now`.
         let t = reached;
-        for (let i = 0; i < 5 && t < 3_000_000n; i++) t = chip.backfillHistory(3_000_000n);
-        expect(t).toBe(3_000_000n);
+        for (let i = 0; i < 5 && t < 3_000_000; i++) t = chip.backfillHistory(3_000_000);
+        expect(t).toBe(3_000_000);
     });
 
     // Regression coverage for the KNOWN GAP this file's backfillHistory()/currentValue() used to
@@ -222,10 +222,10 @@ describe("Chip.backfillHistory()", () => {
             const finalTime = expected[expected.length - 1].time;
 
             let t = chip.sleepTime;
-            let step = 733n; // deliberately not a multiple of 1998, like an unrelated render rate
+            let step = 733; // deliberately not a multiple of 1998, like an unrelated render rate
             while (t < finalTime) {
                 t += step;
-                step = (step * 7n + 91n) % 3000n + 500n; // keep the spacing irregular call to call
+                step = (step * 7 + 91) % 3000 + 500; // keep the spacing irregular call to call
                 chip.backfillHistory(t < finalTime ? t : finalTime);
             }
 

@@ -28,8 +28,8 @@ beforeEach(() => {
  * requested tick. runWithDeadline() with an already-expired deadline processes exactly one queued
  * event (its `first` guard skips the deadline check only for that first one) then returns -
  * giving single-hop control for interleaving a mid-countdown check. */
-function oneHop(circuit: { runWithDeadline: (t: bigint, d: number) => bigint }): void {
-    circuit.runWithDeadline(1_000_000n, Date.now() - 1);
+function oneHop(circuit: { runWithDeadline: (t: number, d: number) => number }): void {
+    circuit.runWithDeadline(1_000_000, Date.now() - 1);
 }
 
 function connect(...posts: { elm: any; num: number }[]): void {
@@ -47,13 +47,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -79,11 +79,11 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(5n);
+        circuit.run(5);
 
         expect(simRunning).toBe(true);
         src.set(1);
-        circuit.run(5n);
+        circuit.run(5);
         expect(simRunning).toBe(false);
         expect(trig.stopped).toBe(true);
     });
@@ -95,10 +95,10 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(5n);
+        circuit.run(5);
 
         src.set(0);
-        circuit.run(5n);
+        circuit.run(5);
         expect(simRunning).toBe(false);
     });
 
@@ -109,16 +109,16 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(2n);
+        circuit.run(2);
 
         for (let i = 0; i < 2; i++) {
-            src.set(1); circuit.run(2n);
-            src.set(0); circuit.run(2n);
+            src.set(1); circuit.run(2);
+            src.set(0); circuit.run(2);
         }
         expect(simRunning).toBe(true); // only 2 of 3 occurrences so far
 
         src.set(1);
-        circuit.run(2n);
+        circuit.run(2);
         expect(simRunning).toBe(false); // 3rd occurrence
     });
 
@@ -129,13 +129,13 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(2n);
+        circuit.run(2);
 
         src.set(1);
         oneHop(circuit); // processes just the rising edge (arms, stop due ~10 ticks later)
         expect(simRunning).toBe(true);
 
-        circuit.run(20n); // now past the scheduled stop tick
+        circuit.run(20); // now past the scheduled stop tick
         expect(simRunning).toBe(false);
     });
 
@@ -146,7 +146,7 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(2n);
+        circuit.run(2);
 
         src.set(1); // arms, stop due ~10 ticks later
         oneHop(circuit);
@@ -154,7 +154,7 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
         oneHop(circuit);
         expect(simRunning).toBe(true);
 
-        circuit.run(20n);
+        circuit.run(20);
         expect(simRunning).toBe(false); // still fires - matches the original stepFinished() semantics
     });
 
@@ -165,10 +165,10 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
 
         const { chipsByElm } = buildDigitalCircuit([src, trig]);
         src.chip = chipsByElm.get(src)![0];
-        src.chip.circuit.run(2n);
+        src.chip.circuit.run(2);
 
         src.set(1);
-        src.chip.circuit.run(2n);
+        src.chip.circuit.run(2);
         expect(simRunning).toBe(false);
 
         // A real reset() rebuilds the whole digital graph (SimulationManager.resetAction() sets
@@ -183,9 +183,9 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
         connect({ elm: src2, num: 0 }, { elm: trig2, num: 0 });
         const built2 = buildDigitalCircuit([src2, trig2]);
         src2.chip = built2.chipsByElm.get(src2)![0];
-        built2.circuit.run(2n);
+        built2.circuit.run(2);
         src2.set(1);
-        built2.circuit.run(2n);
+        built2.circuit.run(2);
         expect(simRunning).toBe(false);
     });
 
@@ -227,10 +227,10 @@ describe("StopTriggerElm.digitalSynthesis()", () => {
         const srcChip = circuit.chips.find(c => c.debugName === "src")!;
         src.chip = srcChip;
 
-        circuit.run(2n);
+        circuit.run(2);
         src.set(1); // arms the trigger; stop fires on this very tick (delay=0)
 
-        const hugeBudget = 10_000_000n;
+        const hugeBudget = 10_000_000;
         const actualTicks = circuit.runWithDeadline(hugeBudget, Date.now() + 60_000);
 
         expect(simRunning).toBe(false);

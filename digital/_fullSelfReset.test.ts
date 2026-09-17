@@ -237,7 +237,7 @@ function buildSimpleCircuit() {
 describe("simplified self-resetting counter pair (single reset domain)", () => {
     it("settles after a long run", () => {
         const c = buildSimpleCircuit();
-        c.circuit.run(2_000_000n);
+        c.circuit.run(2_000_000);
         const report = (label: string, chip: Chip) =>
             console.log(`${label}: state=${ChipState[chip.state]} cycleTime=${chip.cycleTime} historyLen=${chip.history.length}`);
         for (const w of [1, 2, 4, 8]) report(`counter1 bit${w}`, c.bit1(w));
@@ -253,7 +253,7 @@ describe("simplified self-resetting counter pair (single reset domain)", () => {
 describe("full self-resetting H+V (corrected structure)", () => {
     it("settles after a long run", () => {
         const c = buildCircuit();
-        c.circuit.run(2_000_000n);
+        c.circuit.run(2_000_000);
         const report = (label: string, chip: Chip) =>
             console.log(`${label}: state=${ChipState[chip.state]} cycleTime=${chip.cycleTime} historyLen=${chip.history.length}`);
         report("nand5", c.hbit(2)); // representative - see per-signal reports below
@@ -261,7 +261,7 @@ describe("full self-resetting H+V (corrected structure)", () => {
     }, 30000);
 
     it("matches an always-correct baseline over 2,000,000 ticks (V bit 256 and 128)", () => {
-        const runTicks = 2_000_000n;
+        const runTicks = 2_000_000;
 
         const base = buildCircuit();
         // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -

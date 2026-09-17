@@ -80,7 +80,7 @@ export class MonostableElm extends ChipElm {
     digitalSynthesis(): DigitalSynthesis {
         const T = 1, Q = 2, QBAR = 3;
         const EXP = i1;
-        const fallDelayTicks = () => BigInt(Math.max(1, Math.round(this.delay / TIMESCALE)));
+        const fallDelayTicks = () => Math.max(1, Math.round(this.delay / TIMESCALE));
         const invertBit = this.invertTrigger() ? 1 : 0;
 
         const shared: { expireChip: Chip | null; lastT: boolean } = { expireChip: null, lastT: false };
@@ -93,10 +93,10 @@ export class MonostableElm extends ChipElm {
             shared.lastT = tHigh;
 
             if (expHigh && chip.output === 1) {
-                chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // fall
+                chip.pendingEvent = chip.circuit.queuePush(chip, 0); // fall
             } else if (risingT) {
                 if (chip.output === 0) {
-                    chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // rise
+                    chip.pendingEvent = chip.circuit.queuePush(chip, 0); // rise
                 } else if (this.retriggerable && shared.expireChip) {
                     const ec = shared.expireChip;
                     ec.pendingEvent = ec.circuit.queuePush(ec, fallDelayTicks()); // restart timer
@@ -111,7 +111,7 @@ export class MonostableElm extends ChipElm {
             if (qHigh) {
                 chip.pendingEvent = chip.circuit.queuePush(chip, fallDelayTicks()); // arm countdown
             } else if (chip.output === 1) {
-                chip.pendingEvent = chip.circuit.queuePush(chip, 0n); // reset immediately
+                chip.pendingEvent = chip.circuit.queuePush(chip, 0); // reset immediately
             }
         };
 

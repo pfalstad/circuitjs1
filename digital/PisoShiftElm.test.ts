@@ -32,13 +32,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -82,21 +82,21 @@ describe("PisoShiftElm.digitalSynthesis() - new behavior (with SER pin)", () => 
         const elms = [ld, clk, ser, d2, d1, d0, chip, qSink];
         const { circuit, chipsByElm } = buildDigitalCircuit(elms);
         for (const src of [ld, clk, ser, d2, d1, d0]) src.chip = chipsByElm.get(src)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
-        ld.set(1); circuit.run(20n);
+        ld.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // Q = D2 (MSB), loaded async of any clock
 
-        ld.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n);
+        ld.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // Q = D1
 
-        clk.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n);
+        clk.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // Q = D0
 
-        clk.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n);
+        clk.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // Q = SER, as sampled on the very first CLK edge
     });
 });
@@ -117,17 +117,17 @@ describe("PisoShiftElm.digitalSynthesis() - legacy behavior (no SER pin)", () =>
         const elms = [ld, clk, d1, d0, chip, qSink];
         const { circuit, chipsByElm } = buildDigitalCircuit(elms);
         for (const src of [ld, clk, d1, d0]) src.chip = chipsByElm.get(src)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
-        ld.set(1); circuit.run(20n);
+        ld.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // Q = D1 (MSB)
 
-        ld.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n);
+        ld.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // Q = D0
 
-        clk.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n);
+        clk.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // Q = serial-in, fixed at 0 with no SER pin
     });
 });

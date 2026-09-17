@@ -9,19 +9,35 @@
 // Numeric representation notes (see also cirque.ts):
 //  - Fields that are `int` in C++ (inputs, output, event_mask, prev_output_mask,
 //    first_input_mask, active_inputs, and a ChipLink.mask used against a *destination's own*
-//    `inputs` field) become plain `number`, using JS's native 32-bit bitwise operators, which
+//    `inputs` field) are plain `number`, using JS's native 32-bit bitwise operators, which
 //    have exactly the same truncate-to-32-bits semantics as C++ `int`.
-//  - Fields that are `uint64_t` (global_time, delay[], pending_event, activation_time,
-//    cycle_time, cycle_duration, end_time, sleep_time, last_input_event[], last_output_event,
-//    Event.time, a ChipLink.mask used as a *source's own* output-link-index bit, active_outputs,
-//    lut_data, and the sub-cycle allocation bitmask) become `bigint`.
-//  - `ChipLink.mask` is `uint64_t` in the C++ struct but is used in two different ways depending
-//    on whether the link lives in `output_links` (small: a destination-local input-bit mask) or
-//    `input_links` (can be up to bit 63: a source-local output-link-index bit). We store it
-//    uniformly as bigint and convert with Number()/BigInt() at each call site as appropriate.
+//  - Fields that are `uint64_t` in C++ but are genuinely *time* values (global_time, delay[],
+//    pending_event, activation_time, cycle_time, cycle_duration, end_time, sleep_time,
+//    last_input_event[], last_output_event, Event.time, HistoryEntry.time) are plain `number`
+//    too. A `number` is exact for integers up to 2^53-1, which even at a 1ns TIMESCALE is over
+//    a century of continuous simulated runtime -- ample headroom, and native `number`
+//    arithmetic is dramatically cheaper than `bigint` (no heap-allocated arbitrary-precision
+//    object per op), which matters because these fields sit on the hottest per-event paths.
+//  - `lutData` (the SIMPLE_CHIP truth table) is also plain `number`: its cutoff was lowered
+//    from <=6 total LUT-input bits to <=5, so it always fits in one 32-bit word addressed with
+//    native bitwise ops; a 6-bit LUT now falls through to the BASIC_CHIP path instead, which
+//    already used a plain `Uint32Array`, not bigint.
+//  - Fan-out is unbounded. `Cycle.activeOutputs` is a LinkMask (a Uint32Array word-array bitset
+//    over output-link indices), because a single net can drive arbitrarily many inputs. The C++
+//    uses a uint64_t here and is in fact buggy for exactly this reason: `1ull << 157` is
+//    undefined behavior. It survives only because _VCC/_GND never dispatch events, so their
+//    activeOutputs is never read.
+//  - `ChipLink.mask` means two different things depending on which array the link lives in:
+//      * in `outputLinks`: a destination-local *input-bit mask*, xored into the destination's
+//        `inputs`. Bounded by `inputs` being a 32-bit number; assertLinkBit() enforces that.
+//      * in `inputLinks`: the source's *output-link index*, stored as a plain integer (not a
+//        bit), or -1 for a constant source. Storing the index rather than `1 << index` is what
+//        makes fan-out unbounded on this side for free -- it was only ever a single bit.
+//  - The sub-cycle allocation bitmask (SubcycleAllocator) stays `bigint`: SUBCYCLE_SIZE is 64,
+//    so it genuinely needs 64 bits, and it is not on the hot path.
 
 import type { Circuit } from "./circuit";
-import { Cirque } from "./cirque";
+import { Cirque, CirqueNum } from "./cirque";
 import type { ChipDesc } from "./chip_desc";
 import { MAX_PINS } from "./chip_desc";
 import { TIMESCALE, MAX_U64, DEBUG_TRACE } from "./constants";
@@ -42,21 +58,109 @@ class Watchdog {
     }
 }
 
+// Granularity of wakeUp()'s root-only arithmetic period skip: whole periods are skipped only in
+// multiples of this. 2 is the empirically derived "even periods only" rule - see wakeUp().
+const SKIP_MULT = 2;
+
 export enum ChipType { SIMPLE_CHIP = 0, BASIC_CHIP = 1, CUSTOM_CHIP = 2 }
 export enum ChipState { ACTIVE = 0, PASSIVE = 1, ASLEEP = 2 }
 
+// Fan-OUT is unbounded (see LinkMask). What is still bounded is a chip's own input width:
+// `Chip.inputs` is a 32-bit number, so a chip cannot have more than 32 input pins (counting
+// event pins and the prev-output bit). For LUT chips the real ceiling is far lower anyway --
+// the truth table is 2^inputs bits and `inputEventTable` is indexed by `inputs`.
+//
+// Lifting this means changing `Chip.inputs` itself from a number to a bit-vector, which also
+// means rethinking LUT indexing; it is not a matter of widening a mask. Until then this throws
+// rather than silently corrupting state (JS bitwise ops truncate to 32 bits, `1 << 32` is `1`).
+export const MAX_LINK_BITS = 32;
+
+export function assertLinkBit(bit: number, what: string): void {
+    if (bit >= MAX_LINK_BITS)
+        throw new Error(
+            `FATAL: ${what} needs bit ${bit}, but Chip.inputs is a ${MAX_LINK_BITS}-bit number. ` +
+            `Widening this requires changing Chip.inputs to a bit-vector, not just the mask.`);
+}
+
+// A bitset over output-link indices, with no upper bound on fan-out. Backed by a Uint32Array;
+// the overwhelmingly common case is a single word, and the hot paths special-case that to stay
+// as cheap as a plain number. Replaces the previous unbounded `bigint` mask, which allocated an
+// arbitrary-precision object on every set/clear/copy on the hottest paths in the engine.
+export class LinkMask {
+    words: Uint32Array;
+
+    constructor(nbits: number = 32) {
+        this.words = new Uint32Array(Math.max(1, (nbits + 31) >>> 5));
+    }
+
+    private grow(nwords: number): void {
+        const w = new Uint32Array(nwords);
+        w.set(this.words);
+        this.words = w;
+    }
+
+    // Word `w`, or 0 if this mask is narrower than that.
+    word(w: number): number { return w < this.words.length ? this.words[w] : 0; }
+
+    setBit(i: number): void {
+        const w = i >>> 5;
+        if (w >= this.words.length) this.grow(w + 1);
+        this.words[w] |= (1 << (i & 31));
+    }
+
+    clearBit(i: number): void {
+        const w = i >>> 5;
+        if (w < this.words.length) this.words[w] &= ~(1 << (i & 31));
+    }
+
+    testBit(i: number): boolean {
+        const w = i >>> 5;
+        return w < this.words.length && (this.words[w] & (1 << (i & 31))) !== 0;
+    }
+
+    isZero(): boolean {
+        const w = this.words;
+        if (w.length === 1) return w[0] === 0; // fast path: nearly every real chip
+        for (let k = 0; k < w.length; k++) if (w[k] !== 0) return false;
+        return true;
+    }
+
+    copyFrom(o: LinkMask): void {
+        const a = this.words, b = o.words;
+        // Fast path. This runs on every sub-cycle descent, and TypedArray.set() costs far more
+        // than a single element assignment.
+        if (a.length === 1 && b.length === 1) { a[0] = b[0]; return; }
+        if (a.length < b.length) { this.words = new Uint32Array(b.length); this.words.set(b); return; }
+        a.set(b);
+        for (let k = b.length; k < a.length; k++) a[k] = 0;
+    }
+
+    // Set the low `n` bits, clear the rest.
+    setLow(n: number): void {
+        const need = Math.max(1, (n + 31) >>> 5);
+        if (this.words.length < need) this.grow(need);
+        const w = this.words;
+        for (let k = 0; k < w.length; k++) {
+            const lo = k << 5;
+            if (lo + 32 <= n) w[k] = -1;
+            else if (lo >= n) w[k] = 0;
+            else w[k] = (1 << (n - lo)) - 1;
+        }
+    }
+}
+
 export class ChipLink {
     chip: Chip;
-    mask: bigint;
-    constructor(chip: Chip, mask: bigint) { this.chip = chip; this.mask = mask; }
+    mask: number;
+    constructor(chip: Chip, mask: number) { this.chip = chip; this.mask = mask; }
 }
 
 export class Event {
-    time: bigint;
+    time: number;
     state: number;      // meaningful when type === 0
     subCycle: Cycle | null; // meaningful when type === 1
     type: number;        // 1 = SUBCYCLE_MASK
-    constructor(time: bigint = 0n, state: number = 0, type: number = 0, subCycle: Cycle | null = null) {
+    constructor(time: number = 0, state: number = 0, type: number = 0, subCycle: Cycle | null = null) {
         this.time = time;
         this.state = state;
         this.subCycle = subCycle;
@@ -100,11 +204,11 @@ export class Cycle {
     firstOutputEvent: number;
     currentOutputEvent: number;
 
-    activationTime: bigint = 0n;
-    cycleTime: bigint = 0n;
-    cycleDuration: bigint = 0n;
-    endTime: bigint = 0n;
-    activeOutputs: bigint = 0n;
+    activationTime: number = 0;
+    cycleTime: number = 0;
+    cycleDuration: number = 0;
+    endTime: number = 0;
+    activeOutputs: LinkMask = new LinkMask();
 
     constructor(queueSize: number, subcycleSize: number) {
         this.outputEvents = new Cirque<Event>(queueSize, () => new Event());
@@ -113,7 +217,7 @@ export class Cycle {
         this.allocatedSubCycles = new SubcycleAllocator(subcycleSize);
     }
 
-    nextOutputEventDelay(): bigint {
+    nextOutputEventDelay(): number {
         if (this.currentOutputEvent === this.firstOutputEvent) {
             return this.outputEvents.get(this.firstOutputEvent).time + this.cycleTime - this.outputEvents.back().time;
         } else {
@@ -123,7 +227,7 @@ export class Cycle {
     }
 
     // NOTE: mutates `this` and, when descending into a sub-cycle, the sub-cycle too.
-    nextOutputCycle(time: bigint): Cycle {
+    nextOutputCycle(time: number): Cycle {
         const ev = this.outputEvents.get(this.currentOutputEvent);
 
         if (ev.type) {
@@ -135,7 +239,7 @@ export class Cycle {
             cycle.endTime = time + cycle.cycleDuration;
             if (cycle.endTime > this.endTime) cycle.endTime = this.endTime;
             cycle.activationTime = time;
-            cycle.activeOutputs = this.activeOutputs;
+            cycle.activeOutputs.copyFrom(this.activeOutputs); // value copy: Cycles must not share a mask
             cycle.currentOutputEvent = cycle.firstOutputEvent;
 
             return cycle.nextOutputCycle(time);
@@ -148,16 +252,16 @@ export class Cycle {
     }
 }
 
-export interface HistoryEntry { time: bigint; value: number; }
+export interface HistoryEntry { time: number; value: number; }
 
 // Implemented by anything that reads a Chip's `history` after the fact (ScopePlot, ScopePlot2d)
 // so the chip can bound how much of it to keep - see Chip.trimHistory()'s own comment. Returns
 // the earliest `history[i].time` this watcher might still need to look at on its NEXT call -
-// everything strictly before that is provably dead weight for this watcher. -1n means "haven't
+// everything strictly before that is provably dead weight for this watcher. -1 means "haven't
 // established a real floor yet" (e.g. just attached/reset and about to do a from-scratch seed
 // pass over whatever's currently available) - trimHistory() treats that as "don't discard
-// anything on this watcher's account" since -1n sorts below every real (>= 0n) history time.
-export interface HistoryWatcher { historyFloor(): bigint; }
+// anything on this watcher's account" since -1 sorts below every real (>= 0) history time.
+export interface HistoryWatcher { historyFloor(): number; }
 
 // A backfill replay position, mirroring a (possibly nested) Cycle.currentCycle chain but held
 // entirely separately so backfillHistory()/currentValue() can advance it without touching any
@@ -170,14 +274,14 @@ export interface HistoryWatcher { historyFloor(): bigint; }
 // `entryTime` is the absolute time this frame's level was entered (needed, mirroring
 // climbToValidCycle()'s own `globalTime - currentCycle.activationTime` term, to figure out how
 // much of a level's own span has already been consumed when climbing back out of it) - meaningless
-// for the outermost frame (never climbed out of - its exitBound is MAX_U64) so left as 0n there.
+// for the outermost frame (never climbed out of - its exitBound is MAX_U64) so left as 0 there.
 // `exitBound` is the absolute time at which control must return to the enclosing frame - MAX_U64
 // for the outermost frame, otherwise `entryTime` plus `level`'s own cycleDuration, capped by the
 // enclosing frame's own exitBound (mirroring nextOutputCycle()'s own endTime capping, computed
 // fresh here rather than trusting the real (transient, only valid mid-live-traversal) Cycle
 // object's own .endTime field). `sub` is the next frame in - null once `idx` refers to a plain
 // (non-SUBCYCLE_MASK) event.
-interface BackfillPos { level: Cycle; idx: number; entryTime: bigint; exitBound: bigint; sub: BackfillPos | null }
+interface BackfillPos { level: Cycle; idx: number; entryTime: number; exitBound: number; sub: BackfillPos | null }
 
 // Rebuilds a BackfillPos chain from a flat top-to-bottom array of frames (the inverse of walking
 // `.sub` pointers) - used by advanceBackfillPos() after mutating one frame in place.
@@ -219,7 +323,7 @@ function captureBackfillPos(chip: Chip): BackfillPos {
 // before the one-step advance happens at whatever level actually turns out to be real. Every
 // level touched here starts its `exitBound` from the SAME `absTime` (the whole nested chain is
 // being entered simultaneously), each capped by the enclosing level's own bound.
-function pushEnteredCycle(frames: BackfillPos[], cycle: Cycle, absTime: bigint, exitBound: bigint): void {
+function pushEnteredCycle(frames: BackfillPos[], cycle: Cycle, absTime: number, exitBound: number): void {
     let level = cycle;
     let bound = exitBound;
     for (; ;) {
@@ -239,7 +343,7 @@ function pushEnteredCycle(frames: BackfillPos[], cycle: Cycle, absTime: bigint, 
 // The raw per-level delay formula (nextOutputEventDelay()'s own, evaluated against a given
 // (level, idx) pair instead of that Cycle's live currentOutputEvent) - shared by the normal
 // per-step computation and the climb adjustment below, which both need it.
-function rawDelay(level: Cycle, idx: number): bigint {
+function rawDelay(level: Cycle, idx: number): number {
     const oe = level.outputEvents;
     return idx === level.firstOutputEvent
         ? oe.get(level.firstOutputEvent).time + level.cycleTime - oe.back().time
@@ -265,11 +369,11 @@ function rawDelay(level: Cycle, idx: number): bigint {
 // skipped via arithmetic instead of being stepped one at a time (fast mode, for currentValue()).
 function advanceBackfillPos(
     startPos: BackfillPos,
-    startAbsTime: bigint,
+    startAbsTime: number,
     startValue: number,
-    now: bigint,
-    record: ((absTime: bigint, value: number) => void) | null,
-): { pos: BackfillPos; absTime: bigint; value: number; complete: boolean } {
+    now: number,
+    record: ((absTime: number, value: number) => void) | null,
+): { pos: BackfillPos; absTime: number; value: number; complete: boolean } {
     let pos = startPos;
     let absTime = startAbsTime;
     let value = startValue;
@@ -309,20 +413,20 @@ function advanceBackfillPos(
         const oe = level.outputEvents;
 
         // Fast mode: skip whole periods of `level` via arithmetic when nothing needs recording -
-        // same trick wakeUp() itself relies on (`time = (globalTime - sleepTime) % cycleTime`):
+        // same trick wakeUp() itself relies on for its root whole-period skip:
         // walking exactly `level.cycleTime` ticks from anywhere always lands back on the same idx
         // with the same value, by definition of what "this level repeats with period cycleTime"
         // means - true regardless of what's inside the period (nested sub-cycles included), so
         // unlike an approach that tries to count toggles-per-period, this needs no per-level
         // "is it a clean/flat template" check at all. Only `absTime` moves; `idx`/`value` don't.
-        if (record === null && level.cycleTime > 0n) {
+        if (record === null && level.cycleTime > 0) {
             const bound = inner.exitBound < now ? inner.exitBound : now;
             const elapsed = bound - absTime;
             if (elapsed > level.cycleTime) {
-                // "- 1n" keeps at least one period's worth of normal stepping below, so the usual
+                // "- 1" keeps at least one period's worth of normal stepping below, so the usual
                 // tie-breaking at `now`/exitBound never needs to be reproduced here.
-                const periods = (elapsed - 1n) / level.cycleTime;
-                if (periods > 0n) {
+                const periods = Math.trunc((elapsed - 1) / level.cycleTime);
+                if (periods > 0) {
                     absTime += periods * level.cycleTime;
                     continue;
                 }
@@ -435,15 +539,15 @@ export class Chip extends Cycle {
     eventMask = ~0;
     prevOutputMask = 0;
 
-    delay: [bigint, bigint] = [0n, 0n];
-    pendingEvent = 0n;
+    delay: [number, number] = [0, 0];
+    pendingEvent = 0;
 
     outputLinks: ChipLink[] = [];
     inputLinks: ChipLink[] = [];
 
     type: ChipType = ChipType.CUSTOM_CHIP;
 
-    lutData = 0n;               // SIMPLE_CHIP
+    lutData = 0;               // SIMPLE_CHIP
     lut: Uint32Array | null = null; // BASIC_CHIP
     customUpdate: ((chip: Chip, mask: number) => void) | null = null; // CUSTOM_CHIP
 
@@ -451,18 +555,38 @@ export class Chip extends Cycle {
     optimizationDisabled = false;
     isDeoptimizer = false; // true only for the special "_DEOPTIMIZER" chip
 
+    // True only for the special "_VCC" / "_GND" chips. They fan out to every chip with a power
+    // pin, but they are constant sources: they never schedule an event, so their own
+    // activeOutputs is never read to dispatch anything. Links from these chips get input-link
+    // index -1, which makes the activeOutputs set/clear in deactivateOutputs()/activateInputs()
+    // a harmless no-op.
+    isConstantSource = false;
+
+    // Number of Uint32 words needed to cover this chip's output links; 1 for all but the very
+    // widest nets. Kept in sync as connect() grows outputLinks.
+    maskWords = 1;
+
+    // Position in Circuit.chips. A FIXED property, unlike insertion sequence, so it can order
+    // same-timestamp events in a way that is invariant to how the queue was reached - see
+    // Circuit.queuePush()'s own tie-break comment.
+    chipIndex = 0;
+
+    // Reusable snapshot of currentCycle.activeOutputs. Safe to share per-chip because neither of
+    // its two uses calls into another chip between taking the snapshot and consuming it.
+    private actOutSnap = new LinkMask();
+
     state: ChipState = ChipState.PASSIVE;
 
     inputEvents: Cirque<Event>;
-    inputEventEndTime: Cirque<bigint>;
-    inputEventTable: Cirque<number>[] = [];
+    inputEventEndTime: CirqueNum;
+    inputEventTable: CirqueNum[] = [];
     firstInputTablePos = 0;
 
     firstInputEvent = 0;
     firstInputMask = 0;
     activeInputs = 0;
 
-    sleepTime = 0n;
+    sleepTime = 0;
 
     // Resumable cursor for backfillHistory() below - seeded at the exact position/time this
     // chip fell ASLEEP (see updateOutput()'s ASLEEP-entry branch), then advanced forward by
@@ -471,8 +595,8 @@ export class Chip extends Cycle {
     // scratch) - see backfillHistory()'s own docstring for why sharing those would corrupt live
     // replay. `backfillPos` mirrors currentCycle's own (possibly nested) position - see
     // BackfillPos's own docstring.
-    private backfillPos: BackfillPos = { level: this, idx: 0, entryTime: 0n, exitBound: MAX_U64, sub: null };
-    private backfillAbsTime = 0n;
+    private backfillPos: BackfillPos = { level: this, idx: 0, entryTime: 0, exitBound: MAX_U64, sub: null };
+    private backfillAbsTime = 0;
     private backfillValue = 0;
 
     // Set once (never cleared) by ScopePlot.setDigitalChip() the first time some Scope resolves
@@ -519,7 +643,7 @@ export class Chip extends Cycle {
     // SimulationManager.runCircuit()) - cheap to call on a chip with nothing to trim (the common
     // case), so no separate bookkeeping tracks whether it's actually needed this particular call.
     trimHistory(): void {
-        let floor: bigint | null = null;
+        let floor: number | null = null;
         for (const ref of this.historyWatchers) {
             const w = ref.deref();
             if (w === undefined) { this.historyWatchers.delete(ref); continue; }
@@ -547,8 +671,8 @@ export class Chip extends Cycle {
 
     activationCycles: (Cycle | null)[] = [];
 
-    lastInputEvent: bigint[] = [];
-    lastOutputEvent = 0n;
+    lastInputEvent: number[] = [];
+    lastOutputEvent = 0;
 
     visited = false;
 
@@ -561,7 +685,7 @@ export class Chip extends Cycle {
         this.customData = custom;
         this.currentCycle = this;
         this.inputEvents = new Cirque<Event>(queueSize, () => new Event());
-        this.inputEventEndTime = new Cirque<bigint>(queueSize, () => 0n);
+        this.inputEventEndTime = new CirqueNum(queueSize);
         this.subCycles = new Array(subcycleSize).fill(null);
 
         if (desc.logic === null && desc.custom === null) {
@@ -586,13 +710,13 @@ export class Chip extends Cycle {
         // Forcing a minimum 1-tick delay everywhere breaks same-instant ties without
         // requiring pd= support in the UI.
         this.delay = [
-            BigInt(Math.max(1, Math.trunc(desc.delay[0] / TIMESCALE))),
-            BigInt(Math.max(1, Math.trunc(desc.delay[1] / TIMESCALE))),
+            Math.max(1, Math.trunc(desc.delay[0] / TIMESCALE)),
+            Math.max(1, Math.trunc(desc.delay[1] / TIMESCALE)),
         ];
 
         this.inputLinks = new Array(numInputPins);
         this.activationCycles = new Array(numInputPins).fill(null);
-        this.lastInputEvent = new Array(numInputPins).fill(0n);
+        this.lastInputEvent = new Array(numInputPins).fill(0);
 
         if (desc.custom) {
             this.type = ChipType.CUSTOM_CHIP;
@@ -604,9 +728,12 @@ export class Chip extends Cycle {
         for (let k = 0; k < desc.evPins.length; k++) this.eventMask &= ~(1 << lutSize++);
         if (desc.prevOutPin) { this.prevOutputMask = (1 << lutSize); lutSize++; }
 
-        if (lutSize <= 6) {
+        // <=5, not <=6: lutData is a plain 32-bit `number` now, so the whole table must fit in
+        // one word. A 6-bit LUT falls through to the BASIC_CHIP path, which already used a
+        // Uint32Array.
+        if (lutSize <= 5) {
             this.type = ChipType.SIMPLE_CHIP;
-            this.lutData = 0n;
+            this.lutData = 0;
         } else {
             this.type = ChipType.BASIC_CHIP;
             this.lut = new Uint32Array(1 << (lutSize - 5));
@@ -626,7 +753,7 @@ export class Chip extends Cycle {
             desc.logic!(pin, prevPin, eventPin, custom);
 
             if (this.type === ChipType.SIMPLE_CHIP) {
-                if (pin[desc.outPin]) this.lutData |= (1n << BigInt(i));
+                if (pin[desc.outPin]) this.lutData |= (1 << i);
             } else {
                 if (pin[desc.outPin]) this.lut![i >> 5] |= (1 << (i & 0x1f));
             }
@@ -639,7 +766,7 @@ export class Chip extends Cycle {
         this.inputs &= this.eventMask;
 
         switch (this.type) {
-            case ChipType.SIMPLE_CHIP: newOut = Number((this.lutData >> BigInt(this.inputs)) & 1n); break;
+            case ChipType.SIMPLE_CHIP: newOut = (this.lutData >>> this.inputs) & 1; break;
             case ChipType.BASIC_CHIP: newOut = (this.lut![this.inputs >> 5] >> (this.inputs & 0x1f)) & 1; break;
             case ChipType.CUSTOM_CHIP: this.customUpdate!(this, 0); return;
         }
@@ -650,7 +777,7 @@ export class Chip extends Cycle {
             if (this.output) this.inputs |= this.prevOutputMask;
             else this.inputs &= ~this.prevOutputMask;
 
-            for (const link of this.outputLinks) link.chip.inputs ^= Number(link.mask);
+            for (const link of this.outputLinks) link.chip.inputs ^= link.mask;
             for (const link of this.outputLinks) {
                 if (link.chip === (this as Chip)) continue;
                 link.chip.initialize();
@@ -664,19 +791,25 @@ export class Chip extends Cycle {
                 let x = 0;
                 for (; x < this.outputLinks.length; x++) if (this.outputLinks[x].chip === chip) break;
 
+                assertLinkBit(i, `chip '${chip.debugName}' input pin index`);
+
                 if (x !== this.outputLinks.length) {
-                    this.outputLinks[x].mask |= BigInt(1 << i);
+                    this.outputLinks[x].mask |= 1 << i;
                 } else {
-                    this.outputLinks.push(new ChipLink(chip, BigInt(1 << i)));
-                    this.activeOutputs |= (1n << BigInt(x));
+                    this.outputLinks.push(new ChipLink(chip, 1 << i));
+                    if (!this.isConstantSource) this.activeOutputs.setBit(x);
+                    this.maskWords = this.activeOutputs.words.length;
                 }
 
                 for (let j = 0; j < desc.evPins.length; j++)
-                    if (desc.evPins[j] === pin)
-                        this.outputLinks[x].mask |= BigInt(1 << (chip.inputLinks.length + j));
+                    if (desc.evPins[j] === pin) {
+                        assertLinkBit(chip.inputLinks.length + j, `chip '${chip.debugName}' event pin bit`);
+                        this.outputLinks[x].mask |= 1 << (chip.inputLinks.length + j);
+                    }
 
                 if (this.type !== ChipType.CUSTOM_CHIP || !this.isDeoptimizer)
-                    chip.inputLinks[i] = new ChipLink(this, 1n << BigInt(x));
+                    // inputLinks store the source's output-link INDEX, not a bit (-1 = constant source).
+                    chip.inputLinks[i] = new ChipLink(this, this.isConstantSource ? -1 : x);
 
                 return;
             }
@@ -686,9 +819,9 @@ export class Chip extends Cycle {
     // Repeatedly climbs from `this.currentCycle` to its parent while `delay` (measured from
     // `globalTime - time`) would carry us past the current cycle's endTime, adjusting `delay`
     // to land within the parent instead. `time` is the offset already consumed within the
-    // current cycle; pass 0n when there is none. `watchdog`/`message` are optional since not
+    // current cycle; pass 0 when there is none. `watchdog`/`message` are optional since not
     // every call site guards this climb.
-    private climbToValidCycle(globalTime: bigint, time: bigint, delay: bigint, watchdog?: Watchdog, message?: () => string): bigint {
+    private climbToValidCycle(globalTime: number, time: number, delay: number, watchdog?: Watchdog, message?: () => string): number {
         while (globalTime - time + delay >= this.currentCycle.endTime) {
             watchdog?.tick(message!);
             const parent = this.currentCycle.parentCycle!;
@@ -700,10 +833,11 @@ export class Chip extends Cycle {
     }
 
     // Finishes backfillHistory()'s own granular walk up through `now`, right as this chip wakes
-    // (from either wakeUp() or updateOutput()'s own ASLEEP branch) - BEFORE either goes on to
-    // (re)compute `this.output`/`currentCycle` via its own, separate, cheaper method (a modulo
-    // shortcut - see wakeUp()'s own comment on why it can't just always do this walk itself: it'd
-    // trade away the whole point of the promotion optimization for a chip nobody's watching).
+    // (always via wakeUp(), which updateOutput()'s ASLEEP case now delegates to) - BEFORE that
+    // replay goes on to (re)compute `this.output`/`currentCycle` via its own, separate, cheaper
+    // method (the root whole-period skip - see wakeUp()'s own comment on why it can't just always
+    // walk every toggle itself: it'd trade away the whole point of the promotion optimization for
+    // a chip nobody's watching).
     //
     // The actual bug this fixes: `this.output`'s setter (see its own comment) appends to `history`
     // on every real change - including the ones wakeUp()'s/updateOutput()'s own replay makes while
@@ -723,22 +857,25 @@ export class Chip extends Cycle {
     // advantage of when it happens to be true, since the walk from there to `now` is normally
     // short), or (b) `historyWatched` is true - i.e. some Scope has EVER resolved its digitalChip
     // to this Chip (see that field's own comment). (b) is the one that matters: skipping the
-    // granular walk and falling back to wakeUp()'s/updateOutput()'s own cheaper modulo-shortcut
-    // replay is only actually safe for a chip nothing is watching.
+    // granular walk and falling back to wakeUp()'s own cheaper period-skipping replay is only
+    // actually safe for a chip nothing is watching.
     //
     // It is NOT safe merely because nobody happened to poll backfillHistory() during THIS
     // PARTICULAR sleep episode (the guard used to check ONLY (a), unconditionally treating
     // "unpolled this episode" as "safe to skip" - the real bug behind the reported
     // white-streaks/missing-detail corruption, confirmed via chip.wakeUpHistoryTruncation.test.ts).
-    // The modulo-shortcut replay does NOT populate `history` for the whole elapsed sleep: `time =
-    // (globalTime - sleepTime) %
-    // cycleTime` reduces the walk to at most one (possibly partial) period, by design - the
-    // whole point of the promotion optimization is that `this.output`'s FINAL value doesn't need
-    // every intermediate toggle replayed to be correct. Any whole periods elapsed before that
-    // final partial one are simply never visited by that path, so their setter-triggered writes
-    // never happen - not "deferred", genuinely dropped (worse the more periods a wake's modulo
-    // shortcut collapses - i.e. worse the faster the sim runs, or the longer between Scope draws -
-    // matching the reported symptom). The single transition that final partial-period step DOES
+    // The replay does NOT populate `history` for the whole elapsed sleep. It used to collapse
+    // the walk to at most one (possibly partial) period with `time = (globalTime - sleepTime) %
+    // cycleTime`; that modulo is gone (it ignored enclosing-cycle boundaries - see wakeUp()), but
+    // the same gap remains in weaker form, because wakeUp() still fast-forwards whole periods
+    // arithmetically at the root rather than stepping through each one. Either way it is by
+    // design - the whole point of the promotion optimization is that `this.output`'s FINAL value
+    // doesn't need every intermediate toggle replayed to be correct. Whole periods skipped that
+    // way are simply never visited, so their setter-triggered writes never happen - not
+    // "deferred", genuinely dropped (worse the longer the sleep, i.e. worse the faster the sim
+    // runs or the longer between Scope draws - matching the reported symptom). The transitions
+    // the replay DOES compute and write can also, less often, land on a time/value the granular
+    // walk itself would
     // compute and write can also, less often, land on a time/value the granular walk itself would
     // NOT have produced for that instant (see chip.wakeUpHistoryTruncation.test.ts's own header
     // comment) - `this.output` still converges back to correct once a subsequent real input event
@@ -751,7 +888,7 @@ export class Chip extends Cycle {
     // reconstructed trace needs every one of those transitions right, and once one is dropped or
     // misrecorded it's permanent: a solid gap or a wrong-colored pixel (the reported "white
     // streak"/missing block, or an occasional stray one). Also gating this
-    // on `historyWatched` keeps the fast, gap-tolerant modulo path for the (common) case of a
+    // on `historyWatched` keeps the fast, gap-tolerant period-skipping path for the (common) case of a
     // chip nothing is scoping - unwatched chips have no `history` reader to ever notice a gap -
     // while any chip a Scope cares about pays the granular-walk cost on every wake, whether or
     // not that specific episode happened to get polled first.
@@ -778,18 +915,38 @@ export class Chip extends Cycle {
         return this.backfillHistory(now) >= now;
     }
 
-    // Deactivates every output link chip whose bit is set in `mask` (a bitmask of indices into
-    // outputLinks, MSB-first via nextBit64).
-    private deactivateOutputsInMask(mask: bigint): void {
-        while (mask !== 0n) {
-            __globalMaskWatchdog();
-            const i = Chip.nextBit64(mask);
-            this.outputLinks[i].chip.deactivateOutputs();
-            mask &= ~(1n << BigInt(i));
+    // Deactivates every output link that is set in `a` but not in `b`. The difference is
+    // computed up front (matching the old single-mask semantics) because deactivateOutputs() can
+    // re-enter and mutate these masks. The single-word path allocates nothing; wider chips take
+    // a fresh scratch array rather than a shared one, so recursion stays safe.
+    private deactivateDiff(a: LinkMask, b: LinkMask): void {
+        if (this.maskWords <= 1) {
+            let m = a.words[0] & ~b.words[0];
+            while (m !== 0) {
+                __globalMaskWatchdog();
+                const i = Chip.nextBit(m);
+                this.outputLinks[i].chip.deactivateOutputs();
+                m &= ~(1 << i);
+            }
+            return;
+        }
+
+        const nw = this.maskWords;
+        const diff = new Uint32Array(nw);
+        for (let w = 0; w < nw; w++) diff[w] = a.word(w) & ~b.word(w);
+        for (let w = 0; w < nw; w++) {
+            let m = diff[w];
+            const base = w << 5;
+            while (m !== 0) {
+                __globalMaskWatchdog();
+                const i = Chip.nextBit(m);
+                this.outputLinks[base + i].chip.deactivateOutputs();
+                m &= ~(1 << i);
+            }
         }
     }
 
-    getNextOutput(time: bigint): number {
+    getNextOutput(time: number): number {
         this.currentOutputEvent = this.outputEvents.begin();
         let c: Cycle = this;
 
@@ -822,23 +979,45 @@ export class Chip extends Cycle {
         const globalTime = this.circuit.globalTime;
         this.state = ChipState.ACTIVE;
 
-        let time = (globalTime - this.sleepTime) % this.cycleTime;
+        // The replay walks the WHOLE sleep span. It must not be collapsed with `% cycleTime`:
+        // that single unbounded modulo ignores enclosing-cycle boundaries, which is what made
+        // sleeps longer than one cycle wrong - and the climb below makes such sleeps routine.
+        // Because the walk visits every period itself, the cycle needs no compensating
+        // endTime/activationTime shift either.
+        let time = globalTime - this.sleepTime;
         let delay = this.currentCycle.nextOutputEventDelay();
         this.lastOutputEvent = globalTime - time;
 
-        if (this.currentCycle !== (this as Cycle)) {
-            const sleepCycles = (globalTime - this.sleepTime) / this.cycleTime;
-            this.currentCycle.endTime += this.cycleTime * sleepCycles;
-            this.currentCycle.activationTime += this.cycleTime * sleepCycles;
-        }
-
-        const actOut = this.currentCycle.activeOutputs;
+        this.actOutSnap.copyFrom(this.currentCycle.activeOutputs);
 
         delay = this.climbToValidCycle(globalTime, time, delay);
 
-        const wakeWatchdog = new Watchdog(100000);
+        const wakeWatchdog = new Watchdog(100000000);
         while (time > delay) {
             wakeWatchdog.tick(() => `wakeUp stuck: chip=${this.debugName} time=${time} delay=${delay}`);
+
+            // Fast-forward whole periods AT THE ROOT. Advancing exactly cycleTime from anywhere
+            // returns to the same cursor with the same output -- that is what "this chip repeats
+            // with period cycleTime" means -- so whole periods can be skipped arithmetically
+            // instead of walked event by event. Restricted to the root because only there is
+            // there no enclosing cycle whose endTime the skip could cross; the single unbounded
+            // modulo wakeUp() used to apply everywhere is exactly the version that ignores those
+            // boundaries, which is why it was wrong. `time - delay >= cycleTime` keeps at least
+            // one event's worth of normal stepping, so the loop's own termination is untouched.
+            //
+            // Skipped in EVEN numbers only (SKIP_MULT): a period is not guaranteed to hold an
+            // even number of output toggles - for at least one chip cycleTime is really a HALF
+            // period - so skipping a single period can flip the output. Skipping in pairs cannot.
+            //
+            // NOTE this loop is only ever entered when nothing was watching the trace; a watched
+            // chip has already had `history` walked toggle-by-toggle by catchUpHistoryBeforeWake()
+            // above, and `historySynced` then keeps this replay from double-recording it.
+            if (this.currentCycle === (this as Cycle) && this.cycleTime > 0
+                && time - delay >= this.cycleTime) {
+                let periods = Math.trunc((time - delay) / this.cycleTime);
+                periods -= periods % SKIP_MULT;
+                if (periods > 0) time -= periods * this.cycleTime;
+            }
             time -= delay;
 
             if (historySynced) this._output ^= 1; else this.output ^= 1;
@@ -854,7 +1033,7 @@ export class Chip extends Cycle {
         this.pendingEvent = this.circuit.queuePush(this, delay - time);
         this.currentCycle = this.currentCycle.nextOutputCycle(globalTime - time + delay);
 
-        this.deactivateOutputsInMask((~actOut) & this.currentCycle.activeOutputs);
+        this.deactivateDiff(this.currentCycle.activeOutputs, this.actOutSnap);
     }
 
     updateInputs(mask: number): void {
@@ -898,12 +1077,12 @@ export class Chip extends Cycle {
         this.inputs ^= mask;
 
         let newOut: number;
-        if (this.type === ChipType.SIMPLE_CHIP) newOut = Number((this.lutData >> BigInt(this.inputs)) & 1n);
+        if (this.type === ChipType.SIMPLE_CHIP) newOut = (this.lutData >>> this.inputs) & 1;
         else newOut = (this.lut![this.inputs >> 5] >> (this.inputs & 0x1f)) & 1;
 
         if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' input changed, new output: ${newOut}`);
 
-        if (newOut !== this.output && this.pendingEvent === 0n) {
+        if (newOut !== this.output && this.pendingEvent === 0) {
             this.pendingEvent = this.circuit.queuePush(this, this.delay[this.output]);
             this.inputs ^= this.prevOutputMask;
 
@@ -913,8 +1092,8 @@ export class Chip extends Cycle {
             }
 
             this.outputEvents.push_back(new Event(globalTime + this.delay[this.output], newOut));
-        } else if (this.pendingEvent !== 0n && newOut === this.output) {
-            this.pendingEvent = 0n;
+        } else if (this.pendingEvent !== 0 && newOut === this.output) {
+            this.pendingEvent = 0;
             this.inputs ^= this.prevOutputMask;
 
             if (!this.outputEvents.empty()) this.outputEvents.pop_back();
@@ -923,7 +1102,7 @@ export class Chip extends Cycle {
         this.inputs &= this.eventMask;
 
         while (this.inputEventTable.length <= this.inputs)
-            this.inputEventTable.push(new Cirque<number>(this.outputEvents.getQueueSize(), () => 0));
+            this.inputEventTable.push(new CirqueNum(this.outputEvents.getQueueSize()));
 
         this.firstInputTablePos = this.inputEventTable[this.inputs].begin();
         this.firstInputMask = this.activeInputs = (1 << this.inputLinks.length) - 1;
@@ -948,16 +1127,16 @@ export class Chip extends Cycle {
         chip.inputs ^= mask;
 
         let newOut: number;
-        if (chip.type === ChipType.SIMPLE_CHIP) newOut = Number((chip.lutData >> BigInt(chip.inputs)) & 1n);
+        if (chip.type === ChipType.SIMPLE_CHIP) newOut = (chip.lutData >>> chip.inputs) & 1;
         else newOut = (chip.lut![chip.inputs >> 5] >> (chip.inputs & 0x1f)) & 1;
 
         if (DEBUG_TRACE) console.log(`[t:${chip.circuit.globalTime}] chip '${chip.debugName}' input changed, new output: ${newOut}`);
 
-        if (newOut !== chip.output && chip.pendingEvent === 0n) {
+        if (newOut !== chip.output && chip.pendingEvent === 0) {
             chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);
             chip.inputs ^= chip.prevOutputMask;
-        } else if (chip.pendingEvent !== 0n && newOut === chip.output) {
-            chip.pendingEvent = 0n;
+        } else if (chip.pendingEvent !== 0 && newOut === chip.output) {
+            chip.pendingEvent = 0;
             chip.inputs ^= chip.prevOutputMask;
         }
 
@@ -967,56 +1146,48 @@ export class Chip extends Cycle {
     updateOutput(): void {
         const globalTime = this.circuit.globalTime;
 
-        if (this.state === ChipState.ASLEEP) {
-            // requires state still ASLEEP - see its own docstring
-            const historySynced = this.catchUpHistoryBeforeWake();
-            this.state = ChipState.ACTIVE;
-
-            const actOut = this.currentCycle.activeOutputs;
-
-            const asleepWatchdog = new Watchdog(100000);
-            const delay = this.climbToValidCycle(globalTime, 0n, 0n, asleepWatchdog,
-                () => `updateOutput(asleep) stuck: chip=${this.debugName}`);
-
-            this.currentCycle = this.currentCycle.nextOutputCycle(globalTime + delay);
-            this.pendingEvent = this.circuit.queuePush(this, delay);
-
-            const curEv = this.currentCycle.outputEvents.get(this.currentCycle.currentOutputEvent);
-            let newOutput: number;
-            if (curEv.type) {
-                let c = curEv.subCycle!;
-                while (c.outputEvents.front().type) c = c.outputEvents.front().subCycle!;
-                newOutput = c.outputEvents.front().state;
-            } else {
-                newOutput = curEv.state;
-            }
-            if (historySynced) this._output = newOutput; else this.output = newOutput;
-
-            this.lastOutputEvent = globalTime;
-
-            if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' output changed to ${this.output}`);
-
-            this.deactivateOutputsInMask((~actOut) & this.currentCycle.activeOutputs);
-
-            return;
-        }
+        // A sleeping chip always wakes through the full wakeUp(): unlike the inline fast path
+        // this replaces, it can recover from a sleep spanning more than one cycle, which the
+        // climb-on-sleep below makes routine. wakeUp() does its own catchUpHistoryBeforeWake().
+        if (this.state === ChipState.ASLEEP) { this.wakeUp(); return; }
 
         this.lastOutputEvent = globalTime;
 
-        for (let mask = ~0n; this.currentCycle.activeOutputs & mask;) {
-            const i = Chip.nextBit64(this.currentCycle.activeOutputs & mask);
-            const link = this.outputLinks[i];
-            link.chip.updateInputs(Number(link.mask));
-            mask &= ~(1n << BigInt(i));
+        // Walk the active output links. activeOutputs (and currentCycle itself) can be mutated
+        // by updateInputs(), so both are re-read every step; `unvisited` ensures each index is
+        // visited at most once. Per-word so fan-out is unbounded -- for a single word this is
+        // exactly the old scalar loop plus one array load.
+        if (this.maskWords === 1) {
+            let unvisited = ~0;
+            for (;;) {
+                const bits = this.currentCycle.activeOutputs.words[0] & unvisited;
+                if (bits === 0) break;
+                const b = Chip.nextBit(bits);
+                const link = this.outputLinks[b];
+                link.chip.updateInputs(link.mask);
+                unvisited &= ~(1 << b);
+            }
+        } else {
+            for (let w = 0; w < this.maskWords; w++) {
+                let unvisited = ~0;
+                for (;;) {
+                    const bits = this.currentCycle.activeOutputs.word(w) & unvisited;
+                    if (bits === 0) break;
+                    const b = Chip.nextBit(bits);
+                    const link = this.outputLinks[(w << 5) + b];
+                    link.chip.updateInputs(link.mask);
+                    unvisited &= ~(1 << b);
+                }
+            }
         }
 
         this.output ^= 1;
-        this.pendingEvent = 0n;
+        this.pendingEvent = 0;
 
         if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' output changed to ${this.output}`);
 
         if (this.state === ChipState.ACTIVE) {
-            if (this.currentCycle.activeOutputs === 0n) {
+            if (this.currentCycle.activeOutputs.isZero()) {
                 this.state = ChipState.ASLEEP;
                 this.sleepTime = globalTime;
 
@@ -1031,20 +1202,40 @@ export class Chip extends Cycle {
 
                 if (DEBUG_TRACE) console.log(`[t:${globalTime}] chip '${this.debugName}' asleep`);
 
-                // If currentCycle isn't the root cycle, schedule an event to wake up.
-                // This must run whenever currentCycle !== this (root), regardless of
-                // activeOutputs / currentCycle.parentCycle. The root Cycle has an
-                // unbounded endTime, so it's never safe to compute a delay from it, but
-                // any non-root currentCycle always has a real, finite endTime, and this
-                // chip's own future output events (self-clocking) depend on this timer
-                // firing to advance currentCycle -- not on activeOutputs, which only
-                // tracks whether *downstream consumers* still need updates. Skipping
-                // this when currentCycle.parentCycle === this && activeOutputs === 0n
-                // (the previous condition) left chips with no self-wake timer AND no
-                // live upstream delivery path (already pruned by activateInputs()), so
-                // they went to sleep forever with no way to ever be woken again.
-                if (this.currentCycle !== (this as Cycle))
-                    this.pendingEvent = this.circuit.queuePush(this, this.currentCycle.endTime - globalTime);
+                // CLIMB-ON-SLEEP. Climb to the highest enclosing cycle that ALSO has no active
+                // outputs, and take the wake timer from ITS endTime. Its endTime is later, so
+                // the timer is further out; if the climb reaches the root there is no timer at
+                // all and the chip sleeps until something genuinely needs it. This is the
+                // commented-out "TODO: make this work?" loop at chip.cpp:790 in the C++
+                // original, which was never carried into the original port. It needs no
+                // arbitrary cycle count and no chip selection: the cycle structure itself says
+                // how long nobody is listening. Measured -59%/-71% updateOutput() calls on
+                // dice-ts's breakout/pong, bit-identical to the pre-climb engine.
+                //
+                // It requires the canonical tie-break in circuit.ts to be hash-neutral: without
+                // it, not pushing/popping these events reshapes the heap, which flips the pop
+                // order of equal-time events, which is load-bearing (see queuePush()).
+                //
+                // Climbing must NOT move currentCycle - doing so leaves the destination cursor
+                // stale and wakeUp()'s replay restarts from the wrong position. It is used only
+                // to COMPUTE a later wake time.
+                //
+                // The root case subsumes the old "schedule whenever currentCycle !== root"
+                // rule: a chip whose currentCycle is already the root gets no timer (the root's
+                // endTime is unbounded, so no delay can be computed from it), and one that is
+                // not gets a timer from whatever idle ancestor the climb stops at - which is at
+                // worst currentCycle itself, i.e. exactly the old behavior. Chips therefore
+                // still keep a self-wake timer wherever they used to have one; only the
+                // genuinely-nobody-is-listening case loses it, and that case is woken on demand
+                // by deactivateOutputs()/updateInputs() instead.
+                let wakeFrom: Cycle = this.currentCycle;
+                while (wakeFrom.parentCycle !== null && wakeFrom.parentCycle.activeOutputs.isZero())
+                    wakeFrom = wakeFrom.parentCycle;
+
+                if (wakeFrom !== (this as Cycle))
+                    this.pendingEvent = this.circuit.queuePush(this, wakeFrom.endTime - globalTime);
+                else
+                    this.pendingEvent = 0; // climbed to root: no timer, wake only on demand
 
                 return;
             }
@@ -1058,7 +1249,7 @@ export class Chip extends Cycle {
                 if (parent.nextOutputEventDelay() > (globalTime - this.currentCycle.activationTime))
                     delay = parent.nextOutputEventDelay() - (globalTime - this.currentCycle.activationTime);
 
-                this.deactivateOutputsInMask((~this.currentCycle.activeOutputs) & parent.activeOutputs);
+                this.deactivateDiff(parent.activeOutputs, this.currentCycle.activeOutputs);
 
                 if (this.state !== ChipState.ACTIVE) return;
 
@@ -1070,7 +1261,7 @@ export class Chip extends Cycle {
         }
     }
 
-    activationCheck(minTimeParam: bigint, maxTimeParam: bigint): bigint {
+    activationCheck(minTimeParam: number, maxTimeParam: number): number {
         this.visited = true;
 
         const globalTime = this.circuit.globalTime;
@@ -1088,7 +1279,7 @@ export class Chip extends Cycle {
 
             const i = inputEventList.get(x); // raw index into this.inputEvents
 
-            let startTime: bigint, endTime: bigint;
+            let startTime: number, endTime: number;
 
             if (this.inputEvents.get(i).type) {
                 startTime = this.inputEvents.get(i).time;
@@ -1137,7 +1328,7 @@ export class Chip extends Cycle {
                         if (this.activationTime >= max) continue;
 
                         min = this.activationTime;
-                        max = min + 1n;
+                        max = min + 1;
                         result = true;
                         this.activationCycles[j] = c;
                         break;
@@ -1161,7 +1352,7 @@ export class Chip extends Cycle {
                     minTime = this.activationTime > this.lastInputEvent[j] ? this.lastInputEvent[j] : this.activationTime;
 
                     if (this.activationTime >= max) { result = false; break; }
-                    else { min = this.activationTime; max = min + 1n; }
+                    else { min = this.activationTime; max = min + 1; }
                 }
             }
 
@@ -1171,7 +1362,7 @@ export class Chip extends Cycle {
 
             if (this.getNextOutput(this.activationTime) === this.output) continue;
 
-            if (this.pendingEvent !== 0n &&
+            if (this.pendingEvent !== 0 &&
                 this.pendingEvent !== this.currentCycle.outputEvents.get(this.currentCycle.currentOutputEvent).time + globalTime - this.activationTime)
                 continue;
 
@@ -1200,7 +1391,7 @@ export class Chip extends Cycle {
                 const stopAt = this.activationCycles[i]!.parentCycle;
 
                 for (let c: Cycle | null = chip.currentCycle; c !== stopAt; c = c!.parentCycle) {
-                    c!.activeOutputs &= ~this.inputLinks[i].mask;
+                    if (this.inputLinks[i].mask >= 0) c!.activeOutputs.clearBit(this.inputLinks[i].mask);
                 }
 
                 if (chip.state === ChipState.PASSIVE) chip.activateInputs();
@@ -1210,7 +1401,7 @@ export class Chip extends Cycle {
         this.firstOutputEvent = this.currentOutputEvent;
 
         if (this.firstOutputEvent !== this.outputEvents.end()) {
-            if (this.pendingEvent !== 0n) {
+            if (this.pendingEvent !== 0) {
                 this.outputEvents.pop_back();
             } else {
                 this.pendingEvent = this.circuit.queuePush(this, this.outputEvents.get(this.currentOutputEvent).time - this.activationTime);
@@ -1234,7 +1425,7 @@ export class Chip extends Cycle {
                 }
 
                 if (isInput) {
-                    this.pendingEvent = 0n;
+                    this.pendingEvent = 0;
                     this.inputs = this.output ? this.prevOutputMask : 0;
                 } else {
                     this.inputs = this.output ? 0 : this.prevOutputMask;
@@ -1243,7 +1434,7 @@ export class Chip extends Cycle {
                 this.inputs = this.output ? 0 : this.prevOutputMask;
             }
         } else {
-            this.pendingEvent = 0n;
+            this.pendingEvent = 0;
             this.inputs = this.output ? this.prevOutputMask : 0;
         }
 
@@ -1253,7 +1444,7 @@ export class Chip extends Cycle {
 
         for (let i = 0; i < this.inputLinks.length; i++)
             for (let c: Cycle | null = this.inputLinks[i].chip.currentCycle; c; c = c.parentCycle)
-                c.activeOutputs |= this.inputLinks[i].mask;
+                if (this.inputLinks[i].mask >= 0) c.activeOutputs.setBit(this.inputLinks[i].mask);
 
         for (let i = 0; i < this.inputLinks.length; i++) {
             if (this.inputLinks[i].chip.state === ChipState.ASLEEP) this.inputLinks[i].chip.wakeUp();
@@ -1263,7 +1454,7 @@ export class Chip extends Cycle {
 
         if (this.type === ChipType.CUSTOM_CHIP || this.optimizationDisabled || this.inputEvents.empty()) {
             for (let i = 0; i < this.outputLinks.length; i++)
-                if ((this.currentCycle.activeOutputs & (1n << BigInt(i))) === 0n && this.outputLinks[i].chip.state !== ChipState.PASSIVE)
+                if (!this.currentCycle.activeOutputs.testBit(i) && this.outputLinks[i].chip.state !== ChipState.PASSIVE)
                     this.outputLinks[i].chip.deactivateOutputs();
             return;
         }
@@ -1279,7 +1470,7 @@ export class Chip extends Cycle {
         }
 
         while (this.inputEventTable.length <= this.inputs)
-            this.inputEventTable.push(new Cirque<number>(this.outputEvents.getQueueSize(), () => 0));
+            this.inputEventTable.push(new CirqueNum(this.outputEvents.getQueueSize()));
 
         this.inputEventTable[this.inputs].push_back(this.inputEvents.end());
         this.inputEvents.push_back(new Event(globalTime, this.inputs));
@@ -1293,7 +1484,7 @@ export class Chip extends Cycle {
                 this.firstOutputEvent = this.outputEvents.begin();
                 for (let i = 0; i < this.inputEventTable.length; i++) this.inputEventTable[i].clear();
                 this.allocatedSubCycles.clear();
-                this.cycleTime = 0n;
+                this.cycleTime = 0;
                 break;
             }
 
@@ -1335,7 +1526,7 @@ export class Chip extends Cycle {
 
             cycle.cycleTime = this.cycleTime;
             cycle.activationTime = cycle.outputEvents.front().time;
-            cycle.cycleDuration = globalTime - cycle.activationTime + 1n;
+            cycle.cycleDuration = globalTime - cycle.activationTime + 1;
 
             const firstEv = this.outputEvents.get(this.firstOutputEvent);
             firstEv.type = 1;
@@ -1344,15 +1535,15 @@ export class Chip extends Cycle {
         }
 
         for (let i = 0; i < this.outputLinks.length; i++)
-            if ((this.currentCycle.activeOutputs & (1n << BigInt(i))) === 0n && this.outputLinks[i].chip.state !== ChipState.PASSIVE)
+            if (!this.currentCycle.activeOutputs.testBit(i) && this.outputLinks[i].chip.state !== ChipState.PASSIVE)
                 this.outputLinks[i].chip.deactivateOutputs();
 
         this.currentCycle = this;
-        this.activeOutputs = (1n << BigInt(this.outputLinks.length)) - 1n;
+        this.activeOutputs.setLow(this.outputLinks.length);
 
-        if (this.pendingEvent !== 0n && this.pendingEvent !== globalTime) {
+        if (this.pendingEvent !== 0 && this.pendingEvent !== globalTime) {
             this.outputEvents.push_back(new Event(this.pendingEvent, this.output ^ 1));
-        } else if (this.pendingEvent !== 0n) {
+        } else if (this.pendingEvent !== 0) {
             this.updateOutput();
         }
 
@@ -1367,9 +1558,9 @@ export class Chip extends Cycle {
 
     // Force `history` to include every real transition up through `now`, for a chip currently
     // ASLEEP (a chip that's ACTIVE or PASSIVE already records every transition live - see the
-    // `output` setter above). While asleep, updateOutput()'s ASLEEP branch jumps straight to
-    // whatever state is in effect at the next real wake time, skipping any intermediate
-    // transitions nobody downstream needed - so `history` genuinely has gaps here that must be
+    // `output` setter above). While asleep, wakeUp()'s replay skips whole periods arithmetically
+    // at the root rather than stepping through every intermediate transition nobody downstream
+    // needed - so `history` genuinely has gaps here that must be
     // reconstructed by walking the same Cycle/outputEvents structure wakeUp() replays.
     //
     // Deliberately does NOT reuse wakeUp()'s own loop, which mutates `this.currentCycle`/
@@ -1395,7 +1586,7 @@ export class Chip extends Cycle {
     // than clamping to this return value) will treat the un-backfilled gap as if it were a single
     // instant holding whatever value `history` last happened to record - see ScopePlot2d's own
     // fillDigitalRaster()/ScopePlot's fillFromDigitalHistory() for what that clamp looks like.
-    backfillHistory(now: bigint): bigint {
+    backfillHistory(now: number): number {
         if (this.state !== ChipState.ASLEEP) return now;
         if (this.outputEvents.empty()) return now;
         if (this.backfillAbsTime >= now) return now;
@@ -1420,7 +1611,7 @@ export class Chip extends Cycle {
     // draws have kept the cursor near "now" already, making this a no-op (guarded below exactly
     // like backfillHistory() itself) - it can only ever fast-forward past a backlog nobody has
     // consumed, never past something an existing consumer still needs.
-    skipBackfillTo(target: bigint): void {
+    skipBackfillTo(target: number): void {
         if (this.state !== ChipState.ASLEEP) return;
         if (this.outputEvents.empty()) return;
         if (this.backfillAbsTime >= target) return;
@@ -1433,7 +1624,7 @@ export class Chip extends Cycle {
 
     // The chip's own logical output as of right now - unlike the raw `output` field/setter
     // above, which only tracks reality live while ACTIVE/PASSIVE. A chip with no live consumer
-    // (activeOutputs === 0n - e.g. a free-running clock feeding nothing, or any element's output
+    // (activeOutputs === 0 - e.g. a free-running clock feeding nothing, or any element's output
     // post nothing else happens to be wired to) legitimately goes ASLEEP after its very first
     // transition and then never wakes on its own (see updateOutput()'s ASLEEP-entry branch) -
     // `output` stays frozen at that one transition's value forever, even though the chip's true
@@ -1463,12 +1654,5 @@ export class Chip extends Cycle {
         x = x | 0;
         if (x === 0) return 0;
         return 31 - Math.clz32(x & -x);
-    }
-
-    static nextBit64(x: bigint): number {
-        if (x === 0n) return 0;
-        let i = 0;
-        while ((x & 1n) === 0n) { x >>= 1n; i++; }
-        return i;
     }
 }

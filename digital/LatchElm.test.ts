@@ -43,13 +43,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -104,21 +104,21 @@ describe("LatchElm.digitalSynthesis() - transparent latch mode (FLAG_NO_EDGE)", 
         d0.chip = chipsByElm.get(d0)![0];
         d1.chip = chipsByElm.get(d1)![0];
         ld.chip = chipsByElm.get(ld)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // disabled at cold-start: holds initial 0
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0);
 
-        ld.set(1); circuit.run(20n); // enable - transparent
-        d0.set(1); circuit.run(20n);
+        ld.set(1); circuit.run(20); // enable - transparent
+        d0.set(1); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // Q0 follows D0 immediately, no clock edge needed
-        d1.set(1); circuit.run(20n);
+        d1.set(1); circuit.run(20);
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1);
-        d0.set(0); circuit.run(20n);
+        d0.set(0); circuit.run(20);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // still transparent - follows back down too
 
-        ld.set(0); circuit.run(20n); // disable
-        d0.set(1); circuit.run(20n); // changing D now must NOT reach Q
+        ld.set(0); circuit.run(20); // disable
+        d0.set(1); circuit.run(20); // changing D now must NOT reach Q
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // held
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // held
     });
@@ -136,14 +136,14 @@ describe("LatchElm.digitalSynthesis() - edge-triggered register mode (default)",
 
         const { circuit, chipsByElm } = buildDigitalCircuit([d, clk, chip, qSink]);
         clk.chip = chipsByElm.get(clk)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // no edge yet
-        clk.set(1); circuit.run(20n);
+        clk.set(1); circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // captured D=1 on the rising edge
 
-        clk.set(0); circuit.run(20n);
-        clk.set(1); circuit.run(20n); // a second rising edge with D unchanged changes nothing observable
+        clk.set(0); circuit.run(20);
+        clk.set(1); circuit.run(20); // a second rising edge with D unchanged changes nothing observable
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1);
     });
 });
@@ -164,13 +164,13 @@ describe("LatchElm.digitalSynthesis() - Reset pin", () => {
         d.chip = chipsByElm.get(d)![0];
         ld.chip = chipsByElm.get(ld)![0];
         r.chip = chipsByElm.get(r)![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // enabled, transparent: Q follows D=1
 
-        r.set(1); circuit.run(20n);
+        r.set(1); circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // Reset overrides even though Ld/D are still high
 
-        r.set(0); circuit.run(20n);
+        r.set(0); circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // released - resumes transparently tracking D
     });
 });

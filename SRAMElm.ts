@@ -416,10 +416,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                     newOut = 0; // tri-stated
                 }
 
-                if (newOut !== chip.output && chip.pendingEvent === 0n)
+                if (newOut !== chip.output && chip.pendingEvent === 0)
                     chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);
-                else if (chip.pendingEvent !== 0n && newOut === chip.output)
-                    chip.pendingEvent = 0n;
+                else if (chip.pendingEvent !== 0 && newOut === chip.output)
+                    chip.pendingEvent = 0;
             };
 
             desc.push(customChipStart(update)

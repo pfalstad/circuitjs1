@@ -33,12 +33,12 @@ class JSSignalWatch implements HistoryWatcher {
     // where a cold-start read begins instead).
     lastFilledTick: number = -1;
     // globalTime as of attachment - a cold start never reports history from before this.
-    historyEpoch: bigint = 0n;
+    historyEpoch: number = 0;
 
     constructor(name: string) { this.name = name; }
 
-    historyFloor(): bigint {
-        return this.lastFilledTick < 0 ? -1n : BigInt(this.lastFilledTick);
+    historyFloor(): number {
+        return this.lastFilledTick < 0 ? -1 : this.lastFilledTick;
     }
 
     setChip(chip: Chip | null): void {

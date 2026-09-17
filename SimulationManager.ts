@@ -1453,7 +1453,7 @@ export class SimulationManager {
 	// count, so a cut-short frame doesn't silently claim sim time that
 	// was never actually simulated.
 	const circuit = this.digitalGraph.circuit;
-	const actualTicks = Number(circuit.runWithDeadline(BigInt(ticks), tm + frameTimeLimit));
+	const actualTicks = Number(circuit.runWithDeadline(ticks, tm + frameTimeLimit));
 
 	this.t += actualTicks * this.maxTimeStep;
 	this.timeStepAccum = 0;

@@ -13,11 +13,11 @@ import { ChipState } from "./digital/chip";
 // this only needs to verify ScopePlot2d calls them at the right times, with the right chip.
 function fakeChip(nowTicks: number) {
     return {
-        circuit: { globalTime: BigInt(nowTicks) },
+        circuit: { globalTime: nowTicks },
         state: ChipState.PASSIVE,
-        history: [] as { time: bigint; value: number }[],
+        history: [] as { time: number; value: number }[],
         output: 0,
-        backfillHistory: vi.fn((t: bigint) => t),
+        backfillHistory: vi.fn((t: number) => t),
         addHistoryWatcher: vi.fn(),
         removeHistoryWatcher: vi.fn(),
     } as any;
@@ -69,9 +69,9 @@ describe("ScopePlot2d digital raster history watching", () => {
         (plot2d as any).imageContext = fakeCanvasContext();
         plot2d.plotBrightness = 0;
 
-        expect(plot2d.historyFloor()).toBe(-1n); // nothing painted yet
+        expect(plot2d.historyFloor()).toBe(-1); // nothing painted yet
         plot2d.fillDigitalRaster();
-        expect(plot2d.historyFloor()).toBe(100n);
+        expect(plot2d.historyFloor()).toBe(100);
     });
 
     it("switches registration when the brightness source's chip changes", () => {
@@ -94,10 +94,10 @@ describe("ScopePlot2d digital raster history watching", () => {
         // A stale cursor from chipA's own timeline must not carry over and get misread against
         // chipB's unrelated history - see fillDigitalRaster()'s own comment on why both the
         // raster cursor and the frame index get reset before repainting. Freshly repainted
-        // against chipB in this same call, it lands on chipB's own `now` (100n), not some
-        // leftover chipA value - the reset itself (the -1n moment in between) isn't separately
+        // against chipB in this same call, it lands on chipB's own `now` (100), not some
+        // leftover chipA value - the reset itself (the -1 moment in between) isn't separately
         // observable since both happen within one fillDigitalRaster() call.
-        expect(plot2d.historyFloor()).toBe(100n);
+        expect(plot2d.historyFloor()).toBe(100);
     });
 
     it("unregisters when the brightness source disappears (plotBrightness pointing nowhere valid)", () => {
@@ -139,7 +139,7 @@ describe("ScopePlot2d digital raster history watching", () => {
         // line exactly one pixel row (py0=line, py1=line+1) - so row `r` of fillRect calls maps
         // directly to frame-relative tick `r`.
         const chip = fakeChip(25); // attaches at t=25
-        chip.history = [{ time: 30n, value: 0 }]; // first REAL transition recorded at t=30
+        chip.history = [{ time: 30, value: 0 }]; // first REAL transition recorded at t=30
         const scope = fakeScope([{ digitalChip: chip }]);
         scope.sim.maxTimeStep = 1;
         scope.rect = { width: 10, height: 10 };
@@ -157,7 +157,7 @@ describe("ScopePlot2d digital raster history watching", () => {
 
         // t=29: still the same raster frame (frameStart still 20) - paints [25,29) using the
         // "invert hist[0]" guess (curVal=1, valid here since nothing toggled between 25 and 29).
-        chip.circuit.globalTime = 29n;
+        chip.circuit.globalTime = 29;
         plot2d.fillDigitalRaster();
 
         const onColor = "#ffffff"; // rasterOnColor() when not printable
@@ -201,7 +201,7 @@ describe("ScopePlot2d digital raster history watching", () => {
         (plot2d as any).rasterFilledTick = -1;
         (plot2d as any).rasterFrameIndex = -1;
 
-        chip.circuit.globalTime = 600n;
+        chip.circuit.globalTime = 600;
         plot2d.fillDigitalRaster();
 
         // Refreshed to the NEW cold-restart time, not left at the stale original attach value -
@@ -212,7 +212,7 @@ describe("ScopePlot2d digital raster history watching", () => {
 
     it("a reset without a chip switch never paints a guessed span before the refreshed historyEpoch", () => {
         const chip = fakeChip(5);
-        chip.history = [{ time: 610n, value: 0 }]; // only data from well after the reset survives
+        chip.history = [{ time: 610, value: 0 }]; // only data from well after the reset survives
         const scope = fakeScope([{ digitalChip: chip }]);
         scope.sim.maxTimeStep = 1;
         scope.rect = { width: 10, height: 10 };
@@ -232,7 +232,7 @@ describe("ScopePlot2d digital raster history watching", () => {
 
         const ctx = fakeCanvasContext();
         (plot2d as any).imageContext = ctx;
-        chip.circuit.globalTime = 604n; // t=604: mid-frame, mid-drawing
+        chip.circuit.globalTime = 604; // t=604: mid-frame, mid-drawing
         plot2d.fillDigitalRaster();
 
         expect((plot2d as any).historyEpoch).toBe(604); // refreshed to right where we resumed
@@ -284,7 +284,7 @@ describe("ScopePlot2d digital raster history watching", () => {
 
         const ctx = fakeCanvasContext();
         (plot2d as any).imageContext = ctx;
-        chip.circuit.globalTime = 15n; // now in frame [10,20) - an ordinary wrap, not a reset
+        chip.circuit.globalTime = 15; // now in frame [10,20) - an ordinary wrap, not a reset
         plot2d.fillDigitalRaster();
 
         const fullClear = ctx.calls.some((c: any) => c.x === 0 && c.y === 0 && c.w === 10 && c.h === 10);

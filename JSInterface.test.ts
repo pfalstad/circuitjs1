@@ -68,8 +68,8 @@ describe("JSInterface signal watching", () => {
         // Simulate a real transition landing in the chip's own history (as live simulation
         // would append it via the `output` setter once historyWatched is true).
         chip.historyWatched = true;
-        (chip.circuit as any).globalTime = 50n;
-        chip.history.push({ time: 50n, value: 1 });
+        (chip.circuit as any).globalTime = 50;
+        chip.history.push({ time: 50, value: 1 });
         // A transition exactly AT the new `now` is deferred to a later poll (half-open range,
         // same as ScopePlot2d.fillDigitalRaster()) rather than reported early - so this poll
         // sees `now` advance but has nothing yet to report.
@@ -77,16 +77,16 @@ describe("JSInterface signal watching", () => {
         expect(updates.length).toBe(1);
 
         // Once `now` has moved past tick 50, the deferred transition is picked up.
-        (chip.circuit as any).globalTime = 100n;
-        chip.history.push({ time: 100n, value: 0 });
+        (chip.circuit as any).globalTime = 100;
+        chip.history.push({ time: 100, value: 0 });
         js.callUpdateHook();
         expect(updates.length).toBe(2);
         expect(updates[1].sig.changes).toEqual([{ tick: 50, value: 1 }]);
         expect(updates[1].sig.now).toBe(100);
 
         api.unwatchSignal("sig");
-        (chip.circuit as any).globalTime = 150n;
-        chip.history.push({ time: 150n, value: 1 });
+        (chip.circuit as any).globalTime = 150;
+        chip.history.push({ time: 150, value: 1 });
         js.callUpdateHook();
         expect(updates.length).toBe(2); // unwatched - no further reports
     });

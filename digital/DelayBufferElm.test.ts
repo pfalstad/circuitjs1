@@ -37,13 +37,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -70,7 +70,7 @@ describe("DelayBufferElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, buf, sink]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(1n);
+        circuit.run(1);
 
         const edgeTime = circuit.globalTime;
         src.set(1);
@@ -78,15 +78,15 @@ describe("DelayBufferElm.digitalSynthesis()", () => {
         // through to the next queued event regardless of the requested budget) - so a
         // 1-tick call here flushes only src's own 0-delay self-event (which notifies
         // buf and schedules ITS real event 5 ticks out), without reaching that event.
-        circuit.runWithDeadline(1n);
+        circuit.runWithDeadline(1);
         expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // not yet - delay hasn't elapsed
 
-        circuit.runWithDeadline(3n); // total 4 ticks since the edge
+        circuit.runWithDeadline(3); // total 4 ticks since the edge
         expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // one tick short of the delay
 
-        circuit.runWithDeadline(1n); // total 5 ticks since the edge
+        circuit.runWithDeadline(1); // total 5 ticks since the edge
         expect(chipAt(buf, 1, chipsByElm).output).toBe(1); // delay elapsed, transition committed
-        expect(circuit.globalTime - edgeTime).toBe(5n);
+        expect(circuit.globalTime - edgeTime).toBe(5);
     });
 
     it("filters a glitch shorter than `delay` (engine's own event-cancel-on-revert)", () => {
@@ -102,14 +102,14 @@ describe("DelayBufferElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, buf, sink]);
         src.chip = chipsByElm.get(src)![0];
-        circuit.run(1n);
+        circuit.run(1);
 
         src.set(1);
-        circuit.runWithDeadline(1n); // src rises, buf schedules a pending event 10 ticks out
+        circuit.runWithDeadline(1); // src rises, buf schedules a pending event 10 ticks out
         src.set(0);
-        circuit.runWithDeadline(1n); // src falls back immediately - cancels the pending event
+        circuit.runWithDeadline(1); // src falls back immediately - cancels the pending event
 
-        circuit.run(100n); // run well past the original delay window
+        circuit.run(100); // run well past the original delay window
         expect(chipAt(buf, 1, chipsByElm).output).toBe(0); // glitch never reached the output
     });
 });

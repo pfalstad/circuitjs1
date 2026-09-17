@@ -38,13 +38,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -89,11 +89,11 @@ describe("ROMElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([oe, addrHi, addrLo, rom, dataSink]);
         addrLo.chip = chipsByElm.get(addrLo)![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(rom, 3, chipsByElm).output).toBe(0); // address 0 -> map[0]
 
         addrLo.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(rom, 3, chipsByElm).output).toBe(1); // address 1 -> map[1]
     });
 
@@ -108,11 +108,11 @@ describe("ROMElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([oe, addr, rom, dataSink]);
         oe.chip = chipsByElm.get(oe)![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(rom, 2, chipsByElm).output).toBe(0); // disabled -> reads 0, not map[1]
 
         oe.set(0); // assert OE
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(rom, 2, chipsByElm).output).toBe(1); // now drives map[1]
     });
 
@@ -137,7 +137,7 @@ describe("ROMElm.digitalSynthesis()", () => {
 
         const elmList = [oe, ...addr, rom, ...sinks];
         const graph = buildDigitalCircuit(elmList);
-        graph.circuit.run(20n);
+        graph.circuit.run(20);
         syncDigitalToNodesNew(elmList, graph);
 
         // stored = 0b1010: bit i (MSB first) for i=0..3 is 1,0,1,0.
@@ -155,7 +155,7 @@ describe("ROMElm.digitalSynthesis()", () => {
             isTriStateOutput: () => true,
             digitalSynthesis: () => ({
                 desc: [customChipStart((chip: Chip) => {
-                    if (chip.output !== 1) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                    if (chip.output !== 1) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
                 }).outputPin(1)],
                 pinMap: new Map([[0, 1]]),
             }),
@@ -168,7 +168,7 @@ describe("ROMElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([romOe, romAddr, rom, other, sink]);
         romOe.chip = chipsByElm.get(romOe)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         // ROM disabled (contributes 0); `other` always drives 1 -> merged bus reads 1.
         expect(warn).not.toHaveBeenCalled();

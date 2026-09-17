@@ -153,7 +153,7 @@ function currentValue(bitChips: Chip[]): number {
 
 describe("Counter2Elm modulus===0 ripple synthesis", () => {
     it("matches the always-correct baseline over many free-running clock cycles", () => {
-        const runTicks = 500_000n;
+        const runTicks = 500_000;
 
         const base = buildRippleCounter();
         // `history` only records for a historyWatched chip (see chip.ts's `output` setter) - both
@@ -185,7 +185,7 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
     it("settles every bit and its gating cells to ASLEEP shortly after a clock edge (the actual point of the ripple rewrite)", () => {
         const { circuit, bitChips } = buildRippleCounter();
         for (const chip of circuit.chips) chip.historyWatched = true;
-        circuit.run(50_003n); // clear of the tick-50000 clock edge (period 20), giving it time to resettle
+        circuit.run(50_003); // clear of the tick-50000 clock edge (period 20), giving it time to resettle
 
         for (const chip of bitChips)
             expect(chip.state, `${chip.debugName} should be ASLEEP long after its last clock edge`).toBe(ChipState.ASLEEP);
@@ -204,8 +204,8 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
         // Circuit.run() advances by a duration from wherever it currently is, not to an absolute
         // time - runUntil() converts the absolute ticks used below into the right deltas for both
         // circuits (which always advance in lockstep here).
-        let now = 0n;
-        const runUntil = (absoluteTick: bigint) => {
+        let now = 0;
+        const runUntil = (absoluteTick: number) => {
             const delta = absoluteTick - now;
             base.circuit.run(delta);
             opt.circuit.run(delta);
@@ -218,25 +218,25 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
             expect(opt.rcoChip.currentValue(), `${label} RCO`).toBe(base.rcoChip.currentValue());
         };
 
-        runUntil(103n); // clear of any CLK edge (period 20)
+        runUntil(103); // clear of any CLK edge (period 20)
         bothSetLoad("GND"); // assert LOAD (active-low)
-        runUntil(115n); // still clear of the next edge
+        runUntil(115); // still clear of the next edge
         expectMatch("LOAD asserted, before next edge");
 
-        runUntil(125n); // cross one CLK edge with LOAD asserted (I pins = 1010 = 5)
+        runUntil(125); // cross one CLK edge with LOAD asserted (I pins = 1010 = 5)
         expectMatch("after LOAD edge");
         bothSetLoad("VCC"); // release LOAD so counting resumes
 
-        runUntil(300n); // several more free-running edges
+        runUntil(300); // several more free-running edges
         expectMatch("counting resumed after LOAD");
 
         bothSetClr("GND"); // assert CLR (active-low) - takes effect immediately, no clock edge needed
-        runUntil(301n);
+        runUntil(301);
         expectMatch("CLR asserted");
         expect(currentValue(opt.bitChips), "CLR asserted").toBe(0);
 
         bothSetClr("VCC");
-        runUntil(340n); // a couple of clean edges after release
+        runUntil(340); // a couple of clean edges after release
         expectMatch("counting resumed after CLR");
     });
 });
@@ -273,7 +273,7 @@ describe("Counter2Elm modulus===0 ripple synthesis - digitalInitialState seeding
 
         expect(hardwareValue(bitChips), "seeded value before any clock edge").toBe(5);
 
-        circuit.run(20n); // one full clock period -> exactly one counting edge
+        circuit.run(20); // one full clock period -> exactly one counting edge
         expect(hardwareValue(bitChips), "value after first real clock edge").toBe(6);
         expect(rcoChip.currentValue(), "RCO").toBe(0);
     });

@@ -31,7 +31,7 @@ function valueAt(t: number): number {
 
 describe("digital raster rendering under slow-draw-cadence trimming, vs ground truth", () => {
     function driver() {
-        const circuit: any = { globalTime: 0n, historyWatchedChips: new Set() };
+        const circuit: any = { globalTime: 0, historyWatchedChips: new Set() };
         const chip = bareChip(circuit);
 
         let fillStyle = "";
@@ -72,7 +72,7 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
 
         let nextToggleIdx = 0;
         function stepTo(t: number, opts: { trim: boolean } = { trim: true }) {
-            circuit.globalTime = BigInt(t);
+            circuit.globalTime = t;
             if (nextToggleIdx < toggles.length && t === toggles[nextToggleIdx]) {
                 chip.output ^= 1;
                 nextToggleIdx++;
@@ -106,7 +106,7 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
     it("attach MID-FRAME (t=50, historyEpoch clamp actually engages), trim every tick", () => {
         const d = driver();
         for (let t = 0; t <= 49; t++) {
-            d.circuit.globalTime = BigInt(t);
+            d.circuit.globalTime = t;
             if (toggles.includes(t)) { d.chip.output ^= 1; d.advanceToggleIdxPast(t); }
         }
         for (let t = 50; t <= 179; t++) d.stepTo(t, { trim: true });
@@ -150,7 +150,7 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
     // (steps of 1, matching this test's every-tick cadence), covering the case the earlier
     // tests' toggle schedule happened to also exercise, but in deliberate isolation.
     it("every toggle lands exactly on a call's `now` (the boundary curVal-persistence regression)", () => {
-        const circuit: any = { globalTime: 0n, historyWatchedChips: new Set() };
+        const circuit: any = { globalTime: 0, historyWatchedChips: new Set() };
         const chip = bareChip(circuit);
         const localToggles = [3, 9, 10, 11, 20, 21, 41, 79, 80, 119, 120, 121, 160];
         function localValueAt(t: number): number {
@@ -184,7 +184,7 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
 
         let nextToggleIdx = 0;
         for (let t = 0; t <= 179; t++) {
-            circuit.globalTime = BigInt(t);
+            circuit.globalTime = t;
             if (nextToggleIdx < localToggles.length && t === localToggles[nextToggleIdx]) {
                 chip.output ^= 1;
                 nextToggleIdx++;
@@ -212,7 +212,7 @@ describe("digital raster rendering under slow-draw-cadence trimming, vs ground t
         const steps = [1, 1, 3, 1, 5, 2, 1, 1, 7, 1, 2, 1, 4, 1, 1, 9, 1, 3, 1, 1];
         let drawAt = 0, stepIdx = 0;
         for (let t = 0; t <= 179; t++) {
-            d.circuit.globalTime = BigInt(t);
+            d.circuit.globalTime = t;
             if (nextToggleIdx < toggles.length && t === toggles[nextToggleIdx]) {
                 d.chip.output ^= 1;
                 nextToggleIdx++;

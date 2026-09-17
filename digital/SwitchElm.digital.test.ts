@@ -85,7 +85,7 @@ describe("SwitchElm digital connectivity", () => {
         ]);
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src, sw, sink]);
-        circuit.run(1n);
+        circuit.run(1);
         return chipsByElm.get(sink)![0];
     }
 
@@ -117,7 +117,7 @@ describe("Switch2Elm digital connectivity", () => {
         ]);
 
         const { circuit, chipsByElm } = buildDigitalCircuit([src0, sw, sink0, sink1]);
-        circuit.run(1n);
+        circuit.run(1);
         return { thrown: chipsByElm.get(sink0)![0], other: chipsByElm.get(sink1)![0] };
     }
 
@@ -176,7 +176,7 @@ describe("Switch2Elm through the real SimulationManager pipeline", () => {
         fakeApp.ui.elmList = fakeApp.elmList;
 
         sim.preStampAndStampCircuit();
-        sim.digitalGraph!.circuit.run(1n);
+        sim.digitalGraph!.circuit.run(1);
         syncDigitalToNodesNew(sim.elmArr, sim.digitalGraph!);
 
         return { thrown: sw.nodes[1 + position].v, other: sw.nodes[position === 0 ? 2 : 1].v };

@@ -31,7 +31,15 @@ function deoptimizeLogic(chip: Chip): void {
 }
 const chipDeoptimizer: ChipDesc = customChipStart(deoptimizeLogic).outputPin(1);
 
-interface QueueEntry { time: bigint; chip: Chip | null; }
+// NOTE ON ZERO-DELAY PUSHES. dice-ts clamps every scheduled delay to a minimum of one tick
+// here, because under the canonical tie order below a chip whose own propagation delay is 0
+// re-queues at the SAME timestamp and starves everything else at that instant forever.
+// Deliberately NOT done here: Chip's constructor already floors every synthesized chip's
+// `delay[]` to >= 1 tick (see its own comment), which removes that degenerate case at the
+// source - the only remaining queuePush(chip, 0) callers are CUSTOM_CHIP sources
+// (LogicInputElm, ExtVoltageElm, MonostableElm, SRAMElm) posting a ONE-SHOT self-correction,
+// which cannot re-queue in a loop. Clamping them anyway would break drainZeroDelayEvents()
+// below, whose whole contract is that such a push lands at exactly the current globalTime.
 
 interface ChipDescPair { chip: Chip; desc: ChipDesc; }
 interface Connection { pin: number; cd: ChipDescPair; }
@@ -51,15 +59,20 @@ class CircuitBuilder {
 
     createSpecialChips(): void {
         const vcc = new Chip(1, 64, this.circuit, chipVCC);
+        vcc.isConstantSource = true;
+        vcc.chipIndex = this.chips.length;
         this.chips.push(vcc);
         this.addToChipMap("_VCC", { chip: vcc, desc: chipVCC });
 
         const gnd = new Chip(1, 64, this.circuit, chipGND);
+        gnd.isConstantSource = true;
+        gnd.chipIndex = this.chips.length;
         this.chips.push(gnd);
         this.addToChipMap("_GND", { chip: gnd, desc: chipGND });
 
         const deopt = new Chip(1, 64, this.circuit, chipDeoptimizer);
         deopt.isDeoptimizer = true;
+        deopt.chipIndex = this.chips.length;
         this.chips.push(deopt);
         this.addToChipMap("_DEOPTIMIZER", { chip: deopt, desc: chipDeoptimizer });
     }
@@ -71,6 +84,7 @@ class CircuitBuilder {
         for (const d of chipDescArray) {
             const chip = new Chip(queueSize, subcycleSize, this.circuit, d, custom);
             chip.debugName = name;
+            chip.chipIndex = this.chips.length;
             this.chips.push(chip);
 
             const cd: ChipDescPair = { chip, desc: d };
@@ -180,7 +194,7 @@ class CircuitBuilder {
     // entirely rather than special-cased with a synthetic "always observed" consumer: a
     // CUSTOM_CHIP consumer would work for elimination but permanently starves the driving chip's
     // own sleep optimization too (updateInputs()'s CUSTOM_CHIP branch never calls
-    // activateInputs()/deactivateOutputsInMask() to release its interest - see chip.ts) - keeping
+    // activateInputs()/deactivateDiff() to release its interest - see chip.ts) - keeping
     // every real chip un-pruned costs nothing per se (a chip nothing needs still correctly falls
     // ASLEEP on its own after its first transition, same as before; Chip.currentValue() computes
     // its true current value from there without waking it).
@@ -211,7 +225,7 @@ class CircuitBuilder {
 
 export class Circuit {
     chips: Chip[] = [];
-    globalTime = 0n;
+    globalTime = 0;
 
     // Every chip Chip.addHistoryWatcher() has ever been called on (i.e. every chip
     // `historyWatched` has ever been set true for) - see Chip.trimHistory()'s own comment.
@@ -227,8 +241,18 @@ export class Circuit {
     // for stop trigger
     requestHalt(): void { this.haltRequested = true; }
 
+    // The event heap, as parallel arrays rather than an array of {time, chip} objects. Both
+    // sift loops compare only times, so keeping times in a contiguous Float64Array makes the hot
+    // walk a flat numeric scan instead of a pointer chase per level, and pushing no longer
+    // allocates an object per event. Index 0 is unused; the heap occupies [1 .. queueSize].
     private queueSize = 0;
-    private queue: QueueEntry[] = new Array(MAX_QUEUE_SIZE + 1);
+    private queueTime = new Float64Array(MAX_QUEUE_SIZE + 1);
+    private queueChip: (Chip | null)[] = new Array(MAX_QUEUE_SIZE + 1).fill(null);
+    // Parallel to queueChip, holding each entry's chip.chipIndex (the tie-break key). Kept in a
+    // typed array rather than dereferenced out of queueChip: the sift loops are hot enough that
+    // pointer-chasing into the boxed Chip array for a tie-break costs several times what the
+    // comparison itself does.
+    private queueIdx = new Int32Array(MAX_QUEUE_SIZE + 1);
 
     constructor(desc: CircuitDesc) {
         const builder = new CircuitBuilder(this, this.chips);
@@ -249,47 +273,86 @@ export class Circuit {
         for (let i = 2; i < this.chips.length; i++) {
             for (let j = 0; j < this.chips[i].inputLinks.length; j++) {
                 if (!this.chips[i].inputLinks[j]) {
-                    this.chips[1].outputLinks.push(new ChipLink(this.chips[i], BigInt(1 << j)));
-                    this.chips[i].inputLinks[j] = new ChipLink(this.chips[1], 0n);
+                    this.chips[1].outputLinks.push(new ChipLink(this.chips[i], 1 << j));
+                    this.chips[i].inputLinks[j] = new ChipLink(this.chips[1], -1); // -1: constant source, no link bit
                 }
             }
         }
 
         this.chips[0].output = 1;
-        for (const link of this.chips[0].outputLinks) link.chip.inputs |= Number(link.mask);
+        for (const link of this.chips[0].outputLinks) link.chip.inputs |= link.mask;
 
         for (let i = 2; i < this.chips.length; i++) this.chips[i].initialize();
     }
 
-    queuePush(chip: Chip, delay: bigint): bigint {
-        const qe: QueueEntry = { time: this.globalTime + delay, chip };
+    // CANONICAL TIE-BREAK. The heap is keyed on time alone, so equal-time events would pop in
+    // whatever order the heap's shape happens to give -- a function of the entire push/pop
+    // history. That order is not cosmetic: updateInputs() cancels or keeps a pending output
+    // event based on the intermediate value after EACH same-instant delivery, so a different
+    // order can move a chip's scheduled event by a full gate delay. The chip's FIXED chipIndex
+    // is therefore a secondary key, so the order depends only on the circuit, not on how the
+    // queue was reached. This is what makes chip.ts's climb-on-sleep optimization behavior-
+    // neutral. See the note above on why the accompanying min-delay clamp is not needed here.
+    queuePush(chip: Chip, delay: number): number {
+        const time = this.globalTime + delay;
+        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
+        const ci = chip.chipIndex;
 
-        this.queueSize++;
-        let i = this.queueSize;
-        while (i > 1 && this.queue[i >> 1].time > qe.time) {
-            this.queue[i] = this.queue[i >> 1];
-            i >>= 1;
+        let i = ++this.queueSize;
+        for (let p = i >> 1;
+             i > 1 && (qt[p] >= time && (qt[p] > time || qi[p] > ci));
+             p = i >> 1) {
+            qt[i] = qt[p];
+            qc[i] = qc[p];
+            qi[i] = qi[p];
+            i = p;
         }
-        this.queue[i] = qe;
+        qt[i] = time;
+        qc[i] = chip;
+        qi[i] = ci;
 
-        return qe.time;
+        return time;
     }
 
+    // NOTE: every caller pops the due entry BEFORE dispatching it, not after. With the canonical
+    // tie-break above, an event scheduled with zero delay during a dispatch lands at the CURRENT
+    // globalTime, and if its chip sorts ahead of the entry being dispatched it sifts straight to
+    // the root - so a pop performed afterwards would discard that brand-new event instead of the
+    // one just handled, silently dropping it (this is why dice-ts, which pops afterwards, needs
+    // its min-delay clamp to make such a push impossible). Popping first is equivalent for every
+    // strictly-future push (a larger time can never displace the root) and correct for the
+    // same-instant ones ts-digital relies on - see the note on zero-delay pushes above.
     queuePop(): void {
-        const qe = this.queue[this.queueSize];
+        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
+        const time = qt[this.queueSize], chip = qc[this.queueSize], ci = qi[this.queueSize];
 
         let i = 1;
         this.queueSize--;
+        const n = this.queueSize + 1;
 
-        while ((i << 1) < (this.queueSize + 1)) {
+        // Hot path: when the times differ this must cost exactly what the time-only heap cost, so
+        // the tie comparison sits INSIDE the `<=` / `<` tests rather than beside them, and the
+        // chipIndex loads happen only on an actual tie.
+        while ((i << 1) < n) {
             let child = i << 1;
-            if (child + 1 < this.queueSize + 1 && this.queue[child + 1].time < this.queue[child].time) child++;
-            if (qe.time <= this.queue[child].time) break;
-            this.queue[i] = this.queue[child];
+            const c1 = child + 1;
+            if (c1 < n) {
+                const a = qt[c1], b = qt[child];
+                if (a < b || (a === b && qi[c1] < qi[child])) child++;
+            }
+            const ct = qt[child];
+            if (time <= ct) {
+                if (time < ct || ci <= qi[child]) break;
+            }
+            qt[i] = qt[child];
+            qc[i] = qc[child];
+            qi[i] = qi[child];
             i = child;
         }
 
-        this.queue[i] = qe;
+        qt[i] = time;
+        qc[i] = chip;
+        qi[i] = ci;
     }
 
     /** Processes every event still queued for RIGHT NOW (i.e. at the current globalTime),
@@ -298,7 +361,7 @@ export class Circuit {
      * wouldn't already absorb for free on its very next iteration anyway.
      *
      * Exists so a fresh Circuit's cold-start self-correcting sources - every LogicInputElm (and
-     * similar CUSTOM_CHIP sources) schedules a queuePush(chip, 0n) from its own customUpdate()
+     * similar CUSTOM_CHIP sources) schedules a queuePush(chip, 0) from its own customUpdate()
      * during Chip.initialize() (see this class's own constructor, and
      * LogicInputElm.pushDigitalValue()'s docstring) rather than flipping `.output` immediately -
      * can finish settling to their real configured values BEFORE
@@ -320,27 +383,29 @@ export class Circuit {
      * means every driver has already reached its true configured value by the time seeding runs,
      * so no such transient recompute - and no poisoned pending event - ever happens. */
     drainZeroDelayEvents(): void {
-        while (this.queueSize && this.queue[1].time === this.globalTime) {
-            if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
+        while (this.queueSize && this.queueTime[1] === this.globalTime) {
+            const chip = this.queueChip[1]!;
             this.queuePop();
+            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
         }
     }
 
-    run(runTimeIn: bigint): void {
+    run(runTimeIn: number): void {
         this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         let runTime = runTimeIn;
 
-        while (runTime > 0n) {
+        while (runTime > 0) {
             if (this.queueSize) {
-                runTime -= this.queue[1].time - this.globalTime;
-                this.globalTime = this.queue[1].time;
+                runTime -= this.queueTime[1] - this.globalTime;
+                this.globalTime = this.queueTime[1];
             } else {
                 this.globalTime += runTime;
                 return;
             }
 
-            if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
+            const chip = this.queueChip[1]!;
             this.queuePop();
+            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
             if (this.haltRequested) return;
         }
     }
@@ -351,7 +416,7 @@ export class Circuit {
      * uniform under the promotion/sleep optimization (a big demote/re-promote cascade can land
      * in any single tick). `deadlineMs` is an absolute Date.now()-comparable timestamp.
      */
-    runWithDeadline(runTimeIn: bigint, deadlineMs?: number): bigint {
+    runWithDeadline(runTimeIn: number, deadlineMs?: number): number {
         this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         const startTime = this.globalTime;
         const endTime = this.globalTime + runTimeIn;
@@ -362,7 +427,7 @@ export class Circuit {
             first = false;
 
             if (this.queueSize) {
-                const nextTime = this.queue[1].time;
+                const nextTime = this.queueTime[1];
                 if (nextTime > endTime) { this.globalTime = endTime; break; }
                 this.globalTime = nextTime;
             } else {
@@ -370,8 +435,9 @@ export class Circuit {
                 break;
             }
 
-            if (this.globalTime === this.queue[1].chip!.pendingEvent) this.queue[1].chip!.updateOutput();
+            const chip = this.queueChip[1]!;
             this.queuePop();
+            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
             if (this.haltRequested) break;
         }
 

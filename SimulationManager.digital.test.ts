@@ -114,7 +114,7 @@ describe("SimulationManager digital fast path (Phase 5 integration)", () => {
 
         // Live-push src high, same mechanism LogicInputElm.pushDigitalValue() uses.
         const srcChip = src.digitalChip!;
-        srcChip.pendingEvent = srcChip.circuit.queuePush(srcChip, 0n);
+        srcChip.pendingEvent = srcChip.circuit.queuePush(srcChip, 0);
 
         // runCircuit() gates on wall-clock elapsed time since lastIterTime; back-date it so the
         // very next call actually runs instead of just priming the clock (see runCircuit()'s own

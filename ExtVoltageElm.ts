@@ -83,7 +83,7 @@ export class ExtVoltageElm extends RailElm {
      * value, and again from setVoltage() below for every live setExtVoltage() call. */
     private static pushDigitalValue(chip: Chip, high: boolean): void {
         const newOut = high ? 1 : 0;
-        if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+        if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
     }
 
     isDigitalSource(): boolean { return true; }

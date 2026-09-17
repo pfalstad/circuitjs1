@@ -40,13 +40,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -63,13 +63,13 @@ function triStateSource(data: 0 | 1, enable: 0 | 1) {
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
                 const out = (src.data && src.enable) ? 1 : 0;
-                if (out !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (out !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         poke() {
             const out = (src.data && src.enable) ? 1 : 0;
-            if (src.chip && out !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && out !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -112,7 +112,7 @@ describe("SRAMElm.digitalSynthesis() - read", () => {
         connect({ elm: sram, num: 4 }, { elm: sinks[1], num: 0 });
 
         const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, ...sinks]);
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(sram, 3, chipsByElm).output).toBe(1); // bit0 of 0b10
         expect(chipAt(sram, 4, chipsByElm).output).toBe(0); // bit1 of 0b10
@@ -132,11 +132,11 @@ describe("SRAMElm.digitalSynthesis() - read", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, sink]);
         oe.chip = chipsByElm.get(oe)![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(sram, 3, chipsByElm).output).toBe(0);
 
         oe.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(sram, 3, chipsByElm).output).toBe(1);
     });
 });
@@ -160,14 +160,14 @@ describe("SRAMElm.digitalSynthesis() - write (via digitalTriStateReadbackPin)", 
         we.chip = chipsByElm.get(we)![0];
         writers[0].chip = chipsByElm.get(writers[0])![0];
         writers[1].chip = chipsByElm.get(writers[1])![0];
-        circuit.run(20n);
+        circuit.run(20);
         expect(warn).not.toHaveBeenCalled(); // both writers + SRAM are tri-state -> clean OR-merge
 
         // drive data = 0b10 onto the bus, then assert WE.
         writers[0].data = 1; writers[0].enable = 1; writers[0].poke();
         writers[1].data = 0; writers[1].enable = 1; writers[1].poke();
         we.set(0);
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(sram.map.get(1)).toBe(0b10);
         warn.mockRestore();
@@ -188,7 +188,7 @@ describe("SRAMElm.digitalSynthesis() - write (via digitalTriStateReadbackPin)", 
 
         const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, writer, sink]);
         writer.chip = chipsByElm.get(writer)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(sram, 3, chipsByElm).output).toBe(0); // SRAM's own contribution stays 0
         expect(chipsByElm.get(sink)![0].inputLinks[0].chip.output).toBe(1); // bus shows writer's 1
@@ -213,7 +213,7 @@ describe("SRAMElm.digitalSynthesis() - FLAG_SEPARATE_IO", () => {
         connect({ elm: din[1], num: 0 }, { elm: sram, num: sram.dataInNodes + 1 });
 
         const { circuit } = buildDigitalCircuit([we, oe, addr, sram, ...din]);
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(warn).not.toHaveBeenCalled();
         expect(sram.map.get(1)).toBe(0b10);
@@ -235,7 +235,7 @@ describe("SRAMElm.digitalSynthesis() - FLAG_SEPARATE_IO", () => {
         connect({ elm: sram, num: 3 }, { elm: sink, num: 0 });
 
         const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, din, sink]);
-        circuit.run(20n);
+        circuit.run(20);
         // Dout must resolve to SRAM's own chip directly - no OR-merge glue chip involved, since
         // Din/Dout are separate physical posts and never share a node.
         expect(chipAt(sram, 3, chipsByElm).output).toBe(1); // stored bit, unaffected by Din=0

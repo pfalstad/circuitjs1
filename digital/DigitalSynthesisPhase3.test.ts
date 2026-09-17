@@ -55,13 +55,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -97,18 +97,18 @@ describe("DFlipFlopElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([d, clk, chip, qSink, notQSink]);
         clk.chip = chipsByElm.get(clk)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // no edge yet
         clk.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // captured D=1
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // /Q
 
         clk.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         clk.set(1); // a second rising edge with D still high changes nothing observable
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1);
     });
 
@@ -133,16 +133,16 @@ describe("DFlipFlopElm.digitalSynthesis()", () => {
         clk.chip = chipsByElm.get(clk)![0];
         r.chip = chipsByElm.get(r)![0];
         s.chip = chipsByElm.get(s)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         s.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // Q
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // /Q
 
         s.set(0);
         r.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0);
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1);
     });
@@ -168,28 +168,28 @@ describe("JKFlipFlopElm.digitalSynthesis()", () => {
         j.chip = chipsByElm.get(j)![0];
         clk.chip = chipsByElm.get(clk)![0];
         k.chip = chipsByElm.get(k)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         // clk.set() must run alone, after J/K have already settled - setting J/K and clk in the
         // same circuit.run() would race two independently-scheduled 0-delay events through the
         // queue in unspecified order, risking the clock edge sampling J/K before their own
         // just-queued change has actually propagated.
-        const pulse = () => { clk.set(1); circuit.run(20n); clk.set(0); circuit.run(20n); };
+        const pulse = () => { clk.set(1); circuit.run(20); clk.set(0); circuit.run(20); };
 
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // set
 
-        j.set(0); k.set(0); circuit.run(20n);
+        j.set(0); k.set(0); circuit.run(20);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // hold
 
-        j.set(1); k.set(1); circuit.run(20n);
+        j.set(1); k.set(1); circuit.run(20);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // toggle from 1
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // toggle again
 
-        j.set(0); k.set(1); circuit.run(20n);
+        j.set(0); k.set(1); circuit.run(20);
         pulse();
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // reset
         expect(chipAt(chip, 4, chipsByElm).output).toBe(1); // /Q
@@ -213,7 +213,7 @@ describe("CounterElm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([clk, reset, chip]);
         clk.chip = chipsByElm.get(clk)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readValue = () => {
             let v = 0;
@@ -222,10 +222,10 @@ describe("CounterElm.digitalSynthesis()", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(20n);
+            circuit.run(20);
             const v = readValue();
             clk.set(0);
-            circuit.run(20n);
+            circuit.run(20);
             return v;
         };
 
@@ -256,7 +256,7 @@ describe("CounterElm.digitalSynthesis()", () => {
         clk.chip = chipsByElm.get(clk)![0];
         reset.chip = chipsByElm.get(reset)![0];
         updown.chip = chipsByElm.get(updown)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readValue = () => {
             let v = 0;
@@ -265,10 +265,10 @@ describe("CounterElm.digitalSynthesis()", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(20n);
+            circuit.run(20);
             const v = readValue();
             clk.set(0);
-            circuit.run(20n);
+            circuit.run(20);
             return v;
         };
 
@@ -276,7 +276,7 @@ describe("CounterElm.digitalSynthesis()", () => {
         expect(tick()).toBe(3);
 
         reset.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(readValue()).toBe(0);
     });
 });
@@ -307,20 +307,20 @@ describe("MultiplexerElm.digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([...sources, sel0, sel1, chip, outSink]);
         sel0.chip = chipsByElm.get(sel0)![0];
         sel1.chip = chipsByElm.get(sel1)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(chip, 6, chipsByElm).output).toBe(0); // channel 0
 
         sel0.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(1); // channel 1
 
         sel0.set(0); sel1.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(0); // channel 2
 
         sel0.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 6, chipsByElm).output).toBe(1); // channel 3
     });
 });
@@ -389,14 +389,14 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([clk1, ...data, load, clr, chip]);
         clk1.chip = chipsByElm.get(clk1)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readValue = () => [0, 1, 2, 3].reduce((v, i) => v | (chipAt(chip, chip.qPost(i), chipsByElm).output << i), 0);
         const tick = () => {
             clk1.set(1);
-            circuit.run(20n);
+            circuit.run(20);
             clk1.set(0);
-            circuit.run(20n);
+            circuit.run(20);
             return readValue();
         };
 
@@ -420,7 +420,7 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([...data, clk1, clk2, load, clr, chip]);
         load.chip = chipsByElm.get(load)![0];
         clr.chip = chipsByElm.get(clr)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readAll = () => [0, 1, 2, 3].map(i => chipAt(chip, chip.qPost(i), chipsByElm).output);
 
@@ -429,21 +429,21 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
 
         // deasserting LOAD holds the last value (no clock edges are occurring here)
         load.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(readAll()).toEqual([1, 0, 1, 1]);
 
         // CLR wins over everything, including a still-transparent LOAD (set separately, not in
         // the same run() call, to avoid racing two independently-scheduled 0-delay events - see
         // the JKFlipFlopElm test above's identical caution)
         load.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         clr.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         expect(readAll()).toEqual([0, 0, 0, 0]);
 
         // deasserting CLR with LOAD already low goes transparent again
         clr.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(readAll()).toEqual([1, 0, 1, 1]);
     });
 
@@ -462,14 +462,14 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([clk1, ...data, load, clr, chip]);
         clk1.chip = chipsByElm.get(clk1)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readValue = () => [0, 1, 2, 3].reduce((v, i) => v | (chipAt(chip, chip.qPost(i), chipsByElm).output << i), 0);
         const tick = () => {
             clk1.set(1);
-            circuit.run(20n);
+            circuit.run(20);
             clk1.set(0);
-            circuit.run(20n);
+            circuit.run(20);
             return readValue();
         };
 
@@ -499,18 +499,18 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
 
         const { circuit, chipsByElm } = buildDigitalCircuit([clk1, data0, load, clr, chip]);
         clk1.chip = chipsByElm.get(clk1)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         expect(chipAt(chip, chip.qPost(0), chipsByElm).output).toBe(0);
         clk1.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         clk1.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, chip.qPost(0), chipsByElm).output).toBe(1);
         clk1.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         clk1.set(0);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, chip.qPost(0), chipsByElm).output).toBe(0);
     });
 
@@ -559,7 +559,7 @@ describe("Counter74177Elm.digitalSynthesis()", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit(elmList);
         circuit.drainZeroDelayEvents(); // the fix: let LOAD/CLR finish settling first
         seedInitialDigitalState(elmList, chipsByElm);
-        circuit.run(20n); // process anything left, same as a real frame after the rebuild
+        circuit.run(20); // process anything left, same as a real frame after the rebuild
 
         const readAll = () => [0, 1, 2, 3].map(i => chipAt(chip, chip.qPost(i), chipsByElm).output);
         expect(readAll()).toEqual([0, 1, 1, 0]);

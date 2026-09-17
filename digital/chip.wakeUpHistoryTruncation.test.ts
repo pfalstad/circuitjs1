@@ -183,10 +183,10 @@ function buildCircuit(clockPeriodTicks: number, optDisabled = false) {
  * fast one (many ticks accumulate per draw, well past a single ASLEEP episode in one jump).
  * `watched`, when true, mirrors ScopePlot.setDigitalChip() marking the chip historyWatched - the
  * fix under test. */
-function runWithStep(totalTicks: bigint, step: bigint, watched = false): { time: bigint; value: number }[] {
+function runWithStep(totalTicks: number, step: number, watched = false): { time: number; value: number }[] {
     const { circuit, andChip } = buildCircuit(4);
     if (watched) andChip.historyWatched = true;
-    let t = 0n;
+    let t = 0;
     while (t < totalTicks) {
         t += step;
         if (t > totalTicks) t = totalTicks;
@@ -198,12 +198,12 @@ function runWithStep(totalTicks: bigint, step: bigint, watched = false): { time:
 
 describe("Chip.history depends on backfillHistory() polling granularity", () => {
     it("small-step ('slow') polling and large-step ('fast') polling record different history for the same circuit run", () => {
-        const totalTicks = 40_000n;
+        const totalTicks = 40_000;
 
         // A modest ~50x gap, not an extreme one - doesn't require the fast run to leap clean over
         // a whole raster frame, just to take bigger bites between polls than the slow run does.
-        const slow = runWithStep(totalTicks, 100n);
-        const fast = runWithStep(totalTicks, 5_000n);
+        const slow = runWithStep(totalTicks, 100);
+        const fast = runWithStep(totalTicks, 5_000);
 
         // Documents that an UNWATCHED chip's `history` still depends on polling cadence - that's
         // the deliberate, cheap-by-default tradeoff (see this file's header comment): nothing
@@ -219,7 +219,7 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
     }, 60000);
 
     it("large-step ('fast') polling both drops and misrecords transitions relative to an always-correct baseline", () => {
-        const totalTicks = 40_000n;
+        const totalTicks = 40_000;
 
         const base = buildCircuit(4, true);
         // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -
@@ -230,7 +230,7 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
         const baseHist = base.andChip.history.filter(h => h.time <= totalTicks);
         const baseline = new Set(baseHist.map(h => `${h.time}:${h.value}`));
 
-        const fast = runWithStep(totalTicks, 5_000n).filter(h => h.time <= totalTicks);
+        const fast = runWithStep(totalTicks, 5_000).filter(h => h.time <= totalTicks);
 
         console.log("baseline length:", baseHist.length, "fast length:", fast.length);
 
@@ -247,7 +247,7 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
     }, 60000);
 
     it("historyWatched=true makes large-step ('fast') polling match the always-correct baseline", () => {
-        const totalTicks = 40_000n;
+        const totalTicks = 40_000;
 
         const base = buildCircuit(4, true);
         // See the previous test's identical comment on why this baseline needs historyWatched
@@ -256,7 +256,7 @@ describe("Chip.history depends on backfillHistory() polling granularity", () => 
         base.circuit.run(totalTicks);
         const baseline = base.andChip.history.filter(h => h.time <= totalTicks);
 
-        const fastWatched = runWithStep(totalTicks, 5_000n, true).filter(h => h.time <= totalTicks);
+        const fastWatched = runWithStep(totalTicks, 5_000, true).filter(h => h.time <= totalTicks);
 
         expect(fastWatched).toEqual(baseline);
     }, 60000);

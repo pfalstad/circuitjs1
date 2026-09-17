@@ -38,13 +38,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -78,21 +78,21 @@ describe("DFlipFlopElm truth table", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([d, clk, r, s, chip, notQSink]);
         r.chip = chipsByElm.get(r)![0];
         s.chip = chipsByElm.get(s)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         s.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // isSet only
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0);
 
         s.set(0);
         r.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // isReset only
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1);
 
         s.set(1); // both asserted at once
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // Q
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // /Q - forbidden state, not simply !Q
     });
@@ -119,14 +119,14 @@ describe("JKFlipFlopElm truth table", () => {
         const { circuit, chipsByElm } = buildDigitalCircuit([j, clk, k, r, chip, qSink]);
         clk.chip = chipsByElm.get(clk)![0];
         r.chip = chipsByElm.get(r)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         clk.set(0); // falling edge
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 3, chipsByElm).output).toBe(1); // J=1,K=0 -> set
 
         r.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 3, chipsByElm).output).toBe(0); // async reset overrides immediately, no edge needed
     });
 });
@@ -152,7 +152,7 @@ describe("CounterElm truth table", () => {
         clk.chip = chipsByElm.get(clk)![0];
         reset.chip = chipsByElm.get(reset)![0];
         updown.chip = chipsByElm.get(updown)![0];
-        circuit.run(20n);
+        circuit.run(20);
 
         const readValue = () => {
             let v = 0;
@@ -161,10 +161,10 @@ describe("CounterElm truth table", () => {
         };
         const tick = () => {
             clk.set(1);
-            circuit.run(20n);
+            circuit.run(20);
             const v = readValue();
             clk.set(0);
-            circuit.run(20n);
+            circuit.run(20);
             return v;
         };
 
@@ -173,7 +173,7 @@ describe("CounterElm truth table", () => {
         expect(tick()).toBe(3);
 
         reset.set(1);
-        circuit.run(20n);
+        circuit.run(20);
         expect(readValue()).toBe(0);
     });
 });

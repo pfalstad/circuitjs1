@@ -35,13 +35,13 @@ function manualSource(initial: 0 | 1) {
         chip: null as Chip | null,
         digitalSynthesis: () => ({
             desc: [customChipStart((chip: Chip) => {
-                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0n);
+                if (src.value !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
             }).outputPin(1)],
             pinMap: new Map([[0, 1]]),
         }),
         set(v: 0 | 1) {
             src.value = v;
-            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0n);
+            if (src.chip && v !== src.chip.output) src.chip.pendingEvent = src.chip.circuit.queuePush(src.chip, 0);
         },
     };
     return src;
@@ -84,16 +84,16 @@ describe("DFlipFlopElm inverted Set/Reset - fresh (unsaved) construction", () =>
         clk.chip = chipsByElm.get(clk)![0];
         r.chip = chipsByElm.get(r)![0];
         s.chip = chipsByElm.get(s)![0];
-        circuit.run(20n); // let the cold-start race settle before testing anything
+        circuit.run(20); // let the cold-start race settle before testing anything
 
         s.set(0); // assert Set (active-low)
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(1); // Q forced high
         expect(chipAt(chip, 2, chipsByElm).output).toBe(0); // /Q agrees
 
         s.set(1);
         r.set(0); // assert Reset (active-low)
-        circuit.run(20n);
+        circuit.run(20);
         expect(chipAt(chip, 1, chipsByElm).output).toBe(0); // Q forced low
         expect(chipAt(chip, 2, chipsByElm).output).toBe(1); // /Q agrees
     });

@@ -14,7 +14,11 @@ export function setTimescale(seconds: number): void {
     TIMESCALE = seconds;
 }
 
-export const MAX_U64 = (1n << 64n) - 1n; // matches `~0ull` used as a sentinel/"infinity" time
+// Sentinel/"infinity" time, matching `~0ull` in the C++ original. A real IEEE-754 Infinity
+// rather than a wrapping 64-bit pattern: arithmetic on it (e.g. `endTime += delta`) stays
+// exactly Infinity instead of silently wrapping, which is closer to this engine's previous
+// unbounded bigint behavior than truncating to a large-but-finite number would be.
+export const MAX_U64 = Infinity;
 
 // The original C++ prints a per-event trace line ("chip 'X' input changed...") unconditionally.
 // Here it's opt-in - toggle for debugging a specific circuit rather than always-on console spam.

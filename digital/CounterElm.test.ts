@@ -85,7 +85,7 @@ function buildModulusCounter() {
 
 describe("CounterElm modulus promotion", () => {
     it("matches the always-correct baseline over many full modulus cycles", () => {
-        const runTicks = 500_000n;
+        const runTicks = 500_000;
 
         const base = buildModulusCounter();
         // `history` only records for a historyWatched chip now (see chip.ts's `output` setter) -
