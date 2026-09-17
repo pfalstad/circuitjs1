@@ -483,6 +483,25 @@ function advanceBackfillPos(
         // frames, `entryTime` included, are still there for next time.
         if (candidate > now) return { pos, absTime, value, complete: true };
 
+        // A crossing that doesn't move time forward means this chip has no replayable schedule
+        // to walk: rawDelay() at a level's firstOutputEvent is `first.time + cycleTime -
+        // back.time`, so a level whose `cycleTime` is 0 (a chip that never learned a period, or
+        // one reset by deactivateOutputs()'s allocatedSubCycles-full branch) yields a delay of 0
+        // - or, across a multi-event cycle, a NEGATIVE one, walking absTime backwards. Without
+        // this guard the loop commits a value toggle per iteration while absTime stands still,
+        // spinning until maxIterations every single call.
+        //
+        // That spin predates the sleep-until-demand change, but was almost never reached: a
+        // short sleep leaves `backfillAbsTime` close to `globalTime`, so currentValue()'s own
+        // `backfillAbsTime >= globalTime` guard returned first. Once a chip can sleep
+        // indefinitely (see updateOutput()'s climb-on-sleep), the gap is unbounded and every
+        // render frame walked straight into it - it was 78% of self time on a real circuit.
+        //
+        // `complete: true` is right: there is genuinely no transition before `now` to find, so
+        // `value` holds all the way there. Reporting it as incomplete would instead make
+        // backfillHistory() report no progress forever.
+        if (candidate <= absTime) return { pos, absTime, value, complete: true };
+
         // Committing now: truncate away whatever got climbed past above.
         frames.length = climbIdx + 1;
         const climbed = frames[climbIdx];
@@ -598,6 +617,20 @@ export class Chip extends Cycle {
     private backfillPos: BackfillPos = { level: this, idx: 0, entryTime: 0, exitBound: MAX_U64, sub: null };
     private backfillAbsTime = 0;
     private backfillValue = 0;
+
+    // currentValue()'s own memoized cursor, deliberately SEPARATE from backfillPos above even
+    // though both replay the same schedule. Advancing backfillPos would be read by
+    // catchUpHistoryBeforeWake() as "history has already been recorded up through here" (that's
+    // exactly what its `backfillAbsTime > sleepTime` test means), which is false - currentValue()
+    // never records - and would leave `history` with a hole followed by a wrongly-suppressed
+    // replay. Keeping a second cursor lets currentValue() keep its progress without touching
+    // that signal. Re-seeded from backfillPos on each new sleep episode, and whenever the
+    // history cursor has moved further along than this one (a watched chip's per-draw
+    // backfillHistory() keeps backfillPos nearer `now` than this).
+    private valuePos: BackfillPos | null = null;
+    private valueAbsTime = 0;
+    private valueValue = 0;
+    private valueSleepTime = -1;
 
     // Set once (never cleared) by ScopePlot.setDigitalChip() the first time some Scope resolves
     // its digitalChip to this Chip - see catchUpHistoryBeforeWake()'s own comment for why this
@@ -1633,21 +1666,46 @@ export class Chip extends Cycle {
     // live circuit editor's own rendering - every wire's voltage color, not just a Scope's trace -
     // needs "the value right now" regardless of whether any other CHIP is watching. Computes the
     // answer via the same advanceBackfillPos() replay backfillHistory() uses (so it correctly
-    // descends into a nested sub-cycle instead of freezing there), but WITHOUT recording (no
-    // `history` growth for a call that doesn't need a trace) and WITHOUT writing the result back
-    // to backfillPos/backfillAbsTime/backfillValue: this is called every render frame, for every
-    // ASLEEP chip on screen, so it must stay cheap regardless of how long the chip has been
-    // dormant - reading the shared cursor as a fixed anchor and computing forward from it locally
-    // (skipping whole periods via arithmetic rather than stepping through every intermediate
-    // toggle - see advanceBackfillPos()'s own docstring) gets that. Leaving the shared cursor
-    // untouched also means nothing is lost: whenever something actually does need the trace (a
-    // Scope), backfillHistory() will walk and record every toggle from wherever that cursor still
-    // is, exactly as if currentValue() had never been called in between.
+    // descends into a nested sub-cycle instead of freezing there), but WITHOUT recording - no
+    // `history` growth for a call that doesn't need a trace, and nothing that would make
+    // catchUpHistoryBeforeWake() believe the trace has been written.
+    //
+    // This is called every render frame for every ASLEEP chip on screen, so it must stay cheap
+    // regardless of how long the chip has been dormant. Two things get that: advanceBackfillPos()
+    // skips whole periods arithmetically rather than stepping through every toggle, and the
+    // resulting cursor is KEPT (in valuePos/valueAbsTime/valueValue - see their own comment on
+    // why that is a second cursor rather than the shared one), so each frame resumes where the
+    // last left off instead of re-walking the whole dormant span from a fixed anchor. That
+    // memoization is what makes the cost amortized: without it, a chip sleeping until demand
+    // (see updateOutput()'s climb-on-sleep) has an unbounded gap to `now`, and re-walking it
+    // every frame dominated the entire simulation.
+    //
+    // The shared backfillPos cursor is still left untouched, so nothing is lost: whenever
+    // something actually does need the trace (a Scope), backfillHistory() will walk and record
+    // every toggle from wherever that cursor still is, exactly as if currentValue() had never
+    // been called in between.
     currentValue(): number {
         if (this.state !== ChipState.ASLEEP) return this.output;
-        if (this.outputEvents.empty() || this.backfillAbsTime >= this.circuit.globalTime) return this.backfillValue;
+        if (this.outputEvents.empty()) return this.backfillValue;
 
-        return advanceBackfillPos(this.backfillPos, this.backfillAbsTime, this.backfillValue, this.circuit.globalTime, null).value;
+        const now = this.circuit.globalTime;
+
+        // (Re)seed from the history cursor whenever it's the better anchor - see valuePos.
+        if (this.valuePos === null || this.valueSleepTime !== this.sleepTime
+            || this.backfillAbsTime > this.valueAbsTime) {
+            this.valuePos = this.backfillPos;
+            this.valueAbsTime = this.backfillAbsTime;
+            this.valueValue = this.backfillValue;
+            this.valueSleepTime = this.sleepTime;
+        }
+
+        if (this.valueAbsTime >= now) return this.valueValue;
+
+        const result = advanceBackfillPos(this.valuePos, this.valueAbsTime, this.valueValue, now, null);
+        this.valuePos = result.pos;
+        this.valueAbsTime = result.absTime;
+        this.valueValue = result.value;
+        return result.value;
     }
 
     static nextBit(x: number): number {
