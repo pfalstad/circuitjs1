@@ -293,7 +293,16 @@ export class Scope {
     checkTrigger(): void { this.trigger.check(this.visiblePlots, this.plot2d.enabled, this.sim, this.scopePointCount, this.rect.width); }
 
     setTriggerMode(mode: number): void {
+        const wasActive = this.trigger.isActive();
         this.trigger.mode = mode;
+        // A digital trace only ever sits at 0 or highVoltage, so the analog default trigger
+        // level of 0 can never be crossed and the scope would just sit there saying WAIT.  Pick
+        // mid-supply instead the first time triggering is turned on for such a plot.
+        if (!wasActive && this.trigger.isActive() && this.trigger.level === 0) {
+            const p = this.visiblePlots.length > 0 ? this.visiblePlots[0] : null;
+            if (p !== null && p.digitalChip !== null)
+                this.trigger.level = ((p.elm as any)?.highVoltage ?? 5) / 2;
+        }
         this.resetGraph();
     }
 
@@ -704,11 +713,20 @@ export class Scope {
         // catch them up now, once per draw, from their own change-list
         // history
         const isRaster = this.plot2d.enabled && this.plot2d.digitalRaster;
+        let filledDigital = false;
         for (const p of this.plots) {
             p.refreshDigitalSource();
-            if (p.digitalChip !== null && !isRaster)
+            if (p.digitalChip !== null && !isRaster) {
                 p.fillFromDigitalHistory();
+                filledDigital = true;
+            }
         }
+
+        // A digital plot's ptr only moves in the loop above, never in timeStep() - so the
+        // trigger state machine has to be run here too, or it would never see the new columns.
+        // Harmless for analog plots: check() no-ops when ptr hasn't moved since timeStep().
+        if (filledDigital)
+            this.checkTrigger();
 
         if (this.plot2d.enabled) {
             if (this.plot2d.digitalRaster)
