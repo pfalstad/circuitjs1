@@ -233,6 +233,7 @@ function buildSimpleCircuit() {
 describe("simplified self-resetting counter pair (single reset domain)", () => {
     it("settles after a long run", () => {
         const c = buildSimpleCircuit();
+        for (const chip of c.circuit.chips) chip.historyWatched = true; // so the transition counts below are recorded
         c.circuit.run(2_000_000);
         const report = (label: string, chip: Chip) =>
             console.log(`${label}: state=${ChipState[chip.state]} cycleTime=${chip.cycleTime} historyLen=${chip.history.length}`);
@@ -241,8 +242,16 @@ describe("simplified self-resetting counter pair (single reset domain)", () => {
 
         for (const w of [1, 2, 4, 8])
             expect(c.bit1(w).state, `counter1 bit${w} should settle to ASLEEP`).toBe(ChipState.ASLEEP);
-        for (const w of [16, 32, 64, 128])
-            expect(c.bit2(w).state, `counter2 bit${w} should settle to ASLEEP`).toBe(ChipState.ASLEEP);
+        expect(c.bit2(16).state, "counter2 bit16 should settle to ASLEEP").toBe(ChipState.ASLEEP);
+
+        // 32H/64H/128H are a different case, and ASLEEP is the wrong thing to ask of them: the
+        // pair resets at count 22 (NAND(2H,4H,16H)), so counter2 never counts past 16 and those
+        // three cells never toggle even once. A chip only ever enters ASLEEP from
+        // updateOutput(), i.e. on its own output transition - a cell that never transitions has
+        // no periodic schedule to sleep on and simply idles with nothing queued, which is
+        // already the cheapest state available. What matters is that they stay quiet.
+        for (const w of [32, 64, 128])
+            expect(c.bit2(w).history, `counter2 bit${w} never toggles at all`).toHaveLength(0);
     }, 30000);
 });
 

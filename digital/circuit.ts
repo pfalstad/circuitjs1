@@ -408,6 +408,17 @@ export class Circuit {
         }
     }
 
+    /**
+     * Runs for (at least) `runTimeIn` ticks. Ported as-is from dice-ts, overshoot included: the
+     * loop tests `runTime > 0` BEFORE jumping, so the last jump lands globalTime on the next
+     * queued event even when that event is past the end of the requested window - this can
+     * overshoot by a whole inter-event gap, and by an amount that depends on the event pattern.
+     * Fine for the real driver (SimulationManager uses runWithDeadline() below, which clamps to
+     * the requested end, and dice-ts's own loop just carries the overshoot into the next call),
+     * but it means `run(delta)` is NOT a way to put a circuit on a particular tick: two circuits
+     * driven by the same deltas drift apart as soon as their event patterns differ. Anything
+     * comparing circuits (tests, mostly) wants runWithDeadline().
+     */
     run(runTimeIn: number): void {
         this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         let runTime = runTimeIn;

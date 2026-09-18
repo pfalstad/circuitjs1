@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
-import { customChipStart } from "./chip_desc";
+import { chipStart } from "./chip_desc";
 import { buildDigitalCircuit, seedInitialDigitalState } from "./DigitalGraphBuilder";
 import { Counter2Elm } from "../Counter2Elm";
 import { RailElm } from "../RailElm";
@@ -74,9 +74,17 @@ function tie(value: "VCC" | "GND") {
     return { digitalTie: () => value, nodes: [] as { links: { num: number; elm: any }[] }[] };
 }
 
+// A plain-logic sink, NOT a customChipStart() one: a CUSTOM_CHIP can never be promoted, so it
+// holds whatever drives it permanently ACTIVE - with a custom probe on every Q pin, the output
+// buffers here could never reach ASLEEP no matter how quiet the circuit went, which is precisely
+// what the settling test below measures. A real circuit's Q pins feed ordinary gates, which can
+// themselves be promoted; this models that.
 function probe() {
     return {
-        digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
+        digitalSynthesis: () => ({
+            desc: [chipStart((pin) => { pin[2] = pin[1]; }).inputPins(1).outputPin(2)],
+            pinMap: new Map([[0, 1]]),
+        }),
         nodes: [] as { links: { num: number; elm: any }[] }[],
     };
 }
@@ -197,15 +205,15 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
         for (const chip of base.circuit.chips) chip.optimizationDisabled = true;
         const opt = buildRippleCounter();
 
-        // Circuit.run() advances by a duration from wherever it currently is, not to an absolute
-        // time - runUntil() converts the absolute ticks used below into the right deltas for both
-        // circuits (which always advance in lockstep here).
-        let now = 0;
+        // runWithDeadline(), not run(): run() lands globalTime on the next queued event even when
+        // that event is past the end of the requested window, so it overshoots by up to one
+        // inter-event gap - and by DIFFERENT amounts in these two circuits, whose event patterns
+        // differ by construction. Comparing them at a nominal tick they aren't both actually
+        // standing on reads as a count mismatch (they drifted 13 ticks apart by t=300, most of a
+        // clock half-period). runWithDeadline() clamps to the requested end instead.
         const runUntil = (absoluteTick: number) => {
-            const delta = absoluteTick - now;
-            base.circuit.run(delta);
-            opt.circuit.run(delta);
-            now = absoluteTick;
+            base.circuit.runWithDeadline(absoluteTick - base.circuit.globalTime);
+            opt.circuit.runWithDeadline(absoluteTick - opt.circuit.globalTime);
         };
         const bothSetLoad = (v: "VCC" | "GND") => { setPin(base.load, v); setPin(opt.load, v); };
         const bothSetClr = (v: "VCC" | "GND") => { setPin(base.clr, v); setPin(opt.clr, v); };
@@ -226,8 +234,11 @@ describe("Counter2Elm modulus===0 ripple synthesis", () => {
         runUntil(300); // several more free-running edges
         expectMatch("counting resumed after LOAD");
 
-        bothSetClr("GND"); // assert CLR (active-low) - takes effect immediately, no clock edge needed
-        runUntil(301);
+        bothSetClr("GND"); // assert CLR (active-low) - no clock edge needed, but see below
+        // CLR is asynchronous, but still has to propagate: the LogicInput's own cell, then the
+        // bit cell, then its output buffer - three cells, so more than the one tick this used to
+        // allow.
+        runUntil(305);
         expectMatch("CLR asserted");
         expect(currentValue(opt.bitChips), "CLR asserted").toBe(0);
 
