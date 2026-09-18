@@ -22,6 +22,7 @@ import { RailElm } from "../RailElm";
 import { VoltageElm } from "../VoltageElm";
 import { CircuitElm } from "../CircuitElm";
 import { TIMESCALE } from "./constants";
+import { connect } from "./testWiring";
 
 beforeEach(() => {
     CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
@@ -48,11 +49,6 @@ function clockFrequencyForPeriodTicks(periodTicks: number): number {
 
 function tieSource(tie: "VCC" | "GND") {
     return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 function counterElm(bits: number, flags: number) {

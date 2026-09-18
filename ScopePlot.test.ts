@@ -6,6 +6,7 @@ import { ChipState } from "./digital/chip";
 import { chipStart, customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import { buildDigitalCircuit, setCurrentDigitalGraph } from "./digital/DigitalGraphBuilder";
+import { connect } from "./digital/testWiring";
 
 // A minimal fake Chip - just the surface fillFromDigitalHistory()/canAcCouple() actually read
 // (circuit.globalTime, state, history, output, backfillHistory()) - for tests that only need to
@@ -39,10 +40,6 @@ function fakeElm(highVoltage = 5) {
         nodes: [] as { links: { num: number; elm: any }[] }[],
         highVoltage,
     };
-}
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 afterEach(() => setCurrentDigitalGraph(null));

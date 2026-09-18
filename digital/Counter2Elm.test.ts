@@ -25,6 +25,7 @@ import { VoltageElm } from "../VoltageElm";
 import { CircuitElm } from "../CircuitElm";
 import { LogicInputElm } from "../LogicInputElm";
 import { TIMESCALE } from "./constants";
+import { connect } from "./testWiring";
 
 beforeEach(() => {
     CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
@@ -78,11 +79,6 @@ function probe() {
         digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
         nodes: [] as { links: { num: number; elm: any }[] }[],
     };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 // periodTicks*TIMESCALE seconds total period -> frequency such that halfPeriodTicks rounds

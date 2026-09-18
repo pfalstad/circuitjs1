@@ -11,6 +11,7 @@ import {
     digitalStateTextNew, syncDigitalToNodesNew, digitalScopeSourceNew,
     setCurrentDigitalGraph, getCurrentDigitalGraph,
 } from "./DigitalGraphBuilder";
+import { connect } from "./testWiring";
 
 function fakeElm(desc: ChipDesc[], pinMap: [number, number][], extra: Record<string, unknown> = {}) {
     return {
@@ -22,11 +23,6 @@ function fakeElm(desc: ChipDesc[], pinMap: [number, number][], extra: Record<str
 
 function tieElm(tie: "VCC" | "GND") {
     return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 // Buffer: pin 1 in, pin 2 out (out = in) - matches DigitalGraphBuilder.test.ts's bufDesc().

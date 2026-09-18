@@ -3,6 +3,7 @@ import { JSInterface } from "./JSInterface";
 import { buildDigitalCircuit, setCurrentDigitalGraph } from "./digital/DigitalGraphBuilder";
 import { chipStart, customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
+import { connect } from "./digital/testWiring";
 
 // Same fakeElm()/connect() convention as ScopePlot.test.ts - a single-output digital-capable
 // element shaped exactly like what digitalSynthesis()-based resolution looks for, plus getName()
@@ -20,10 +21,6 @@ function fakeElm(name: string) {
         highVoltage: 5,
         getName: () => name,
     };
-}
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 function fakeApp(elmList: any[], digitalTickEpoch: number = 0) {

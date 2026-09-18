@@ -13,6 +13,7 @@ import type { CircuitEntry } from "./circuit_desc";
 import type { Chip } from "./chip";
 import { StopTriggerElm } from "../StopTriggerElm";
 import { CircuitElm } from "../CircuitElm";
+import { connect } from "./testWiring";
 
 let simRunning = true;
 
@@ -30,11 +31,6 @@ beforeEach(() => {
  * giving single-hop control for interleaving a mid-countdown check. */
 function oneHop(circuit: { runWithDeadline: (t: number, d: number) => number }): void {
     circuit.runWithDeadline(1_000_000, Date.now() - 1);
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })), v: 0 };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 /** A live-pushable digital source - same pattern DigitalSynthesisPhase3.test.ts's own

@@ -19,6 +19,7 @@ import { LogicInputElm } from "../LogicInputElm";
 import { ExtVoltageElm } from "../ExtVoltageElm";
 import { VoltageElm } from "../VoltageElm";
 import { CircuitElm } from "../CircuitElm";
+import { connect } from "./testWiring";
 
 beforeEach(() => {
     // VoltageElm.getVoltage() unconditionally reads CircuitElm.sim.t before branching on
@@ -42,11 +43,6 @@ function probe() {
         digitalSynthesis: () => ({ desc: [customChipStart(() => { }).inputPins(1)], pinMap: new Map([[0, 1]]) }),
         nodes: [] as { links: { num: number; elm: any }[] }[],
     };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 /** Builds a gate/inverter under test with `inputs` fixed 0/1 values wired to its input posts

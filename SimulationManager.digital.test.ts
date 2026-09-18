@@ -14,6 +14,7 @@ import { SimulationManager } from "./SimulationManager";
 import { chipStart, customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
+import { connect } from "./digital/testWiring";
 
 function fakeApp() {
     return {
@@ -60,11 +61,6 @@ function sinkElm() {
         }),
         nodes: [] as { links: { num: number; elm: any }[] }[],
     };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 function bareSim(elmArr: any[], maxTimeStep: number): SimulationManager {

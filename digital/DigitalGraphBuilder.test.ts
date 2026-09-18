@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { chipStart, customChipStart } from "./chip_desc";
 import type { ChipDesc } from "./chip_desc";
 import { buildCircuitDesc, buildDigitalCircuit } from "./DigitalGraphBuilder";
+import { connect } from "./testWiring";
 
 /** A minimal fake digital element: shaped exactly like what DigitalGraphBuilder's
  * digitalSynthesis()-based duck-typing looks for, without needing a real CircuitElm. */
@@ -15,10 +16,6 @@ function fakeElm(desc: ChipDesc[], pinMap: [number, number][]) {
 /** Wires a shared CircuitNode-like object across several (elm, post) pairs, exactly like
  * SimulationManager.makeNodeList() would after wire closure has merged everything onto one
  * node. */
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
-}
 
 // A single-input, single-output buffer cell: pin 1 in, pin 2 out, output = input.
 function bufDesc(): ChipDesc[] {

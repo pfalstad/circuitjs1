@@ -14,6 +14,7 @@ import { buildDigitalCircuit, seedInitialDigitalState } from "./DigitalGraphBuil
 import type { Chip } from "./chip";
 import { DFlipFlopElm } from "../DFlipFlopElm";
 import { CircuitElm } from "../CircuitElm";
+import { connect } from "./testWiring";
 
 beforeEach(() => {
     CircuitElm.sim = { t: 0, maxTimeStep: 1e-6 } as any;
@@ -21,11 +22,6 @@ beforeEach(() => {
 
 function tieSource(tie: "VCC" | "GND") {
     return { digitalTie: () => tie, nodes: [] as { links: { num: number; elm: any }[] }[] };
-}
-
-function connect(...posts: { elm: any; num: number }[]): void {
-    const node = { links: posts.map(p => ({ num: p.num, elm: p.elm })) };
-    for (const p of posts) p.elm.nodes[p.num] = node;
 }
 
 function manualSource(initial: 0 | 1) {
