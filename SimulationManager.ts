@@ -117,6 +117,19 @@ export class SimulationManager {
     digitalGraph: DigitalGraph | null = null;
     digitalReady: boolean = false;
 
+    // Ticks that had already elapsed (timeStepCount) when the CURRENT digitalGraph was built.
+    //
+    // Circuit.globalTime starts over at 0 in every freshly built graph, and a graph is rebuilt on
+    // every re-analyze - i.e. on any circuit edit, not just on Reset, which alone resets
+    // timeStepCount/t as well. So a chip's history ticks are only "ticks since the last edit",
+    // while sim time t keeps running: anything that anchors on absolute tick time (the raster
+    // scope's frame phase, the JS API's signal ticks) would jump backwards on every edit, losing
+    // its phase or - if it mixes the two timebases, as t/maxTimeStep and a reported tick look
+    // interchangeable - painting a span of every tick since the page loaded. Adding this to a
+    // graph-local tick gives one continuous timebase again: globalTime + digitalTickEpoch ===
+    // timeStepCount === t/maxTimeStep, across edits, until a Reset zeroes all of them together.
+    digitalTickEpoch: number = 0;
+
     static console(text: string): void { console.log(text); }
     static debugger(): void { debugger; }
 
@@ -1136,6 +1149,11 @@ export class SimulationManager {
     // enough; there's no need to support toggling it without a restamp.
     initDigitalCircuit(): void {
         setTimescale(this.maxTimeStep);
+        // The new graph's clock starts at 0, so whatever has elapsed so far is its epoch - see
+        // digitalTickEpoch's own comment. Set BEFORE the build: a clock rail's own
+        // digitalSynthesis() reads it (RailElm.digitalSynthesis()) to prime its phase against
+        // absolute time rather than restarting its cycle at the build instant.
+        this.digitalTickEpoch = this.timeStepCount;
         this.digitalGraph = buildDigitalCircuit(this.elmArr);
         setCurrentDigitalGraph(this.digitalGraph);
 

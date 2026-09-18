@@ -751,6 +751,12 @@ export class Chip extends Cycle {
         this.activationCycles = new Array(numInputPins).fill(null);
         this.lastInputEvent = new Array(numInputPins).fill(0);
 
+        // Born value (see ChipDesc.initOutput) - written straight to the backing field: this is
+        // the chip's starting state, not a transition, so it must not reach `history` (nor could
+        // it - nothing is watching yet) and must not look like an edge to anything downstream.
+        // Circuit's own constructor is what makes consumers agree with it.
+        this._output = desc.initOutput ?? 0;
+
         if (desc.custom) {
             this.type = ChipType.CUSTOM_CHIP;
             this.customUpdate = desc.custom;

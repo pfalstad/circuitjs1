@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { ScopePlot } from "./ScopePlot";
+import { CircuitElm } from "./CircuitElm";
 import { UNITS_V, VAL_VOLTAGE } from "./ScopeConstants";
 import { ChipState } from "./digital/chip";
 import { chipStart, customChipStart } from "./digital/chip_desc";
@@ -270,5 +271,32 @@ describe("ScopePlot digital history fill", () => {
 
         plot.refreshDigitalSource();
         expect(plot.digitalChip).toBe(graph.chipsByElm.get(driver)![0]);
+    });
+
+    // A circuit edit rebuilds the digital graph and restarts its clock, so this plot re-attaches
+    // to a different Chip and cold-starts again - at a DIFFERENT graph-local `now` for the same
+    // real instant (SimulationManager.digitalTickEpoch bridges the two). If the column grid were
+    // anchored on wherever the plot happened to attach, that would slide the trace sideways by up
+    // to a column on every edit, and the slides would accumulate.
+    it("anchors its column grid on absolute tick time, so a graph rebuild doesn't slide the trace", () => {
+        const history = [{ time: 0, value: 1 }, { time: 25, value: 0 }, { time: 50, value: 1 }];
+        const grids: number[] = [];
+        // Same absolute instant (tick 143) reached three ways: never rebuilt, and rebuilt 43 and
+        // 7 ticks ago. Also an off-grid instant, to check the boundary is the grid's, not `now`'s.
+        for (const [now, epoch] of [[143, 0], [100, 43], [7, 136], [96, 43]] as [number, number][]) {
+            (CircuitElm as any).sim = { digitalTickEpoch: epoch };
+            const plot = new ScopePlot(fakeElm() as any, UNITS_V, VAL_VOLTAGE, 1);
+            plot.digitalChip = fakeChip(history, now);
+            plot.scopePointCount = 8;
+            plot.scopePlotSpeed = 10;
+            plot.minValues = new Array(8).fill(0);
+            plot.maxValues = new Array(8).fill(0);
+            plot.fillFromDigitalHistory();
+            grids.push(((plot as any).colEnd + epoch) % plot.scopePlotSpeed);
+        }
+        (CircuitElm as any).sim = undefined;
+        // Every column boundary lands on the same absolute grid (a multiple of sp), whichever
+        // graph-local instant the plot attached at.
+        expect(grids).toEqual([0, 0, 0, 0]);
     });
 });

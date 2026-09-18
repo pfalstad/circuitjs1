@@ -143,10 +143,18 @@ export class JSInterface {
      * does, without needing per-timestep callbacks the digital fast path can't cheaply provide
      * (a promoted/sleeping chip skips real ticks entirely - see SimulationManager.runCircuit()'s
      * own comment). Calls onsignalupdate at most once, with one entry per signal that actually
-     * changed or was just (re)attached; does nothing (no hook call) if no watch has anything new. */
+     * changed or was just (re)attached; does nothing (no hook call) if no watch has anything new.
+     *
+     * Reported ticks are ABSOLUTE simulator ticks (tick 0 === sim time 0, so
+     * tick === getTime()/getMaxTimeStep()), not the driving graph's own Circuit.globalTime: the
+     * digital graph is rebuilt - and its clock restarted - on every circuit edit, which would
+     * otherwise send a watcher's ticks backwards mid-run. SimulationManager.digitalTickEpoch (see
+     * its own comment) is what bridges the two; everything below stays in raw graph ticks and only
+     * the values handed to JS are shifted. */
     private pollSignals(): void {
         if (this.signalWatches.size === 0)
             return;
+        const epoch: number = this.app.sim.digitalTickEpoch ?? 0;
         const signals: Record<string, { changes: { tick: number, value: number }[], now: number }> = {};
         let any = false;
         for (const w of this.signalWatches.values()) {
@@ -182,16 +190,16 @@ export class JSInterface {
             if (coldStart)
                 // Report the level in effect as of `floor` first, so JS doesn't have to guess the
                 // starting value before the first real transition.
-                changes.push({ tick: floor, value: lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip2.output) });
+                changes.push({ tick: floor + epoch, value: lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip2.output) });
             for (let i = lo; i < hist.length && Number(hist[i].time) < now; i++)
-                changes.push({ tick: Number(hist[i].time), value: hist[i].value });
+                changes.push({ tick: Number(hist[i].time) + epoch, value: hist[i].value });
             w.lastFilledTick = now;
             // A transition landing exactly at `now` is excluded above (half-open range, same as
             // ScopePlot2d.fillDigitalRaster()) and picked up on a later poll instead once `now`
             // has advanced past it - so `now` moving with nothing YET to report isn't itself
             // worth a hook call.
             if (changes.length === 0) continue;
-            signals[w.name] = { changes, now };
+            signals[w.name] = { changes, now: now + epoch };
             any = true;
         }
         if (any)

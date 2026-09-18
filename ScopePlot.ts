@@ -327,7 +327,23 @@ export class ScopePlot implements HistoryWatcher {
         if (this.lastDigitalFillTick < 0 || now - this.lastDigitalFillTick >= spc * sp) {
             // Cold start - seed every column from scratch, same algorithm this method used to
             // run every single call.
-            const windowStart = now - spc * sp;
+            //
+            // Column boundaries sit on the ABSOLUTE tick grid (multiples of `sp` counted from sim
+            // time 0 - digitalTickEpoch bridges this graph's own restarted clock, see its own
+            // comment), rather than simply falling `spc` columns back from wherever this plot
+            // happened to (re)attach. Every circuit edit rebuilds the digital graph, which hands
+            // this plot a different Chip and forces exactly such a re-attach: anchoring the grid
+            // on that instant slides the whole trace sideways by up to a column, in whichever
+            // direction the edit happened to land, and the slides accumulate edit after edit.
+            // On the absolute grid a stationary waveform stays put across edits.
+            const epoch = (CircuitElm.sim as any)?.digitalTickEpoch ?? 0;
+            // The first grid boundary AT or after `now`, so the newest column is the one still in
+            // progress, exactly as before - just with its boundary taken from the shared grid
+            // instead of from `now` itself. `now` already sitting on a boundary therefore
+            // reproduces the old window exactly (the incremental branch below deliberately keeps
+            // a column whose colEnd === now open, rather than opening an empty one past it).
+            const colEndNow = Math.ceil((now + epoch) / sp) * sp - epoch;
+            const windowStart = colEndNow - spc * sp;
             // Never look further back than this plot's own historyEpoch - see its docstring.
             const searchFloor = Math.max(windowStart, Number(this.historyEpoch));
 
@@ -366,10 +382,12 @@ export class ScopePlot implements HistoryWatcher {
             // column. minValues/maxValues were just filled oldest-to-newest at indices
             // 0..spc-1, so ptr = spc - 1 makes index spc-1 (the last one written, i.e. newest)
             // resolve to offset 0 from ptr - exactly matching that convention without needing an
-            // actual circular write. `colEnd` for that last column is exactly `now` (windowStart
-            // + spc*sp), which is also where the incremental branch below picks up next call.
+            // actual circular write. `colEnd` for that last column is `colEndNow` (windowStart
+            // + spc*sp), the grid boundary at or after `now`, which is also where the incremental
+            // branch below picks up next call - it holds that column open until the sim actually
+            // reaches it.
             this.ptr = spc - 1;
-            this.colEnd = now;
+            this.colEnd = colEndNow;
             this.curDigitalVal = curVal;
         } else {
             // Steady state - fold in only what's new since lastDigitalFillTick, advancing `ptr`/

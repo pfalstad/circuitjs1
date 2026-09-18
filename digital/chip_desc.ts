@@ -36,6 +36,14 @@ export interface ChipDesc {
     evPins: number[];
     outPin: number;
     prevOutPin: number;
+    // Value this chip's output is BORN with, before anything is initialized (default 0, the
+    // hardcoded Chip default this port has always had). Not part of the dice-ts original: a
+    // free-running source synthesized mid-simulation - a clock rail primed after a circuit edit,
+    // see RailElm.digitalSynthesis() - has a real current level that may well be high, and it has
+    // to be in place BEFORE Circuit's constructor initializes anything, so consumers cache the
+    // right input bit and the chip's own priming logic sees its real starting value. Toggling it
+    // high after the fact instead would manufacture a rising edge that never happened.
+    initOutput?: number;
 }
 
 export class ChipDescBuilder implements ChipDesc {
@@ -46,6 +54,7 @@ export class ChipDescBuilder implements ChipDesc {
     evPins: number[] = [];
     outPin = 0;
     prevOutPin = 0;
+    initOutput = 0;
 
     constructor(logic: ChipLogic | null, custom: CustomLogic | null) {
         this.logic = logic;
@@ -56,6 +65,7 @@ export class ChipDescBuilder implements ChipDesc {
     eventPins(...pins: number[]): this { this.evPins = pins; return this; }
     outputPin(pin: number): this { this.outPin = pin; return this; }
     prevOutputPin(pin: number): this { this.prevOutPin = pin; return this; }
+    initialOutput(v: number): this { this.initOutput = v; return this; }
     outputDelayS(lh: number, hl: number): this { this.delay = [lh, hl]; return this; }
     outputDelayMs(lh: number, hl: number): this { return this.outputDelayS(lh * 1e-3, hl * 1e-3); }
     outputDelayUs(lh: number, hl: number): this { return this.outputDelayS(lh * 1e-6, hl * 1e-6); }

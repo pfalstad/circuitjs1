@@ -254,8 +254,15 @@ export class ScopePlot2d implements HistoryWatcher {
         // to what it actually reached, or the gap gets painted stale and marked done for good.
         const now = Number(backfilledTo < globalTime ? backfilledTo : globalTime);
 
-        const frameIndex = Math.floor(now / frameLengthTicks);
-        const frameStart = frameIndex * frameLengthTicks;
+        // Frame phase is anchored on ABSOLUTE tick time (globalTime + digitalTickEpoch - see
+        // that field's own comment), not on this graph's own globalTime: a circuit edit rebuilds
+        // the graph and restarts globalTime at 0, which would otherwise re-anchor every frame
+        // boundary to a new, arbitrary phase and roll/tear a picture that was locked before the
+        // edit. frameStart is converted straight back into this graph's ticks, so all the raster
+        // math below stays in the same units as chip history times.
+        const epoch = this.scope.sim.digitalTickEpoch ?? 0;
+        const frameIndex = Math.floor((now + epoch) / frameLengthTicks);
+        const frameStart = frameIndex * frameLengthTicks - epoch;
         const canvasWidth = this.scope.rect.width;
         const canvasHeight = this.scope.rect.height;
 
@@ -274,7 +281,7 @@ export class ScopePlot2d implements HistoryWatcher {
                 // Finish the outgoing frame's tail (wherever the last call left off, through
                 // that frame's real end) before switching frames - otherwise the beam restarts
                 // at row 0 and the tail near the bottom is dropped on every wrap, never refreshed.
-                const prevFrameStart = prevFrameIndex * frameLengthTicks;
+                const prevFrameStart = prevFrameIndex * frameLengthTicks - epoch;
                 const prevFrameEnd = prevFrameStart + frameLengthTicks;
                 let lo3 = 0, hi3 = hist.length;
                 while (lo3 < hi3) {

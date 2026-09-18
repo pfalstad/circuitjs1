@@ -103,29 +103,32 @@ export class RailElm extends VoltageElm {
      * reaches any given point of the waveform at an earlier `t` (y(t) = f(w*t+phase) is f(w*t)
      * shifted left by phase/w). Not "delayed" despite the intuitive reading of "phase shift".
      *
-     * A chip's `output` field always starts at 0 (a hardcoded Chip default - see
-     * phasedClockLogic()'s own docstring), and only the very FIRST scheduled toggle's delay can be
-     * freely chosen without corrupting every later period's duty cycle
-     * (Cycle.nextOutputEventDelay()'s cyclic formula in chip.ts derives every SUBSEQUENT delay
-     * from the stored outputEvents/cycleTime alone, never from how long the engine actually waited
-     * for the first one) - so a phase offset landing in the rail's HIGH portion at t=0 can only be
-     * represented as "reads low until that first real rise, then correct forever after," not as
-     * truly high from t=0. (An earlier version used an inverted internal signal plus a
-     * combinational NOT to get that initial instant exactly right - reverted: every real
+     * Only the very FIRST scheduled toggle's delay can be freely chosen without corrupting every
+     * later period's duty cycle (Cycle.nextOutputEventDelay()'s cyclic formula in chip.ts derives
+     * every SUBSEQUENT delay from the stored outputEvents/cycleTime alone, never from how long the
+     * engine actually waited for the first one) - so a phase offset landing in the rail's HIGH
+     * portion is represented by BIRTHING the chip high (ChipDesc.initOutput) with that first
+     * toggle being the fall, rather than by faking a low start. The chip used to always start at
+     * 0, which made "high right now" unrepresentable and cost a falling edge every time a rail was
+     * primed mid-cycle - harmless at t=0 (where the convention above puts us in the low portion
+     * anyway), but not on the mid-run re-priming any circuit edit performs. (An earlier version
+     * instead used an inverted internal signal plus a combinational NOT - reverted: every real
      * chip-to-chip link carries a mandatory >=1-tick propagation floor (see the Chip constructor's
      * own comment on why same-tick races are disallowed), so that extra cell would measurably
-     * shift this rail's edges by a tick versus a direct one - a worse tradeoff, for anything
-     * downstream expecting exact edge timing, than a startup-only polarity glitch.)
+     * shift this rail's edges by a tick versus a direct one. Being born at the right value costs
+     * nothing and shifts nothing.)
      */
-    /** Tick-domain layout shared by digitalSynthesis() (t=0) and retimePhase() (live, at
-     * `nowSeconds`): high/low/period durations in ticks, plus which side of the cycle "now" falls
-     * on and how many ticks until the next edge. `nowSeconds` (default 0) folds elapsed time into
-     * the phase angle exactly like VoltageElm.getVoltage()'s own `w` - without it, a live
-     * retimePhase() call would judge high/low from `phaseShift` alone and could truncate an
-     * already-in-progress pulse. */
-    private static phaseLayout(period: number, dutyCycle: number, phaseShift: number, nowSeconds: number = 0):
-            { highTicks: number, lowTicks: number, periodTicks: number, initialDelay: number,
-              highAtReference: boolean, edgeDelay: number } {
+    /** Tick-domain layout shared by digitalSynthesis() (priming a brand-new chip) and
+     * retimePhase() (live): high/low/period durations in ticks, plus which side of the cycle the
+     * reference instant `nowTicks` falls on and how many ticks until the next edge. `nowTicks`
+     * (absolute simulator ticks - i.e. Circuit.globalTime + SimulationManager.digitalTickEpoch,
+     * default 0) folds elapsed time into the phase angle exactly like VoltageElm.getVoltage()'s
+     * own `w` - without it, a live retimePhase() call would judge high/low from `phaseShift`
+     * alone and could truncate an already-in-progress pulse, and a mid-run digitalSynthesis()
+     * would restart the rail's cycle wherever the rebuild happened to land. */
+    private static phaseLayout(period: number, dutyCycle: number, phaseShift: number, nowTicks: number = 0):
+            { highTicks: number, lowTicks: number, periodTicks: number,
+              startsHigh: boolean, edgeDelay: number } {
         const twoPi = 2 * Math.PI;
         const highTicks = Math.max(1, Math.round(period * dutyCycle / TIMESCALE));
         const lowTicks = Math.max(1, Math.round(period * (1 - dutyCycle) / TIMESCALE));
@@ -135,36 +138,52 @@ export class RailElm extends VoltageElm {
         // docstring, NOT VoltageElm's HIGH-phase-first analog convention): [0, lowAngle) is low,
         // [lowAngle, 2pi) is high, and the rise happens at lowAngle. `w` (see this method's own
         // docstring) is the CURRENT angle on that circle, not just the caller's raw phaseShift.
-        const w = (twoPi * nowSeconds / period) + phaseShift;
+        //
+        // Elapsed time is folded in on the TICK grid (nowTicks/periodTicks), NOT as
+        // nowSeconds/period: periodTicks is the whole-tick period this chip actually toggles on,
+        // and it differs from the nominal `period` by up to half a tick per cycle. That rounding
+        // is irrelevant over one cycle but accumulates - over the millions of cycles `nowTicks`
+        // can span, a seconds-based angle ends up somewhere completely unrelated to where this
+        // rail's edges really are. Reduced mod periodTicks before dividing, so precision doesn't
+        // depend on how long the simulation has been running.
+        const w = (twoPi * ((nowTicks % periodTicks) / periodTicks)) + phaseShift;
         const wm = ((w % twoPi) + twoPi) % twoPi;
-        const lowAngle = twoPi * (1 - dutyCycle);
-        const highAtReference = wm >= lowAngle;
+        // From the TICK grid (lowTicks/periodTicks), not the nominal 1-dutyCycle: those two
+        // differ by up to half a tick once low/high are rounded independently, and the rise this
+        // returns has to land on the grid the chip really toggles on - otherwise the first rise
+        // after a mid-run rebuild can come out a tick off from where the rail's existing edges
+        // are, varying with the rebuild instant. It also makes the phaseShift=0 case exactly
+        // `lowTicks`, as this method's docstring has always claimed.
+        const lowAngle = twoPi * (lowTicks / periodTicks);
+        // The epsilon is pure float-noise tolerance, orders of magnitude below one tick's worth
+        // of angle (2pi/periodTicks): a reference instant landing exactly ON the rise (wm ===
+        // lowAngle, e.g. a rebuild on a clock edge) must take the high branch. Falling to the low
+        // branch instead computes a zero delay, which the >=1-tick clamp below then turns into a
+        // rise one tick late - the one case that otherwise breaks this method's "same absolute
+        // grid regardless of reference instant" guarantee.
+        const highAtReference = wm >= lowAngle - 1e-9;
 
-        // Ticks from the reference instant until the first real rise: if phase places us in the
-        // low portion, that's just the remaining low time (at phaseShift=0 this is exactly
-        // `lowTicks`, matching the engine's old fixed behavior); if it places us in the high
-        // portion (which a from-scratch priming can't represent starting AT the reference instant
-        // - see digitalSynthesis()'s docstring), wait out the remainder of that high portion AND
-        // the following nominal low portion instead, so every edge after this first one lands
-        // exactly on the intended phase/duty grid.
-        const initialDelay = !highAtReference
-            ? Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks))
-            : Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks) + lowTicks);
-
-        // Ticks from `nowSeconds` to the NEXT real edge in whichever direction is actually due (a
-        // fall if `highAtReference`, a rise otherwise) - unlike `initialDelay` above, doesn't pad
-        // out an extra low portion to fake "starting low": only retimePhase() uses this, and
-        // unlike digitalSynthesis()'s brand-new Chip it's free to set `chip.output` to either
-        // value directly, so there's no need to misrepresent the current instant as low just to
-        // make the delay-to-next-toggle representable. Since `wm` already folds `nowSeconds` in,
-        // this is directly "ticks from now" - retimePhase() no longer needs its own separate
-        // modulo re-anchoring against `now` the way it did when `wm` was `nowSeconds`-independent. */
-        const edgeDelay = !highAtReference
-            ? Math.max(1, Math.round((lowAngle - wm) / twoPi * periodTicks))
-            : Math.max(1, Math.round((twoPi - wm) / twoPi * periodTicks));
+        // Ticks from the reference instant to the NEXT real edge in whichever direction is due:
+        // a fall if we're in the high portion, a rise otherwise. Both callers prime a chip that
+        // is ALREADY at `highAtReference`'s level (digitalSynthesis() via ChipDesc.initOutput,
+        // retimePhase() by writing chip.output), so this is the whole answer - there's no need to
+        // misrepresent the instant as low and pad out an extra low portion to reach a rise.
+        //
+        // Neither delay is clamped up to 1 tick, which would put this edge - and, since the cycle
+        // self-perpetuates from it, every edge after it - permanently a tick off the grid the
+        // rail was already running on. A delay rounding to 0 means the reference instant is
+        // sitting within half a tick of the edge itself, so take the edge as already done and go
+        // to the one after it: from the high portion that means starting low with a rise due in
+        // `lowTicks`, and from the low portion a rise a whole period later. Both stay on grid.
+        const rawDelay = !highAtReference
+            ? Math.round((lowAngle - wm) / twoPi * periodTicks)
+            : Math.round((twoPi - wm) / twoPi * periodTicks);
+        const atEdge = rawDelay < 1;
+        const startsHigh = atEdge ? false : highAtReference;
+        const edgeDelay = !atEdge ? rawDelay : (highAtReference ? lowTicks : periodTicks);
 
         return { highTicks: highTicks, lowTicks: lowTicks, periodTicks: periodTicks,
-                 initialDelay, highAtReference, edgeDelay };
+                 startsHigh, edgeDelay };
     }
 
     digitalSynthesis(): DigitalSynthesis | null {
@@ -172,10 +191,30 @@ export class RailElm extends VoltageElm {
         const dutyCycle = this.dutyCycle ?? 0.5;
         const phaseShift = this.phaseShift ?? 0;
         const period = 1 / this.frequency; // seconds
-        const { highTicks, lowTicks, initialDelay } = RailElm.phaseLayout(period, dutyCycle, phaseShift);
+        // The graph being built starts its own clock at globalTime 0, but the simulation itself
+        // may be far past t=0: ANY circuit edit rebuilds the graph mid-run (see
+        // SimulationManager.digitalTickEpoch). Priming from `phaseShift` alone, as though this
+        // instant were t=0, restarts the rail's cycle at whatever point of its period the edit
+        // happened to land on - shifting every downstream edge, and with it anything clocked off
+        // this rail (a video timing chain's whole picture), by up to a period per edit. Those
+        // shifts are individually small and strictly cumulative: edit enough times and the
+        // picture walks away. Anchoring on absolute ticks instead puts the first edge back on the
+        // same grid the rail was already running on, so a rebuild is invisible downstream.
+        const startTick = CircuitElm.sim?.digitalTickEpoch ?? 0;
+        const { highTicks, lowTicks, startsHigh, edgeDelay } =
+            RailElm.phaseLayout(period, dutyCycle, phaseShift, startTick);
 
+        // Born at the level this rail is REALLY at right now (ChipDesc.initOutput), with the
+        // first toggle being whichever edge is genuinely next. Starting low regardless - the old
+        // behavior, since a Chip's output used to always begin at 0 - silently swallows the fall
+        // that was still to come whenever a rebuild lands in the high portion of the cycle: the
+        // level is simply never high, so nothing downstream ever sees it end. Rising-edge logic
+        // doesn't notice, but every falling-edge consumer (a ripple counter, a JK flip-flop)
+        // loses exactly one count per edit - which is a picture that walks a little further every
+        // time the circuit is touched, and never walks back.
         const desc: ChipDesc[] = [
-            customChipStart(phasedClockLogic(initialDelay))
+            customChipStart(phasedClockLogic(edgeDelay))
+                .initialOutput(startsHigh ? 1 : 0)
                 .outputDelayS(RailElm.ticksToSeconds(lowTicks), RailElm.ticksToSeconds(highTicks)).outputPin(1),
         ];
         return { desc, pinMap: new Map([[0, 1]]) };
@@ -200,17 +239,19 @@ export class RailElm extends VoltageElm {
         const period = 1 / this.frequency;
         const now = chip.circuit.globalTime;
         if (chip.state === ChipState.ASLEEP) chip.backfillHistory(now);
-        // Elapsed simulator time this call is happening at, folded into phaseLayout()'s phase
-        // angle so `edgeDelay` below answers "what does THIS rail, continuously running with
-        // `phaseShift`, actually look like right now" instead of "what would phaseShift alone
-        // mean if evaluated as though `now` were tick 0" - see phaseLayout()'s own docstring.
-        const nowSeconds = Number(now) * TIMESCALE;
-        const { highTicks, lowTicks, highAtReference, edgeDelay } =
-            RailElm.phaseLayout(period, effectiveDutyCycle, phaseShift, nowSeconds);
+        // Absolute tick this call is happening at, folded into phaseLayout()'s phase angle so
+        // `edgeDelay` below answers "what does THIS rail, continuously running with `phaseShift`,
+        // actually look like right now" instead of "what would phaseShift alone mean if evaluated
+        // as though `now` were tick 0" - see phaseLayout()'s own docstring. Absolute (epoch
+        // included), matching digitalSynthesis(), so the rail stays on one continuous phase grid
+        // whether it was last primed by a rebuild or by a live retime.
+        const nowTicks = Number(now) + (CircuitElm.sim?.digitalTickEpoch ?? 0);
+        const { highTicks, lowTicks, startsHigh, edgeDelay } =
+            RailElm.phaseLayout(period, effectiveDutyCycle, phaseShift, nowTicks);
         const oldOutput = chip.output;
         const delay = edgeDelay; // already ticks-from-`now` - see phaseLayout()'s own docstring
         chip.delay = [lowTicks, highTicks];
-        chip.output = highAtReference ? 1 : 0;
+        chip.output = startsHigh ? 1 : 0;
         const valueChanged = chip.output !== oldOutput;
         chip.customUpdate = phasedClockLogic(delay);
         chip.initialize();

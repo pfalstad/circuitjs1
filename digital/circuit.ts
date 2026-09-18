@@ -282,6 +282,24 @@ export class Circuit {
         this.chips[0].output = 1;
         for (const link of this.chips[0].outputLinks) link.chip.inputs |= link.mask;
 
+        // Same treatment for any ordinary chip born high (ChipDesc.initOutput - a clock rail
+        // primed mid-cycle after a circuit edit, or a cell carried across one). A born value
+        // doesn't cascade, so without this every consumer would start out caching 0 for it and
+        // only discover the real level at its next transition - by which point a falling-edge
+        // consumer has already missed an edge. The chip's OWN prev-output feedback bit needs the
+        // same correction (a memory cell reconstructs its value from it - see
+        // seedInitialDigitalState(), which does this for the values it seeds): leaving that at 0
+        // under a born 1 makes the cell recompute a value it never actually held, which is worse
+        // than the stale bit it replaces. initialize() sets both when it transitions a chip
+        // itself; these are the ones it will never see transition. chips[0]/chips[1] are VCC/GND,
+        // handled above.
+        for (let i = 2; i < this.chips.length; i++) {
+            const chip = this.chips[i];
+            if (!chip.output) continue;
+            chip.inputs |= chip.prevOutputMask;
+            for (const link of chip.outputLinks) link.chip.inputs |= link.mask;
+        }
+
         for (let i = 2; i < this.chips.length; i++) this.chips[i].initialize();
     }
 
