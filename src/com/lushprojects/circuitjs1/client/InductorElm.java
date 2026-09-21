@@ -28,6 +28,8 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	double inductance;
 	double initialCurrent;
 	double saturationCurrent; // 0 = disabled (linear)
+	double seriesResistance;
+	int indNode2;
 	public InductorElm(int xx, int yy) {
 	    super(xx, yy);
 	    ind = new Inductor(sim);
@@ -43,20 +45,26 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    try {
 		initialCurrent = new Double(st.nextToken()).doubleValue();
 		saturationCurrent = new Double(st.nextToken()).doubleValue();
+		if ((flags & Inductor.FLAG_RESISTANCE) != 0)
+		    seriesResistance = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
 	    ind.setup(inductance, current, flags, saturationCurrent);
+	    allocNodes();
 	}
 	int getDumpType() { return 'l'; }
 	String dump() {
-	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent;
+	    flags |= Inductor.FLAG_RESISTANCE;
+	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent + " " + seriesResistance;
 	}
-	
+
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
             XMLSerializer.dumpAttr(elem, "l", inductance);
             XMLSerializer.dumpAttr(elem, "ic", initialCurrent);
             if (saturationCurrent != 0)
                 XMLSerializer.dumpAttr(elem, "isat", saturationCurrent);
+            if (seriesResistance != 0)
+                XMLSerializer.dumpAttr(elem, "sr", seriesResistance);
         }
 
         void dumpXmlState(Document doc, Element elem) {
@@ -69,7 +77,9 @@ import com.lushprojects.circuitjs1.client.util.Locale;
             initialCurrent = xml.parseDoubleAttr("ic", initialCurrent);
             current = xml.parseDoubleAttr("i", current);
             saturationCurrent = xml.parseDoubleAttr("isat", saturationCurrent);
+            seriesResistance = xml.parseDoubleAttr("sr", seriesResistance);
 	    ind.setup(inductance, current, flags, saturationCurrent);
+	    allocNodes();
         }
 
 	void setPoints() {
@@ -93,23 +103,33 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    drawPosts(g);
 	}
 	void reset() {
-	    volts[0] = volts[1] = curcount = 0;
+	    super.reset();
 	    current = initialCurrent;
 	    ind.resetTo(initialCurrent);
 	}
-	void stamp() { ind.stamp(nodes[0], nodes[1]); }
+	// The inductor companion model is stamped between nodes 0 and indNode2.
+	// For an ideal inductor, indNode2 is node 1.  If a series resistance is
+	// set, indNode2 = 2 (an internal node) and a resistor is placed between
+	// nodes 2 and 1, modeled on CapacitorElm's seriesResistance handling.
+	void stamp() {
+	    indNode2 = (seriesResistance > 0) ? 2 : 1;
+	    ind.stamp(nodes[0], nodes[indNode2]);
+	    if (seriesResistance > 0)
+		sim.stampResistor(nodes[1], nodes[2], seriesResistance);
+	}
 	void startIteration() {
-	    ind.startIteration(volts[0]-volts[1]);
+	    ind.startIteration(volts[0]-volts[indNode2]);
 	}
 	boolean nonLinear() { return ind.nonLinear(); }
 	void calculateCurrent() {
-	    double voltdiff = volts[0]-volts[1];
+	    double voltdiff = volts[0]-volts[indNode2];
 	    current = ind.calculateCurrent(voltdiff);
 	}
 	void doStep() {
-	    double voltdiff = volts[0]-volts[1];
+	    double voltdiff = volts[0]-volts[indNode2];
 	    ind.doStep(voltdiff);
 	}
+	int getInternalNodeCount() { return (seriesResistance > 0) ? 1 : 0; }
 	void getInfo(String arr[]) {
 	    arr[0] = (saturationCurrent > 0) ? "inductor (sat)" : "inductor";
 	    getBasicInfo(arr);
@@ -140,6 +160,8 @@ import com.lushprojects.circuitjs1.client.util.Locale;
                 return new EditInfo("Initial Current (on Reset) (A)", initialCurrent);
 	    if (n == 3)
 		return new EditInfo("Saturation Current (A) (0=none)", saturationCurrent);
+	    if (n == 4)
+		return new EditInfo("Series Resistance", seriesResistance);
 	    return null;
 	}
 
@@ -160,9 +182,16 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 		else
 		    ei.setError("must be >= 0");
 	    }
+	    if (n == 4) {
+		if (ei.value >= 0) {
+		    seriesResistance = ei.value;
+		    allocNodes();
+		} else
+		    ei.setError("must be >= 0");
+	    }
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
-	
+
 	int getShortcut() { return 'L'; }
 	public double getInductance() { return inductance; }
 	void setInductance(double l) {
@@ -174,6 +203,12 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	double getSaturationCurrent() { return saturationCurrent; }
+	public double getSeriesResistance() { return seriesResistance; }
+	public void setSeriesResistance(double r) {
+	    seriesResistance = r;
+	    allocNodes();
+	}
+	public boolean isIdealInductor() { return (seriesResistance == 0); }
 	boolean validate() {
 	    FindPathInfo fpi = new FindPathInfo(FindPathInfo.INDUCT, this, getNode(1), sim);
 	    if (!fpi.findPath(getNode(0)))

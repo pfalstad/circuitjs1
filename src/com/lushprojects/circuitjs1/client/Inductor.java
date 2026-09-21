@@ -21,6 +21,7 @@ package com.lushprojects.circuitjs1.client;
 
 class Inductor {
     public static final int FLAG_BACK_EULER = 2;
+    public static final int FLAG_RESISTANCE = 4;
     CircuitNode nodes[];
     int flags;
     SimulationManager sim;
@@ -65,6 +66,18 @@ class Inductor {
 	// source in parallel with a resistor.  Trapezoidal is more
 	// accurate than backward euler but can cause oscillatory behavior.
 	// The oscillation is a real problem in circuits with switches.
+	//
+	// Note: this models an IDEAL, zero-resistance inductor. Real
+	// inductors have winding resistance, which damps out any
+	// initial-condition mismatch (e.g. starting current 0 on an
+	// AC-driven inductor) within a few L/R time constants; with no
+	// resistance anywhere, this model has no such damping and can
+	// carry a permanent offset current instead of settling. InductorElm
+	// now offers an optional series resistance (its seriesResistance
+	// field, modeled on CapacitorElm's) to represent that. It's handled
+	// entirely in InductorElm via an internal node -- this class's
+	// companion model is unchanged and stamped exactly as before,
+	// between whichever two nodes it's given.
 	nodes[0] = n0;
 	nodes[1] = n1;
 	if (saturationCurrent > 0) {
