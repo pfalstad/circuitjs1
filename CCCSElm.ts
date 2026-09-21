@@ -19,6 +19,7 @@
 
 import { ChipElm, Pin } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
+import { CircuitNode } from "./CircuitNode";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 import { VoltageElm } from "./VoltageElm";
@@ -65,8 +66,13 @@ export class CCCSElm extends VCCSElm {
         this.pins[i * 2 + 1] = new Pin(this, 1, ChipElm.SIDE_E, "O-");
         this.exprState = new ExprState(this.inputPairCount);
         this.lastCurrents = new Array(this.inputPairCount + 1).fill(0);
+        this.allocExprArrays();
         this.allocNodes();
     }
+
+    // our pin inputs are currents, so the only voltage-driven expression inputs are
+    // the nodes referenced by v(name)
+    protected getPinVoltageInputCount(): number { return 0; }
 
     getChipName(): string { return "CCCS"; }
 
@@ -112,9 +118,18 @@ export class CCCSElm extends VCCSElm {
         for (let i = 0; i <= this.inputPairCount; i++)
             this.lastCurrents[i] = this.pins[i * 2 + 1].current;
 
+        // check convergence on nodes referenced by v(name)
+        const vic = this.getVoltageInputCount();
+        for (let i = 0; i !== vic; i++) {
+            if (Math.abs(this.getVoltageInputNode(i).v - this.lastVolts[i]) > this.getConvergeLimit())
+                sim.converged = false;
+        }
+
         if (this.expr != null) {
             for (let i = 0; i !== this.inputPairCount; i++)
                 this.setCurrentExprValue(i, this.pins[i * 2 + 1].current);
+            for (let i = 0; i !== vic; i++)
+                this.setVoltageInputValue(i, this.getVoltageInputNode(i).v);
             this.exprState.t = sim.t;
             const v0 = this.expr.eval(this.exprState);
             let rs = v0;
@@ -139,8 +154,29 @@ export class CCCSElm extends VCCSElm {
                 this.setCurrentExprValue(i, cur);
             }
 
+            // partial derivatives for the nodes referenced by v(name)
+            for (let i = 0; i !== vic; i++) {
+                const cn = this.getVoltageInputNode(i);
+                let dv = cn.v - this.lastVolts[i];
+                if (Math.abs(dv) < 1e-6) dv = 1e-6;
+                this.setVoltageInputValue(i, cn.v);
+                const v = this.expr.eval(this.exprState);
+                this.setVoltageInputValue(i, cn.v - dv);
+                const v2 = this.expr.eval(this.exprState);
+                let dx = (v - v2) / dv;
+                if (Math.abs(dx) < 1e-6)
+                    dx = this.sign(dx, 1e-6);
+                sim.stampVCCurrentSource(this.nodes[this.inputCount + 1], this.nodes[this.inputCount],
+                    cn, CircuitNode.ground, dx);
+                rs -= dx * cn.v;
+                this.setVoltageInputValue(i, cn.v);
+            }
+
             sim.stampCurrentSource(this.nodes[this.inputCount + 1], this.nodes[this.inputCount], rs);
         }
+
+        for (let i = 0; i !== vic; i++)
+            this.lastVolts[i] = this.getVoltageInputNode(i).v;
     }
 
     stepFinished(): void {

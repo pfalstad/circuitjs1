@@ -23,6 +23,9 @@ import { parseFloatStrict } from "./NumberParse";
 export class ExprState {
     values: number[];
     lastValues: number[];
+    // voltages of nodes referenced by v(name), one slot per name, in the order
+    // ExprParser.getNodeNames() returned them.  sized by the element after parsing.
+    nodeValues: number[] = [];
     lastOutput: number = 0;
     t: number = 0;
 
@@ -49,10 +52,15 @@ export class Expr {
     children: Expr[] | null = null;
     value: number = 0;
     type: number;
+    // for E_NODEV, the labeled node name (value holds its index into ExprState.nodeValues)
+    name: string = "";
 
     static readonly E_ADD = 1;
     static readonly E_SUB = 2;
     static readonly E_T = 3;
+    // v(name): voltage of a labeled node.  must be below E_A, since eval()'s default
+    // branch resolves anything >= E_A by range subtraction.
+    static readonly E_NODEV = 4;
     static readonly E_VAL = 6;
     static readonly E_MUL = 7;
     static readonly E_DIV = 8;
@@ -148,6 +156,7 @@ export class Expr {
         case Expr.E_NOT: return left!.eval(es) === 0 ? 1 : 0;
         case Expr.E_VAL: return this.value;
         case Expr.E_T: return es.t;
+        case Expr.E_NODEV: return es.nodeValues[this.value];
         case Expr.E_SIN: return Math.sin(left!.eval(es));
         case Expr.E_COS: return Math.cos(left!.eval(es));
         case Expr.E_ABS: return Math.abs(left!.eval(es));
@@ -257,16 +266,24 @@ export class Expr {
 
 export class ExprParser {
     private text: string;
+    // original text with case preserved.  node labels are case-sensitive, so v(name)
+    // arguments are scanned out of this rather than out of the lowercased text.
+    private origText: string;
     private token: string = "";
     private pos: number = 0;
     private tlen: number;
     private err: string | null = null;
+    private nodeNames: string[] = [];
 
     constructor(s: string) {
+        this.origText = s;
         this.text = s.toLowerCase();
         this.tlen = this.text.length;
         this.getToken();
     }
+
+    // labeled node names referenced by v() in this expression, in slot order
+    getNodeNames(): string[] { return this.nodeNames; }
 
     private getToken(): void {
         while (this.pos < this.tlen && this.text.charAt(this.pos) === ' ')
@@ -466,6 +483,71 @@ export class ExprParser {
         return e;
     }
 
+    // parse v(name) or v(name1,name2), the voltage of a labeled node (or the difference
+    // between two of them).  called just after "v" was skipped, so token is "(" and pos
+    // points at the first character after the "(".
+    private parseNodeVoltage(): Expr {
+        if (this.token !== "(") {
+            this.setError("expected ( after v, got " + this.token);
+            return new Expr(Expr.E_VAL, 0);
+        }
+        let e = this.makeNodeRef(this.scanNodeName());
+        if (this.pos < this.tlen && this.origText.charAt(this.pos) === ',') {
+            this.pos++;
+            e = new Expr(e, this.makeNodeRef(this.scanNodeName()), Expr.E_SUB);
+        }
+        if (this.pos < this.tlen && this.origText.charAt(this.pos) === ')')
+            this.pos++;
+        else
+            this.setError("expected ) in v()");
+        this.getToken();
+        return e;
+    }
+
+    // scan a node name out of the raw text, stopping at ',' or ')'.  a double-quoted
+    // name may contain those characters.
+    private scanNodeName(): string {
+        while (this.pos < this.tlen && this.origText.charAt(this.pos) === ' ')
+            this.pos++;
+        let s: string;
+        if (this.pos < this.tlen && this.origText.charAt(this.pos) === '"') {
+            this.pos++;
+            const start = this.pos;
+            while (this.pos < this.tlen && this.origText.charAt(this.pos) !== '"')
+                this.pos++;
+            s = this.origText.substring(start, this.pos);
+            if (this.pos < this.tlen)
+                this.pos++; // skip closing quote
+            while (this.pos < this.tlen && this.origText.charAt(this.pos) === ' ')
+                this.pos++;
+        } else {
+            const start = this.pos;
+            while (this.pos < this.tlen) {
+                const c = this.origText.charAt(this.pos);
+                if (c === ',' || c === ')')
+                    break;
+                this.pos++;
+            }
+            s = this.origText.substring(start, this.pos).trim();
+        }
+        if (s.length === 0)
+            this.setError("missing node name in v()");
+        return s;
+    }
+
+    // get an E_NODEV node for the given label, allocating a slot for it if we haven't
+    // seen it before (so repeated references to the same label share one slot)
+    private makeNodeRef(name: string): Expr {
+        let ix = this.nodeNames.indexOf(name);
+        if (ix < 0) {
+            ix = this.nodeNames.length;
+            this.nodeNames.push(name);
+        }
+        const e = new Expr(Expr.E_NODEV, ix);
+        e.name = name;
+        return e;
+    }
+
     private parseTerm(): Expr {
         if (this.skip("(")) {
             const e = this.parse();
@@ -498,6 +580,7 @@ export class ExprParser {
         if (this.skip("lastoutput")) return new Expr(Expr.E_LASTOUTPUT);
         if (this.skip("timestep"))  return new Expr(Expr.E_TIMESTEP);
         if (this.skip("pi"))        return new Expr(Expr.E_VAL, 3.14159265358979323846);
+        if (this.skip("v"))         return this.parseNodeVoltage();
         if (this.skip("sin"))   return this.parseFunc(Expr.E_SIN);
         if (this.skip("cos"))   return this.parseFunc(Expr.E_COS);
         if (this.skip("asin"))  return this.parseFunc(Expr.E_ASIN);

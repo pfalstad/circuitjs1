@@ -31,4 +31,5 @@ export const HookRegistry = {
     createJSInterface:           null as ((app: any) => any) | null,
     resetGroundNodeList:         null as (() => void) | null,
     resetLabeledNodeList:        null as (() => void) | null,
+    getLabeledNode:              null as ((name: string) => any) | null,
 };

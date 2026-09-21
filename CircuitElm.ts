@@ -798,7 +798,17 @@ export abstract class CircuitElm implements Editable {
     // number of internal nodes (nodes not visible in UI that are needed for implementation)
     getInternalNodeCount(): number { return 0; }
 
-    getNodeCount(): number { return this.getPostCount() + this.getInternalNodeCount(); }
+    // number of nodes this element references by name (v(label) in an expression) but is
+    // not wired to.  they are appended to nodes[] after the posts and internal nodes.  they
+    // exist so that calculateClosures() pulls the referenced node into the same matrix,
+    // which lets us stamp a derivative against it.  they carry no current and aren't drawn.
+    getRefNodeCount(): number { return 0; }
+
+    getRefNodeName(_i: number): string | null { return null; }
+
+    getNodeCount(): number {
+        return this.getPostCount() + this.getInternalNodeCount() + this.getRefNodeCount();
+    }
 
     // notify this element that its pth node is n.
     setNode(p: number, n: CircuitNode): void {

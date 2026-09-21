@@ -312,3 +312,4 @@ export class LabeledNodeElm extends CircuitElm {
 }
 
 HookRegistry.resetLabeledNodeList = () => LabeledNodeElm.resetNodeList();
+HookRegistry.getLabeledNode = (name: string) => LabeledNodeElm.getByName(name);

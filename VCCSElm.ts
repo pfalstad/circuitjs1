@@ -30,6 +30,7 @@ import { FindPathInfo } from "./FindPathInfo";
 import { Expr, ExprState, ExprParser } from "./Expr";
 import { SimulationManager } from "./SimulationManager";
 import { parseIntStrict } from "./NumberParse";
+import { HookRegistry } from "./HookRegistry";
 
 export class VCCSElm extends ChipElm {
     gain: number = 0;
@@ -39,6 +40,8 @@ export class VCCSElm extends ChipElm {
     exprString: string;
     broken: boolean = false;
     lastVolts: number[] = [];
+    // labeled nodes referenced by v(name) in the expression, in ExprState.nodeValues order
+    refNames: string[] = [];
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -82,9 +85,47 @@ export class VCCSElm extends ChipElm {
             this.pins[i] = new Pin(this, i, ChipElm.SIDE_W, String.fromCharCode(65 + i)); // 'A'+i
         this.pins[this.inputCount]     = new Pin(this, 0, ChipElm.SIDE_E, "C+");
         this.pins[this.inputCount + 1] = new Pin(this, 1, ChipElm.SIDE_E, "C-");
-        this.lastVolts = new Array(this.inputCount).fill(0);
         this.exprState = new ExprState(this.inputCount);
+        this.allocExprArrays();
         this.allocNodes();
+    }
+
+    // size the arrays that depend on how many node voltages drive the expression.
+    // called from setupPins() (input count changed) and parseExpr() (v() references changed).
+    protected allocExprArrays(): void {
+        if (this.exprState != null)
+            this.exprState.nodeValues = new Array(this.getRefNodeCount()).fill(0);
+        this.lastVolts = new Array(this.getVoltageInputCount()).fill(0);
+    }
+
+    getRefNodeCount(): number { return this.refNames ? this.refNames.length : 0; }
+    getRefNodeName(i: number): string | null { return this.refNames[i]; }
+
+    // number of expression inputs driven by pin voltages.  0 for the current-controlled
+    // subclasses, whose pin inputs are currents rather than voltages.
+    protected getPinVoltageInputCount(): number { return this.inputCount ? this.inputCount : 0; }
+
+    // total number of expression inputs driven by a node voltage: the voltage input pins
+    // followed by the nodes referenced by v(name)
+    protected getVoltageInputCount(): number {
+        return this.getPinVoltageInputCount() + this.getRefNodeCount();
+    }
+
+    // the node driving voltage input i
+    protected getVoltageInputNode(i: number): CircuitNode {
+        const pvc = this.getPinVoltageInputCount();
+        if (i < pvc)
+            return this.nodes[i];
+        return this.nodes[this.getPostCount() + this.getInternalNodeCount() + (i - pvc)];
+    }
+
+    // store a value in the ExprState slot that voltage input i reads
+    protected setVoltageInputValue(i: number, v: number): void {
+        const pvc = this.getPinVoltageInputCount();
+        if (i < pvc)
+            this.exprState.values[i] = v;
+        else
+            this.exprState.nodeValues[i - pvc] = v;
     }
 
     getChipName(): string { return "VCCS~"; }
@@ -125,43 +166,45 @@ export class VCCSElm extends ChipElm {
         }
 
         // check convergence
+        const vic = this.getVoltageInputCount();
         const convergeLimit = this.getConvergeLimit();
-        for (let i = 0; i !== this.inputCount; i++) {
-            if (Math.abs(this.nodes[i].v - this.lastVolts[i]) > convergeLimit)
+        for (let i = 0; i !== vic; i++) {
+            if (Math.abs(this.getVoltageInputNode(i).v - this.lastVolts[i]) > convergeLimit)
                 sim.converged = false;
         }
 
         if (this.expr != null) {
             // load input voltages into expression state
-            for (let i = 0; i !== this.inputCount; i++)
-                this.exprState.values[i] = this.nodes[i].v;
+            for (let i = 0; i !== vic; i++)
+                this.setVoltageInputValue(i, this.getVoltageInputNode(i).v);
             this.exprState.t = sim.t;
             const v0 = -this.expr.eval(this.exprState);
             let rs = v0;
 
             // stamp partial derivatives for linearization
-            for (let i = 0; i !== this.inputCount; i++) {
-                let dv = this.nodes[i].v - this.lastVolts[i];
+            for (let i = 0; i !== vic; i++) {
+                const cn = this.getVoltageInputNode(i);
+                let dv = cn.v - this.lastVolts[i];
                 if (Math.abs(dv) < 1e-6) dv = 1e-6;
-                this.exprState.values[i] = this.nodes[i].v;
+                this.setVoltageInputValue(i, cn.v);
                 const v = -this.expr.eval(this.exprState);
-                this.exprState.values[i] = this.nodes[i].v - dv;
+                this.setVoltageInputValue(i, cn.v - dv);
                 const v2 = -this.expr.eval(this.exprState);
                 let dx = (v - v2) / dv;
                 if (Math.abs(dx) < 1e-6)
                     dx = this.sign(dx, 1e-6);
                 sim.stampVCCurrentSource(this.nodes[this.inputCount], this.nodes[this.inputCount + 1],
-                    this.nodes[i], CircuitNode.ground, dx);
-                rs -= dx * this.nodes[i].v;
-                this.exprState.values[i] = this.nodes[i].v;
+                    cn, CircuitNode.ground, dx);
+                rs -= dx * cn.v;
+                this.setVoltageInputValue(i, cn.v);
             }
             sim.stampCurrentSource(this.nodes[this.inputCount], this.nodes[this.inputCount + 1], rs);
             this.pins[this.inputCount].current     = -v0;
             this.pins[this.inputCount + 1].current = v0;
         }
 
-        for (let i = 0; i !== this.inputCount; i++)
-            this.lastVolts[i] = this.nodes[i].v;
+        for (let i = 0; i !== vic; i++)
+            this.lastVolts[i] = this.getVoltageInputNode(i).v;
     }
 
     stepFinished(): void {
@@ -219,6 +262,10 @@ export class VCCSElm extends ChipElm {
     parseExpr(ei?: EditInfo): void {
         const parser = new ExprParser(this.exprString);
         this.expr = parser.parseExpression();
+        // v(name) references change our node count, so resize before anyone reads it
+        this.refNames = parser.getNodeNames();
+        this.allocExprArrays();
+        this.allocNodes();
         const err = parser.gotError();
         if (err != null && ei != null) {
             ei.setErrorFieldName("Output Function");
@@ -231,6 +278,14 @@ export class VCCSElm extends ChipElm {
         let i = 0;
         while (arr[i] != null) i++;
         arr[i] = "I = " + VCCSElm.getCurrentText(this.pins[this.inputCount].current);
+        this.addRefNodeInfo(arr, i + 1);
+    }
+
+    // report any v(name) reference we couldn't resolve to a labeled node
+    protected addRefNodeInfo(arr: string[], i: number): void {
+        for (let j = 0; j !== this.getRefNodeCount(); j++)
+            if (HookRegistry.getLabeledNode?.(this.refNames[j]) == null)
+                arr[i++] = Locale.LS("unknown node label") + ": " + this.refNames[j];
     }
 
     reset(): void {
