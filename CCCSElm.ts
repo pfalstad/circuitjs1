@@ -23,7 +23,6 @@ import { CircuitNode } from "./CircuitNode";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 import { VoltageElm } from "./VoltageElm";
-import { ExprState } from "./Expr";
 import { EditInfo } from "./EditInfo";
 import { VCCSElm } from "./VCCSElm";
 import { SimulationManager } from "./SimulationManager";
@@ -64,7 +63,6 @@ export class CCCSElm extends VCCSElm {
         this.pins[i * 2]     = new Pin(this, 0, ChipElm.SIDE_E, "O+");
         this.pins[i * 2].output = true;
         this.pins[i * 2 + 1] = new Pin(this, 1, ChipElm.SIDE_E, "O-");
-        this.exprState = new ExprState(this.inputPairCount);
         this.lastCurrents = new Array(this.inputPairCount + 1).fill(0);
         this.allocExprArrays();
         this.allocNodes();
@@ -119,17 +117,12 @@ export class CCCSElm extends VCCSElm {
             this.lastCurrents[i] = this.pins[i * 2 + 1].current;
 
         // check convergence on the v()/i() references
-        const eic = this.getExprInputCount();
-        for (let i = 0; i !== eic; i++) {
-            if (Math.abs(this.getExprInputValue(i) - this.lastInputs[i]) > this.getExprInputConvergeLimit(i))
-                sim.converged = false;
-        }
+        if (!this.engine.checkConvergence(this.getConvergeLimit()))
+            sim.converged = false;
 
         if (this.expr != null) {
             for (let i = 0; i !== this.inputPairCount; i++)
                 this.setCurrentExprValue(i, this.pins[i * 2 + 1].current);
-            for (let i = 0; i !== eic; i++)
-                this.setExprInputValue(i, this.getExprInputValue(i));
             this.exprState.t = sim.t;
             const v0 = this.expr.eval(this.exprState);
             let rs = v0;
@@ -154,33 +147,27 @@ export class CCCSElm extends VCCSElm {
                 this.setCurrentExprValue(i, cur);
             }
 
-            // partial derivatives for the v()/i() references
-            for (let i = 0; i !== eic; i++) {
-                const x0 = this.getExprInputValue(i);
-                let dv = x0 - this.lastInputs[i];
-                if (Math.abs(dv) < 1e-6) dv = 1e-6;
-                this.setExprInputValue(i, x0);
-                const v = this.expr.eval(this.exprState);
-                this.setExprInputValue(i, x0 - dv);
-                const v2 = this.expr.eval(this.exprState);
-                let dx = (v - v2) / dv;
-                if (Math.abs(dx) < 1e-6)
-                    dx = this.sign(dx, 1e-6);
-                const ivs = this.getExprInputVS(i);
-                if (ivs != null)
-                    sim.stampCCCS(this.nodes[this.inputCount], this.nodes[this.inputCount + 1], ivs, dx);
-                else
-                    sim.stampVCCurrentSource(this.nodes[this.inputCount + 1], this.nodes[this.inputCount],
-                        this.getExprInputNodePos(i), this.getExprInputNodeNeg(i), dx);
-                rs -= dx * x0;
-                this.setExprInputValue(i, x0);
-            }
+            // partial derivatives for the v()/i() references.  the pin currents were
+            // already differentiated above, so this pass only picks up the references;
+            // it re-derives the same v0, so subtracting it leaves just their residual.
+            if (this.engine.getRefCount() > 0)
+                rs += this.engine.evalAndStamp(false) - v0;
 
             sim.stampCurrentSource(this.nodes[this.inputCount + 1], this.nodes[this.inputCount], rs);
         }
 
-        for (let i = 0; i !== eic; i++)
-            this.lastInputs[i] = this.getExprInputValue(i);
+        this.engine.saveInputs();
+    }
+
+    // our output is a current source from O- to O+ (v0 isn't negated as it is in VCCSElm)
+    stampInputDerivative(pos: CircuitNode, neg: CircuitNode, dx: number): void {
+        SimulationManager.theSim.stampVCCurrentSource(
+            this.nodes[this.inputCount + 1], this.nodes[this.inputCount], pos, neg, dx);
+    }
+
+    stampInputDerivativeVS(ivs: VoltageSource, dx: number): void {
+        SimulationManager.theSim.stampCCCS(
+            this.nodes[this.inputCount + 1], this.nodes[this.inputCount], ivs, dx);
     }
 
     stepFinished(): void {

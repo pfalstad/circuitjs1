@@ -22,8 +22,8 @@ import { CircuitElm } from "./CircuitElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 import { VoltageElm } from "./VoltageElm";
-import { ExprState } from "./Expr";
 import { EditInfo } from "./EditInfo";
+import { CircuitNode } from "./CircuitNode";
 import { VCCSElm } from "./VCCSElm";
 import { SimulationManager } from "./SimulationManager";
 
@@ -65,7 +65,6 @@ export class CCVSElm extends VCCSElm {
         this.pins[i * 2]     = new Pin(this, 0, ChipElm.SIDE_E, "V+");
         this.pins[i * 2].output = true;
         this.pins[i * 2 + 1] = new Pin(this, 1, ChipElm.SIDE_E, "V-");
-        this.exprState = new ExprState(this.inputPairCount);
         this.lastCurrents = new Array(this.inputPairCount).fill(0);
         this.allocExprArrays();
         this.allocNodes();
@@ -117,18 +116,13 @@ export class CCVSElm extends VCCSElm {
             sim.converged = false;
 
         // check convergence on the v()/i() references
-        const eic = this.getExprInputCount();
-        for (let i = 0; i !== eic; i++) {
-            if (Math.abs(this.getExprInputValue(i) - this.lastInputs[i]) > this.getExprInputConvergeLimit(i))
-                sim.converged = false;
-        }
+        if (!this.engine.checkConvergence(this.getConvergeLimit()))
+            sim.converged = false;
 
         const vno = this.outputVS!;
         if (this.expr != null) {
             for (let i = 0; i !== this.inputPairCount; i++)
                 this.setCurrentExprValue(i, this.pins[i * 2 + 1].current);
-            for (let i = 0; i !== eic; i++)
-                this.setExprInputValue(i, this.getExprInputValue(i));
             this.exprState.t = sim.t;
             const v0 = this.expr.eval(this.exprState);
             let rs = v0;
@@ -149,37 +143,30 @@ export class CCVSElm extends VCCSElm {
                 rs -= dx * cur;
                 this.setCurrentExprValue(i, cur);
             }
-            // partial derivatives for the v()/i() references
-            for (let i = 0; i !== eic; i++) {
-                const x0 = this.getExprInputValue(i);
-                let dv = x0 - this.lastInputs[i];
-                if (Math.abs(dv) < 1e-6) dv = 1e-6;
-                this.setExprInputValue(i, x0);
-                const v = this.expr.eval(this.exprState);
-                this.setExprInputValue(i, x0 - dv);
-                const v2 = this.expr.eval(this.exprState);
-                let dx = (v - v2) / dv;
-                if (Math.abs(dx) < 1e-6)
-                    dx = this.sign(dx, 1e-6);
-                const ivs = this.getExprInputVS(i);
-                if (ivs != null)
-                    sim.stampMatrixVV(vno, ivs, -dx);
-                else {
-                    sim.stampMatrixNV(vno, this.getExprInputNodePos(i), -dx);
-                    sim.stampMatrixNV(vno, this.getExprInputNodeNeg(i), dx);
-                }
-                rs -= dx * x0;
-                this.setExprInputValue(i, x0);
-            }
+            // partial derivatives for the v()/i() references.  the pin currents were
+            // already differentiated above, so this pass only picks up the references;
+            // it re-derives the same v0, so subtracting it leaves just their residual.
+            if (this.engine.getRefCount() > 0)
+                rs += this.engine.evalAndStamp(false) - v0;
 
             sim.stampRightSideVS(vno, rs);
         }
 
-        for (let i = 0; i !== eic; i++)
-            this.lastInputs[i] = this.getExprInputValue(i);
+        this.engine.saveInputs();
         for (let i = 0; i !== this.inputPairCount; i++)
             this.lastCurrents[i] = this.pins[i * 2 + 1].current;
         this.lastOutput = this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v;
+    }
+
+    // our output is a voltage source, so derivatives go into its matrix row
+    stampInputDerivative(pos: CircuitNode, neg: CircuitNode, dx: number): void {
+        const sim = SimulationManager.theSim;
+        sim.stampMatrixNV(this.outputVS!, pos, -dx);
+        sim.stampMatrixNV(this.outputVS!, neg, dx);
+    }
+
+    stampInputDerivativeVS(ivs: VoltageSource, dx: number): void {
+        SimulationManager.theSim.stampMatrixVV(this.outputVS!, ivs, -dx);
     }
 
     stepFinished(): void {
