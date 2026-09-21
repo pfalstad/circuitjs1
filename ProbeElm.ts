@@ -31,6 +31,7 @@ import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
+import { CustomLogicModel } from "./CustomLogicModel";
 
 export class ProbeElm extends CircuitElm {
     static readonly FLAG_SHOWVOLTAGE = 1;
@@ -81,6 +82,9 @@ export class ProbeElm extends CircuitElm {
 
     center: Point;
 
+    // optional name, drawn next to the reading and usable as v(label) in an expression
+    label: string = "";
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
@@ -106,15 +110,13 @@ export class ProbeElm extends CircuitElm {
     getDumpType(): number { return 'p'.charCodeAt(0); }
     isProbeElm(): boolean { return true; }
 
-    dump(): string {
-        return super.dump() + " " + this.meter + " " + this.scale + " " + this.resistance;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "me", this.meter);
         CircuitXMLSerializer.dumpAttr(elem, "sc", this.scale);
         CircuitXMLSerializer.dumpAttr(elem, "re", this.resistance);
+        if (this.label.length > 0)
+            CircuitXMLSerializer.dumpAttr(elem, "lb", this.label);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -123,6 +125,7 @@ export class ProbeElm extends CircuitElm {
         this.meter      = xml.parseIntAttr("me", this.meter);
         this.scale      = xml.parseIntAttr("sc", this.scale);
         this.resistance = xml.parseDoubleAttr("re", 0);
+        this.label      = xml.parseStringAttr("lb", "") ?? "";
     }
 
     setPoints(): void {
@@ -190,6 +193,7 @@ export class ProbeElm extends CircuitElm {
         g.setFont(f);
         if (role != null && role !== "")
             this.drawCenteredText(g, role, this.center.x, this.center.y, true);
+        const hsv = showCircle ? ProbeElm.circleSize + 3 : 4;
         if (this.mustShowVoltage()) {
             let s = "";
             switch (this.meter) {
@@ -205,8 +209,11 @@ export class ProbeElm extends CircuitElm {
                 case ProbeElm.TP_PWI: s = CircuitElm.getUnitText(this.pulseWidth, "s"); break;
                 case ProbeElm.TP_DUT: s = CircuitElm.showFormat.format(this.dutyCycle); break;
             }
-            this.drawValues(g, s, showCircle ? ProbeElm.circleSize + 3 : 4);
-        }
+            if (this.label.length > 0)
+                s = this.label + " " + s;
+            this.drawValues(g, s, hsv);
+        } else if (this.label.length > 0)
+            this.drawValues(g, this.label, hsv);
         g.setColor(CircuitElm.whiteColor);
         g.setFont(CircuitElm.unitsFont);
         const plusPoint = this.interpPoint(this.point1, this.point2,
@@ -386,6 +393,11 @@ export class ProbeElm extends CircuitElm {
             return EditInfo.createCheckbox("Use Circle Symbol", this.drawAsCircle());
         if (n === 4)
             return new EditInfo("Series Resistance (0 = infinite)", this.resistance);
+        if (n === 5) {
+            const ei = new EditInfo("Label", 0, -1, -1);
+            ei.text = this.label;
+            return ei;
+        }
         return null;
     }
 
@@ -417,5 +429,9 @@ export class ProbeElm extends CircuitElm {
             this.flags = ei.changeFlag(this.flags, ProbeElm.FLAG_CIRCLE);
         if (n === 4)
             this.resistance = ei.value;
+        if (n === 5)
+            this.label = ei.textf ? ei.textf.value : (ei.text ?? "");
     }
+
+    getExprRefName(): string | null { return this.label.length > 0 ? this.label : null; }
 }

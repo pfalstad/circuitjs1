@@ -670,28 +670,27 @@ export class SimulationManager {
 	    vscount += ivs;
 	}
 
-	// second pass for nodes referenced by name (v(label) in an expression).  this has to
-	// come after the loop above, because LabeledNodeElm.setNode() is what fills in the
-	// node for each label, and we might reference a label belonging to an element we
-	// hadn't processed yet.  it has to come before findUnconnectedNodes() and
-	// calculateClosures(), since the whole point is to get the referenced node into the
-	// same matrix as the element referencing it.
+	// second pass for nodes referenced by name (v(label)/i(meter) in an expression).  this
+	// has to come after the loop above, because it's LabeledNodeElm.setNode() and the
+	// meters' own posts that give us something to resolve a name to, and the target may
+	// belong to an element we hadn't processed yet.  it has to come before
+	// findUnconnectedNodes() and calculateClosures(), since the whole point is to get the
+	// referenced node into the same matrix as the element referencing it.
 	for (i = 0; i !== this.elmList.length; i++) {
 	    const ce = this.getElm(i);
 	    const refs = ce.getRefNodeCount();
 	    if (refs === 0)
 		continue;
+	    ce.resolveExprRefs(this.elmList);
 	    const base = ce.getPostCount() + ce.getInternalNodeCount();
 	    for (j = 0; j !== refs; j++) {
-		const name = ce.getRefNodeName(j);
-		const cn2 = (name == null) ? null : HookRegistry.getLabeledNode?.(name);
-		if (cn2 == null)
-		    continue;  // unknown label; the slot stays ground and the element reports it
+		const cn2 = ce.getNode(base + j);
+		if (cn2 == null || cn2 === CircuitNode.ground)
+		    continue;  // unresolved, or referenced against ground; nothing to link
 		const cnl = new CircuitNodeLink();
 		cnl.num = base + j;
 		cnl.elm = ce;
 		cn2.links.push(cnl);
-		ce.setNode(cnl.num, cn2);
 	    }
 	}
 

@@ -798,13 +798,24 @@ export abstract class CircuitElm implements Editable {
     // number of internal nodes (nodes not visible in UI that are needed for implementation)
     getInternalNodeCount(): number { return 0; }
 
-    // number of nodes this element references by name (v(label) in an expression) but is
-    // not wired to.  they are appended to nodes[] after the posts and internal nodes.  they
+    // number of nodes this element references by name (v(label)/i(meter) in an expression)
+    // but is not wired to.  they are appended to nodes[] after the posts and internal nodes,
+    // two per reference (the positive and negative end of the referenced quantity).  they
     // exist so that calculateClosures() pulls the referenced node into the same matrix,
     // which lets us stamp a derivative against it.  they carry no current and aren't drawn.
     getRefNodeCount(): number { return 0; }
 
-    getRefNodeName(_i: number): string | null { return null; }
+    // resolve the names our expression refers to, filling in our reference nodes.  called
+    // from makeNodeList() once every element's posts have nodes, and before the matrices
+    // are partitioned.  unresolved names are left as ground.
+    resolveExprRefs(_elmList: CircuitElm[]): void { }
+
+    // the name by which an expression can refer to this element, or null if it has none
+    getExprRefName(): string | null { return null; }
+
+    // assign one of our reference nodes.  unlike setNode() this doesn't push our stale
+    // voltage onto the node -- we're only observing it, we don't own it.
+    setRefNode(p: number, n: CircuitNode): void { this.nodes[p] = n; }
 
     getNodeCount(): number {
         return this.getPostCount() + this.getInternalNodeCount() + this.getRefNodeCount();

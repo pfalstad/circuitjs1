@@ -20,11 +20,24 @@
 import { SimulationManager } from "./SimulationManager";
 import { parseFloatStrict } from "./NumberParse";
 
+// a quantity an expression refers to by name: v(name) for the voltage of a labeled node
+// or across a voltmeter, i(name) for the current through an ammeter.  the parser records
+// these; the element owning the expression resolves them when the circuit is analyzed.
+export class ExprNodeRef {
+    name: string;
+    current: boolean;  // true for i(name), false for v(name)
+
+    constructor(name: string, current: boolean) {
+        this.name = name;
+        this.current = current;
+    }
+}
+
 export class ExprState {
     values: number[];
     lastValues: number[];
-    // voltages of nodes referenced by v(name), one slot per name, in the order
-    // ExprParser.getNodeNames() returned them.  sized by the element after parsing.
+    // values of the quantities referenced by v(name)/i(name), one slot per reference, in
+    // the order ExprParser.getNodeRefs() returned them.  sized by the element after parsing.
     nodeValues: number[] = [];
     lastOutput: number = 0;
     t: number = 0;
@@ -52,14 +65,14 @@ export class Expr {
     children: Expr[] | null = null;
     value: number = 0;
     type: number;
-    // for E_NODEV, the labeled node name (value holds its index into ExprState.nodeValues)
+    // for E_NODEV, the referenced name (value holds its index into ExprState.nodeValues)
     name: string = "";
 
     static readonly E_ADD = 1;
     static readonly E_SUB = 2;
     static readonly E_T = 3;
-    // v(name): voltage of a labeled node.  must be below E_A, since eval()'s default
-    // branch resolves anything >= E_A by range subtraction.
+    // v(name)/i(name): a quantity referenced by name.  must be below E_A, since eval()'s
+    // default branch resolves anything >= E_A by range subtraction.
     static readonly E_NODEV = 4;
     static readonly E_VAL = 6;
     static readonly E_MUL = 7;
@@ -273,7 +286,7 @@ export class ExprParser {
     private pos: number = 0;
     private tlen: number;
     private err: string | null = null;
-    private nodeNames: string[] = [];
+    private nodeRefs: ExprNodeRef[] = [];
 
     constructor(s: string) {
         this.origText = s;
@@ -282,8 +295,8 @@ export class ExprParser {
         this.getToken();
     }
 
-    // labeled node names referenced by v() in this expression, in slot order
-    getNodeNames(): string[] { return this.nodeNames; }
+    // quantities referenced by v()/i() in this expression, in slot order
+    getNodeRefs(): ExprNodeRef[] { return this.nodeRefs; }
 
     private getToken(): void {
         while (this.pos < this.tlen && this.text.charAt(this.pos) === ' ')
@@ -483,23 +496,36 @@ export class ExprParser {
         return e;
     }
 
-    // parse v(name) or v(name1,name2), the voltage of a labeled node (or the difference
-    // between two of them).  called just after "v" was skipped, so token is "(" and pos
-    // points at the first character after the "(".
-    private parseNodeVoltage(): Expr {
+    // is the next non-space character of the raw text an open paren?  used to tell the
+    // input letter "i" apart from the function "i(".
+    private nextCharIsOpenParen(): boolean {
+        let i = this.pos;
+        while (i < this.tlen && this.origText.charAt(i) === ' ')
+            i++;
+        return i < this.tlen && this.origText.charAt(i) === '(';
+    }
+
+    // parse v(name), v(name1,name2) or i(name).  called just after the function letter was
+    // skipped, so token is "(" and pos points at the first character after the "(".
+    private parseNodeRefFunc(current: boolean): Expr {
+        const fn = current ? "i" : "v";
         if (this.token !== "(") {
-            this.setError("expected ( after v, got " + this.token);
+            this.setError("expected ( after " + fn + ", got " + this.token);
             return new Expr(Expr.E_VAL, 0);
         }
-        let e = this.makeNodeRef(this.scanNodeName());
+        let e = this.makeNodeRef(this.scanNodeName(), current);
         if (this.pos < this.tlen && this.origText.charAt(this.pos) === ',') {
             this.pos++;
-            e = new Expr(e, this.makeNodeRef(this.scanNodeName()), Expr.E_SUB);
+            const e2 = this.makeNodeRef(this.scanNodeName(), current);
+            if (current)
+                this.setError("i() takes one name");
+            else
+                e = new Expr(e, e2, Expr.E_SUB);
         }
         if (this.pos < this.tlen && this.origText.charAt(this.pos) === ')')
             this.pos++;
         else
-            this.setError("expected ) in v()");
+            this.setError("expected ) in " + fn + "()");
         this.getToken();
         return e;
     }
@@ -531,17 +557,20 @@ export class ExprParser {
             s = this.origText.substring(start, this.pos).trim();
         }
         if (s.length === 0)
-            this.setError("missing node name in v()");
+            this.setError("missing name in v()/i()");
         return s;
     }
 
-    // get an E_NODEV node for the given label, allocating a slot for it if we haven't
-    // seen it before (so repeated references to the same label share one slot)
-    private makeNodeRef(name: string): Expr {
-        let ix = this.nodeNames.indexOf(name);
+    // get an E_NODEV node for the given reference, allocating a slot for it if we haven't
+    // seen it before (so repeated references to the same thing share one slot)
+    private makeNodeRef(name: string, current: boolean): Expr {
+        let ix = -1;
+        for (let i = 0; i !== this.nodeRefs.length; i++)
+            if (this.nodeRefs[i].name === name && this.nodeRefs[i].current === current)
+                ix = i;
         if (ix < 0) {
-            ix = this.nodeNames.length;
-            this.nodeNames.push(name);
+            ix = this.nodeRefs.length;
+            this.nodeRefs.push(new ExprNodeRef(name, current));
         }
         const e = new Expr(Expr.E_NODEV, ix);
         e.name = name;
@@ -556,6 +585,13 @@ export class ExprParser {
         }
         if (this.skip("t"))
             return new Expr(Expr.E_T);
+        // i(name) has to be checked before the a..i input letters below, since "i" is also
+        // the 9th input.  only "i" immediately followed by "(" is a reference; "i" followed
+        // by anything else keeps its old meaning, and "i(" was a syntax error before.
+        if (this.token === "i" && this.nextCharIsOpenParen()) {
+            this.getToken();
+            return this.parseNodeRefFunc(true);
+        }
         if (this.token.length === 1) {
             const c = this.token.charCodeAt(0);
             if (c >= 97 && c <= 105) { // 'a'-'i'
@@ -580,7 +616,7 @@ export class ExprParser {
         if (this.skip("lastoutput")) return new Expr(Expr.E_LASTOUTPUT);
         if (this.skip("timestep"))  return new Expr(Expr.E_TIMESTEP);
         if (this.skip("pi"))        return new Expr(Expr.E_VAL, 3.14159265358979323846);
-        if (this.skip("v"))         return this.parseNodeVoltage();
+        if (this.skip("v"))         return this.parseNodeRefFunc(false);
         if (this.skip("sin"))   return this.parseFunc(Expr.E_SIN);
         if (this.skip("cos"))   return this.parseFunc(Expr.E_COS);
         if (this.skip("asin"))  return this.parseFunc(Expr.E_ASIN);

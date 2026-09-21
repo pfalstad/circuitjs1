@@ -63,43 +63,48 @@ export class VCVSElm extends VCCSElm {
         const sim = SimulationManager.theSim;
 
         // check convergence
-        const vic = this.getVoltageInputCount();
-        const convergeLimit = this.getConvergeLimit();
-        for (let i = 0; i !== vic; i++) {
-            if (Math.abs(this.getVoltageInputNode(i).v - this.lastVolts[i]) > convergeLimit)
+        const eic = this.getExprInputCount();
+        for (let i = 0; i !== eic; i++) {
+            if (Math.abs(this.getExprInputValue(i) - this.lastInputs[i]) > this.getExprInputConvergeLimit(i))
                 sim.converged = false;
         }
 
         const vn = this.pins[this.inputCount].voltSource!;
         if (this.expr != null) {
-            for (let i = 0; i !== vic; i++)
-                this.setVoltageInputValue(i, this.getVoltageInputNode(i).v);
+            for (let i = 0; i !== eic; i++)
+                this.setExprInputValue(i, this.getExprInputValue(i));
             this.exprState.t = sim.t;
             const v0 = this.expr.eval(this.exprState);
             if (Math.abs(this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v - v0) > Math.abs(v0) * 0.01 && sim.subIterations < 100)
                 sim.converged = false;
             let rs = v0;
 
-            for (let i = 0; i !== vic; i++) {
-                const cn = this.getVoltageInputNode(i);
-                let dv = cn.v - this.lastVolts[i];
+            for (let i = 0; i !== eic; i++) {
+                const x0 = this.getExprInputValue(i);
+                let dv = x0 - this.lastInputs[i];
                 if (Math.abs(dv) < 1e-6) dv = 1e-6;
-                this.setVoltageInputValue(i, cn.v);
+                this.setExprInputValue(i, x0);
                 const v = this.expr.eval(this.exprState);
-                this.setVoltageInputValue(i, cn.v - dv);
+                this.setExprInputValue(i, x0 - dv);
                 const v2 = this.expr.eval(this.exprState);
                 let dx = (v - v2) / dv;
                 if (Math.abs(dx) < 1e-6)
                     dx = this.sign(dx, 1e-6);
-                sim.stampMatrixNV(vn, cn, -dx);
-                rs -= dx * cn.v;
-                this.setVoltageInputValue(i, cn.v);
+                const ivs = this.getExprInputVS(i);
+                if (ivs != null)
+                    sim.stampMatrixVV(vn, ivs, -dx);
+                else {
+                    sim.stampMatrixNV(vn, this.getExprInputNodePos(i), -dx);
+                    sim.stampMatrixNV(vn, this.getExprInputNodeNeg(i), dx);
+                }
+                rs -= dx * x0;
+                this.setExprInputValue(i, x0);
             }
             sim.stampRightSideVS(vn, rs);
         }
 
-        for (let i = 0; i !== vic; i++)
-            this.lastVolts[i] = this.getVoltageInputNode(i).v;
+        for (let i = 0; i !== eic; i++)
+            this.lastInputs[i] = this.getExprInputValue(i);
     }
 
     stepFinished(): void {

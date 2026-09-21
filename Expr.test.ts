@@ -4,7 +4,8 @@ import { Expr, ExprParser, ExprState } from "./Expr";
 function parse(s: string) {
     const p = new ExprParser(s);
     const e = p.parseExpression();
-    return { e, names: p.getNodeNames(), err: p.gotError() };
+    const refs = p.getNodeRefs();
+    return { e, refs, names: refs.map(r => r.name), err: p.gotError() };
 }
 
 function evalWith(s: string, nodeValues: number[], values?: number[]) {
@@ -16,7 +17,7 @@ function evalWith(s: string, nodeValues: number[], values?: number[]) {
     return e.eval(es);
 }
 
-describe("ExprParser v(name)", () => {
+describe("ExprParser v(name) / i(name)", () => {
     it("parses a single node reference", () => {
         const { e, names, err } = parse("v(out)");
         expect(err).toBe(null);
@@ -70,5 +71,38 @@ describe("ExprParser v(name)", () => {
         const { names, err } = parse(".1*(a-b)");
         expect(err).toBe(null);
         expect(names).toEqual([]);
+    });
+
+    it("parses i(name) as a current reference", () => {
+        const { e, refs, err } = parse("i(shunt)");
+        expect(err).toBe(null);
+        expect(refs.length).toBe(1);
+        expect(refs[0].name).toBe("shunt");
+        expect(refs[0].current).toBe(true);
+        expect(e.type).toBe(Expr.E_NODEV);
+        expect(evalWith("i(shunt)", [0.25])).toBe(0.25);
+    });
+
+    it("still treats a bare i as the 9th input letter", () => {
+        // i == values[8]; only "i" immediately followed by "(" is a current reference
+        const { refs, err } = parse("i*2");
+        expect(err).toBe(null);
+        expect(refs).toEqual([]);
+        const es = new ExprState(0);
+        es.values[8] = 3;
+        expect(parse("i*2").e.eval(es)).toBe(6);
+    });
+
+    it("keeps v(x) and i(x) in separate slots", () => {
+        const { refs, err } = parse("v(x)+i(x)");
+        expect(err).toBe(null);
+        expect(refs.length).toBe(2);
+        expect(refs[0].current).toBe(false);
+        expect(refs[1].current).toBe(true);
+        expect(evalWith("v(x)+i(x)", [10, 1])).toBe(11);
+    });
+
+    it("rejects a two-argument i()", () => {
+        expect(parse("i(a,b)").err).not.toBe(null);
     });
 });

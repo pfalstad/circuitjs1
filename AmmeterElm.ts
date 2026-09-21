@@ -31,6 +31,7 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 import { parseIntStrict } from "./NumberParse";
+import { CustomLogicModel } from "./CustomLogicModel";
 
 export class AmmeterElm extends CircuitElm {
     meter: number = 0;
@@ -41,6 +42,9 @@ export class AmmeterElm extends CircuitElm {
 
     static readonly FLAG_SHOWCURRENT = 1;
     static readonly FLAG_CIRCLE = 2;
+
+    // optional name, drawn next to the reading and usable as i(label) in an expression
+    label: string = "";
 
     zerocount: number = 0;
     rmsI: number = 0;
@@ -76,12 +80,15 @@ export class AmmeterElm extends CircuitElm {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "me", this.meter);
         CircuitXMLSerializer.dumpAttr(elem, "sc", this.scale);
+        if (this.label.length > 0)
+            CircuitXMLSerializer.dumpAttr(elem, "lb", this.label);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.meter = xml.parseIntAttr("me", this.meter);
         this.scale = xml.parseIntAttr("sc", this.scale);
+        this.label = xml.parseStringAttr("lb", "") ?? "";
     }
 
     getMeter(): string {
@@ -195,6 +202,8 @@ export class AmmeterElm extends CircuitElm {
         case AmmeterElm.AM_RMS: s = CircuitElm.getUnitTextWithScale(this.rmsI, "A(rms)", this.scale); break;
         }
 
+        if (this.label.length > 0)
+            s = this.label + " " + s;
         this.drawValues(g, s, width);
         this.drawPosts(g);
     }
@@ -257,6 +266,11 @@ export class AmmeterElm extends CircuitElm {
         if (n === 2) {
             return EditInfo.createCheckbox("Circular Symbol", this.drawAsCircle());
         }
+        if (n === 3) {
+            const ei = new EditInfo("Label", 0, -1, -1);
+            ei.text = this.label;
+            return ei;
+        }
         return null;
     }
 
@@ -264,6 +278,9 @@ export class AmmeterElm extends CircuitElm {
         if (n === 0) this.meter = ei.choice.getSelectedIndex();
         if (n === 1) this.scale = ei.choice.getSelectedIndex();
         if (n === 2) this.flags = ei.changeFlag(this.flags, AmmeterElm.FLAG_CIRCLE);
+        if (n === 3) this.label = ei.textf ? ei.textf.value : (ei.text ?? "");
     }
+
+    getExprRefName(): string | null { return this.label.length > 0 ? this.label : null; }
 
 }
