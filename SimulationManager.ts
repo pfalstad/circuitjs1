@@ -768,6 +768,10 @@ export class SimulationManager {
 		    const cnl = cn.links[j];
 		    const ce = cnl.elm;
 		    const post1 = cnl.num;
+		    // a node an element only refers to by name (v(label)/i(label)) is not a
+		    // galvanic connection, so we must not flood ground through it
+		    if (ce.isRefNode(post1))
+			continue;
 		    for (k = 0; k !== ce.getPostCount(); k++) {
 			if (k === post1)
 			    continue;

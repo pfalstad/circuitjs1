@@ -139,6 +139,8 @@ import { TriacElm } from "./TriacElm";
 import { TriodeElm } from "./TriodeElm";
 import { TunnelDiodeElm } from "./TunnelDiodeElm";
 import { UnijunctionElm } from "./UnijunctionElm";
+import { ControlledCurrentElm } from "./ControlledCurrentElm";
+import { ControlledVoltageElm } from "./ControlledVoltageElm";
 import { VCCSElm } from "./VCCSElm";
 import { VCOElm } from "./VCOElm";
 import { VCVSElm } from "./VCVSElm";
@@ -290,6 +292,8 @@ export function registerElements(): void {
     ElementFactory.registerClass("TriodeElm", TriodeElm as any);
     ElementFactory.registerClass("TunnelDiodeElm", TunnelDiodeElm as any);
     ElementFactory.registerClass("UnijunctionElm", UnijunctionElm as any);
+    ElementFactory.registerClass("ControlledCurrentElm", ControlledCurrentElm as any);
+    ElementFactory.registerClass("ControlledVoltageElm", ControlledVoltageElm as any);
     ElementFactory.registerClass("VCCSElm", VCCSElm as any);
     ElementFactory.registerClass("VCOElm", VCOElm as any);
     ElementFactory.registerClass("VCVSElm", VCVSElm as any);
@@ -436,6 +440,8 @@ export function registerElements(): void {
     CirSim.theApp.register("TriodeElm", new TriodeElm(0, 0));
     CirSim.theApp.register("TunnelDiodeElm", new TunnelDiodeElm(0, 0));
     CirSim.theApp.register("UnijunctionElm", new UnijunctionElm(0, 0));
+    CirSim.theApp.register("ControlledCurrentElm", new ControlledCurrentElm(0, 0));
+    CirSim.theApp.register("ControlledVoltageElm", new ControlledVoltageElm(0, 0));
     CirSim.theApp.register("VCCSElm", new VCCSElm(0, 0));
     CirSim.theApp.register("VCOElm", new VCOElm(0, 0));
     CirSim.theApp.register("VCVSElm", new VCVSElm(0, 0));

@@ -817,6 +817,13 @@ export abstract class CircuitElm implements Editable {
     // voltage onto the node -- we're only observing it, we don't own it.
     setRefNode(p: number, n: CircuitNode): void { this.nodes[p] = n; }
 
+    // is node index n one of our reference nodes (rather than a post or internal node)?
+    // referring to a node by name doesn't connect us to it, so the connectivity passes
+    // have to leave these out even though they're in nodes[].
+    isRefNode(n: number): boolean {
+        return n >= this.getPostCount() + this.getInternalNodeCount();
+    }
+
     getNodeCount(): number {
         return this.getPostCount() + this.getInternalNodeCount() + this.getRefNodeCount();
     }
