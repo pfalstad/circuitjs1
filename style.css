@@ -497,3 +497,10 @@ td.gwt-MenuItem.open > .menuDropdown {
     margin-left: 8px;
     white-space: nowrap;
 }
+
+/* ---- Draggable dialogs ---- */
+/* Dialogs can be dragged by any area that isn't an interactive control; show a
+   move cursor on the title so that this is discoverable. */
+.circuitDialog > h1, .circuitDialog > h2, .circuitDialog > h3 {
+    cursor: move;
+}
