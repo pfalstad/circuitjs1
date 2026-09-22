@@ -39,6 +39,8 @@ export class ExprState {
     // values of the quantities referenced by v(name)/i(name), one slot per reference, in
     // the order ExprParser.getNodeRefs() returned them.  sized by the element after parsing.
     nodeValues: number[] = [];
+    // the same quantities one timestep ago, for dvdt()/didt()
+    lastNodeValues: number[] = [];
     lastOutput: number = 0;
     t: number = 0;
 
@@ -52,11 +54,15 @@ export class ExprState {
         this.lastOutput = lastOut;
         for (let i = 0; i !== this.values.length; i++)
             this.lastValues[i] = this.values[i];
+        for (let i = 0; i !== this.nodeValues.length; i++)
+            this.lastNodeValues[i] = this.nodeValues[i];
     }
 
     reset(): void {
         for (let i = 0; i !== this.values.length; i++)
             this.lastValues[i] = 0;
+        for (let i = 0; i !== this.lastNodeValues.length; i++)
+            this.lastNodeValues[i] = 0;
         this.lastOutput = 0;
     }
 }
@@ -74,6 +80,9 @@ export class Expr {
     // v(name)/i(name): a quantity referenced by name.  must be below E_A, since eval()'s
     // default branch resolves anything >= E_A by range subtraction.
     static readonly E_NODEV = 4;
+    // dvdt(name)/didt(name): rate of change of the same quantity.  shares the reference
+    // slot with E_NODEV, since the slot holds the raw quantity either way.
+    static readonly E_NODEDVDT = 5;
     static readonly E_VAL = 6;
     static readonly E_MUL = 7;
     static readonly E_DIV = 8;
@@ -170,6 +179,9 @@ export class Expr {
         case Expr.E_VAL: return this.value;
         case Expr.E_T: return es.t;
         case Expr.E_NODEV: return es.nodeValues[this.value];
+        case Expr.E_NODEDVDT:
+            return (es.nodeValues[this.value] - es.lastNodeValues[this.value]) /
+                SimulationManager.theSim.timeStep;
         case Expr.E_SIN: return Math.sin(left!.eval(es));
         case Expr.E_COS: return Math.cos(left!.eval(es));
         case Expr.E_ABS: return Math.abs(left!.eval(es));
@@ -507,18 +519,18 @@ export class ExprParser {
 
     // parse v(name), v(name1,name2) or i(name).  called just after the function letter was
     // skipped, so token is "(" and pos points at the first character after the "(".
-    private parseNodeRefFunc(current: boolean): Expr {
-        const fn = current ? "i" : "v";
+    private parseNodeRefFunc(current: boolean, deriv: boolean = false): Expr {
+        const fn = (deriv ? "d" : "") + (current ? "i" : "v") + (deriv ? "dt" : "");
         if (this.token !== "(") {
             this.setError("expected ( after " + fn + ", got " + this.token);
             return new Expr(Expr.E_VAL, 0);
         }
-        let e = this.makeNodeRef(this.scanNodeName(), current);
+        let e = this.makeNodeRef(this.scanNodeName(), current, deriv);
         if (this.pos < this.tlen && this.origText.charAt(this.pos) === ',') {
             this.pos++;
-            const e2 = this.makeNodeRef(this.scanNodeName(), current);
+            const e2 = this.makeNodeRef(this.scanNodeName(), current, deriv);
             if (current)
-                this.setError("i() takes one name");
+                this.setError(fn + "() takes one name");
             else
                 e = new Expr(e, e2, Expr.E_SUB);
         }
@@ -557,13 +569,15 @@ export class ExprParser {
             s = this.origText.substring(start, this.pos).trim();
         }
         if (s.length === 0)
-            this.setError("missing name in v()/i()");
+            this.setError("missing name in a v()/i() reference");
         return s;
     }
 
     // get an E_NODEV node for the given reference, allocating a slot for it if we haven't
     // seen it before (so repeated references to the same thing share one slot)
-    private makeNodeRef(name: string, current: boolean): Expr {
+    // deriv picks E_NODEDVDT over E_NODEV; both read the same slot, which holds the raw
+    // quantity, so v(x) and dvdt(x) share one reference and one pair of nodes
+    private makeNodeRef(name: string, current: boolean, deriv: boolean): Expr {
         let ix = -1;
         for (let i = 0; i !== this.nodeRefs.length; i++)
             if (this.nodeRefs[i].name === name && this.nodeRefs[i].current === current)
@@ -572,7 +586,7 @@ export class ExprParser {
             ix = this.nodeRefs.length;
             this.nodeRefs.push(new ExprNodeRef(name, current));
         }
-        const e = new Expr(Expr.E_NODEV, ix);
+        const e = new Expr(deriv ? Expr.E_NODEDVDT : Expr.E_NODEV, ix);
         e.name = name;
         return e;
     }
@@ -590,7 +604,7 @@ export class ExprParser {
         // by anything else keeps its old meaning, and "i(" was a syntax error before.
         if (this.token === "i" && this.nextCharIsOpenParen()) {
             this.getToken();
-            return this.parseNodeRefFunc(true);
+            return this.parseNodeRefFunc(true, false);
         }
         if (this.token.length === 1) {
             const c = this.token.charCodeAt(0);
@@ -606,6 +620,14 @@ export class ExprParser {
                 return new Expr(Expr.E_LASTA + (c - 97));
             }
         }
+        // dvdt(name)/didt(name): rate of change of a referenced quantity.  "didt" is also
+        // the pin form (d/dt of input i), so only a following "(" makes it a reference;
+        // "didt" alone keeps its old meaning and "dvdt" alone was never valid.
+        if ((this.token === "dvdt" || this.token === "didt") && this.nextCharIsOpenParen()) {
+            const current = this.token === "didt";
+            this.getToken();
+            return this.parseNodeRefFunc(current, true);
+        }
         if (this.token.endsWith("dt") && this.token.startsWith("d") && this.token.length === 4) {
             const c = this.token.charCodeAt(1);
             if (c >= 97 && c <= 105) { // 'a'-'i'
@@ -616,7 +638,7 @@ export class ExprParser {
         if (this.skip("lastoutput")) return new Expr(Expr.E_LASTOUTPUT);
         if (this.skip("timestep"))  return new Expr(Expr.E_TIMESTEP);
         if (this.skip("pi"))        return new Expr(Expr.E_VAL, 3.14159265358979323846);
-        if (this.skip("v"))         return this.parseNodeRefFunc(false);
+        if (this.skip("v"))         return this.parseNodeRefFunc(false, false);
         if (this.skip("sin"))   return this.parseFunc(Expr.E_SIN);
         if (this.skip("cos"))   return this.parseFunc(Expr.E_COS);
         if (this.skip("asin"))  return this.parseFunc(Expr.E_ASIN);

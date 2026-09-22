@@ -134,6 +134,14 @@ export abstract class ControlledSourceElm extends CircuitElm {
         return 0.1;
     }
 
+    // our output as actually solved, which lastoutput reports and dvdt()/didt() need
+    // rolled over once per timestep
+    protected abstract getOutputValue(): number;
+
+    stepFinished(): void {
+        this.engine.stepFinished(this.getOutputValue());
+    }
+
     reset(): void {
         super.reset();
         this.engine.reset();

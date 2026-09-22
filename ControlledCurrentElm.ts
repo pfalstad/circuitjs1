@@ -49,6 +49,7 @@ export class ControlledCurrentElm extends ControlledSourceElm {
     }
 
     protected getDefaultExpr(): string { return ".001*v(in)"; }
+    protected getOutputValue(): number { return this.current; }
     protected getExprLabel(): string { return "Output Current"; }
 
     // integer dump types are for the obsolete text format; this element is XML only

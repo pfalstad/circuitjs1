@@ -69,6 +69,10 @@ export class ExprEngine {
     // value of the expression at the last evalAndStamp()
     value: number = 0;
 
+    // roll the current values into the previous-timestep slots that lasta..lasti,
+    // lastoutput and dvdt()/didt() read.  called once per timestep, from stepFinished().
+    stepFinished(output: number): void { this.state.updateLastValues(output); }
+
     constructor(owner: ExprOwner) {
         this.owner = owner;
     }
@@ -99,6 +103,7 @@ export class ExprEngine {
     alloc(pinInputCount: number): void {
         this.pinInputCount = pinInputCount;
         this.state.nodeValues = new Array(this.getRefCount()).fill(0);
+        this.state.lastNodeValues = new Array(this.getRefCount()).fill(0);
         this.lastInputs = new Array(this.getInputCount()).fill(0);
         this.refElms = new Array(this.getRefCount()).fill(null);
     }

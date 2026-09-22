@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Expr, ExprParser, ExprState } from "./Expr";
+import { SimulationManager } from "./SimulationManager";
 
 function parse(s: string) {
     const p = new ExprParser(s);
@@ -104,5 +105,71 @@ describe("ExprParser v(name) / i(name)", () => {
 
     it("rejects a two-argument i()", () => {
         expect(parse("i(a,b)").err).not.toBe(null);
+    });
+});
+
+describe("ExprParser dvdt(name) / didt(name)", () => {
+    function evalDeriv(src: string, now: number[], before: number[], timeStep: number) {
+        const { e, err } = parse(src);
+        expect(err).toBe(null);
+        const es = new ExprState(0);
+        es.nodeValues = now;
+        es.lastNodeValues = before;
+        (SimulationManager as any).theSim = { timeStep };
+        return e.eval(es);
+    }
+
+    it("differentiates a referenced node voltage", () => {
+        const { e, refs, err } = parse("dvdt(out)");
+        expect(err).toBe(null);
+        expect(refs.length).toBe(1);
+        expect(refs[0].name).toBe("out");
+        expect(refs[0].current).toBe(false);
+        expect(e.type).toBe(Expr.E_NODEDVDT);
+        // (3 - 1) / 0.5
+        expect(evalDeriv("dvdt(out)", [3], [1], 0.5)).toBeCloseTo(4, 9);
+    });
+
+    it("differentiates a referenced current", () => {
+        const { refs } = parse("didt(shunt)");
+        expect(refs[0].current).toBe(true);
+        expect(evalDeriv("didt(shunt)", [0.3], [0.1], 0.1)).toBeCloseTo(2, 9);
+    });
+
+    it("shares one reference slot with the plain form", () => {
+        // the slot holds the raw quantity, so v(x) and dvdt(x) need only one reference
+        const { refs, err } = parse("v(x)+dvdt(x)");
+        expect(err).toBe(null);
+        expect(refs.length).toBe(1);
+        expect(evalDeriv("v(x)+dvdt(x)", [3], [1], 0.5)).toBeCloseTo(3 + 4, 9);
+    });
+
+    it("keeps v(x) and i(x) derivatives in separate slots", () => {
+        const { refs } = parse("dvdt(x)+didt(x)");
+        expect(refs.length).toBe(2);
+        expect(refs[0].current).toBe(false);
+        expect(refs[1].current).toBe(true);
+    });
+
+    it("leaves the pin-input dadt..didt forms alone", () => {
+        // "didt" with no paren is still d/dt of input i, and takes no reference slot
+        const { e, refs, err } = parse("didt");
+        expect(err).toBe(null);
+        expect(refs).toEqual([]);
+        expect(e.type).toBe(Expr.E_DADT + 8);
+        expect(parse("dadt").e.type).toBe(Expr.E_DADT);
+        expect(parse("dadt").refs).toEqual([]);
+    });
+
+    it("differentiates a two-argument voltage reference", () => {
+        // d/dt(v(a)-v(b)) is dvdt(a)-dvdt(b)
+        const { refs, err } = parse("dvdt(a,b)");
+        expect(err).toBe(null);
+        expect(refs.length).toBe(2);
+        expect(evalDeriv("dvdt(a,b)", [3, 1], [1, 0], 0.5)).toBeCloseTo(4 - 2, 9);
+    });
+
+    it("rejects a two-argument didt()", () => {
+        expect(parse("didt(a,b)").err).not.toBe(null);
     });
 });

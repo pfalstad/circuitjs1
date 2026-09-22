@@ -41,6 +41,7 @@ export class ControlledVoltageElm extends ControlledSourceElm {
     }
 
     protected getDefaultExpr(): string { return "v(in)"; }
+    protected getOutputValue(): number { return this.getVoltageDiff(); }
     protected getExprLabel(): string { return "Output Voltage"; }
 
     // integer dump types are for the obsolete text format; this element is XML only
