@@ -260,7 +260,7 @@ public class CirSim implements NativePreviewHandler {
 	jsInterface = new JSInterface(this);
 	jsInterface.setupJSInterface();
 	
-	setSimRunning(running);
+	setSimRunning(true);
     }
 
     boolean isPrintable() { return menus.printableCheckItem.getState(); }
