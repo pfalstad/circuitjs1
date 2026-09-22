@@ -29,11 +29,11 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	double initialCurrent;
 	double saturationCurrent; // 0 = disabled (linear)
 	double seriesResistance;
-	int indNode2;
 	public InductorElm(int xx, int yy) {
 	    super(xx, yy);
 	    ind = new Inductor(sim);
 	    inductance = 1;
+	    seriesResistance = 1;
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	}
 	public InductorElm(int xa, int ya, int xb, int yb, int f,
@@ -45,17 +45,11 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    try {
 		initialCurrent = new Double(st.nextToken()).doubleValue();
 		saturationCurrent = new Double(st.nextToken()).doubleValue();
-		if ((flags & Inductor.FLAG_RESISTANCE) != 0)
-		    seriesResistance = new Double(st.nextToken()).doubleValue();
 	    } catch (Exception e) {}
 	    ind.setup(inductance, current, flags, saturationCurrent);
 	    allocNodes();
 	}
 	int getDumpType() { return 'l'; }
-	String dump() {
-	    flags |= Inductor.FLAG_RESISTANCE;
-	    return super.dump() + " " + inductance + " " + current + " " + initialCurrent + " " + saturationCurrent + " " + seriesResistance;
-	}
 
         void dumpXml(Document doc, Element elem) {
             super.dumpXml(doc, elem);
@@ -111,22 +105,25 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	// For an ideal inductor, indNode2 is node 1.  If a series resistance is
 	// set, indNode2 = 2 (an internal node) and a resistor is placed between
 	// nodes 2 and 1, modeled on CapacitorElm's seriesResistance handling.
+	// This is derived from seriesResistance rather than cached at stamp()
+	// time, because calculateCurrent() can run (from setNodeVoltage()) after
+	// the resistance is edited but before the circuit is re-stamped.
+	int getIndNode2() { return (seriesResistance > 0) ? 2 : 1; }
 	void stamp() {
-	    indNode2 = (seriesResistance > 0) ? 2 : 1;
-	    ind.stamp(nodes[0], nodes[indNode2]);
+	    ind.stamp(nodes[0], nodes[getIndNode2()]);
 	    if (seriesResistance > 0)
 		sim.stampResistor(nodes[1], nodes[2], seriesResistance);
 	}
 	void startIteration() {
-	    ind.startIteration(volts[0]-volts[indNode2]);
+	    ind.startIteration(volts[0]-volts[getIndNode2()]);
 	}
 	boolean nonLinear() { return ind.nonLinear(); }
 	void calculateCurrent() {
-	    double voltdiff = volts[0]-volts[indNode2];
+	    double voltdiff = volts[0]-volts[getIndNode2()];
 	    current = ind.calculateCurrent(voltdiff);
 	}
 	void doStep() {
-	    double voltdiff = volts[0]-volts[indNode2];
+	    double voltdiff = volts[0]-volts[getIndNode2()];
 	    ind.doStep(voltdiff);
 	}
 	int getInternalNodeCount() { return (seriesResistance > 0) ? 1 : 0; }

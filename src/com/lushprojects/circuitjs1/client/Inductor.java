@@ -21,7 +21,6 @@ package com.lushprojects.circuitjs1.client;
 
 class Inductor {
     public static final int FLAG_BACK_EULER = 2;
-    public static final int FLAG_RESISTANCE = 4;
     CircuitNode nodes[];
     int flags;
     SimulationManager sim;
