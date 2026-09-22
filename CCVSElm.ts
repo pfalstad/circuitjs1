@@ -227,6 +227,7 @@ export class CCVSElm extends VCCSElm {
     }
 
     setParentList(elmList: CircuitElm[]): void {
+        super.setParentList(elmList);   // resolves our v()/i() references
         if (!this.isSpiceStyle())
             return;
         this.voltageSources = new Array(this.inputPairCount).fill(null);

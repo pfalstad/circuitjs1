@@ -91,7 +91,7 @@ export class ExprEngine {
 
     // index in the owner's nodes[] of the positive node of reference k
     refNodeIndex(k: number): number {
-        return this.owner.getPostCount() + this.owner.getInternalNodeCount() + 2 * k;
+        return this.owner.getRefNodeBase() + 2 * k;
     }
 
     // size the arrays that depend on the input count.  call after parse(), and whenever
@@ -100,6 +100,7 @@ export class ExprEngine {
         this.pinInputCount = pinInputCount;
         this.state.nodeValues = new Array(this.getRefCount()).fill(0);
         this.lastInputs = new Array(this.getInputCount()).fill(0);
+        this.refElms = new Array(this.getRefCount()).fill(null);
     }
 
     reset(): void {
@@ -112,14 +113,14 @@ export class ExprEngine {
         for (let k = 0; k !== this.getRefCount(); k++) {
             const ref = this.refs[k];
             const ix = this.refNodeIndex(k);
-            this.owner.setRefNode(ix,     CircuitNode.ground);
-            this.owner.setRefNode(ix + 1, CircuitNode.ground);
+            this.owner.setNode(ix,     CircuitNode.ground);
+            this.owner.setNode(ix + 1, CircuitNode.ground);
 
             // a labeled node wins over an element with the same name
             if (!ref.current) {
                 const cn = HookRegistry.getLabeledNode?.(ref.name);
                 if (cn != null) {
-                    this.owner.setRefNode(ix, cn);
+                    this.owner.setNode(ix, cn);
                     continue;
                 }
             }
@@ -135,8 +136,36 @@ export class ExprEngine {
             this.refElms[k] = elm;
             // take the meter's nodes even for a current reference, where we don't stamp
             // against them: its voltage source row has to land in the same matrix as us.
-            this.owner.setRefNode(ix,     elm.getNode(0));
-            this.owner.setRefNode(ix + 1, elm.getNode(1));
+            this.owner.setNode(ix,     elm.getNode(0));
+            this.owner.setNode(ix + 1, elm.getNode(1));
+        }
+    }
+
+    // Inside a subcircuit a reference arrives as node numbers rather than a name, because
+    // the name was resolved when the model was built (see GetCircuitAsSubcircuit's "rn").
+    // That's enough for v(), but i() also needs the element itself, for its current and
+    // its voltage source row -- so find the sibling whose voltage source spans the two
+    // nodes we recorded.  This is how CCCSElm/CCVSElm already locate their sense elements.
+    // Only fills gaps: a name resolved at the top level keeps the element it found.
+    resolveRefElmsByNode(elmList: CircuitElm[]): void {
+        for (let k = 0; k !== this.getRefCount(); k++) {
+            if (!this.refs[k].current || this.refElms[k] != null)
+                continue;
+            const ix = this.refNodeIndex(k);
+            const n0 = this.owner.nodes[ix];
+            const n1 = this.owner.nodes[ix + 1];
+            if (n0 === n1)
+                continue;  // unresolved (both ground)
+            for (let j = 0; j !== elmList.length; j++) {
+                const ce = elmList[j];
+                if (ce === this.owner || ce.voltSource == null || ce.getPostCount() < 2)
+                    continue;
+                if ((ce.getNode(0) === n0 && ce.getNode(1) === n1) ||
+                        (ce.getNode(0) === n1 && ce.getNode(1) === n0)) {
+                    this.refElms[k] = ce;
+                    break;
+                }
+            }
         }
     }
 

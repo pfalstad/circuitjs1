@@ -107,6 +107,13 @@ export class VCCSElm extends ChipElm {
 
     resolveExprRefs(elmList: CircuitElm[]): void { this.engine.resolveRefs(elmList); }
 
+    setParentList(elmList: CircuitElm[]): void {
+        super.setParentList(elmList);
+        // inside a subcircuit our references came in as node numbers, so an i() reference
+        // still needs its element found; at the top level this is already done
+        this.engine.resolveRefElmsByNode(elmList);
+    }
+
     // number of expression inputs driven by pin voltages.  0 for the current-controlled
     // subclasses, whose pin inputs are currents they load into the state themselves.
     protected getPinExprInputCount(): number { return this.inputCount ? this.inputCount : 0; }

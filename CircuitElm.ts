@@ -813,16 +813,15 @@ export abstract class CircuitElm implements Editable {
     // the name by which an expression can refer to this element, or null if it has none
     getExprRefName(): string | null { return null; }
 
-    // assign one of our reference nodes.  unlike setNode() this doesn't push our stale
-    // voltage onto the node -- we're only observing it, we don't own it.
-    setRefNode(p: number, n: CircuitNode): void { this.nodes[p] = n; }
+    // index in nodes[] where our reference nodes start, after the posts and internal nodes
+    getRefNodeBase(): number {
+        return this.getPostCount() + this.getInternalNodeCount();
+    }
 
     // is node index n one of our reference nodes (rather than a post or internal node)?
     // referring to a node by name doesn't connect us to it, so the connectivity passes
     // have to leave these out even though they're in nodes[].
-    isRefNode(n: number): boolean {
-        return n >= this.getPostCount() + this.getInternalNodeCount();
-    }
+    isRefNode(n: number): boolean { return n >= this.getRefNodeBase(); }
 
     getNodeCount(): number {
         return this.getPostCount() + this.getInternalNodeCount() + this.getRefNodeCount();
@@ -830,6 +829,11 @@ export abstract class CircuitElm implements Editable {
 
     // notify this element that its pth node is n.
     setNode(p: number, n: CircuitNode): void {
+	// a reference node is one we only observe, so don't push our stale voltage onto it
+	if (this.isRefNode(p)) {
+	    this.nodes[p] = n;
+	    return;
+	}
 	let v = 0;
 
 	// preserve voltages if possible
@@ -1496,6 +1500,11 @@ export abstract class CircuitElm implements Editable {
 
     // get current flowing into node n out of this element
     getCurrentIntoNode(n: number): number {
+        // no current flows into a node we only refer to by name.  this matters for
+        // CompositeElm.getCurrentIntoNode(), which sums every link on a node, and our
+        // reference links are in that list.
+        if (this.isRefNode(n))
+            return 0;
         // if we take out the getPostCount() == 2 it gives the wrong value for rails
         if (n === 0 && this.getPostCount() === 2)
             return -this.current;

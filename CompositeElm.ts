@@ -53,6 +53,9 @@ export abstract class CompositeElm extends CircuitElm {
 
     // node info strings for each element (space-separated node numbers), stored for deferred node list building
     compNodeInfo: string[] = [];
+    // per child, the node numbers its expression refers to by name (the "rn" attribute).
+    // empty for the old text format, which predates expression references.
+    compRefNodeInfo: string[] = [];
 
     // external node IDs, stored for deferred node list building
     extNodeIds: number[] = [];
@@ -103,6 +106,7 @@ export abstract class CompositeElm extends CircuitElm {
         }
 
         this.compNodeInfo = nodeInfoList;
+        this.compRefNodeInfo = [];   // the old text format has no expression references
         this.extNodeIds = externalNodes;
         this.numPosts = this.numNodes = externalNodes.length;
         this.posts = new Array(this.numPosts);
@@ -116,6 +120,7 @@ export abstract class CompositeElm extends CircuitElm {
         const xml = new CircuitXMLDeserializer(CirSim.theApp);
         this.compElmList = [];
         const nodeInfoList: string[] = [];
+        const refNodeInfoList: string[] = [];
 
         for (const childElem of elmEntries) {
             const tagName = childElem.tagName;
@@ -148,9 +153,12 @@ export abstract class CompositeElm extends CircuitElm {
             this.compElmList.push(newce);
             const nn = childElem.getAttribute("nn");
             nodeInfoList.push(nn != null ? nn : "");
+            const rn = childElem.getAttribute("rn");
+            refNodeInfoList.push(rn != null ? rn : "");
         }
 
         this.compNodeInfo = nodeInfoList;
+        this.compRefNodeInfo = refNodeInfoList;
         this.extNodeIds = externalNodes;
 
         // we set numNodes here so allocNodes() will work when creating.
@@ -191,6 +199,33 @@ export abstract class CompositeElm extends CircuitElm {
                     compNodeHash.get(nodeOfThisPost)!.links.push(cnLink);
                 }
                 thisPost++;
+            }
+
+            // reference nodes: same node numbers, but they land past the posts and
+            // internal nodes rather than continuing the post sequence
+            const refInfo = this.compRefNodeInfo[i];
+            if (refInfo == null || refInfo.length === 0)
+                continue;
+            const stRefs = new StringTokenizer(refInfo, " +\t");
+            let thisRef = ce.getRefNodeBase();
+            while (stRefs.hasMoreTokens()) {
+                const nodeOfThisRef = parseIntStrict(stRefs.nextToken());
+                if (nodeOfThisRef === 0) {
+                    ce.setNode(thisRef, CircuitNode.ground);
+                    thisRef++;
+                    continue;
+                }
+                const cnLink = new CircuitNodeLink();
+                cnLink.num = thisRef;
+                cnLink.elm = ce;
+                if (!compNodeHash.has(nodeOfThisRef)) {
+                    const cn = new CircuitNode();
+                    cn.links.push(cnLink);
+                    compNodeHash.set(nodeOfThisRef, cn);
+                } else {
+                    compNodeHash.get(nodeOfThisRef)!.links.push(cnLink);
+                }
+                thisRef++;
             }
         }
 

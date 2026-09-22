@@ -73,6 +73,13 @@ export abstract class ControlledSourceElm extends CircuitElm {
 
     resolveExprRefs(elmList: CircuitElm[]): void { this.engine.resolveRefs(elmList); }
 
+    setParentList(elmList: CircuitElm[]): void {
+        super.setParentList(elmList);
+        // inside a subcircuit our references came in as node numbers, so an i() reference
+        // still needs its element found; at the top level this is already done
+        this.engine.resolveRefElmsByNode(elmList);
+    }
+
     // these two sources have no input pins, so every expression input is a reference
     setExpr(exprStr: string): void {
         this.engine.parse(exprStr);

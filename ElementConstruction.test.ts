@@ -70,6 +70,35 @@ describe("controlled source construction", () => {
     }
 });
 
+// A reference node is observed, not connected: no current flows into it.  Anything that
+// sums the links on a node (CompositeElm.getCurrentIntoNode) would otherwise count the
+// source's whole current against a node it merely reads.
+describe("current into a reference node", () => {
+    for (const [name, cls] of [
+        ["ControlledCurrentElm", ControlledCurrentElm],
+        ["ControlledVoltageElm", ControlledVoltageElm],
+        ["VCCSElm", VCCSElm],
+    ] as const) {
+        it("reports zero current into the reference nodes of " + name, () => {
+            const e: any = new (cls as any)(0, 0);
+            e.setExpr("v(a)+i(b)");
+            e.current = 1.25;
+            expect(e.getRefNodeCount()).toBeGreaterThan(0);
+            for (let j = 0; j !== e.getRefNodeCount(); j++)
+                expect(e.getCurrentIntoNode(e.getRefNodeBase() + j),
+                    name + " ref node " + j).toBe(0);
+        });
+    }
+
+    it("still reports the source current into its own posts", () => {
+        const e: any = new ControlledCurrentElm(0, 0);
+        e.setExpr("v(a)");
+        e.current = 1.25;
+        expect(e.getCurrentIntoNode(0)).toBeCloseTo(-1.25, 12);
+        expect(e.getCurrentIntoNode(1)).toBeCloseTo(1.25, 12);
+    });
+});
+
 // The diamond is a fixed size, so anything drawn inside it has to be positioned relative
 // to the diamond rather than to the element, or it escapes when the element is stretched.
 describe("ControlledVoltageElm diamond layout", () => {

@@ -124,6 +124,13 @@ function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     }
     dumpList.push(...extraList);
 
+    // which node ids the model actually contains, so we can tell whether an expression
+    // reference points at something inside the selection
+    const inModel: boolean[] = new Array(nodeCount).fill(false);
+    for (const ce of dumpList)
+        for (let j = 0; j !== ce.getPostCount(); j++)
+            inModel[ce.getNode(j).index] = true;
+
     // output all the elements as XML
     for (let i = 0; i !== dumpList.length; i++) {
         const ce = dumpList[i];
@@ -134,8 +141,27 @@ function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
             if (nn.length > 0) nn += " ";
             nn += n;
         }
+        // Nodes an expression refers to by name (v(label)/i(label)).  The name was already
+        // resolved to a node by the preStampCircuit() above, so we record the number and
+        // the model carries no names at all: references become per-instance by
+        // construction, and can't collide with names outside the subcircuit.
+        let rn = "";
+        for (let j = 0; j !== ce.getRefNodeCount(); j++) {
+            const n = ce.getNode(ce.getRefNodeBase() + j).index;
+            if (n !== 0 && !inModel[n]) {
+                window.alert('Element "' + ce.getElmType() +
+                    '" refers to a node outside the selection');
+                for (const se of closedSwitches) se.position = 0;
+                return null;
+            }
+            used[n] = true;
+            if (rn.length > 0) rn += " ";
+            rn += n;
+        }
         const child = elmDoc.createElement(ce.getXmlDumpType());
         CircuitXMLSerializer.dumpAttr(child, "nn", nn);
+        if (rn.length > 0)
+            CircuitXMLSerializer.dumpAttr(child, "rn", rn);
         ce.dumpXml(elmDoc, child);
         // remove child elements (state) since this is a model definition, not an instance
         let cn = child.firstChild;
