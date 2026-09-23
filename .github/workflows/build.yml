@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [ dev-ts ]
   pull_request:
-    branches: [ master, dev ]
+    branches: [ dev-ts ]
 
 jobs:
   build:
@@ -13,18 +13,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up JDK 8
-      uses: actions/setup-java@v4
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
       with:
-        java-version: '8'
-        distribution: 'temurin'
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: ts/package-lock.json
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+    - name: Install dependencies
+      run: npm ci
+      working-directory: ts
 
-    - name: Build with Gradle
-      run: ./gradlew compileGwt --console verbose
+    - name: Build
+      run: npm run build
+      working-directory: ts
 
-    - name: Build site
-      run: ./gradlew makeSite --console verbose
-      
+    - name: Run tests
+      run: npm test
+      working-directory: ts
