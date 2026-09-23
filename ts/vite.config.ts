@@ -16,10 +16,11 @@ const mimeTypes: Record<string, string> = {
   '.svg': 'image/svg+xml',
 }
 
-// Serves the legacy war/ example pages (e-*.html and friends) during `npm run
-// dev`, without copying them into ts/. Files that ts/ already has (circuitjs.html,
-// about.html, etc.) are always served from ts/ instead — this only fills in
-// the gaps.
+// Serves the legacy war/ pages (index.html, e-*.html, and friends) during
+// `npm run dev`, without copying them into ts/. Files that ts/ already has
+// (circuitjs.html, about.html, etc.) are always served from ts/ instead —
+// this only fills in the gaps. A bare "/" is treated as "/index.html", so
+// the dev server's landing page is the same one used in production.
 function serveWarDir(): Plugin {
   const tsRoot = path.dirname(fileURLToPath(import.meta.url))
   const warDir = path.resolve(tsRoot, '../war')
@@ -28,7 +29,8 @@ function serveWarDir(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (!req.url || req.method !== 'GET') return next()
-        const urlPath = decodeURIComponent(req.url.split('?')[0]!)
+        let urlPath = decodeURIComponent(req.url.split('?')[0]!)
+        if (urlPath === '/') urlPath = '/index.html'
         const filePath = path.join(warDir, urlPath)
         if (!filePath.startsWith(warDir)) return next()
         if (fs.existsSync(path.join(tsRoot, urlPath)) || fs.existsSync(path.join(tsRoot, 'public', urlPath))) return next()
@@ -52,7 +54,6 @@ export default defineConfig({
   build: {
     rolldownOptions: {
       input: {
-        index: 'index.html',
         circuitjs: 'circuitjs.html',
         about: 'about.html',
         iframe: 'iframe.html',
