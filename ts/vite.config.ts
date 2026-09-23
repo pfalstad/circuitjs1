@@ -90,7 +90,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         circuitjs: 'circuitjs.html',
-        about: 'about.html',
+        about: 'circuitjs/about.html',
         iframe: 'iframe.html',
         jsinterface: 'jsinterface.html',
       },

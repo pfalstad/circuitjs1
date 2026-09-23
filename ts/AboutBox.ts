@@ -32,7 +32,7 @@ export class AboutBox extends Dialog {
         this.dialogEl.appendChild(vp);
 
         const iframe = document.createElement("iframe");
-        iframe.src = "about.html";
+        iframe.src = "circuitjs/about.html";
         iframe.width = "400";
         iframe.height = "430";
         iframe.scrolling = "auto";
