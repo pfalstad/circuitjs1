@@ -34,6 +34,7 @@ export class InductorElm extends CircuitElm {
     inductance: number;
     initialCurrent: number;
     saturationCurrent: number; // 0 = disabled (linear)
+    seriesResistance: number;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -44,6 +45,7 @@ export class InductorElm extends CircuitElm {
             this.inductance = 1;
             this.initialCurrent = 0;
             this.saturationCurrent = 0;
+            this.seriesResistance = 1;
             this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
         } else {
             super(xa, ya, xb, yb!, f!);
@@ -52,18 +54,17 @@ export class InductorElm extends CircuitElm {
             this.current = parseFloatStrict(st!.nextToken());
             this.initialCurrent = 0;
             this.saturationCurrent = 0;
+            this.seriesResistance = 0;
             try {
                 this.initialCurrent = parseFloatStrict(st!.nextToken());
                 this.saturationCurrent = parseFloatStrict(st!.nextToken());
             } catch (e) {}
             this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
+            this.allocNodes();
         }
     }
     getDumpType(): number { return 'l'.charCodeAt(0); }
     isInductorElm(): boolean { return true; }
-    dump(): string {
-        return super.dump() + " " + this.inductance + " " + this.current + " " + this.initialCurrent + " " + this.saturationCurrent;
-    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
@@ -71,6 +72,8 @@ export class InductorElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "ic", this.initialCurrent);
         if (this.saturationCurrent !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "isat", this.saturationCurrent);
+        if (this.seriesResistance !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "sr", this.seriesResistance);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -83,7 +86,9 @@ export class InductorElm extends CircuitElm {
         this.initialCurrent = xml.parseDoubleAttr("ic", this.initialCurrent);
         this.current = xml.parseDoubleAttr("i", this.current);
         this.saturationCurrent = xml.parseDoubleAttr("isat", this.saturationCurrent);
+        this.seriesResistance = xml.parseDoubleAttr("sr", this.seriesResistance);
         this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
+        this.allocNodes();
     }
 
     setPoints(): void {
@@ -111,19 +116,32 @@ export class InductorElm extends CircuitElm {
         this.current = this.initialCurrent;
         this.ind.resetTo(this.initialCurrent);
     }
-    stamp(): void { this.ind.stamp(this.nodes[0], this.nodes[1]); }
+    // The inductor companion model is stamped between nodes 0 and getIndNode2().
+    // For an ideal inductor, that's node 1.  If a series resistance is set,
+    // it's an internal node 2, and a resistor is placed between nodes 2 and 1,
+    // modeled on CapacitorElm's seriesResistance handling.  This is derived
+    // from seriesResistance rather than cached at stamp() time, because
+    // calculateCurrent() can run (from setNodeVoltage()) after the resistance
+    // is edited but before the circuit is re-stamped.
+    getIndNode2(): number { return (this.seriesResistance > 0) ? 2 : 1; }
+    stamp(): void {
+        this.ind.stamp(this.nodes[0], this.nodes[this.getIndNode2()]);
+        if (this.seriesResistance > 0)
+            CircuitElm.sim.stampResistor(this.nodes[1], this.nodes[2], this.seriesResistance);
+    }
     startIteration(): void {
-        this.ind.startIteration(this.nodes[0].v-this.nodes[1].v);
+        this.ind.startIteration(this.nodes[0].v-this.nodes[this.getIndNode2()].v);
     }
     nonLinear(): boolean { return this.ind.nonLinear(); }
     calculateCurrent(): void {
-        const voltdiff = this.nodes[0].v-this.nodes[1].v;
+        const voltdiff = this.nodes[0].v-this.nodes[this.getIndNode2()].v;
         this.current = this.ind.calculateCurrent(voltdiff);
     }
     doStep(): void {
-        const voltdiff = this.nodes[0].v-this.nodes[1].v;
+        const voltdiff = this.nodes[0].v-this.nodes[this.getIndNode2()].v;
         this.ind.doStep(voltdiff);
     }
+    getInternalNodeCount(): number { return (this.seriesResistance > 0) ? 1 : 0; }
     getInfo(arr: string[]): void {
         arr[0] = (this.saturationCurrent > 0) ? "inductor (sat)" : "inductor";
         this.getBasicInfo(arr);
@@ -153,6 +171,8 @@ export class InductorElm extends CircuitElm {
             return new EditInfo("Initial Current (on Reset) (A)", this.initialCurrent);
         if (n === 3)
             return new EditInfo("Saturation Current (A) (0=none)", this.saturationCurrent);
+        if (n === 4)
+            return new EditInfo("Series Resistance", this.seriesResistance);
         return null;
     }
 
@@ -173,6 +193,13 @@ export class InductorElm extends CircuitElm {
             else
                 ei.setError("must be >= 0");
         }
+        if (n === 4) {
+            if (ei.value >= 0) {
+                this.seriesResistance = ei.value;
+                this.allocNodes();
+            } else
+                ei.setError("must be >= 0");
+        }
         this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
     }
 
@@ -187,6 +214,12 @@ export class InductorElm extends CircuitElm {
         this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
     }
     getSaturationCurrent(): number { return this.saturationCurrent; }
+    getSeriesResistance(): number { return this.seriesResistance; }
+    setSeriesResistance(r: number): void {
+        this.seriesResistance = r;
+        this.allocNodes();
+    }
+    isIdealInductor(): boolean { return this.seriesResistance === 0; }
     validate(): boolean {
         const fpi = new FindPathInfo(FindPathInfo.INDUCT, this, this.getNode(1), CircuitElm.sim);
         if (!fpi.findPath(this.getNode(0)))

@@ -42,15 +42,18 @@ export class WattmeterTrueElm extends CircuitElm {
     readonly PM_AVG = 1;
     selectedValue: number = 0;
     avgPower: number = 0;
-    totalPower: number = 0;
-    count: number = 0;
-    zerocount: number = 0;
-    maxP: number = 0;
-    lastMaxP: number = 0;
-    minP: number = 0;
-    lastMinP: number = 0;
-    increasingP: boolean = true;
-    decreasingP: boolean = true;
+    totalEnergy: number = 0;
+    cycleTime: number = 0;
+    lastCycleTime: number = 0;
+    runEnergy: number = 0;
+    runTime: number = 0;
+    zeroTime: number = 0;
+    peak: number = 0;
+    trough: number = 0;
+    curPeak: number = 0;
+    curTrough: number = 0;
+    wasAboveMid: boolean = false;
+    haveFullCycle: boolean = false;
 
     posts: Point[];
     inner: Point[];
@@ -203,52 +206,79 @@ export class WattmeterTrueElm extends CircuitElm {
         g.restore();
     }
 
+    // Average over whole cycles, delimited by rising crossings of the long-run mean
+    // (ported from WattmeterElm.stepFinished(), which fixed the same averaging
+    // against local extrema of the power waveform that this element used to do).
     stepFinished(): void {
         const p = this.getPower();
-        this.count++;
-        this.totalPower += p;
-        if (p > this.maxP && this.increasingP) {
-            this.maxP = p;
-            this.increasingP = true;
-            this.decreasingP = false;
-        }
-        if (p < this.maxP && this.increasingP) {
-            this.lastMaxP = this.maxP;
-            this.minP = p;
-            this.increasingP = false;
-            this.decreasingP = true;
-            this.avgPower = this.totalPower / this.count;
+        const dt = CircuitElm.sim.timeStep;
+        this.cycleTime += dt;
+        this.totalEnergy += p * dt;
+        this.runTime += dt;
+        this.runEnergy += p * dt;
+
+        const mid = this.runEnergy / this.runTime;
+
+        // Track this cycle's power swing to size next cycle's hysteresis band, instead
+        // of an all-time peak/trough. A resistor's instantaneous power settles near its
+        // steady-state range almost immediately, but a capacitor charging from an
+        // initial condition goes through a startup transient far outside its steady-state
+        // swing; an all-time extreme would get stuck there and oversize the band forever,
+        // so the detector would stop triggering cleanly once the load is reactive.
+        if (p > this.curPeak)
+            this.curPeak = p;
+        if (p < this.curTrough)
+            this.curTrough = p;
+
+        const band = (this.peak - this.trough) * .05 + Math.abs(this.peak) * 1e-9;
+        const above = this.wasAboveMid ? p > mid - band : p > mid + band;
+
+        if (above && !this.wasAboveMid) {
+            if (this.haveFullCycle) {
+                this.avgPower = this.totalEnergy / this.cycleTime;
+                if (isNaN(this.avgPower))
+                    this.avgPower = 0;
+                this.lastCycleTime = this.cycleTime;
+            } else {
+                // The run up to the first crossing is a partial cycle. Measuring it would
+                // leave a period estimate far shorter than the real one.
+                this.haveFullCycle = true;
+            }
+            this.totalEnergy = 0;
+            this.cycleTime = 0;
+            this.peak = this.curPeak;
+            this.trough = this.curTrough;
+            this.curPeak = p;
+            this.curTrough = p;
+        } else if (this.lastCycleTime > 0 && this.cycleTime > this.lastCycleTime * 8) {
+            // the waveform stopped or changed shape; don't freeze on a stale reading
+            this.avgPower = this.totalEnergy / this.cycleTime;
             if (isNaN(this.avgPower))
                 this.avgPower = 0;
-            this.count = 0;
-            this.totalPower = 0;
+            this.totalEnergy = 0;
+            this.cycleTime = 0;
+            this.peak = this.curPeak;
+            this.trough = this.curTrough;
+            this.curPeak = p;
+            this.curTrough = p;
         }
-        if (p < this.minP && this.decreasingP) {
-            this.minP = p;
-            this.increasingP = false;
-            this.decreasingP = true;
-        }
-        if (p > this.minP && this.decreasingP) {
-            this.lastMinP = this.minP;
-            this.maxP = p;
-            this.increasingP = true;
-            this.decreasingP = false;
-            this.avgPower = this.totalPower / this.count;
-            if (isNaN(this.avgPower))
-                this.avgPower = 0;
-            this.count = 0;
-            this.totalPower = 0;
-        }
+        this.wasAboveMid = above;
+
+        // Constant power never crosses its own mean, so no period is ever measured. Report
+        // the running mean until one is, which is the right answer for DC anyway.
+        if (this.lastCycleTime === 0)
+            this.avgPower = mid;
+
+        // Clear the reading once the power has been off for longer than a period.
         if (p === 0) {
-            this.zerocount++;
-            if (this.zerocount > 5) {
-                this.totalPower = 0;
+            this.zeroTime += dt;
+            if (this.lastCycleTime > 0 && this.zeroTime > this.lastCycleTime * 1.5) {
                 this.avgPower = 0;
-                this.maxP = 0;
-                this.minP = 0;
+                this.totalEnergy = 0;
+                this.cycleTime = 0;
             }
         } else {
-            this.zerocount = 0;
+            this.zeroTime = 0;
         }
     }
 

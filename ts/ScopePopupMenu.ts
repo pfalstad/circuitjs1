@@ -71,6 +71,8 @@ export class ScopePopupMenu {
         addPlain("Remove Plot",   "removeplot");
         addPlain("Reset",         "reset");
         addPlain("Export CSV...", "exportcsv");
+        addPlain("Export as PNG...", "exportpng");
+        addPlain("Export as SVG...", "exportsvg");
         addPlain("Properties...", "properties");
     }
 

@@ -167,17 +167,30 @@ export abstract class GateElm extends CircuitElm {
             this.icircles = this.newPointArray(this.inputCount);
         else
             this.icircles = null;
+        // moved up from after the loop below -- backCurveX() (OR-shaped bodies
+        // only) needs the current hs2, not last time's value
+        this.hs2 = this.gwidth * (Math.trunc(this.inputCount/2) + 1);
+        const andShaped = this.drawAsAndGate();
         for (let i = 0; i !== this.inputCount; i++, i0++) {
             if (i0 === 0 && (this.inputCount & 1) === 0)
                 i0++;
             const adj = this.getLeadAdjustment(i);
             this.interpPoint(this.point1, this.point2, this.inPosts[i], 0, hs*i0);
+            // bx = true x-offset (from lead1) of the body's back surface at this
+            // input's height: always 0 for AND (flat back), or the concave back
+            // curve's real position for OR (see backCurveX) -- a flat fraction-0
+            // offset is only correct there at the very top/bottom corners.
+            // A lead with no bubble should reach exactly bx, the same as AND's
+            // flat-back lead always reaches exactly fraction 0. A bubble sits
+            // back from bx using the exact same clearance the original AND
+            // bubble already used (-4 bubble-center, -8 wire-end).
+            const bx = andShaped ? 0 : GateElm.backCurveX(hs*i0, this.hs2, this.ww*2.);
+            const inGateOff = this.icircles !== null ? bx - 8 : bx;
             this.interpPoint(this.lead1!, this.lead2!, this.inGates[i],
-                this.icircles !== null ? -8/(this.ww*2.) + adj : adj, hs*i0);
+                inGateOff/(this.ww*2.) + adj, hs*i0);
             if (this.icircles !== null)
-                this.interpPoint(this.lead1!, this.lead2!, this.icircles[i], -4/(this.ww*2.), hs*i0);
+                this.interpPoint(this.lead1!, this.lead2!, this.icircles[i], (bx-4)/(this.ww*2.), hs*i0);
         }
-        this.hs2 = this.gwidth * (Math.trunc(this.inputCount/2) + 1);
         this.setBbox(this.point1, this.point2, this.hs2);
         if (this.hasSchmittInputs())
             this.schmittPoly = this.getSchmittPolygon(this.gsize, .47);
@@ -196,11 +209,18 @@ export abstract class GateElm extends CircuitElm {
                 this.interpPoint2(this.lead1!, this.lead2!, triPoints[2], triPoints[4], 1, this.hs2);
                 this.interpPoint(this.lead1!, this.lead2!, triPoints[3], 1);
             } else {
+                // Fractions tuned to fit the true MIL-STD-806B circular-arc
+                // geometry (front nose: radius 2h; back: radius 2h centered
+                // sqrt(3)h behind the corners) as closely as a single-control-
+                // point bezier can. Old values (.3 flat, .733/.85 front
+                // control, .105 back control) deviated from the true arc by
+                // ~11% of h; these get both curves down to ~2.4% of h,
+                // matching the AND gate's fidelity.
                 this.interpPoint2(this.lead1!, this.lead2!, triPoints[0], triPoints[6], 0, this.hs2);
-                this.interpPoint2(this.lead1!, this.lead2!, triPoints[1], triPoints[5], .3, this.hs2);
+                this.interpPoint2(this.lead1!, this.lead2!, triPoints[1], triPoints[5], .134, this.hs2);
                 triPoints[3] = this.lead2!;
-                this.interpPoint2(this.lead1!, this.lead2!, triPoints[2], triPoints[4], .733, this.hs2*.85);
-                this.interpPoint(this.lead1!, this.lead2!, triPoints[7], .105); // was .15
+                this.interpPoint2(this.lead1!, this.lead2!, triPoints[2], triPoints[4], .664, this.hs2*.8372);
+                this.interpPoint(this.lead1!, this.lead2!, triPoints[7], GateElm.orBackCtrlFrac); // was .105 (originally .15)
             }
             if (this.isXorGateElm()) {
                 const ww2 = (this.ww === 0) ? this.dn*2 : this.ww*2;
@@ -221,6 +241,35 @@ export abstract class GateElm extends CircuitElm {
     }
 
     getLeadAdjustment(ix: number): number { return 0; }
+
+    // Back-control fraction for the OR gate's concave back curve (the
+    // triPoints[6]->[7]->[0] bezierCurveTo built in setPoints() / drawn in
+    // drawGatePolygon()) -- named so backCurveX() below always matches
+    // whatever the body curve actually draws.
+    static readonly orBackCtrlFrac = .195;
+
+    // Real (signed) cube root. Math.pow of a negative base to a non-integer
+    // exponent is NaN, so we do the sign handling ourselves.
+    static cbrt(x: number): number {
+        return (x < 0) ? -Math.pow(-x, 1./3.) : Math.pow(x, 1./3.);
+    }
+
+    // True x-offset (from lead1, same units as ww/len) of the OR gate's
+    // concave back curve at a given height "target" (same units as hs2).
+    // That curve is a bezierCurveTo with a repeated control point --
+    // P0=(0,-hs2), P1=P2=(orBackCtrlFrac*len,0), P3=(0,+hs2) -- which reduces
+    // to x(t) = 3t(1-t)*orBackCtrlFrac*len, y(t) = hs2*(t^3-(1-t)^3).
+    // Solving y(t)=target for t is a depressed cubic in s=2t-1
+    // (s^3+3s-4k=0, k=target/hs2), solved here in closed form (Cardano) --
+    // y(t) is monotonic in t over [0,1], so there's always exactly one real
+    // solution.
+    static backCurveX(target: number, hs2: number, len: number): number {
+        const k = target/hs2;
+        const disc = Math.sqrt(4*k*k+1);
+        const s = GateElm.cbrt(2*k+disc) + GateElm.cbrt(2*k-disc);
+        const t = (s+1)/2;
+        return 3*t*(1-t)*GateElm.orBackCtrlFrac*len;
+    }
 
     createEuroGatePolygon(): void {
         const pts = this.newPointArray(4);
@@ -542,17 +591,17 @@ export class OrGateElm extends GateElm {
         return "OR gate";
     }
 
-    getLeadAdjustment(ix: number): number {
-        if (GateElm.useEuroGates())
-            return 0;
-        if (this.inputCount > 3 && (ix === 0 || ix === this.inputCount-1))
-            return -.15;
-        if (this.inputCount > 7 && (ix === 1 || ix === this.inputCount-2))
-            return -.25;
-        if (this.inputCount >= 12 && (ix === 2 || ix === this.inputCount-3))
-            return -.35;
-        return 0;
-    }
+    // Used to fan the two outermost leads back on large (>3-input) gates,
+    // against a flat back reference. It only ever applied to the wire's
+    // fraction (inGates), never to the bubble's (icircles), so on any
+    // bubbled/DeMorgan large gate the two outer leads' wires pulled back
+    // from their bubbles, leaving a visible gap -- and once GateElm's
+    // backCurveX() started tracking the OR body's true (curved) back
+    // surface, the same pull-back opened an identical gap to the body
+    // itself on plain (non-bubbled) large OR/NOR gates. The curve already
+    // tapers naturally toward the corners, making this manual fan
+    // redundant on top of it, so it's removed rather than patched to also
+    // move the bubble -- large gates now touch flush, same as small ones.
 
     getGateText(): string { return "≥1"; }
 

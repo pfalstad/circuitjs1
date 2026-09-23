@@ -631,7 +631,11 @@ export class Scope {
         this.selectedPlot = 0;
     }
 
-    draw(g: Graphics): void {
+    draw(g: Graphics): void { this.drawImpl(g, false); }
+
+    // forExport suppresses mouse-driven UI chrome (settings wheel, selection highlight
+    // wash, cursor readout) that shouldn't appear in an exported PNG/SVG
+    private drawImpl(g: Graphics, forExport: boolean): void {
         if (this.plots.length === 0)
             return;
 
@@ -646,7 +650,8 @@ export class Scope {
             return;
         }
 
-        this.drawSettingsWheel(g);
+        if (!forExport)
+            this.drawSettingsWheel(g);
         g.context.save();
         g.setColor(Color.red);
         g.context.translate(this.rect.x, this.rect.y);
@@ -683,7 +688,7 @@ export class Scope {
         if (this.selectedPlot >= 0)
             this.somethingSelected = true;
 
-        if (somethingSelectedHere || sel) {
+        if (!forExport && (somethingSelectedHere || sel)) {
             g.context.save();
             g.context.globalAlpha = 0.15;
             g.setColor(CircuitElm.selectColor);
@@ -725,7 +730,8 @@ export class Scope {
 
         g.restore();
 
-        this.drawCursor(g);
+        if (!forExport)
+            this.drawCursor(g);
 
         if (this.plots[0].ptr > 5 && !this.manualScale) {
             for (i = 0; i !== UNITS_COUNT; i++)
@@ -1221,6 +1227,54 @@ export class Scope {
 
     static downloadCSV(data: string, filename: string): void {
         const blob = new Blob([data], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    exportPNG(): void {
+        const cv = document.createElement('canvas');
+        cv.width = this.rect.width;
+        cv.height = this.rect.height;
+        const context = cv.getContext('2d') as CanvasRenderingContext2D;
+        this.drawForExport(context);
+        Scope.downloadDataURL(cv.toDataURL(), "scope.png");
+    }
+
+    exportSVG(): void {
+        const context = new (window as any).C2S(this.rect.width, this.rect.height);
+        this.drawForExport(context);
+        Scope.downloadSVG(context.getSerializedSvg(), "scope.svg");
+    }
+
+    // draws this scope, sized to its own rect, into a fresh context at (0,0) instead of
+    // its on-screen position, with a solid background and no mouse-driven UI chrome --
+    // shared by exportPNG/exportSVG
+    private drawForExport(context: CanvasRenderingContext2D): void {
+        context.lineCap = "round";
+        context.translate(-this.rect.x, -this.rect.y);
+        const g = new Graphics(context);
+        g.setColor(this.app.isPrintable() ? Color.white : Color.black);
+        g.fillRect(0, 0, this.rect.width, this.rect.height);
+        this.drawImpl(g, true);
+    }
+
+    static downloadDataURL(dataURL: string, filename: string): void {
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    static downloadSVG(data: string, filename: string): void {
+        const blob = new Blob([data], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
