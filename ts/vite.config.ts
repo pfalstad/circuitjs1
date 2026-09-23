@@ -54,13 +54,12 @@ function serveWarDir(): Plugin {
 // nothing in the app hardcodes this name.
 const assetsDir = 'circuitjs'
 
-// After the normal build, moves circuits/, locale/, setuplist.txt, and
-// images/ from ts/public/ into dist/<assetsDir>/ instead of dist/ root
-// (Vite's default publicDir copy target), so they sit alongside the JS/CSS
-// bundle rather than next to circuitjs.html. font/ is the exception — it's
-// copied to dist/ root as a sibling of circuitjs.html, since it's referenced
-// via a plain <link> tag resolved against the page's own location, not
-// fetched by ModuleBase-relative JS code.
+// After the normal build, copies circuits/, locale/, images/, setuplist.txt,
+// and font/ (the last one nested under ts/public/circuitjs/ already, since
+// it's referenced via hardcoded "circuitjs/font/..." hrefs in circuitjs.html
+// and about.html rather than ModuleBase-relative JS code) from ts/public/
+// into dist/<assetsDir>/, instead of Vite's default publicDir copy to dist
+// root, so they sit alongside the JS/CSS bundle.
 function copyPublicAssets(): Plugin {
   const tsRoot = path.dirname(fileURLToPath(import.meta.url))
   const publicDir = path.join(tsRoot, 'public')
@@ -68,12 +67,11 @@ function copyPublicAssets(): Plugin {
     name: 'copy-public-assets',
     apply: 'build',
     closeBundle() {
-      const outDir = path.join(tsRoot, 'dist')
-      fs.cpSync(path.join(publicDir, 'font'), path.join(outDir, 'font'), { recursive: true })
-      const nested = path.join(outDir, assetsDir)
+      const nested = path.join(tsRoot, 'dist', assetsDir)
       for (const name of ['circuits', 'locale', 'images']) {
         fs.cpSync(path.join(publicDir, name), path.join(nested, name), { recursive: true })
       }
+      fs.cpSync(path.join(publicDir, 'circuitjs', 'font'), path.join(nested, 'font'), { recursive: true })
       fs.cpSync(path.join(publicDir, 'setuplist.txt'), path.join(nested, 'setuplist.txt'))
     }
   }
