@@ -166,7 +166,7 @@ export class CirSim {
     static commandPalette: any = null; // non-null while the command palette popup is open
 
     static readonly baseTitle: string = "Circuit Simulator";
-    static readonly versionString: string = "4.1.5ts";
+    static readonly versionString: string = "5.0.0ts (alpha)";
 
     // maps integer dump type code → class name (built by register())
     static dumpTypeMap: Map<number, string> = new Map();
