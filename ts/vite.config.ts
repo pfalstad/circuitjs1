@@ -1,7 +1,50 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const mimeTypes: Record<string, string> = {
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.txt': 'text/plain',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+}
+
+// Serves the legacy war/ example pages (e-*.html and friends) during `npm run
+// dev`, without copying them into ts/. Files that ts/ already has (circuitjs.html,
+// about.html, etc.) are always served from ts/ instead — this only fills in
+// the gaps.
+function serveWarDir(): Plugin {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  const warDir = path.resolve(tsRoot, '../war')
+  return {
+    name: 'serve-war-dir',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url || req.method !== 'GET') return next()
+        const urlPath = decodeURIComponent(req.url.split('?')[0]!)
+        const filePath = path.join(warDir, urlPath)
+        if (!filePath.startsWith(warDir)) return next()
+        if (fs.existsSync(path.join(tsRoot, urlPath)) || fs.existsSync(path.join(tsRoot, 'public', urlPath))) return next()
+        fs.stat(filePath, (err, stat) => {
+          if (err || !stat.isFile()) return next()
+          res.setHeader('Content-Type', mimeTypes[path.extname(filePath)] ?? 'application/octet-stream')
+          fs.createReadStream(filePath).pipe(res)
+        })
+      })
+    }
+  }
+}
 
 export default defineConfig({
   base: './',
+  plugins: [serveWarDir()],
   server: {
     port: 5173,
     open: true
@@ -9,7 +52,7 @@ export default defineConfig({
   build: {
     rolldownOptions: {
       input: {
-        index: 'index.html',
+        circuitjs: 'circuitjs.html',
         about: 'about.html',
         iframe: 'iframe.html',
         jsinterface: 'jsinterface.html',
