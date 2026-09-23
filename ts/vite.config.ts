@@ -52,6 +52,7 @@ export default defineConfig({
   build: {
     rolldownOptions: {
       input: {
+        index: 'index.html',
         circuitjs: 'circuitjs.html',
         about: 'about.html',
         iframe: 'iframe.html',
