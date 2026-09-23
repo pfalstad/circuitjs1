@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
+# GitHub Pages deployment moved to the dev-ts branch (TypeScript rewrite),
+# which has its own copy of this workflow deploying to the same Pages site.
+# Disabled here (workflow_dispatch only) so pushes to dev don't race with
+# dev-ts and overwrite its deployment.
 on:
-  push:
-    branches: [ dev ]   # ← Only trigger on pushes to dev
+  workflow_dispatch:
 
 permissions:
   contents: read
