@@ -22,6 +22,7 @@
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { moduleBaseURL } from "./ModuleBase";
 
 // ---- State classes used by UIManager ----
 
@@ -708,7 +709,7 @@ export class Menus {
     // Load the built-in circuits list from the server and build the Circuits menu.
     // Uses fetch() instead of GWT's RequestBuilder.
     getSetupList(openDefault: boolean): void {
-        const url = 'setuplist.txt';
+        const url = moduleBaseURL + 'setuplist.txt';
         fetch(url)
             .then(r => {
                 if (!r.ok) {
@@ -771,7 +772,7 @@ export class Menus {
         console.log(str);
         (this.app as any).resetEditingContext?.();
         // don't avoid caching here, it's unnecessary and makes offline PWA's not work
-        const url = 'circuits/' + str;
+        const url = moduleBaseURL + 'circuits/' + str;
         (this.app as any).loader?.loadFileFromURL(url);
         if (title != null)
             this.app.setCircuitTitle(title);

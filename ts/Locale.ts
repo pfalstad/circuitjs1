@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 import { parseIntStrict } from "./NumberParse";
+import { moduleBaseURL } from "./ModuleBase";
 
 // Simplified from util/Locale.java
 
@@ -174,7 +175,7 @@ export class Locale {
             return;
         }
 
-        const url = "locale/locale_" + lang + ".txt";
+        const url = moduleBaseURL + "locale/locale_" + lang + ".txt";
         try {
             const response = await fetch(url);
             if (response.ok) {

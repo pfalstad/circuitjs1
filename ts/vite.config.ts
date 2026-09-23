@@ -45,14 +45,50 @@ function serveWarDir(): Plugin {
   }
 }
 
+// Assets directory name, relative to build.outDir. The compiled JS/CSS bundle
+// and the circuits/, locale/, and images/ resources all land here together
+// (mirroring GWT's per-module output directory, e.g. war/circuitjs1/) so that
+// ModuleBase.ts's runtime lookup of its own script URL finds them as
+// siblings. This directory can be freely renamed at deploy time (e.g. to a
+// per-version name like circuitjs81/) without touching any code, since
+// nothing in the app hardcodes this name.
+const assetsDir = 'circuitjs'
+
+// After the normal build, moves circuits/, locale/, setuplist.txt, and
+// images/ from ts/public/ into dist/<assetsDir>/ instead of dist/ root
+// (Vite's default publicDir copy target), so they sit alongside the JS/CSS
+// bundle rather than next to circuitjs.html. font/ is the exception — it's
+// copied to dist/ root as a sibling of circuitjs.html, since it's referenced
+// via a plain <link> tag resolved against the page's own location, not
+// fetched by ModuleBase-relative JS code.
+function copyPublicAssets(): Plugin {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  const publicDir = path.join(tsRoot, 'public')
+  return {
+    name: 'copy-public-assets',
+    apply: 'build',
+    closeBundle() {
+      const outDir = path.join(tsRoot, 'dist')
+      fs.cpSync(path.join(publicDir, 'font'), path.join(outDir, 'font'), { recursive: true })
+      const nested = path.join(outDir, assetsDir)
+      for (const name of ['circuits', 'locale', 'images']) {
+        fs.cpSync(path.join(publicDir, name), path.join(nested, name), { recursive: true })
+      }
+      fs.cpSync(path.join(publicDir, 'setuplist.txt'), path.join(nested, 'setuplist.txt'))
+    }
+  }
+}
+
 export default defineConfig({
   base: './',
-  plugins: [serveWarDir()],
+  plugins: [serveWarDir(), copyPublicAssets()],
   server: {
     port: 5173,
     open: true
   },
   build: {
+    assetsDir,
+    copyPublicDir: false,
     rolldownOptions: {
       input: {
         circuitjs: 'circuitjs.html',
