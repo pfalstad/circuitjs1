@@ -73,3 +73,8 @@ Temporary Items
 *.tgz
 
 /.apt_generated/
+
+# ts/ app
+/ts/todo
+/ts/node_modules
+/ts/dist
