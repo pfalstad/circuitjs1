@@ -43,5 +43,5 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
-  "exclude": ["old", "node_modules"]
+  "exclude": ["old", "node_modules", "vite.config.ts"]
 }

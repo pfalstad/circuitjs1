@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vitest/config'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 
 const mimeTypes: Record<string, string> = {
   '.html': 'text/html',
@@ -27,14 +28,14 @@ function serveWarDir(): Plugin {
   return {
     name: 'serve-war-dir',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
         if (!req.url || req.method !== 'GET') return next()
         let urlPath = decodeURIComponent(req.url.split('?')[0]!)
         if (urlPath === '/') urlPath = '/index.html'
         const filePath = path.join(warDir, urlPath)
         if (!filePath.startsWith(warDir)) return next()
         if (fs.existsSync(path.join(tsRoot, urlPath)) || fs.existsSync(path.join(tsRoot, 'public', urlPath))) return next()
-        fs.stat(filePath, (err, stat) => {
+        fs.stat(filePath, (err: NodeJS.ErrnoException | null, stat: fs.Stats) => {
           if (err || !stat.isFile()) return next()
           res.setHeader('Content-Type', mimeTypes[path.extname(filePath)] ?? 'application/octet-stream')
           fs.createReadStream(filePath).pipe(res)
