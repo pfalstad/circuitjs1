@@ -620,7 +620,7 @@ export class Menus {
             "Add Counter",              "CounterElm",
             "Add Counter w/ Load (9316)", "Counter2Elm",
             "Add Counter w/ Load (74177)", "Counter74177Elm",
-            "Add Up/Down Counter w/ Load (74193)", "Counter193Elm",
+            "Add Up/Down Counter w/ Load (74193/74192)", "Counter193Elm",
             "Add Ring Counter",         "DecadeElm",
             "Add Latch/Register",       "LatchElm",
             "Add Sequence generator",   "SeqGenElm",
