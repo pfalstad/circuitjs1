@@ -18,6 +18,7 @@ import com.google.gwt.xml.client.XMLParser;
 class ExtListEntry {
     ExtListEntry(String s, int n) { name = s; node = n; side = ChipElm.SIDE_W; }
     ExtListEntry(String s, int n, int p, int sd) { name = s; node = n; pos = p; side = sd; }
+    void setName(String s) { name = s; }
     String name;
     int node, pos, side;
     int busWidth = 1;
