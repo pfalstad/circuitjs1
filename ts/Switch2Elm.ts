@@ -46,6 +46,8 @@ export class Switch2Elm extends SwitchElm {
             super(xa, ya, typeof xbOrMm === 'boolean' ? xbOrMm : false);
             this.noDiagonal = true;
             this.throwCount = 2;
+            // base constructor allocated nodes[] before throwCount was set above; redo it now
+            this.allocNodes();
         } else {
             super(xa, ya, xbOrMm as number, yb, f!, st!);
             this.link = parseIntStrict(st!.nextToken());
@@ -54,6 +56,8 @@ export class Switch2Elm extends SwitchElm {
                 this.throwCount = parseIntStrict(st!.nextToken());
             } catch (e) {}
             this.noDiagonal = true;
+            // base constructor allocated nodes[] before throwCount was set above; redo it now
+            this.allocNodes();
         }
     }
 
