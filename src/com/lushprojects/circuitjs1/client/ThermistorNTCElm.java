@@ -99,6 +99,10 @@ class ThermistorNTCElm extends CircuitElm implements Command, MouseWheelHandler 
     }
 
     void createSlider() {
+	if (label != null)
+	    app.removeWidgetFromVerticalPanel(label);
+	if (slider != null)
+	    app.removeWidgetFromVerticalPanel(slider);
 	app.addWidgetToVerticalPanel(label = new Label(sliderText));
 	label.addStyleName("topSpace");
 	int value = (int) (position*100);
