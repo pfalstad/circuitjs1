@@ -32,6 +32,8 @@ import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerial
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { MosfetModel } from "./MosfetModel";
+import { RelayModel } from "./RelayModel";
+import { TransistorModel } from "./TransistorModel";
 import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
@@ -473,8 +475,8 @@ export class CirSim {
         CustomLogicModel.clearDumpedFlags();
         HookRegistry.clearSubcircuitModelDumpedFlags?.();
         DiodeModel.clearDumpedFlags();
-        (window as any).TransistorModel?.clearDumpedFlags();
-        (window as any).RelayModel?.clearDumpedFlags();
+        TransistorModel.clearDumpedFlags();
+        RelayModel.clearDumpedFlags();
         MosfetModel.clearDumpedFlags();
 
         const xml = new CircuitXMLSerializer(this);

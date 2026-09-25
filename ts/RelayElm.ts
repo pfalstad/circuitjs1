@@ -375,8 +375,18 @@ export class RelayElm extends CircuitElm {
     }
 
     getPost(n: number): Point {
-        if (n < 3 * this.poleCount())
-            return this.swposts[Math.trunc(n / 3)][n % 3];
+        if (n < 3 * this.poleCount()) {
+            const p = Math.trunc(n / 3);
+            if (this.swposts[p] == null) {
+                // model's poleCount grew after our geometry/nodes were built (can happen
+                // when a relay's model is referenced before its "rlm" definition is
+                // parsed, e.g. a model only otherwise defined inside a subcircuit); rebuild
+                // now rather than crash. See RelayModel.getModelWithNameOrCopy.
+                CirSim.console("relay " + this.modelName + ": poleCount grew after layout, rebuilding");
+                this.setPoints();
+            }
+            return this.swposts[p][n % 3];
+        }
         return this.coilPosts[n - 3 * this.poleCount()];
     }
 

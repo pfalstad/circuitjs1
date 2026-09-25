@@ -24,6 +24,8 @@ import { MouseManager } from "./MouseManager";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { MosfetModel } from "./MosfetModel";
+import { RelayModel } from "./RelayModel";
+import { TransistorModel } from "./TransistorModel";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
 import { EditDialog } from "./EditDialog";
@@ -537,7 +539,8 @@ export class CommandManager {
         CustomLogicModel.clearDumpedFlags();
         (window as any).SubcircuitModel?.clearDumpedFlags();
         DiodeModel.clearDumpedFlags();
-        (window as any).TransistorModel?.clearDumpedFlags();
+        TransistorModel.clearDumpedFlags();
+        RelayModel.clearDumpedFlags();
         MosfetModel.clearDumpedFlags();
 
         for (let i = this.app.elmList.length - 1; i >= 0; i--) {

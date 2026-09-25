@@ -102,6 +102,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
             CirSim.console("relay model not found: " + name);
             return RelayModel.getDefaultModel();
         }
+        CirSim.console("relay model not found yet, using placeholder: " + name);
         const copy = new RelayModel(oldmodel);
         copy.name = name;
         RelayModel.modelMap.set(name, copy);
