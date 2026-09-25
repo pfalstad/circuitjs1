@@ -290,7 +290,7 @@ export class CommandManager {
             if (item == "speed1/2")
                 s.slowDown();
             if (item == "maxscale")
-                s.maxScale();
+                s.maxScaleToggle();
             if (item == "stack")
                 sm.stackScope(sm.menuScope);
             if (item == "unstack")
