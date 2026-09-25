@@ -747,6 +747,8 @@ export abstract class CircuitElm implements Editable {
             return;
         if (this.dn === 0)
             return;
+        if (this.isWireEquivalent())
+            return;
         g.setColor(CircuitElm.selectColor);
         g.setFont(CircuitElm.unitsFont);
         g.save();
