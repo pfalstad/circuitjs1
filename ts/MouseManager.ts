@@ -18,6 +18,7 @@
 */
 
 import { CirSim } from "./CirSim";
+import { SubcircuitModel } from "./SubcircuitModel";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
 import { Scope } from "./Scope";
@@ -1168,7 +1169,7 @@ export class MouseManager {
 	this.sim.menus.separateAllItem.setEnabled(this.sim.scopeManager.scopeCount > 0);
 
 	// also update the subcircuit menu if necessary
-	if (MouseManager.lastSubcircuitMenuUpdate !== (window as any).SubcircuitModel?.sequenceNumber)
+	if (MouseManager.lastSubcircuitMenuUpdate !== SubcircuitModel.sequenceNumber)
 	    this.sim.composeSubcircuitMenu();
     }
 

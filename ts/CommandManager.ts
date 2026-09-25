@@ -26,6 +26,8 @@ import { DiodeModel } from "./DiodeModel";
 import { MosfetModel } from "./MosfetModel";
 import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
+import { SubcircuitModel } from "./SubcircuitModel";
+import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
 import { EditDialog } from "./EditDialog";
@@ -346,10 +348,10 @@ export class CommandManager {
             this.app.mouse.tempMouseMode = this.app.mouse.mouseMode;
         }
         if (item == "fullscreen") {
-            if (!(window as any).Graphics?.isFullScreen)
-                (window as any).Graphics?.viewFullScreen();
+            if (!Graphics.isFullScreen)
+                Graphics.viewFullScreen();
             else
-                (window as any).Graphics?.exitFullScreen();
+                Graphics.exitFullScreen();
             this.app.centerCircuit();
         }
 
@@ -537,7 +539,7 @@ export class CommandManager {
         const root = doc.documentElement;
 
         CustomLogicModel.clearDumpedFlags();
-        (window as any).SubcircuitModel?.clearDumpedFlags();
+        SubcircuitModel.clearDumpedFlags();
         DiodeModel.clearDumpedFlags();
         TransistorModel.clearDumpedFlags();
         RelayModel.clearDumpedFlags();
