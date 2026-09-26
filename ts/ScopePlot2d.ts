@@ -255,7 +255,7 @@ export class ScopePlot2d {
         }
         g.context.restore();
         this.scope.drawSettingsWheel(g);
-        if (!this.scope.app.dialogIsShowing() &&
+        if (!this.scope.app.modalDialogIsShowing() &&
                 this.scope.rect.contains(this.scope.app.mouse.mouseCursorX, this.scope.app.mouse.mouseCursorY) &&
                 this.scope.plots.length >= 1 && px < this.scope.plots.length && py < this.scope.plots.length) {
             const gridPx = this.calcGridPx(this.scope.rect.width, this.scope.rect.height);

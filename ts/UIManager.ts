@@ -1495,9 +1495,19 @@ export class UIManager {
 
     // ---- Dialogs ----
 
+    // true when any dialog (including the non-modal property editor) is showing. Used for
+    // keyboard handling, where the property editor still counts: Escape/Enter should keep
+    // routing to it, and typing in its fields shouldn't leak out as tool shortcuts.
     dialogIsShowing(): boolean {
         if (CirSim.editDialog != null && CirSim.editDialog.isShowing())
             return true;
+        return this.modalDialogIsShowing();
+    }
+
+    // true when a *modal* dialog is showing. The property editor (CirSim.editDialog) is
+    // non-modal, so canvas/scope mouse handling should keep working while it's open; use
+    // this (instead of dialogIsShowing()) at those call sites.
+    modalDialogIsShowing(): boolean {
         if (CirSim.customLogicEditDialog != null && CirSim.customLogicEditDialog.isShowing())
             return true;
         if (CirSim.diodeModelEditDialog != null && CirSim.diodeModelEditDialog.isShowing())

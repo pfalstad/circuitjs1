@@ -358,9 +358,10 @@ export class CommandManager {
         this.app.repaint();
     }
 
-    doEdit(eable: any): void {
+    doEdit(eable: any, pushUndo: boolean = true): void {
         this.app.mouse.clearSelection();
-        this.app.undoManager?.pushUndo();
+        if (pushUndo)
+            this.app.undoManager?.pushUndo();
         if (CirSim.editDialog != null) {
             CirSim.editDialog.setVisible(false);
             CirSim.editDialog = null;

@@ -58,6 +58,8 @@ export class MouseManager {
     initDragGridX: number = 0;
     initDragGridY: number = 0;
     mouseDownTime: number = 0;
+    mouseDownScreenX: number = 0;
+    mouseDownScreenY: number = 0;
     zoomTime: number = 0;
     mouseCursorX: number = -1;
     mouseCursorY: number = -1;
@@ -232,7 +234,7 @@ export class MouseManager {
     }
 
     beginToolbarDrag(className: string, clientX: number, clientY: number): void {
-	if (this.ui.isReadOnly() || this.sim.dialogIsShowing())
+	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
 	this.toolbarDragClass = className;
 	this.toolbarDragStartX = clientX;
@@ -297,6 +299,7 @@ export class MouseManager {
 	this.toolbarDragActive = false;
 	if (!wasActive)
 	    return; // no real drag happened; let the normal click switch modes as before
+	let createdElm: CircuitElm | null = null;
 	if (this.dragElm != null) {
 	    if (this.dragElm.creationFailed()) {
 		this.dragElm.delete();
@@ -309,6 +312,7 @@ export class MouseManager {
 		this.sim.unsavedChanges = true;
 		this.sim.needAnalyze();
 		this.sim.undoManager?.pushUndo();
+		createdElm = this.dragElm;
 	    }
 	    this.dragElm = null;
 	}
@@ -316,6 +320,9 @@ export class MouseManager {
 	this.dragging = false;
 	this.sim.updateToolbar();
 	this.sim.repaint();
+	// automatically bring up the property editor for a newly-created element
+	if (createdElm != null && !this.ui.isReadOnly())
+	    this.sim.commands.doEdit(createdElm, false);
     }
 
     private doSwitch(x: number, y: number): boolean {
@@ -633,6 +640,9 @@ export class MouseManager {
     }
 
     private selectArea(x: number, y: number, add: boolean): void {
+	// an area selection means the user is selecting a group of elements, not editing one
+	if (CirSim.editDialog != null)
+	    CirSim.editDialog.closeDialog();
 	const x1 = Math.min(x, this.initDragGridX);
 	const x2 = Math.max(x, this.initDragGridX);
 	const y1 = Math.min(y, this.initDragGridY);
@@ -852,7 +862,7 @@ export class MouseManager {
 
     private onContextMenu(e: MouseEvent): void {
 	e.preventDefault();
-	if (!this.sim.dialogIsShowing()) {
+	if (!this.sim.modalDialogIsShowing()) {
 	    this.menuClientX = e.clientX;
 	    this.menuClientY = e.clientY;
 	    this.doPopupMenu();
@@ -903,7 +913,7 @@ export class MouseManager {
     }
 
     private doPopupMenu(): void {
-	if (this.ui.isReadOnly() || this.sim.dialogIsShowing())
+	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
 	this.menuElm = this.mouseElm;
 	this.sim.scopeManager.menuScope = -1;
@@ -1030,6 +1040,8 @@ export class MouseManager {
 	this.menuX = this.menuClientX = ex;
 	this.menuY = this.menuClientY = ey;
 	this.mouseDownTime = Date.now();
+	this.mouseDownScreenX = ex;
+	this.mouseDownScreenY = ey;
 
 	// maybe someone did copy in another window?  should really do this when
 	// window receives focus
@@ -1068,7 +1080,7 @@ export class MouseManager {
 	if (this.ui.isReadOnly() && this.tempMouseMode !== MouseManager.MODE_DRAG_ALL)
 	    this.tempMouseMode = MouseManager.MODE_SELECT;
 
-	if (!this.sim.dialogIsShowing() && (
+	if (!this.sim.modalDialogIsShowing() && (
 	    (this.sim.scopeManager.scopeSelected !== -1 && this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].cursorInSettingsWheel()) ||
 	    (this.sim.scopeManager.scopeSelected === -1 && this.mouseElm != null && this.mouseElm.isScopeElm() && (this.mouseElm as any).elmScope.cursorInSettingsWheel())
 	)) {
@@ -1083,7 +1095,7 @@ export class MouseManager {
 	}
 
 	// start drag-to-measure if clicking inside a scope
-	if (!this.sim.dialogIsShowing()) {
+	if (!this.sim.modalDialogIsShowing()) {
 	    for (let i = 0; i < this.sim.scopeManager.scopeCount; i++)
 		this.sim.scopeManager.scopes[i].mousePressed(ex, ey);
 	    if (this.sim.scopeElmArr != null) {
@@ -1093,7 +1105,7 @@ export class MouseManager {
 	}
 
 	// alt-drag or middle-mouse-drag a scope's selected plot up/down while in manual scale mode
-	if (!this.sim.dialogIsShowing() && Scope.cursorScope != null &&
+	if (!this.sim.modalDialogIsShowing() && Scope.cursorScope != null &&
 		(e.button === 1 || (e.button === 0 && e.altKey)) &&
 		Scope.cursorScope.startDragPlotY(ex, ey))
 	    return;
@@ -1187,11 +1199,44 @@ export class MouseManager {
 	if (this.tempMouseMode === MouseManager.MODE_DRAG_POST && this.draggingPost === -1)
 	    this.doSplit(this.mouseElm);
 
-	this.endDrag();
+	// figure out, before endDrag() clears drag state, whether this mouseup is a plain
+	// click (not a drag, not a modified click used for some other gesture) and if so
+	// what it landed on, so we can update the (non-modal) property editor accordingly:
+	// clicking an element brings up its editor, clicking empty space closes it, and
+	// creating a new element (checked after endDrag(), below) brings up its editor too.
+	const wasPlainClick = e.button === 0 && !this.didSwitch &&
+	    !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+	let clickedElm: CircuitElm | null = null;
+	let clickedEmpty = false;
+	if (wasPlainClick) {
+	    // use the last tracked cursor position rather than this event's coordinates: on
+	    // touch devices the synthetic "mouseup" dispatched from touchend carries no
+	    // clientX/clientY, which would otherwise always read as a big (spurious) drag
+	    const dx = this.mouseCursorX - this.mouseDownScreenX;
+	    const dy = this.mouseCursorY - this.mouseDownScreenY;
+	    if (dx * dx + dy * dy < 16) { // didn't move (much) since mousedown, so it's a click, not a drag
+		if (this.mouseElm != null && !this.mouseElm.isSwitchElm())
+		    clickedElm = this.mouseElm;
+		else if (this.mouseElm == null)
+		    clickedEmpty = true;
+	    }
+	}
+
+	const createdElm = this.endDrag();
+
+	if (createdElm != null && !this.ui.isReadOnly()) {
+	    // automatically bring up the property editor for a newly-created element
+	    this.sim.commands.doEdit(createdElm, false);
+	} else if (clickedElm != null && !this.ui.isReadOnly()) {
+	    this.sim.commands.doEdit(clickedElm);
+	} else if (clickedEmpty && CirSim.editDialog != null) {
+	    CirSim.editDialog.closeDialog();
+	}
     }
 
-    // common cleanup for ending a drag, whether via mouseup or the mouse leaving the canvas
-    private endDrag(): void {
+    // common cleanup for ending a drag, whether via mouseup or the mouse leaving the canvas.
+    // returns the element that was just created (added to elmList), if any.
+    private endDrag(): CircuitElm | null {
 	this.mouseDragging = false;
 	Scope.dragStartTime = -1;
 	Scope.endDragPlotY();
@@ -1211,6 +1256,7 @@ export class MouseManager {
 	    this.heldSwitchElm = null;
 	    circuitChanged = true;
 	}
+	let createdElm: CircuitElm | null = null;
 	if (this.dragElm != null) {
 	    // if the element is zero size then don't create it
 	    // IES - and disable any previous selection
@@ -1229,6 +1275,7 @@ export class MouseManager {
 		circuitChanged = true;
 		this.sim.undoManager?.writeRecoveryToStorage();
 		this.sim.unsavedChanges = true;
+		createdElm = this.dragElm;
 		this.dragElm = null;
 		this.sim.updateToolbar();
 	    }
@@ -1241,6 +1288,7 @@ export class MouseManager {
 	    this.dragElm.delete();
 	this.dragElm = null;
 	this.sim.repaint();
+	return createdElm;
     }
 
     private onMouseWheel(e: WheelEvent): void {
@@ -1260,7 +1308,7 @@ export class MouseManager {
 	    (this.mouseElm as any).onMouseWheel(e);
 	else if (this.sim.scopeManager.scopeSelected !== -1)
 	    this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].onMouseWheel(e);
-	else if (!this.sim.dialogIsShowing()) {
+	else if (!this.sim.modalDialogIsShowing()) {
 	    const canvas = this.ui.cv as HTMLCanvasElement;
 	    this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
 	    this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
@@ -1293,7 +1341,7 @@ export class MouseManager {
     }
 
     private scrollValues(x: number, y: number, deltay: number): void {
-	if (this.mouseElm != null && !this.sim.dialogIsShowing() && this.sim.scopeManager.scopeSelected === -1) {
+	if (this.mouseElm != null && !this.sim.modalDialogIsShowing() && this.sim.scopeManager.scopeSelected === -1) {
 	    if (this.mouseElm.isResistorElm() || this.mouseElm.isCapacitorElm() || this.mouseElm.isInductorElm()) {
 		CirSim.scrollValuePopup = new ScrollValuePopup(x, y, deltay, this.mouseElm, this.sim);
 	    }

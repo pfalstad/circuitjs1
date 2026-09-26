@@ -252,7 +252,8 @@ export class CustomLogicElm extends ChipElm {
         if (n === 1) {
             const editDialog = new EditDialog(this.model, CirSim.theApp);
             CirSim.customLogicEditDialog = editDialog;
-            editDialog.show();
+            // offset below the main (non-modal) property editor so the two don't overlap
+            editDialog.show(320);
             return;
         }
     }

@@ -983,7 +983,7 @@ export class Scope {
 
     // find selected plot
     checkForSelection(mouseX: number, mouseY: number): void {
-        if (this.app.dialogIsShowing())
+        if (this.app.modalDialogIsShowing())
             return;
         if (this.draggingPlotY)
             return;
@@ -1039,7 +1039,7 @@ export class Scope {
     }
 
     drawCursor(g: Graphics): void {
-        if (this.app.dialogIsShowing())
+        if (this.app.modalDialogIsShowing())
             return;
         if (Scope.cursorScope === null)
             return;

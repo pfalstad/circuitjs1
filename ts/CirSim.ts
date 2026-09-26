@@ -574,6 +574,8 @@ export class CirSim {
 
     dialogIsShowing(): boolean { return this.ui.dialogIsShowing(); }
 
+    modalDialogIsShowing(): boolean { return this.ui.modalDialogIsShowing(); }
+
     updateToolbar(): void { this.ui.updateToolbar(); }
 
     getLabelTextForClass(cls: string): string { return this.ui.getLabelTextForClass(cls); }

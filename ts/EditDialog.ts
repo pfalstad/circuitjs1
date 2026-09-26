@@ -19,6 +19,7 @@
 
 import { Dialog } from "./Dialog";
 import { CirSim } from "./CirSim";
+import { UIManager } from "./UIManager";
 import { CircuitElm } from "./CircuitElm";
 import { VoltageElm } from "./VoltageElm";
 import type { Editable } from "./Editable";
@@ -472,6 +473,20 @@ export class EditDialog extends Dialog {
         this.firstInput = null;
         this.einfos.fill(null);
         this.einfocount = 0;
+    }
+
+    // Non-modal and docked to the side: unlike other dialogs, this one pops up automatically
+    // whenever an element is created or clicked on, so it must not block interacting with the
+    // rest of the circuit (clicking other elements re-targets this same dialog instead of
+    // opening a second one; see CommandManager.doEdit).
+    show(topOffset: number = 70): void {
+        this.dialogEl.style.position = "fixed";
+        this.dialogEl.style.margin = "0";
+        this.dialogEl.style.top = topOffset + "px";
+        this.dialogEl.style.left = "auto";
+        // dock to the left of the element-picker sidebar, not on top of it
+        this.dialogEl.style.right = (UIManager.VERTICALPANELWIDTH + 16) + "px";
+        this.dialogEl.show();
     }
 
     closeDialog(): void {
