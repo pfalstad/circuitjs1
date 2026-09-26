@@ -210,6 +210,23 @@ export class ScopeOverlays {
             this.drawInfoText(g, info[i]);
     }
 
+    // legend showing each plot's color and description, used when multiple plots are combined
+    // in one scope (so a plain text label can't identify which trace is which)
+    drawLegend(g: Graphics): void {
+        const plots = this.scope.visiblePlots;
+        for (let i = 0; i !== plots.length; i++) {
+            if (this.scope.rect.y + this.scope.rect.height <= this.textY + 5)
+                return;
+            const plot = plots[i];
+            const label = (plot.elm !== null) ? Locale.LS(plot.elm.getScopeText(plot.value)) : ("Plot " + (i + 1));
+            g.setColor(plot.color);
+            g.fillRect(0, this.textY - 9, 10, 10);
+            g.setColor(CircuitElm.whiteColor);
+            g.drawString(label, 16, this.textY);
+            this.textY += 15;
+        }
+    }
+
     draw(g: Graphics): void {
         g.setColor(CircuitElm.whiteColor);
         this.textY = 10;
@@ -238,6 +255,8 @@ export class ScopeOverlays {
         const t = this.scope.getScopeLabelOrText(true);
         if (t != null && t !== "")
             this.drawInfoText(g, t);
+        else if (this.scope.visiblePlots.length > 1 && this.scope.stackCount === 1)
+            this.drawLegend(g);
         if (this.scope.showFreq)
             this.drawFrequency(g);
         if (this.scope.showElmInfo)
