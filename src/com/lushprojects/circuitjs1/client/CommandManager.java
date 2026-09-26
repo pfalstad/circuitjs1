@@ -271,6 +271,10 @@ public class CommandManager {
     			s.resetGraph(true);
     		if (item=="exportcsv")
     			s.exportCSV();
+    		if (item=="exportpng")
+    			s.exportPNG();
+    		if (item=="exportsvg")
+    			s.exportSVG();
     		if (item=="properties")
 			s.properties();
     		app.scopeManager.deleteUnusedScopeElms();
@@ -279,6 +283,12 @@ public class CommandManager {
     		app.undoManager.pushUndo();
     		int sp = item.indexOf(' ', 6);
     		app.menus.readSetupFile(item.substring(6, sp), item.substring(sp+1));
+    	}
+    	if (menu.startsWith("extra:") && item.indexOf("setup ") ==0) {
+    		app.undoManager.pushUndo();
+    		String extraKey = menu.substring(6);
+    		int sp = item.indexOf(' ', 6);
+    		app.menus.readSetupExtraFile(extraKey, item.substring(6, sp), item.substring(sp+1));
     	}
     	if (item=="newblankcircuit") {
     	    app.undoManager.pushUndo();

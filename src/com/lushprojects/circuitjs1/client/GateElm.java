@@ -131,6 +131,41 @@ abstract class GateElm extends CircuitElm {
 	Point inPosts[], inGates[];
 	boolean inputStates[];
 	int ww;
+
+	// Back-control fraction for the OR gate's concave back curve (the
+	// triPoints[6]->[7]->[0] bezierCurveTo built in setPoints() / drawn in
+	// drawGatePolygon()) -- named so backCurveX() below always matches
+	// whatever the body curve actually draws.
+	static final double orBackCtrlFrac = .195;
+
+	// Real (signed) cube root. Math.cbrt(x) for x<0 is undefined via a naive
+	// Math.pow(x, 1./3.) -- Math.pow of a negative base to a non-integer
+	// exponent is NaN in Java/JS -- so we do the sign handling ourselves
+	// rather than depend on how GWT's Math.cbrt emulation is implemented.
+	static double cbrt(double x) {
+	    return (x < 0) ? -Math.pow(-x, 1./3.) : Math.pow(x, 1./3.);
+	}
+
+	// True x-offset (from lead1, same units as ww/len) of the OR gate's
+	// concave back curve at a given height "target" (same units as hs2).
+	// That curve is a bezierCurveTo with a repeated control point --
+	// P0=(0,-hs2), P1=P2=(orBackCtrlFrac*len,0), P3=(0,+hs2) -- which reduces
+	// to x(t) = 3t(1-t)*orBackCtrlFrac*len, y(t) = hs2*(t^3-(1-t)^3).
+	// Solving y(t)=target for t is a depressed cubic in s=2t-1
+	// (s^3+3s-4k=0, k=target/hs2), solved here in closed form (Cardano) --
+	// y(t) is monotonic in t over [0,1], so there's always exactly one real
+	// solution. The second cbrt() term below, cbrt(2*k-disc), always has a
+	// negative argument (disc > 2|k| for every real k), which is exactly
+	// why the sign-safe cbrt() above matters. (2026-09-19, for the
+	// input-bubble/lead contact fix.)
+	static double backCurveX(double target, double hs2, double len) {
+	    double k = target/hs2;
+	    double disc = Math.sqrt(4*k*k+1);
+	    double s = cbrt(2*k+disc) + cbrt(2*k-disc);
+	    double t = (s+1)/2;
+	    return 3*t*(1-t)*orBackCtrlFrac*len;
+	}
+
 	void setPoints() {
 	    super.setPoints();
 	    inputStates = new boolean[inputCount];
@@ -151,16 +186,36 @@ abstract class GateElm extends CircuitElm {
 		icircles = new Point[inputCount];
 	    else
 		icircles = null;
+	    // moved up from after the loop below -- backCurveX() (OR-shaped bodies
+	    // only) needs the current hs2, not last time's value
+	    hs2 = gwidth*(inputCount/2+1);
+	    boolean andShaped = drawAsAndGate();
 	    for (i = 0; i != inputCount; i++, i0++) {
 		if (i0 == 0 && (inputCount & 1) == 0)
 		    i0++;
 		double adj = getLeadAdjustment(i);
                 inPosts[i] = interpPoint(point1, point2, 0, hs*i0);
-		inGates[i] = interpPoint(lead1,  lead2,  icircles != null ? -8/(ww*2.)+adj : adj, hs*i0);
+		// bx = true x-offset (from lead1) of the body's back surface at this
+		// input's height: always 0 for AND (flat back), or the concave back
+		// curve's real position for OR (see backCurveX) -- a flat fraction-0
+		// offset is only correct there at the very top/bottom corners.
+		// A lead with no bubble should reach exactly bx, the same as AND's
+		// flat-back lead always reaches exactly fraction 0 (a wire is
+		// expected to touch/slightly overlap the body -- that's normal and
+		// was never a problem for AND). A bubble sits back from bx using the
+		// exact same clearance Falstad's original AND+DeMorgan bubble already
+		// used (-4 bubble-center, -8 wire-end) -- reusing those proven-good
+		// numbers rather than re-deriving stroke clearance from scratch,
+		// since a naive "0 gap between centerlines" (tried first) ignores
+		// that both the bubble and the body are drawn with a 3px-wide stroke
+		// and so visually overlap well before their centerlines touch.
+		// (2026-09-19)
+		double bx = andShaped ? 0 : backCurveX(hs*i0, hs2, ww*2.);
+		double inGateOff = icircles != null ? bx - 8 : bx;
+		inGates[i] = interpPoint(lead1,  lead2,  inGateOff/(ww*2.)+adj, hs*i0);
 		if (icircles != null)
-		    icircles[i] = interpPoint(lead1, lead2,  -4/(ww*2.), hs*i0);
+		    icircles[i] = interpPoint(lead1, lead2,  (bx-4)/(ww*2.), hs*i0);
 	    }
-	    hs2 = gwidth*(inputCount/2+1);
 	    setBbox(point1, point2, hs2);
 	    if (hasSchmittInputs())
 		schmittPoly = getSchmittPolygon(gsize, .47f);
@@ -179,11 +234,21 @@ abstract class GateElm extends CircuitElm {
 		    interpPoint2(lead1, lead2, triPoints[2], triPoints[4], 1, hs2);
 		    interpPoint(lead1, lead2, triPoints[3], 1);
 		} else {
+		    // Fractions retuned (2026-09-19) to fit the true MIL-STD-806B
+		    // circular-arc geometry (front nose: radius 2h; back: radius 2h
+		    // centered √3h behind the corners -- see spinningnumbers.org/
+		    // a/logic-gates.html) as closely as a single-control-point
+		    // bezier can. Old values (.3 flat, .733/.85 front control,
+		    // .105 back control) deviated from the true arc by ~11% of h;
+		    // these get both curves down to ~2.4% of h, matching the AND
+		    // gate's (untouched, already-good) fidelity. Purely a constant
+		    // swap -- no structural change, so none of the lead2/bubble-
+		    // shift interactions from the arc-based attempt apply here.
 		    interpPoint2(lead1, lead2, triPoints[0], triPoints[6], 0, hs2);
-		    interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .3, hs2);
+		    interpPoint2(lead1, lead2, triPoints[1], triPoints[5], .134, hs2);
 		    triPoints[3] = lead2;
-		    interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .733, hs2*.85);
-		    interpPoint(lead1, lead2, triPoints[7], .105); // was .15
+		    interpPoint2(lead1, lead2, triPoints[2], triPoints[4], .664, hs2*.8372);
+		    interpPoint(lead1, lead2, triPoints[7], orBackCtrlFrac); // was .105 (originally .15)
 		}
 		if (this instanceof XorGateElm || this instanceof XnorGateElm) {
 		    double ww2 = (ww == 0) ? dn*2 : ww*2;
