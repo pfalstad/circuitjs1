@@ -440,7 +440,8 @@ export class CommandManager {
                 maxy = Math.max(ce.y, Math.max(ce.y2, maxy));
             }
         }
-        return { cx: (minx + maxx) / 2, cy: (miny + maxy) / 2, count };
+        // Java's int division truncates toward zero; replicate that here so cx/cy stay integers.
+        return { cx: Math.trunc((minx + maxx) / 2), cy: Math.trunc((miny + maxy) / 2), count };
     }
 
     // mirror horizontally (flip left-right)

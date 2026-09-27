@@ -117,7 +117,7 @@ export class TextElm extends GraphicElm {
         g.setFont(f);
         let maxw = -1;
         for (let i = 0; i !== this.lines.length; i++) {
-            const w = g.context.measureText(this.lines[i]).width;
+            const w = Math.trunc(g.context.measureText(this.lines[i]).width);
             if (w > maxw)
                 maxw = w;
         }
@@ -125,7 +125,7 @@ export class TextElm extends GraphicElm {
         this.setBbox(this.x, this.y, this.x, this.y);
         for (let i = 0; i !== this.lines.length; i++) {
             const s = Locale.LS(this.lines[i]);
-            const sw = g.context.measureText(s).width;
+            const sw = Math.trunc(g.context.measureText(s).width);
             g.drawString(s, this.x, cury);
             if ((this.flags & TextElm.FLAG_BAR) !== 0) {
                 const by = cury - g.currentFontSize;
