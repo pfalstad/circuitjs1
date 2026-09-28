@@ -322,7 +322,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 
     doStep(): void {
         const writeEnabled = this.nodes[0].v < this.getThreshold();
-        const outputEnabled = (this.nodes[1].v < this.getThreshold()) && !writeEnabled;
+        const outputEnabled = this.nodes[1].v < this.getThreshold();
 
         // get address
         this.address = 0;
@@ -330,8 +330,19 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
         }
 
-        const dataObj = this.map.get(this.address);
-        const data = (dataObj === undefined) ? 0 : dataObj;
+        // real bipolar RAMs like the 82S16 write-through: while WE is active the output
+        // follows the data currently being written, rather than tri-stating - see doStep()'s
+        // docstring-equivalent note in digitalSynthesis() below.
+        let data: number;
+        if (writeEnabled) {
+            data = 0;
+            for (let i = 0; i !== this.dataBits; i++) {
+                data |= (this.nodes[this.dataInNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
+            }
+        } else {
+            const dataObj = this.map.get(this.address);
+            data = (dataObj === undefined) ? 0 : dataObj;
+        }
         for (let i = 0; i !== this.dataBits; i++) {
             const p = this.pins[i + this.dataNodes];
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.internalNodes + i], p.voltSource,
@@ -372,11 +383,13 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
      * DigitalGraphBuilder.ts's layoutFromSynth()). Without the flag, SRAMElm's data pins stay
      * genuinely bidirectional (the same real pin drives while reading, receives while writing),
      * so dataInPin(i) is instead wired via digitalTriStateReadbackPin() below - a write must
-     * capture whatever's ACTUALLY on the shared bus (an external writer's driven value), not this
-     * bit's own output, which doStep()'s own outputEnabled logic forces to 0 while writing (see
-     * isTriStateOutput()'s "AND(enable, data)" convention) and would therefore only ever read
-     * back 0. Either way the per-bit update() logic itself is identical - only where dataInPin(i)
-     * gets its value from differs. */
+     * capture whatever's ACTUALLY on the shared bus (an external writer's driven value). Note this
+     * bit's own output is, per the real 82S16's write-through behavior, driven with that very same
+     * value while writing (see doStep()'s and update()'s matching /OE-gated, /WE-selected logic),
+     * so the readback and the output happen to agree during a write - the readback wiring exists
+     * for correctness (it must reflect the external bus, not this element's own output post) not
+     * because the two would otherwise differ. Either way the per-bit update() logic itself is
+     * identical - only where dataInPin(i) gets its value from differs. */
     digitalSynthesis(): DigitalSynthesis {
         const m = this.addressBits;
         const n = this.dataBits;
@@ -405,15 +418,19 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 for (let k = 0; k < m; k++) address |= ((chip.inputs >> (2 + k)) & 1) << (m - 1 - k);
                 const dataIn = (chip.inputs >> (2 + m)) & 1;
 
+                // 82S16 has no real /OE pin - this element's /OE stands in for its 3-input /CE,
+                // which alone gates whether the output drives at all. /WE only selects whether
+                // that driven value is the stored bit (read) or the bit being written
+                // (write-through) - see doStep()'s matching logic above.
                 let newOut: number;
-                if (weActive) {
+                if (!oeActive) {
+                    newOut = 0; // tri-stated whenever disabled, regardless of /WE
+                } else if (weActive) {
                     const cur = this.map.get(address) ?? 0;
                     this.map.set(address, dataIn ? (cur | bitMask) : (cur & ~bitMask));
-                    newOut = 0; // never drives while writing, same as doStep()'s outputEnabled
-                } else if (oeActive) {
-                    newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
+                    newOut = dataIn;
                 } else {
-                    newOut = 0; // tri-stated
+                    newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
                 }
 
                 if (newOut !== chip.output && chip.pendingEvent === 0)
