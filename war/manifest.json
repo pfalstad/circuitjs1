@@ -1,0 +1,22 @@
+{
+  "name": "CircuitJS1",
+  "short_name": "CircuitJS1",
+  "start_url": "/circuit/circuitjs.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#2196f3",
+  "description": "Circuit Simulator",
+  "icons": [
+    {
+      "src": "/circuit/icon512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/circuit/icon1024.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
+}
+

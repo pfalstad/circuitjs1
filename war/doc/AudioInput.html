@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Input Element - User Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+        .note {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Audio Input Element - User Guide</h1>
+
+<p>The Audio Input Element allows you to simulate how your circuit would respond to an audio signal. Here's how you can use it:</p>
+
+<h2>Adding an Audio Input:</h2>
+<ul>
+    <li>Find the Audio Input element in the components menu under "Inputs and Sources".  (In the "Draw" menu, or the right-click menu.)</li>
+</ul>
+
+<h2>Loading an Audio File:</h2>
+<ul>
+    <li>Right-click on the Audio Input element to access its settings, and click "Edit".</li>
+    <li>Click on "Choose File" to select a file.</li>
+</ul>
+
+<h2>Supported Formats</h2>
+The formats supported are whatever your browser supports.  This typically includes:
+
+<ul>
+    <li><span class="format">WAV</span> - Waveform Audio File Format, known for uncompressed audio data.</li>
+    <li><span class="format">AIFF</span> - Audio Interchange File Format, similar to WAV, uncompressed.</li>
+    <li><span class="format">Ogg</span> - Ogg Vorbis, an open, lossy audio compression format.</li>
+    <li><span class="format">MP3</span> - MPEG Audio Layer III, widely used for its good quality-to-file size ratio.</li>
+    <li>
+        <span class="format">MP4</span> - MPEG-4 Part 14 container format which can contain audio:
+        <ul class="subformat">
+            <li><span class="description">AAC</span> - Advanced Audio Coding, often found within MP4 containers.</li>
+        </ul>
+    </li>
+    <li><span class="format">FLAC</span> - Free Lossless Audio Codec, provides lossless compression.</li>
+</ul>
+
+
+<h2>Adjusting Settings:</h2>
+
+<h3>Max Voltage:</h3>
+<ul>
+    <li>This setting determines the peak voltage of the audio signal that will be input into your circuit. Adjust this if your circuit operates at different voltage levels.
+The audio data will be scaled by this value. So if V is the peak voltage, the output will range from -V to +V. It will be less than this if the audio data in the input file has a smaller range.</li>
+</ul>
+
+<h3>Start Position:</h3>
+<ul>
+    <li>Set where in the audio file you want the simulation to start playing from. This is useful if you only need a portion of the audio or want to skip the silent parts at the beginning.</li>
+</ul>
+
+<h2>Use Cases:</h2>
+<ul>
+    <li>Testing how speakers or audio equipment would react to different sounds.</li>
+    <li>Simulating audio signal processing circuits like filters, amplifiers, or mixers.</li>
+    <li>Educational purposes to demonstrate signal behavior in electronic circuits.</li>
+</ul>
+
+</body>
+</html>

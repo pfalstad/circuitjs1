@@ -1,0 +1,94 @@
+const CACHE_NAME = 'circuitjs1-app-cache-v301';
+
+const urlsToCache = [
+  '/circuit/about.html',
+  '/circuit/canvas2svg.js',
+  '/circuit/circuitjs.html',
+  '/circuit/crystal.html',
+  '/circuit/customfunction.html',
+  '/circuit/customlogic.html',
+  '/circuit/customtransformer.html',
+  '/circuit/diodecalc.html',
+  '/circuit/icon512.png',
+  '/circuit/icon128.png',
+  '/circuit/iframe.html',
+  '/circuit/lz-string.min.js',
+  '/circuit/manifest.json',
+  '/circuit/mosfet-beta.html',
+  '/circuit/opampreal.html',
+  '/circuit/subcircuits.html',
+FILE_LIST_GOES_HERE
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(urlsToCache))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('fetch', (event) => {
+    // Normalize the request URL by stripping the ?startCircuit parameter
+    let req = event.request;
+    const url = new URL(req.url);
+
+    if (url.searchParams.has('startCircuit')) {
+        // Remove the 'startCircuit' query parameter
+        url.searchParams.delete('startCircuit');
+        const request = event.request;
+        req = new Request(url, {
+                    method: request.method,
+                    headers: request.headers,
+                    mode: request.mode === 'navigate' ? 'same-origin' : request.mode,
+                    credentials: request.credentials,
+                    redirect: request.redirect,
+                    referrer: request.referrer,
+                    integrity: request.integrity,
+                    cache: request.caches });
+    }
+
+    event.respondWith(
+        caches.match(req).then((cachedResponse) => {
+            if (cachedResponse) {
+                // If the resource is already cached, return it
+                return cachedResponse;
+            }
+
+            // Otherwise, fetch it from the network and add it to the cache
+            return fetch(req).then((networkResponse) => {
+                if (
+                    event.request.method === 'GET' &&
+                    networkResponse.status === 200
+                ) {
+                    const responseClone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(req, responseClone);
+                    });
+                }
+
+                return networkResponse;
+            });
+        })
+    );
+});
+
+// Activate event: cleans up old caches
+self.addEventListener('activate', (event) => {
+    const cacheWhitelist = [CACHE_NAME];  // List of cache versions you want to keep
+
+    event.waitUntil(
+        Promise.all([
+            clients.claim(),
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (!cacheWhitelist.includes(cacheName)) {
+                            return caches.delete(cacheName);  // Delete old caches that aren't in whitelist
+                        }
+                    })
+                );
+            })
+        ])
+    );
+});

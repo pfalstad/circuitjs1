@@ -1,0 +1,76 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ dev-ts ]   # ← Only trigger on pushes to dev-ts
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ts
+
+      - name: Build site
+        run: ./dist-offline.sh
+
+      # site/ has no index.html of its own (the app's entry point is
+      # circuitjs.html), so GitHub Pages 404s at the site root without this.
+      # Scoped to this workflow only — not added to ts/ or the other build
+      # scripts, which don't need it (dist.sh/dist-offline.sh deployments are
+      # placed under a path where the caller already knows to link straight
+      # to circuitjs.html, and the Electron app loads it directly by name).
+      - name: Add index.html redirect to circuitjs.html
+        run: |
+          cat > site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="0; url=circuitjs.html">
+            <title>CircuitJS</title>
+          </head>
+          <body>
+            <a href="circuitjs.html">CircuitJS</a>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

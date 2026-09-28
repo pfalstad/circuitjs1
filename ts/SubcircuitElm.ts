@@ -1,0 +1,412 @@
+/*
+    Copyright (C) Paul Falstad and Iain Sharp
+
+    This file is part of CircuitJS1.
+
+    CircuitJS1 is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
+
+    CircuitJS1 is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+import { CompositeElm } from "./CompositeElm";
+import { SubcircuitChipElm } from "./SubcircuitChipElm";
+import { SubcircuitModel } from "./SubcircuitModel";
+import { ChipElm } from "./ChipElm";
+import { CircuitElm } from "./CircuitElm";
+import { Graphics } from "./Graphics";
+import { WireRouter } from "./WireRouter";
+import { StringTokenizer } from "./StringTokenizer";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { CustomLogicModel } from "./CustomLogicModel";
+import { EditInfo } from "./EditInfo";
+import { Choice } from "./Choice";
+import { Locale } from "./Locale";
+import { CirSim } from "./CirSim";
+import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
+import { HookRegistry } from "./HookRegistry";
+
+export class SubcircuitElm extends CompositeElm {
+    modelName: string;
+    chip: SubcircuitChipElm = null!;
+    postCount: number = 0;
+    inputCount: number = 0;
+    outputCount: number = 0;
+    model: SubcircuitModel = null!;
+    highVoltage: number = 0;
+    static lastModelName: string = "default";
+    static readonly FLAG_SMALL = 2;
+
+    constructor(xx: number, yy: number);
+    constructor(xx: number, yy: number, name: string);
+    constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
+    constructor(xxOrXa: number, yyOrYa: number, nameOrXb?: string | number, yb?: number, f?: number, st?: StringTokenizer) {
+        if (typeof nameOrXb === "number") {
+            // text-dump constructor
+            super(xxOrXa, yyOrYa, nameOrXb, yb!, f!);
+            this.modelName = CustomLogicModel.unescape(st!.nextToken());
+            this.updateModels(st!);
+        } else {
+            super(xxOrXa, yyOrYa);
+            if (typeof nameOrXb === "string") {
+                this.modelName = nameOrXb;
+            } else {
+                // use last model as default when creating new element in UI;
+                // use "default" otherwise, to avoid infinite recursion with nested subcircuits
+                this.modelName = (xxOrXa === 0 && yyOrYa === 0) ? "default" : SubcircuitElm.lastModelName;
+            }
+            this.flags |= CompositeElm.FLAG_ESCAPE;
+            if (this.useSmallGrid()) this.flags |= SubcircuitElm.FLAG_SMALL;
+            this.updateModels();
+        }
+    }
+
+    dumpXmlModel(doc: Document): void {
+        // dump models of all children first
+        if (this.compElmList) {
+            for (const ce of this.compElmList) ce.dumpXmlModel(doc);
+        }
+        // model may be missing (e.g. wasn't available under its scope in this circuit); modelName
+        // is still dumped by dumpXml() so the reference is preserved for a future retry
+        if (this.model != null && !(this.model.builtin || this.model.dumped))
+            this.model.dumpXml(doc);
+    }
+
+    dumpXml(doc: Document, elem: Element): void {
+        this.dumpXmlModel(doc);
+        super.dumpXml(doc, elem);
+        CircuitXMLSerializer.dumpAttr(elem, "mo", this.modelName);
+        if (this.highVoltage !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "hv", this.highVoltage);
+    }
+
+    undumpXml(xml: CircuitXMLDeserializer): void {
+        this.modelName    = xml.parseStringAttr("mo", this.modelName)!;
+        this.highVoltage  = xml.parseDoubleAttr("hv", 0);
+        this.updateModels();
+        super.undumpXml(xml);
+    }
+
+    draw(g: Graphics): void {
+        for (let i = 0; i < this.postCount; i++) {
+            this.chip.nodes[i] = this.nodes[i];
+            this.chip.pins[i].current = this.getCurrentIntoNode(i);
+        }
+        this.chip.setSelected(this.needsHighlight());
+        this.chip.draw(g);
+    }
+
+    addRoutingObstacle(router: WireRouter): void {
+        this.chip.addRoutingObstacle(router);
+    }
+
+    setPoints(): void {
+        this.chip = new SubcircuitChipElm(this.x, this.y);
+        this.chip.x2 = this.x2;
+        this.chip.y2 = this.y2;
+        this.chip.flags = (this.flags & (ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y | ChipElm.FLAG_FLIP_XY));
+
+        if (this.model == null) {
+            // model couldn't be resolved (missing/not in scope); draw as a labeled placeholder
+            // instead of crashing, so the rest of the circuit stays usable
+            this.chip.setSize((this.flags & SubcircuitElm.FLAG_SMALL) !== 0 ? 1 : 2);
+            this.chip.setLabel("?");
+            this.chip.sizeX = this.chip.sizeY = 2;
+            this.chip.allocPins(0);
+            this.chip.setPoints();
+            this.boundingBox = this.chip.boundingBox;
+            return;
+        }
+
+        if (this.x2 - this.x > this.model.sizeX * 16 && this.isCreating())
+            this.flags &= ~SubcircuitElm.FLAG_SMALL;
+        this.chip.setSize((this.flags & SubcircuitElm.FLAG_SMALL) !== 0 ? 1 : 2);
+        this.chip.setLabel((this.model.flags & SubcircuitModel.FLAG_SHOW_LABEL) !== 0 ? this.model.name : null);
+
+        this.chip.sizeX = this.model.sizeX;
+        this.chip.sizeY = this.model.sizeY;
+        this.chip.allocPins(this.postCount);
+        for (let i = 0; i < this.postCount; i++) {
+            const pin = this.model.extList[i];
+            this.chip.setPin(i, pin.pos, pin.side, pin.name);
+            this.chip.pins[i].busWidth = pin.busWidth;
+            this.chip.pins[i].busZ = pin.busZ;
+        }
+
+        this.chip.setPoints();
+        this.boundingBox = this.chip.boundingBox;
+        for (let i = 0; i < this.getPostCount(); i++)
+            this.setPost(i, this.chip.getPost(i));
+    }
+
+    updateModels(): void;
+    updateModels(st: StringTokenizer): void;
+    updateModels(st?: StringTokenizer): void {
+        if (st !== undefined) {
+            this._updateModels(st);
+        } else {
+            this.model = null!;
+            this._updateModels(null);
+        }
+    }
+
+    private _updateModels(st: StringTokenizer | null): void {
+        if (this.model !== null && this.model.name === this.modelName) return;
+        this.model = SubcircuitModel.getModelWithName(this.modelName)!;
+        if (!this.model) {
+            // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
+            // fall back to an empty/placeholder state instead of leaving fields uninitialized,
+            // so the rest of the circuit keeps working; modelName is preserved so a later
+            // updateModels() call (if the model becomes available) can still resolve it
+            this.postCount = 0;
+            this.compElmList = [];
+            this.numPosts = this.numNodes = 0;
+            this.posts = [];
+            this.allocNodes();
+            this.setPoints();
+            return;
+        }
+        this.postCount = this.model.extList.length;
+        const externalNodes = new Array(this.postCount);
+        for (let i = 0; i < this.postCount; i++)
+            externalNodes[i] = this.model.extList[i].node;
+        if (st !== null) {
+            this.loadComposite(st, this.model.getNodeList(), externalNodes);
+        } else {
+            this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
+        }
+        this.propagateHighVoltage();
+        this.allocNodes();
+        this.setPoints();
+    }
+
+    propagateHighVoltage(): void {
+        if (this.highVoltage === 0) return;
+        for (const ce of this.compElmList) {
+            ce.setHighVoltage(this.highVoltage);
+            if (ce instanceof SubcircuitElm)
+                (ce as SubcircuitElm).propagateHighVoltage();
+        }
+    }
+
+    setHighVoltage(hv: number): void { this.highVoltage = hv; }
+
+    getPostCount(): number { return this.postCount; }
+    getPostWidth(n: number): number { return this.chip ? this.chip.getPostWidth(n) : 1; }
+
+    flipX(center2: number, count: number): void {
+        this.flags ^= ChipElm.FLAG_FLIP_X;
+        if (count !== 1) {
+            const xs = (this.chip.flippedSizeX + 1) * this.chip.cspc2;
+            this.x  = center2 - this.x - xs;
+            this.x2 = center2 - this.x2;
+        }
+        this.setPoints();
+    }
+
+    flipY(center2: number, count: number): void {
+        this.flags ^= ChipElm.FLAG_FLIP_Y;
+        if (count !== 1) {
+            const xs = (this.chip.flippedSizeY - 1) * this.chip.cspc2;
+            this.y  = center2 - this.y - xs;
+            this.y2 = center2 - this.y2;
+        }
+        this.setPoints();
+    }
+
+    isFlippedX(): boolean { return (this.flags & ChipElm.FLAG_FLIP_X) !== 0; }
+    isFlippedY(): boolean { return (this.flags & ChipElm.FLAG_FLIP_Y) !== 0; }
+
+    flipXY(xmy: number, count: number): void {
+        this.flags ^= ChipElm.FLAG_FLIP_XY;
+        // FLAG_FLIP_XY is applied first, so need to swap X and Y
+        if (this.isFlippedX() !== this.isFlippedY())
+            this.flags ^= ChipElm.FLAG_FLIP_X | ChipElm.FLAG_FLIP_Y;
+        if (count !== 1) {
+            this.x += this.chip.cspc2;
+            super.flipXY(xmy, count);
+            this.x -= this.chip.cspc2;
+        }
+        this.setPoints();
+    }
+
+    // build a display list with all elements including ones skipped by loadCompositeXml
+    buildDisplayElmList(): CircuitElm[] {
+        const allElms: CircuitElm[] = [...this.compElmList];
+        const elmEntries = this.model.getElmEntries();
+        const xml = new CircuitXMLDeserializer(CircuitElm.app);
+        let compIdx = 0;
+        for (const childElem of elmEntries) {
+            const tagName = childElem.tagName;
+            const className = CirSim.xmlDumpTypeMap.get(tagName);
+            if (!className) continue;
+            let ce: CircuitElm;
+            if (className === "WireElm" || className === "RoutedWireElm" ||
+                className === "LabeledNodeElm" || className === "ScopeElm" ||
+                className === "GraphicElm" ||
+                (className === "GroundElm" && childElem.getAttribute("x") !== null)) {
+                ce = CirSim.constructElement(className, 0, 0);
+                xml.parseChildElement(childElem);
+                ce.undumpXml(xml);
+                allElms.push(ce);
+            } else {
+                ce = this.compElmList[compIdx++];
+            }
+            ce.setPositionFromXml(childElem);
+        }
+        return allElms;
+    }
+
+    canViewComponents(): boolean {
+        if (this.model == null)
+            return false;
+        const elmEntries = this.model.getElmEntries();
+        for (const childElem of elmEntries) {
+            if (childElem.getAttribute("x") !== null) return true;
+        }
+        return false;
+    }
+
+    isSubcircuitElm(): boolean { return true; }
+
+    onDoubleClick(): void {
+        if (this.canViewComponents())
+            CircuitElm.app.ui.pushSubcircuit(this, this.buildDisplayElmList());
+        else if (!CircuitElm.app.ui.isReadOnly())
+            CircuitElm.app.commands.doEdit(this);
+    }
+
+    getDumpType(): number { return 410; }
+    getXmlDumpType(): string { return "cc"; }
+
+    getElmType(): string { return "subcircuit"; }
+
+    getInfo(arr: string[]): void {
+        super.getInfo(arr);
+        if (this.model == null) {
+            arr[0] = Locale.LS("subcircuit") + " (" + Locale.LS("missing: ") + this.modelName + ")";
+            return;
+        }
+        if (this.model.builtin && this.model.name.startsWith("~"))
+            arr[0] = this.model.name.substring(1);
+        else
+            arr[0] = "subcircuit (" + this.model.name + ")";
+        let a = 1;
+        for (let i = 0; i < this.postCount; i++) {
+            if (a >= arr.length) break;
+            const ent = this.model.extList[i];
+            if (ent.busZ > 0) continue;
+            if (ent.busWidth > 1) {
+                let value = 0;
+                for (let j = 0; j < ent.busWidth; j++)
+                    if (this.nodes[i + j].v > this.chip.getThreshold())
+                        value |= 1 << j;
+                arr[a] = ent.name + " = " + value + " / 0x" + value.toString(16).toUpperCase();
+            } else {
+                arr[a] = ent.name + " = " + CircuitElm.getVoltageText(this.nodes[i].v);
+            }
+            a++;
+        }
+    }
+
+    private models: SubcircuitModel[] = [];
+
+    getEditInfo(n: number): EditInfo | null {
+        // if model is internal, don't allow it to be changed
+        if (this.model != null && this.model.internal) n += 2;
+
+        if (n === 0) {
+            const label = (this.model == null) ?
+                Locale.LS("Model not found: ") + this.modelName :
+                EditInfo.makeLink("subcircuits.html", "Model Name");
+            const ei = new EditInfo(label, 0, -1, -1);
+            this.models = SubcircuitModel.getModelList();
+            ei.choice = new Choice();
+            for (let i = 0; i < this.models.length; i++) {
+                const ccm = this.models[i];
+                ei.choice.add(ccm.name);
+                if (ccm === this.model) ei.choice.select(i);
+            }
+            return ei;
+        }
+        // remaining fields all depend on having a resolved model
+        if (this.model == null)
+            return null;
+        if (n === 1) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.button = { label: Locale.LS("Edit Pin Layout") };
+            return ei;
+        }
+        if (n === 2 && this.canViewComponents()) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.button = { label: Locale.LS("View Components") };
+            return ei;
+        }
+        const hvIdx = this.canViewComponents() ? 3 : 2;
+        if (n === hvIdx)
+            return new EditInfo("High Logic Voltage (0=default)", this.highVoltage, 0, 10).setUnitStep();
+        if (n === hvIdx + 1 && this.model.canLoadModelCircuit()) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.button = { label: Locale.LS("Edit Model") };
+            return ei;
+        }
+        return null;
+    }
+
+    setEditValue(n: number, ei: EditInfo): void {
+        if (this.model != null && this.model.internal) n += 2;
+        if (n === 0) {
+            this.model = this.models[ei.choice.getSelectedIndex()];
+            SubcircuitElm.lastModelName = this.modelName = this.model.name;
+            this.updateModels();
+            this.setPoints();
+            return;
+        }
+        if (this.model == null)
+            return;
+        if (n === 1) {
+            if (this.model.name === "default") {
+                window.alert(Locale.LS("Can't edit this model."));
+                return;
+            }
+            const dlg = new EditSubcircuitModelDialog();
+            dlg.setModel(this.model);
+            dlg.createDialog();
+            CirSim.dialogShowing = dlg;
+            dlg.show();
+            return;
+        }
+        if (n === 2) {
+            CircuitElm.app.ui.pushSubcircuit(this, this.buildDisplayElmList());
+            CirSim.editDialog.closeDialog();
+        }
+        const hvIdx = this.canViewComponents() ? 3 : 2;
+        if (n === hvIdx) {
+            this.highVoltage = ei.value;
+            this.propagateHighVoltage();
+        }
+        if (n === hvIdx + 1) {
+            CircuitElm.app.pushContext(this.model.name);
+            if (this.model.modelCircuit !== null)
+                CircuitElm.app.readCircuit(this.model.modelCircuit);
+            else if (this.model.elmDoc) {
+                const xmlDes = new CircuitXMLDeserializer(CircuitElm.app);
+                xmlDes.readCircuitFromDoc(this.model.elmDoc);
+            }
+            CirSim.editDialog.closeDialog();
+        }
+    }
+
+    getNumHandles(): number { return 0; }
+}
+
+HookRegistry.createSubcircuitElm = (x, y, name) => new SubcircuitElm(x, y, name);

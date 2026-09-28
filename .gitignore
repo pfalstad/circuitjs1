@@ -1,4 +1,83 @@
-todo
+#GWT cache
+gwt-unitCache/
+war/circuitjs1/
+war/circuitjs1/circuits/
+war/e-*.html
+war/WEB-INF/
+
+# GWT command line tools
+codeserver.log
+webserver.log
+build.xml
+circuitjs1.tar.gz
+
+# Editor configurations
+.vscode
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# =========================
+# Operating System Files
+# =========================
+
+# OSX
+# =========================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear on external disk
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Gradle build output
+/build
+/site
+
+# Other stuff
+/tests
+/circuits
+/client
+/offline
+/spice
+/tmp
+/.gradle
+*.tgz
+
+/.apt_generated/
+
+# ts/ app
+/ts/todo
+/ts/node_modules
+/ts/dist
 
 # tsc build output (dev builds via vite, tsc is type-check only)
 *.js.map

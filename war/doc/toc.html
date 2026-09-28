@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table of Contents</title>
+    <style>
+        body { padding: 20px; }
+        a { display: block; margin: 10px 0; /* text-decoration: none; color: #000; */ }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h2>Table of Contents</h2>
+    <a href="overview.html">Overview</a>
+    <a href="circuits.html">Sample Circuits</a>
+    <a href="AudioInput.html">Audio Input</a>
+    <a href="DataInput.html">Data Input</a>
+    <a href="DelayBuffer.html">Delayed Buffer</a>
+    <a href="customfunction.html">Custom Function for Controlled Sources</a>
+    <a href="customlogic.html">Custom Logic</a>
+    <a href="customtransformer.html">Custom Transformer</a>
+    <a href="js-interface.html">JavaScript Interface</a>
+    <a href="opampreal.html">Real Op Amp</a>
+    <a href="subcircuits.html">Subcircuits</a>
+<p>&nbsp;</p>
+<a target="_top" href="../index.html">Back to the applet</a>
+</body>
+
+<script>
+    document.querySelectorAll('a').forEach(link => {
+        if (!link.target)
+          link.addEventListener('click', function(event) {
+            event.preventDefault();
+            parent.document.querySelector('#content iframe').src = this.href;
+          });
+    });
+</script>
+
+</html>
