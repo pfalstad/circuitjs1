@@ -55,10 +55,16 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     // pinned out, and sidestepping the tri-state readback machinery entirely: Din becomes a
     // plain, ordinary wired input once it's not also this element's own output post.
     static readonly FLAG_SEPARATE_IO = 8;
+    // Inverts every data output, including the disabled state (which then reads 1 instead of 0),
+    // so an open-collector /Dout part like the 82S16 needs no separate inverter after it. That
+    // inverter would be an ordinary chip fed by this CUSTOM_CHIP, so it could never be promoted,
+    // yet every downstream activationCheck() would keep recursing into it - very expensive.
+    static readonly FLAG_INVERT_OUTPUT = 16;
     static contentsOverride: string | null = null;
     static fileNameOverride: string | null = null;
 
     hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
+    hasInvertedOutput(): boolean { return this.hasFlag(SRAMElm.FLAG_INVERT_OUTPUT); }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -154,6 +160,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         this.internalNodes = this.getPostCount();
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
+        if (this.hasInvertedOutput())
+            for (let i = 0; i !== this.dataBits; i++) this.pins[this.dataNodes + i].lineOver = true;
         if (separate)
             this.makeBitPins(this.dataBits, 1, ChipElm.SIDE_W, this.dataInNodes, "DI", false, false, true);
         this.allocNodes();
@@ -200,9 +208,14 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 (this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0);
             return ei;
         }
-        if (n === 5) {
+        if (n === reloadIdx + 1) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Separate Data In/Out", this.hasSeparateIO());
+            return ei;
+        }
+        if (n === reloadIdx + 2) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Inverted Data Out", this.hasInvertedOutput());
             return ei;
         }
         return super.getChipEditInfo(n);
@@ -346,8 +359,13 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             else
                 this.initialMap = null;
         }
-        if (n === 5) {
+        if (n === reloadIdx + 1) {
             this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_SEPARATE_IO);
+            this.setupPins();
+            this.setPoints();
+        }
+        if (n === reloadIdx + 2) {
+            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_INVERT_OUTPUT);
             this.setupPins();
             this.setPoints();
         }
@@ -400,6 +418,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             const dataObj = this.map.get(this.address);
             data = (dataObj === undefined) ? 0 : dataObj;
         }
+        if (this.hasInvertedOutput())
+            data ^= (1 << this.dataBits) - 1;
         for (let i = 0; i !== this.dataBits; i++) {
             const p = this.pins[i + this.dataNodes];
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.internalNodes + i], p.voltSource,
@@ -451,6 +471,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         const m = this.addressBits;
         const n = this.dataBits;
         const separate = this.hasSeparateIO();
+        const invert = this.hasInvertedOutput() ? 1 : 0;
         const wePin = 1;
         const oePin = 2;
         const addrPin = (k: number) => 3 + k;
@@ -489,6 +510,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 } else {
                     newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
                 }
+                newOut ^= invert;
 
                 if (newOut !== chip.output && chip.pendingEvent === 0)
                     chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);

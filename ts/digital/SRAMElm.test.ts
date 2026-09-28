@@ -238,6 +238,37 @@ describe("SRAMElm.digitalSynthesis() - FLAG_SEPARATE_IO", () => {
     });
 });
 
+describe("SRAMElm.digitalSynthesis() - FLAG_INVERT_OUTPUT", () => {
+    it("drives the inverted stored bit, and 1 (not 0) while OE is deasserted", () => {
+        const sram = makeSram(1, 2, [[1, 0b10]], true);
+        sram.flags |= SRAMElm.FLAG_INVERT_OUTPUT;
+        const we = tieSource("VCC"); // WE deasserted (active low)
+        const oe = manualSource(1); // OE deasserted
+        const addr = tieSource("VCC"); // address 1
+        const din = [tieSource("GND"), tieSource("GND")];
+        const sinks = [probe(), probe()];
+
+        connect({ elm: we, num: 0 }, { elm: sram, num: 0 });
+        connect({ elm: oe, num: 0 }, { elm: sram, num: 1 });
+        connect({ elm: addr, num: 0 }, { elm: sram, num: 2 });
+        connect({ elm: din[0], num: 0 }, { elm: sram, num: sram.dataInNodes });
+        connect({ elm: din[1], num: 0 }, { elm: sram, num: sram.dataInNodes + 1 });
+        connect({ elm: sram, num: 3 }, { elm: sinks[0], num: 0 });
+        connect({ elm: sram, num: 4 }, { elm: sinks[1], num: 0 });
+
+        const { circuit, chipsByElm } = buildDigitalCircuit([we, oe, addr, sram, ...din, ...sinks]);
+        oe.chip = chipsByElm.get(oe)![0];
+        circuit.run(20);
+        expect(chipAt(sram, 3, chipsByElm).output).toBe(1); // disabled reads 1
+        expect(chipAt(sram, 4, chipsByElm).output).toBe(1);
+
+        oe.set(0);
+        circuit.run(20);
+        expect(chipAt(sram, 3, chipsByElm).output).toBe(0); // NOT bit0 of 0b10
+        expect(chipAt(sram, 4, chipsByElm).output).toBe(1); // NOT bit1 of 0b10
+    });
+});
+
 describe("SRAMElm.setupPins() - FLAG_SEPARATE_IO analog pin layout", () => {
     // Regression: internalNodes (the base index of the per-bit voltage-source nodes ChipElm's
     // getNodeCount() = getPostCount() + getInternalNodeCount() places right after every real
