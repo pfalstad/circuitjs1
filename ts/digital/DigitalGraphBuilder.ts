@@ -17,9 +17,9 @@ import { ChipState } from "./chip";
 import type { Chip } from "./chip";
 import { chipStart } from "./chip_desc";
 import type { ChipDesc, ChipLogic } from "./chip_desc";
-import { CHIP, CONNECTION, circuitLayout } from "./circuit_desc";
+import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
-import { Circuit } from "./circuit";
+import { Circuit, SUBCYCLE_SIZE } from "./circuit";
 
 /**
  * What a digital-capable CircuitElm subclass returns from digitalSynthesis(): the ChipDesc[]
@@ -38,6 +38,11 @@ import { Circuit } from "./circuit";
 export interface DigitalSynthesis {
     desc: ChipDesc[];
     pinMap: Map<number, number>; // postIndex -> external pin number within desc
+    // Event queue size for every chip in `desc`, emitted as an OPTIMIZATION_HINT (same as
+    // dice-ts's breakout.ts does for E3/E1/C36). Omitted or 0 means the default (128). A chip
+    // that gets activationCheck()ed constantly but rarely promotes scans its whole input
+    // history each time, so a small queue (e.g. 8) can make it much cheaper.
+    queueSize?: number;
 }
 
 export interface DigitalSynthesizable {
@@ -70,6 +75,7 @@ interface SynthEntry {
     desc: ChipDesc[];
     pinMap: Map<number, number>;
     isTie: boolean; // true: name is "_VCC"/"_GND", already exists in every Circuit - don't emit a CHIP entry
+    queueSize?: number;
 }
 
 const TIE_OUT_PIN = 1;
@@ -249,7 +255,8 @@ function synthesizeAll(elmList: any[]): Map<any, SynthEntry> {
         if (isDigitalSynthesizable(elm)) {
             const synth = elm.digitalSynthesis();
             if (synth != null)
-                synthMap.set(elm, { name: "e" + counter++, desc: synth.desc, pinMap: synth.pinMap, isTie: false });
+                synthMap.set(elm, { name: "e" + counter++, desc: synth.desc, pinMap: synth.pinMap, isTie: false,
+                    queueSize: synth.queueSize });
         }
     }
     return synthMap;
@@ -268,8 +275,11 @@ function synthesizeAll(elmList: any[]): Map<any, SynthEntry> {
 function layoutFromSynth(synthMap: Map<any, SynthEntry>,
         resolved: { byNode: Map<any, { entry: SynthEntry; pin: number }>; extra: CircuitEntry[] }): CircuitDesc {
     const entries: CircuitEntry[] = [];
-    for (const entry of synthMap.values())
-        if (!entry.isTie) entries.push(CHIP(entry.name, entry.desc));
+    for (const entry of synthMap.values()) {
+        if (entry.isTie) continue;
+        entries.push(CHIP(entry.name, entry.desc));
+        if (entry.queueSize) entries.push(OPTIMIZATION_HINT(entry.name, entry.queueSize, SUBCYCLE_SIZE));
+    }
 
     entries.push(...resolved.extra);
 

@@ -183,3 +183,22 @@ describe("digitalTie - constant-source elements bind to Circuit's shared _VCC/_G
         expect(chipsByElm.get(sink)![0].inputLinks[0].chip).toBe(circuit.chips[1]);
     });
 });
+
+describe("DigitalSynthesis.queueSize", () => {
+    it("sizes that element's chip queues, leaving others at the default", () => {
+        const src = fakeElm(highDesc(), [[0, 1]]);
+        const small = { ...fakeElm(bufDesc(), [[0, 1], [1, 2]]) };
+        small.digitalSynthesis = () => ({ desc: bufDesc(), pinMap: new Map([[0, 1], [1, 2]]), queueSize: 8 });
+        const plain = fakeElm(bufDesc(), [[0, 1], [1, 2]]);
+        connect({ elm: src, num: 0 }, { elm: small, num: 0 }, { elm: plain, num: 0 });
+
+        expect(buildCircuitDesc([src, small, plain]).hints).toHaveLength(1);
+
+        const { chipsByElm } = buildDigitalCircuit([src, small, plain]);
+        const smallChip = chipsByElm.get(small)![0];
+        const plainChip = chipsByElm.get(plain)![0];
+        expect(smallChip.inputEvents.getQueueSize()).toBe(8);
+        expect(smallChip.outputEvents.getQueueSize()).toBe(8);
+        expect(plainChip.inputEvents.getQueueSize()).toBe(128);
+    });
+});

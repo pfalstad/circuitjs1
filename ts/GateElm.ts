@@ -24,6 +24,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
+import { EVENT_QUEUE_SIZE } from "./digital/circuit";
 import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
@@ -40,6 +41,20 @@ import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 export const DEFAULT_GATE_DELAY_LH_S = 11.0e-9;
 export const DEFAULT_GATE_DELAY_HL_S = 7.0e-9;
 
+/** Shared "Event Queue Size" edit field for gate-like elements (see DigitalSynthesis.queueSize). */
+export function queueSizeEditInfo(queueSize: number): EditInfo {
+    return new EditInfo(`Event Queue Size (0 = default ${EVENT_QUEUE_SIZE})`, queueSize, -1, -1).setDimensionless();
+}
+
+/** Validates an "Event Queue Size" edit: 0, or a power of two from 4 to 4096 (Cirque indexes by
+ * mask). Returns the new size, or null after flagging the error on `ei`. */
+export function parseQueueSizeEdit(ei: EditInfo): number | null {
+    const v = Math.trunc(ei.value);
+    if (v === 0 || (v >= 4 && v <= 4096 && (v & (v - 1)) === 0)) return v;
+    ei.setError("must be 0 or a power of 2 from 4 to 4096");
+    return null;
+}
+
 export abstract class GateElm extends CircuitElm {
     static readonly FLAG_SMALL = 1<<0;
     static readonly FLAG_SCHMITT = 1<<1;
@@ -51,6 +66,7 @@ export abstract class GateElm extends CircuitElm {
     highVoltage: number;
     propagationDelayLH: number = DEFAULT_GATE_DELAY_LH_S; // seconds; matches DICE's 7400 NAND LH delay
     propagationDelayHL: number = DEFAULT_GATE_DELAY_HL_S; // seconds; matches DICE's 7400 NAND HL delay
+    queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
     delayEndTime: number = 0;     // time at which pending output change takes effect
     static lastHighVoltage: number = 5;
     static lastSchmitt: boolean = false;
@@ -113,6 +129,8 @@ export abstract class GateElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "pd", this.propagationDelayLH);
         if (this.propagationDelayHL !== this.propagationDelayLH)
             CircuitXMLSerializer.dumpAttr(elem, "pdhl", this.propagationDelayHL);
+        if (this.queueSize !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -135,6 +153,7 @@ export abstract class GateElm extends CircuitElm {
         this.propagationDelayLH = xml.parseDoubleAttr("pd", this.propagationDelayLH);
         // old saves had a single symmetric "pd" delay; default HL to it when "pdhl" is absent
         this.propagationDelayHL = xml.parseDoubleAttr("pdhl", this.propagationDelayLH);
+        this.queueSize = xml.parseIntAttr("qs", this.queueSize);
         const lastOutputVoltage = xml.parseDoubleAttr("o", 0);
         this.lastOutput = lastOutputVoltage > this.highVoltage * .5;
         this.setSize((this.flags & GateElm.FLAG_SMALL) !== 0 ? 1 : 2);
@@ -428,7 +447,7 @@ export abstract class GateElm extends CircuitElm {
             chipStart(logic).inputPins(...inPins).outputPin(outPin)
                 .outputDelayS(this.propagationDelayLH, this.propagationDelayHL),
         ];
-        return { desc, pinMap };
+        return { desc, pinMap, queueSize: this.queueSize };
     }
 
     getInfo(arr: string[]): void {
@@ -539,6 +558,8 @@ export abstract class GateElm extends CircuitElm {
             return new EditInfo("Propagation Delay HL (s)", this.propagationDelayHL, 0, 0);
         if (n === 6)
             return EditInfo.createCheckbox("DeMorgan's Symbol", this.hasFlag(GateElm.FLAG_DEMORGAN));
+        if (n === 7)
+            return queueSizeEditInfo(this.queueSize);
         return null;
     }
 
@@ -586,6 +607,10 @@ export abstract class GateElm extends CircuitElm {
             this.setPoints();
             if (CirSim.editDialog != null)
                 CirSim.editDialog.resetDialog();
+        }
+        if (n === 7) {
+            const qs = parseQueueSizeEdit(ei);
+            if (qs !== null) this.queueSize = qs;
         }
     }
 

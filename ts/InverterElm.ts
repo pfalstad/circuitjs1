@@ -25,7 +25,7 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
-import { GateElm } from "./GateElm";
+import { GateElm, queueSizeEditInfo, parseQueueSizeEdit } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
@@ -38,6 +38,7 @@ export class InverterElm extends CircuitElm {
     static readonly FLAG_DEMORGAN = 1<<3;
     slewRate: number; // V/ns
     highVoltage: number;
+    queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
     gatePoly: Polygon;
     pcircle: Point;
     center: Point;
@@ -70,12 +71,15 @@ export class InverterElm extends CircuitElm {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "sl", this.slewRate);
         CircuitXMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
+        if (this.queueSize !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.slewRate = xml.parseDoubleAttr("sl", this.slewRate);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);
+        this.queueSize = xml.parseIntAttr("qs", this.queueSize);
     }
 
     getDumpType(): number { return 'I'.charCodeAt(0); }
@@ -161,7 +165,7 @@ export class InverterElm extends CircuitElm {
         const desc: ChipDesc[] = [
             chipStart((pin) => { pin[2] = pin[1] ^ 1; }).inputPins(1).outputPin(2).outputDelayNs(12.0, 8.0),
         ];
-        return { desc, pinMap: new Map([[0, 1], [1, 2]]) };
+        return { desc, pinMap: new Map([[0, 1], [1, 2]]), queueSize: this.queueSize };
     }
 
     getVoltageDiff(): number { return this.nodes[0].v; }
@@ -181,6 +185,8 @@ export class InverterElm extends CircuitElm {
             return new EditInfo("High Logic Voltage", this.highVoltage, 1, 10).setUnitStep();
         if (n === 2)
             return EditInfo.createCheckbox("DeMorgan's Symbol", this.hasFlag(InverterElm.FLAG_DEMORGAN));
+        if (n === 3)
+            return queueSizeEditInfo(this.queueSize);
         return null;
     }
 
@@ -195,6 +201,10 @@ export class InverterElm extends CircuitElm {
             else
                 this.flags &= ~InverterElm.FLAG_DEMORGAN;
             this.setPoints();
+        }
+        if (n === 3) {
+            const qs = parseQueueSizeEdit(ei);
+            if (qs !== null) this.queueSize = qs;
         }
     }
 

@@ -16,8 +16,8 @@ import type { ChipDesc } from "./chip_desc";
 import type { CircuitDesc, ChipInstanceEntry } from "./circuit_desc";
 
 const MAX_QUEUE_SIZE = 4096;
-const EVENT_QUEUE_SIZE = 128;
-const SUBCYCLE_SIZE = 64;
+export const EVENT_QUEUE_SIZE = 128;
+export const SUBCYCLE_SIZE = 64;
 
 const chipVCC: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
 const chipGND: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
