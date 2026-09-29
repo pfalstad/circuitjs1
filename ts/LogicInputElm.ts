@@ -122,6 +122,7 @@ export class LogicInputElm extends SwitchElm {
     }
 
     getDumpType(): number { return 'L'.charCodeAt(0); }
+    showPropertiesOnCreate(): boolean { return false; }
 
     dump(): string {
         return super.dump() + " " + this.hiV + " " + this.loV;

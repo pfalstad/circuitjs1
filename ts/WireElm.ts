@@ -155,6 +155,7 @@ export class WireElm extends CircuitElm {
     isWireEquivalent(): boolean { return true; }
     isRemovableWire(): boolean { return true; }
     isWireElm(): boolean { return true; }
+    showPropertiesOnCreate(): boolean { return false; }
 
     setWireCurrent(bit: number, c: number): void {
         if (this.currents != null)

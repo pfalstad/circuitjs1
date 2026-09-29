@@ -1443,6 +1443,8 @@ export abstract class CircuitElm implements Editable {
     isGraphicElm(): boolean { return false; }
     isRoutedWireElm(): boolean { return false; }
     isSwitchElm(): boolean { return false; }
+    // whether to automatically bring up the property editor when this element is created
+    showPropertiesOnCreate(): boolean { return true; }
     isLogicInputElm(): boolean { return false; }
     isVarRailElm(): boolean { return false; }
     isPotElm(): boolean { return false; }

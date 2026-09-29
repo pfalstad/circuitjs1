@@ -279,8 +279,11 @@ export class SubcircuitElm extends CompositeElm {
     isSubcircuitElm(): boolean { return true; }
 
     onDoubleClick(): void {
-        if (this.canViewComponents())
+        if (this.canViewComponents()) {
+            // the first click of the double-click brought up our properties; hide them
+            CirSim.editDialog?.closeDialog();
             CircuitElm.app.ui.pushSubcircuit(this, this.buildDisplayElmList());
+        }
         else if (!CircuitElm.app.ui.isReadOnly())
             CircuitElm.app.commands.doEdit(this);
     }
