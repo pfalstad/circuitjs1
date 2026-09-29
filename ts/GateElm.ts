@@ -584,14 +584,17 @@ export abstract class GateElm extends CircuitElm {
             this.setPoints();
         }
         if (n === 3) {
-            // Invert Inputs (3) and DeMorgan's Symbol (5) are mutually exclusive
+            // Invert Inputs (3) and DeMorgan's Symbol (6) are mutually exclusive
+            const hadDeMorgan = this.hasFlag(GateElm.FLAG_DEMORGAN);
             if (ei.checkbox!.getState()) {
                 this.flags |= GateElm.FLAG_INVERT_INPUTS;
                 this.flags &= ~GateElm.FLAG_DEMORGAN;
             } else
                 this.flags &= ~GateElm.FLAG_INVERT_INPUTS;
             this.setPoints();
-            if (CirSim.editDialog != null)
+            // only rebuild when the other checkbox changed: apply() calls this for every field in
+            // order, and a rebuild would discard values typed into later fields (delays, queue size)
+            if (hadDeMorgan && !this.hasFlag(GateElm.FLAG_DEMORGAN) && CirSim.editDialog != null)
                 CirSim.editDialog.resetDialog();
         }
         if (n === 4)
@@ -599,13 +602,14 @@ export abstract class GateElm extends CircuitElm {
         if (n === 5)
             this.propagationDelayHL = ei.value;
         if (n === 6) {
+            const hadInvert = this.hasFlag(GateElm.FLAG_INVERT_INPUTS);
             if (ei.checkbox!.getState()) {
                 this.flags |= GateElm.FLAG_DEMORGAN;
                 this.flags &= ~GateElm.FLAG_INVERT_INPUTS;
             } else
                 this.flags &= ~GateElm.FLAG_DEMORGAN;
             this.setPoints();
-            if (CirSim.editDialog != null)
+            if (hadInvert && !this.hasFlag(GateElm.FLAG_INVERT_INPUTS) && CirSim.editDialog != null)
                 CirSim.editDialog.resetDialog();
         }
         if (n === 7) {

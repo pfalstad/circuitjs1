@@ -20,6 +20,9 @@
 import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
+import { queueSizeEditInfo, parseQueueSizeEdit } from "./GateElm";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Checkbox } from "./Checkbox";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalInitialState } from "./digital/DigitalGraphBuilder";
@@ -32,9 +35,22 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
     static readonly FLAG_SET              = 4;
     static readonly FLAG_INVERT_SET_RESET = 8;
 
+    queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
+
     hasReset():       boolean { return (this.flags & DFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
     invertSetReset(): boolean { return (this.flags & DFlipFlopElm.FLAG_INVERT_SET_RESET) !== 0; }
+
+    dumpXml(doc: Document, elem: Element): void {
+        super.dumpXml(doc, elem);
+        if (this.queueSize !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
+    }
+
+    undumpXml(xml: CircuitXMLDeserializer): void {
+        super.undumpXml(xml);
+        this.queueSize = xml.parseIntAttr("qs", this.queueSize);
+    }
 
     /** DigitalInitialState - see its own docstring. this.pins[1].value (Q) already holds what
      * ChipElm.undumpXml() restored generically from the "v1" XML attr dumpXmlState() wrote, so an
@@ -119,7 +135,7 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
             chipStart(qBuf).inputPins(internalQ).outputPin(Qpin).outputDelayNs(4.0, 10.0),
             chipStart(notQ).inputPins(...notQIn).outputPin(notQpin).outputDelayNs(4.0, 10.0),
         ];
-        return { desc, pinMap };
+        return { desc, pinMap, queueSize: this.queueSize };
     }
 
     constructor(xx: number, yy: number);
@@ -205,6 +221,8 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
             ei.checkbox = new Checkbox("Invert Set/Reset", this.invertSetReset());
             return ei;
         }
+        if (n === 3)
+            return queueSizeEditInfo(this.queueSize);
         return super.getChipEditInfo(n);
     }
 
@@ -231,6 +249,10 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
             this.flags = ei.changeFlag(this.flags, DFlipFlopElm.FLAG_INVERT_SET_RESET);
             this.setupPins();
             this.setPoints();
+        }
+        if (n === 3) {
+            const qs = parseQueueSizeEdit(ei);
+            if (qs !== null) this.queueSize = qs;
         }
         super.setChipEditValue(n, ei);
     }

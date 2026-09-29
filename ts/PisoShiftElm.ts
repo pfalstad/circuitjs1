@@ -23,6 +23,7 @@ import { ChipElm, Pin } from "./ChipElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
+import { queueSizeEditInfo, parseQueueSizeEdit } from "./GateElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import type { DigitalInitialState, DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -37,6 +38,7 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
     clockState: boolean = false;
     loadState: boolean = false;
     dataPinIndex: number = 0;
+    queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -52,7 +54,11 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
         this.setupPins();
     }
 
-    dumpXml(doc: Document, elem: Element): void { super.dumpXml(doc, elem); }
+    dumpXml(doc: Document, elem: Element): void {
+        super.dumpXml(doc, elem);
+        if (this.queueSize !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
+    }
 
     dumpXmlState(doc: Document, elem: Element): void {
         super.dumpXmlState(doc, elem);
@@ -64,6 +70,7 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
+        this.queueSize = xml.parseIntAttr("qs", this.queueSize);
         this.data = new Array<boolean>(this.bits).fill(false);
         this.dataIndex = 0;
         const dt = xml.parseStringAttr("dt", null);
@@ -206,7 +213,7 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
             );
             prevOut = out;
         }
-        return { desc, pinMap };
+        return { desc, pinMap, queueSize: this.queueSize };
     }
 
     execute(): void {
@@ -241,6 +248,8 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+        if (n === 1)
+            return queueSizeEditInfo(this.queueSize);
         return null;
     }
 
@@ -250,6 +259,10 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
             this.data = new Array<boolean>(this.bits).fill(false);
             this.setupPins();
             this.setPoints();
+        }
+        if (n === 1) {
+            const qs = parseQueueSizeEdit(ei);
+            if (qs !== null) this.queueSize = qs;
         }
     }
 }
