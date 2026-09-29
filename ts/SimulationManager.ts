@@ -1512,6 +1512,9 @@ export class SimulationManager {
 	this.t += actualTicks * this.maxTimeStep;
 	this.timeStepAccum = 0;
 	this.timeStepCount += actualTicks;
+	// feeds UIManager's measured steprate (see the "Nx" time multiplier display)
+	if (this.app.ui)
+	    this.app.ui.steps += actualTicks;
 
 	syncDigitalToNodesNew(this.elmArr, this.digitalGraph);
 	syncNodesToPassiveChips(this.elmArr);
