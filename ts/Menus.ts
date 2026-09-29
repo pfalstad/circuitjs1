@@ -217,7 +217,9 @@ class Menu {
 
 // Prefix HTML for submenu headings — mirrors CheckboxMenuItem.checkBoxHtml in the Java.
 // A hidden checkmark placeholder keeps heading text aligned with regular items.
-const subheadHtml = '<span class="checkMark" style="visibility:hidden">&#10003;</span>&nbsp;';
+// (No &nbsp; after it: .menuItem is a flex container, so the plain space after the
+// checkmark in check items collapses away, and a non-breaking space here would indent.)
+const subheadHtml = '<span class="checkMark" style="visibility:hidden">&#10003;</span>';
 
 // ---- Main Menus class ----
 
@@ -280,6 +282,7 @@ export class Menus {
     noEditCheckItem          = new CheckItem();
     mouseWheelEditCheckItem  = new CheckItem(true);
     toolbarCheckItem         = new CheckItem(true);
+    showPropsOnClickCheckItem = new CheckItem(true);
 
     menuBar: HTMLElement = document.createElement('nav');
     // right-click context popup — same Draw menu content, built separately
@@ -436,6 +439,7 @@ export class Menus {
         this.smallGridCheckItem.setCommand({ execute: () => this.app.setGrid() });
         optMenu.addCheckItem(this.toolbarCheckItem, "Toolbar");
         this.toolbarCheckItem.setCommand({ execute: () => this.app.ui?.setToolbar() });
+        optMenu.addCheckItem(this.showPropsOnClickCheckItem, "Show Properties On Click");
         optMenu.addCheckItem(this.crossHairCheckItem, "Show Cursor Cross Hairs");
         this.crossHairCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("crossHair", this.crossHairCheckItem.getState()) });
@@ -448,10 +452,10 @@ export class Menus {
         optMenu.addCheckItem(this.mouseWheelEditCheckItem, "Edit Values With Mouse Wheel");
         this.mouseWheelEditCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("mouseWheelEdit", this.mouseWheelEditCheckItem.getState()) });
-        optMenu.addCommand(Locale.LS("Shortcuts..."),    "options", "shortcuts");
-        optMenu.addMenuItem(this.optionsItem, Locale.LS("Other Options..."), "options", "other");
+        optMenu.addCommand(subheadHtml + Locale.LS("Shortcuts..."),    "options", "shortcuts");
+        optMenu.addMenuItem(this.optionsItem, subheadHtml + Locale.LS("Other Options..."), "options", "other");
         if (this.isElectron())
-            optMenu.addCommand(Locale.LS("Toggle Dev Tools"), "options", "devtools");
+            optMenu.addCommand(subheadHtml + Locale.LS("Toggle Dev Tools"), "options", "devtools");
 
         // ---- Tools menu ----
         const toolsMenu = new Menu(this.app);

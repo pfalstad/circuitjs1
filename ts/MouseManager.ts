@@ -321,7 +321,7 @@ export class MouseManager {
 	this.sim.updateToolbar();
 	this.sim.repaint();
 	// automatically bring up the property editor for a newly-created element
-	if (createdElm != null && !this.ui.isReadOnly())
+	if (createdElm != null && createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
 	    this.sim.commands.doEdit(createdElm, false);
     }
 
@@ -1224,10 +1224,11 @@ export class MouseManager {
 
 	const createdElm = this.endDrag();
 
-	if (createdElm != null && !this.ui.isReadOnly()) {
+	if (createdElm != null) {
 	    // automatically bring up the property editor for a newly-created element
-	    this.sim.commands.doEdit(createdElm, false);
-	} else if (clickedElm != null && !this.ui.isReadOnly()) {
+	    if (createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
+		this.sim.commands.doEdit(createdElm, false);
+	} else if (clickedElm != null && this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
 	    this.sim.commands.doEdit(clickedElm);
 	} else if (clickedEmpty && CirSim.editDialog != null) {
 	    CirSim.editDialog.closeDialog();

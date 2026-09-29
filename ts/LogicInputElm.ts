@@ -62,6 +62,7 @@ export class LogicInputElm extends SwitchElm {
     isNumeric(): boolean { return (this.flags & (LogicInputElm.FLAG_TERNARY | LogicInputElm.FLAG_NUMERIC)) !== 0; }
 
     getDumpType(): number { return 'L'.charCodeAt(0); }
+    showPropertiesOnCreate(): boolean { return false; }
 
     dump(): string {
         return super.dump() + " " + this.hiV + " " + this.loV;

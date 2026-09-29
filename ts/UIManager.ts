@@ -605,6 +605,7 @@ export class UIManager {
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
             (this.app as any).startCircuitLink == null);
+        this.menus.showPropsOnClickCheckItem.setState(this.menus.toolbarCheckItem.getState());
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({
