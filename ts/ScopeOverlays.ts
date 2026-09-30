@@ -32,8 +32,14 @@ export class ScopeOverlays {
         this.scope = scope;
     }
 
+    // true if `lines` more lines of text fit in the top half of the scope, so
+    // optional text (label, legend) doesn't cover the waveform in short scopes
+    hasRoomForText(lines: number): boolean {
+        return this.textY + 15 * (lines - 1) <= this.scope.rect.height / 2;
+    }
+
     drawInfoText(g: Graphics, text: string): void {
-        if (this.scope.rect.y + this.scope.rect.height <= this.textY + 5)
+        if (this.scope.rect.height <= this.textY + 5)
             return;
         g.drawString(text, 0, this.textY);
         this.textY += 15;
@@ -46,7 +52,7 @@ export class ScopeOverlays {
                 this.drawInfoText(g, "H=" + CircuitElm.getUnitText(this.scope.gridStepX, "s") + "/div" + vScaleText);
             }
         } else {
-            if (this.scope.rect.y + this.scope.rect.height <= this.textY + 5)
+            if (this.scope.rect.height <= this.textY + 5)
                 return;
             let x = 0;
             const hs = "H=" + CircuitElm.getUnitText(this.scope.gridStepX, "s") + "/div";
@@ -62,7 +68,7 @@ export class ScopeOverlays {
                     if (x + bulletWidth + vScaleWidth > this.scope.rect.width) {
                         x = 0;
                         this.textY += 15;
-                        if (this.scope.rect.y + this.scope.rect.height <= this.textY + 5)
+                        if (this.scope.rect.height <= this.textY + 5)
                             return;
                     }
                     g.setColor(p.color);
@@ -215,7 +221,7 @@ export class ScopeOverlays {
     drawLegend(g: Graphics): void {
         const plots = this.scope.visiblePlots;
         for (let i = 0; i !== plots.length; i++) {
-            if (this.scope.rect.y + this.scope.rect.height <= this.textY + 5)
+            if (this.scope.rect.height <= this.textY + 5)
                 return;
             const plot = plots[i];
             const label = (plot.elm !== null) ? Locale.LS(plot.elm.getScopeText(plot.value)) : ("Plot " + (i + 1));
@@ -253,9 +259,10 @@ export class ScopeOverlays {
         if (this.scope.showDutyCycle)
             this.drawDutyCycle(g);
         const t = this.scope.getScopeLabelOrText(true);
-        if (t != null && t !== "")
-            this.drawInfoText(g, t);
-        else if (this.scope.visiblePlots.length > 1 && this.scope.stackCount === 1)
+        if (t != null && t !== "") {
+            if (this.scope.text !== null || this.hasRoomForText(1))
+                this.drawInfoText(g, t);
+        } else if (this.scope.visiblePlots.length > 1 && this.hasRoomForText(this.scope.visiblePlots.length))
             this.drawLegend(g);
         if (this.scope.showFreq)
             this.drawFrequency(g);

@@ -73,7 +73,6 @@ export class Scope {
     position: number;
     // speed is sim timestep units per pixel
     speed: number = 64;
-    stackCount: number = 0; // number of scopes in this column
     text: string | null = null;
     rect: Rectangle;
     manualScale: boolean = false;
@@ -1136,10 +1135,6 @@ export class Scope {
     }
 
     getScopeText(): string | null {
-        // stacked scopes?  don't show text
-        if (this.stackCount !== 1)
-            return null;
-
         // multiple elms?  don't show text (unless one is selected)
         if (this.selectedPlot < 0 && this.getSingleElm() === null)
             return null;

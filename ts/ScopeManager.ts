@@ -133,7 +133,6 @@ export class ScopeManager {
                 row = 0;
                 speed = s.speed;
             }
-            s.stackCount = this.scopeColCount[pos];
             if (s.speed !== speed) {
                 s.speed = speed;
                 s.resetGraph();
