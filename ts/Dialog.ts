@@ -44,8 +44,10 @@ export class Dialog {
     private dragOrigTop: number = 0;
     private dragPointerId: number = -1;
 
+    // labels wrapping/targeting an input are included so clicking a checkbox
+    // label toggles it (pointer capture would otherwise retarget the click to the dialog)
     private static readonly NO_DRAG_SELECTOR =
-        "input, button, select, textarea, a, option, canvas, [contenteditable]";
+        "input, button, select, textarea, a, option, canvas, label:has(input), label[for], [contenteditable]";
 
     private setupDragging(): void {
         this.dialogEl.addEventListener("pointerdown", (e: PointerEvent) => {
