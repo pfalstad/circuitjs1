@@ -183,6 +183,7 @@ export class MouseManager {
 
 	cv.addEventListener("touchend", (e: TouchEvent) => {
 	    const mouseEvent = new MouseEvent("mouseup", {});
+	    (mouseEvent as any).fromTouch = true;
 	    e.preventDefault();
 	    clearTimeout(tmout);
 	    cv.dispatchEvent(mouseEvent);
@@ -1228,7 +1229,9 @@ export class MouseManager {
 	    // automatically bring up the property editor for a newly-created element
 	    if (createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
 		this.sim.commands.doEdit(createdElm, false);
-	} else if (clickedElm != null && this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
+	} else if (clickedElm != null && !(e as any).fromTouch &&
+		   this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
+	    // (tapping an element on a touch screen doesn't bring up its properties)
 	    this.sim.commands.doEdit(clickedElm);
 	} else if (clickedEmpty && CirSim.editDialog != null) {
 	    CirSim.editDialog.closeDialog();
