@@ -1002,7 +1002,8 @@ export class MouseManager {
 
     private onDoubleClick(e: MouseEvent): void {
 	e.preventDefault();
-	if (this.mouseElm == null)
+	// (double-clicking a scope at the bottom shouldn't edit the scope's element)
+	if (this.mouseElm == null || this.sim.scopeManager.scopeSelected !== -1)
 	    return;
 	if (this.mouseElm.isSubcircuitElm()) {
 	    (this.mouseElm as any).onDoubleClick();
@@ -1215,7 +1216,10 @@ export class MouseManager {
 	    // clientX/clientY, which would otherwise always read as a big (spurious) drag
 	    const dx = this.mouseCursorX - this.mouseDownScreenX;
 	    const dy = this.mouseCursorY - this.mouseDownScreenY;
-	    if (dx * dx + dy * dy < 16) { // didn't move (much) since mousedown, so it's a click, not a drag
+	    // (clicking a scope at the bottom is ignored here; it shouldn't bring up the
+	    // editor for the scope's element, or close the editor)
+	    if (dx * dx + dy * dy < 16 && this.sim.scopeManager.scopeSelected === -1) {
+		// didn't move (much) since mousedown, so it's a click, not a drag
 		if (this.mouseElm != null && !this.mouseElm.isSwitchElm())
 		    clickedElm = this.mouseElm;
 		else if (this.mouseElm == null)
