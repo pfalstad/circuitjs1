@@ -213,6 +213,7 @@ export class CirSim {
         await import('./SubcircuitDialog');
         await import('./ExportAsUrlDialog');
         await import('./ExportAsImageDialog');
+        await import('./ScopeExportImageDialog');
         await import('./ImportFromDropboxDialog');
 
         const qp = new QueryParameters();

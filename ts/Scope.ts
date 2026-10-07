@@ -115,6 +115,7 @@ export class Scope {
     static lastManDivisions: number = 8;
     drawGridLines: boolean = true;
     somethingSelected: boolean = false;
+    exporting: boolean = false;  // drawing for PNG/SVG export; ignore mouse/menu selection
 
     trigger: ScopeTrigger = new ScopeTrigger();
 
@@ -674,16 +675,17 @@ export class Scope {
         for (si = 0; si !== this.visiblePlots.length; si++) {
             const plot = this.visiblePlots[si];
             this.calcPlotScale(plot);
-            if (this.app.scopeManager.scopeSelected === -1 && plot.elm !== null && plot.elm.isMouseElm())
+            if (this.app.scopeManager.scopeSelected === -1 && plot.elm !== null && plot.elm.isMouseElm() && !this.exporting)
                 this.somethingSelected = true;
             this.reduceRange[plot.units] = true;
         }
 
-        const sel = this.app.scopeManager.scopeMenuIsSelected(this);
+        const sel = this.app.scopeManager.scopeMenuIsSelected(this) && !this.exporting;
 
         const somethingSelectedHere = this.somethingSelected;
 
-        this.checkForSelectionElsewhere();
+        if (!this.exporting)
+            this.checkForSelectionElsewhere();
         if (this.selectedPlot >= 0)
             this.somethingSelected = true;
 
@@ -889,7 +891,7 @@ export class Scope {
         const maxy = Math.trunc((this.rect.height - 1) / 2);
 
         let color = (this.somethingSelected) ? "#A0A0A0" : plot.color;
-        if (allSelected || (this.app.scopeManager.scopeSelected === -1 && this.getSingleElm() === null && plot.elm.isMouseElm()))
+        if (allSelected || (this.app.scopeManager.scopeSelected === -1 && this.getSingleElm() === null && plot.elm.isMouseElm() && !this.exporting))
             color = CircuitElm.selectColor.getHexValue();
         else if (selected)
             color = plot.color;
@@ -1232,31 +1234,57 @@ export class Scope {
         URL.revokeObjectURL(url);
     }
 
-    exportPNG(): void {
+    exportImage(): void {
+        CirSim.dialogShowing = new (window as any).ScopeExportImageDialog(this);
+        CirSim.dialogShowing.show();
+    }
+
+    exportPNG(transparent: boolean = false): void {
+        // render at the display's pixel density so the PNG is as sharp as the on-screen scope
+        const scale = window.devicePixelRatio || 1;
         const cv = document.createElement('canvas');
-        cv.width = this.rect.width;
-        cv.height = this.rect.height;
+        cv.width = Math.round(this.rect.width * scale);
+        cv.height = Math.round(this.rect.height * scale);
         const context = cv.getContext('2d') as CanvasRenderingContext2D;
-        this.drawForExport(context);
+        context.scale(scale, scale);
+        this.drawForExport(context, transparent);
         Scope.downloadDataURL(cv.toDataURL(), "scope.png");
     }
 
-    exportSVG(): void {
+    exportSVG(transparent: boolean = false): void {
         const context = new (window as any).C2S(this.rect.width, this.rect.height);
-        this.drawForExport(context);
+        this.drawForExport(context, transparent);
         Scope.downloadSVG(context.getSerializedSvg(), "scope.svg");
     }
 
     // draws this scope, sized to its own rect, into a fresh context at (0,0) instead of
-    // its on-screen position, with a solid background and no mouse-driven UI chrome --
-    // shared by exportPNG/exportSVG
-    private drawForExport(context: CanvasRenderingContext2D): void {
+    // its on-screen position, with a solid (or transparent) background and no mouse-driven
+    // UI chrome -- shared by exportPNG/exportSVG
+    private drawForExport(context: CanvasRenderingContext2D, transparent: boolean): void {
         context.lineCap = "round";
         context.translate(-this.rect.x, -this.rect.y);
         const g = new Graphics(context);
-        g.setColor(this.app.isPrintable() ? Color.white : Color.black);
-        g.fillRect(0, 0, this.rect.width, this.rect.height);
-        this.drawImpl(g, true);
+        if (!transparent) {
+            // match the on-screen background: docked scopes (position >= 0) sit in the
+            // bottom area, drawn #eee/#111 in UIManager.drawBottomArea(); embedded scope
+            // elements (position == -1) are drawn on the main canvas background
+            if (this.position >= 0)
+                g.setColor(this.app.isPrintable() ? "#eee" : "#111");
+            else
+                g.setColor(this.app.isPrintable() ? Color.white : Color.black);
+            g.fillRect(this.rect.x, this.rect.y, this.rect.width, this.rect.height);
+        }
+        // draw all plots in their own colors (as if the mouse weren't over the scope),
+        // so the legend of trace names is shown too
+        const savedSelectedPlot = this.selectedPlot;
+        this.selectedPlot = -1;
+        this.exporting = true;
+        try {
+            this.drawImpl(g, true);
+        } finally {
+            this.exporting = false;
+            this.selectedPlot = savedSelectedPlot;
+        }
     }
 
     static downloadDataURL(dataURL: string, filename: string): void {

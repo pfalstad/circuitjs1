@@ -303,10 +303,8 @@ export class CommandManager {
                 s.resetGraph(true);
             if (item == "exportcsv")
                 s.exportCSV();
-            if (item == "exportpng")
-                s.exportPNG();
-            if (item == "exportsvg")
-                s.exportSVG();
+            if (item == "exportimage")
+                s.exportImage();
             if (item == "properties")
                 s.showProperties();
             sm.deleteUnusedScopeElms?.();
