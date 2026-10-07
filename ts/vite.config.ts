@@ -82,6 +82,7 @@ export default defineConfig({
   plugins: [serveWarDir(), copyPublicAssets()],
   server: {
     port: 5173,
+    host: true,
     open: true
   },
   build: {
