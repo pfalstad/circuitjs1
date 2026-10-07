@@ -896,7 +896,7 @@
 "Square Wave"="Onda cuadrada"
 "Stable Voltage"="Tensión estable"
 "Stack All"="Apilar todos"
-"Stack"="Aplicar"
+"Stack"="Apilar"
 "Standing Wave"="Onda estacionaria"
 "Start Position (s)"="Posición de partida(s)"
 "Static RAM"="RAM estática"
