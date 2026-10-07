@@ -728,8 +728,10 @@ export class ScopePropertiesDialog extends Dialog {
         const scope = this.scope;
         this.updateChannelButtons();
         const manual = scope.isManualScale();
-        this.channelSettingsDiv.style.display = manual ? '' : 'none';
-        this.vScaleRow0.style.display = (manual && this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
+        const havePlot = this.plotSelection < scope.visiblePlots.length;
+        // channel selection and AC/DC coupling are available in both manual and auto scale modes
+        this.channelSettingsDiv.style.display = '';
+        this.vScaleRow0.style.display = havePlot ? '' : 'none';
         this.vScaleRow1.style.display = (manual && this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
         this.vScaleRow2.style.display = (!manual || this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
         this.divisionsRow.style.display = manual ? '' : 'none';
@@ -747,10 +749,6 @@ export class ScopePropertiesDialog extends Dialog {
             this.positionLabel.textContent = 'CH ' + (this.plotSelection + 1) + ' ' + Locale.LS('Position');
             this.positionBar.value         = String(p.manVPosition);
             this.positionBar.disabled      = false;
-            this.dcButton.disabled = false;
-            this.acButton.disabled = !p.canAcCouple();
-            this.dcButton.checked  = !p.isAcCoupled();
-            this.acButton.checked  = p.isAcCoupled();
         } else if (manual) {
             this.manualScaleIdLabel.textContent = '';
             this.manualScaleLabel.textContent   = '';
@@ -758,8 +756,6 @@ export class ScopePropertiesDialog extends Dialog {
             this.manualScaleTextBox.disabled    = true;
             this.positionLabel.textContent      = '';
             this.positionBar.disabled           = true;
-            this.dcButton.disabled = true;
-            this.acButton.disabled = true;
         } else {
             this.manualScaleIdLabel.textContent = '';
             this.manualScaleLabel.textContent   = Locale.LS('Max Value') + ' (' + scope.getScaleUnitsText() + ')';
@@ -767,6 +763,17 @@ export class ScopePropertiesDialog extends Dialog {
             this.manualScaleTextBox.disabled    = true;
             this.positionLabel.textContent      = '';
             this.positionBar.disabled           = true;
+        }
+
+        if (havePlot) {
+            const p = scope.visiblePlots[this.plotSelection];
+            this.dcButton.disabled = false;
+            this.acButton.disabled = !p.canAcCouple();
+            this.dcButton.checked  = !p.isAcCoupled();
+            this.acButton.checked  = p.isAcCoupled();
+        } else {
+            this.dcButton.disabled = true;
+            this.acButton.disabled = true;
         }
         this.setScopeSpeedLabel();
     }
