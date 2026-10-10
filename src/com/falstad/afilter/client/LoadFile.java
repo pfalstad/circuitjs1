@@ -38,9 +38,10 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 			return !!($wnd.File && $wnd.FileReader);
 		 }-*/;
 	
-	static public void doLoadCallback(String s) {
+	static public void doLoadCallback(String s, String t) {
 		sim.readSetup(s, true);
 		sim.createNewLoadFile();
+		ExportAsLocalFileDialog.setLastFileName(t);
 	}
 	
 	LoadFile(CirSim s) {
@@ -68,14 +69,18 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 		/*-{
 			var oFiles = $doc.getElementById("LoadFileElement").files,
     		nFiles = oFiles.length;
-    		if (nFiles>=1 && oFiles[0].size<32000) {
+    		if (nFiles>=1) {
+    		    if (oFiles[0].size >= 1280000)
+    		    	alert("File too large!");
+    		    else {
         		var reader = new FileReader();
     			reader.onload = function(e) {
       				var text = reader.result;
-      				@com.falstad.afilter.client.LoadFile::doLoadCallback(Ljava/lang/String;)(text);
+      				@com.falstad.afilter.client.LoadFile::doLoadCallback(Ljava/lang/String;Ljava/lang/String;)(text, oFiles[0].name);
         		};
 
     			reader.readAsText(oFiles[0]);
+    		    }
     		}
 		 }-*/;
 	

@@ -19,15 +19,21 @@
 
 package com.falstad.afilter.client;
 
-import com.google.gwt.user.client.ui.DialogBox;
+import java.util.Date;
+import com.google.gwt.user.client.ui.HasHorizontalAlignment;
+import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.VerticalPanel;
+import com.google.gwt.user.client.ui.DialogBox;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.logical.shared.ValueChangeEvent;
+import com.google.gwt.event.logical.shared.ValueChangeHandler;
+import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
-import com.google.gwt.user.client.ui.RichTextArea;
+import com.google.gwt.i18n.client.DateTimeFormat;
 
 public class ExportAsLocalFileDialog extends DialogBox {
 	
@@ -42,36 +48,88 @@ public class ExportAsLocalFileDialog extends DialogBox {
 	/*-{
 		var datain=[""];
 		datain[0]=data;
+		var oldblob = $doc.exportBlob;
+		if (oldblob)
+		    URL.revokeObjectURL(oldblob);
 		var blob=new Blob(datain, {type: 'text/plain' } );
 		var url = URL.createObjectURL(blob);
+		$doc.exportBlob = url;
 		return url;
 	}-*/;
 	
+	TextBox textBox;
+	static String lastFileName;
+	String url;
+	
+	public static void setLastFileName(String s) {
+	    // remember filename for use when saving a new file.
+	    // if s is null or automatically generated then just clear out old filename.
+	    if (s == null || s.startsWith("afilter-"))
+		lastFileName = null;
+	    else
+		lastFileName = s;
+	}
+
 	public ExportAsLocalFileDialog(String data) {
 		super();
-		Button okButton;
-		Anchor a;
-		String url;
+		Button okButton, cancelButton;
 		vp=new VerticalPanel();
 		setWidget(vp);
 		setText("Export as Local File");
-		vp.add(new Label("Click on the link below to save your circuit"));
+		vp.add(new Label("File name:"));
+		textBox = new TextBox();
+		textBox.setWidth("250px"); // "90%");
+		vp.add(textBox);
 		url=getBlobUrl(data);
-		a=new Anchor("my circuit.txt", url);
-		a.getElement().setAttribute("Download", "my circuit.txt");
-		vp.add(a);
-		vp.add(okButton = new Button("OK"));
+		Date date = new Date();
+		String fname;
+		if (lastFileName != null)
+		    fname = lastFileName;
+		else {
+		    DateTimeFormat dtf = DateTimeFormat.getFormat("yyyyMMdd-HHmmss");
+		    fname = "afilter-"+ dtf.format(date) + ".txt";
+		}
+		textBox.setText(fname);
+		
+                HorizontalPanel hp = new HorizontalPanel();
+                hp.setWidth("100%");
+                hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_LEFT);
+                hp.setStyleName("topSpace");
+                vp.add(hp);
+                hp.add(okButton = new Button("OK"));
+                hp.setHorizontalAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
+		hp.add(cancelButton = new Button("Cancel"));
 		okButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-				closeDialog();
+			    apply();
+			    closeDialog();
+			}
+		});
+		cancelButton.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+			    closeDialog();
 			}
 		});
 		this.center();
 	}
 	
-	protected void closeDialog()
-	{
-		this.hide();
+	static native void click(Element elem) /*-{
+	    elem.click();
+	}-*/;
+	
+	boolean apply() {
+	    String fname = textBox.getText();
+	    if (!fname.contains("."))
+		fname += ".txt";
+	    setLastFileName(fname);
+	    Anchor a  = new Anchor(fname, url);
+	    a.getElement().setAttribute("Download", fname);
+	    vp.add(a);
+	    click(a.getElement());
+	    return true;
 	}
 
+	protected void closeDialog() {
+		hide();
+	}
 }

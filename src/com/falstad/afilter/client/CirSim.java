@@ -466,19 +466,20 @@ MouseOutHandler, MouseWheelHandler {
 	layoutPanel = new DockLayoutPanel(Unit.PX);
 	
 	  fileMenuBar = new MenuBar(true);
-	  importFromLocalFileItem = new MenuItem("Import From Local File", new MyCommand("file","importfromlocalfile"));
+	  fileMenuBar.addItem(new MenuItem("New Blank Circuit", new MyCommand("file","newblankcircuit")));
+	  importFromLocalFileItem = new MenuItem("Open File...", new MyCommand("file","importfromlocalfile"));
 	  importFromLocalFileItem.setEnabled(LoadFile.isSupported());
 	  fileMenuBar.addItem(importFromLocalFileItem);
-	  importFromTextItem = new MenuItem("Import From Text", new MyCommand("file","importfromtext"));
+	  importFromTextItem = new MenuItem("Import From Text...", new MyCommand("file","importfromtext"));
 	  fileMenuBar.addItem(importFromTextItem);
-	  exportAsUrlItem = new MenuItem("Export as Link", new MyCommand("file","exportasurl"));
-	  fileMenuBar.addItem(exportAsUrlItem);
-	  fileMenuBar.addItem(new MenuItem("Export to Circuit Simulator", new MyCommand("file","exporttocircuitsim")));
-	  exportAsLocalFileItem = new MenuItem("Export as Local File", new MyCommand("file","exportaslocalfile"));
+	  exportAsLocalFileItem = new MenuItem("Save As...", new MyCommand("file","exportaslocalfile"));
 	  exportAsLocalFileItem.setEnabled(ExportAsLocalFileDialog.downloadIsSupported());
 	  fileMenuBar.addItem(exportAsLocalFileItem);
-	  exportAsTextItem = new MenuItem("Export as Text", new MyCommand("file","exportastext"));
+	  exportAsUrlItem = new MenuItem("Export As Link...", new MyCommand("file","exportasurl"));
+	  fileMenuBar.addItem(exportAsUrlItem);
+	  exportAsTextItem = new MenuItem("Export As Text...", new MyCommand("file","exportastext"));
 	  fileMenuBar.addItem(exportAsTextItem);
+	  fileMenuBar.addItem(new MenuItem("Export to Circuit Simulator", new MyCommand("file","exporttocircuitsim")));
 	  fileMenuBar.addSeparator();
 	  aboutItem=new MenuItem("About",(Command)null);
 	  fileMenuBar.addItem(aboutItem);
@@ -2337,8 +2338,19 @@ MouseOutHandler, MouseWheelHandler {
     void analyzeCircuit() {
 	console("analyzeCircuit " + elmList.size());
 	calcCircuitBottom();
-	if (elmList.isEmpty())
+	if (elmList.isEmpty()) {
+	    // nothing to analyze; clear results left over from the previous circuit
+	    if (response != null) {
+		java.util.Arrays.fill(response, 0);
+		java.util.Arrays.fill(phaseResponse, 0);
+	    }
+	    polyPoles = new Complex[0];
+	    polyZeros = new Complex[0];
+	    polyAvailable = false;
+	    idealResponse = null;
+	    impulseResponse = null;
 	    return;
+	}
 	stopMessage = null;
 	stopElm = null;
 	int i, j;
@@ -3397,6 +3409,10 @@ MouseOutHandler, MouseWheelHandler {
     public void menuPerformed(String menu, String item) {
     	if (item=="about")
     		aboutBox = new AboutBox(circuitjs1.versionString); 
+    	if (item=="newblankcircuit") {
+    		pushUndo();
+    		readSetupFile("blank.txt", "Blank Circuit", true);
+    	}
     	if (item=="importfromlocalfile") {
     		pushUndo();
     		loadFileInput.click();
@@ -3928,6 +3944,8 @@ MouseOutHandler, MouseWheelHandler {
 
 	void readSetupFile(String str, String title, boolean center) {
 		t = 0;
+		// a built-in circuit, so don't suggest the last file name when saving
+		ExportAsLocalFileDialog.setLastFileName(null);
 		System.out.println(str);
 //		try {
 		// TODO: Maybe think about some better approach to cache management!
