@@ -504,3 +504,25 @@ td.gwt-MenuItem.open > .menuDropdown {
 .circuitDialog > h1, .circuitDialog > h2, .circuitDialog > h3 {
     cursor: move;
 }
+
+/* brief non-blocking message, e.g. after loading a subcircuit library */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    transform: translateX(-50%);
+    max-width: 80%;
+    background: #333;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    z-index: 10001;
+    opacity: 1;
+    transition: opacity 0.5s;
+    pointer-events: none;
+}
+
+.toast.fading {
+    opacity: 0;
+}

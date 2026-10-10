@@ -32,6 +32,7 @@ import { BoxElm } from "./BoxElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { CircuitLoader } from "./CircuitLoader";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { KeyNames } from "./KeyNames";
 import { ScrollValuePopup } from "./ScrollValuePopup";
@@ -303,6 +304,12 @@ class LoadFile {
         const reader = new FileReader();
         reader.onload = () => {
             const text = reader.result as string;
+            if (CircuitLoader.isSubcircuitLibrary(text)) {
+                // library files just add global subcircuits; keep the current circuit and its title
+                app.loader.readSubcircuitLibrary(text);
+                app.createNewLoadFile();
+                return;
+            }
             app.undoManager?.pushUndo();
             app.resetEditingContext();
             app.loader.readCircuit(text);
@@ -1878,6 +1885,18 @@ export class UIManager {
     }
 
     // ---- Other ----
+
+    // show a brief message that fades out on its own
+    showToast(msg: string, ms: number = 3000): void {
+        const t = document.createElement("div");
+        t.className = "toast";
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => {
+            t.classList.add("fading");
+            setTimeout(() => t.remove(), 500);
+        }, ms);
+    }
 
     setCircuitTitle(s: string | null): void {
         this.titleLabel.textContent = s == null ? null : s.replace(/_/g, "_​");
