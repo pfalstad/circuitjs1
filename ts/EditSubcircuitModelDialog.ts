@@ -72,6 +72,7 @@ export class EditSubcircuitModelDialog extends Dialog {
         if (!this.model) return false;
         if (this.model.extList.length === 0) {
             window.alert(Locale.LS("Device has no external inputs/outputs!"));
+            this.model.remove();
             return false;
         }
         this.model.extList.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
@@ -267,6 +268,13 @@ export class EditSubcircuitModelDialog extends Dialog {
                 app.contextStack[app.contextStack.length - 1].changedModels.push(...changedModels);
         }
         this.closeDialog();
+    }
+
+    closeDialog(): void {
+        // a newly created model that was never named (cancelled) is discarded
+        if (this.model && this.model.name === "")
+            this.model.remove();
+        super.closeDialog();
     }
 
     show(): void {

@@ -131,7 +131,7 @@ export abstract class CompositeElm extends CircuitElm {
                 // below that references it by name can resolve it, same as
                 // CircuitXMLDeserializer's element loading does for a whole-circuit load.
                 xml.parseChildElement(childElem);
-                SubcircuitModel.undumpModelXml(xml);
+                SubcircuitModel.undumpEmbeddedModelXml(xml);
                 continue;
             }
             const className = CirSim.xmlDumpTypeMap.get(tagName);

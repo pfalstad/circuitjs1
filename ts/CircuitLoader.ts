@@ -86,7 +86,7 @@ export class CircuitLoader {
         this.scopes.clearScopes();
         this.sim.lastIterTime = 0;
         if (this.app.contextStack.length === 0) {
-            // SubcircuitModel.clearLocalModels() — stub
+            SubcircuitModel.clearLocalModels();
         }
         if (this.app.ui.subcircuitStack.length > 0) {
             this.app.ui.subcircuitStack.length = 0;
