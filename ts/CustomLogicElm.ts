@@ -126,6 +126,16 @@ export class CustomLogicElm extends ChipElm {
         return this.hasTriState() ? this.outputCount : 0;
     }
 
+    // a tri-state output's voltage source drives an internal node, which connects to the
+    // output pin through a resistor, so they have to be in the same matrix
+    getMatrixConnection(n1: number, n2: number): boolean {
+        if (this.hasTriState())
+            for (let i = this.inputCount; i !== this.postCount; i++)
+                if (this.comparePair(n1, n2, i, i + this.outputCount))
+                    return true;
+        return false;
+    }
+
     stamp(): void {
         const add = this.hasTriState() ? this.outputCount : 0;
         for (let i = 0; i !== this.getPostCount(); i++) {

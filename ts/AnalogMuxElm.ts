@@ -95,7 +95,10 @@ export class AnalogMuxElm extends ChipElm {
         this.allocNodes();
     }
 
-    getPostCount(): number { return this.inputCount + this.selectBitCount + 1; }
+    getPostCount(): number {
+        if (!this.selectBitCount) return 0; // called from base constructor before fields are initialized
+        return this.inputCount + this.selectBitCount + 1;
+    }
     getVoltageSourceCount(): number { return 0; }
 
     needsPulldown(): boolean { return this.hasFlag(AnalogMuxElm.FLAG_PULLDOWN); }

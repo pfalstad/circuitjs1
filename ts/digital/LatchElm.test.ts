@@ -58,24 +58,16 @@ function chipAt(elm: any, post: number, chipsByElm: Map<any, Chip[]>): Chip {
     return chipsByElm.get(elm)![idx];
 }
 
-/** Builds an Object.create(LatchElm.prototype) instance with its FLAG_* constants and pin-index
+/** Builds an Object.create(LatchElm.prototype) instance with its pin-index
  * fields (loadPin/resetPin/setPin) poked on exactly as the real setupPins() would lay them out
  * (bit0..bitN-1 D pins, then bit0..bitN-1 Q pins, then Ld, then Reset, then Set) - no Set/enable
  * pins are exercised by these tests, so those fields are left unset. */
 function makeLatch(bits: number, opts: { edgeTriggered?: boolean; reset?: boolean } = {}) {
     const chip = Object.create(LatchElm.prototype) as any;
-    chip.FLAG_STATE = 2;
-    chip.FLAG_NO_EDGE = 4;
-    chip.FLAG_RESET = 8;
-    chip.FLAG_SET = 16;
-    chip.FLAG_ENABLE_MASK = 32 | 64;
-    chip.FLAG_ENABLE_SHIFT = 5;
-    chip.FLAG_RESET_INVERT = 128;
-
     chip.bits = bits;
-    let flags = chip.FLAG_STATE;
-    if (!opts.edgeTriggered) flags |= chip.FLAG_NO_EDGE;
-    if (opts.reset) flags |= chip.FLAG_RESET;
+    let flags = LatchElm.FLAG_STATE;
+    if (!opts.edgeTriggered) flags |= LatchElm.FLAG_NO_EDGE;
+    if (opts.reset) flags |= LatchElm.FLAG_RESET;
     chip.flags = flags;
 
     let pinIndex = bits * 2;

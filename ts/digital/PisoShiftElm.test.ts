@@ -48,13 +48,11 @@ function chipAt(elm: any, post: number, chipsByElm: Map<any, Chip[]>): Chip {
 }
 
 /** Object.create(PisoShiftElm.prototype), with the instance fields setupPins()/the constructor
- * would normally have set poked on directly - FLAG_NEW_BEHAVIOR is a (non-static) instance field
- * on the real class, so a bypassed instance needs it set explicitly before hasNewBhvr() works. */
+ * would normally have set poked on directly. */
 function makePiso(bits: number, newBhvr: boolean) {
     const chip = Object.create(PisoShiftElm.prototype) as any;
-    chip.FLAG_NEW_BEHAVIOR = 2;
     chip.bits = bits;
-    chip.flags = newBhvr ? chip.FLAG_NEW_BEHAVIOR : 0;
+    chip.flags = newBhvr ? PisoShiftElm.FLAG_NEW_BEHAVIOR : 0;
     chip.dataPinIndex = newBhvr ? 4 : 3;
     chip.nodes = [];
     return chip;

@@ -31,7 +31,7 @@ import { chipStart, i1, POS_EDGE_PIN as posEdge } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 
 export class PisoShiftElm extends ChipElm implements DigitalInitialState {
-    readonly FLAG_NEW_BEHAVIOR = 2;
+    static readonly FLAG_NEW_BEHAVIOR = 2;
 
     data: boolean[] = [];
     dataIndex: number = 0;
@@ -49,7 +49,7 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
             ChipElm.readBits(st, this.data);
         } else {
             this.data = new Array<boolean>(this.bits).fill(false);
-            this.flags |= this.FLAG_NEW_BEHAVIOR;
+            this.flags |= PisoShiftElm.FLAG_NEW_BEHAVIOR;
         }
         this.setupPins();
     }
@@ -82,7 +82,7 @@ export class PisoShiftElm extends ChipElm implements DigitalInitialState {
     getChipName(): string { return "PISO shift register"; }
     needsBits(): boolean { return true; }
     defaultBitCount(): number { return 8; }
-    hasNewBhvr(): boolean { return (this.flags & this.FLAG_NEW_BEHAVIOR) !== 0; }
+    hasNewBhvr(): boolean { return (this.flags & PisoShiftElm.FLAG_NEW_BEHAVIOR) !== 0; }
 
     reset(): void {
         super.reset();

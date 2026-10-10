@@ -29,9 +29,9 @@ import { StringTokenizer } from "./StringTokenizer";
 import { parseIntStrict } from "./NumberParse";
 
 export class SeqGenElm extends ChipElm {
-    readonly FLAG_NEW_VERSION = 2;
-    readonly FLAG_PLAY_ONCE = 4;
-    readonly FLAG_HAS_RESET = 8;
+    static readonly FLAG_NEW_VERSION = 2;
+    static readonly FLAG_PLAY_ONCE = 4;
+    static readonly FLAG_HAS_RESET = 8;
 
     bitPosition: number = 0;
     bitCount: number = 0;
@@ -44,8 +44,8 @@ export class SeqGenElm extends ChipElm {
         super(xa, ya, xb, yb, f, st);
         if (st !== undefined) {
             try {
-                if ((this.flags & this.FLAG_NEW_VERSION) === 0) {
-                    this.flags |= this.FLAG_NEW_VERSION;
+                if ((this.flags & SeqGenElm.FLAG_NEW_VERSION) === 0) {
+                    this.flags |= SeqGenElm.FLAG_NEW_VERSION;
                     // old format: single byte read backwards
                     let oldData = parseIntStrict(st.nextToken());
                     let newData = 0;
@@ -68,8 +68,8 @@ export class SeqGenElm extends ChipElm {
         } else {
             this.bitCount = 8;
             this.data = new Int32Array([0]);
-            this.flags |= this.FLAG_NEW_VERSION;
-            this.flags |= this.FLAG_HAS_RESET;
+            this.flags |= SeqGenElm.FLAG_NEW_VERSION;
+            this.flags |= SeqGenElm.FLAG_HAS_RESET;
             this.setupPins();
             this.allocNodes();
         }
@@ -93,8 +93,8 @@ export class SeqGenElm extends ChipElm {
     getVoltageDiff(): number { return this.nodes[1].v; }
     getPostCount(): number { return this.hasReset() ? 3 : 2; }
     getVoltageSourceCount(): number { return 1; }
-    hasPlayOnce(): boolean { return (this.flags & this.FLAG_PLAY_ONCE) !== 0; }
-    hasReset(): boolean { return (this.flags & this.FLAG_HAS_RESET) !== 0; }
+    hasPlayOnce(): boolean { return (this.flags & SeqGenElm.FLAG_PLAY_ONCE) !== 0; }
+    hasReset(): boolean { return (this.flags & SeqGenElm.FLAG_HAS_RESET) !== 0; }
 
     reset(): void {
         super.reset();
@@ -166,12 +166,11 @@ export class SeqGenElm extends ChipElm {
         }
         if (n === 1) {
             const ei = new EditInfo("Sequence", 0, -1, -1);
-            ei.textArea = document.createElement("textarea");
-            ei.textArea.rows = 5;
             let sb = "";
             for (let i = 0; i < this.bitCount; i++)
                 sb += (this.data[Math.trunc(i / 32)] & (1 << (i % 32))) !== 0 ? '1' : '0';
-            ei.textArea.value = sb;
+            // EditDialog makes the real textarea and puts it in ei.textArea.element
+            ei.textArea = { value: sb };
             return ei;
         }
         return null;
@@ -179,16 +178,16 @@ export class SeqGenElm extends ChipElm {
 
     setChipEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_PLAY_ONCE);
+            this.flags = ei.changeFlag(this.flags, SeqGenElm.FLAG_PLAY_ONCE);
             return;
         }
         if (n === 1) {
-            const s = ei.textArea!.value;
+            const s = ei.textArea.element ? ei.textArea.element.value : ei.textArea.value;
             // count bits
             this.bitCount = 0;
             for (let i = 0; i < s.length; i++)
                 if (s[i] === '0' || s[i] === '1') this.bitCount++;
-            const wordCount = Math.max(1, Math.trunc(this.bitCount / 32));
+            const wordCount = Math.max(1, Math.ceil(this.bitCount / 32));
             this.data = new Int32Array(wordCount);
             // fill bits
             this.bitCount = 0;
