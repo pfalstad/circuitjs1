@@ -30,6 +30,7 @@ import { RelayModel } from "./RelayModel";
 import { SimulationManager } from "./SimulationManager";
 import { SwitchElm } from "./SwitchElm";
 import { TransistorModel } from "./TransistorModel";
+import { MosfetModel } from "./MosfetModel";
 
 function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     const elmDoc = document.implementation.createDocument(null, "elms");
@@ -38,6 +39,8 @@ function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     DiodeModel.clearDumpedFlags();
     TransistorModel.clearDumpedFlags();
     RelayModel.clearDumpedFlags();
+    SubcircuitModel.clearDumpedFlags();
+    MosfetModel.clearDumpedFlags();
 
     const sideLabels: LabeledNodeElm[][] = [[], [], [], []];
     const extList: ExtListEntry[] = [];

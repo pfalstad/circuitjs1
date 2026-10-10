@@ -24,6 +24,7 @@ export const HookRegistry = {
     undumpSubcircuitModel:        null as ((xml: any) => void) | null,
     loadSubcircuitModelsFromStorage: null as (() => void) | null,
     clearSubcircuitModelDumpedFlags: null as (() => void) | null,
+    dumpUnusedLocalSubcircuitModels: null as ((doc: Document) => void) | null,
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,

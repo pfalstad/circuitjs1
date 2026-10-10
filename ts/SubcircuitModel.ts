@@ -426,6 +426,19 @@ export class SubcircuitModel {
         return model;
     }
 
+    // register a model definition embedded in another model (a nested subcircuit), unless a model
+    // with that name already exists.  The embedded copy is a snapshot taken when the outer model
+    // was created, so it may be stale; it must never overwrite a model that instances are using.
+    static undumpEmbeddedModelXml(xml: CircuitXMLDeserializer): void {
+        const name = xml.parseStringAttr("nm", null)!;
+        if (SubcircuitModel.getModelWithName(name) !== null) return;
+        const model = new SubcircuitModel();
+        model.name = name;
+        SubcircuitModel.localModelMap.set(name, model);
+        SubcircuitModel.sequenceNumber++;
+        model.undumpXml(xml);
+    }
+
     // parse XML attributes and children from deserializer
     parseXmlElement(xml: CircuitXMLDeserializer): void {
         this.flags = xml.parseIntAttr("f", this.flags);
@@ -481,7 +494,7 @@ export class SubcircuitModel {
                 else if (tagName === "mm")
                     MosfetModel.undumpModelXml(xml);
                 else if (tagName === "ccm")
-                    SubcircuitModel.undumpModelXml(xml);
+                    SubcircuitModel.undumpEmbeddedModelXml(xml);
             }
         }
     }
@@ -538,10 +551,22 @@ export class SubcircuitModel {
         SubcircuitModel.sequenceNumber++;
     }
 
-    // replace a model in whichever map it lives in
+    // replace a model in whichever map it lives in.  A global model replaces any local
+    // copy with the same name (e.g. a stale one reloaded from a saved editing context).
     static replaceModel(model: SubcircuitModel): void {
-        SubcircuitModel.localModelMap.set(model.name, model);
+        if (SubcircuitModel.globalModelMap.get(model.name) === model)
+            SubcircuitModel.localModelMap.delete(model.name);
+        else
+            SubcircuitModel.localModelMap.set(model.name, model);
         SubcircuitModel.sequenceNumber++;
+    }
+
+    // dump local models not already dumped (i.e. not used by any element), since local
+    // models belong to the circuit and would otherwise be lost when it is reloaded
+    static dumpUnusedLocalModels(doc: Document): void {
+        for (const m of SubcircuitModel.localModelMap.values())
+            if (!m.dumped && !m.builtin && m.name !== "")
+                m.dumpXml(doc);
     }
 
     static clearLocalModels(): void {
@@ -568,3 +593,4 @@ export class SubcircuitModel {
 HookRegistry.undumpSubcircuitModel            = (xml) => SubcircuitModel.undumpModelXml(xml as CircuitXMLDeserializer);
 HookRegistry.loadSubcircuitModelsFromStorage  = () => SubcircuitModel.loadModelsFromStorage();
 HookRegistry.clearSubcircuitModelDumpedFlags  = () => SubcircuitModel.clearDumpedFlags();
+HookRegistry.dumpUnusedLocalSubcircuitModels  = (doc) => SubcircuitModel.dumpUnusedLocalModels(doc);
