@@ -28,6 +28,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 int GroundElm::lastSymbolType = 0;
 std::optional<Point> GroundElm::firstGround;
@@ -129,4 +130,11 @@ std::optional<EditInfo> GroundElm::getEditInfo(int n) {
 void GroundElm::setEditValue(int n, EditInfo &ei) {
     if (n == 0)
         lastSymbolType = symbolType = ei.choice->getSelectedIndex();
+}
+
+void GroundElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, point2.x, point2.y);
+    Point pa, pb;
+    interpPoint2(point1, point2, pa, pb, 1 + 11. / dn, 10);
+    wr.addObstacle(pa.x, pa.y, pb.x, pb.y);
 }

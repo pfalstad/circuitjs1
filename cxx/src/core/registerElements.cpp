@@ -57,6 +57,7 @@
 #include "../elements/RelayContactElm.h"
 #include "../elements/CrossSwitchElm.h"
 #include "../elements/MotorProtectionSwitchElm.h"
+#include "../elements/RoutedWireElm.h"
 #include "../elements/CustomLogicElm.h"
 #include "../elements/CCVSElm.h"
 #include "../elements/CCCSElm.h"
@@ -152,6 +153,7 @@ void registerElements() {
     reg<RelayContactElm>("RelayContactElm");
     reg<CrossSwitchElm>("CrossSwitchElm");
     reg<MotorProtectionSwitchElm>("MotorProtectionSwitchElm");
+    reg<RoutedWireElm>("RoutedWireElm");
     reg<CustomLogicElm>("CustomLogicElm");
     reg<CCVSElm>("CCVSElm");
     reg<CCCSElm>("CCCSElm");

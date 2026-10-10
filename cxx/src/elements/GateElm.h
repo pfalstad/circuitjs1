@@ -23,6 +23,7 @@
 
 class GateElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     static constexpr int FLAG_SMALL = 1 << 0;
     static constexpr int FLAG_SCHMITT = 1 << 1;
     static constexpr int FLAG_INVERT_INPUTS = 1 << 2;

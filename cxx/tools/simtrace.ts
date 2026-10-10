@@ -195,8 +195,12 @@ const steps = parseInt(argv[3] ?? "1000");
 // Adjustable sets window.Adjustable when it loads (CircuitLoader finds it there), so it
 // has to be imported after the fake window exists
 const { Adjustable } = await import("../../ts/Adjustable");
+const { UIManager } = await import("../../ts/UIManager");
 
 const app = makeApp();
+// routed wires route around the displayed elements (UIManager.theUI.elmList)
+app.ui.getCircuitBounds = UIManager.prototype.getCircuitBounds;
+UIManager.theUI = app.ui;
 const sim = new SimulationManager(app);
 app.sim = sim;
 CircuitElm.app = app;

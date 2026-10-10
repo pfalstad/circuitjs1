@@ -24,6 +24,7 @@
 class ResistorElm : public CircuitElm {
 public:
     ELM_CLASS(ResistorElm)
+    void addRoutingObstacle(WireRouter &wr) override;
     double resistance;
 
     ResistorElm(int xx, int yy);

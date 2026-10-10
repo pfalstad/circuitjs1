@@ -24,6 +24,7 @@
 // SPST switch
 class SwitchElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(SwitchElm)
     bool momentary;
     // position 0 == closed, position 1 == open

@@ -52,6 +52,7 @@
 #include "core/CustomLogicModel.h"
 #include "core/MosfetModel.h"
 #include "core/RelayModel.h"
+#include "elements/RoutedWireElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
 
@@ -480,30 +481,6 @@ void CirSim::setCircuitArea() {
     circuitArea = Rectangle(0, 0, canvasWidth, canvasHeight - h);
 }
 
-std::optional<Rectangle> CirSim::getCircuitBounds() {
-    int minx = 30000, maxx = -30000, miny = 30000, maxy = -30000;
-    for (CircuitElm *ce : *uiElmList) {
-        if (!ce->isCenteredText()) {
-            minx = std::min(ce->x, std::min(ce->x2, minx));
-            maxx = std::max(ce->x, std::max(ce->x2, maxx));
-        }
-        miny = std::min(ce->y, std::min(ce->y2, miny));
-        maxy = std::max(ce->y, std::max(ce->y2, maxy));
-        // use boundingBox for elements like chips/subcircuits whose
-        // visual extent exceeds their x/y coordinates
-        const Rectangle &bb = ce->getBoundingBox();
-        if (!ce->isCenteredText()) {
-            minx = std::min((int) bb.x, minx);
-            maxx = std::max((int) (bb.x + bb.width), maxx);
-        }
-        miny = std::min((int) bb.y, miny);
-        maxy = std::max((int) (bb.y + bb.height), maxy);
-    }
-    if (minx > maxx)
-        return std::nullopt;
-    return Rectangle(minx, miny, maxx - minx, maxy - miny);
-}
-
 void CirSim::centerCircuit() {
     std::optional<Rectangle> bounds = getCircuitBounds();
     setCircuitArea();
@@ -638,8 +615,19 @@ void CirSim::updateCircuit(QPainter &painter) {
         }
     }
 
-    if (tmm == MODE_SELECT && mouse.getMouseElm() != nullptr)
+    if (tmm == MODE_SELECT && mouse.getMouseElm() != nullptr) {
         mouse.getMouseElm()->drawHandles(g, CircuitElm::selectColor);
+        if (mouse.getMouseElm()->isRoutedWireElm() && mouse.mouseCursorX >= 0) {
+            RoutedWireElm *rw = static_cast<RoutedWireElm *>(mouse.getMouseElm());
+            int gx = mouse.inverseTransformX(mouse.mouseCursorX);
+            int gy = mouse.inverseTransformY(mouse.mouseCursorY);
+            std::optional<Point> sp = rw->getSnapPointOnWire(gx, gy);
+            if (sp) {
+                g.setColor(CircuitElm::selectColor);
+                g.fillOval(sp->x - 4, sp->y - 4, 9, 9);
+            }
+        }
+    }
 
     if (dragElm != nullptr && (dragElm->x != dragElm->x2 || dragElm->y != dragElm->y2)) {
         dragElm->draw(g);

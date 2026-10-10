@@ -81,7 +81,8 @@ labeled node (including bus labels and v(label) references in expressions),
 SPDT/multi-throw switch (with linking), sweep, Zener, LED, transformer (with
 saturation), analog switches (SPST and SPDT), memristor, transmission line,
 relay (with relay models), relay coil and contact, cross switch, motor
-protection switch,
+protection switch, routed wire (with the WireRouter: routing new wires,
+rerouting by dragging, and splitting),
 current source, diode and diode models, BJT and
 transistor models, MOSFET/JFET and their models, op-amp, text, output, probe,
 logic input/output, AND/NAND/OR/NOR/XOR/XNOR gates, inverter, and the chips:
@@ -125,5 +126,5 @@ Sliders... dialog in the element context menu.  The slider logic is
 `core/Scrollbar.h` (the TS Scrollbar without the drawing), so slider-driven
 values match TS exactly.
 
-Not yet ported: sparse solver (matrices of 150 or more rows), routed wires,
+Not yet ported: sparse solver (matrices of 150 or more rows),
 composites/subcircuits (and subcircuit chips), audio output, and the rest.

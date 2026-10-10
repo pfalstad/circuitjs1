@@ -31,6 +31,7 @@
 #include "../core/StringTokenizer.h"
 #include "../core/Graphics.h"
 #include "../core/Locale.h"
+#include "../core/WireRouter.h"
 
 VoltageElm::VoltageElm(int xx, int yy, int wf) : CircuitElm(xx, yy) {
     waveform = wf;
@@ -634,4 +635,8 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
             phaseShift = std::fmod(std::fmod(phaseShift, 2 * pi) + 2 * pi, 2 * pi);
         }
     }
+}
+
+void VoltageElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, 16);
 }

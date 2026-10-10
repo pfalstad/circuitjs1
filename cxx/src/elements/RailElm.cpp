@@ -25,6 +25,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 void RailElm::setPoints() {
     VoltageElm::setPoints();
@@ -104,4 +105,9 @@ void RailElm::drawRailText(Graphics &g, const std::string &s) {
     g.setColor(needsHighlight() ? selectColor : whiteColor);
     setPowerColor(g, false);
     drawLabeledNode(g, s, point1, lead1);
+}
+
+void RailElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, point2.x, point2.y);
+    wr.addObstacle(point2.x - circleSize, point2.y - circleSize, point2.x + circleSize, point2.y + circleSize);
 }

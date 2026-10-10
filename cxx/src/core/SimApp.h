@@ -187,6 +187,9 @@ public:
 
     int snapGrid(int x) const { return (x + gridSize / 2 - 1) & ~(gridSize - 1); }
 
+    // the extent of the circuit being displayed (TS: UIManager.getCircuitBounds())
+    std::optional<Rectangle> getCircuitBounds();
+
     // free all elements
     void deleteAllElms();
     // tell every element to re-fetch its model (after a model is edited)

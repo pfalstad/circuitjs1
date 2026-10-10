@@ -25,6 +25,7 @@
 class VoltageElm : public CircuitElm {
 public:
     ELM_CLASS(VoltageElm)
+    void addRoutingObstacle(WireRouter &wr) override;
     static constexpr int FLAG_COS = 2;
     static constexpr int FLAG_PULSE_DUTY = 4;
     static constexpr int FLAG_CIRCLE_SYMBOL = 8;

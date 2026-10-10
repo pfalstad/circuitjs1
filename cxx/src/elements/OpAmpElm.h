@@ -24,6 +24,7 @@
 class OpAmpElm : public CircuitElm {
 public:
     ELM_CLASS(OpAmpElm)
+    void addRoutingObstacle(WireRouter &wr) override;
     int opsize = 2;
     int opheight = 16;
     int opwidth = 26;

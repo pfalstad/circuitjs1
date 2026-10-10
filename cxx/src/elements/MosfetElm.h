@@ -27,6 +27,7 @@ class MosfetModel;
 
 class MosfetElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(MosfetElm)
     int pnp;
     static constexpr int FLAG_PNP = 1;

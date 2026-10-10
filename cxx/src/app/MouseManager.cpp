@@ -20,6 +20,8 @@
 #include "MouseManager.h"
 
 #include "core/Adjustable.h"
+#include "core/SimulationManager.h"
+#include "elements/RoutedWireElm.h"
 
 #include <algorithm>
 #include <cmath>
@@ -167,6 +169,8 @@ bool MouseManager::doSwitch(int x, int y) {
 void MouseManager::onMouseDown(QMouseEvent *e) {
     sim->stopElm = nullptr;  // if stopped, allow user to select other elements to fix circuit
     double ex = e->position().x(), ey = e->position().y();
+    menuX = ex;
+    menuY = ey;
     mouseDownTime = sim->currentTimeMillis();
     mouseDownScreenX = ex;
     mouseDownScreenY = ey;
@@ -310,13 +314,21 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
             // wait short delay before dragging -- fixes accidental drags on mobile
             if (sim->currentTimeMillis() - mouseDownTime < 150)
                 return;
-            // TODO: rerouting routed wires
-            tempMouseMode = SimApp::MODE_DRAG_SELECTED;
-            success = dragSelected(gx, gy);
+            if (mouseElm->isRoutedWireElm()) {
+                tempMouseMode = SimApp::MODE_DRAG_REROUTE;
+                static_cast<RoutedWireElm *>(mouseElm)->rerouteVia(snapGrid(gx), snapGrid(gy));
+            } else {
+                tempMouseMode = SimApp::MODE_DRAG_SELECTED;
+                success = dragSelected(gx, gy);
+            }
         }
         break;
     case SimApp::MODE_DRAG_SELECTED:
         success = dragSelected(gx, gy);
+        break;
+    case SimApp::MODE_DRAG_REROUTE:
+        if (mouseElm != nullptr && mouseElm->isRoutedWireElm())
+            static_cast<RoutedWireElm *>(mouseElm)->rerouteVia(snapGrid(gx), snapGrid(gy));
         break;
     }
     dragging = true;
@@ -403,7 +415,17 @@ bool MouseManager::dragSelected(int x, int y) {
         for (CircuitElm *ce : *sim->uiElmList)
             if (ce->isSelected())
                 ce->move(ddx, ddy);
-        // TODO: move connected routed wires' shared posts
+        // move connected routed wires' shared posts
+        for (CircuitElm *ce : *sim->uiElmList) {
+            if (!ce->isSelected())
+                continue;
+            auto it = sim->sim->routedWireMap.find(ce);
+            if (it == sim->sim->routedWireMap.end())
+                continue;
+            for (const RoutedWireConnection &conn : it->second)
+                if (!conn.wire->isSelected() && conn.wire->getPost(conn.wirePost).z == 0)
+                    conn.wire->movePoint(conn.wirePost, ddx, ddy);
+        }
         sim->needAnalyze();
     }
 
@@ -438,6 +460,12 @@ void MouseManager::dragPost(int x, int y, bool all) {
         }
     } else {
         mouseElm->movePoint(draggingPost, ddx, ddy);
+        // move connected routed wires' shared posts
+        auto it = sim->sim->routedWireMap.find(mouseElm);
+        if (it != sim->sim->routedWireMap.end())
+            for (const RoutedWireConnection &conn : it->second)
+                if (conn.elmPost == draggingPost && conn.wire->getPost(conn.wirePost).z == 0)
+                    conn.wire->movePoint(conn.wirePost, ddx, ddy);
     }
     sim->needAnalyze();
 }
@@ -478,7 +506,9 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     // click to clear selection (but not on a right-click)
     if (tempMouseMode == SimApp::MODE_SELECT && !selectedArea && e->button() == Qt::LeftButton)
         clearSelection();
-    // TODO: cmd-click = split wire
+    // cmd-click = split wire
+    if (tempMouseMode == SimApp::MODE_DRAG_POST && draggingPost == -1)
+        doSplit(mouseElm);
 
     // figure out, before endDrag() clears drag state, whether this mouseup is a plain
     // click (not a drag, not a modified click used for some other gesture) and if so
@@ -614,4 +644,32 @@ void MouseManager::setCircuitScale(double newScale, bool fromKeyboard) {
     // inverse transform = (x-t4)/t0
     sim->transform[4] = constX - cx * newScale;
     sim->transform[5] = constY - cy * newScale;
+}
+
+void MouseManager::doSplit(CircuitElm *ce) {
+    if (ce == nullptr || !ce->isWireElm())
+        return;
+    int px = snapGrid(inverseTransformX(menuX));
+    int py = snapGrid(inverseTransformY(menuY));
+    if (splitWireAt(px, py))
+        sim->needAnalyze();
+}
+
+bool MouseManager::splitWireAt(int px, int py) {
+    bool split = false;
+    std::vector<CircuitElm *> &list = *sim->uiElmList;
+    for (int i = (int) list.size() - 1; i >= 0; i--) {
+        CircuitElm *ce = list[i];
+        if (!ce->isWireElm())
+            continue;
+        WireElm *we = static_cast<WireElm *>(ce);
+        if (!we->pointOnWireInterior(px, py))
+            continue;
+        WireElm *newWire = we->split(px, py);
+        if (newWire != nullptr) {
+            list.push_back(newWire);
+            split = true;
+        }
+    }
+    return split;
 }

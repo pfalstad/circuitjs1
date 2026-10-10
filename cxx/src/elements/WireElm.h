@@ -59,6 +59,11 @@ public:
     void setWireCurrent(int bit, double c) override;
     double getCurrentIntoNode(int n) override;
     int getShortcut() override { return 'w'; }
+
+    static bool pointOnWireInteriorForPoints(int px, int py, const std::vector<Point> &pts);
+    virtual bool pointOnWireInterior(int px, int py);
+    // split this wire at (px, py), returning the new second half (or null)
+    virtual WireElm *split(int px, int py);
     double getMouseDistance(int gx, int gy) override;
     void draw(Graphics &g) override;
     void getInfo(std::vector<std::string> &arr) override;

@@ -28,6 +28,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 LogicInputElm::LogicInputElm(int xx, int yy) : SwitchElm(xx, yy, false) {
     hiV = 5;
@@ -143,4 +144,9 @@ void LogicInputElm::setEditValue(int n, EditInfo &ei) {
 
 Rectangle LogicInputElm::getSwitchRect() {
     return Rectangle(x2 - 10, y2 - 10, 20, 20);
+}
+
+void LogicInputElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, lead1.x, lead1.y);
+    wr.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
 }

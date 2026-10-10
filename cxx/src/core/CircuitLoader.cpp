@@ -21,6 +21,7 @@
 #include "CircuitLoader.h"
 
 #include "Adjustable.h"
+#include "WireRouter.h"
 #include "CustomLogicModel.h"
 
 #include <cmath>
@@ -40,6 +41,7 @@
 #include "XmlDoc.h"
 
 void CircuitLoader::clearCircuit() {
+    WireRouter::lastRouter = nullptr;
     app->deleteAllElms();
     sim->resetTime();
     sim->solverType = SimulationManager::SOLVER_AUTO;

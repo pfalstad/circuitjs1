@@ -19,6 +19,8 @@
 
 #include "CircuitElm.h"
 
+#include "WireRouter.h"
+
 #include <cmath>
 
 #include "CircuitXMLDeserializer.h"
@@ -101,6 +103,7 @@ void CircuitElm::setPoints() {
 }
 
 void CircuitElm::calcLeads(int len) {
+    leadsSet = true;
     if (dn < len || len == 0) {
         lead1 = point1;
         lead2 = point2;
@@ -446,4 +449,21 @@ void CircuitElm::dumpXml(XmlElement *doc, XmlElement *elem) {
 
 void CircuitElm::undumpXml(CircuitXMLDeserializer &xml) {
     flags = xml.parseIntAttr("f", flags);
+}
+
+void CircuitElm::addRoutingObstacle(WireRouter &router) {
+    if (x == x2 || y == y2) {
+        router.addWire(x, y, x2, y2);
+        if (leadsSet)
+            router.addObstacle(lead1.x, lead1.y, lead2.x, lead2.y);
+    }
+}
+
+void CircuitElm::addRoutingObstacleWithLeads(WireRouter &router, double width) {
+    if (x == x2 || y == y2) {
+        router.addWire(x, y, x2, y2);
+        Point pa = interpPoint(lead1, lead2, 0, width);
+        Point pb = interpPoint(lead1, lead2, 1, -width);
+        router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+    }
 }

@@ -28,6 +28,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 #include <cctype>
 
 SwitchElm::SwitchElm(int xx, int yy, bool mm) : CircuitElm(xx, yy) {
@@ -255,4 +256,13 @@ void SwitchElm::setKeyShortcutEditValue(EditInfo &ei) {
         keyShortcut.reset();
     else
         keyShortcut = std::string(1, (char) std::tolower((unsigned char) s[0]));
+}
+
+void SwitchElm::addRoutingObstacle(WireRouter &wr) {
+    if (x == x2 || y == y2) {
+        wr.addWire(x, y, x2, y2);
+        Point pa = interpPoint(lead1, lead2, 0, 0);
+        Point pb = interpPoint(lead1, lead2, 1, openhs);
+        wr.addObstacle(pa.x, pa.y, pb.x, pb.y);
+    }
 }

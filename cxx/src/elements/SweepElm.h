@@ -23,6 +23,7 @@
 
 class SweepElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(SweepElm)
     double maxV, maxF, minF, sweepTime, frequency;
     static constexpr int FLAG_LOG = 1;

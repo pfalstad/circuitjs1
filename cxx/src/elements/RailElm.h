@@ -23,6 +23,7 @@
 
 class RailElm : public VoltageElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(RailElm)
     static constexpr int FLAG_CLOCK = 1;
 

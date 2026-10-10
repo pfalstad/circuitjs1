@@ -32,6 +32,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 InverterElm::InverterElm(int xx, int yy) : CircuitElm(xx, yy) {
     noDiagonal = true;
@@ -149,4 +150,8 @@ void InverterElm::setEditValue(int n, EditInfo &ei) {
         flags = ei.changeFlag(flags, FLAG_DEMORGAN);
         setPoints();
     }
+}
+
+void InverterElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, 16);
 }

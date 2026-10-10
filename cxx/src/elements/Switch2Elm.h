@@ -24,6 +24,7 @@
 // SPDT switch
 class Switch2Elm : public SwitchElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(Switch2Elm)
     int link = 0;
     int throwCount = 2;

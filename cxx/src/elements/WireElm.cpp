@@ -19,6 +19,8 @@
 
 #include "WireElm.h"
 
+#include "../core/ElementFactory.h"
+
 #include "LabeledNodeElm.h"
 
 #include <cstdlib>
@@ -165,4 +167,32 @@ void WireElm::setEditValue(int n, EditInfo &ei) {
         flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE);
     if (n == 3)
         flags = ei.changeFlag(flags, FLAG_SHOW_BUS_VALUE_HEX);
+}
+
+bool WireElm::pointOnWireInteriorForPoints(int px, int py, const std::vector<Point> &pts) {
+    for (size_t i = 0; i + 1 < pts.size(); i++) {
+        const Point &a = pts[i];
+        const Point &b = pts[i + 1];
+        if (pointOnSegmentInterior(a.x, a.y, b.x, b.y, px, py))
+            return true;
+    }
+    // an interior bend vertex (not the wire's overall endpoints) is also a valid split point,
+    // even though it's not "interior" to either of its adjacent segments
+    for (size_t i = 1; i + 1 < pts.size(); i++) {
+        const Point &p = pts[i];
+        if (p.x == px && p.y == py)
+            return true;
+    }
+    return false;
+}
+
+bool WireElm::pointOnWireInterior(int px, int py) {
+    return pointOnWireInteriorForPoints(px, py, {point1, point2});
+}
+
+WireElm *WireElm::split(int px, int py) {
+    WireElm *newWire = static_cast<WireElm *>(ElementFactory::create("WireElm", px, py));
+    newWire->drag(x2, y2);
+    drag(px, py);
+    return newWire;
 }

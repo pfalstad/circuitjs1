@@ -148,7 +148,6 @@ public:
     bool confirm(const std::string &question) override;
     void alert(const std::string &message) override;
     bool showPropsOnClick = true;
-    std::optional<Rectangle> getCircuitBounds();
 
 private:
     void createMenus();

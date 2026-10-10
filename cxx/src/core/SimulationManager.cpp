@@ -27,6 +27,7 @@
 #include "SimApp.h"
 #include "../elements/GroundElm.h"
 #include "../elements/LabeledNodeElm.h"
+#include "../elements/RoutedWireElm.h"
 #include "../elements/BusSplitterElm.h"
 #include "../elements/WireElm.h"
 
@@ -1010,7 +1011,12 @@ void SimulationManager::makePostDrawList() {
                 if (ce->isGraphicElm())
                     continue;
 
-                // TODO: routed wires check their path instead of the bounding box
+                // routed wire: check path directly instead of bounding box (which is too big)
+                if (ce->isRoutedWireElm()) {
+                    if (static_cast<RoutedWireElm *>(ce)->pointOnPath(cn))
+                        bad = true;
+                    continue;
+                }
 
                 // does this post intersect elm's bounding box?
                 if (!ce->boundingBox.contains(cn.x, cn.y))
@@ -1033,8 +1039,26 @@ void SimulationManager::makePostDrawList() {
     for (const Point &p : busMismatchList)
         app->badConnectionList.push_back(p);
 
-    // TODO: routedWireMap, when RoutedWireElm is ported
+    // build mapping from elements to connected routed wires
     routedWireMap.clear();
+    for (CircuitElm *rw : drawList) {
+        if (!rw->isRoutedWireElm())
+            continue;
+        int rwPosts = rw->getPostCount();
+        for (int rp = 0; rp < rwPosts; rp++) {
+            Point rwPt = rw->getPost(rp);
+            for (CircuitElm *other : drawList) {
+                if (other == rw || other->isRoutedWireElm())
+                    continue;
+                int otherPosts = other->getPostCount();
+                for (int op = 0; op < otherPosts; op++) {
+                    Point op2 = other->getPost(op);
+                    if (op2.x == rwPt.x && op2.y == rwPt.y)
+                        routedWireMap[other].push_back({rw, rp, op});
+                }
+            }
+        }
+    }
 }
 
 void SimulationManager::stop(const std::string &s, CircuitElm *ce) {

@@ -87,7 +87,10 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
         menu.addAction(LS("Mirror Y"))->setEnabled(false);    // TODO
         menu.addAction(LS("Rotate CCW"))->setEnabled(false);  // TODO
         menu.addAction(LS("Rotate CW"))->setEnabled(false);   // TODO
-        menu.addAction(LS("Split Wire Manually"))->setEnabled(false);  // TODO
+        menu.addAction(LS("Split Wire Manually"), this, [this, menuElm] {
+            pushUndo();
+            mouse.doSplit(menuElm);
+        })->setEnabled(menuElm->isWireElm());
         menu.addAction(LS("Sliders..."), this, [this, menuElm] { doSliders(menuElm); })
             ->setEnabled(sliderItemEnabled(menuElm));
     } else {

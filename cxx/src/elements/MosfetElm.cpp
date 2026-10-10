@@ -31,6 +31,7 @@
 #include "../core/MosfetModel.h"
 #include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
+#include "../core/WireRouter.h"
 
 std::string MosfetElm::lastModelName = "default";
 
@@ -720,4 +721,9 @@ void MosfetElm::flipY(int c2, int count) {
 void MosfetElm::flipXY(int xmy, int count) {
     flags ^= FLAG_FLIP;
     CircuitElm::flipXY(xmy, count);
+}
+
+void MosfetElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addObstacle(std::vector<Point>{gate[0], gate[2], src[0], drn[0], src[2], drn[2]});
+    wr.addWire(point1.x, point1.y, gate[1].x, gate[1].y);
 }

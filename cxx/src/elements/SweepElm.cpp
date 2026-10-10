@@ -28,6 +28,7 @@
 #include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
+#include "../core/WireRouter.h"
 
 SweepElm::SweepElm(int xx, int yy) : CircuitElm(xx, yy) {
     minF = 20;
@@ -217,4 +218,9 @@ void SweepElm::setEditValue(int n, EditInfo &ei) {
             flags |= FLAG_BIDIR;
     }
     setParams();
+}
+
+void SweepElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, lead1.x, lead1.y);
+    wr.addObstacle(point2.x - circleSize, point2.y - circleSize, point2.x + circleSize, point2.y + circleSize);
 }

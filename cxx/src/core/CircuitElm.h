@@ -41,6 +41,7 @@ class StringTokenizer;
 class XmlElement;
 class CircuitXMLDeserializer;
 struct WireSegment;
+class WireRouter;
 
 // every concrete element class puts this in its body; it stands in for constructor.name
 #define ELM_CLASS(name) \
@@ -97,6 +98,9 @@ public:
 
     // lead points (ends of wire stubs for simple two-terminal elements)
     Point lead1, lead2;
+    // the TS version's lead1/lead2 start out null; this says calcLeads() has set them
+    // (elements that set both leads some other way should set it too)
+    bool leadsSet = false;
 
     double current = 0;
     double curcount = 0;
@@ -162,6 +166,9 @@ public:
     virtual double getCurrent() { return current; }
 
     virtual void setParentList(std::vector<CircuitElm *> &) {}
+    // add this element as an obstacle to the wire router grid
+    virtual void addRoutingObstacle(WireRouter &router);
+    void addRoutingObstacleWithLeads(WireRouter &router, double width);
     virtual std::vector<CircuitElm *> *getChildElmList() { return nullptr; }
 
     // called before makeNodeList to allow elements to set up internal node counts, etc.

@@ -48,6 +48,10 @@ public:
     void setMouseElm(CircuitElm *ce);
     void clearMouseElm() { setMouseElm(nullptr); }
     void clearSelection();
+    // split the wire under the context menu / cmd-click position
+    void doSplit(CircuitElm *ce);
+    // where the mouse was last pressed (the context menu's position)
+    double menuX = 0, menuY = 0;
 
     int inverseTransformX(double x) const;
     int inverseTransformY(double y) const;
@@ -63,6 +67,9 @@ public:
     std::optional<Rectangle> selectedArea;
 
 private:
+    // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
+    // Returns true if any wire was split.
+    bool splitWireAt(int px, int py);
     void mouseSelect(double sx, double sy, bool shift);
     void mouseDragged(QMouseEvent *e);
     bool doSwitch(int x, int y);

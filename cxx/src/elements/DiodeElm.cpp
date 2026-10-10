@@ -32,6 +32,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 std::string DiodeElm::lastModelName = "default";
 
@@ -194,4 +195,8 @@ void DiodeElm::setEditValue(int n, EditInfo &ei) {
         setup();
         ei.newDialog = true;
     }
+}
+
+void DiodeElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, hs);
 }

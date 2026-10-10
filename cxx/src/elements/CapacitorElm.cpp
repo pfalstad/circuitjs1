@@ -30,6 +30,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 CapacitorElm::CapacitorElm(int xx, int yy) : CircuitElm(xx, yy) {
     capacitance = 1e-5;
@@ -285,4 +286,8 @@ void CapacitorElm::setEditValue(int n, EditInfo &ei) {
         seriesResistance = ei.value;
         allocNodes();
     }
+}
+
+void CapacitorElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, 12);
 }

@@ -30,6 +30,7 @@
 #include "../core/Graphics.h"
 #include "../core/Locale.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 OpAmpElm::OpAmpElm(int xx, int yy) : CircuitElm(xx, yy) {
     noDiagonal = true;
@@ -222,4 +223,8 @@ void OpAmpElm::setEditValue(int n, EditInfo &ei) {
         minOut = ei.value;
     if (n == 2)
         gain = ei.value;
+}
+
+void OpAmpElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, opwidth);
 }

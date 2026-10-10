@@ -70,6 +70,7 @@ public:
 
 class ChipElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     int csize = 0;
     int cspc = 0;
     int cspc2 = 0;
@@ -128,7 +129,7 @@ public:
     void drag(int xx, int yy) override;
     void setPoints() override;
     void initBoundingBox() override;
-    // TODO: addRoutingObstacle (WireRouter), getPinPos/getOverlappingPin (subcircuit editor)
+    // TODO: getPinPos/getOverlappingPin (subcircuit editor)
 
     int getOverlappingPin(int p1, int p2, int pin);
     Point getPost(int n) override { return pins[n].post; }

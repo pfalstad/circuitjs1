@@ -28,6 +28,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 ResistorElm::ResistorElm(int xx, int yy) : CircuitElm(xx, yy) {
     resistance = 1000;
@@ -124,4 +125,8 @@ std::optional<EditInfo> ResistorElm::getEditInfo(int n) {
 
 void ResistorElm::setEditValue(int n, EditInfo &ei) {
     resistance = (ei.value <= 0) ? 1e-9 : ei.value;
+}
+
+void ResistorElm::addRoutingObstacle(WireRouter &wr) {
+    addRoutingObstacleWithLeads(wr, 6);
 }

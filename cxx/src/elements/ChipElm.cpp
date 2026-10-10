@@ -30,6 +30,7 @@
 #include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
+#include "../core/WireRouter.h"
 
 void Pin::setPoint(int px, int py, int dx, int dy, int dax, int day, int sx, int sy) {
     if (chip->isFlippedX()) {
@@ -650,4 +651,8 @@ void ChipElm::readBitsFromString(const std::string &s, std::vector<bool> &output
         output[i] = (integer & (int32_t) (1u << bitIndex)) != 0;
         bitIndex++;
     }
+}
+
+void ChipElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
 }

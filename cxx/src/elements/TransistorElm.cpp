@@ -34,6 +34,7 @@
 #include "../core/Graphics.h"
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
+#include "../core/WireRouter.h"
 
 std::string TransistorElm::lastModelName = "default";
 int TransistorElm::globalFlags = 0;
@@ -611,4 +612,9 @@ void TransistorElm::setEditValue(int n, EditInfo &ei) {
         setup();
         ei.newDialog = true;
     }
+}
+
+void TransistorElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addObstacle(std::vector<Point>{rect[0], rect[1], rect[2], rect[3], coll[0], emit[0]});
+    wr.addWire(point1.x, point1.y, base.x, base.y);
 }

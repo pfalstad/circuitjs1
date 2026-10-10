@@ -24,6 +24,7 @@
 class InverterElm : public CircuitElm {
 public:
     ELM_CLASS(InverterElm)
+    void addRoutingObstacle(WireRouter &wr) override;
     static constexpr int FLAG_DEMORGAN = 1 << 3;
     double slewRate;  // V/ns
     double highVoltage;

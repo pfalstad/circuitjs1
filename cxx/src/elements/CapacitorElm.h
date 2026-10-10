@@ -24,6 +24,7 @@
 class CapacitorElm : public CircuitElm {
 public:
     ELM_CLASS(CapacitorElm)
+    void addRoutingObstacle(WireRouter &wr) override;
     double capacitance;
     double compResistance;
     double voltdiff;

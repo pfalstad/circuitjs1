@@ -28,6 +28,7 @@
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/JsMath.h"
+#include "../core/WireRouter.h"
 
 OutputElm::OutputElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st)
     : CircuitElm(xa, ya, xb, yb, f) {
@@ -199,4 +200,14 @@ void LogicOutputElm::setEditValue(int n, EditInfo &ei) {
         flags = ei.changeFlag(flags, FLAG_NUMERIC);
     if (n == 3)
         flags = ei.changeFlag(flags, FLAG_TERNARY);
+}
+
+void LogicOutputElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, lead1.x, lead1.y);
+    wr.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
+}
+
+void OutputElm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, x2, y2);
+    wr.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
 }

@@ -29,6 +29,7 @@
 #include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
+#include "../core/WireRouter.h"
 
 double GateElm::lastHighVoltage = 5;
 bool GateElm::lastSchmitt = false;
@@ -446,4 +447,18 @@ void XorGateElm::setEditValue(int n, EditInfo &ei) {
         GateElm::setEditValue(n + 1, ei);
     else
         GateElm::setEditValue(n, ei);
+}
+
+void GateElm::addRoutingObstacle(WireRouter &wr) {
+    // add wires from each input post to gate body
+    for (int i = 0; i < inputCount; i++)
+        wr.addWire(inPosts[i].x, inPosts[i].y, inGates[i].x, inGates[i].y);
+    // add output wire
+    wr.addWire(lead2.x, lead2.y, point2.x, point2.y);
+
+    double leadDist = distance(lead1, lead2);
+    double hs2 = gwidth * (inputCount / 2. + 1);
+    Point pa = interpPoint(lead1, lead2, -8 / leadDist, hs2);
+    Point pb = interpPoint(lead1, lead2, 1, -hs2);
+    wr.addObstacle(pa.x, pa.y, pb.x, pb.y);
 }

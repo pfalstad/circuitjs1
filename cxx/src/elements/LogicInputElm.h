@@ -23,6 +23,7 @@
 
 class LogicInputElm : public SwitchElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     Rectangle getSwitchRect() override;
     ELM_CLASS(LogicInputElm)
     static constexpr int FLAG_TERNARY = 1;

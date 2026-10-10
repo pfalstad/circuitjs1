@@ -30,6 +30,7 @@
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
 #include "../core/VoltageSource.h"
+#include "../core/WireRouter.h"
 
 Switch2Elm::Switch2Elm(int xx, int yy, bool mm) : SwitchElm(xx, yy, mm) {
     noDiagonal = true;
@@ -225,4 +226,20 @@ bool Switch2Elm::validate() {
         return false;
     }
     return true;
+}
+
+void Switch2Elm::addRoutingObstacle(WireRouter &wr) {
+    wr.addWire(point1.x, point1.y, lead1.x, lead1.y);
+    for (int i = 0; i != throwCount; i++)
+        wr.addWire(swposts[i].x, swposts[i].y, swpoles[i].x, swpoles[i].y);
+    // add obstacle spanning lead1 through all poles
+    int minX = lead1.x, minY = lead1.y;
+    int maxX = lead1.x, maxY = lead1.y;
+    for (int i = 0; i != throwCount; i++) {
+        minX = std::min(minX, swpoles[i].x);
+        minY = std::min(minY, swpoles[i].y);
+        maxX = std::max(maxX, swpoles[i].x);
+        maxY = std::max(maxY, swpoles[i].y);
+    }
+    wr.addObstacle(minX, minY, maxX, maxY);
 }

@@ -19,6 +19,8 @@
 
 #include "SimApp.h"
 
+#include <algorithm>
+
 #include "Adjustable.h"
 
 #include "CircuitElm.h"
@@ -77,4 +79,28 @@ bool SimApp::canDelayWireProcessing() {
 void SimApp::elementDeleted(CircuitElm *ce) {
     if (scopeManager != nullptr)
         scopeManager->elementDeleted(ce);
+}
+
+std::optional<Rectangle> SimApp::getCircuitBounds() {
+    int minx = 30000, maxx = -30000, miny = 30000, maxy = -30000;
+    for (CircuitElm *ce : *uiElmList) {
+        if (!ce->isCenteredText()) {
+            minx = std::min(ce->x, std::min(ce->x2, minx));
+            maxx = std::max(ce->x, std::max(ce->x2, maxx));
+        }
+        miny = std::min(ce->y, std::min(ce->y2, miny));
+        maxy = std::max(ce->y, std::max(ce->y2, maxy));
+        // use boundingBox for elements like chips/subcircuits whose
+        // visual extent exceeds their x/y coordinates
+        const Rectangle &bb = ce->getBoundingBox();
+        if (!ce->isCenteredText()) {
+            minx = std::min((int) bb.x, minx);
+            maxx = std::max((int) (bb.x + bb.width), maxx);
+        }
+        miny = std::min((int) bb.y, miny);
+        maxy = std::max((int) (bb.y + bb.height), maxy);
+    }
+    if (minx > maxx)
+        return std::nullopt;
+    return Rectangle(minx, miny, maxx - minx, maxy - miny);
 }

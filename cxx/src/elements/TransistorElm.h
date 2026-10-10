@@ -25,6 +25,7 @@ class TransistorModel;
 
 class TransistorElm : public CircuitElm {
 public:
+    void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(TransistorElm)
     // node 0 = base
     // node 1 = collector
