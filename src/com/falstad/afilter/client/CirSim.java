@@ -520,25 +520,25 @@ MouseOutHandler, MouseWheelHandler {
 
 	m = new MenuBar(true);
 	final String edithtml="<div style=\"display:inline-block;width:120px;\">";
-	String sn=edithtml+"Undo</div>Ctrl-Z";
+	String sn=edithtml+"Undo</div>" + ctrlMetaKey + "-Z";
 	m.addItem(undoItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","undo")));
 	// undoItem.setShortcut(new MenuShortcut(KeyEvent.VK_Z));
-	sn=edithtml+"Redo</div>Ctrl-Y";
+	sn=edithtml+"Redo</div>" + ctrlMetaKey + "-Y";
 	m.addItem(redoItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","redo")));
 	//redoItem.setShortcut(new MenuShortcut(KeyEvent.VK_Z, true));
 	m.addSeparator();
 //	m.addItem(cutItem = new MenuItem("Cut", new MyCommand("edit","cut")));
-	sn=edithtml+"Cut</div>Ctrl-X";
+	sn=edithtml+"Cut</div>" + ctrlMetaKey + "-X";
 	m.addItem(cutItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","cut")));
 	//cutItem.setShortcut(new MenuShortcut(KeyEvent.VK_X));
-	sn=edithtml+"Copy</div>Ctrl-C";
+	sn=edithtml+"Copy</div>" + ctrlMetaKey + "-C";
 	m.addItem(copyItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","copy")));
-	sn=edithtml+"Paste</div>Ctrl-V";
+	sn=edithtml+"Paste</div>" + ctrlMetaKey + "-V";
 	m.addItem(pasteItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","paste")));
 	//pasteItem.setShortcut(new MenuShortcut(KeyEvent.VK_V));
 	pasteItem.setEnabled(false);
 	m.addSeparator();
-	sn=edithtml+"Select All</div>Ctrl-A";
+	sn=edithtml+"Select All</div>" + ctrlMetaKey + "-A";
 	m.addItem(selectAllItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","selectAll")));
 	//selectAllItem.setShortcut(new MenuShortcut(KeyEvent.VK_A));
 	m.addItem(new MenuItem("Center Circuit", new MyCommand("edit", "centercircuit")));
@@ -3479,6 +3479,12 @@ MouseOutHandler, MouseWheelHandler {
     		doUndo();
     	if (item=="redo")
     		doRedo();
+
+    	// if the mouse is hovering over an element, and a shortcut key is pressed, operate on that element (treat it like a context menu item selection)
+    	if (menu == "key" && mouseElm != null) {
+    		menuElm = mouseElm;
+    		menu = "elm";
+    	}
     	if (item == "cut") {
     		if (menu!="elm")
     			menuElm = null;
@@ -5252,6 +5258,8 @@ MouseOutHandler, MouseWheelHandler {
     		CircuitElm ce = getElm(i);
     		if (ce.isSelected()) {
     			clipboard += ce.dump() + "\n";
+    			if (ce == mouseElm)
+    				setMouseElm(null);
     			ce.delete();
     			elmList.removeElementAt(i);
     		}
@@ -5285,6 +5293,8 @@ MouseOutHandler, MouseWheelHandler {
     	for (i = elmList.size()-1; i >= 0; i--) {
     		CircuitElm ce = getElm(i);
     		if (ce.isSelected()) {
+    			if (ce == mouseElm)
+    				setMouseElm(null);
     			ce.delete();
     			elmList.removeElementAt(i);
     			hasDeleted = true;
@@ -5312,6 +5322,7 @@ MouseOutHandler, MouseWheelHandler {
 
     void doCopy() {
     	int i;
+    	boolean clearSel = (menuElm != null && !menuElm.selected);
     	clipboard = "";
     	setMenuSelection();
     	for (i = elmList.size()-1; i >= 0; i--) {
@@ -5319,6 +5330,8 @@ MouseOutHandler, MouseWheelHandler {
     		if (ce.isSelected())
     			clipboard += ce.dump() + "\n";
     	}
+    	if (clearSel)
+    		clearSelection();
     	writeClipboardToStorage();
     	enablePaste();
     }
