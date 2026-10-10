@@ -101,6 +101,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     }
     
     void delete() {
+	super.delete();
 	sim.removeWidgetFromVerticalPanel(label);
 	sim.removeWidgetFromVerticalPanel(slider);
     }

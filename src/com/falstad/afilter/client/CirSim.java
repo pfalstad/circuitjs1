@@ -102,6 +102,7 @@ MouseOutHandler, MouseWheelHandler {
     Random random;
 
     static HashMap<String, String> xmlDumpTypeMap;
+    Vector<Adjustable> adjustables = new Vector<Adjustable>();
 
 
 
@@ -153,6 +154,7 @@ MouseOutHandler, MouseWheelHandler {
     private Scrollbar scaleBar;
     MenuBar elmMenuBar;
     MenuItem elmEditMenuItem;
+    MenuItem elmSliderMenuItem;
     MenuItem elmCutMenuItem;
     MenuItem elmCopyMenuItem;
     MenuItem elmDeleteMenuItem;
@@ -767,6 +769,7 @@ MouseOutHandler, MouseWheelHandler {
 	elmMenuBar.addItem(elmCutMenuItem = new MenuItem("Cut",new MyCommand("elm","cut")));
 	elmMenuBar.addItem(elmCopyMenuItem = new MenuItem("Copy",new MyCommand("elm","copy")));
 	elmMenuBar.addItem(elmDeleteMenuItem = new MenuItem("Delete",new MyCommand("elm","delete")));
+	elmMenuBar.addItem(elmSliderMenuItem = new MenuItem("Sliders...",new MyCommand("elm","sliders")));
 //	main.add(elmMenu);
 	
 	scopeMenuBar = buildScopeMenu(false);
@@ -3444,6 +3447,8 @@ MouseOutHandler, MouseWheelHandler {
     		unstackAll();
     	if (menu=="elm" && item=="edit")
     		doEdit(menuElm);
+    	if (menu=="elm" && item=="sliders")
+    		doSliders(menuElm);
     	if (item=="delete") {
     		if (menu=="elm")
     			menuElm = null;
@@ -3578,6 +3583,53 @@ MouseOutHandler, MouseWheelHandler {
     	}
     }
    
+
+    void doSliders(CircuitElm ce) {
+	clearSelection();
+	pushUndo();
+	SliderDialog dlg = new SliderDialog(ce, this);
+	dlg.show();
+    }
+
+    boolean sliderItemEnabled(CircuitElm elm) {
+	int i;
+
+	// prevent confusion
+	if (elm instanceof VarRailElm || elm instanceof PotElm)
+	    return false;
+
+	for (i = 0; ; i++) {
+	    EditInfo ei = elm.getEditInfo(i);
+	    if (ei == null)
+		return false;
+	    if (ei.canCreateAdjustable())
+		return true;
+	}
+    }
+
+    public Adjustable findAdjustable(CircuitElm elm, int item) {
+	int i;
+	for (i = 0; i != adjustables.size(); i++) {
+	    Adjustable a = adjustables.get(i);
+	    if (a.elm == elm && a.editItem == item)
+		return a;
+	}
+	return null;
+    }
+
+    // delete sliders for an element
+    void deleteSliders(CircuitElm elm) {
+	int i;
+	if (adjustables == null)
+	    return;
+	for (i = adjustables.size()-1; i >= 0; i--) {
+	    Adjustable adj = adjustables.get(i);
+	    if (adj.elm == elm) {
+		adj.deleteSlider(this);
+		adjustables.remove(i);
+	    }
+	}
+    }
 
     void doEdit(Editable eable) {
     	clearSelection();
@@ -3945,6 +3997,12 @@ MouseOutHandler, MouseWheelHandler {
 	}
 	if (customizer != null)
 	    customizer.create();
+	if (!retain) {
+	    for (i = 0; i < adjustables.size(); i++) {
+		if (!adjustables.get(i).createSlider(this))
+		    adjustables.remove(i--);
+	    }
+	}
 	animateFreq = 0;
 	setVPACheck(admittanceCheckItem);
 	setPowerBarEnable();
@@ -4444,6 +4502,9 @@ MouseOutHandler, MouseWheelHandler {
     		if (ce!=null)
     			ce.setMouseElm(true);
     		mouseElm=ce;
+    		int i;
+    		for (i = 0; i < adjustables.size(); i++)
+    		    adjustables.get(i).setMouseElm(ce);
     	}
     }
 
@@ -4605,6 +4666,7 @@ MouseOutHandler, MouseWheelHandler {
     	} else if (mouseElm != null) {
     		elmScopeMenuItem.setEnabled(mouseElm.canViewInScope());
     		elmEditMenuItem .setEnabled(mouseElm.getEditInfo(0) != null);
+    		elmSliderMenuItem.setEnabled(sliderItemEnabled(mouseElm));
     		contextPanel=new PopupPanel(true);
     		contextPanel.add(elmMenuBar);
     		contextPanel.setPopupPosition(menuX, menuY);

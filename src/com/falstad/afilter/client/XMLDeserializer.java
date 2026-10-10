@@ -64,6 +64,12 @@ class XMLDeserializer {
 		continue;
 	    }
 
+	    if (tagName.equals("adj")) {
+		currentXmlElement = elem;
+		Adjustable.undumpXml(this, app);
+		continue;
+	    }
+
 	    currentXmlElement = elem;
 	    Customizer cust = CirSim.createCustomizer(tagName, parseIntAttr("f", 0), null);
 	    if (cust != null) {

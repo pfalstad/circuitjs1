@@ -56,7 +56,7 @@ class EditDialog extends DialogBox  {
 	final int barmax = 1000;
 	VerticalPanel vp;
 	HorizontalPanel hp;
-	NumberFormat noCommaFormat;
+	static NumberFormat noCommaFormat = NumberFormat.getFormat("####.##########");
 
 	EditDialog(Editable ce, CirSim f) {
 //		super(f, "Edit Component", false);
@@ -68,7 +68,6 @@ class EditDialog extends DialogBox  {
 		vp=new VerticalPanel();
 		setWidget(vp);
 		einfos = new EditInfo[10];
-		noCommaFormat=NumberFormat.getFormat("####.##########");
 //		noCommaFormat = DecimalFormat.getInstance();
 //		noCommaFormat.setMaximumFractionDigits(10);
 //		noCommaFormat.setGroupingUsed(false);
@@ -154,7 +153,10 @@ class EditDialog extends DialogBox  {
 	}
 
 	String unitString(EditInfo ei) {
-		double v = ei.value;
+		return unitString(ei, ei.value);
+	}
+
+	static String unitString(EditInfo ei, double v) {
 		double va = Math.abs(v);
 		if (ei.dimensionless)
 			return noCommaFormat.format(v);
@@ -177,7 +179,14 @@ class EditDialog extends DialogBox  {
 	}
 
 	double parseUnits(EditInfo ei) throws java.text.ParseException {
-		String s = ei.textf.getText();
+		return parseUnits(ei.textf.getText(), ei.forceLargeM);
+	}
+
+	static double parseUnits(String s) throws java.text.ParseException {
+		return parseUnits(s, false);
+	}
+
+	static double parseUnits(String s, boolean forceLargeM) throws java.text.ParseException {
 		s = s.trim();
 		// rewrite shorthand (eg "2k2") in to normal format (eg 2.2k) using regex
 		s=s.replaceAll("([0-9]+)([pPnNuUmMkKgG])([0-9]+)", "$1.$3$2");
@@ -190,7 +199,7 @@ class EditDialog extends DialogBox  {
 		case 'u': case 'U': mult = 1e-6; break;
 
 		// for ohm values, we assume mega for lowercase m, otherwise milli
-		case 'm': mult = (ei.forceLargeM) ? 1e6 : 1e-3; break;
+		case 'm': mult = (forceLargeM) ? 1e6 : 1e-3; break;
 
 		case 'k': case 'K': mult = 1e3; break;
 		case 'M': mult = 1e6; break;
@@ -214,6 +223,13 @@ class EditDialog extends DialogBox  {
 			if (ei.button != null)
 			    continue;
 			elm.setEditValue(i, ei);
+
+			// update slider if any
+			if (elm instanceof CircuitElm) {
+			    Adjustable adj = cframe.findAdjustable((CircuitElm)elm, i);
+			    if (adj != null)
+				adj.setSliderValue(ei.value);
+			}
 		}
 		cframe.editPerformed(elm);
 	}

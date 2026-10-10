@@ -62,6 +62,7 @@ public class Scrollbar extends  Composite implements
 	Command command=null;
 	CircuitElm attachedElm=null;
 	Customizer attachedCustomizer=null;
+	double stepSize; // step size in scrollbar units (0 = continuous)
 	
 	public Scrollbar(int orientation, int value, int visible, int minimum, int maximum) {
 		min=minimum;
@@ -169,7 +170,20 @@ public class Scrollbar extends  Composite implements
 			v=min;
 		if (v>max)
 			v=max;
+		return snapToStep(v);
+	}
+
+	int snapToStep(int v) {
+		if (stepSize > 0) {
+			v = (int) (Math.round((v - min) / stepSize) * stepSize) + min;
+			if (v < min) v = min;
+			if (v > max) v = max;
+		}
 		return v;
+	}
+
+	void setStepSize(double step) {
+		stepSize = step;
 	}
 	
 	public void onMouseDown(MouseDownEvent e){
@@ -177,14 +191,13 @@ public class Scrollbar extends  Composite implements
 		dragging=false;
 		e.preventDefault();
 		if (enabled){
+			int step = (stepSize > 0) ? Math.max(1, (int) Math.round(stepSize)) : 1;
 			if (e.getX()<HMARGIN+SCROLLHEIGHT ) {
-				if (val>min)
-					val--;
+				val = snapToStep(Math.max(min, val - step));
 			}
 			else {
 				if (e.getX()>CirSim.VERTICALPANELWIDTH-HMARGIN-SCROLLHEIGHT ) {
-					if (val<max)
-						val++;
+					val = snapToStep(Math.min(max, val + step));
 				}
 				else {
 					val=calcValueFromPos(e.getX());	

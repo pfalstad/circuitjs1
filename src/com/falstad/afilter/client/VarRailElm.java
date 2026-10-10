@@ -73,6 +73,7 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 	    return frequency;
 	}
 	void delete() {
+	    super.delete();
 	    sim.removeWidgetFromVerticalPanel(label);
 	    sim.removeWidgetFromVerticalPanel(slider);
 	}

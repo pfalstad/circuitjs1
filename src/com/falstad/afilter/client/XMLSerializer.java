@@ -92,6 +92,9 @@ class XMLSerializer {
 	    root.appendChild(elem);
 	}
 
+	for (int i = 0; i != app.adjustables.size(); i++)
+	    app.adjustables.get(i).dumpXml(doc, root, app);
+
 	if (app.customizer != null) {
 	    Element elem = doc.createElement(app.customizer.getClassName());
 	    app.customizer.dumpXml(elem);
