@@ -519,7 +519,7 @@ MouseOutHandler, MouseWheelHandler {
 	//m.add(exitItem   = getMenuItem("Exit"));
 
 	m = new MenuBar(true);
-	final String edithtml="<div style=\"display:inline-block;width:80px;\">";
+	final String edithtml="<div style=\"display:inline-block;width:120px;\">";
 	String sn=edithtml+"Undo</div>Ctrl-Z";
 	m.addItem(undoItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","undo")));
 	// undoItem.setShortcut(new MenuShortcut(KeyEvent.VK_Z));
