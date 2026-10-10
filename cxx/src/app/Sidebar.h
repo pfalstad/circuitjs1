@@ -25,6 +25,8 @@ class CirSim;
 class QLabel;
 class QPushButton;
 class QSlider;
+class QVBoxLayout;
+class Scrollbar;
 
 // the panel on the right: run/stop, reset, speed sliders, circuit title
 // (the verticalPanel in UIManager.ts)
@@ -41,6 +43,12 @@ public:
     void setCircuitTitle(const QString &title);
     QString circuitTitle() const;
 
+    // the circuit's sliders (Adjustable, VarRailElm, etc.), added at the bottom like the
+    // TS version's addWidgetToVerticalPanel()
+    void addSlider(Scrollbar *sb);
+    void removeSlider(Scrollbar *sb);
+    void updateSlider(Scrollbar *sb);
+
 private:
     CirSim *app;
     QPushButton *resetButton;
@@ -50,4 +58,5 @@ private:
     QSlider *powerBar;
     QLabel *powerLabel;
     QLabel *titleLabel;
+    QVBoxLayout *layout;
 };

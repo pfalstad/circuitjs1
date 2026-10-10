@@ -27,6 +27,7 @@
 
 #include "CirSim.h"
 #include "core/Locale.h"
+#include "core/Scrollbar.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
@@ -40,7 +41,7 @@ static QSlider *makeSlider(int value, int min, int max) {
 
 Sidebar::Sidebar(CirSim *a) : QWidget(a), app(a) {
     setFixedWidth(WIDTH);
-    QVBoxLayout *v = new QVBoxLayout(this);
+    QVBoxLayout *v = layout = new QVBoxLayout(this);
     v->setContentsMargins(6, 6, 6, 6);
     v->setSpacing(4);
 
@@ -125,4 +126,58 @@ void Sidebar::setCircuitTitle(const QString &title) {
 
 QString Sidebar::circuitTitle() const {
     return titleLabel->text();
+}
+
+// the widgets for one slider
+struct SliderWidget {
+    QLabel *label;
+    QSlider *slider;
+};
+
+void Sidebar::addSlider(Scrollbar *sb) {
+    SliderWidget *w = new SliderWidget;
+    w->label = new QLabel(QString::fromStdString(Locale::LS(sb->label)));
+    w->label->setWordWrap(true);
+    w->slider = new QSlider(Qt::Horizontal);
+    // before the stretch at the end
+    int at = layout->count() - 1;
+    layout->insertSpacing(at++, 8);
+    layout->insertWidget(at++, w->label);
+    layout->insertWidget(at, w->slider);
+    sb->widget = w;
+    updateSlider(sb);
+    connect(w->slider, &QSlider::valueChanged, this, [sb](int val) { sb->userSetValue(val); });
+}
+
+void Sidebar::removeSlider(Scrollbar *sb) {
+    SliderWidget *w = static_cast<SliderWidget *>(sb->widget);
+    if (w == nullptr)
+        return;
+    // the spacing item is just before the label
+    int i = layout->indexOf(w->label);
+    if (i > 0) {
+        QLayoutItem *spacer = layout->itemAt(i - 1);
+        if (spacer->spacerItem() != nullptr) {
+            layout->removeItem(spacer);
+            delete spacer;
+        }
+    }
+    delete w->label;
+    delete w->slider;
+    delete w;
+    sb->widget = nullptr;
+}
+
+void Sidebar::updateSlider(Scrollbar *sb) {
+    SliderWidget *w = static_cast<SliderWidget *>(sb->widget);
+    if (w == nullptr)
+        return;
+    QSignalBlocker block(w->slider);
+    w->label->setText(QString::fromStdString(Locale::LS(sb->label)));
+    w->slider->setRange(sb->getMin(), sb->getMax());
+    int step = sb->getStepSize() > 0 ? std::max(1, (int) std::lround(sb->getStepSize())) : 1;
+    w->slider->setSingleStep(step);
+    w->slider->setPageStep(std::max(step, (sb->getMax() - sb->getMin()) / 10));
+    w->slider->setValue(sb->getValue());
+    w->slider->setEnabled(sb->isEnabled());
 }

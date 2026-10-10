@@ -19,6 +19,8 @@
 
 #include "ExprEngine.h"
 
+#include "../elements/LabeledNodeElm.h"
+
 #include <cmath>
 
 #include "CircuitElm.h"
@@ -58,7 +60,13 @@ void ExprEngine::resolveRefs(std::vector<CircuitElm *> &elmList) {
         owner->setNode(ix + 1, CircuitNode::ground);
 
         // a labeled node wins over an element with the same name
-        // TODO: LabeledNodeElm (HookRegistry.getLabeledNode)
+        if (!ref.current) {
+            NodeRef cn = LabeledNodeElm::getByName(ref.name);
+            if (cn != nullptr) {
+                owner->setNode(ix, cn);
+                continue;
+            }
+        }
 
         CircuitElm *elm = nullptr;
         for (CircuitElm *ce : elmList)
@@ -206,8 +214,7 @@ double ExprEngine::evalAndStamp(bool negate) {
 int ExprEngine::addUnresolvedInfo(std::vector<std::string> &arr, int i) {
     for (int k = 0; k != getRefCount(); k++) {
         const ExprNodeRef &ref = refs[k];
-        // TODO: labeled nodes count as resolved v() references (HookRegistry.getLabeledNode)
-        bool resolved = refElms[k] != nullptr;
+        bool resolved = refElms[k] != nullptr || (!ref.current && LabeledNodeElm::getByName(ref.name) != nullptr);
         std::string msg;
         if (!resolved)
             msg = "unknown name: " + std::string(ref.current ? "i(" : "v(") + ref.name + ")";

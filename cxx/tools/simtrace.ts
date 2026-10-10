@@ -80,8 +80,10 @@ function makeApp(): any {
         simIsRunning: () => app.simRunning,
         getIterCount: () => 1, isPrintable: () => false,
         onTimeStep: () => {}, deleteSliders: () => {},
-        snapGrid: (x: number) => (x + 4) & ~7,
-        gridSize: 8,
+        // as in UIManager.setGrid()/CirSim.snapGrid()
+        gridSize: 16,
+        setGrid() { app.gridSize = app.menus.smallGridCheckItem.getState() ? 8 : 16; },
+        snapGrid: (x: number) => (x + app.gridSize / 2 - 1) & ~(app.gridSize - 1),
         register: CirSim.prototype.register,
     };
     return withStubs(app);
@@ -106,6 +108,7 @@ function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes:
     m.voltsCheckItem.setState((flags & 4) == 0);
     m.powerCheckItem.setState((flags & 8) == 8);
     m.showValuesCheckItem.setState((flags & 16) == 0);
+    app.setGrid();
     app.autoDCOnReset = (flags & 128) != 0;
     app.ui.currentBar.setValue(ra("cb", 50));
     app.ui.powerBar.setValue(ra("pb", 50));
@@ -137,6 +140,7 @@ function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes:
             }
             continue;
         }
+        if (elem.tagName === "adj") { Adjustable.undumpXml(xml, app); continue; }
         if (elem.tagName === "h") {
             app.hintType = xml.parseIntAttr("t", -1);
             app.hintItem1 = xml.parseIntAttr("i1", 0);
@@ -156,6 +160,10 @@ function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes:
         elm.setPositionFromXml(elem);
         app.elmList.push(elm);
     }
+    // as in CircuitLoader.finishReadCircuit()
+    for (let i = 0; i < app.adjustables.length; i++)
+        if (!app.adjustables[i].createSlider(app))
+            app.adjustables.splice(i--, 1);
 }
 
 // a few elements build DOM widgets in their constructors; give them something inert
@@ -183,6 +191,10 @@ const dump = process.argv[2] === "--dump";
 const argv = dump ? process.argv.slice(1) : process.argv;
 const file = argv[2];
 const steps = parseInt(argv[3] ?? "1000");
+
+// Adjustable sets window.Adjustable when it loads (CircuitLoader finds it there), so it
+// has to be imported after the fake window exists
+const { Adjustable } = await import("../../ts/Adjustable");
 
 const app = makeApp();
 const sim = new SimulationManager(app);
@@ -213,8 +225,22 @@ sim.preStampAndStampCircuit();
 
 const fmt = (x: number) => x.toPrecision(17);
 const dumpStep = parseInt(process.env.DUMPMATRIX ?? "-1");
+// TOGGLE=elm:step,... toggles switches, as clicking them in the app does
+const toggles = (process.env.TOGGLE ?? "").split(",").filter(t => t.includes(":")).map(t => t.split(":").map(Number));
 for (let s = 0; s < steps; s++) {
     if (s === dumpStep) app.dumpMatrix = true;
+    let toggled = false;
+    for (const [e, ts] of toggles)
+        if (ts === s && app.elmList[e]?.toggle) {
+            app.elmList[e].toggle();
+            toggled = true;
+        }
+    if (toggled) {
+        // what the app's next frame does after needAnalyze()
+        sim.analyzeCircuit();
+        if (sim.needsStamp)
+            sim.preStampAndStampCircuit();
+    }
     try {
         sim.runCircuit(true);
     } catch (e) {

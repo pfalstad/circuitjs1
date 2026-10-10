@@ -244,7 +244,7 @@ public:
     void drawCenteredText(Graphics &g, const std::string &s, double x, double y, bool cx);
     // draw component values (number of resistor ohms, etc).  hs = offset
     void drawValues(Graphics &g, const std::string &s, double hs);
-    void drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2);
+    virtual void drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2);
     void drawCoil(Graphics &g, double hs, const Point &p1, const Point &p2, double v1, double v2);
     static void drawThickLine(Graphics &g, double x, double y, double x2, double y2);
     static void drawThickLine(Graphics &g, const Point &pa, const Point &pb, double width = 3);
@@ -358,6 +358,7 @@ public:
 
     virtual double getScopeValue(int x);
     virtual int getScopeUnits(int x);
+    virtual bool canShowValueInScope(int) { return false; }
 
     // are n1 and n2 connected by this element?  this is used to determine
     // unconnected nodes, and look for loops
@@ -440,7 +441,7 @@ public:
     virtual bool validate() { return true; }
     bool validateRailNode(int n);
 
-    void setMouseElm(bool v);
+    virtual void setMouseElm(bool v);
     bool isMouseElm() { return mouseElmRef == this; }
     virtual void draggingDone() {}
 

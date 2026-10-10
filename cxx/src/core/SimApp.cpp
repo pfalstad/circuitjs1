@@ -19,11 +19,37 @@
 
 #include "SimApp.h"
 
+#include "Adjustable.h"
+
 #include "CircuitElm.h"
 #include "ScopeManager.h"
 
 SimApp::~SimApp() {
     deleteAllElms();
+    for (Adjustable *adj : adjustables)
+        delete adj;
+    for (Adjustable *adj : retiredAdjustables)
+        delete adj;
+}
+
+Adjustable *SimApp::findAdjustable(CircuitElm *elm, int item) {
+    for (Adjustable *a : adjustables)
+        if (a->elm == elm && a->editItem == item)
+            return a;
+    return nullptr;
+}
+
+void SimApp::deleteSliders(CircuitElm *elm) {
+    for (int i = (int) adjustables.size() - 1; i >= 0; i--) {
+        Adjustable *adj = adjustables[i];
+        if (adj->elm == elm) {
+            adj->deleteSlider(this);
+            adjustables.erase(adjustables.begin() + i);
+            // other adjustables may still share its slider, so keep it around like the
+            // garbage-collected TS version does
+            retiredAdjustables.push_back(adj);
+        }
+    }
 }
 
 void SimApp::updateModels() {

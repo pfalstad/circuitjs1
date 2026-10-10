@@ -33,6 +33,27 @@ struct Rectangle {
     explicit Rectangle(const Point &pt) : x(pt.x), y(pt.y) {}
 
     void setBounds(double x_, double y_, double w, double h) { x = x_; y = y_; width = w; height = h; }
+
+    // the smallest rectangle containing both (TS: union())
+    Rectangle unite(const Rectangle &r) const {
+        double tx2 = width, ty2 = height;
+        if (tx2 < 0 || ty2 < 0)
+            return r;
+        double rx2 = r.width, ry2 = r.height;
+        if (rx2 < 0 || ry2 < 0)
+            return *this;
+        double tx1 = x, ty1 = y;
+        tx2 += tx1;
+        ty2 += ty1;
+        double rx1 = r.x, ry1 = r.y;
+        rx2 += rx1;
+        ry2 += ry1;
+        if (tx1 > rx1) tx1 = rx1;
+        if (ty1 > ry1) ty1 = ry1;
+        if (tx2 < rx2) tx2 = rx2;
+        if (ty2 < ry2) ty2 = ry2;
+        return Rectangle(tx1, ty1, tx2 - tx1, ty2 - ty1);
+    }
     void translate(double dx, double dy) { x += dx; y += dy; }
 
     bool contains(double X, double Y) const {

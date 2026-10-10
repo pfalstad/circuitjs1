@@ -40,6 +40,23 @@
 
 #include "../elements/MosfetElm.h"
 #include "../elements/ProbeElm.h"
+#include "../elements/LabeledNodeElm.h"
+#include "../elements/VarRailElm.h"
+#include "../elements/PotElm.h"
+#include "../elements/Switch2Elm.h"
+#include "../elements/SweepElm.h"
+#include "../elements/ZenerElm.h"
+#include "../elements/LEDElm.h"
+#include "../elements/TransformerElm.h"
+#include "../elements/AnalogSwitchElm.h"
+#include "../elements/AnalogSwitch2Elm.h"
+#include "../elements/MemristorElm.h"
+#include "../elements/TransLineElm.h"
+#include "../elements/RelayElm.h"
+#include "../elements/RelayCoilElm.h"
+#include "../elements/RelayContactElm.h"
+#include "../elements/CrossSwitchElm.h"
+#include "../elements/MotorProtectionSwitchElm.h"
 #include "../elements/CustomLogicElm.h"
 #include "../elements/CCVSElm.h"
 #include "../elements/CCCSElm.h"
@@ -118,6 +135,23 @@ void registerElements() {
     reg<NMosfetElm>("NMosfetElm");
     reg<MosfetElm>("MosfetElm");
     reg<ProbeElm>("ProbeElm");
+    reg<LabeledNodeElm>("LabeledNodeElm");
+    reg<VarRailElm>("VarRailElm");
+    reg<PotElm>("PotElm");
+    reg<Switch2Elm>("Switch2Elm");
+    reg<SweepElm>("SweepElm");
+    reg<ZenerElm>("ZenerElm");
+    reg<LEDElm>("LEDElm");
+    reg<TransformerElm>("TransformerElm");
+    reg<AnalogSwitchElm>("AnalogSwitchElm");
+    reg<AnalogSwitch2Elm>("AnalogSwitch2Elm");
+    reg<MemristorElm>("MemristorElm");
+    reg<TransLineElm>("TransLineElm");
+    reg<RelayElm>("RelayElm");
+    reg<RelayCoilElm>("RelayCoilElm");
+    reg<RelayContactElm>("RelayContactElm");
+    reg<CrossSwitchElm>("CrossSwitchElm");
+    reg<MotorProtectionSwitchElm>("MotorProtectionSwitchElm");
     reg<CustomLogicElm>("CustomLogicElm");
     reg<CCVSElm>("CCVSElm");
     reg<CCCSElm>("CCCSElm");

@@ -50,6 +50,12 @@ inline double tanh(double x) { return I::tanh(x); }
 inline double asinh(double x) { return I::asinh(x); }
 inline double acosh(double x) { return I::acosh(x); }
 inline double atanh(double x) { return I::atanh(x); }
-// Math.round(): ties go toward +infinity
-inline double round(double x) { return std::floor(x + 0.5); }
+// Math.round(): ties go toward +infinity.  (floor(x + .5) is wrong for 0.49999999999999994
+// and for odd numbers near 2^53, and gives +0 instead of -0 for -.5 <= x < 0.)
+inline double round(double x) {
+    double r = std::floor(x);
+    if (x - r >= 0.5)
+        r += 1;
+    return r == 0 ? std::copysign(0.0, x) : r;
+}
 }  // namespace jsmath

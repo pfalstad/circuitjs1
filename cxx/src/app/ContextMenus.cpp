@@ -24,6 +24,7 @@
 #include <QMenu>
 
 #include "CirSim.h"
+#include "SliderDialog.h"
 #include "core/CircuitElm.h"
 #include "core/Locale.h"
 #include "core/Scope.h"
@@ -87,7 +88,8 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
         menu.addAction(LS("Rotate CCW"))->setEnabled(false);  // TODO
         menu.addAction(LS("Rotate CW"))->setEnabled(false);   // TODO
         menu.addAction(LS("Split Wire Manually"))->setEnabled(false);  // TODO
-        menu.addAction(LS("Sliders..."))->setEnabled(false);  // TODO
+        menu.addAction(LS("Sliders..."), this, [this, menuElm] { doSliders(menuElm); })
+            ->setEnabled(sliderItemEnabled(menuElm));
     } else {
         // nothing under the mouse: the Draw menu
         drawMenu->exec(globalPos);
@@ -95,4 +97,26 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
     }
     menu.exec(globalPos);
     repaint();
+}
+
+// check if the user can create sliders for this element
+bool CirSim::sliderItemEnabled(CircuitElm *elm) {
+    // prevent confusion
+    if (elm->isVarRailElm() || elm->isPotElm())
+        return false;
+
+    for (int i = 0;; i++) {
+        std::optional<EditInfo> ei = elm->getEditInfo(i);
+        if (!ei)
+            return false;
+        if (ei->canCreateAdjustable())
+            return true;
+    }
+}
+
+void CirSim::doSliders(CircuitElm *ce) {
+    mouse.clearSelection();
+    pushUndo();
+    SliderDialog dlg(ce, this);
+    dlg.exec();
 }

@@ -57,7 +57,7 @@ public:
     void calculateCurrent() override;
     void newModelCreated(DiodeModel *dm);
     virtual bool isZenerElm() { return false; }
-    void setLastModelName(const std::string &n) { lastModelName = n; }
+    virtual void setLastModelName(const std::string &n) { lastModelName = n; }
     void stepFinished() override;
     void draw(Graphics &g) override;
     void drawDiode(Graphics &g);

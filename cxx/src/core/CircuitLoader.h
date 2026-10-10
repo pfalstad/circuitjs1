@@ -45,6 +45,7 @@ public:
     static std::vector<std::string> findUnsupported(const std::string &text);
 
 private:
+    void finishReadCircuit(int flags);
     void readCircuitXml(const std::string &text, int flags);
     void readCircuitText(const std::string &text, int flags);
     void readOptions(StringTokenizer &st, int importFlags);

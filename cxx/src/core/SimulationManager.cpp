@@ -26,6 +26,7 @@
 #include "JsNumber.h"
 #include "SimApp.h"
 #include "../elements/GroundElm.h"
+#include "../elements/LabeledNodeElm.h"
 #include "../elements/BusSplitterElm.h"
 #include "../elements/WireElm.h"
 
@@ -95,6 +96,7 @@ void SimulationManager::detectBusWidthsForList(std::vector<CircuitElm *> &list) 
         }
     }
     // propagate bus widths through wire chains and matching labels until stable
+    std::unordered_map<std::string, int> labelWidthMap;
     bool changed = true;
     while (changed) {
         changed = false;
@@ -122,8 +124,29 @@ void SimulationManager::detectBusWidthsForList(std::vector<CircuitElm *> &list) 
                     if (!w2 || *w2 < w) { widthMap[k2] = w; changed = true; }
                 }
             }
-            // TODO: LabeledNodeElm case, when that is ported
-            else if (ce->isBusSplitterElm()) {
+            else if (ce->isLabeledNodeElm()) {
+                LabeledNodeElm *ln = static_cast<LabeledNodeElm *>(ce);
+                // get max width from position map and label name map
+                std::string k = xyKey(ln->point1);
+                auto iw = widthMap.find(k);
+                auto il = labelWidthMap.find(ln->text);
+                std::optional<int> w, lw;
+                if (iw != widthMap.end()) w = iw->second;
+                if (il != labelWidthMap.end()) lw = il->second;
+                int bw = 1;
+                if (w) bw = *w;
+                if (lw && *lw > bw) bw = *lw;
+                if (bw != ln->busWidth) {
+                    ln->busWidth = bw;
+                    ln->currents.assign(bw > 1 ? bw : 0, 0.0);
+                    ln->allocNodes();
+                    changed = true;
+                }
+                if (bw > 1) {
+                    if (!w || *w < bw) { widthMap[k] = bw; changed = true; }
+                    if (!lw || *lw < bw) { labelWidthMap[ln->text] = bw; changed = true; }
+                }
+            } else if (ce->isBusSplitterElm()) {
                 BusSplitterElm *bs = static_cast<BusSplitterElm *>(ce);
                 // bus side is at pin 0 position
                 std::string p = xyKey(bs->pins[0].post);
@@ -159,7 +182,7 @@ void SimulationManager::detectBusWidthsForList(std::vector<CircuitElm *> &list) 
 // up considerably by reducing the size of the matrix.  We do this for wires, labeled nodes, and ground.
 // The actual node we map to is not assigned yet.  Instead we map to the same NodeMapEntry.
 void SimulationManager::calculateWireClosure() {
-    // TODO: LabeledNodeElm::resetNodeList() when ported
+    LabeledNodeElm::resetNodeList();
     GroundElm::resetNodeList();
     calculateWireClosureForList(elmList, false);
 }
@@ -1515,7 +1538,9 @@ void SimulationManager::lu_solve_dense(std::vector<std::vector<double>> &a, int 
     }
 }
 
-double SimulationManager::getLabeledNodeVoltage(const std::string &) {
-    // TODO: needs LabeledNodeElm
+double SimulationManager::getLabeledNodeVoltage(const std::string &name) {
+    for (CircuitElm *ce : elmList)
+        if (ce->isLabeledNodeElm() && static_cast<LabeledNodeElm *>(ce)->getName() == name)
+            return ce->nodes[0]->v;
     return 0;
 }

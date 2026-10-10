@@ -1059,8 +1059,8 @@ CircuitElm *Scope::getSingleElm() const {
 }
 
 bool Scope::canShowResistance() const {
-    // TODO: canShowValueInScope()
-    return false;
+    CircuitElm *elm = getSingleElm();
+    return elm != nullptr && elm->canShowValueInScope(VAL_R);
 }
 
 bool Scope::isShowingVceAndIc() const {

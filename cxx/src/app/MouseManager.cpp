@@ -19,6 +19,8 @@
 
 #include "MouseManager.h"
 
+#include "core/Adjustable.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -57,7 +59,8 @@ void MouseManager::setMouseElm(CircuitElm *ce) {
         if (ce != nullptr)
             ce->setMouseElm(true);
         mouseElm = ce;
-        // TODO: adjustables (sliders)
+        for (Adjustable *adj : sim->adjustables)
+            adj->setMouseElm(ce);
     }
 }
 

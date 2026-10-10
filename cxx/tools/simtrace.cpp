@@ -28,6 +28,9 @@
 //            format, to test the elements' text-format loading.  "ui" gives a chip logic
 //            inputs and outputs instead (clock pins still get a square wave), for trying
 //            it by hand.
+//
+// DUMPMATRIX=n prints the matrices at step n; TOGGLE=elm:step,... toggles the switches
+// with those element indexes at those steps (as clicking them in the app does).
 
 #include <algorithm>
 #include <cstdio>
@@ -49,6 +52,7 @@
 #include "core/JsNumber.h"
 #include "elements/ChipElm.h"
 #include "elements/LogicInputElm.h"
+#include "elements/SwitchElm.h"
 #include "elements/VoltageElm.h"
 
 // frozen clock and fixed "random" numbers, matching the TS harness
@@ -247,9 +251,32 @@ int main(int argc, char **argv) {
 
     const char *ds = std::getenv("DUMPMATRIX");
     int dumpStep = ds ? std::atoi(ds) : -1;
+    // TOGGLE=elm:step,... toggles switches, as clicking them in the app does
+    std::vector<std::pair<int, int>> toggles;
+    if (const char *tg = std::getenv("TOGGLE")) {
+        std::stringstream ts(tg);
+        std::string item;
+        while (std::getline(ts, item, ','))
+            if (item.find(':') != std::string::npos)
+                toggles.emplace_back(std::atoi(item.c_str()), std::atoi(item.c_str() + item.find(':') + 1));
+    }
     for (int s = 0; s < steps; s++) {
         if (s == dumpStep)
             app.dumpMatrix = true;
+        bool toggled = false;
+        for (auto &t : toggles)
+            if (t.second == s) {
+                if (SwitchElm *sw = dynamic_cast<SwitchElm *>(app.getElm(t.first))) {
+                    sw->toggle();
+                    toggled = true;
+                }
+            }
+        if (toggled) {
+            // what the app's next frame does after needAnalyze()
+            sim.analyzeCircuit();
+            if (sim.needsStamp)
+                sim.preStampAndStampCircuit();
+        }
         sim.runCircuit(true);
         if (app.stopMessage) {
             std::printf("stop %s\n", app.stopMessage->c_str());

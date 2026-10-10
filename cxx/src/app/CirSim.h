@@ -103,7 +103,12 @@ public:
     void newBlankCircuit();
     void closeEvent(QCloseEvent *e) override;
     void needAnalyze();
-    void repaint();
+    void repaint() override;
+    bool sliderItemEnabled(CircuitElm *elm);
+    void doSliders(CircuitElm *ce);
+    void addSlider(Scrollbar *sb) override;
+    void removeSlider(Scrollbar *sb) override;
+    void updateSlider(Scrollbar *sb) override;
     void setSimRunning(bool s) override;
 
     // one frame: analyze if needed, run the simulation, draw everything

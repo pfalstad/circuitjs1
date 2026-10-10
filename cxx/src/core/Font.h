@@ -24,6 +24,7 @@
 class Font {
 public:
     static constexpr int BOLD = 1;
+    static constexpr int ITALIC = 2;
 
     std::string family;  // "sans-serif", "monospace", ...
     int style = 0;
@@ -33,4 +34,5 @@ public:
     Font(const std::string &name, int style_, int size_)
         : family(name == "SansSerif" ? "sans-serif" : name), style(style_), size(size_) {}
     bool bold() const { return (style & BOLD) != 0; }
+    bool italic() const { return (style & ITALIC) != 0; }
 };

@@ -60,11 +60,15 @@ void QtGraphics::applyFont(const Font &f) {
     if (f.family == "monospace") {
         qf.setFamily("Menlo");
         qf.setStyleHint(QFont::Monospace);
+    } else if (f.family == "serif") {
+        qf.setFamily("Times");
+        qf.setStyleHint(QFont::Serif);
     } else {
         qf.setStyleHint(QFont::SansSerif);
     }
     qf.setPixelSize(f.size > 0 ? f.size : 1);
     qf.setBold(f.bold());
+    qf.setItalic(f.italic());
     p.setFont(qf);
 }
 

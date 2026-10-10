@@ -32,8 +32,10 @@
 #include "Point.h"
 #include "Rectangle.h"
 
+class Adjustable;
 class CircuitElm;
 class CircuitNode;
+class Scrollbar;
 class ScopeManager;
 
 // The part of CirSim that the simulator and elements depend on.  The headless tools use
@@ -71,6 +73,19 @@ public:
     int speedBarValue = 117;
     int currentBarValue = 50;
     int powerBarValue = 50;
+
+    // values with sliders
+    std::vector<Adjustable *> adjustables;
+    std::vector<Adjustable *> retiredAdjustables;  // deleted, but maybe still shared
+    Adjustable *findAdjustable(CircuitElm *elm, int item);
+    // delete sliders for an element
+    void deleteSliders(CircuitElm *elm);
+
+    // show/hide/refresh a slider in the side panel (TS: addWidgetToVerticalPanel() etc.)
+    virtual void addSlider(Scrollbar *) {}
+    virtual void removeSlider(Scrollbar *) {}
+    virtual void updateSlider(Scrollbar *) {}
+    virtual void repaint() {}
 
     // the scopes (null in the headless tools)
     ScopeManager *scopeManager = nullptr;
@@ -134,7 +149,6 @@ public:
 
     virtual void onTimeStep();
     virtual void callAnalyzeHook() {}
-    virtual void deleteSliders(CircuitElm *) {}
     // an element is being deleted (close any dialog editing it, drop its scope plots, etc.)
     virtual void elementDeleted(CircuitElm *ce);
     // ask the user a yes/no question (window.confirm in the TS version); headless: no

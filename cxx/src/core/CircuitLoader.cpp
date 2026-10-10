@@ -19,6 +19,8 @@
 
 #include "JsMath.h"
 #include "CircuitLoader.h"
+
+#include "Adjustable.h"
 #include "CustomLogicModel.h"
 
 #include <cmath>
@@ -91,7 +93,19 @@ void CircuitLoader::readCircuitXml(const std::string &text, int readFlags) {
     }
 
     xml.readElements(root.get());
-    // TODO: finishReadCircuit (sliders, centering, models)
+    finishReadCircuit(readFlags);
+}
+
+// the parts of finishReadCircuit() that aren't UI (the app centers the circuit, etc.)
+void CircuitLoader::finishReadCircuit(int flags) {
+    if ((flags & RC_RETAIN) == 0) {
+        for (size_t i = 0; i < app->adjustables.size(); i++) {
+            if (!app->adjustables[i]->createSlider(app)) {
+                app->retiredAdjustables.push_back(app->adjustables[i]);  // others may share it
+                app->adjustables.erase(app->adjustables.begin() + i--);
+            }
+        }
+    }
 }
 
 void CircuitLoader::readCircuitText(const std::string &text, int flags) {
@@ -135,7 +149,7 @@ void CircuitLoader::readCircuitText(const std::string &text, int flags) {
                 CustomLogicModel::undumpModel(st);
                 continue;
             }
-            // TODO: sliders (38), subcircuit models (.)
+            // TODO: subcircuit models (.)
             if (tint == '.')
                 continue;
             if (tint == '$') {
@@ -156,8 +170,14 @@ void CircuitLoader::readCircuitText(const std::string &text, int flags) {
                 TransistorModel::undumpModel(st);
                 continue;
             }
-            if (tint == 38)
+            if (tint == 38) {
+                Adjustable *adj = new Adjustable(st, app);
+                if (adj->elm != nullptr)
+                    app->adjustables.push_back(adj);
+                else
+                    delete adj;
                 continue;
+            }
 
             int x1 = parseIntStrict(st.nextToken());
             int y1 = parseIntStrict(st.nextToken());
@@ -176,6 +196,7 @@ void CircuitLoader::readCircuitText(const std::string &text, int flags) {
             SimulationManager::console(std::string("exception while undumping ") + ee.what());
         }
     }
+    finishReadCircuit(flags);
 }
 
 void CircuitLoader::readOptions(StringTokenizer &st, int importFlags) {

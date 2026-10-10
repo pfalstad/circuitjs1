@@ -19,11 +19,14 @@
 
 #include "CircuitXMLSerializer.h"
 
+#include "Adjustable.h"
+
 #include <stdexcept>
 
 #include "CircuitElm.h"
 #include "CustomLogicModel.h"
 #include "MosfetModel.h"
+#include "RelayModel.h"
 #include "DiodeModel.h"
 #include "JsNumber.h"
 #include "Scope.h"
@@ -109,8 +112,9 @@ std::string CircuitXMLSerializer::prettyPrint(const XmlElement *root) {
 }
 
 std::string CircuitXMLSerializer::dumpCircuit() {
-    // TODO: subcircuit and relay models
+    // TODO: subcircuit models
     CustomLogicModel::clearDumpedFlags();
+    RelayModel::clearDumpedFlags();
     MosfetModel::clearDumpedFlags();
     DiodeModel::clearDumpedFlags();
     TransistorModel::clearDumpedFlags();
@@ -149,7 +153,8 @@ std::string CircuitXMLSerializer::dumpCircuit() {
         for (int i = 0; i != sm->scopeCount; i++)
             sm->scopes[i]->dumpXml(&root);
     }
-    // TODO: sliders (adjustables)
+    for (Adjustable *adj : app->adjustables)
+        adj->dumpXml(&root, app);
     if (app->hintType != -1) {
         XmlElement *h = root.createChild("h");
         dumpAttr(h, "t", app->hintType);

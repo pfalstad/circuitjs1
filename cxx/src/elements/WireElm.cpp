@@ -19,6 +19,8 @@
 
 #include "WireElm.h"
 
+#include "LabeledNodeElm.h"
+
 #include <cstdlib>
 #include "../core/Graphics.h"
 #include "../core/Locale.h"
@@ -117,15 +119,28 @@ void WireElm::draw(Graphics &g) {
 }
 
 void WireElm::getInfo(std::vector<std::string> &arr) {
-    // TODO: show the labeled node name, once LabeledNodeElm is ported
     arr[0] = (busWidth > 1) ? "bus wire (" + std::to_string(busWidth) + ")" : "wire";
     if (busWidth > 1) {
         int value = getBusValue();
         arr[1] = "value = " + std::to_string(value);
         arr[2] = "hex = 0x" + toHexUpper(value);
+        std::optional<std::string> label = LabeledNodeElm::getLabelForNode(getNode(0));
+        if (label) {
+            for (int i = 1; i < busWidth; i++) {
+                if (label != LabeledNodeElm::getLabelForNode(getNode(i))) {
+                    label.reset();
+                    break;
+                }
+            }
+        }
+        if (label)
+            arr[3] = *label;
     } else {
         arr[1] = "I = " + getCurrentDText(getCurrent());
         arr[2] = "V = " + getVoltageText(nodes[0]->v);
+        std::optional<std::string> label = LabeledNodeElm::getLabelForNode(getNode(0));
+        if (label)
+            arr[3] = *label;
     }
 }
 

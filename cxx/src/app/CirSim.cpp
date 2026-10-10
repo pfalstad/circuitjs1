@@ -51,6 +51,7 @@
 #include "core/CircuitXMLSerializer.h"
 #include "core/CustomLogicModel.h"
 #include "core/MosfetModel.h"
+#include "core/RelayModel.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
 
@@ -334,8 +335,9 @@ void CirSim::newBlankCircuit() {
 }
 
 std::string CirSim::dumpCircuit(bool saveState) {
-    // TODO: subcircuit and relay models
+    // TODO: subcircuit models
     CustomLogicModel::clearDumpedFlags();
+    RelayModel::clearDumpedFlags();
     MosfetModel::clearDumpedFlags();
     DiodeModel::clearDumpedFlags();
     TransistorModel::clearDumpedFlags();
@@ -891,4 +893,19 @@ void CirSim::alert(const std::string &message) {
 
 bool CirSim::confirm(const std::string &question) {
     return QMessageBox::question(this, "CircuitJS1", QString::fromStdString(question)) == QMessageBox::Yes;
+}
+
+void CirSim::addSlider(Scrollbar *sb) {
+    if (sidebar != nullptr)
+        sidebar->addSlider(sb);
+}
+
+void CirSim::removeSlider(Scrollbar *sb) {
+    if (sidebar != nullptr)
+        sidebar->removeSlider(sb);
+}
+
+void CirSim::updateSlider(Scrollbar *sb) {
+    if (sidebar != nullptr)
+        sidebar->updateSlider(sb);
 }

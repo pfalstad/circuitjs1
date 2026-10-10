@@ -35,7 +35,9 @@ pans, wheel zooms.
     tools/compare.py ../auto-tests/lrc.txt 2000
     tools/compare.py --all 2000
 
-Set `DUMPMATRIX=n` to make both tools print the matrices at step n.
+Set `DUMPMATRIX=n` to make both tools print the matrices at step n, and
+`TOGGLE=elm:step,...` to toggle switches (by element index) at those steps, the
+way clicking them in the app does.
 
     tools/compare.py --dump --all                 # saved XML, TS vs C++
     tools/compare.py --dump ../ts/public/circuits/*.txt
@@ -74,7 +76,13 @@ elements are skipped.
 ## Status
 
 Ported so far: resistor, capacitor, inductor, switch, ground, wire, voltage
-source (all waveforms), rail, current source, diode and diode models, BJT and
+source (all waveforms), rail, variable rail, potentiometer (with linking),
+labeled node (including bus labels and v(label) references in expressions),
+SPDT/multi-throw switch (with linking), sweep, Zener, LED, transformer (with
+saturation), analog switches (SPST and SPDT), memristor, transmission line,
+relay (with relay models), relay coil and contact, cross switch, motor
+protection switch,
+current source, diode and diode models, BJT and
 transistor models, MOSFET/JFET and their models, op-amp, text, output, probe,
 logic input/output, AND/NAND/OR/NOR/XOR/XNOR gates, inverter, and the chips:
 D/JK/T flip-flops, half/full adders, counters (both kinds), ring counter,
@@ -85,7 +93,7 @@ VCO, phase comparator, CCII+/-, time delay relay, custom logic (with models),
 and the controlled sources VCCS/VCVS/CCCS/CCVS with the expression engine
 (Expr, ExprEngine).
 
-204 of the example circuits load fully, and every one of them that TS can also
+236 of the 376 example circuits load fully, and every one of them that TS can also
 run gives bit-identical traces. All 12 auto-tests that load are bit-identical
 over 3000 steps. `compare.py` checks for exact equality by default; `--tol
 1e-9` allows some slack.
@@ -111,7 +119,11 @@ before opening another circuit or quitting. That check compares the circuit
 without its simulation state and scopes, so a click that changes nothing
 doesn't count as a change.
 
-Not yet ported: sparse solver (matrices of 150 or more rows), labeled nodes,
-routed wires, composites/subcircuits (and subcircuit chips), sliders, relay
-models, potentiometer, variable rail, sweep, audio output, analog switches,
-LED, transformer, and the rest.
+Sliders: element values with sliders (Adjustable) load and save in both
+formats, show in the side panel, and can be added, shared and edited with the
+Sliders... dialog in the element context menu.  The slider logic is
+`core/Scrollbar.h` (the TS Scrollbar without the drawing), so slider-driven
+values match TS exactly.
+
+Not yet ported: sparse solver (matrices of 150 or more rows), routed wires,
+composites/subcircuits (and subcircuit chips), audio output, and the rest.

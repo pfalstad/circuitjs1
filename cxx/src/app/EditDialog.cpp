@@ -19,6 +19,8 @@
 
 #include "EditDialog.h"
 
+#include "core/Adjustable.h"
+
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QUrl>
@@ -423,7 +425,12 @@ bool EditDialog::apply() {
             errorLabel->show();
             return false;
         }
-        // TODO: update slider if any
+        // update slider if any
+        if (CircuitElm *ce = dynamic_cast<CircuitElm *>(elm)) {
+            Adjustable *adj = cframe->findAdjustable(ce, i);
+            if (adj != nullptr)
+                adj->setSliderValue(ei.value);
+        }
     }
     errorLabel->hide();
     cframe->needAnalyze();

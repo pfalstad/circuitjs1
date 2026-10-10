@@ -19,6 +19,8 @@
 
 #include "CircuitXMLDeserializer.h"
 
+#include "Adjustable.h"
+
 #include <cmath>
 #include <iostream>
 
@@ -31,6 +33,7 @@
 #include "SimulationManager.h"
 #include "CustomLogicModel.h"
 #include "MosfetModel.h"
+#include "RelayModel.h"
 #include "JsNumber.h"
 #include "SimApp.h"
 #include "StringTokenizer.h"
@@ -46,6 +49,10 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root) {
         }
         if (elem->tagName == "tm") {
             TransistorModel::undumpModelXml(*this);
+            continue;
+        }
+        if (elem->tagName == "rlm") {
+            RelayModel::undumpModelXml(*this);
             continue;
         }
         if (elem->tagName == "mm") {
@@ -71,7 +78,12 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root) {
             app->hintItem2 = parseIntAttr("i2", 0);
             continue;
         }
-        // TODO: models (rlm, ccm), sliders (adj),
+        if (elem->tagName == "adj") {
+            currentXmlElement = elem;
+            Adjustable::undumpXml(*this, app);
+            continue;
+        }
+        // TODO: models (ccm),
         // and test tags come with the ports of those classes
         if (elem->getAttribute("x") == nullptr)
             continue;
