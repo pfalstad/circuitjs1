@@ -254,6 +254,9 @@ MouseOutHandler, MouseWheelHandler {
     Polynomial polyMatrix[][], polyRightSide[];
     Polynomial transferNum, transferDen;
     Complex[] polyPoles, polyZeros;
+    // true if buildTransferFunction() got a usable transfer function, so an empty
+    // polyPoles/polyZeros means there really are none
+    boolean polyAvailable;
     boolean responseChanged;
     long lastSoundUpdateTime;
     int[] polyIndexMap; // maps raw node/VS index to reduced matrix index (0=skip)
@@ -945,12 +948,15 @@ MouseOutHandler, MouseWheelHandler {
     	outputMenuBar.addItem(getClassCheckItem("Add Text", "TextElm"));
     	outputMenuBar.addItem(getClassCheckItem("Add Box", "BoxElm"));
     	outputMenuBar.addItem(getClassCheckItem("Add Scope Probe", "ProbeElm"));
+    	outputMenuBar.addItem(getClassCheckItem("Add Ammeter", "AmmeterElm"));
     	outputMenuBar.addItem(getClassCheckItem("Add Labeled Node", "LabeledNodeElm"));
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+"&nbsp;</div>Labels"), outputMenuBar);
     	
     	MenuBar activeBlocMenuBar = new MenuBar(true);
     	activeBlocMenuBar.addItem(getClassCheckItem("Add Op Amp (- on top)", "OpAmpElm"));
     	activeBlocMenuBar.addItem(getClassCheckItem("Add Op Amp (+ on top)", "OpAmpSwapElm"));
+    	activeBlocMenuBar.addItem(getClassCheckItem("Add Controlled Voltage Source", "ControlledVoltageElm"));
+    	activeBlocMenuBar.addItem(getClassCheckItem("Add Controlled Current Source", "ControlledCurrentElm"));
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+"&nbsp;</div>Active Building Blocks"), activeBlocMenuBar);
     	
     	MenuBar otherMenuBar = new MenuBar(true);
@@ -1687,6 +1693,9 @@ MouseOutHandler, MouseWheelHandler {
             g.fillRect(polesArea.x, polesArea.y,
                        polesArea.width, polesArea.height);
             String msg = "Poles and Zeros not available";
+            if (polyAvailable)
+                msg = (polyZeros == null || polyZeros.length == 0) ?
+                    "No poles or zeros" : "No poles";
             g.setColor(Color.white);
             g.drawString(msg,
                          polesArea.x + (polesArea.width  - g.measureText(msg)) / 2,
@@ -2437,6 +2446,13 @@ MouseOutHandler, MouseWheelHandler {
 	}
 	voltageSourceCount = vscount;
 
+	// a controlled current source with no current path would make the matrix singular
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    if (ce instanceof ControlledCurrentElm)
+		((ControlledCurrentElm) ce).validate();
+	}
+
 	int matrixSize = nodeList.size()-1 + vscount;
 	circuitMatrix = new Complex[matrixSize][matrixSize];
 	circuitRightSide = new Complex[matrixSize];
@@ -2471,6 +2487,7 @@ MouseOutHandler, MouseWheelHandler {
 
     void buildTransferFunction() {
 	int i, j;
+	polyAvailable = false;
 
 	// Guard: if circuit not yet initialized, bail out
 	if (nodeList == null || circuitMatrixSize == 0) {
@@ -2710,6 +2727,9 @@ MouseOutHandler, MouseWheelHandler {
 	for (i = 0; i < polyZeros.length; i++)
 	    console("  " + polyZeros[i].asString());*/
 
+	// a zero numerator or denominator means the matrix was singular (calcResponse()
+	// falls back to solving per frequency), so the roots mean nothing
+	polyAvailable = !transferNum.isZero() && !transferDen.isZero();
 	console("got poles/zeroes from transfer function");
     }
 
@@ -3020,7 +3040,7 @@ MouseOutHandler, MouseWheelHandler {
 		    continue;
 		if (type == INDUCT) {
 		    // inductors need a path free of current sources
-		    if (ce instanceof CurrentElm)
+		    if (ce instanceof CurrentElm || ce instanceof ControlledCurrentElm)
 			continue;
 		}
 		if (type == VOLTAGE) {
@@ -3174,6 +3194,14 @@ MouseOutHandler, MouseWheelHandler {
 	stampMatrix(cn2, vn1, -g);
     }
 
+    // voltage source vs depends on current through voltage source ivs
+    // (must also call stampVoltageSource())
+    void stampCCVS(int vs, int ivs, double gain) {
+	int vn = nodeList.size()+vs;
+	int ivn = nodeList.size()+ivs;
+	stampMatrix(vn, ivn, -gain);
+    }
+
     void stampCurrentSource(int n1, int n2, double i) {
 	stampRightSide(n1, -i);
 	stampRightSide(n2, i);
@@ -3308,6 +3336,12 @@ MouseOutHandler, MouseWheelHandler {
 	int vn = nodeList.size() + vs;
 	stampPolyMatrix(n1, vn, gain);
 	stampPolyMatrix(n2, vn, gain.negate());
+    }
+
+    void stampPolyCCVS(int vs, int ivs, Polynomial gain) {
+	int vn = nodeList.size() + vs;
+	int ivn = nodeList.size() + ivs;
+	stampPolyMatrix(vn, ivn, gain.negate());
     }
 
     void stampPolyVCVS(int n1, int n2, Polynomial coef, int vs) {
@@ -4853,7 +4887,9 @@ MouseOutHandler, MouseWheelHandler {
     }
     
     void setAnimateSpeed() {
-	timeStep = (1/animateFreq) / 256;
+	// timeStep only matters while animating; with no animation frequency, leave it alone
+	if (animateFreq > 0)
+	    timeStep = (1/animateFreq) / 256;
     }
 
     void showHideCurrentSpeedBar() {
@@ -5776,6 +5812,12 @@ MouseOutHandler, MouseWheelHandler {
     		return (CircuitElm) new LabeledNodeElm(x1, y1);
     	if (n=="VoltageElm")
     		return (CircuitElm) new DCVoltageElm(x1, y1);
+    	if (n=="AmmeterElm")
+    		return (CircuitElm) new AmmeterElm(x1, y1);
+    	if (n=="ControlledVoltageElm")
+    		return (CircuitElm) new ControlledVoltageElm(x1, y1);
+    	if (n=="ControlledCurrentElm")
+    		return (CircuitElm) new ControlledCurrentElm(x1, y1);
     	if (n=="LampElm")
     		return (CircuitElm) new LampElm(x1, y1);
     	if (n=="InvertingSchmittElm")

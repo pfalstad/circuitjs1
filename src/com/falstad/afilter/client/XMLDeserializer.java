@@ -27,7 +27,10 @@ class XMLDeserializer {
 	    app.smallGridCheckItem.setState((flags & 2) != 0);
 	    app.powerCheckItem.setState((flags & 8) != 0);
 	    app.showValuesCheckItem.setState((flags & 16) == 0);
-	    app.timeStep = parseDoubleAttr("ts", app.timeStep);
+	    double ts = parseDoubleAttr("ts", app.timeStep);
+	    // older files may have been saved with ts="Infinity"
+	    if (ts > 0 && !Double.isInfinite(ts) && !Double.isNaN(ts))
+		app.timeStep = ts;
 	    app.currentBar.setValue(parseIntAttr("cb", app.currentBar.getValue()));
 	    app.powerBar.setValue(parseIntAttr("pb", app.powerBar.getValue()));
 	    CircuitElm.voltageRange = parseDoubleAttr("vr", CircuitElm.voltageRange);

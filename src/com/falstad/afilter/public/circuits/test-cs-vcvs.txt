@@ -1,0 +1,18 @@
+<cir f="1" ts="0.000005" cb="50" pb="50" vr="5" ff="0" mf="24389.095776063856">
+  <x x="48 32 352 32" f="0" si="12" te="VCVS: controlled voltage source = 2*v(mid)"/>
+  <x x="48 48 352 48" f="0" si="12" te="mid is a labeled node at Vin/2, so the source outputs Vin."/>
+  <x x="48 64 352 64" f="0" si="12" te="The output averages Vin with the source, so:"/>
+  <x x="48 80 352 80" f="0" si="12" te="  0 dB = correct;  -6.02 dB = source outputs nothing;"/>
+  <x x="48 96 352 96" f="0" si="12" te="  deep null = wrong sign."/>
+  <sw x="96 192 64 192" f="3" mi="20" ma="4000" mv="5" sw="0.1"/>
+  <r x="96 192 192 192" f="0" r="1000"/>
+  <r x="192 192 192 288" f="0" r="1000"/>
+  <g x="192 288 192 320" f="0"/>
+  <LabeledNode x="192 192 256 192" f="0" te="mid"/>
+  <w x="96 192 96 416" f="0"/>
+  <r x="96 416 288 416" f="0" r="1000"/>
+  <O x="288 416 288 368" f="0"/>
+  <r x="288 416 416 416" f="0" r="1000"/>
+  <cv x="416 512 416 416" f="0" ex="2*v(mid)"/>
+  <g x="416 512 416 544" f="0"/>
+</cir>

@@ -19,17 +19,31 @@
 
 package com.falstad.afilter.client;
 
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
 class ProbeElm extends CircuitElm {
     static final int FLAG_SHOWVOLTAGE = 1;
+    // optional name, drawn next to the reading and usable as v(name) in a controlled source
+    String label = "";
     public ProbeElm(int xx, int yy) { super(xx, yy); }
     public ProbeElm(int xa, int ya, int xb, int yb, int f,
 		    StringTokenizer st) {
 	super(xa, ya, xb, yb, f);
     }
     int getDumpType() { return 'p'; }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	if (label.length() > 0)
+	    XMLSerializer.dumpAttr(elem, "lb", label);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	label = xml.parseStringAttr("lb", "");
+    }
+    String getExprRefName() { return label.length() > 0 ? label : null; }
 	
     Point center;
     void setPoints() {
@@ -64,8 +78,11 @@ class ProbeElm extends CircuitElm {
 	    drawCenteredText(g, "Y", center.x, center.y, true);
 	if (mustShowVoltage()) {
 	    String s = getVoltageText(getVoltageDiff());
+	    if (label.length() > 0)
+		s = label + " " + s;
 	    drawValues(g, s, 4);
-	}
+	} else if (label.length() > 0)
+	    drawValues(g, label, 4);
 	drawPosts(g);
     }
 	
@@ -75,6 +92,8 @@ class ProbeElm extends CircuitElm {
 
     void getInfo(String arr[]) {
 	arr[0] = "scope probe";
+	if (label.length() > 0)
+	    arr[0] += " (" + label + ")";
 	arr[1] = "Vd = " + getVoltageText(getVoltageDiff());
     }
     boolean getConnection(int n1, int n2) { return false; }
@@ -83,6 +102,11 @@ class ProbeElm extends CircuitElm {
 	    if (n == 0) {
 		EditInfo ei = new EditInfo("", 0, -1, -1);
 		ei.checkbox = new Checkbox("Show Voltage", mustShowVoltage());
+		return ei;
+	    }
+	    if (n == 1) {
+		EditInfo ei = new EditInfo("Name (for controlled sources)", 0, -1, -1);
+		ei.text = label;
 		return ei;
 	    }
 	    return null;
@@ -94,6 +118,8 @@ class ProbeElm extends CircuitElm {
 		else
 		    flags &= ~FLAG_SHOWVOLTAGE;
 	    }
+	    if (n == 1)
+		label = ei.textf.getText().trim();
 	}
 }
 

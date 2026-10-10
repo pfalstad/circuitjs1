@@ -852,6 +852,9 @@ public abstract class CircuitElm implements Editable {
     // are n1 and n2 connected by this element?  this is used to determine
     // unconnected nodes, and look for loops
     boolean getConnection(int n1, int n2) { return true; }
+
+    // name this element can be referred to by in a controlled source, as v(name) or i(name)
+    String getExprRefName() { return null; }
     
     // is n1 connected to ground somehow?
     boolean hasGroundConnection(int n1) { return false; }
