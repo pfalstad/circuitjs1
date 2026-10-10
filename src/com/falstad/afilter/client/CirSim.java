@@ -29,6 +29,7 @@ package com.falstad.afilter.client;
 
 import java.util.Vector;
 import java.util.Random;
+import java.util.HashMap;
 import java.lang.Math;
 import com.google.gwt.canvas.client.Canvas;
 import com.google.gwt.user.client.ui.Button;
@@ -99,7 +100,11 @@ MouseOutHandler, MouseWheelHandler {
 //    Image dbimage;
     
     Random random;
-    
+
+    static HashMap<String, String> xmlDumpTypeMap;
+
+
+
 
     
     public static final int sourceRadius = 7;
@@ -141,10 +146,10 @@ MouseOutHandler, MouseWheelHandler {
     CheckboxMenuItem currentSpeedCheckItem;
     private Label powerLabel, scrollXLabel, speedLabel, currentLabel;
     private Scrollbar speedBar;
-    private Scrollbar currentBar;
-    private Scrollbar powerBar;
+    Scrollbar currentBar;
+    Scrollbar powerBar;
     private Scrollbar scrollXBar;
-    private Scrollbar zoomBar;
+    Scrollbar zoomBar;
     private Scrollbar scaleBar;
     MenuBar elmMenuBar;
     MenuItem elmEditMenuItem;
@@ -620,6 +625,7 @@ MouseOutHandler, MouseWheelHandler {
 	mainMenuBar.setAutoOpen(true);
 	composeMainMenu(mainMenuBar);
 	composeMainMenu(drawMenuBar);
+	registerUnlistedElements();
 
 	  
     	int width=(int)RootLayoutPanel.get().getOffsetWidth();
@@ -1054,13 +1060,44 @@ MouseOutHandler, MouseWheelHandler {
     }
     */
 
+    void register(String origClassName, CircuitElm elm) {
+	if (xmlDumpTypeMap == null)
+	    xmlDumpTypeMap = new HashMap<String, String>();
+	if (elm == null)
+	    return;
+	Class cs = elm.getDumpClass();
+	String className = cs.getName();
+	className = className.substring(className.lastIndexOf('.')+1);
+	String xt = elm.getXmlDumpType();
+	String s = xmlDumpTypeMap.get(xt);
+	if (s != null) {
+	    if (!s.equals(className))
+		console("xml dump type conflict for " + className + " " + xt);
+	} else {
+	    xmlDumpTypeMap.put(xt, className);
+	}
+    }
+
+    // register elements that can be loaded but aren't in the menus
+    void registerUnlistedElements() {
+	String names[] = { "VoltageElm", "RailElm", "CurrentElm", "AntennaElm", "TransformerElm",
+		"TappedTransformerElm", "LampElm", "AnalogSwitchElm", "AnalogSwitch2Elm",
+		"TriStateElm", "InvertingSchmittElm", "DiacElm", "VarRailElm" };
+	for (String n : names) {
+	    CircuitElm elm = constructElement(n, 0, 0);
+	    register(n, elm);
+	    if (elm != null)
+		elm.delete();
+	}
+    }
+
     CheckboxMenuItem getClassCheckItem(String s, String t) {
     	// try {
     	//   Class c = Class.forName(t);
     	String shortcut="";
     	CircuitElm elm = constructElement(t, 0, 0);
     	CheckboxMenuItem mi;
-    	//  register(c, elm);
+    	register(t, elm);
     	if ( elm!=null ) {
     		if (elm.needsShortcut() ) {
     			shortcut += (char)elm.getShortcut();
@@ -3608,7 +3645,8 @@ MouseOutHandler, MouseWheelHandler {
     	exportAsLocalFileDialog.show();
     }
     
-    String dumpCircuit() { return dumpCircuit(false); }
+    //String dumpCircuit() { return dumpCircuit(false); }
+    String dumpCircuit() { return dumpXmlCircuit(); }
 
     String dumpCircuit(boolean forCircuitSim) {
 	int i;
@@ -3784,11 +3822,21 @@ MouseOutHandler, MouseWheelHandler {
     void readSetup(String text, boolean center) {
 	readSetup(text, false, center);
     }
-    
+
     void readSetup(String text, boolean retain, boolean center) {
 	readSetup(text.getBytes(), text.length(), retain, center);
 	// IES - remove interaction
 	// titleLabel.setText("untitled");
+    }
+
+    void readXmlSetup(String text, boolean retain) {
+	XMLDeserializer xml = new XMLDeserializer(this);
+	xml.readCircuit(text, retain);
+    }
+
+    String dumpXmlCircuit() {
+	XMLSerializer xs = new XMLSerializer(this);
+	return xs.dumpCircuit();
     }
 
 
@@ -3868,6 +3916,10 @@ MouseOutHandler, MouseWheelHandler {
 	    lastIterTime = 0;
 	}
 	//cv.repaint();
+	String fullText = new String(b, 0, len).trim();
+	if (fullText.startsWith("<")) {
+	    readXmlSetup(fullText, retain);
+	} else {
 	int p;
 	for (p = 0; p < len; ) {
 	    int l;
@@ -3888,7 +3940,8 @@ MouseOutHandler, MouseWheelHandler {
                 ee.printStackTrace();
             }
 	    p += l;
-	    
+
+	}
 	}
 	if (customizer != null)
 	    customizer.create();
@@ -3988,26 +4041,34 @@ MouseOutHandler, MouseWheelHandler {
     void readCustomizer(StringTokenizer st) {
  	int flags = new Integer(st.nextToken()).intValue();
  	String s = st.nextToken();
- 	if (s == "FilterCustomizer")
- 	    customizer = new FilterCustomizer(flags, st);
- 	else if (s == "ScaleFilter")
- 	    customizer = new ScaleFilter(flags, st);
- 	else if (s == "LadderCustomizer")
- 	    customizer = new LadderCustomizer(flags, st);
- 	else if (s == "BandPassActiveFilter")
- 	    customizer = new BandPassActiveFilter(flags, st);
- 	else if (s == "ButterFilter")
- 	    customizer = new ButterFilter(flags, st);
- 	else if (s == "HighActiveFilter")
- 	    customizer = new HighActiveFilter(flags, st);
- 	else if (s == "LowActiveFilter")
- 	    customizer = new LowActiveFilter(flags, st);
- 	else if (s == "RLCFilter")
- 	    customizer = new RLCFilter(flags, st);
- 	else if (s == "PassiveFilter")
- 	    customizer = new PassiveFilter(flags, st);
+ 	Customizer c = createCustomizer(s, flags, st);
+ 	if (c != null)
+ 	    customizer = c;
  	else
  	    console("unknown customizer " + s);
+    }
+
+    // st may be null when loading from xml; attributes are read afterward with undumpXml()
+    static Customizer createCustomizer(String s, int flags, StringTokenizer st) {
+ 	if (s.equals("FilterCustomizer"))
+ 	    return new FilterCustomizer(flags, st);
+ 	if (s.equals("ScaleFilter"))
+ 	    return new ScaleFilter(flags, st);
+ 	if (s.equals("LadderCustomizer"))
+ 	    return new LadderCustomizer(flags, st);
+ 	if (s.equals("BandPassActiveFilter"))
+ 	    return new BandPassActiveFilter(flags, st);
+ 	if (s.equals("ButterFilter"))
+ 	    return new ButterFilter(flags, st);
+ 	if (s.equals("HighActiveFilter"))
+ 	    return new HighActiveFilter(flags, st);
+ 	if (s.equals("LowActiveFilter"))
+ 	    return new LowActiveFilter(flags, st);
+ 	if (s.equals("RLCFilter"))
+ 	    return new RLCFilter(flags, st);
+ 	if (s.equals("PassiveFilter"))
+ 	    return new PassiveFilter(flags, st);
+ 	return null;
     }
     
     void releaseCustomizer() {
@@ -5651,6 +5712,14 @@ MouseOutHandler, MouseWheelHandler {
     		return (CircuitElm) new TextElm(x1, y1);
     	if (n=="LabeledNodeElm")
     		return (CircuitElm) new LabeledNodeElm(x1, y1);
+    	if (n=="VoltageElm")
+    		return (CircuitElm) new DCVoltageElm(x1, y1);
+    	if (n=="LampElm")
+    		return (CircuitElm) new LampElm(x1, y1);
+    	if (n=="InvertingSchmittElm")
+    		return (CircuitElm) new InvertingSchmittElm(x1, y1);
+    	if (n=="DiacElm")
+    		return (CircuitElm) new DiacElm(x1, y1);
     	return null;
     }
     

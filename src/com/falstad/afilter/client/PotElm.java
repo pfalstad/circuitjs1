@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.awt.event.*;
 //import java.util.StringTokenizer;
@@ -67,7 +70,22 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     
     String dump() { return super.dump() + " " + maxResistance + " " +
     		position + " " + sliderText; }
-    
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ma", maxResistance);
+	XMLSerializer.dumpAttr(elem, "po", position);
+	XMLSerializer.dumpAttr(elem, "sl", sliderText);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	maxResistance = xml.parseDoubleAttr("ma", maxResistance);
+	position = xml.parseDoubleAttr("po", position);
+	sliderText = xml.parseStringAttr("sl", sliderText);
+	int value = (int) (position * 100);
+	slider.setValue(value);
+	label.setText(sliderText);
+    }
+
     void createSlider() {
     	sim.addWidgetToVerticalPanel(label = new Label(sliderText));
     	label.addStyleName("topSpace");

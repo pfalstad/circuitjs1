@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 // SPDT switch
 
     class Switch2Elm extends SwitchElm {
@@ -49,6 +52,16 @@ package com.falstad.afilter.client;
 	int getDumpType() { return 'S'; }
 	String dump() {
 	    return super.dump() + " " + link + " " + throwCount;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "li", link);
+	    XMLSerializer.dumpAttr(elem, "th", throwCount);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    link = xml.parseIntAttr("li", link);
+	    throwCount = xml.parseIntAttr("th", throwCount);
 	}
 
 	final int openhs = 16;

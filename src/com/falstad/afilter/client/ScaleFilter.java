@@ -10,6 +10,11 @@ class ScaleFilter extends FilterCustomizer {
 	if (elm != null)
 	    oldR = ((ResistorElm) elm).getResistance();
     }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	// circuit values were saved at this frequency
+	oldFreq = frequency;
+    }
 
     double getScaleFactor(double w, Complex poles[]) {
 	if (form == FILT_HIPASS)

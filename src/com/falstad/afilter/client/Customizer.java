@@ -1,6 +1,7 @@
 package com.falstad.afilter.client;
 
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.xml.client.Element;
 
 class Customizer {
     int flags;
@@ -14,6 +15,13 @@ class Customizer {
 	labels = new Label[10];
 	bars = new Scrollbar[10];
 	lcount = 0;
+    }
+    String getClassName() { return getClass().getName().replace("com.falstad.afilter.client.", ""); }
+    void dumpXml(Element elem) {
+	XMLSerializer.dumpAttr(elem, "f", flags);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	flags = xml.parseIntAttr("f", flags);
     }
     void create() {}
     void delete() {

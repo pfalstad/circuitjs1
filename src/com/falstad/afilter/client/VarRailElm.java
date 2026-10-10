@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 import com.google.gwt.user.client.ui.Label;
@@ -45,6 +48,15 @@ import com.google.gwt.event.dom.client.MouseWheelHandler;
 	}
 	String dump() {
 	    return super.dump() + " " + sliderText;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "sl", sliderText);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    sliderText = xml.parseStringAttr("sl", sliderText);
+	    label.setText(sliderText);
 	}
 	int getDumpType() { return 172; }
 	void createSlider() {

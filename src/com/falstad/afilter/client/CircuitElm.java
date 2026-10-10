@@ -32,6 +32,8 @@ import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.canvas.dom.client.TextMetrics;
 import com.google.gwt.core.shared.GWT;
 import com.google.gwt.i18n.client.NumberFormat;
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 
 // circuit element class
 public abstract class CircuitElm implements Editable {
@@ -61,6 +63,44 @@ public abstract class CircuitElm implements Editable {
     int getDumpType() { return 0; }
     Class getDumpClass() { return getClass(); }
     int getDefaultFlags() { return 0; }
+
+    String getClassName() { return getClass().getName().replace("com.falstad.afilter.client.", ""); }
+
+    String getXmlDumpType() {
+	int t = getDumpType();
+	if (t > 64 && t < 127)
+	    return Character.toString((char) t);
+	return getClassName().replace("Elm", "");
+    }
+
+    void dumpXml(Document doc, Element elem) {
+	XMLSerializer.dumpAttr(elem, "x", x + " " + y + " " + x2 + " " + y2);
+	XMLSerializer.dumpAttr(elem, "f", flags);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	flags = xml.parseIntAttr("f", flags);
+    }
+
+    void dumpXmlState(Document doc, Element elem) { }
+
+    void setPosition(int x_, int y_, int x2_, int y2_) {
+	x = x_;
+	y = y_;
+	x2 = x2_;
+	y2 = y2_;
+	initBoundingBox();
+	setPoints();
+    }
+
+    void setPositionFromXml(Element elem) {
+	String x = elem.getAttribute("x");
+	if (x == null)
+	    return;
+	String xs[] = x.split(" ");
+	setPosition(Integer.parseInt(xs[0]), Integer.parseInt(xs[1]),
+		    Integer.parseInt(xs[2]), Integer.parseInt(xs[3]));
+    }
 
     static void initClass(CirSim s) {
 	unitsFont = new Font("SansSerif", 0, 12);

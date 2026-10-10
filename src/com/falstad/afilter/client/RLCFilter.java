@@ -1,5 +1,7 @@
 package com.falstad.afilter.client;
 
+import com.google.gwt.xml.client.Element;
+
 class RLCFilter extends FilterCustomizer {
     double qfactor;
     Scrollbar qslider;
@@ -7,7 +9,17 @@ class RLCFilter extends FilterCustomizer {
     final double maxQ = 1000;
     public RLCFilter(int f, StringTokenizer st) {
 	super(f, st);
-	qfactor = new Double(st.nextToken()).doubleValue();
+	qfactor = 1;
+	if (st != null)
+	    qfactor = new Double(st.nextToken()).doubleValue();
+    }
+    void dumpXml(Element elem) {
+	super.dumpXml(elem);
+	XMLSerializer.dumpAttr(elem, "q", qfactor);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	qfactor = xml.parseDoubleAttr("q", qfactor);
     }
     void create() {
 	super.create();

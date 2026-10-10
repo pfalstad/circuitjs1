@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 // import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -55,6 +58,18 @@ class SwitchElm extends CircuitElm {
     int getDumpType() { return 's'; }
     String dump() {
 	return super.dump() + " " + position + " " + momentary;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	if (position != 0)
+	    XMLSerializer.dumpAttr(elem, "p", position);
+	if (momentary)
+	    XMLSerializer.dumpAttr(elem, "mm", momentary);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	position = xml.parseIntAttr("p", position);
+	momentary = xml.parseBooleanAttr("mm", momentary);
     }
 
     Point ps, ps2;

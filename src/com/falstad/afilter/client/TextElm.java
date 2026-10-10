@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 import java.util.Vector;
@@ -67,6 +70,17 @@ class TextElm extends GraphicElm {
     }
     String dump() {
 	return super.dump() + " " + size + " " + text;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "si", size);
+	XMLSerializer.dumpAttr(elem, "te", text);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	size = xml.parseIntAttr("si", size);
+	text = xml.parseStringAttr("te", text);
+	split();
     }
     int getDumpType() { return 'x'; }
     void drag(int xx, int yy) {

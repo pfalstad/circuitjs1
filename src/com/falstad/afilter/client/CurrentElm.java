@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -39,6 +42,14 @@ package com.falstad.afilter.client;
 	}
 	String dump() {
 	    return super.dump() + " " + currentValue;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "cu", currentValue);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    currentValue = xml.parseDoubleAttr("cu", currentValue);
 	}
 	int getDumpType() { return 'i'; }
 	

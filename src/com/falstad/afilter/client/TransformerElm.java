@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -67,6 +70,26 @@ package com.falstad.afilter.client;
 	String dump() {
 	    return super.dump() + " " + inductance + " " + ratio + " " +
 		current[0] + " " + current[1] + " " + couplingCoef;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "in", inductance);
+	    XMLSerializer.dumpAttr(elem, "ra", ratio);
+	    XMLSerializer.dumpAttr(elem, "co", couplingCoef);
+	    XMLSerializer.dumpAttr(elem, "wi", width);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    XMLSerializer.dumpAttr(elem, "c0", current[0]);
+	    XMLSerializer.dumpAttr(elem, "c1", current[1]);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    inductance = xml.parseDoubleAttr("in", inductance);
+	    ratio = xml.parseDoubleAttr("ra", ratio);
+	    couplingCoef = xml.parseDoubleAttr("co", couplingCoef);
+	    width = xml.parseIntAttr("wi", width);
+	    current[0] = xml.parseDoubleAttr("c0", 0);
+	    current[1] = xml.parseDoubleAttr("c1", 0);
 	}
 	boolean isTrapezoidal() { return (flags & FLAG_BACK_EULER) == 0; }
 	void draw(Graphics g) {

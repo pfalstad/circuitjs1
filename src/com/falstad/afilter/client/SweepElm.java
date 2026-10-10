@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 class SweepElm extends CircuitElm {
     double maxV, maxF, minF, sweepTime, frequency;
     final int FLAG_LOG = 1;
@@ -28,6 +31,22 @@ class SweepElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + minF + " " + maxF + " " + maxV + " " +
 	    sweepTime;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "mi", minF);
+	XMLSerializer.dumpAttr(elem, "ma", maxF);
+	XMLSerializer.dumpAttr(elem, "mv", maxV);
+	XMLSerializer.dumpAttr(elem, "sw", sweepTime);
+    }
+    String getXmlDumpType() { return "sw"; }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	minF = xml.parseDoubleAttr("mi", minF);
+	maxF = xml.parseDoubleAttr("ma", maxF);
+	maxV = xml.parseDoubleAttr("mv", maxV);
+	sweepTime = xml.parseDoubleAttr("sw", sweepTime);
+	reset();
     }
     void setPoints() {
 	super.setPoints();

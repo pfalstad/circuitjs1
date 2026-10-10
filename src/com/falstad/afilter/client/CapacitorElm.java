@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
     class CapacitorElm extends CircuitElm {
 	double capacitance;
 	double compResistance, voltdiff;
@@ -17,6 +20,18 @@ package com.falstad.afilter.client;
 	int getDumpType() { return 'c'; }
 	String dump() {
 	    return super.dump() + " " + capacitance + " " + voltdiff;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "c", capacitance);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    XMLSerializer.dumpAttr(elem, "vd", voltdiff);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    capacitance = xml.parseDoubleAttr("c", capacitance);
+	    voltdiff = xml.parseDoubleAttr("vd", voltdiff);
 	}
 	void setPoints() {
 	    super.setPoints();

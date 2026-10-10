@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.google.gwt.canvas.dom.client.CanvasGradient;
 
 //import java.awt.*;
@@ -35,6 +38,14 @@ import com.google.gwt.canvas.dom.client.CanvasGradient;
 	int getDumpType() { return 'r'; }
 	String dump() {
 	    return super.dump() + " " + resistance;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "r", resistance);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    resistance = xml.parseDoubleAttr("r", resistance);
 	}
 
 	Point ps3, ps4;

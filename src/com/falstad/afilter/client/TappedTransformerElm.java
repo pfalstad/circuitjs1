@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -58,6 +61,24 @@ package com.falstad.afilter.client;
 	String dump() {
 	    return super.dump() + " " + inductance + " " + ratio + " " +
 		current[0] + " " + current[1] + " " + current[2];
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "in", inductance);
+	    XMLSerializer.dumpAttr(elem, "ra", ratio);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    XMLSerializer.dumpAttr(elem, "c0", current[0]);
+	    XMLSerializer.dumpAttr(elem, "c1", current[1]);
+	    XMLSerializer.dumpAttr(elem, "c2", current[2]);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    inductance = xml.parseDoubleAttr("in", inductance);
+	    ratio = xml.parseDoubleAttr("ra", ratio);
+	    current[0] = xml.parseDoubleAttr("c0", 0);
+	    current[1] = xml.parseDoubleAttr("c1", 0);
+	    current[2] = xml.parseDoubleAttr("c2", 0);
 	}
 	void draw(Graphics g) {
 	    int i;

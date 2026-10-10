@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 // stub implementation of DiacElm, based on SparkGapElm
 // FIXME need to add DiacElm.java to srclist
 // FIXME need to uncomment DiacElm line from CirSim.java
@@ -51,6 +54,20 @@ class DiacElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + onresistance + " " + offresistance + " "
 	    + breakdown + " " + holdcurrent;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ron", onresistance);
+	XMLSerializer.dumpAttr(elem, "roff", offresistance);
+	XMLSerializer.dumpAttr(elem, "bd", breakdown);
+	XMLSerializer.dumpAttr(elem, "hc", holdcurrent);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	onresistance = xml.parseDoubleAttr("ron", onresistance);
+	offresistance = xml.parseDoubleAttr("roff", offresistance);
+	breakdown = xml.parseDoubleAttr("bd", breakdown);
+	holdcurrent = xml.parseDoubleAttr("hc", holdcurrent);
     }
     Point ps3, ps4;
     void setPoints() {

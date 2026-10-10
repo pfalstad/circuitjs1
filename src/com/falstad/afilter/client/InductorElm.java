@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
     class InductorElm extends CircuitElm {
 	double inductance;
 	double compResistance;
@@ -13,6 +16,18 @@ package com.falstad.afilter.client;
 	int getDumpType() { return 'l'; }
 	String dump() {
 	    return super.dump() + " " + inductance + " " + current;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "l", inductance);
+	}
+	void dumpXmlState(Document doc, Element elem) {
+	    XMLSerializer.dumpAttr(elem, "ic", current);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    inductance = xml.parseDoubleAttr("l", inductance);
+	    current = xml.parseDoubleAttr("ic", current);
 	}
 	void setPoints() {
 	    super.setPoints();

@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 class TransLineElm extends CircuitElm {
     double delay, imped;
     int width;
@@ -26,6 +29,19 @@ class TransLineElm extends CircuitElm {
     int getInternalNodeCount() { return 2; }
     String dump() {
 	return super.dump() + " " + delay + " " + imped + " " + width + " " + 0.;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "de", delay);
+	XMLSerializer.dumpAttr(elem, "im", imped);
+	XMLSerializer.dumpAttr(elem, "wi", width);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	delay = xml.parseDoubleAttr("de", delay);
+	imped = xml.parseDoubleAttr("im", imped);
+	width = xml.parseIntAttr("wi", width);
+	reset();
     }
     void drag(int xx, int yy) {
 	xx = sim.snapGrid(xx);

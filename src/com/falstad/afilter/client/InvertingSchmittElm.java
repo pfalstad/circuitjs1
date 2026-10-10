@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -57,7 +60,18 @@ package com.falstad.afilter.client;
 	String dump() {
 	    return super.dump() + " " + slewRate+" "+lowerTrigger+" "+upperTrigger;
 	}
-	
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "slr", slewRate);
+	    XMLSerializer.dumpAttr(elem, "lt", lowerTrigger);
+	    XMLSerializer.dumpAttr(elem, "ut", upperTrigger);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    slewRate = xml.parseDoubleAttr("slr", slewRate);
+	    lowerTrigger = xml.parseDoubleAttr("lt", lowerTrigger);
+	    upperTrigger = xml.parseDoubleAttr("ut", upperTrigger);
+	}
 	int getDumpType() { return 183; }//Trying to find unused type
 
 	void draw(Graphics g) {

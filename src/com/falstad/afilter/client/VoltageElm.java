@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import com.google.gwt.user.client.Window;
 
 //import java.awt.*;
@@ -71,6 +74,29 @@ class VoltageElm extends CircuitElm {
 	return super.dump() + " " + waveform + " " + frequency + " " +
 	    maxVoltage + " " + bias + " " + phaseShift + " " +
 	    dutyCycle;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "wf", waveform);
+	if (waveform != WF_DC)
+	    XMLSerializer.dumpAttr(elem, "fr", frequency);
+	XMLSerializer.dumpAttr(elem, "maxv", maxVoltage);
+	if (bias != 0)
+	    XMLSerializer.dumpAttr(elem, "bias", bias);
+	if (phaseShift != 0)
+	    XMLSerializer.dumpAttr(elem, "phaseShift", phaseShift);
+	if (dutyCycle != .5)
+	    XMLSerializer.dumpAttr(elem, "dutyCycle", dutyCycle);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	waveform = xml.parseIntAttr("wf", waveform);
+	frequency = xml.parseDoubleAttr("fr", frequency);
+	maxVoltage = xml.parseDoubleAttr("maxv", maxVoltage);
+	bias = xml.parseDoubleAttr("bias", bias);
+	phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);
+	dutyCycle = xml.parseDoubleAttr("dutyCycle", dutyCycle);
+	reset();
     }
     /*void setCurrent(double c) {
       current = c;

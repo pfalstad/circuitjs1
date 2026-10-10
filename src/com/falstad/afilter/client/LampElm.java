@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -46,6 +49,22 @@ package com.falstad.afilter.client;
 	String dump() {
 	    return super.dump() + " " + temp + " " + nom_pow + " " + nom_v +
 		" " + warmTime + " " + coolTime;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "te", temp);
+	    XMLSerializer.dumpAttr(elem, "np", nom_pow);
+	    XMLSerializer.dumpAttr(elem, "nv", nom_v);
+	    XMLSerializer.dumpAttr(elem, "wa", warmTime);
+	    XMLSerializer.dumpAttr(elem, "co", coolTime);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    temp = xml.parseDoubleAttr("te", temp);
+	    nom_pow = xml.parseDoubleAttr("np", nom_pow);
+	    nom_v = xml.parseDoubleAttr("nv", nom_v);
+	    warmTime = xml.parseDoubleAttr("wa", warmTime);
+	    coolTime = xml.parseDoubleAttr("co", coolTime);
 	}
 	int getDumpType() { return 181; }
 

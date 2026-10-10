@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import java.util.Vector;
 
 class BoxElm extends CircuitElm {
@@ -26,6 +29,14 @@ class BoxElm extends CircuitElm {
     String dump() {
         flags |= FLAG_ESCAPE;
         return super.dump() + " " + CustomLogicModel.escape(text);
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "te", text);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	text = xml.parseStringAttr("te", text);
     }
     int getDumpType() { return 'B'; }
     void draw(Graphics g) {

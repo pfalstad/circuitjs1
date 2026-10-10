@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 //import java.awt.*;
 //import java.util.StringTokenizer;
 
@@ -45,7 +48,16 @@ class TriStateElm extends CircuitElm {
     String dump() {
 	return super.dump() + " " + r_on + " " + r_off;
     }
-    
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "ron", r_on);
+	XMLSerializer.dumpAttr(elem, "roff", r_off);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	r_on = xml.parseDoubleAttr("ron", r_on);
+	r_off = xml.parseDoubleAttr("roff", r_off);
+    }
     int getDumpType() { return 180; }
     boolean open;
 	

@@ -19,6 +19,9 @@
 
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
 import java.util.HashMap;
 
 class LabeledNodeElm extends CircuitElm {
@@ -35,6 +38,14 @@ class LabeledNodeElm extends CircuitElm {
     }
     String dump() {
 	return super.dump() + " " + text;
+    }
+    void dumpXml(Document doc, Element elem) {
+	super.dumpXml(doc, elem);
+	XMLSerializer.dumpAttr(elem, "te", text);
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	text = xml.parseStringAttr("te", text);
     }
 
     String text;

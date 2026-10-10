@@ -2,6 +2,7 @@ package com.falstad.afilter.client;
 
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
+import com.google.gwt.xml.client.Element;
 
 class FilterCustomizer extends Customizer {
     Choice designChooser;
@@ -19,12 +20,38 @@ class FilterCustomizer extends Customizer {
     static int FILT_INVCHEBY = 4;
     static int FILT_ELLIPTIC = 5;
     Scrollbar slider, cslider, pslider, rslider;
+    // initial slider values restored from xml (-1 = use default)
+    int initPoles = -1, initRipple = -1;
     public FilterCustomizer(int f, StringTokenizer st) {
 	super(f, st);
+	frequency = 1000;
+	cfrequency = 2000;
+	if (st == null)
+	    return;
 	frequency = new Double(st.nextToken()).doubleValue();
 	cfrequency = new Double(st.nextToken()).doubleValue();
 	form = new Integer(st.nextToken()).intValue();
 	design = new Integer(st.nextToken()).intValue();
+    }
+    void dumpXml(Element elem) {
+	super.dumpXml(elem);
+	XMLSerializer.dumpAttr(elem, "fr", frequency);
+	XMLSerializer.dumpAttr(elem, "cf", cfrequency);
+	XMLSerializer.dumpAttr(elem, "fo", form);
+	XMLSerializer.dumpAttr(elem, "de", design);
+	if (pslider != null)
+	    XMLSerializer.dumpAttr(elem, "po", pslider.getValue());
+	if (rslider != null)
+	    XMLSerializer.dumpAttr(elem, "rp", rslider.getValue());
+    }
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	frequency  = xml.parseDoubleAttr("fr", frequency);
+	cfrequency = xml.parseDoubleAttr("cf", cfrequency);
+	form       = xml.parseIntAttr("fo", form);
+	design     = xml.parseIntAttr("de", design);
+	initPoles  = xml.parseIntAttr("po", -1);
+	initRipple = xml.parseIntAttr("rp", -1);
     }
     boolean isHiPass()   { return (form == FILT_HIPASS); }
     boolean isBandPass() { return (form == FILT_BANDPASS); }
@@ -70,11 +97,11 @@ class FilterCustomizer extends Customizer {
 
 	pslider = null;
 	if ((flags & FLAG_POLESLIDER) != 0)
-	    pslider = createSlider("# of Poles", getDefaultPoles(), 1, getMaxPoles()+1);
+	    pslider = createSlider("# of Poles", initPoles >= 0 ? initPoles : getDefaultPoles(), 1, getMaxPoles()+1);
 
 	rslider = null;
 	if (design > 0) {
-	    rslider = createSlider("Passband Ripple", 60, 1, 999);
+	    rslider = createSlider("Passband Ripple", initRipple >= 0 ? initRipple : 60, 1, 999);
 	    rslider.setEnabled(design == FILT_CHEBY);
 	}
 	

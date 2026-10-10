@@ -1,5 +1,8 @@
 package com.falstad.afilter.client;
 
+
+import com.google.gwt.xml.client.Document;
+import com.google.gwt.xml.client.Element;
     class OpAmpElm extends CircuitElm {
 	int opsize, opheight, opwidth, opaddtext;
 	double maxOut, minOut, gain, gbw;
@@ -40,6 +43,20 @@ package com.falstad.afilter.client;
 	}
 	String dump() {
 	    return super.dump() + " " + maxOut + " " + minOut + " " + gbw;
+	}
+	void dumpXml(Document doc, Element elem) {
+	    super.dumpXml(doc, elem);
+	    XMLSerializer.dumpAttr(elem, "ma", maxOut);
+	    XMLSerializer.dumpAttr(elem, "mi", minOut);
+	    XMLSerializer.dumpAttr(elem, "gbw", gbw);
+	}
+	void undumpXml(XMLDeserializer xml) {
+	    super.undumpXml(xml);
+	    maxOut = xml.parseDoubleAttr("ma", maxOut);
+	    minOut = xml.parseDoubleAttr("mi", minOut);
+	    gbw = xml.parseDoubleAttr("gbw", gbw);
+	    setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+	    setGain();
 	}
 	boolean nonLinear() { return true; }
 	void draw(Graphics g) {
