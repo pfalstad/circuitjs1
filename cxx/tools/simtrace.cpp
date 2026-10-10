@@ -51,6 +51,7 @@
 #include "core/SimulationManager.h"
 #include "core/JsNumber.h"
 #include "elements/ChipElm.h"
+#include "elements/AudioOutputElm.h"
 #include "elements/LogicInputElm.h"
 #include "elements/SwitchElm.h"
 #include "elements/VoltageElm.h"
@@ -289,6 +290,18 @@ int main(int argc, char **argv) {
         for (CircuitElm *ce : sim.elmList)
             std::printf(" %.17g", ce->getCurrent());
         std::printf("\n");
+    }
+    // AUDIOOUT=file: press Play on the first audio output and save the WAV it would play
+    if (const char *ao = std::getenv("AUDIOOUT")) {
+        for (CircuitElm *ce : app.elmList)
+            if (ce->isAudioOutputElm()) {
+                static_cast<AudioOutputElm *>(ce)->play();
+                break;
+            }
+        if (!AudioOutputElm::lastWav.empty()) {
+            std::ofstream out(ao, std::ios::binary);
+            out.write((const char *) AudioOutputElm::lastWav.data(), (std::streamsize) AudioOutputElm::lastWav.size());
+        }
     }
     return 0;
 }

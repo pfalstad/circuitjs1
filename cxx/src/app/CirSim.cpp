@@ -52,6 +52,8 @@
 #include "core/CustomLogicModel.h"
 #include "core/MosfetModel.h"
 #include "core/RelayModel.h"
+#include "AudioPlayer.h"
+#include "core/PanelButton.h"
 #include "elements/RoutedWireElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
@@ -896,4 +898,49 @@ void CirSim::removeSlider(Scrollbar *sb) {
 void CirSim::updateSlider(Scrollbar *sb) {
     if (sidebar != nullptr)
         sidebar->updateSlider(sb);
+}
+
+void CirSim::addButton(PanelButton *b) {
+    if (sidebar != nullptr)
+        sidebar->addButton(b);
+}
+
+void CirSim::removeButton(PanelButton *b) {
+    if (sidebar != nullptr)
+        sidebar->removeButton(b);
+}
+
+void CirSim::updateButton(PanelButton *b) {
+    if (sidebar != nullptr)
+        sidebar->updateButton(b);
+}
+
+void CirSim::playAudio(const std::vector<short> &samples, int sampleRate) {
+    if (!audioPlayer)
+        audioPlayer = std::make_unique<AudioPlayer>();
+    if (!audioPlayer->play(samples, sampleRate))
+        alert(Locale::LS("Can't play audio"));
+}
+
+void CirSim::saveFile(const std::vector<unsigned char> &bytes, const std::string &suggestedName) {
+    QString path = QFileDialog::getSaveFileName(this, QString(), QString::fromStdString(suggestedName));
+    if (path.isEmpty())
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly) || f.write((const char *) bytes.data(), (qint64) bytes.size()) != (qint64) bytes.size())
+        alert(Locale::LS("Can't save file"));
+}
+
+bool CirSim::loadAudioFile(std::string &name, std::vector<float> &data, int &sampleRate) {
+    QString path = QFileDialog::getOpenFileName(this, QString(), QString(),
+                                                QString::fromStdString(Locale::LS("Audio files")) + " (*.wav *.mp3 *.flac);;" + QString::fromStdString(Locale::LS("All files")) + " (*)");
+    if (path.isEmpty())
+        return false;
+    if (!AudioPlayer::decodeFile(path.toStdString(), data, sampleRate)) {
+        alert(Locale::LS("Can't read audio file"));
+        return false;
+    }
+    // the file name without its extension
+    name = QFileInfo(path).completeBaseName().toStdString();
+    return true;
 }

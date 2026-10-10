@@ -260,3 +260,13 @@ for (let s = 0; s < steps; s++) {
     const cs = sim.elmList.map((e: any) => fmt(e.getCurrent()));
     out(fmt(sim.t) + " " + vs.join(" ") + " | " + cs.join(" "));
 }
+
+// AUDIOOUT=file: press Play on the first audio output and save the WAV it would play
+if (process.env.AUDIOOUT) {
+    let wav: ArrayBuffer | null = null;
+    (globalThis as any).Blob = class { constructor(parts: any[]) { wav = parts[0]; } };
+    (globalThis as any).URL.createObjectURL = () => "blob:";
+    const ao = app.elmList.find((e: any) => e.isAudioOutputElm && e.isAudioOutputElm());
+    if (ao) ao.play();
+    if (wav) fs.writeFileSync(process.env.AUDIOOUT, Buffer.from(wav));
+}

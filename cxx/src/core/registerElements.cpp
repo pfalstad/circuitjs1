@@ -58,6 +58,9 @@
 #include "../elements/CrossSwitchElm.h"
 #include "../elements/MotorProtectionSwitchElm.h"
 #include "../elements/RoutedWireElm.h"
+#include "../elements/AudioOutputElm.h"
+#include "../elements/AudioInputElm.h"
+#include "../elements/NoiseElm.h"
 #include "../elements/CustomLogicElm.h"
 #include "../elements/CCVSElm.h"
 #include "../elements/CCCSElm.h"
@@ -154,6 +157,9 @@ void registerElements() {
     reg<CrossSwitchElm>("CrossSwitchElm");
     reg<MotorProtectionSwitchElm>("MotorProtectionSwitchElm");
     reg<RoutedWireElm>("RoutedWireElm");
+    reg<AudioOutputElm>("AudioOutputElm");
+    reg<AudioInputElm>("AudioInputElm");
+    reg<NoiseElm>("NoiseElm");
     reg<CustomLogicElm>("CustomLogicElm");
     reg<CCVSElm>("CCVSElm");
     reg<CCCSElm>("CCCSElm");

@@ -36,6 +36,7 @@
 
 class CirSim;
 class QAction;
+struct PanelButton;
 class QActionGroup;
 class QMenu;
 class Graphics;
@@ -107,6 +108,12 @@ public:
     bool sliderItemEnabled(CircuitElm *elm);
     void doSliders(CircuitElm *ce);
     void addSlider(Scrollbar *sb) override;
+    void addButton(PanelButton *b) override;
+    void removeButton(PanelButton *b) override;
+    void updateButton(PanelButton *b) override;
+    void playAudio(const std::vector<short> &samples, int sampleRate) override;
+    void saveFile(const std::vector<unsigned char> &bytes, const std::string &suggestedName) override;
+    bool loadAudioFile(std::string &name, std::vector<float> &data, int &sampleRate) override;
     void removeSlider(Scrollbar *sb) override;
     void updateSlider(Scrollbar *sb) override;
     void setSimRunning(bool s) override;
@@ -160,6 +167,7 @@ private:
 
     CircuitCanvas *canvas;
     Sidebar *sidebar = nullptr;
+    std::unique_ptr<class AudioPlayer> audioPlayer;
     Toolbar *toolbar = nullptr;
     QTimer timer;
     QAction *runStopAction = nullptr;

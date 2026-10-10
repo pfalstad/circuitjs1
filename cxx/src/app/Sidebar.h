@@ -48,6 +48,10 @@ public:
     void addSlider(Scrollbar *sb);
     void removeSlider(Scrollbar *sb);
     void updateSlider(Scrollbar *sb);
+    // element buttons (PanelButton), added the same way
+    void addButton(struct PanelButton *b);
+    void removeButton(struct PanelButton *b);
+    void updateButton(struct PanelButton *b);
 
 private:
     CirSim *app;

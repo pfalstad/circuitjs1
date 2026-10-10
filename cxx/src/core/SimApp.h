@@ -82,6 +82,17 @@ public:
     void deleteSliders(CircuitElm *elm);
 
     // show/hide/refresh a slider in the side panel (TS: addWidgetToVerticalPanel() etc.)
+    // side panel buttons (the audio output's Play button)
+    virtual void addButton(struct PanelButton *) {}
+    virtual void removeButton(struct PanelButton *) {}
+    virtual void updateButton(struct PanelButton *) {}
+    // play 16-bit mono samples (TS: an <audio> element playing a WAV blob)
+    virtual void playAudio(const std::vector<short> &, int) {}
+    // let the user save a file (the audio output's last played WAV)
+    virtual void saveFile(const std::vector<unsigned char> &, const std::string &) {}
+    // ask the user for an audio file and decode its first channel; false if there's none
+    // (the headless tools can't).  name is the file name without its extension.
+    virtual bool loadAudioFile(std::string &, std::vector<float> &, int &) { return false; }
     virtual void addSlider(Scrollbar *) {}
     virtual void removeSlider(Scrollbar *) {}
     virtual void updateSlider(Scrollbar *) {}

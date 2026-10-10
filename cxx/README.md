@@ -37,7 +37,8 @@ pans, wheel zooms.
 
 Set `DUMPMATRIX=n` to make both tools print the matrices at step n, and
 `TOGGLE=elm:step,...` to toggle switches (by element index) at those steps, the
-way clicking them in the app does.
+way clicking them in the app does. `AUDIOOUT=file.wav` saves the first audio output's WAV
+after the run.
 
     tools/compare.py --dump --all                 # saved XML, TS vs C++
     tools/compare.py --dump ../ts/public/circuits/*.txt
@@ -82,7 +83,7 @@ SPDT/multi-throw switch (with linking), sweep, Zener, LED, transformer (with
 saturation), analog switches (SPST and SPDT), memristor, transmission line,
 relay (with relay models), relay coil and contact, cross switch, motor
 protection switch, routed wire (with the WireRouter: routing new wires,
-rerouting by dragging, and splitting),
+rerouting by dragging, and splitting), audio output and audio input,
 current source, diode and diode models, BJT and
 transistor models, MOSFET/JFET and their models, op-amp, text, output, probe,
 logic input/output, AND/NAND/OR/NOR/XOR/XNOR gates, inverter, and the chips:
@@ -127,4 +128,10 @@ Sliders... dialog in the element context menu.  The slider logic is
 values match TS exactly.
 
 Not yet ported: sparse solver (matrices of 150 or more rows),
-composites/subcircuits (and subcircuit chips), audio output, and the rest.
+composites/subcircuits (and subcircuit chips), and the rest.
+
+Audio: the core does the sampling, scaling and WAV encoding (matching the TS
+version byte for byte; `AUDIOOUT=file` makes both tools save the WAV that Play
+would play).  The app plays it and decodes audio input files (WAV, MP3, FLAC)
+with miniaudio (`src/third_party/miniaudio`, public domain / MIT-0), which
+compiles into the app, so there is nothing extra to install or ship.

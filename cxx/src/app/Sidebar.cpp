@@ -27,6 +27,7 @@
 
 #include "CirSim.h"
 #include "core/Locale.h"
+#include "core/PanelButton.h"
 #include "core/Scrollbar.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
@@ -180,4 +181,25 @@ void Sidebar::updateSlider(Scrollbar *sb) {
     w->slider->setPageStep(std::max(step, (sb->getMax() - sb->getMin()) / 10));
     w->slider->setValue(sb->getValue());
     w->slider->setEnabled(sb->isEnabled());
+}
+
+void Sidebar::addButton(PanelButton *b) {
+    QPushButton *w = new QPushButton(QString::fromStdString(b->label));
+    // before the stretch at the end
+    layout->insertWidget(layout->count() - 1, w);
+    b->widget = w;
+    connect(w, &QPushButton::clicked, this, [b] {
+        if (b->onClick)
+            b->onClick();
+    });
+}
+
+void Sidebar::removeButton(PanelButton *b) {
+    delete static_cast<QPushButton *>(b->widget);
+    b->widget = nullptr;
+}
+
+void Sidebar::updateButton(PanelButton *b) {
+    if (QPushButton *w = static_cast<QPushButton *>(b->widget))
+        w->setText(QString::fromStdString(b->label));
 }
