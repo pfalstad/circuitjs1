@@ -268,6 +268,8 @@ MouseOutHandler, MouseWheelHandler {
     Scope scopes[];
    int scopeColCount[];
     static EditDialog editDialog, customLogicEditDialog;
+    // dialog derived from Dialog that's currently showing, if any
+    static Dialog dialogShowing;
     static ExportAsUrlDialog exportAsUrlDialog;
     static ExportAsTextDialog exportAsTextDialog;
     static ExportAsLocalFileDialog exportAsLocalFileDialog;
@@ -540,6 +542,8 @@ MouseOutHandler, MouseWheelHandler {
 	m.addItem(selectAllItem = new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit","selectAll")));
 	//selectAllItem.setShortcut(new MenuShortcut(KeyEvent.VK_A));
 	m.addItem(new MenuItem("Center Circuit", new MyCommand("edit", "centercircuit")));
+	sn=edithtml+"Find Component...</div>/";
+	m.addItem(new MenuItem(SafeHtmlUtils.fromTrustedString(sn), new MyCommand("edit", "search")));
 	menuBar.addItem("Edit",m);
 
 	MenuBar drawMenuBar = new MenuBar(true);
@@ -1220,6 +1224,9 @@ MouseOutHandler, MouseWheelHandler {
     		maxy = max(ce.y, max(ce.y2, maxy));
     		*/
     	}
+        // empty circuit: nothing to bound
+        if (r == null)
+            return;
         int margin = 50;
     	r.grow(margin);
         circuitBbox = r;
@@ -2340,10 +2347,10 @@ MouseOutHandler, MouseWheelHandler {
 	calcCircuitBottom();
 	if (elmList.isEmpty()) {
 	    // nothing to analyze; clear results left over from the previous circuit
-	    if (response != null) {
+	    if (response != null)
 		java.util.Arrays.fill(response, 0);
+	    if (phaseResponse != null)
 		java.util.Arrays.fill(phaseResponse, 0);
-	    }
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
 	    polyAvailable = false;
@@ -3409,6 +3416,10 @@ MouseOutHandler, MouseWheelHandler {
     public void menuPerformed(String menu, String item) {
     	if (item=="about")
     		aboutBox = new AboutBox(circuitjs1.versionString); 
+    	if (item=="search") {
+    		dialogShowing = new SearchDialog(this);
+    		dialogShowing.show();
+    	}
     	if (item=="newblankcircuit") {
     		pushUndo();
     		readSetupFile("blank.txt", "Blank Circuit", true);
@@ -3637,8 +3648,8 @@ MouseOutHandler, MouseWheelHandler {
     void doSliders(CircuitElm ce) {
 	clearSelection();
 	pushUndo();
-	SliderDialog dlg = new SliderDialog(ce, this);
-	dlg.show();
+	dialogShowing = new SliderDialog(ce, this);
+	dialogShowing.show();
     }
 
     boolean sliderItemEnabled(CircuitElm elm) {
@@ -5392,6 +5403,8 @@ MouseOutHandler, MouseWheelHandler {
 //    public void keyReleased(KeyEvent e) {}
     
     boolean dialogIsShowing() {
+    	if (dialogShowing != null && dialogShowing.isShowing())
+    		return true;
     	if (editDialog!=null && editDialog.isShowing())
     		return true;
     	if (customLogicEditDialog!=null && customLogicEditDialog.isShowing())
@@ -5433,6 +5446,13 @@ MouseOutHandler, MouseWheelHandler {
     				editDialog.apply();
     				editDialog.closeDialog();
     			}  			
+    		}
+    		if (dialogShowing != null && dialogShowing.isShowing() &&
+    				(t & Event.ONKEYDOWN)!=0) {
+    			if (code==KEY_ESCAPE)
+    				dialogShowing.closeDialog();
+    			if (code==KEY_ENTER)
+    				dialogShowing.enterPressed();
     		}
     		return;
     	}
@@ -5476,6 +5496,11 @@ MouseOutHandler, MouseWheelHandler {
     		}
     	}
     	if ((t&Event.ONKEYPRESS)!=0) {
+    		if (cc=='/' && shortcuts['/'] == null) {
+    			menuPerformed("key", "search");
+    			e.cancel();
+    			return;
+    		}
     		if (cc>32 && cc<127){
     			String c=shortcuts[cc];
     			e.cancel();

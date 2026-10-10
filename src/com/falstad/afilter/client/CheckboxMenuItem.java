@@ -57,6 +57,9 @@ public class CheckboxMenuItem extends MenuItem implements Command {
 		shortcut=c;
 	}
 	
+	public String getName() { return name; }
+	public String getShortcut() { return shortcut; }
+
 	public void addShortcut(String s) {
 		shortcut=s;
 	}

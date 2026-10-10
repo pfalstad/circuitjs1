@@ -22,7 +22,6 @@ package com.falstad.afilter.client;
 
 import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.VerticalPanel;
-import com.google.gwt.user.client.ui.DialogBox;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -37,7 +36,7 @@ import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 
 // class EditDialog extends Dialog implements AdjustmentListener, ActionListener, ItemListener {
-class SliderDialog extends DialogBox  {
+class SliderDialog extends Dialog  {
 	CircuitElm elm;
 	CirSim sim;
 	Button applyButton, okButton, cancelButton;
@@ -262,7 +261,4 @@ class SliderDialog extends DialogBox  {
 			logCheckboxes[j] = null;
 	}
 
-	protected void closeDialog() {
-		hide();
-	}
 }
