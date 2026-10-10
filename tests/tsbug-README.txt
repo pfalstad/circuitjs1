@@ -67,6 +67,25 @@ tsbug-inductor-sr.txt   (InductorElm, XML with no "sr" attribute)
     default of 1 ohm instead of 0, and sr is only saved when it's nonzero, so
     every saved inductor with sr=0 came back as 1 ohm.
 
+tsbug-transformer-isat.txt   (TransformerElm, old text format)
+    Save the circuit (XML) and look at the <T> line in the saved file.
+    Stock: it has isat="undefined", because saturationCurrent had no
+    initializer, so old-format transformers (and new ones) left it undefined
+    and dumpXml()'s "saturationCurrent !== 0" test passed.  Reloading that
+    file makes it NaN, and saving again writes isat="NaN".
+    Fixed: no isat attribute.
+
+tsbug-relaycontact-xml.txt   (RelayContactElm, XML)
+    latchingrelay.txt saved as XML.
+    Stock: the relay contacts are missing; they're all at 0,0 (top left),
+    and the relays don't switch anything.  RelayContactElm had a method
+    setPosition(i_position, type), which (no overloading in JS) replaced
+    CircuitElm.setPosition(x, y, x2, y2), so setPositionFromXml() set the
+    contact's switch position to its x coordinate instead of placing it.
+    Every saved circuit with relay contacts broke when reloaded.  Renamed it
+    setContactPosition() (callers: RelayCoilElm, MotorProtectionSwitchElm).
+    Fixed: same as latchingrelay.txt.
+
 No file: LEDArrayElm
     Place a new LED array from the menu and drive it.
     Stock: brightness is reset to [] after setupPins(), so LED colors

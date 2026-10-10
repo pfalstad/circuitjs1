@@ -230,7 +230,7 @@ export class MotorProtectionSwitchElm extends CircuitElm {
         const switchPosition = this.blown ? 0 : 1;
         for (const ce of CircuitElm.sim.elmList) {
             if (ce instanceof RelayContactElm && (ce as RelayContactElm).label === this.label)
-                (ce as RelayContactElm).setPosition(switchPosition, RelayCoilElm.TYPE_NORMAL);
+                (ce as RelayContactElm).setContactPosition(switchPosition, RelayCoilElm.TYPE_NORMAL);
         }
     }
 

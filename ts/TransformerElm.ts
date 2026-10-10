@@ -32,7 +32,7 @@ export class TransformerElm extends CircuitElm {
     inductance: number;
     ratio: number;
     couplingCoef: number;
-    saturationCurrent: number; // 0 = disabled (linear core)
+    saturationCurrent: number = 0; // 0 = disabled (linear core)
     ptEnds: Point[];
     ptCoil: Point[];
     ptCore: Point[];

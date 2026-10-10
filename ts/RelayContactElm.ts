@@ -163,7 +163,9 @@ export class RelayContactElm extends CircuitElm {
         }
     }
 
-    setPosition(i_position_: number, type_: number): void {
+    // (not setPosition(), which would replace CircuitElm.setPosition(x, y, x2, y2) and break
+    // loading XML files)
+    setContactPosition(i_position_: number, type_: number): void {
         this.i_position = this.isNormallyClosed() ? (1 - i_position_) : i_position_;
         this.type = type_;
     }
