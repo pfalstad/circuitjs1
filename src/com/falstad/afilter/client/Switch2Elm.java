@@ -131,6 +131,11 @@ import com.google.gwt.xml.client.Element;
 		return;
 	    sim.stampVoltageSource(nodes[0], nodes[position+1], voltSource, 0);
 	}
+	void polyStamp() {
+	    if (position == 2 && hasCenterOff()) // in center?
+		return;
+	    sim.stampPolyVoltageSource(nodes[0], nodes[position+1], voltSource, 0);
+	}
 	int getVoltageSourceCount() {
 	    return (position == 2 && hasCenterOff()) ? 0 : 1;
 	}

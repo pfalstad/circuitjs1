@@ -219,6 +219,15 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	sim.stampResistor(nodes[0], nodes[2], resistance1);
 	sim.stampResistor(nodes[2], nodes[1], resistance2);
     }
+    void polyStamp() {
+	resistance1 = maxResistance*position;
+	resistance2 = maxResistance*(1-position);
+	// s * (1/R) = s/R
+	sim.stampPolyAdmittance(nodes[0], nodes[2],
+	    new Polynomial(0, 1.0/resistance1));
+	sim.stampPolyAdmittance(nodes[2], nodes[1],
+	    new Polynomial(0, 1.0/resistance2));
+    }
     void getInfo(String arr[]) {
 	arr[0] = "potentiometer";
 	arr[1] = "Vd = " + getVoltageDText(getVoltageDiff());

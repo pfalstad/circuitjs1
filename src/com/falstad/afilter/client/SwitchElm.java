@@ -107,6 +107,10 @@ class SwitchElm extends CircuitElm {
 	if (position == 0)
 	    sim.stampVoltageSource(nodes[0], nodes[1], voltSource, 0);
     }
+    void polyStamp() {
+	if (position == 0)
+	    sim.stampPolyVoltageSource(nodes[0], nodes[1], voltSource, 0);
+    }
     int getVoltageSourceCount() {
 	return (position == 1) ? 0 : 1;
     }
