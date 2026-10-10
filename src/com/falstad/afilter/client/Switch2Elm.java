@@ -147,7 +147,7 @@ import com.google.gwt.xml.client.Element;
 		    Object o = sim.elmList.elementAt(i);
 		    if (o instanceof Switch2Elm) {
 			Switch2Elm s2 = (Switch2Elm) o;
-			if (s2.link == link)
+			if (s2.link == link && position < s2.posCount)
 			    s2.position = position;
 		    }
 		}
@@ -170,9 +170,9 @@ import com.google.gwt.xml.client.Element;
 	    	return ei;
 	    }*/
 	    if (n == 1)
-	    	return new EditInfo("Switch Group", link, 0, 100).setDimensionless();
+	    	return new EditInfo("Group Number (for linking)", link, 0, 100).setDimensionless().disallowSliders();
 	    if (n == 2)
-	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless();
+	    	return new EditInfo("# of Throws", throwCount, 2, 10).setDimensionless().disallowSliders();
 	    return super.getEditInfo(n);
 	}
 	public void setEditValue(int n, EditInfo ei) {

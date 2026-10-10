@@ -43,6 +43,7 @@ class EditInfo {
 	}
 	
 	EditInfo setDimensionless() { dimensionless = true; return this; }
+	EditInfo disallowSliders() { noSliders = true; return this; }
 	
 	String name, text;
 	double value, minval, maxval;
@@ -58,10 +59,11 @@ class EditInfo {
 
 	boolean canCreateAdjustable() {
 	    return choice == null && checkbox == null && button == null && textArea == null &&
-		text == null;
+		text == null && !noSliders;
 	}
 
 	boolean newDialog;
+	boolean noSliders;
 	boolean forceLargeM;
 	boolean dimensionless;
 }
