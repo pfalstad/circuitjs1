@@ -26,7 +26,7 @@ import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
 
 export class PisoShiftElm extends ChipElm {
-    readonly FLAG_NEW_BEHAVIOR = 2;
+    static readonly FLAG_NEW_BEHAVIOR = 2;
 
     data: boolean[] = [];
     dataIndex: number = 0;
@@ -43,7 +43,7 @@ export class PisoShiftElm extends ChipElm {
             ChipElm.readBits(st, this.data);
         } else {
             this.data = new Array<boolean>(this.bits).fill(false);
-            this.flags |= this.FLAG_NEW_BEHAVIOR;
+            this.flags |= PisoShiftElm.FLAG_NEW_BEHAVIOR;
         }
         this.setupPins();
     }
@@ -71,7 +71,7 @@ export class PisoShiftElm extends ChipElm {
     getChipName(): string { return "PISO shift register"; }
     needsBits(): boolean { return true; }
     defaultBitCount(): number { return 8; }
-    hasNewBhvr(): boolean { return (this.flags & this.FLAG_NEW_BEHAVIOR) !== 0; }
+    hasNewBhvr(): boolean { return (this.flags & PisoShiftElm.FLAG_NEW_BEHAVIOR) !== 0; }
 
     reset(): void {
         super.reset();

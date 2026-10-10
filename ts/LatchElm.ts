@@ -28,31 +28,33 @@ import { Choice } from "./Choice";
 import { Checkbox } from "./Checkbox";
 
 export class LatchElm extends ChipElm {
-    readonly FLAG_STATE = 2;
-    readonly FLAG_NO_EDGE = 4;
-    readonly FLAG_RESET = 8;
-    readonly FLAG_SET = 16;
+    static readonly FLAG_STATE = 2;
+    static readonly FLAG_NO_EDGE = 4;
+    static readonly FLAG_RESET = 8;
+    static readonly FLAG_SET = 16;
     // enable mode stored in bits 5-6: 0=none, 1=one each, 2=two each
-    readonly FLAG_ENABLE_MASK = 32 | 64;
-    readonly FLAG_ENABLE_SHIFT = 5;
-    readonly FLAG_RESET_INVERT = 128;
+    static readonly FLAG_ENABLE_MASK = 32 | 64;
+    static readonly FLAG_ENABLE_SHIFT = 5;
+    static readonly FLAG_RESET_INVERT = 128;
 
-    hasReset(): boolean { return (this.flags & this.FLAG_RESET) !== 0; }
-    hasSet(): boolean { return (this.flags & this.FLAG_SET) !== 0; }
-    resetActiveLow(): boolean { return (this.flags & this.FLAG_RESET_INVERT) !== 0; }
-    enableMode(): number { return (this.flags & this.FLAG_ENABLE_MASK) >> this.FLAG_ENABLE_SHIFT; }
+    hasReset(): boolean { return (this.flags & LatchElm.FLAG_RESET) !== 0; }
+    hasSet(): boolean { return (this.flags & LatchElm.FLAG_SET) !== 0; }
+    resetActiveLow(): boolean { return (this.flags & LatchElm.FLAG_RESET_INVERT) !== 0; }
+    enableMode(): number { return (this.flags & LatchElm.FLAG_ENABLE_MASK) >> LatchElm.FLAG_ENABLE_SHIFT; }
     inputEnableCount(): number { return this.enableMode(); }
     outputEnableCount(): number { return this.enableMode(); }
     hasOutputEnable(): boolean { return this.enableMode() > 0; }
 
-    loadPin: number = 0;
-    resetPin: number = 0;
-    setPin: number = 0;
-    ie1Pin: number = 0;
-    ie2Pin: number = 0;
-    oe1Pin: number = 0;
-    oe2Pin: number = 0;
-    intNodes: number = 0;
+    // pin indices, set by setupPins().  "declare" so that no field initializer resets
+    // them after super() has already called setupPins()
+    declare loadPin: number;
+    declare resetPin: number;
+    declare setPin: number;
+    declare ie1Pin: number;
+    declare ie2Pin: number;
+    declare oe1Pin: number;
+    declare oe2Pin: number;
+    declare intNodes: number;
     vSources: VoltageSource[] | null = null;
 
     constructor(xx: number, yy: number);
@@ -60,14 +62,14 @@ export class LatchElm extends ChipElm {
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xxOrXa, yyOrYa);
-            this.flags |= this.FLAG_STATE;
+            this.flags |= LatchElm.FLAG_STATE;
             this.setupPins();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
 
             // add FLAG_STATE flag to old latches so their state gets saved
-            if ((this.flags & this.FLAG_STATE) === 0) {
-                this.flags |= this.FLAG_STATE;
+            if ((this.flags & LatchElm.FLAG_STATE) === 0) {
+                this.flags |= LatchElm.FLAG_STATE;
                 this.setupPins();
             }
             this.restoreOutputValues();
@@ -76,7 +78,7 @@ export class LatchElm extends ChipElm {
     getChipName(): string { return this.isEdgeTriggered() ? "Register" : "Latch"; }
     needsBits(): boolean { return true; }
     allowBus(): boolean { return true; }
-    isEdgeTriggered(): boolean { return (this.flags & this.FLAG_NO_EDGE) === 0; }
+    isEdgeTriggered(): boolean { return (this.flags & LatchElm.FLAG_NO_EDGE) === 0; }
     nonLinear(): boolean { return this.hasOutputEnable(); }
 
     setupPins(): void {
@@ -89,7 +91,7 @@ export class LatchElm extends ChipElm {
         this.sizeY = Math.max(bitsY + 1 + extraLeftPins, bitsY + extraRightPins);
         this.pins = new Array(this.getPostCount());
         this.makeBitPins(this.bits, 0, ChipElm.SIDE_W, 0, "I", false, false, false);
-        this.makeBitPins(this.bits, 0, ChipElm.SIDE_E, this.bits, "O", !this.hasOutputEnable(), (this.flags & this.FLAG_STATE) !== 0, false);
+        this.makeBitPins(this.bits, 0, ChipElm.SIDE_E, this.bits, "O", !this.hasOutputEnable(), (this.flags & LatchElm.FLAG_STATE) !== 0, false);
         let pinIndex = this.bits * 2;
         let leftPos = bitsY;
         let rightPos = bitsY;
@@ -158,15 +160,17 @@ export class LatchElm extends ChipElm {
 
     // shared load logic
     doLoad(): void {
+        // (lastOutputValues() recreates the array if reset() cleared it)
+        const ov = this.lastOutputValues();
         if (this.hasSet() && this.pins[this.setPin].value) {
             for (let i = 0; i !== this.bits; i++)
-                this.outputValues![i] = true;
+                ov[i] = true;
             this.lastLoad = this.pins[this.loadPin].value;
             return;
         }
         if (this.hasReset() && (this.pins[this.resetPin].value !== this.resetActiveLow())) {
             for (let i = 0; i !== this.bits; i++)
-                this.outputValues![i] = false;
+                ov[i] = false;
             this.lastLoad = this.pins[this.loadPin].value;
             return;
         }
@@ -177,7 +181,7 @@ export class LatchElm extends ChipElm {
             inputEnabled = false;
         if (inputEnabled && this.pins[this.loadPin].value && (!this.isEdgeTriggered() || !this.lastLoad))
             for (let i = 0; i !== this.bits; i++)
-                this.outputValues![i] = this.pins[i].value;
+                ov[i] = this.pins[i].value;
         this.lastLoad = this.pins[this.loadPin].value;
     }
 
@@ -301,32 +305,32 @@ export class LatchElm extends ChipElm {
                 ei.setError("must be >= 2");
         }
         if (n === 1) {
-            this.flags = ei.changeFlagInverted(this.flags, this.FLAG_NO_EDGE);
+            this.flags = ei.changeFlagInverted(this.flags, LatchElm.FLAG_NO_EDGE);
             this.setupPins();
             this.setPoints();
             ei.newDialog = true;
         }
         if (n === 2) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_RESET);
+            this.flags = ei.changeFlag(this.flags, LatchElm.FLAG_RESET);
             this.setupPins();
             this.allocNodes();
             this.setPoints();
         }
         if (n === 3) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_SET);
+            this.flags = ei.changeFlag(this.flags, LatchElm.FLAG_SET);
             this.setupPins();
             this.allocNodes();
             this.setPoints();
         }
         if (n === 4) {
             const mode = ei.choice!.getSelectedIndex();
-            this.flags = (this.flags & ~this.FLAG_ENABLE_MASK) | (mode << this.FLAG_ENABLE_SHIFT);
+            this.flags = (this.flags & ~LatchElm.FLAG_ENABLE_MASK) | (mode << LatchElm.FLAG_ENABLE_SHIFT);
             this.setupPins();
             this.allocNodes();
             this.setPoints();
         }
         if (n === 5) {
-            this.flags = ei.changeFlag(this.flags, this.FLAG_RESET_INVERT);
+            this.flags = ei.changeFlag(this.flags, LatchElm.FLAG_RESET_INVERT);
             this.setupPins();
             this.setPoints();
         }

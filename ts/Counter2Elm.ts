@@ -63,12 +63,14 @@ export class Counter2Elm extends ChipElm {
         return Locale.LS("Counter") + Locale.LS(" (mod ") + this.modulus + ")";
     }
 
-    clk: number = 0;
-    clr: number = 0;
-    enp: number = 0;
-    ent: number = 0;
-    rco: number = 0;
-    load: number = 0;
+    // pin indices, set by setupPins().  "declare" so that no field initializer resets
+    // them after super() has already called setupPins()
+    declare clk: number;
+    declare clr: number;
+    declare enp: number;
+    declare ent: number;
+    declare rco: number;
+    declare load: number;
 
     setupPins(): void {
         this.sizeX = 2;

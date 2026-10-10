@@ -32,7 +32,9 @@ import { parseIntStrict } from "./NumberParse";
 export class LEDArrayElm extends ChipElm {
     diodes: Diode[] | null = null;
     currents: number[] = [];
-    brightness: number[] = [];
+    // set by setupPins().  "declare" so that no field initializer resets it after
+    // super() has already called setupPins()
+    declare brightness: number[];
     lastDrawTime: number = 0;
     decayMultiplier: number = 1;
     // time constant for exponential brightness decay (30ms persistence of vision)

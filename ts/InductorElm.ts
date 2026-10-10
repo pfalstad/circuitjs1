@@ -86,7 +86,10 @@ export class InductorElm extends CircuitElm {
         this.initialCurrent = xml.parseDoubleAttr("ic", this.initialCurrent);
         this.current = xml.parseDoubleAttr("i", this.current);
         this.saturationCurrent = xml.parseDoubleAttr("isat", this.saturationCurrent);
-        this.seriesResistance = xml.parseDoubleAttr("sr", this.seriesResistance);
+        // sr is only saved when nonzero, so a missing sr means 0 (not the new-element default of 1).
+        // But keep it on state-restore calls ("ix", from CompositeElm.undumpXml), which have no settings.
+        const stateRestore = xml.parseStringAttr("ix", null) != null;
+        this.seriesResistance = xml.parseDoubleAttr("sr", stateRestore ? this.seriesResistance : 0);
         this.ind.setup(this.inductance, this.current, this.flags, this.saturationCurrent);
         this.allocNodes();
     }

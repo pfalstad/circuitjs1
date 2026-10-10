@@ -27,11 +27,13 @@ import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 
 export class BusTransceiverElm extends ChipElm {
-    dataBits: number;
-    aNodes: number;
-    bNodes: number;
-    intNodes: number;
-    vSources: VoltageSource[];
+    // set by setupPins().  "declare" so that no field initializer resets them after
+    // super() has already called setupPins()
+    declare dataBits: number;
+    declare aNodes: number;
+    declare bNodes: number;
+    declare intNodes: number;
+    declare vSources: VoltageSource[];
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
