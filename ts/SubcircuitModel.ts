@@ -257,6 +257,85 @@ export class SubcircuitModel {
         }
     }
 
+    // where this model lives: local to the current circuit, global (available to all circuits
+    // this session), or persistent (global and saved in local storage across sessions)
+    getScope(): string {
+        if (SubcircuitModel.localModelMap.get(this.name) === this) return "local";
+        if (this.isSaved()) return "persistent";
+        return "global";
+    }
+
+    // names of models used by subcircuits in the current circuit, including nested ones
+    static getModelNamesInUse(): Set<string> {
+        const names = new Set<string>();
+        const scan = (list: any[]) => {
+            for (const ce of list) {
+                if (!ce.isSubcircuitElm()) continue;
+                names.add(ce.modelName);
+                if (ce.compElmList) scan(ce.compElmList);
+            }
+        };
+        scan(CirSim.theApp.elmList);
+        return names;
+    }
+
+    // move model to the global map, replacing any local or global model with the same name
+    makeGlobal(): void {
+        SubcircuitModel.localModelMap.delete(this.name);
+        SubcircuitModel.globalModelMap.set(this.name, this);
+        // keep the persistent copy in sync if one exists under this name
+        if (this.isSaved()) this.setSaved(true);
+        SubcircuitModel.sequenceNumber++;
+    }
+
+    // move model to the local map so it belongs only to the current circuit,
+    // replacing any local model with the same name, and remove it from storage
+    makeLocal(): void {
+        if (this.isSaved()) this.setSaved(false);
+        if (SubcircuitModel.globalModelMap.get(this.name) === this)
+            SubcircuitModel.globalModelMap.delete(this.name);
+        SubcircuitModel.localModelMap.set(this.name, this);
+        SubcircuitModel.sequenceNumber++;
+    }
+
+    makePersistent(): void {
+        this.makeGlobal();
+        this.setSaved(true);
+    }
+
+    // dump models as a subcircuit library file, which can be loaded like a circuit
+    static dumpLibrary(models: SubcircuitModel[]): string {
+        const doc = document.implementation.createDocument(null, "cir", null);
+        const root = doc.documentElement;
+        CircuitXMLSerializer.dumpAttr(root, "sublib", 1);
+        for (const m of models) {
+            const elem = doc.createElement("ccm");
+            m.buildXmlElement(doc, elem);
+            root.appendChild(elem);
+        }
+        return CircuitXMLSerializer.prettyPrint(doc);
+    }
+
+    // load models from a subcircuit library file and make them global
+    static loadLibrary(xml: CircuitXMLDeserializer, root: Element): SubcircuitModel[] {
+        // load into an empty local map so we can tell which models (including nested ones) came from the file
+        const oldLocalMap = SubcircuitModel.localModelMap;
+        const loaded = new Map<string, SubcircuitModel>();
+        SubcircuitModel.localModelMap = loaded;
+        try {
+            xml.currentXmlElement = root;
+            for (const child of xml.getChildElements()) {
+                if (child.tagName !== "ccm") continue;
+                xml.parseChildElement(child);
+                SubcircuitModel.undumpModelXml(xml);
+            }
+        } finally {
+            SubcircuitModel.localModelMap = oldLocalMap;
+            for (const m of loaded.values()) m.makeGlobal();
+        }
+        return [...loaded.values()];
+    }
+
     static loadModelFromStorage(data: string): void {
         const doc = new DOMParser().parseFromString(data, "text/xml");
         const root = doc.documentElement;

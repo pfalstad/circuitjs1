@@ -288,6 +288,9 @@ export class SubcircuitElm extends CompositeElm {
             CircuitElm.app.commands.doEdit(this);
     }
 
+    // don't bring up the properties when placing a subcircuit
+    showPropertiesOnCreate(): boolean { return false; }
+
     getDumpType(): number { return 410; }
     getXmlDumpType(): string { return "cc"; }
 

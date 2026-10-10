@@ -20,10 +20,12 @@
 import { Dialog } from "./Dialog";
 import { CirSim } from "./CirSim";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { Locale } from "./Locale";
 
 export class SubcircuitDialog extends Dialog {
     private subcircuitListBox: HTMLSelectElement;
-    private subcircuits: SubcircuitModel[];
+    private subcircuits: SubcircuitModel[] = [];
 
     constructor(sim: CirSim) {
         super();
@@ -31,52 +33,105 @@ export class SubcircuitDialog extends Dialog {
         this.dialogEl.style.width = "400px";
 
         const title = document.createElement("div");
-        title.textContent = "Subcircuit Manager";
+        title.textContent = Locale.LS("Subcircuit Manager");
         title.style.fontWeight = "bold";
         title.style.marginBottom = "6px";
         this.dialogEl.appendChild(title);
 
-        this.subcircuits = SubcircuitModel.getModelList().filter(m => !m.isBuiltin());
-
         this.subcircuitListBox = document.createElement("select");
-        this.subcircuitListBox.size = 5;
+        this.subcircuitListBox.multiple = true;
+        this.subcircuitListBox.size = 10;
         this.subcircuitListBox.style.width = "100%";
+        this.dialogEl.appendChild(this.subcircuitListBox);
+        this.populateList(new Set());
+
+        // two rows of three equal-width buttons, so the columns line up
+        const buttons = document.createElement("div");
+        buttons.style.display = "grid";
+        buttons.style.gridTemplateColumns = "repeat(3, 1fr)";
+        buttons.style.gap = "8px";
+        buttons.style.padding = "12px 0 6px 0";
+        this.dialogEl.appendChild(buttons);
+
+        const addButton = (label: string, handler: () => void) => {
+            const b = document.createElement("button");
+            b.textContent = Locale.LS(label);
+            b.onclick = handler;
+            buttons.appendChild(b);
+        };
+        addButton("Make Local",      () => this.handleMakeLocal());
+        addButton("Make Global",     () => this.handleMakeGlobal());
+        addButton("Make Persistent", () => this.handleMakePersistent());
+        addButton("Save",            () => this.handleSave());
+        addButton("Delete",          () => this.handleDelete());
+        addButton("Done",            () => this.closeDialog());
+    }
+
+    // fill list box, selecting the models in selected
+    private populateList(selected: Set<SubcircuitModel>): void {
+        this.subcircuits = SubcircuitModel.getModelList().filter(m => !m.isBuiltin());
+        this.subcircuitListBox.innerHTML = "";
         for (const m of this.subcircuits) {
             const opt = document.createElement("option");
-            opt.textContent = m.name;
+            opt.textContent = m.name + " (" + Locale.LS(m.getScope()) + ")";
+            opt.selected = selected.has(m);
             this.subcircuitListBox.appendChild(opt);
         }
-        this.dialogEl.appendChild(this.subcircuitListBox);
+    }
 
-        this.dialogEl.appendChild(document.createElement("br"));
+    private getSelected(): SubcircuitModel[] {
+        const sel: SubcircuitModel[] = [];
+        const opts = this.subcircuitListBox.options;
+        for (let i = 0; i < opts.length; i++)
+            if (opts[i].selected) sel.push(this.subcircuits[i]);
+        if (sel.length === 0)
+            window.alert(Locale.LS("Please select one or more subcircuits."));
+        return sel;
+    }
 
-        const deleteButton = document.createElement("button");
-        deleteButton.textContent = "Delete";
-        deleteButton.onclick = () => this.handleDelete();
-        this.dialogEl.appendChild(deleteButton);
+    private handleMakeLocal(): void {
+        const sel = this.getSelected();
+        for (const m of sel) m.makeLocal();
+        this.populateList(new Set(sel));
+    }
 
-        const doneButton = document.createElement("button");
-        doneButton.textContent = "Done";
-        doneButton.onclick = () => this.closeDialog();
-        this.dialogEl.appendChild(doneButton);
+    private handleMakeGlobal(): void {
+        const sel = this.getSelected();
+        for (const m of sel) m.makeGlobal();
+        this.populateList(new Set(sel));
+    }
+
+    private handleMakePersistent(): void {
+        const sel = this.getSelected();
+        for (const m of sel) m.makePersistent();
+        this.populateList(new Set(sel));
+    }
+
+    // save selected subcircuits as a library file which can be loaded like a circuit
+    private handleSave(): void {
+        const sel = this.getSelected();
+        if (sel.length === 0) return;
+        const data = SubcircuitModel.dumpLibrary(sel);
+        const base = (sel.length === 1) ? sel[0].name.replace(/[\\/:*?"<>|]/g, "_") : "subcircuits";
+        const fname = base + ".txt";
+        new ExportAsLocalFileDialog(data, fname, "Save Subcircuits").show();
     }
 
     private handleDelete(): void {
-        const selectedIndex = this.subcircuitListBox.selectedIndex;
-        if (selectedIndex === -1) {
-            window.alert("Please select a subcircuit to delete.");
+        const sel = this.getSelected();
+        if (sel.length === 0) return;
+        const inUse = SubcircuitModel.getModelNamesInUse();
+        const used = sel.filter(m => inUse.has(m.name));
+        if (used.length > 0) {
+            window.alert(Locale.LS("Can't delete subcircuits in use in the current circuit: ") +
+                used.map(m => m.name).join(", "));
             return;
         }
-
-        const selectedSubcircuit = this.subcircuitListBox.options[selectedIndex].textContent;
-        const confirm = window.confirm("Are you sure you want to delete " + selectedSubcircuit + "?");
-
-        if (confirm) {
-            const model = this.subcircuits[selectedIndex];
-            this.subcircuits.splice(selectedIndex, 1);
-            model.remove();
-            this.subcircuitListBox.remove(selectedIndex);
-        }
+        const names = sel.map(m => m.name).join(", ");
+        if (!window.confirm(Locale.LS("Are you sure you want to delete ") + names + "?"))
+            return;
+        for (const m of sel) m.remove();
+        this.populateList(new Set());
     }
 }
 

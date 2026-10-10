@@ -442,6 +442,9 @@ export class CirSim {
 
     importCircuitFromText(circuitText: string | null, subcircuitsOnly: boolean): void {
         const RC_SUBCIRCUITS = 2, RC_RETAIN = 4;
+        // subcircuit library files don't replace the circuit
+        if (circuitText != null && this.loader.constructor.isSubcircuitLibrary(circuitText))
+            subcircuitsOnly = true;
         const flags = subcircuitsOnly ? (RC_SUBCIRCUITS | RC_RETAIN) : 0;
         if (!subcircuitsOnly)
             this.resetEditingContext();

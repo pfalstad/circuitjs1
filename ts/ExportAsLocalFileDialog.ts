@@ -24,6 +24,8 @@ export class ExportAsLocalFileDialog extends Dialog {
     static lastFileName: string | null = null;
     private textBox: HTMLInputElement;
     private blobUrl: string;
+    // if false, this isn't a circuit file, so don't remember its name for future circuit saves
+    private rememberName: boolean;
 
     static downloadIsSupported(): boolean {
         return "download" in document.createElement("a");
@@ -48,13 +50,15 @@ export class ExportAsLocalFileDialog extends Dialog {
             ExportAsLocalFileDialog.lastFileName = s;
     }
 
-    constructor(data: string) {
+    // fileName/title are given when exporting something other than the circuit (e.g. subcircuits)
+    constructor(data: string, fileName: string | null = null, title: string = "Export as Local File") {
         super();
+        this.rememberName = fileName == null;
 
         this.dialogEl.innerHTML = "";
 
         const titleEl = document.createElement("h3");
-        titleEl.textContent = Locale.LS("Export as Local File");
+        titleEl.textContent = Locale.LS(title);
         titleEl.style.margin = "0 0 8px 0";
         this.dialogEl.appendChild(titleEl);
 
@@ -71,7 +75,9 @@ export class ExportAsLocalFileDialog extends Dialog {
         this.blobUrl = ExportAsLocalFileDialog.getBlobUrl(data);
 
         let fname: string;
-        if (ExportAsLocalFileDialog.lastFileName != null) {
+        if (fileName != null) {
+            fname = fileName;
+        } else if (ExportAsLocalFileDialog.lastFileName != null) {
             fname = ExportAsLocalFileDialog.lastFileName;
         } else {
             const now = new Date();
@@ -111,7 +117,8 @@ export class ExportAsLocalFileDialog extends Dialog {
         let fname = this.textBox.value;
         if (!fname.includes("."))
             fname += ".txt";
-        ExportAsLocalFileDialog.setLastFileName(fname);
+        if (this.rememberName)
+            ExportAsLocalFileDialog.setLastFileName(fname);
         const a = document.createElement("a");
         a.href = this.blobUrl;
         a.setAttribute("download", fname);

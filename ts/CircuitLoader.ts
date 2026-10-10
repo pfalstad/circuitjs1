@@ -95,7 +95,31 @@ export class CircuitLoader {
         }
     }
 
+    // subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
+    // containing only subcircuit models
+    static isSubcircuitLibrary(text: string): boolean {
+        return /^<cir\b[^>]*\bsublib="1"/.test(text);
+    }
+
+    // load subcircuit models from a library file, making them global.  Leaves the current circuit alone.
+    readSubcircuitLibrary(text: string): void {
+        const doc = new DOMParser().parseFromString(text, "text/xml");
+        const xml = new CircuitXMLDeserializer(this.app);
+        const models = SubcircuitModel.loadLibrary(xml, doc.documentElement);
+        // make any existing instances pick up the new definitions
+        for (const m of models)
+            this.app.refreshModels(m.name);
+        if (models.length === 0)
+            this.app.ui.showToast(Locale.LS("No subcircuits found in file"));
+        else
+            this.app.ui.showToast(Locale.LS("Loaded subcircuits: ") + models.map(m => m.name).join(", "));
+    }
+
     readCircuit(text: string, flags: number = 0): void {
+        if (CircuitLoader.isSubcircuitLibrary(text)) {
+            this.readSubcircuitLibrary(text);
+            return;
+        }
         if (text.startsWith("<")) {
 	    if ((flags & CircuitLoader.RC_RETAIN) == 0)
 		this.clearCircuit();

@@ -21,6 +21,8 @@ import { CirSim } from "./CirSim";
 
 export class Dialog {
     closeOnEnter: boolean = true;
+    // dialog that was showing when this one was opened on top of it
+    private parentDialog: Dialog | null = null;
     protected dialogEl: HTMLDialogElement;
 
     constructor() {
@@ -123,6 +125,8 @@ export class Dialog {
 
     show(): void {
         this.dialogEl.showModal();
+        if (CirSim.dialogShowing !== this)
+            this.parentDialog = CirSim.dialogShowing;
         CirSim.dialogShowing = this;
     }
 
@@ -134,8 +138,10 @@ export class Dialog {
     closeDialog(): void {
         if (this.dialogEl.open)
             this.dialogEl.close();
-        if (CirSim.dialogShowing === this)
-            CirSim.dialogShowing = null;
+        if (CirSim.dialogShowing === this) {
+            const p = this.parentDialog;
+            CirSim.dialogShowing = (p && p.isShowing()) ? p : null;
+        }
         document.body.removeChild(this.dialogEl);
     }
 
