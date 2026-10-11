@@ -20,7 +20,6 @@
 #include "CompositeElm.h"
 
 #include <iostream>
-#include <regex>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -229,24 +228,6 @@ void CompositeElm::preStamp() {
         ce->preStamp();
     buildCompNodeList();
     allocNodes();
-}
-
-std::string CompositeElm::dump() {
-    return CircuitElm::dump() + dumpElements();
-}
-
-std::string CompositeElm::dumpElements(std::optional<long> mask) {
-    static const std::regex coords("[A-Za-z0-9]+ 0 0 0 0 ");
-    std::string dumpStr;
-    for (size_t i = 0; i < compElmList.size(); i++) {
-        if (mask && (*mask & (1L << i)) == 0)
-            continue;
-        std::string tstring = compElmList[i]->dump();
-        // remove unused tint x1 y1 x2 y2 coords
-        tstring = std::regex_replace(tstring, coords, "", std::regex_constants::format_first_only);
-        dumpStr += " " + CustomLogicModel::escape(tstring);
-    }
-    return dumpStr;
 }
 
 void CompositeElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {

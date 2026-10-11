@@ -44,7 +44,6 @@ public:
     void shorted();
     bool isCapacitorElm() override { return true; }
     int getDumpType() override { return 'c'; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;

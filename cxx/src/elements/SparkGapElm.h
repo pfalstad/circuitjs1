@@ -36,7 +36,6 @@ public:
 
     bool nonLinear() override { return true; }
     int getDumpType() override { return 187; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
 

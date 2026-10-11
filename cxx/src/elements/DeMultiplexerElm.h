@@ -47,7 +47,6 @@ public:
     CHIP_CONSTRUCTORS(DeMultiplexerElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
     std::string getChipName() override { return "Demultiplexer"; }
-    std::string dump() override { return ChipElm::dump() + " " + std::to_string(selectBitCount); }
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setupPins() override;

@@ -44,11 +44,6 @@ FuseElm::FuseElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) : C
     blown = st.nextToken() == "true";
 }
 
-std::string FuseElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(resistance) + " " + jsNumberToString(i2t) + " " +
-        jsNumberToString(heat) + " " + (blown ? "true" : "false");
-}
-
 void FuseElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "re", resistance);

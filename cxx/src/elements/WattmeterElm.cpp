@@ -49,10 +49,6 @@ void WattmeterElm::setup() {
     curcounts[0] = curcounts[1] = 0;
 }
 
-std::string WattmeterElm::dump() {
-    return CircuitElm::dump() + " " + std::to_string(width) + " " + std::to_string(meter);
-}
-
 void WattmeterElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "w", width);

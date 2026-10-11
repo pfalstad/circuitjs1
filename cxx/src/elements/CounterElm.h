@@ -31,7 +31,6 @@ public:
 
     CHIP_CONSTRUCTORS(CounterElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     bool needsBits() override { return true; }

@@ -60,11 +60,6 @@ AudioOutputElm::~AudioOutputElm() {
         app->removeButton(button.get());
 }
 
-std::string AudioOutputElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(duration) + " " + std::to_string(samplingRate) + " " +
-           std::to_string(labelNum);
-}
-
 void AudioOutputElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "du", duration);

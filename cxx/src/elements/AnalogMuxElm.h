@@ -38,7 +38,6 @@ public:
     std::string getChipName() override { return "Analog Mux"; }
     bool nonLinear() override { return true; }
     int getDumpType() override { return 432; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setupPins() override;

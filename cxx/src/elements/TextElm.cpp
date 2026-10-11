@@ -68,11 +68,6 @@ void TextElm::split() {
     lines.push_back(s);
 }
 
-std::string TextElm::dump() {
-    flags |= FLAG_ESCAPE;
-    return CircuitElm::dump() + " " + std::to_string(size) + " " + CustomLogicModel::escape(text);
-}
-
 void TextElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "si", size);

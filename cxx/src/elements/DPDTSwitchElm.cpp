@@ -44,10 +44,6 @@ DPDTSwitchElm::DPDTSwitchElm(int xa, int ya, int xb, int yb, int f, StringTokeni
     noDiagonal = true;
 }
 
-std::string DPDTSwitchElm::dump() {
-    return SwitchElm::dump() + " " + std::to_string(poleCount);
-}
-
 void DPDTSwitchElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     SwitchElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "po", poleCount);

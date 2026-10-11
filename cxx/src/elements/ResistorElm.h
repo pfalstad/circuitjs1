@@ -32,7 +32,6 @@ public:
 
     bool isResistorElm() override { return true; }
     int getDumpType() override { return 'r'; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setPoints() override;

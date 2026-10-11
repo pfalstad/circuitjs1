@@ -51,11 +51,6 @@ MotorProtectionSwitchElm::MotorProtectionSwitchElm(int xa, int ya, int xb, int y
     } catch (...) {}
 }
 
-std::string MotorProtectionSwitchElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(resistance) + " " + jsNumberToString(i2t) + " " +
-           (blown ? "true" : "false") + " " + CustomLogicModel::escape(label);
-}
-
 void MotorProtectionSwitchElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "re", resistance);

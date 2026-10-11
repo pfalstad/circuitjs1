@@ -49,7 +49,6 @@ public:
     int getInternalNodeCount() override { return hasResistance ? 1 : 0; }
     void updateModels() override { setup(); }
     int getDumpType() override { return 'd'; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setPoints() override;

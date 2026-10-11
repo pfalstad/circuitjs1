@@ -33,8 +33,6 @@ public:
     UnijunctionElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &) : CompositeElm(xa, ya, xb, yb, f) { setup(); }
 
     void setup();
-    // don't want model details dumped, takes up space and will make it hard to change
-    std::string dump() override { return dumpWithMask(0); }
     void reset() override;
     int getDumpType() override { return 417; }
     void draw(Graphics &g) override;

@@ -52,12 +52,6 @@ TappedTransformerElm::TappedTransformerElm(int xa, int ya, int xb, int yb, int f
     noDiagonal = true;
 }
 
-std::string TappedTransformerElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(inductance) + " " + jsNumberToString(ratio) + " " +
-        jsNumberToString(currents[0]) + " " + jsNumberToString(currents[1]) + " " + jsNumberToString(currents[2]) +
-        " " + jsNumberToString(couplingCoef);
-}
-
 void TappedTransformerElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "in", inductance);

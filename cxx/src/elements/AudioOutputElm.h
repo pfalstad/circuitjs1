@@ -51,7 +51,6 @@ public:
     AudioOutputElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
     ~AudioOutputElm() override;
 
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void draggingDone() override { setTimeStep(); }

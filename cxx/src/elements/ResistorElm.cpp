@@ -39,10 +39,6 @@ ResistorElm::ResistorElm(int xa, int ya, int xb, int yb, int f, StringTokenizer 
     resistance = parseFloatStrict(st.nextToken());
 }
 
-std::string ResistorElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(resistance);
-}
-
 void ResistorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "r", resistance);

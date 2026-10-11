@@ -69,11 +69,6 @@ void DiodeElm::setup() {
     allocNodes();
 }
 
-std::string DiodeElm::dump() {
-    flags |= FLAG_MODEL;
-    return CircuitElm::dump() + " " + CustomLogicModel::escape(modelName);
-}
-
 void DiodeElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     if (!(model->builtIn || model->dumped))
         model->dumpXml(doc);

@@ -45,10 +45,6 @@ void LEDArrayElm::postConstruct(StringTokenizer *st) {
     }
 }
 
-std::string LEDArrayElm::dump() {
-    return ChipElm::dump() + " " + std::to_string(sizeX) + " " + std::to_string(sizeY);
-}
-
 void LEDArrayElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "sx", sizeX);

@@ -40,10 +40,6 @@ void CounterElm::postConstruct(StringTokenizer *st) {
     pins[1].bubble = invertreset;
 }
 
-std::string CounterElm::dump() {
-    return ChipElm::dump() + " " + (invertreset ? "true" : "false") + " " + std::to_string(modulus);
-}
-
 void CounterElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "in", invertreset);

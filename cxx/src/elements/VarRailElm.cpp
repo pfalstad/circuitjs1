@@ -62,11 +62,6 @@ void VarRailElm::undumpXml(CircuitXMLDeserializer &xml) {
         slider->setValue(value);
 }
 
-std::string VarRailElm::dump() {
-    // encode '+' for the old text format tokenizer
-    return RailElm::dump() + " " + std::regex_replace(sliderText, std::regex("\\+"), "%2B");
-}
-
 void VarRailElm::createSlider() {
     waveform = WF_VAR;
     double denom = maxVoltage - bias;

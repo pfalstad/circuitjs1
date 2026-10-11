@@ -39,7 +39,6 @@ public:
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getDumpType() override { return 172; }
     bool isVarRailElm() override { return true; }
-    std::string dump() override;
     void createSlider();
     double getVoltage() override;
     void deleteElm() override;

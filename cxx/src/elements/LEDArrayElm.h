@@ -35,7 +35,6 @@ public:
 
     CHIP_CONSTRUCTORS(LEDArrayElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     std::string getChipName() override { return "LED array"; }

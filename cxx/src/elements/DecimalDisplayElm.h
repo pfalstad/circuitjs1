@@ -31,7 +31,6 @@ public:
     void postConstruct(StringTokenizer *st) override;
     std::string getChipName() override;
     void draw(Graphics &g) override;
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     std::string getXmlDumpType() override { return "dd"; }

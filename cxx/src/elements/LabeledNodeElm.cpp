@@ -49,11 +49,6 @@ LabeledNodeElm::LabeledNodeElm(int xa, int ya, int xb, int yb, int f, StringToke
     }
 }
 
-std::string LabeledNodeElm::dump() {
-    flags |= FLAG_ESCAPE;
-    return CircuitElm::dump() + " " + CustomLogicModel::escape(text);
-}
-
 void LabeledNodeElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "te", text);

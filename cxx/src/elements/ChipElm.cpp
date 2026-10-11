@@ -413,22 +413,6 @@ void ChipElm::reset() {
     lastClock = false;
 }
 
-std::string ChipElm::dump() {
-    if (highVoltage == 5)
-        flags &= ~FLAG_CUSTOM_VOLTAGE;
-    else
-        flags |= FLAG_CUSTOM_VOLTAGE;
-    std::string s = CircuitElm::dump();
-    if (needsBits())
-        s += " " + std::to_string(bits);
-    if (hasCustomVoltage())
-        s += " " + jsNumberToString(highVoltage);
-    for (int i = 0; i != getPostCount(); i++)
-        if (pins[i].state)
-            s += " " + jsNumberToString(nodes[i]->v);
-    return s;
-}
-
 void ChipElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     if (bits > 0)

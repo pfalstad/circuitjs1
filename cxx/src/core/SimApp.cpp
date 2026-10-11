@@ -67,11 +67,14 @@ void SimApp::updateModels() {
 }
 
 void SimApp::deleteAllElms() {
-    for (CircuitElm *ce : elmList) {
+    // take the elements out of elmList first; deleteElm() notifies listeners that walk
+    // elmList (e.g. ScopeManager::elementDeleted), which must not see freed elements
+    std::vector<CircuitElm *> list;
+    list.swap(elmList);
+    for (CircuitElm *ce : list) {
         ce->deleteElm();
         delete ce;
     }
-    elmList.clear();
 }
 
 void SimApp::onTimeStep() {

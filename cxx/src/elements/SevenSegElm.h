@@ -46,7 +46,6 @@ public:
     CHIP_CONSTRUCTORS(SevenSegElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
     void setDefaults();
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     bool allowBus() override { return diodeDirection == 0; }

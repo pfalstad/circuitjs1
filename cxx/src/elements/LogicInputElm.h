@@ -38,7 +38,6 @@ public:
     bool isNumeric() const { return (flags & (FLAG_TERNARY | FLAG_NUMERIC)) != 0; }
     int getDumpType() override { return 'L'; }
     bool showPropertiesOnCreate() override { return false; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getPostCount() override { return 1; }

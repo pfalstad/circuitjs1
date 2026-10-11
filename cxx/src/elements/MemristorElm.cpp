@@ -52,11 +52,6 @@ MemristorElm::MemristorElm(int xa, int ya, int xb, int yb, int f, StringTokenize
     resistance = 100;
 }
 
-std::string MemristorElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(r_on) + " " + jsNumberToString(r_off) + " " +
-           jsNumberToString(dopeWidth) + " " + jsNumberToString(totalWidth) + " " + jsNumberToString(mobility);
-}
-
 void MemristorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "ron", r_on);

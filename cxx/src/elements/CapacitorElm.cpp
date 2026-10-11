@@ -73,12 +73,6 @@ void CapacitorElm::shorted() {
     voltdiff = current = curcount = curSourceValue = 0;
 }
 
-std::string CapacitorElm::dump() {
-    flags |= FLAG_RESISTANCE;
-    return CircuitElm::dump() + " " + jsNumberToString(capacitance) + " " + jsNumberToString(voltdiff) + " " +
-        jsNumberToString(initialVoltage) + " " + jsNumberToString(seriesResistance);
-}
-
 void CapacitorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "c", capacitance);

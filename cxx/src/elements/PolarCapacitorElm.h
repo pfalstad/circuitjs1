@@ -32,7 +32,6 @@ public:
 
     int getDumpType() override { return 209; }
     std::string getXmlDumpType() override { return "pc"; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setPoints() override;

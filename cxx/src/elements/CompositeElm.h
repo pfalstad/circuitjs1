@@ -68,9 +68,6 @@ public:
     // have their final state (after undumpXml) when we query their internal node counts.
     void buildCompNodeList();
     void preStamp() override;
-    std::string dump() override;
-    std::string dumpElements(std::optional<long> mask = std::nullopt);
-    std::string dumpWithMask(long mask) { return CircuitElm::dump() + dumpElements(mask); }
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     bool getConnection(int, int) override { return false; }

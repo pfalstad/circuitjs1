@@ -43,11 +43,6 @@ void AnalogMuxElm::postConstruct(StringTokenizer *st) {
     setupPins();
 }
 
-std::string AnalogMuxElm::dump() {
-    return ChipElm::dump() + " " + std::to_string(selectBitCount) + " " + jsNumberToString(r_on) + " " +
-        jsNumberToString(r_off) + " " + jsNumberToString(threshold);
-}
-
 void AnalogMuxElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "sb", selectBitCount);

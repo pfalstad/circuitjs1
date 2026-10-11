@@ -34,7 +34,6 @@ public:
     FuseElm(int xx, int yy);
     FuseElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
 
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getDumpType() override { return 404; }

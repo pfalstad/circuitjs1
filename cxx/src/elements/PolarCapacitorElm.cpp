@@ -37,10 +37,6 @@ PolarCapacitorElm::PolarCapacitorElm(int xa, int ya, int xb, int yb, int f, Stri
     maxNegativeVoltage = parseFloatStrict(st.nextToken());
 }
 
-std::string PolarCapacitorElm::dump() {
-    return CapacitorElm::dump() + " " + jsNumberToString(maxNegativeVoltage);
-}
-
 void PolarCapacitorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CapacitorElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "mv", maxNegativeVoltage);

@@ -52,7 +52,6 @@ public:
     WattmeterElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
 
     void setup();
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getVoltageSourceCount() override { return 2; }

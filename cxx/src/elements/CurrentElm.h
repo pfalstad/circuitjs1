@@ -38,7 +38,6 @@ public:
     bool isVoltageLimited() const { return maxVoltage > 0; }
     bool nonLinear() override { return isVoltageLimited(); }
     void reset() override;
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getDumpType() override { return 'i'; }

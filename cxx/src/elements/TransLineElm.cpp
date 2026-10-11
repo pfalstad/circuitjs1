@@ -51,11 +51,6 @@ TransLineElm::TransLineElm(int xa, int ya, int xb, int yb, int f, StringTokenize
     reset();
 }
 
-std::string TransLineElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(delay) + " " + jsNumberToString(imped) + " " +
-           std::to_string(width) + " 0";
-}
-
 void TransLineElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "de", delay);

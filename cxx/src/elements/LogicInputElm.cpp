@@ -48,10 +48,6 @@ LogicInputElm::LogicInputElm(int xa, int ya, int xb, int yb, int f, StringTokeni
         posCount = 3;
 }
 
-std::string LogicInputElm::dump() {
-    return SwitchElm::dump() + " " + jsNumberToString(hiV) + " " + jsNumberToString(loV);
-}
-
 void LogicInputElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     SwitchElm::dumpXml(doc, elem);
     if (hiV != 5)

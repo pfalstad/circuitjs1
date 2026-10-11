@@ -75,10 +75,6 @@ void DecimalDisplayElm::draw(Graphics &g) {
     g.restore();
 }
 
-std::string DecimalDisplayElm::dump() {
-    return ChipElm::dump() + " " + std::to_string(bitCount) + " " + std::to_string(displayMode);
-}
-
 void DecimalDisplayElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "bc", bitCount);

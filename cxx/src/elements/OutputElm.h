@@ -60,7 +60,6 @@ public:
     LogicOutputElm(int xx, int yy) : CircuitElm(xx, yy) { threshold = 2.5; }
     LogicOutputElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
 
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     bool isLogicOutputElm() override { return true; }

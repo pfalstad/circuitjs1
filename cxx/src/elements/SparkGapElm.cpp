@@ -48,11 +48,6 @@ SparkGapElm::SparkGapElm(int xa, int ya, int xb, int yb, int f, StringTokenizer 
     resistance = offresistance;
 }
 
-std::string SparkGapElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(onresistance) + " " + jsNumberToString(offresistance) + " " +
-        jsNumberToString(breakdown) + " " + jsNumberToString(holdcurrent);
-}
-
 void SparkGapElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "on", onresistance);

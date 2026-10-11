@@ -47,7 +47,6 @@ public:
     int getPostCount() override { return 4; }
     int getInternalNodeCount() override { return 2; }
     std::string getXmlDumpType() override { return "tl"; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void drag(int xx, int yy) override;

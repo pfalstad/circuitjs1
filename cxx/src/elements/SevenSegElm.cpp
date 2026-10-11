@@ -51,11 +51,6 @@ void SevenSegElm::setDefaults() {
     diodeDirection = 0;
 }
 
-std::string SevenSegElm::dump() {
-    return ChipElm::dump() + " " + std::to_string(baseSegmentCount) + " " + std::to_string(extraSegment) + " " +
-        std::to_string(diodeDirection);
-}
-
 void SevenSegElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "ba", baseSegmentCount);

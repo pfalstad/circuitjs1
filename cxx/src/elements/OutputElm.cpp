@@ -62,10 +62,6 @@ LogicOutputElm::LogicOutputElm(int xa, int ya, int xb, int yb, int f, StringToke
     }
 }
 
-std::string LogicOutputElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(threshold);
-}
-
 void LogicOutputElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     if (threshold != 2.5)

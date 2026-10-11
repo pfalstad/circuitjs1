@@ -51,10 +51,6 @@ InverterElm::InverterElm(int xa, int ya, int xb, int yb, int f, StringTokenizer 
     } catch (...) {}
 }
 
-std::string InverterElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(slewRate) + " " + jsNumberToString(highVoltage);
-}
-
 void InverterElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "sl", slewRate);

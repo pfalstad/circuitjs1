@@ -47,10 +47,6 @@ void CurrentElm::reset() {
     lastVoltDiff = 0;
 }
 
-std::string CurrentElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(currentValue) + " " + jsNumberToString(maxVoltage);
-}
-
 void CurrentElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "cu", currentValue);

@@ -55,10 +55,6 @@ void DarlingtonElm::reset() {
     curcount_c = curcount_e = curcount_b = 0;
 }
 
-std::string DarlingtonElm::dump() {
-    return CompositeElm::dump() + " " + std::to_string(pnp);
-}
-
 void DarlingtonElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CompositeElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "pnp", pnp);

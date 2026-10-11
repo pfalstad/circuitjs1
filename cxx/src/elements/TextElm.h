@@ -35,7 +35,6 @@ public:
     TextElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
 
     void split();
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getDumpType() override { return 'x'; }

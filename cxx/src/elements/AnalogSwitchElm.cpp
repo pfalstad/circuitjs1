@@ -48,11 +48,6 @@ AnalogSwitchElm::AnalogSwitchElm(int xa, int ya, int xb, int yb, int f, StringTo
     } catch (...) {}
 }
 
-std::string AnalogSwitchElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(r_on) + " " + jsNumberToString(r_off) + " " +
-           jsNumberToString(threshold);
-}
-
 void AnalogSwitchElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "ron", r_on);

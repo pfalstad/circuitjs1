@@ -52,11 +52,6 @@ TriStateElm::TriStateElm(int xa, int ya, int xb, int yb, int f, StringTokenizer 
     noDiagonal = true;
 }
 
-std::string TriStateElm::dump() {
-    return CircuitElm::dump() + " " + jsNumberToString(r_on) + " " + jsNumberToString(r_off) + " " +
-        jsNumberToString(r_off_ground) + " " + jsNumberToString(highVoltage);
-}
-
 void TriStateElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "ron", r_on);

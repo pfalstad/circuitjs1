@@ -37,10 +37,6 @@ void Counter2Elm::postConstruct(StringTokenizer *st) {
     } catch (...) {}
 }
 
-std::string Counter2Elm::dump() {
-    return ChipElm::dump() + " " + std::to_string(modulus);
-}
-
 void Counter2Elm::dumpXml(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXml(doc, elem);
     CircuitXMLSerializer::dumpAttr(elem, "mo", modulus);

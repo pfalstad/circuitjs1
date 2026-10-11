@@ -143,7 +143,6 @@ public:
     void startIteration() override;
     void doStep() override;
     void reset() override;
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;

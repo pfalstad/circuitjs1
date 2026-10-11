@@ -48,12 +48,6 @@ AudioInputElm::AudioInputElm(int xa, int ya, int xb, int yb, int f, StringTokeni
     samplingRate = lastSamplingRate;
 }
 
-std::string AudioInputElm::dump() {
-    genFileNumber();
-    return RailElm::dump() + " " + jsNumberToString(maxVoltage) + " " + jsNumberToString(startPosition) + " " +
-           std::to_string(fileNum);
-}
-
 void AudioInputElm::genFileNumber() {
     if (data != nullptr) {
         if (fileNum == 0)

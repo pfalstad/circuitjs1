@@ -47,10 +47,6 @@ GroundElm::GroundElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st)
     }
 }
 
-std::string GroundElm::dump() {
-    return CircuitElm::dump() + " " + std::to_string(symbolType);
-}
-
 void GroundElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitElm::dumpXml(doc, elem);
     if (symbolType != 0)

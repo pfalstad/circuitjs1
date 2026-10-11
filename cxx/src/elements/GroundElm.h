@@ -36,7 +36,6 @@ public:
 
     bool getDragVertical(bool) override { return true; }
     int getDragLength() override { return 32; }
-    std::string dump() override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
 

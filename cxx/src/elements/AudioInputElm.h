@@ -48,7 +48,6 @@ public:
     AudioInputElm(int xx, int yy);
     AudioInputElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
 
-    std::string dump() override;
     // add a file number to the dump so we can preserve the audio file data when doing cut and paste, or undo/redo.
     // we don't save the entire file in the dump because it would be huge.
     void genFileNumber();
