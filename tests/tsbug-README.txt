@@ -86,6 +86,13 @@ tsbug-relaycontact-xml.txt   (RelayContactElm, XML)
     setContactPosition() (callers: RelayCoilElm, MotorProtectionSwitchElm).
     Fixed: same as latchingrelay.txt.
 
+tsbug-opamp-gain-text.txt   (ComparatorElm in text format; its op-amp has no gain value)
+    Stock: "nan/infinite matrix!" immediately.  OpAmpElm.gain had no
+    initializer, so a text-format op-amp with FLAG_GAIN (8) but no gain value
+    (which is what TS itself writes inside a composite's text dump, since
+    OpAmpElm has no text dump() of its own) got gain = undefined -> NaN.
+    Fixed: gain defaults to 100000, and the comparator works.
+
 No file: LEDArrayElm
     Place a new LED array from the menu and drive it.
     Stock: brightness is reset to [] after setupPins(), so LED colors

@@ -36,7 +36,7 @@ export class OpAmpElm extends CircuitElm {
     opaddtext: number;
     maxOut: number;
     minOut: number;
-    gain: number;
+    gain: number = 100000;  // (an old text-format op-amp with FLAG_GAIN but no gain value gets the default)
     gbw: number;
     readonly FLAG_SWAP = 1;
     readonly FLAG_SMALL = 2;
