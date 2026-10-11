@@ -309,7 +309,11 @@ class PassiveFilter extends FilterCustomizer {
 	    } else {
 		layout(nets[i], x, TOP, false, len);
 		addGround(x, TOP+len);
-		x += nets[i].width(SEG);
+		// leave room for parallel branches stacked to the right
+		int w = nets[i].width(SEG);
+		if (w > 0)
+		    addWire(x, TOP, x+w, TOP);
+		x += w;
 	    }
 	}
 	addWire(x, TOP, x+SEG, TOP);
