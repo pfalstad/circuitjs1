@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QImage>
 #include <QKeySequence>
 #include <QMap>
 #include <map>
@@ -240,8 +241,33 @@ public:
     void doCreateSubcircuit();
     void composeSubcircuitMenu();
 
+    // File menu commands (CommandManager.ts, ImageExporter.ts)
+    void newWindow();
+    void toggleFullScreen();
+    void doImportFromText();
+    void importCircuitFromText(const std::string &text, bool subcircuitsOnly);
+    void doExportAsText();
+    void doExportAsUrl();
+    void doExportAsImage();
+    void doImageToClipboard();
+    void doExportAsSVG();
+    void doPrint();
+    void doDCAnalysis();
+    void doAbout();
+    // auto-save: the circuit as of the last change, and the one saved by the last session
+    std::optional<std::string> recovery;
+    void writeRecoveryToStorage();
+    void readRecovery();
+    void doRecover();
+
 private:
     void createMenus();
+    void createFileMenu();
+    enum { CAC_PRINT, CAC_IMAGE, CAC_SVG };
+    Rectangle imageBounds();
+    QImage getCircuitAsImage(int type);
+    void drawCircuitInPainter(QPainter &painter, int type, const Rectangle &bounds, double w, double h);
+    QAction *recoverItem = nullptr;
     void createCircuitsMenu();
     void createDrawMenu();
     // the part of readCircuit() after the loader is done

@@ -110,6 +110,7 @@ CirSim::CirSim() {
     // saved settings and subcircuit models, kept across sessions
     storage = std::make_unique<QtStorage>();
     Storage::localStorage = storage.get();
+    readRecovery();
     CircuitElm::initClass(this, sim.get());
     registerElements();
     loadOptions();
@@ -159,23 +160,7 @@ CirSim::~CirSim() {
 }
 
 void CirSim::createMenus() {
-    QMenu *file = menuBar()->addMenu(tr("&File"));
-    QAction *open = file->addAction(tr("&Open..."));
-    open->setShortcut(QKeySequence::Open);
-    connect(open, &QAction::triggered, this, [this] { openFile(); });
-    QAction *blank = file->addAction(tr("&New Blank Circuit"));
-    blank->setShortcut(QKeySequence::New);
-    connect(blank, &QAction::triggered, this, [this] { newBlankCircuit(); });
-    file->addSeparator();
-    QAction *saveItem = file->addAction(tr("&Save"));
-    saveItem->setShortcut(QKeySequence::Save);
-    connect(saveItem, &QAction::triggered, this, [this] { save(); });
-    QAction *saveAsItem = file->addAction(tr("Save &As..."));
-    saveAsItem->setShortcut(QKeySequence::SaveAs);
-    connect(saveAsItem, &QAction::triggered, this, [this] { saveAs(); });
-    file->addSeparator();
-    QAction *createSub = file->addAction(QString::fromStdString(Locale::LS("Create Subcircuit...")));
-    connect(createSub, &QAction::triggered, this, [this] { doCreateSubcircuit(); });
+    createFileMenu();
 
     QMenu *edit = menuBar()->addMenu(tr("&Edit"));
     auto LSq = [](const char *str) { return QString::fromStdString(Locale::LS(str)); };
@@ -1136,6 +1121,7 @@ void CirSim::doDelete() {
     if (hasDeleted) {
         scopeManager->deleteUnusedScopeElms();
         needAnalyze();
+        writeRecoveryToStorage();
     }
 }
 

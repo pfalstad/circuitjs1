@@ -42,7 +42,7 @@ target_link_libraries(exprtest circuitcore)
 if(NOT CMAKE_PREFIX_PATH AND EXISTS "$ENV{HOME}/Qt/6.8.3/macos")
     list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/Qt/6.8.3/macos")
 endif()
-find_package(Qt6 COMPONENTS Widgets Svg)
+find_package(Qt6 COMPONENTS Widgets Svg PrintSupport)
 if(Qt6_FOUND)
     set(CMAKE_AUTOMOC ON)
     file(GLOB APP_SOURCES CONFIGURE_DEPENDS src/app/*.cpp)
@@ -58,7 +58,7 @@ if(Qt6_FOUND)
     elseif(UNIX)
         target_link_libraries(miniaudio PUBLIC dl pthread m)
     endif()
-    target_link_libraries(CircuitJS1 circuitcore miniaudio Qt6::Widgets Qt6::Svg)
+    target_link_libraries(CircuitJS1 circuitcore miniaudio Qt6::Widgets Qt6::Svg Qt6::PrintSupport)
     set_target_properties(CircuitJS1 PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER com.lushprojects.circuitjs1
         MACOSX_BUNDLE_BUNDLE_NAME CircuitJS1)
@@ -78,7 +78,7 @@ if(Qt6_FOUND)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TS_PUBLIC}/circuitjs/font/fontello.ttf ${TS_PUBLIC}/circuitjs/font/LICENSE.txt ${RESOURCE_DIR}/font/
         # help pages that edit dialogs link to (EditInfo.makeLink)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DIR}/help
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/../war/customfunction.html ${CMAKE_SOURCE_DIR}/../war/customlogic.html ${CMAKE_SOURCE_DIR}/../war/customtransformer.html ${RESOURCE_DIR}/help/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/../war/customfunction.html ${CMAKE_SOURCE_DIR}/../war/customlogic.html ${CMAKE_SOURCE_DIR}/../war/customtransformer.html ${CMAKE_SOURCE_DIR}/../war/about.html ${RESOURCE_DIR}/help/
         COMMENT "Copying example circuits")
 else()
     message(STATUS "Qt 6 not found; building only the simulator core and tools")

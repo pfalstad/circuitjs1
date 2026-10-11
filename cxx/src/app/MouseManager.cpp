@@ -317,6 +317,7 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
         setMouseElm(nullptr);
     }
     bool success = true;
+    bool changed = false;
     switch (tempMouseMode) {
     case SimApp::MODE_DRAG_ALL:
         dragAll(ex, ey);
@@ -341,18 +342,21 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
             if (mouseElm->isRoutedWireElm()) {
                 tempMouseMode = SimApp::MODE_DRAG_REROUTE;
                 static_cast<RoutedWireElm *>(mouseElm)->rerouteVia(snapGrid(gx), snapGrid(gy));
+                changed = true;
             } else {
                 tempMouseMode = SimApp::MODE_DRAG_SELECTED;
-                success = dragSelected(gx, gy);
+                changed = success = dragSelected(gx, gy);
             }
         }
         break;
     case SimApp::MODE_DRAG_SELECTED:
-        success = dragSelected(gx, gy);
+        changed = success = dragSelected(gx, gy);
         break;
     case SimApp::MODE_DRAG_REROUTE:
-        if (mouseElm != nullptr && mouseElm->isRoutedWireElm())
+        if (mouseElm != nullptr && mouseElm->isRoutedWireElm()) {
             static_cast<RoutedWireElm *>(mouseElm)->rerouteVia(snapGrid(gx), snapGrid(gy));
+            changed = true;
+        }
         break;
     }
     dragging = true;
@@ -366,6 +370,8 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
             dragGridY = snapGrid(dragGridY);
         }
     }
+    if (changed)
+        sim->writeRecoveryToStorage();
     sim->repaint();
 }
 
@@ -605,6 +611,7 @@ CircuitElm *MouseManager::endDrag() {
             sim->uiElmList->push_back(de);
             de->draggingDone();
             circuitChanged = true;
+            sim->writeRecoveryToStorage();
             createdElm = de;
             // TODO: open the edit dialog for the new element
         }

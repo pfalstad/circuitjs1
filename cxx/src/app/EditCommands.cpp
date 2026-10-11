@@ -271,6 +271,7 @@ void CirSim::doPaste(const std::string *dump) {
             elmList[i]->move(dx, dy);
     }
     needAnalyze();
+    writeRecoveryToStorage();
 }
 
 void CirSim::doSelectAll() {

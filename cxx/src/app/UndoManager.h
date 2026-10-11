@@ -41,7 +41,7 @@ public:
     void doRedo();
     void loadUndoItem(const UndoItem &ui);
     void enableUndoRedo();
-    // TODO: recovery (the TS version keeps the last circuit in localStorage)
+    // (recovery is in CirSim: writeRecoveryToStorage(), doRecover())
 
 private:
     CirSim *sim;
