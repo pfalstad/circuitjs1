@@ -40,6 +40,7 @@
 #include <QTextStream>
 #include <QUrl>
 #include <chrono>
+#include <regex>
 #include <functional>
 #include <cmath>
 
@@ -600,10 +601,18 @@ void CirSim::enableUndoRedo(bool undo, bool redo) {
         toolbar->enableUndoRedo(undo, redo);
 }
 
+std::string CirSim::withoutSliders(const std::string &dump) {
+    size_t end = dump.find('>');
+    if (end == std::string::npos)
+        return dump;
+    static const std::regex sliderAttrs(" (ic|cb|pb)=\"[^\"]*\"");
+    return std::regex_replace(dump.substr(0, end), sliderAttrs, "") + dump.substr(end);
+}
+
 bool CirSim::isModified() {
     // a click pushes an undo item (and so sets unsavedChanges) even if nothing moves,
     // so check whether the circuit itself is different
-    return unsavedChanges && dumpCircuit(false) != savedDump;
+    return unsavedChanges && withoutSliders(dumpCircuit(false)) != withoutSliders(savedDump);
 }
 
 bool CirSim::writeFile(const QString &path) {

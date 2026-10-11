@@ -26,7 +26,8 @@ UndoItem::UndoItem(CirSim *sim, std::string d)
 void UndoManager::pushUndo() {
     redoStack.clear();
     std::string s = sim->dumpCircuit();
-    if (!undoStack.empty() && s == undoStack.back().dump)
+    // (moving a sidebar slider isn't an undoable change)
+    if (!undoStack.empty() && CirSim::withoutSliders(s) == CirSim::withoutSliders(undoStack.back().dump))
         return;
     undoStack.emplace_back(sim, std::move(s));
     enableUndoRedo();

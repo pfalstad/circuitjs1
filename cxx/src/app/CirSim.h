@@ -121,6 +121,9 @@ public:
     bool unsavedChanges = false;
     QString filePath;  // where Save writes; empty for new circuits and the examples
     std::string dumpCircuit(bool saveState = true);  // false: without state or scopes (see CircuitXMLSerializer)
+    // the dump without the sidebar slider settings (simulation speed, current speed, power
+    // brightness), so moving a slider doesn't count as a change to the circuit
+    static std::string withoutSliders(const std::string &dump);
     void pushUndo() { undoManager->pushUndo(); }
     void enableUndoRedo(bool undo, bool redo);
     bool save();
