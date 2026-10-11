@@ -481,4 +481,41 @@ class FilterCustomizer extends Customizer {
 	frequencyChanged();
 	sim.centerCircuit();
     }
+    // helpers for customizers that generate their circuit in code
+
+    CircuitElm add(String s) {
+	try {
+	    return sim.undump(s);
+	} catch (Exception e) {
+	    e.printStackTrace();
+	    return null;
+	}
+    }
+
+    CircuitElm add(char type, int x1, int y1, int x2, int y2, String rest) {
+	return add(type + " " + x1 + " " + y1 + " " + x2 + " " + y2 + " 0 " + rest);
+    }
+
+    void addWire(int x1, int y1, int x2, int y2) { add('w', x1, y1, x2, y2, ""); }
+
+    // delete everything but the sweep source, which is moved (or created) so
+    // its output is at (x, y)
+    void clearCircuit(int x, int y) {
+	int i;
+	SweepElm src = null;
+	sim.clearMouseElm();
+	for (i = 0; i != sim.elmList.size(); i++) {
+	    CircuitElm ce = sim.getElm(i);
+	    if (src == null && ce instanceof SweepElm) {
+		src = (SweepElm) ce;
+		continue;
+	    }
+	    ce.delete();
+	    sim.elmList.removeElementAt(i--);
+	}
+	if (src == null)
+	    add("170 " + x + " " + y + " " + (x-32) + " " + y + " 2 20 4000 5 0.1");
+	else
+	    src.move(x-src.x, y-src.y);
+    }
 };

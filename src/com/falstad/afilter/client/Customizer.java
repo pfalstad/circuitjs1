@@ -46,4 +46,6 @@ class Customizer {
     double [] getIdealResponse(int size) { return null; }
     Complex [] getPoles() { return null; }
     Complex [] getZeros() { return null; }
+    // should this pole be highlighted when the mouse is over mouseElm?
+    boolean isPoleSelected(Complex p, CircuitElm mouseElm) { return false; }
 };

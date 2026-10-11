@@ -1795,16 +1795,9 @@ MouseOutHandler, MouseWheelHandler {
                 g.drawLine(polesArea.x, cy, polesArea.x+polesArea.width, cy);
         }
 
-        int selnum = -1;
-        if (customizer instanceof LowActiveFilter ||
-                customizer instanceof HighActiveFilter) {
-            for (i = 0; i != countElm(BoxElm.class); i++)
-                if (mouseElm == getElm(i, BoxElm.class))
-                    selnum = i;
-        }
         for (i = 0; i != poles.length; i++) {
             Complex c = poles[i];
-            g.setColor((i == selnum || i == poles.length-1-selnum) ?
+            g.setColor((customizer != null && customizer.isPoleSelected(c, mouseElm)) ?
                        CircuitElm.selectColor : Color.white);
             int cx = (int) (rx + c.re*scale);
             int cy = (int) (my - c.im*scale);

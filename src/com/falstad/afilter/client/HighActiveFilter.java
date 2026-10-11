@@ -5,41 +5,33 @@ class HighActiveFilter extends ActiveFilter {
 	super(f, st);
     }
 
-    /*double getScaleFactor(double w, Complex poles[]) {
-	return -Math.pow(w, poles.length);
-	}*/
-    
-    void frequencyChanged() {
-	int ri = 0;
-	int ci = 0;
-	int poles2 = sim.countElm(BoxElm.class);
-	int pn;
-	int poles = poles2*2;
-	Complex parr[] = getPoles();
-	for (pn = 0; pn != poles2; pn++) {
-	    Complex c1 = parr[pn];
+    void buildStage(int i, int x, boolean real) {
+	buildSallenKey(i, x, real, true);
+    }
+
+    void setValues() {
+	int i;
+	for (i = 0; i != stagePoles.length; i++) {
+	    Complex c1 = stagePoles[i];
 	    double wp = c1.mag();
-	    double q = -wp/(2*c1.re);
-	    double r2 = 0;
-	    double cx = 1e-3;
-	    double c3 = 0;
+	    if (isReal(c1)) {
+		double cx = pickCap(wp);
+		caps[i][0].setValue(cx);
+		res[i][0].setValue(1/(wp*cx));
+		continue;
+	    }
+	    double q = getQ(c1);
 	    double p = 1;
 	    while (p < 4*q*q)
 		p++;
-	    while (true) {
-		c3 = cx*(p-2*q*q-Math.sqrt(p*p-4*p*q*q))/(2*q*q);
-		r2 = 1/(q*wp*(c3+cx));
-		if (r2 > 100)
-		    break;
-		cx /= 10;
-	    }
-	    sim.getElm(ri++, ResistorElm.class).setValue(r2);
-	    sim.getElm(ri++, ResistorElm.class).setValue(p*r2);
-	    sim.getElm(ci++, CapacitorElm.class).setValue(cx);
-	    sim.getElm(ci++, CapacitorElm.class).setValue(c3);
-	    CircuitElm b = sim.getElm(pn, BoxElm.class);
-	    ((BoxElm) b).setText("Q = " + CircuitElm.showFormat.format(q));
+	    // second capacitor is f*cx
+	    double f = (p-2*q*q-Math.sqrt(p*p-4*p*q*q))/(2*q*q);
+	    double cx = pickCap(q*wp*(1+f));
+	    double r2 = 1/(q*wp*cx*(1+f));
+	    caps[i][0].setValue(cx);
+	    caps[i][1].setValue(f*cx);
+	    res[i][0].setValue(p*r2);  // to ground
+	    res[i][1].setValue(r2);    // feedback
 	}
-	sim.needAnalyze();
     }
 };

@@ -28,86 +28,67 @@ class BandPassActiveFilter extends ActiveFilter {
         }
         return x;
     }
-    
-    int getPoleCount() { return pslider.getValue()*4; }
-    int getBoxCount() { return pslider.getValue()*2; }
-    
-    void frequencyChanged() {
-	int ri = 0;
-	int ci = 0;
-	int poles2 = sim.countElm(BoxElm.class);
-	int pn;
-	int poles = poles2*2;
+
+    int getMaxPoles() { return 10; }
+
+    // multiple-feedback bandpass stage
+    void buildStage(int i, int x, boolean real) {
+	int y = Y;
+	res[i] = new ResistorElm[3];
+	caps[i] = new CapacitorElm[2];
+	res[i][1] = addRes(x, y, x+48, y);            // input
+	res[i][2] = addRes(x+48, y, x+48, y+88);      // to ground
+	addGround(x+48, y+88);
+	caps[i][0] = addCap(x+48, y, x+96, y);        // to inverting input
+	addWire(x+48, y-64, x+48, y);
+	caps[i][1] = addCap(x+48, y-64, x+96, y-64);  // to output
+	res[i][0] = addRes(x+96, y-64, x+96, y);      // feedback
+	addWire(x+96, y-64, x+SW, y-64);
+	addOpAmp(x+112, y+8, x+SW, y+8, false);
+	addWire(x+112, y, x+96, y);
+	addGround(x+112, y+16);
+	addWire(x+SW, y+8, x+SW, y);
+	addWire(x+SW, y, x+SW, y-64);
+    }
+
+    // returns k, the gain of the stage, given the gain wanted
+    double setStage(int i, Complex c1, double k, boolean set) {
+	double wp = c1.mag();
+	double q = getQ(c1);
+	double p = 1;
+	while (p <= 4*q*q)
+	    p++;
+	// c3 = f*cx
+	double f = (p-2*q*q-Math.sqrt(p*p-4*p*q*q))/(2*q*q);
+	double cx = pickCap(q*wp*(1+f));
+	double c3 = f*cx;
+	double r1 = 1/(q*wp*(cx+c3));
+	double r4v = p*r1;
+	while (c3*r4v < r1*k*(cx+c3))
+	    k *= .9;
+	if (set) {
+	    res[i][0].setValue(r4v);
+	    res[i][1].setValue(c3*r4v/(k*(cx+c3)));
+	    res[i][2].setValue(c3*r1*r4v/(c3*r4v-r1*k*(cx+c3)));
+	    caps[i][0].setValue(c3);
+	    caps[i][1].setValue(cx);
+	}
+	return k;
+    }
+
+    void setValues() {
+	int i;
 	Complex parr[] = getPoles();
-	int pi = 0;
-	
-	// calculate scale factor
 	double gainneeded = getScaleFactor(0, parr)/getCircuitScaleFactor(parr);
 
 	// calculate add'l gain needed due to stages that can't achieve gain=1
-	for (pn = 0; pn != poles; pn++) {
-	    Complex c1 = parr[pn];
-	    if (c1.im < 0)
-		continue;
-	    double wp = c1.mag();
-	    double q = -wp/(2*c1.re);
-	    double p = 1;
-	    double r1 = 0;
-	    double cx = 1e-3;
-	    double c3 = 0;
-	    double k = 1;
-	    while (p <= 4*q*q)
-		p++;
-	    while (true) {
-		c3 = cx*(p-2*q*q-Math.sqrt(p*p-4*p*q*q))/(2*q*q);
-		r1 = 1/(q*wp*(cx+c3));
-		if (r1 > 100)
-		    break;
-		cx /= 10;
-	    }
-	    double r4v = p*r1;
-	    while (c3*r4v < r1*k*(cx+c3))
-		k *= .9;
-	    gainneeded /= k;
-	}
-	
-	for (pn = 0; pn != poles; pn++) {
-	    Complex c1 = parr[pn];
-	    if (c1.im < 0)
-		continue;
-	    double wp = c1.mag();
-	    double q = -wp/(2*c1.re);
-	    double p = 1;
-	    double r1 = 0;
-	    double cx = 1e-3;
-	    double c3 = 0;
-	    double k = gainneeded;
-	    while (p <= 4*q*q)
-		p++;
-	    while (true) {
-		c3 = cx*(p-2*q*q-Math.sqrt(p*p-4*p*q*q))/(2*q*q);
-		r1 = 1/(q*wp*(cx+c3));
-		if (r1 > 100)
-		    break;
-		cx /= 10;
-	    }
-	    CircuitElm r4 = sim.getElm(ri++, ResistorElm.class);
-	    CircuitElm r11 = sim.getElm(ri++, ResistorElm.class);
-	    CircuitElm r12 = sim.getElm(ri++, ResistorElm.class);
-	    double r4v = p*r1;
-	    r4.setValue(r4v);
-	    while (c3*r4v < r1*k*(cx+c3))
-		k *= .9;
+	for (i = 0; i != stagePoles.length; i++)
+	    gainneeded /= setStage(i, stagePoles[i], 1, false);
+
+	for (i = 0; i != stagePoles.length; i++) {
+	    double k = setStage(i, stagePoles[i], gainneeded, true);
 	    if (k > 1)
 		gainneeded /= k;
-	    r11.setValue(c3*r4v/(k*(cx+c3)));
-	    r12.setValue(c3*r1*r4v/(c3*r4v-r1*k*(cx+c3)));
-	    sim.getElm(ci++, CapacitorElm.class).setValue(c3);
-	    sim.getElm(ci++, CapacitorElm.class).setValue(cx);
-	    //CircuitElm b = sim.getElm(pi++, BoxElm.class);
-	    //((BoxElm) b).setText("Q = " + CircuitElm.showFormat.format(q));
 	}
-	//System.out.println("gainnneded = " + gainneeded);
-	sim.needAnalyze();
     }
 };

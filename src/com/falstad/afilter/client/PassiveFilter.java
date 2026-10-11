@@ -152,20 +152,6 @@ class PassiveFilter extends FilterCustomizer {
 
     boolean isSeries(int i) { return (i % 2 == 0) != isShuntFirst(); }
 
-    CircuitElm add(String s) {
-	try {
-	    return sim.undump(s);
-	} catch (Exception e) {
-	    e.printStackTrace();
-	    return null;
-	}
-    }
-
-    CircuitElm add(char type, int x1, int y1, int x2, int y2, String rest) {
-	return add(type + " " + x1 + " " + y1 + " " + x2 + " " + y2 + " 0 " + rest);
-    }
-
-    void addWire(int x1, int y1, int x2, int y2) { add('w', x1, y1, x2, y2, ""); }
     void addGround(int x) { add('g', x, BOT, x, BOT+16, ""); }
     InductorElm addInd(int x1, int y1, int x2, int y2) { return (InductorElm) add('l', x1, y1, x2, y2, "1 0"); }
     CapacitorElm addCap(int x1, int y1, int x2, int y2) { return (CapacitorElm) add('c', x1, y1, x2, y2, "1e-6 0"); }
@@ -174,21 +160,7 @@ class PassiveFilter extends FilterCustomizer {
     void rebuild() {
 	int n = getOrder();
 	int i;
-	SweepElm src = null;
-	sim.clearMouseElm();
-	for (i = 0; i != sim.elmList.size(); i++) {
-	    CircuitElm ce = sim.getElm(i);
-	    if (src == null && ce instanceof SweepElm) {
-		src = (SweepElm) ce;
-		continue;
-	    }
-	    ce.delete();
-	    sim.elmList.removeElementAt(i--);
-	}
-	if (src == null)
-	    add("170 " + X0 + " " + TOP + " " + (X0-32) + " " + TOP + " 2 20 4000 5 0.1");
-	else
-	    src.move(X0-src.x, TOP-src.y);
+	clearCircuit(X0, TOP);
 
 	int x = X0;
 	if (matched) {
