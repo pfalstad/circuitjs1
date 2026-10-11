@@ -179,7 +179,23 @@ std::optional<EditInfo> DiodeElm::getEditInfo(int n) {
         }
         return ei;
     }
-    // TODO: Create New Simple/Advanced Model and Edit Model buttons (need the model dialog)
+    if (n == 1) {
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Create New Simple Model")};
+        return ei;
+    }
+    if (n == 2) {
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Create New Advanced Model")};
+        return ei;
+    }
+    if (n == 3) {
+        if (model->readOnly)
+            return std::nullopt;
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Edit Model")};
+        return ei;
+    }
     return std::nullopt;
 }
 
@@ -189,6 +205,31 @@ void DiodeElm::setEditValue(int n, EditInfo &ei) {
         modelName = model->name;
         setup();
         ei.newDialog = true;
+        return;
+    }
+    if (n == 1 || n == 2) {
+        // the TS version names and registers the copy when its dialog is applied
+        DiodeModel *newModel = new DiodeModel(*model);
+        newModel->setSimple(n == 1);
+        if (newModel->isSimple())
+            newModel->setForwardVoltage();
+        newModel->pickName();
+        DiodeModel::modelMap().set(newModel->name, newModel);
+        newModelCreated(newModel);
+        ei.newDialog = true;
+        app->doEditModel(newModel);
+        return;
+    }
+    if (n == 3) {
+        if (model->readOnly) {
+            // probably never reached
+            app->alert(Locale::LS("This model cannot be modified.  Change the model name to allow customization."));
+            return;
+        }
+        if (model->isSimple())
+            model->setForwardVoltage();
+        app->doEditModel(model);
+        return;
     }
 }
 

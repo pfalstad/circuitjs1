@@ -26,8 +26,10 @@
 #include "Scope.h"
 #include "../elements/ScopeElm.h"
 #include "CustomLogicModel.h"
+#include "DiodeModel.h"
 #include "MosfetModel.h"
 #include "RelayModel.h"
+#include "TransistorModel.h"
 #include "Graphics.h"
 #include "JsMath.h"
 #include "JsNumber.h"
@@ -58,7 +60,9 @@ int CircuitElm::shortDecimalDigits = 1;
 
 void CircuitElm::initClass(SimApp *app_, SimulationManager *sim_) {
     CustomLogicModel::app = app_;
+    DiodeModel::app = app_;
     MosfetModel::app = app_;
+    TransistorModel::app = app_;
     RelayModel::app = app_;
     sim = sim_;
     app = app_;

@@ -26,12 +26,16 @@
 
 #include "CircuitXMLDeserializer.h"
 #include "CircuitXMLSerializer.h"
+#include "CircuitElm.h"
 #include "CustomLogicModel.h"
 #include "JsNumber.h"
 #include "Locale.h"
+#include "SimApp.h"
 #include "SimulationManager.h"
 #include "StringTokenizer.h"
 #include "XmlDoc.h"
+
+SimApp *DiodeModel::app = nullptr;
 
 OrderedMap<DiodeModel *> &DiodeModel::modelMap() {
     static OrderedMap<DiodeModel *> m;
@@ -270,4 +274,73 @@ std::string DiodeModel::getDescription() const {
     if (!description)
         return name;
     return name + " (" + Locale::LS(*description) + ")";
+}
+
+std::optional<EditInfo> DiodeModel::getEditInfo(int n) {
+    if (n == 0) {
+        EditInfo ei("Model Name", 0);
+        ei.text = name;
+        return ei;
+    }
+    if (n == 1)
+        return EditInfo("Saturation Current", saturationCurrent, -1, -1);
+    if (isSimple()) {
+        if (n == 2)
+            return EditInfo("Forward Voltage", forwardVoltage, -1, -1);
+        if (n == 3)
+            return EditInfo("Current At Above Voltage (A)", forwardCurrent, -1, -1);
+    } else {
+        if (n == 2)
+            return EditInfo("Series Resistance", seriesResistance, -1, -1);
+        if (n == 3)
+            return EditInfo(EditInfo::makeLink("diodecalc.html", "Emission Coefficient"), emissionCoefficient, -1, -1);
+    }
+    if (n == 4)
+        return EditInfo("Breakdown Voltage", breakdownVoltage, -1, -1);
+    return std::nullopt;
+}
+
+void DiodeModel::setEditValue(int n, EditInfo &ei) {
+    if (n == 0) {
+        name = ei.textf->value;
+        if (!name.empty())
+            modelMap().set(name, this);
+    }
+    if (n == 1)
+        saturationCurrent = ei.value;
+    if (isSimple()) {
+        if (n == 2)
+            forwardVoltage = ei.value;
+        if (n == 3)
+            forwardCurrent = ei.value;
+        setEmissionCoefficient();
+    } else {
+        if (n == 2)
+            seriesResistance = ei.value;
+        if (n == 3)
+            emissionCoefficient = ei.value;
+    }
+    if (n == 4)
+        breakdownVoltage = std::abs(ei.value);
+    updateModel();
+    if (app != nullptr)
+        app->updateModels();
+}
+
+void DiodeModel::pickName() {
+    if (breakdownVoltage > 0 && breakdownVoltage < 20)
+        name = "zener-" + CircuitElm::showFormat.format(breakdownVoltage);
+    else if (isSimple())
+        name = "fwdrop=" + CircuitElm::showFormat.format(forwardVoltage);
+    else
+        name = "diodemodel";
+    if (modelMap().has(name)) {
+        for (int num = 2;; num++) {
+            std::string n = name + "-" + std::to_string(num);
+            if (!modelMap().has(n)) {
+                name = n;
+                break;
+            }
+        }
+    }
 }

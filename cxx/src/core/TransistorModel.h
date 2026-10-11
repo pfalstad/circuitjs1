@@ -23,14 +23,16 @@
 #include <string>
 #include <vector>
 
+#include "EditInfo.h"
 #include "OrderedMap.h"
 
 class StringTokenizer;
 class CircuitXMLDeserializer;
+class SimApp;
 class XmlElement;
 
 // Models live for the whole session in modelMap, which owns them.
-class TransistorModel {
+class TransistorModel : public Editable {
 public:
     static OrderedMap<TransistorModel *> &modelMap();
 
@@ -85,4 +87,10 @@ public:
     void dumpXml(XmlElement *root);
     static TransistorModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
+    std::optional<EditInfo> getEditInfo(int n) override;
+    void setEditValue(int n, EditInfo &ei) override;
+    void pickName();
+
+    // the app to tell when a model changes (TS: CircuitElm.app.updateModels())
+    static SimApp *app;
 };

@@ -26,9 +26,12 @@
 #include "CustomLogicModel.h"
 #include "JsNumber.h"
 #include "Locale.h"
+#include "SimApp.h"
 #include "SimulationManager.h"
 #include "StringTokenizer.h"
 #include "XmlDoc.h"
+
+SimApp *TransistorModel::app = nullptr;
 
 OrderedMap<TransistorModel *> &TransistorModel::modelMap() {
     static OrderedMap<TransistorModel *> m;
@@ -256,4 +259,84 @@ std::string TransistorModel::getDescription() const {
     if (!description || *description == name)
         return name;
     return name + " (" + Locale::LS(*description) + ")";
+}
+
+std::optional<EditInfo> TransistorModel::getEditInfo(int n) {
+    if (n == 0) {
+        EditInfo ei("Model Name", 0);
+        ei.text = name;
+        return ei;
+    }
+    if (n == 1) return EditInfo("Transport Saturation Current (IS)", satCur);
+    if (n == 2) return EditInfo("Reverse Beta (BR)", betaR);
+    if (n == 3) return EditInfo("Forward Early Voltage (VAF)", 1 / invEarlyVoltF);
+    if (n == 4) return EditInfo("Reverse Early Voltage (VAR)", 1 / invEarlyVoltR);
+    if (n == 5) return EditInfo("Corner For Forward Beta High Current Roll-Off (IKF)", 1 / invRollOffF);
+    if (n == 6) return EditInfo("Corner For Reverse Beta High Current Roll-Off (IKR)", 1 / invRollOffR);
+    if (n == 7) return EditInfo("Forward Current Emission Coefficient (NF)", emissionCoeffF);
+    if (n == 8) return EditInfo("Reverse Current Emission Coefficient (NR)", emissionCoeffR);
+    if (n == 9) return EditInfo("B-E Leakage Saturation Current (ISE)", BEleakCur);
+    if (n == 10) return EditInfo("B-E Leakage Emission Coefficient (NE)", leakBEemissionCoeff);
+    if (n == 11) return EditInfo("B-C Leakage Saturation Current (ISC)", BCleakCur);
+    if (n == 12) return EditInfo("B-C Leakage Emission Coefficient (NC)", leakBCemissionCoeff);
+    if (n == 13) return EditInfo("B-E Zero-Bias Junction Capacitance (CJE)", junctionCapBE);
+    if (n == 14) return EditInfo("B-E Junction Potential (VJE)", junctionPotBE).setPositive();
+    if (n == 15) return EditInfo("B-E Junction Grading Coefficient (MJE)", junctionExpBE).setPositive();
+    if (n == 16) return EditInfo("B-C Zero-Bias Junction Capacitance (CJC)", junctionCapBC);
+    if (n == 17) return EditInfo("B-C Junction Potential (VJC)", junctionPotBC).setPositive();
+    if (n == 18) return EditInfo("B-C Junction Grading Coefficient (MJC)", junctionExpBC).setPositive();
+    if (n == 19) return EditInfo("Forward Transit Time TF (s)", transitTimeF);
+    if (n == 20) return EditInfo("Reverse Transit Time TR (s)", transitTimeR);
+    return std::nullopt;
+}
+
+void TransistorModel::setEditValue(int n, EditInfo &ei) {
+    if (n == 0) {
+        name = ei.textf->value;
+        if (!name.empty())
+            modelMap().set(name, this);
+    }
+    if (n == 1) satCur = ei.value;
+    if (n == 2) betaR = ei.value;
+    if (n == 3) invEarlyVoltF = 1 / ei.value;
+    if (n == 4) invEarlyVoltR = 1 / ei.value;
+    if (n == 5) invRollOffF = 1 / ei.value;
+    if (n == 6) invRollOffR = 1 / ei.value;
+    if (n == 7) emissionCoeffF = ei.value;
+    if (n == 8) emissionCoeffR = ei.value;
+    if (n == 9) BEleakCur = ei.value;
+    if (n == 10) leakBEemissionCoeff = ei.value;
+    if (n == 11) BCleakCur = ei.value;
+    if (n == 12) leakBCemissionCoeff = ei.value;
+    if (n == 13) junctionCapBE = ei.value;
+    if (n == 14) junctionPotBE = ei.value;
+    if (n == 15) junctionExpBE = ei.value;
+    if (n == 16) junctionCapBC = ei.value;
+    if (n == 17) junctionPotBC = ei.value;
+    if (n == 18) junctionExpBC = ei.value;
+    if (n == 19) {
+        if (ei.value >= 0) transitTimeF = ei.value;
+        else ei.setError("must be >= 0");
+    }
+    if (n == 20) {
+        if (ei.value >= 0) transitTimeR = ei.value;
+        else ei.setError("must be >= 0");
+    }
+    updateModel();
+    if (app != nullptr)
+        app->updateModels();
+}
+
+void TransistorModel::pickName() {
+    name = "transistormodel";
+    if (modelMap().has(name)) {
+        for (int num = 2;; num++) {
+            std::string n = name + "-" + std::to_string(num);
+            if (!modelMap().has(n)) {
+                name = n;
+                break;
+            }
+        }
+    }
+    modelMap().set(name, this);
 }

@@ -586,7 +586,18 @@ std::optional<EditInfo> TransistorElm::getEditInfo(int n) {
         }
         return ei;
     }
-    // TODO: Create New Model and Edit Model buttons (need the model dialog)
+    if (n == 4) {
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Create New Model")};
+        return ei;
+    }
+    if (n == 5) {
+        if (model->readOnly)
+            return std::nullopt;
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Edit Model")};
+        return ei;
+    }
     return std::nullopt;
 }
 
@@ -611,6 +622,25 @@ void TransistorElm::setEditValue(int n, EditInfo &ei) {
         modelName = model->name;
         setup();
         ei.newDialog = true;
+        return;
+    }
+    if (n == 4) {
+        // the TS version names and registers the copy when its dialog is applied
+        TransistorModel *newModel = new TransistorModel(*model);
+        newModel->pickName();
+        newModelCreated(newModel);
+        ei.newDialog = true;
+        app->doEditModel(newModel);
+        return;
+    }
+    if (n == 5) {
+        if (model->readOnly) {
+            // probably never reached
+            app->alert(Locale::LS("This model cannot be modified.  Change the model name to allow customization."));
+            return;
+        }
+        app->doEditModel(model);
+        return;
     }
 }
 

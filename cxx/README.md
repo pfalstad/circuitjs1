@@ -176,8 +176,6 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- Create New Model / Edit Model buttons for diodes and BJTs (MOSFETs and relays
-  have them)
 - mouse wheel over an element: value editing (ScrollValuePopup) and MOSFET type
   cycling (TypeScrollPopup)
 - the command palette and toolbar search
