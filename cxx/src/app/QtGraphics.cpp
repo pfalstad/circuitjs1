@@ -22,6 +22,7 @@
 #include <QFontMetricsF>
 #include <QGuiApplication>
 #include <QLinearGradient>
+#include <QPaintEngine>
 #include <algorithm>
 #include <cmath>
 
@@ -67,6 +68,10 @@ void QtGraphics::applyFont(const Font &f) {
         qf.setStyleHint(QFont::Serif);
     } else {
         qf.setStyleHint(QFont::SansSerif);
+        // the default family is a private system font (".AppleSystemUIFont" on macOS) that
+        // other programs can't find in an SVG, so name one that's installed everywhere
+        if (p.paintEngine() != nullptr && p.paintEngine()->type() == QPaintEngine::SVG)
+            qf.setFamily("Arial");
     }
     qf.setPixelSize(f.size > 0 ? f.size : 1);
     qf.setBold(f.bold());

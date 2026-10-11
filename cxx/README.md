@@ -131,7 +131,7 @@ scale, triggers, the Max/Min/RMS/frequency overlays and cursor readout, and can
 be added, stacked, combined and removed from the context menus and the Scopes
 menu.  X/Y plots (ScopePlot2d), the spectrum view (ScopeFFT, linear or dB, with
 a frequency/dB cursor readout and the phase angle overlay) and the Scope
-Properties dialog are ported.  Not yet: Export CSV and Export Image.  Undocked
+Properties dialog are ported, as are Export CSV and Export Image (PNG or SVG).  Undocked
 scopes (ScopeElm) load, save and draw in the circuit, and can be docked,
 undocked and created with "View in New Undocked Scope".
 
@@ -176,7 +176,6 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- scope Export CSV and Export Image (greyed out in the scope menu)
 - Create New Model / Edit Model buttons for diodes and BJTs (MOSFETs and relays
   have them)
 - mouse wheel over an element: value editing (ScrollValuePopup) and MOSFET type

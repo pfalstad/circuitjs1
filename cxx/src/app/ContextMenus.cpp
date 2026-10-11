@@ -165,8 +165,8 @@ void CirSim::addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se) {
     }
     menu.addAction(LS("Remove Plot"), this, act([s, plot] { s->removePlot(plot); }));
     menu.addAction(LS("Reset"), this, act([s] { s->resetGraph(true); }));
-    menu.addAction(LS("Export CSV..."))->setEnabled(false);    // TODO
-    menu.addAction(LS("Export Image..."))->setEnabled(false);  // TODO
+    menu.addAction(LS("Export CSV..."), this, [this, s] { exportScopeCSV(s); });
+    menu.addAction(LS("Export Image..."), this, [this, s] { exportScopeImage(s); });
     menu.addAction(LS("Properties..."), this, [this, s] { showScopeProperties(s); });
 }
 

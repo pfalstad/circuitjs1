@@ -165,6 +165,11 @@ public:
     // does another scope have something selected?
     void checkForSelectionElsewhere();
     void draw(Graphics &g) { drawImpl(g, false); }
+    // the visible plots' data as CSV, or "" if there are none (TS: exportCSV(), minus the download)
+    std::string getCSV() const;
+    // draws this scope at (0,0) of g, sized to its own rect, with a solid (or transparent)
+    // background and no mouse-driven UI chrome -- shared by the PNG and SVG exports
+    void drawForExport(Graphics &g, bool transparent);
     // calculate maximum and minimum values for all plots of given units
     void calcMaxAndMin(int units);
     // adjust scale of a plot

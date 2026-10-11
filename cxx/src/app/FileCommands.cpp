@@ -36,6 +36,7 @@
 #include <QPrinter>
 #include <QProcess>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSvgGenerator>
@@ -49,6 +50,7 @@
 #include "Sidebar.h"
 #include "core/CircuitElm.h"
 #include "core/Locale.h"
+#include "core/Scope.h"
 #include "core/LZString.h"
 #include "core/Storage.h"
 
@@ -377,6 +379,86 @@ void CirSim::doExportAsSVG() {
     }
     drawCircuitInPainter(painter, CAC_SVG, bounds, w, h);
     painter.end();
+    repaint();
+}
+
+static QString documentsPath(const char *name) {
+    return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/" + name;
+}
+
+void CirSim::exportScopeCSV(Scope *s) {
+    std::string csv = s->getCSV();
+    if (csv.empty())
+        return;
+    QString path = QFileDialog::getSaveFileName(this, LSq("Export CSV..."), documentsPath("scope-data.csv"),
+                                                "CSV (*.csv);;" + LSq("All files") + " (*)");
+    if (path.isEmpty())
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || f.write(QByteArray::fromStdString(csv)) < 0)
+        alert(Locale::LS("Can't save file"));
+}
+
+bool CirSim::writeScopeImage(Scope *s, const QString &path, bool svg, bool transparent) {
+    double w = s->rect.width, h = s->rect.height;
+    if (svg) {
+        QSvgGenerator gen;
+        gen.setFileName(path);
+        gen.setSize(QSize((int) std::ceil(w), (int) std::ceil(h)));
+        gen.setViewBox(QRectF(0, 0, w, h));
+        QPainter painter;
+        if (!painter.begin(&gen))
+            return false;
+        QtGraphics g(painter);
+        s->drawForExport(g, transparent);
+        return painter.end();
+    }
+    // render at the display's pixel density so the PNG is as sharp as the on-screen scope
+    double scale = devicePixelRatioF();
+    QImage img((int) std::round(w * scale), (int) std::round(h * scale), QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    QPainter painter(&img);
+    painter.scale(scale, scale);
+    QtGraphics g(painter);
+    s->drawForExport(g, transparent);
+    painter.end();
+    return img.save(path, "PNG");
+}
+
+// asks for image format (PNG/SVG) and background options, then exports a scope
+void CirSim::exportScopeImage(Scope *s) {
+    // remember last choices for the session
+    static bool lastSVG = false;
+    static bool lastTransparent = false;
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(LSq("Export Image"));
+    auto *layout = new QVBoxLayout(&dlg);
+    auto *pngRadio = new QRadioButton(LSq("PNG"), &dlg);
+    auto *svgRadio = new QRadioButton(LSq("SVG"), &dlg);
+    pngRadio->setChecked(!lastSVG);
+    svgRadio->setChecked(lastSVG);
+    auto *transparentCheck = new QCheckBox(LSq("Transparent Background"), &dlg);
+    transparentCheck->setChecked(lastTransparent);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    layout->addWidget(pngRadio);
+    layout->addWidget(svgRadio);
+    layout->addWidget(transparentCheck);
+    layout->addWidget(buttons);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+    bool svg = lastSVG = svgRadio->isChecked();
+    bool transparent = lastTransparent = transparentCheck->isChecked();
+
+    QString path = QFileDialog::getSaveFileName(this, LSq("Export Image..."), documentsPath(svg ? "scope.svg" : "scope.png"),
+                                                svg ? "SVG (*.svg);;" + LSq("All files") + " (*)"
+                                                    : "PNG (*.png);;" + LSq("All files") + " (*)");
+    if (path.isEmpty())
+        return;
+    if (!writeScopeImage(s, path, svg, transparent))
+        alert(Locale::LS("Can't save file"));
     repaint();
 }
 

@@ -26,6 +26,7 @@
 #include "CircuitElm.h"
 #include "Graphics.h"
 #include "JsMath.h"
+#include "JsNumber.h"
 #include "Locale.h"
 #include "ScopeManager.h"
 #include "ScopeOverlays.h"
@@ -475,6 +476,65 @@ void Scope::checkForSelectionElsewhere() {
 
     // default if we can't find anything with matching units
     selectedPlot = 0;
+}
+
+std::string Scope::getCSV() const {
+    if (visiblePlots.empty())
+        return "";
+    std::string sb = "time";
+    for (const ScopePlot *plot : visiblePlots) {
+        std::string name = "unknown";
+        if (plot->elm != nullptr) {
+            name = plot->elm->getClassName();
+            size_t e = name.find("Elm");
+            if (e != std::string::npos)
+                name.erase(e, 3);
+        }
+        std::string unit = getScaleUnitsTextStatic(plot->units);
+        sb += ",\"" + name + " " + unit + " min\"";
+        sb += ",\"" + name + " " + unit + " max\"";
+    }
+    sb += "\n";
+    // all visible plots share the same scopePointCount and speed
+    int w = (int) rect.width;
+    double ts = sim->maxTimeStep * speed;
+    double tStart = sim->t - ts * w;
+    for (int i = 0; i != w; i++) {
+        double t = tStart + ts * i;
+        if (t < 0)
+            continue;
+        sb += jsNumberToString(t);
+        for (const ScopePlot *plot : visiblePlots) {
+            int ip = (i + plot->startIndex(w)) & (plot->scopePointCount - 1);
+            sb += "," + jsNumberToString(plot->minValues[ip]);
+            sb += "," + jsNumberToString(plot->maxValues[ip]);
+        }
+        sb += "\n";
+    }
+    return sb;
+}
+
+void Scope::drawForExport(Graphics &g, bool transparent) {
+    g.setLineCap(Graphics::CAP_ROUND);
+    g.translate(-rect.x, -rect.y);
+    if (!transparent) {
+        // match the on-screen background: docked scopes (position >= 0) sit in the
+        // bottom area, drawn #eee/#111 in drawBottomArea(); embedded scope
+        // elements (position == -1) are drawn on the main canvas background
+        if (position >= 0)
+            g.setColor(app->isPrintable() ? "#eee" : "#111");
+        else
+            g.setColor(app->isPrintable() ? Color::white : Color::black);
+        g.fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    // draw all plots in their own colors (as if the mouse weren't over the scope),
+    // so the legend of trace names is shown too
+    int savedSelectedPlot = selectedPlot;
+    selectedPlot = -1;
+    exporting = true;
+    drawImpl(g, true);
+    exporting = false;
+    selectedPlot = savedSelectedPlot;
 }
 
 void Scope::drawImpl(Graphics &g, bool forExport) {

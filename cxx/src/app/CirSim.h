@@ -255,6 +255,10 @@ public:
     void doExportAsImage();
     void doImageToClipboard();
     void doExportAsSVG();
+    // scope context menu: Export CSV... and Export Image... (Scope.exportCSV/exportImage, ScopeExportImageDialog)
+    void exportScopeCSV(Scope *s);
+    void exportScopeImage(Scope *s);
+    bool writeScopeImage(Scope *s, const QString &path, bool svg, bool transparent);
     void doPrint();
     void doDCAnalysis();
     void doAbout();
