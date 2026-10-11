@@ -44,6 +44,7 @@
 
 #include "QtGraphics.h"
 #include "Sidebar.h"
+#include "ShortcutsDialog.h"
 #include "Toolbar.h"
 #include "ConsoleDialog.h"
 #include "EditDialog.h"
@@ -323,7 +324,8 @@ void CirSim::createMenus() {
         for (auto &[a, flag] : optToggles)
             a->setChecked(*flag);
     });
-    // TODO: Shortcuts... (the shortcut editor isn't ported yet)
+    QAction *shortcutsItem = opts->addAction(LSq("Shortcuts..."));
+    connect(shortcutsItem, &QAction::triggered, this, [this] { (new ShortcutsDialog(this))->show(); });
     QAction *otherOpts = opts->addAction(QString::fromStdString(Locale::LS("Other Options...")));
     connect(otherOpts, &QAction::triggered, this, [this] {
         if (!editOptions)
@@ -341,6 +343,7 @@ void CirSim::createMenus() {
     });
 
     createCircuitsMenu();
+    loadShortcuts();
 }
 
 QString CirSim::resourceDir() {
@@ -1104,14 +1107,10 @@ void CirSim::handleKey(QKeyEvent *e) {
     if (mods & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier))
         return;
     // TODO: switch key shortcuts (SwitchElm keyShortcut)
+    // element shortcuts are menu item shortcuts, so they don't get here
     QString text = e->text();
     if (text.size() == 1) {
         int cc = text[0].unicode();
-        auto it = shortcuts.find(cc);
-        if (it != shortcuts.end()) {
-            setMouseMode(it->second);
-            return;
-        }
         if (cc == ' ') {
             setMouseMode("Select");
             return;

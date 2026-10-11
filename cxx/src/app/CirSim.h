@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QKeySequence>
 #include <QMap>
 #include <map>
 #include <QTimer>
@@ -153,8 +154,15 @@ public:
     QString mouseModeStr = "Select";
     void setMouseMode(const QString &s);
     void updateToolbar();
-    // element shortcut keys -> class name
-    std::map<int, QString> shortcuts;
+    // the Draw menu items that can have shortcuts (mainMenuItems in the TS version)
+    std::vector<QAction *> mainMenuItems;
+    // user-assigned key for Start/Stop Simulation, in addition to Ctrl-.
+    QKeySequence runStopShortcut;
+    QAction *runStopAction = nullptr;
+    void setRunStopShortcut(const QKeySequence &k);
+    // shortcuts saved in storage from Options > Shortcuts...
+    void saveShortcuts();
+    void loadShortcuts();
     QMap<QString, QString> classToLabelMap;
     void handleKey(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
@@ -261,7 +269,6 @@ private:
     QMenu *subcircuitMenu = nullptr;
     int lastSubcircuitMenuUpdate = -1;
     QTimer timer;
-    QAction *runStopAction = nullptr;
     QAction *undoItem = nullptr;
     QAction *redoItem = nullptr;
     QAction *cutItem = nullptr;

@@ -29,6 +29,7 @@
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
 #include "core/Locale.h"
+#include "core/Storage.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
@@ -237,9 +238,6 @@ QAction *CirSim::getClassCheckItem(QMenu *menu, const QString &label, const QStr
         } else {
             if (elm->needsShortcut()) {
                 int sc = elm->getShortcut();
-                if (shortcuts.count(sc) && shortcuts[sc] != cls)
-                    SimulationManager::console("already have shortcut for " + std::string(1, (char) sc));
-                shortcuts[sc] = cls;
                 // a real menu shortcut, so macOS shows it; Qt offers the key to a focused
                 // text field first, so it won't interfere with typing in dialogs
                 a->setShortcut(shortcutKey(sc));
@@ -260,7 +258,7 @@ void CirSim::createDrawMenu() {
 
     auto addItems = [&](QMenu *m, const MenuItemDef *items, size_t n) {
         for (size_t i = 0; i < n; i++)
-            getClassCheckItem(m, LS(items[i].label), items[i].cls);
+            mainMenuItems.push_back(getClassCheckItem(m, LS(items[i].label), items[i].cls));
     };
     auto addSub = [&](const char *title, const MenuItemDef *items, size_t n) {
         addItems(menu->addMenu(LS(title)), items, n);
@@ -289,6 +287,60 @@ void CirSim::createDrawMenu() {
 
     QAction *sel = getClassCheckItem(menu, LS("Select/Drag Sel"), "Select", LS("(space or Shift-drag)"));
     sel->setChecked(true);
+}
+
+void CirSim::setRunStopShortcut(const QKeySequence &k) {
+    runStopShortcut = k;
+    QList<QKeySequence> keys{QKeySequence(Qt::CTRL | Qt::Key_Period)};
+    if (!k.isEmpty())
+        keys.push_back(k);
+    runStopAction->setShortcuts(keys);
+}
+
+// saved as "1;key=class;..." like the TS version, but the keys are Qt key combinations
+// (QKeyCombination::toCombined()) rather than browser char codes
+static const char *RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
+
+void CirSim::saveShortcuts() {
+    if (Storage::localStorage == nullptr)
+        return;
+    std::string str = "1";
+    for (QAction *a : mainMenuItems)
+        if (!a->shortcut().isEmpty())
+            str += ";" + std::to_string(a->shortcut()[0].toCombined()) + "=" + a->data().toString().toStdString();
+    if (!runStopShortcut.isEmpty())
+        str += ";" + std::to_string(runStopShortcut[0].toCombined()) + "=" + RUNSTOP_SHORTCUT_ACTION;
+    Storage::localStorage->setItem("shortcuts", str);
+}
+
+void CirSim::loadShortcuts() {
+    if (Storage::localStorage == nullptr)
+        return;
+    std::optional<std::string> str = Storage::localStorage->getItem("shortcuts");
+    if (!str)
+        return;
+    QStringList keys = QString::fromStdString(*str).split(';');
+    for (QAction *a : mainMenuItems)
+        a->setShortcut(QKeySequence());
+    for (int i = 1; i < keys.size(); i++) {
+        QStringList arr = keys[i].split('=');
+        if (arr.size() != 2)
+            continue;
+        bool ok;
+        int c = arr[0].toInt(&ok);
+        if (!ok)
+            continue;
+        QKeySequence k(QKeyCombination::fromCombined(c));
+        if (arr[1] == RUNSTOP_SHORTCUT_ACTION) {
+            setRunStopShortcut(k);
+            continue;
+        }
+        for (QAction *a : mainMenuItems)
+            if (a->data().toString() == arr[1]) {
+                a->setShortcut(k);
+                break;
+            }
+    }
 }
 
 void CirSim::setMouseMode(const QString &s) {
