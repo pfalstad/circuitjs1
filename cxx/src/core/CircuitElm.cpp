@@ -147,17 +147,27 @@ Point CircuitElm::interpPoint(const Point &a, const Point &b, double f) {
     return p;
 }
 
+// Convert an interpolated coordinate to int.  In TS a NaN coordinate stays NaN and
+// the canvas skips it; casting NaN (or a huge value) to int is undefined in C++ and
+// gives 0 on arm64, which drew stray lines to the origin (e.g. very short NOR gates
+// divide by zero in setPoints()).  Fall back to the start point instead.
+static int interpCoord(double v, int fallback) {
+    if (!std::isfinite(v) || std::fabs(v) > 1e9)
+        return fallback;
+    return (int) std::floor(v);
+}
+
 void CircuitElm::interpPoint(const Point &a, const Point &b, Point &c, double f) {
-    c.x = (int) std::floor(a.x * (1 - f) + b.x * f + .48);
-    c.y = (int) std::floor(a.y * (1 - f) + b.y * f + .48);
+    c.x = interpCoord(a.x * (1 - f) + b.x * f + .48, a.x);
+    c.y = interpCoord(a.y * (1 - f) + b.y * f + .48, a.y);
 }
 
 void CircuitElm::interpPoint(const Point &a, const Point &b, Point &c, double f, double g) {
     int gx = b.y - a.y;
     int gy = a.x - b.x;
     g /= std::sqrt((double) gx * gx + (double) gy * gy);
-    c.x = (int) std::floor(a.x * (1 - f) + b.x * f + g * gx + .48);
-    c.y = (int) std::floor(a.y * (1 - f) + b.y * f + g * gy + .48);
+    c.x = interpCoord(a.x * (1 - f) + b.x * f + g * gx + .48, a.x);
+    c.y = interpCoord(a.y * (1 - f) + b.y * f + g * gy + .48, a.y);
 }
 
 Point CircuitElm::interpPoint(const Point &a, const Point &b, double f, double g) {
@@ -170,10 +180,10 @@ void CircuitElm::interpPoint2(const Point &a, const Point &b, Point &c, Point &d
     int gx = b.y - a.y;
     int gy = a.x - b.x;
     g /= std::sqrt((double) gx * gx + (double) gy * gy);
-    c.x = (int) std::floor(a.x * (1 - f) + b.x * f + g * gx + .48);
-    c.y = (int) std::floor(a.y * (1 - f) + b.y * f + g * gy + .48);
-    d.x = (int) std::floor(a.x * (1 - f) + b.x * f - g * gx + .48);
-    d.y = (int) std::floor(a.y * (1 - f) + b.y * f - g * gy + .48);
+    c.x = interpCoord(a.x * (1 - f) + b.x * f + g * gx + .48, a.x);
+    c.y = interpCoord(a.y * (1 - f) + b.y * f + g * gy + .48, a.y);
+    d.x = interpCoord(a.x * (1 - f) + b.x * f - g * gx + .48, a.x);
+    d.y = interpCoord(a.y * (1 - f) + b.y * f - g * gy + .48, a.y);
 }
 
 int CircuitElm::snapGrid(int z) { return app->snapGrid(z); }

@@ -123,6 +123,10 @@ void GateElm::setPoints() {
         ww = (int) std::trunc(dn / 2);
     if (isInverting() && ww + 8 > dn / 2)
         ww = (int) std::trunc(dn / 2 - 8);
+    // keep ww positive: very short gates (esp. inverting ones) would
+    // otherwise get ww <= 0 and divide by zero below
+    if (ww < 1)
+        ww = 1;
     calcLeads(ww * 2);
     inPosts = newPointArray(inputCount);
     inGates = newPointArray(inputCount);
