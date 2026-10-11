@@ -36,7 +36,10 @@ public:
     std::map<int, int> map;
     std::optional<std::map<int, int>> initialMap;  // saved initial contents for restore on reset
     int address = 0;
-    // TODO: Load Contents From File (the TS version uses a browser file input)
+    std::optional<std::string> loadedFileName;  // remembers the last file loaded via "Load Contents From File"
+    // set by Load Contents From File, for the rebuilt dialog to show
+    static inline std::optional<std::string> contentsOverride;
+    static inline std::optional<std::string> fileNameOverride;
 
     CHIP_CONSTRUCTORS(SRAMElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
@@ -51,6 +54,9 @@ public:
     int getPostCount() override { return 2 + addressBits + dataBits; }
     std::optional<EditInfo> getChipEditInfo(int n) override;
     std::string contentsToString();
+    // Load Contents From File: reads the raw bytes of the chosen file and turns them into the
+    // same "addr: val val val..." text the Contents field understands
+    void fetchLoadFileData();
     std::string toHex(int val);
     void parseContentsString(const std::string &s);
     int parseNumber(const std::string &str);

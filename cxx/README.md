@@ -107,7 +107,7 @@ logic input/output, AND/NAND/OR/NOR/XOR/XNOR gates, inverter, and the chips:
 D/JK/T flip-flops, half/full adders, counters (both kinds), ring counter,
 latch, SIPO/PISO shift registers, sequence generator, monostable, 555 timer,
 DAC, ADC, multiplexer, demultiplexer, analog mux, bus transceiver, bus
-splitter, 7-segment decoder and display, decimal display, LED array, SRAM, ROM,
+splitter, 7-segment decoder and display, decimal display, LED array, SRAM (including Load Contents From File), ROM,
 VCO, phase comparator, CCII+/-, time delay relay, custom logic (with models),
 the controlled sources VCCS/VCVS/CCCS/CCVS with the expression engine
 (Expr, ExprEngine), the two-terminal controlled voltage/current sources, AC and

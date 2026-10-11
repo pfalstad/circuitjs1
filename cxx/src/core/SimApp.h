@@ -206,7 +206,8 @@ public:
 
     bool isPrintable() const { return options.printable; }
     Color getBackgroundColor() const { return isPrintable() ? Color::white : Color::black; }
-    bool modalDialogIsShowing() const { return false; }  // TODO
+    // the app doesn't get input while one is showing, but scope cursors shouldn't draw either
+    virtual bool modalDialogIsShowing() const { return false; }
     CircuitElm *getElm(int n) const { return n >= 0 && n < (int) elmList.size() ? elmList[n] : nullptr; }
     int locateElm(const CircuitElm *elm) const {
         for (size_t i = 0; i != elmList.size(); i++)

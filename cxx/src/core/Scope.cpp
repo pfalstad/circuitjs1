@@ -636,7 +636,7 @@ void Scope::drawImpl(Graphics &g, bool forExport) {
             if (scale[i] > 1e-4 && reduceRange[i])
                 scale[i] /= 2;
     }
-    // TODO: refresh the properties dialog
+    // (the properties dialog refreshes itself on a timer)
 }
 
 void Scope::calcMaxAndMin(int units) {

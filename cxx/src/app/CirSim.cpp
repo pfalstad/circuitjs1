@@ -439,7 +439,6 @@ void CirSim::createCircuitsMenu() {
     QMenu *currentMenu = menuBar()->addMenu(menuTitle("Circuits", tr("&Circuits")));
     std::vector<QMenu *> stack{currentMenu};
     QStringList submenuStack{""};  // submenu titles for palette circuit hints
-    QString circuitsDir = resourceDir() + "/circuits/";
 
     for (const QString &line : text.split(QRegularExpression("\\r?\\n"))) {
         if (line.isEmpty() || line[0] == '#')
@@ -462,14 +461,7 @@ void CirSim::createCircuitsMenu() {
                 bool first = line[0] == '>';
                 QString file = line.mid(first ? 1 : 0, sp - (first ? 1 : 0));
                 QString title = QString::fromStdString(Locale::LS(line.mid(sp + 1).toStdString()));
-                // flag circuits that use elements we haven't ported yet
-                // TODO: remove once all elements are ported (temporary, for tracking the port)
-                QString label = title;
-                QFile cf(circuitsDir + file);
-                if (cf.open(QIODevice::ReadOnly) &&
-                    !CircuitLoader::findUnsupported(cf.readAll().toStdString()).empty())
-                    label += " (partial)";
-                QAction *a = currentMenu->addAction(label);
+                QAction *a = currentMenu->addAction(title);
                 connect(a, &QAction::triggered, this, [this, file, title] { readSetupFile(file, title); });
                 // also searchable from the command palette (query length >= 2)
                 CommandPaletteRegistry::registerCircuit(file, title, submenuStack.back(), a);
@@ -511,7 +503,7 @@ bool CirSim::loadFile(const QString &path) {
         std::string m;
         for (const std::string &t : missing)
             m += (m.empty() ? "" : ", ") + t;
-        SimulationManager::console("not ported yet: " + m);
+        SimulationManager::console("unknown element types: " + m);
     }
     std::string text = data.toStdString();
     if (CircuitLoader::isSubcircuitLibrary(text)) {

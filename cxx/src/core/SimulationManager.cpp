@@ -18,6 +18,7 @@
 */
 
 #include "SimulationManager.h"
+#include "Locale.h"
 
 #include <cmath>
 #include <iostream>
@@ -1062,7 +1063,7 @@ void SimulationManager::makePostDrawList() {
 }
 
 void SimulationManager::stop(const std::string &s, CircuitElm *ce) {
-    app->setStopElm(ce, s);  // TODO: Locale::LS
+    app->setStopElm(ce, Locale::LS(s));
     matricesValid = false;
     app->setSimRunning(false);
     app->analyzeFlag = false;

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QApplication>
 #include <QMainWindow>
 #include <QImage>
 #include <QKeySequence>
@@ -142,6 +143,9 @@ public:
     void saveFile(const std::vector<unsigned char> &bytes, const std::string &suggestedName) override;
     bool loadAudioFile(std::string &name, std::vector<float> &data, int &sampleRate) override;
     bool loadTextFile(std::string &name, std::string &contents) override;
+    bool modalDialogIsShowing() const override {
+        return QApplication::activeModalWidget() != nullptr || QApplication::activePopupWidget() != nullptr;
+    }
     void removeSlider(Scrollbar *sb) override;
     void updateSlider(Scrollbar *sb) override;
     void setSimRunning(bool s) override;

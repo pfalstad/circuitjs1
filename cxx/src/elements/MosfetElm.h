@@ -107,7 +107,6 @@ public:
     // Not sure where this value came from, but the ZVP3306A has a beta of about .027.  Power MOSFETs have much higher betas (like 80 or more)
     virtual double getBackwardCompatibilityBeta() { return .02; }
     bool nonLinear() override { return true; }
-    // TODO: onMouseWheel (TypeScrollPopup)
     bool drawDigital() { return digitalSymbolShown; }
     virtual bool showBulk() { return bulkShown; }
     bool hasBodyTerminal() { return bodyTerminalShown; }

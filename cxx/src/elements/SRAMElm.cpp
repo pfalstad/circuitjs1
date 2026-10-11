@@ -29,6 +29,8 @@
 #include "../core/CircuitXMLDeserializer.h"
 #include "../core/CircuitXMLSerializer.h"
 #include "../core/JsNumber.h"
+#include "../core/Locale.h"
+#include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/XmlDoc.h"
 
@@ -122,13 +124,22 @@ std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
         return EditInfo("# of Data Bits", dataBits, 1, 1).setDimensionless();
     if (n == 2) {
         EditInfo ei("Contents", 0);
-        ei.textArea = TextArea{contentsToString()};
+        ei.textArea = TextArea{contentsOverride ? *contentsOverride : contentsToString()};
+        contentsOverride.reset();
+        if (fileNameOverride)
+            loadedFileName = fileNameOverride;
+        fileNameOverride.reset();
         return ei;
     }
     if (n == 3)
         return EditInfo::createCheckbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY));
-    // (n == 4 is Load Contents From File in the TS version, when the browser supports it)
-    if (n == 4)
+    if (n == 4) {
+        // (TS: a file input)
+        EditInfo ei(loadedFileName ? "Loaded: " + *loadedFileName : "", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Load Contents From File") + "..."};
+        return ei;
+    }
+    if (n == 5)
         return EditInfo::createCheckbox("Restore Contents on Reset", (flags & FLAG_RELOAD_ON_RESET) != 0);
     return ChipElm::getChipEditInfo(n);
 }
@@ -162,6 +173,33 @@ std::string SRAMElm::contentsToString() {
         s += "\n";
     }
     return s;
+}
+
+void SRAMElm::fetchLoadFileData() {
+    std::string name, arr;
+    if (!app->loadTextFile(name, arr))
+        return;
+    if (arr.size() >= 128000) {
+        app->alert(Locale::LS("Cannot load: That file is too large!"));
+        return;
+    }
+    int bytesPerValue = dataBits > 8 ? 2 : 1;
+    int hexDigits = bytesPerValue * 2;
+    size_t n = arr.size() - (arr.size() % bytesPerValue);
+    std::string str = "0x0:";
+    for (size_t i = 0; i < n; i += bytesPerValue) {
+        int val = 0;
+        for (int j = 0; j < bytesPerValue; j++)
+            val = (val << 8) | (unsigned char) arr[i + j];
+        std::string hex = upperHex(val);
+        while ((int) hex.size() < hexDigits)
+            hex = "0" + hex;
+        str += " 0x" + hex;
+    }
+    // doLoadCallback(); the dialog is rebuilt later, and getChipEditInfo() clears these
+    contentsOverride = str;
+    fileNameOverride = name;
+    app->resetEditDialog();
 }
 
 std::string SRAMElm::toHex(int val) {
@@ -253,7 +291,9 @@ void SRAMElm::setChipEditValue(int n, EditInfo &ei) {
         if (flags != oldFlags)
             ei.newDialog = true;
     }
-    if (n == 4) {
+    if (n == 4)
+        fetchLoadFileData();
+    if (n == 5) {
         flags = ei.changeFlag(flags, FLAG_RELOAD_ON_RESET);
         if ((flags & FLAG_RELOAD_ON_RESET) != 0)
             initialMap = map;
