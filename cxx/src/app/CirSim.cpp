@@ -66,6 +66,9 @@
 #include "core/SubcircuitModel.h"
 #include "AudioPlayer.h"
 #include "core/PanelButton.h"
+#include "elements/CapacitorElm.h"
+#include "elements/InductorElm.h"
+#include "elements/ResistorElm.h"
 #include "elements/RoutedWireElm.h"
 #include "elements/SubcircuitElm.h"
 #include "core/DiodeModel.h"
@@ -1059,7 +1062,16 @@ void CirSim::drawBottomArea(Graphics &g) {
             info[0] += " (" + CircuitElm::showFormat.format(timerate) + "x)";
         info[1] = Locale::LS("time step = ") + CircuitElm::getTimeText(sim->timeStep);
     }
-    // TODO: hints
+    if (hintType != -1) {
+        int i;
+        for (i = 0; i < (int) info.size() && !info[i].empty(); i++)
+            ;
+        std::string s = getHint();
+        if (s.empty())
+            hintType = -1;
+        else if (i < (int) info.size())
+            info[i] = s;
+    }
     double x = leftX + 5;
     if (ct != 0)
         x = scopeManager->scopes[ct - 1]->rightEdge() + 20;
@@ -1074,6 +1086,37 @@ void CirSim::drawBottomArea(Graphics &g) {
     double ybase = circuitArea.height - h;
     for (i = 0; i < (int) info.size() && !info[i].empty(); i++)
         g.drawString(info[i], x, ybase + 15 * (i + 1));
+}
+
+std::string CirSim::getHint() {
+    CircuitElm *c1 = getElm(hintItem1);
+    CircuitElm *c2 = getElm(hintItem2);
+    if (c1 == nullptr || c2 == nullptr)
+        return "";
+    if (hintType == HINT_LC) {
+        if (!c1->isInductorElm() || !c2->isCapacitorElm())
+            return "";
+        double l = static_cast<InductorElm *>(c1)->getInductance();
+        double c = static_cast<CapacitorElm *>(c2)->getCapacitance();
+        return Locale::LS("res.f = ") + CircuitElm::getUnitText(1 / (2 * M_PI * std::sqrt(l * c)), "Hz");
+    }
+    if (hintType == HINT_RC || hintType == HINT_3DB_C || hintType == HINT_TWINT) {
+        if (!c1->isResistorElm() || !c2->isCapacitorElm())
+            return "";
+        double rc = static_cast<ResistorElm *>(c1)->getResistance() * static_cast<CapacitorElm *>(c2)->getCapacitance();
+        if (hintType == HINT_RC)
+            return "RC = " + CircuitElm::getUnitText(rc, "s");
+        return Locale::LS(hintType == HINT_3DB_C ? "f.3db = " : "fc = ") +
+            CircuitElm::getUnitText(1 / (2 * M_PI * rc), "Hz");
+    }
+    if (hintType == HINT_3DB_L) {
+        if (!c1->isResistorElm() || !c2->isInductorElm())
+            return "";
+        double r = static_cast<ResistorElm *>(c1)->getResistance();
+        double l = static_cast<InductorElm *>(c2)->getInductance();
+        return Locale::LS("f.3db = ") + CircuitElm::getUnitText(r / (2 * M_PI * l), "Hz");
+    }
+    return "";
 }
 
 void CirSim::handleKey(QKeyEvent *e) {

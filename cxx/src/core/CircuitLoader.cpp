@@ -312,9 +312,10 @@ std::vector<std::string> CircuitLoader::findUnsupported(const std::string &text)
             if (std::isnan(n))
                 continue;
             tint = (int) n;
-            if (tint == 34 || tint == 32 || tint == 38)
-                continue;
         }
+        // models and adjustables (38 is also written as '&')
+        if (tint == 34 || tint == 32 || tint == 38)
+            continue;
         if (tint == 'n' && ElementFactory::hasClass("NoiseElm"))
             continue;
         if (!ElementFactory::hasDumpType(tint))

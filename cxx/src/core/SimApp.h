@@ -69,6 +69,11 @@ public:
     bool autoDCOnReset = false;
     bool developerMode = false;
     // the hint shown in the info box for some example circuits
+    static constexpr int HINT_LC = 1;
+    static constexpr int HINT_RC = 2;
+    static constexpr int HINT_3DB_C = 3;
+    static constexpr int HINT_TWINT = 4;
+    static constexpr int HINT_3DB_L = 5;
     int hintType = -1, hintItem1 = 0, hintItem2 = 0;
 
     // slider positions (the UI owns the actual widgets)
