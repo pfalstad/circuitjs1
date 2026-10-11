@@ -466,6 +466,8 @@ public:
     virtual void dumpXml(XmlElement *doc, XmlElement *elem);
     virtual void undumpXml(CircuitXMLDeserializer &xml);
     virtual void dumpXmlState(XmlElement *, XmlElement *) {}
+    // dump the models this element uses (subcircuits dump their children's models first)
+    virtual void dumpXmlModel(XmlElement *) {}
 
     static std::string getUnitTextImpl(double v, const std::string &u, bool sf);
 

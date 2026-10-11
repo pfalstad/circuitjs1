@@ -618,3 +618,8 @@ void TransistorElm::addRoutingObstacle(WireRouter &wr) {
     wr.addObstacle(std::vector<Point>{rect[0], rect[1], rect[2], rect[3], coll[0], emit[0]});
     wr.addWire(point1.x, point1.y, base.x, base.y);
 }
+
+void TransistorElm::dumpXmlModel(XmlElement *doc) {
+    if (!(model->builtIn || model->dumped))
+        model->dumpXml(doc);
+}

@@ -36,6 +36,7 @@ class RelayModel;
 class RelayElm : public CircuitElm {
 public:
     ELM_CLASS(RelayElm)
+    void dumpXmlModel(XmlElement *doc) override;
     static constexpr int FLAG_SWAP_COIL = 1;
     static constexpr int FLAG_SHOW_BOX = 2;
     static constexpr int FLAG_BOTH_SIDES_COIL = 4;

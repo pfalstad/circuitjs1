@@ -20,6 +20,7 @@
 #include "CircuitXMLDeserializer.h"
 
 #include "Adjustable.h"
+#include "SubcircuitModel.h"
 
 #include <cmath>
 #include <iostream>
@@ -83,7 +84,12 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root) {
             Adjustable::undumpXml(*this, app);
             continue;
         }
-        // TODO: models (ccm),
+        if (elem->tagName == "ccm") {
+            currentXmlElement = elem;
+            SubcircuitModel::undumpModelXml(*this);
+            continue;
+        }
+        // TODO: models
         // and test tags come with the ports of those classes
         if (elem->getAttribute("x") == nullptr)
             continue;

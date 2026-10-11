@@ -727,3 +727,8 @@ void MosfetElm::addRoutingObstacle(WireRouter &wr) {
     wr.addObstacle(std::vector<Point>{gate[0], gate[2], src[0], drn[0], src[2], drn[2]});
     wr.addWire(point1.x, point1.y, gate[1].x, gate[1].y);
 }
+
+void MosfetElm::dumpXmlModel(XmlElement *doc) {
+    if (!(model->builtIn || model->dumped))
+        model->dumpXml(doc);
+}

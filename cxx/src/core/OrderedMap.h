@@ -43,6 +43,21 @@ public:
     }
     bool has(const std::string &k) const { return index.count(k) > 0; }
     size_t size() const { return items.size(); }
+    // remove an entry (like Map.delete()); returns whether it was there
+    bool erase(const std::string &k) {
+        auto it = index.find(k);
+        if (it == index.end())
+            return false;
+        items.erase(items.begin() + it->second);
+        index.clear();
+        for (size_t i = 0; i != items.size(); i++)
+            index[items[i].first] = i;
+        return true;
+    }
+    void clear() {
+        items.clear();
+        index.clear();
+    }
     auto begin() { return items.begin(); }
     auto end() { return items.end(); }
 

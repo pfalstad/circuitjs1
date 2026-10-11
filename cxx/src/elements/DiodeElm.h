@@ -27,6 +27,7 @@ class DiodeModel;
 class DiodeElm : public CircuitElm {
 public:
     ELM_CLASS(DiodeElm)
+    void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     Diode diode;
     static constexpr int FLAG_FWDROP = 1;

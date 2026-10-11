@@ -43,6 +43,8 @@ public:
 
     XmlElement *appendChild(std::unique_ptr<XmlElement> child);
     XmlElement *createChild(const std::string &tag);
+    // a deep copy (TS: importNode(node, true))
+    std::unique_ptr<XmlElement> clone() const;
 };
 
 // parse a document; throws std::runtime_error on malformed input

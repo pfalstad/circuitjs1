@@ -216,6 +216,7 @@ if (dump) {
     // the same as CirSim.dumpCircuit()
     for (const M of [CustomLogicModel, DiodeModel, TransistorModel, RelayModel, MosfetModel])
         (M as any).clearDumpedFlags();
+    HookRegistry.clearSubcircuitModelDumpedFlags?.();
     process.stdout.write(new CircuitXMLSerializer(app).dumpCircuit());
     process.exit(0);
 }

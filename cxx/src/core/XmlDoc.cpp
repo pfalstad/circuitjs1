@@ -55,6 +55,15 @@ XmlElement *XmlElement::createChild(const std::string &tag) {
     return appendChild(std::make_unique<XmlElement>(tag));
 }
 
+std::unique_ptr<XmlElement> XmlElement::clone() const {
+    auto e = std::make_unique<XmlElement>(tagName);
+    e->attrs = attrs;
+    e->text = text;
+    for (const auto &c : children)
+        e->children.push_back(c->clone());
+    return e;
+}
+
 static void appendUtf8(std::string &out, unsigned long cp) {
     if (cp < 0x80) {
         out += (char) cp;

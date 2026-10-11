@@ -46,6 +46,8 @@ public:
 
 private:
     void finishReadCircuit(int flags);
+    static bool isSubcircuitLibrary(const std::string &text);
+    void readSubcircuitLibrary(const std::string &text);
     void readCircuitXml(const std::string &text, int flags);
     void readCircuitText(const std::string &text, int flags);
     void readOptions(StringTokenizer &st, int importFlags);

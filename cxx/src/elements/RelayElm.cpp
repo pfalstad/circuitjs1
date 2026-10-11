@@ -544,3 +544,8 @@ void RelayElm::flipXY(int xmy, int count) {
     flags ^= FLAG_FLIP;
     CircuitElm::flipXY(xmy, count);
 }
+
+void RelayElm::dumpXmlModel(XmlElement *doc) {
+    if (!(model->builtIn || model->dumped))
+        model->dumpXml(doc);
+}

@@ -20,6 +20,7 @@
 #include "CircuitXMLSerializer.h"
 
 #include "Adjustable.h"
+#include "SubcircuitModel.h"
 
 #include <stdexcept>
 
@@ -112,8 +113,8 @@ std::string CircuitXMLSerializer::prettyPrint(const XmlElement *root) {
 }
 
 std::string CircuitXMLSerializer::dumpCircuit() {
-    // TODO: subcircuit models
     CustomLogicModel::clearDumpedFlags();
+    SubcircuitModel::clearDumpedFlags();
     RelayModel::clearDumpedFlags();
     MosfetModel::clearDumpedFlags();
     DiodeModel::clearDumpedFlags();
@@ -147,7 +148,7 @@ std::string CircuitXMLSerializer::dumpCircuit() {
             ce->dumpXmlState(&root, elem.get());
         root.appendChild(std::move(elem));
     }
-    // TODO: unused local subcircuit models
+    SubcircuitModel::dumpUnusedLocalModels(&root);
     if (app->scopeManager != nullptr && saveState) {
         ScopeManager *sm = app->scopeManager;
         for (int i = 0; i != sm->scopeCount; i++)

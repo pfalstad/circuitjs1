@@ -656,3 +656,15 @@ void ChipElm::readBitsFromString(const std::string &s, std::vector<bool> &output
 void ChipElm::addRoutingObstacle(WireRouter &wr) {
     wr.addObstacle(rectPointsX[0], rectPointsY[0], rectPointsX[2], rectPointsY[2]);
 }
+
+#include "SubcircuitChipElm.h"
+
+void SubcircuitChipElm::drawLabel(Graphics &g, int x, int y) {
+    if (!label)
+        return;
+    g.save();
+    g.setTextBaseline(Graphics::BASELINE_MIDDLE);
+    g.setTextAlign(Graphics::ALIGN_CENTER);
+    g.drawString(*label, x, y);
+    g.restore();
+}

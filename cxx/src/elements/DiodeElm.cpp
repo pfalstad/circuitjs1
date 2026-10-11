@@ -200,3 +200,8 @@ void DiodeElm::setEditValue(int n, EditInfo &ei) {
 void DiodeElm::addRoutingObstacle(WireRouter &wr) {
     addRoutingObstacleWithLeads(wr, hs);
 }
+
+void DiodeElm::dumpXmlModel(XmlElement *doc) {
+    if (!(model->builtIn || model->dumped))
+        model->dumpXml(doc);
+}

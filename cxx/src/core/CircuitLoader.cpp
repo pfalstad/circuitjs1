@@ -21,6 +21,9 @@
 #include "CircuitLoader.h"
 
 #include "Adjustable.h"
+#include "SubcircuitModel.h"
+#include "Locale.h"
+#include <regex>
 #include "WireRouter.h"
 #include "CustomLogicModel.h"
 
@@ -62,10 +65,34 @@ void CircuitLoader::clearCircuit() {
     if (app->scopeManager != nullptr)
         app->scopeManager->clearScopes();
     app->hintType = -1;
+    // (TS: only when not editing a subcircuit's model)
+    SubcircuitModel::clearLocalModels();
     // TODO: subcircuit stack
 }
 
+// subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
+// containing only subcircuit models
+bool CircuitLoader::isSubcircuitLibrary(const std::string &text) {
+    static const std::regex lib("^<cir\\b[^>]*\\bsublib=\"1\"");
+    return std::regex_search(text, lib);
+}
+
+// load subcircuit models from a library file, making them global.  Leaves the current circuit alone.
+void CircuitLoader::readSubcircuitLibrary(const std::string &text) {
+    std::unique_ptr<XmlElement> root = parseXml(text);
+    CircuitXMLDeserializer xml(app);
+    std::vector<SubcircuitModelRef> models = SubcircuitModel::loadLibrary(xml, root.get());
+    // make any existing instances pick up the new definitions
+    app->updateModels();
+    if (models.empty())
+        app->alert(Locale::LS("No subcircuits found in file"));
+}
+
 void CircuitLoader::readCircuit(const std::string &text, int flags) {
+    if (isSubcircuitLibrary(text)) {
+        readSubcircuitLibrary(text);
+        return;
+    }
     if (!text.empty() && text[0] == '<') {
         if ((flags & RC_RETAIN) == 0)
             clearCircuit();
@@ -151,9 +178,10 @@ void CircuitLoader::readCircuitText(const std::string &text, int flags) {
                 CustomLogicModel::undumpModel(st);
                 continue;
             }
-            // TODO: subcircuit models (.)
-            if (tint == '.')
+            if (tint == '.') {
+                SubcircuitModel::undumpModel(st);
                 continue;
+            }
             if (tint == '$') {
                 readOptions(st, flags);
                 continue;

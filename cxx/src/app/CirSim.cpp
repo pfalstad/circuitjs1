@@ -52,6 +52,7 @@
 #include "core/CustomLogicModel.h"
 #include "core/MosfetModel.h"
 #include "core/RelayModel.h"
+#include "core/SubcircuitModel.h"
 #include "AudioPlayer.h"
 #include "core/PanelButton.h"
 #include "elements/RoutedWireElm.h"
@@ -338,8 +339,8 @@ void CirSim::newBlankCircuit() {
 }
 
 std::string CirSim::dumpCircuit(bool saveState) {
-    // TODO: subcircuit models
     CustomLogicModel::clearDumpedFlags();
+    SubcircuitModel::clearDumpedFlags();
     RelayModel::clearDumpedFlags();
     MosfetModel::clearDumpedFlags();
     DiodeModel::clearDumpedFlags();

@@ -61,6 +61,15 @@
 #include "../elements/AudioOutputElm.h"
 #include "../elements/AudioInputElm.h"
 #include "../elements/NoiseElm.h"
+#include "../elements/SubcircuitElm.h"
+#include "../elements/DarlingtonElm.h"
+#include "../elements/UnijunctionElm.h"
+#include "../elements/CrystalElm.h"
+#include "../elements/OTAElm.h"
+#include "../elements/NortonAmpElm.h"
+#include "../elements/ComparatorElm.h"
+#include "../elements/OpAmpRealElm.h"
+#include "../elements/OptocouplerElm.h"
 #include "../elements/CustomLogicElm.h"
 #include "../elements/CCVSElm.h"
 #include "../elements/CCCSElm.h"
@@ -205,4 +214,16 @@ void registerElements() {
     reg<TransistorElm>("TransistorElm");
     reg<NTransistorElm>("NTransistorElm");
     reg<PTransistorElm>("PTransistorElm");
+    reg<DarlingtonElm>("DarlingtonElm");
+    reg<NDarlingtonElm>("NDarlingtonElm");
+    reg<PDarlingtonElm>("PDarlingtonElm");
+    reg<UnijunctionElm>("UnijunctionElm");
+    reg<CrystalElm>("CrystalElm");
+    reg<OTAElm>("OTAElm");
+    reg<NortonAmpElm>("NortonAmpElm");
+    reg<ComparatorElm>("ComparatorElm");
+    reg<OpAmpRealElm>("OpAmpRealElm");
+    reg<OptocouplerElm>("OptocouplerElm");
+    // last: its sample instance loads the built-in subcircuit models, which need the other classes
+    reg<SubcircuitElm>("SubcircuitElm");
 }
