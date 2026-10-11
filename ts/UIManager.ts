@@ -827,7 +827,7 @@ export class UIManager {
 
         window.addEventListener('beforeunload', (event) => {
             // there is a bug in electron that makes it impossible to close the app if this warning is given
-            if (this.app.unsavedChanges && !(CirSim as any).isElectron())
+            if (this.app.isModified() && !(CirSim as any).isElectron())
                 event.returnValue = Locale.LS("Are you sure?  There are unsaved changes.");
         });
 
@@ -1236,6 +1236,11 @@ export class UIManager {
         }
 
         this.lastFrameTime = this.lastTime;
+
+        if (this.app.savedDumpPending) {
+            this.app.savedDumpPending = false;
+            this.app.savedDump = this.app.dumpCircuit(false);
+        }
 
         perfmon.stopContext(); // updateCircuit
 
