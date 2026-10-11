@@ -225,6 +225,10 @@ if (dump) {
 Date.now = () => 1e12;
 sim.lastIterTime = 1;
 
+// SOLVER=n overrides the circuit's matrix solver (0=auto, 1=dense, 2=sparse)
+if (process.env.SOLVER)
+    sim.solverType = parseInt(process.env.SOLVER);
+
 sim.analyzeCircuit();
 sim.preStampAndStampCircuit();
 

@@ -19,7 +19,10 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
+
+#include "matrix/SparseLU.h"
 
 class CircuitNode;
 class VoltageSource;
@@ -37,6 +40,7 @@ public:
     bool nonLinear = false;
     std::vector<double> nodeVoltages;
     std::vector<double> lastNodeVoltages;
+    std::unique_ptr<SparseLU> sparseLU;
     std::vector<CircuitNode *> nodeList;
     std::vector<VoltageSource *> voltageSourceList;
 };

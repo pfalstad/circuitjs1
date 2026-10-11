@@ -247,6 +247,10 @@ int main(int argc, char **argv) {
     // with no time passing, each runCircuit(true) call does exactly one timestep
     sim.lastIterTime = 1;
 
+    // SOLVER=n overrides the circuit's matrix solver (0=auto, 1=dense, 2=sparse)
+    if (const char *so = std::getenv("SOLVER"))
+        sim.solverType = std::atoi(so);
+
     sim.analyzeCircuit();
     sim.preStampAndStampCircuit();
 

@@ -1436,8 +1436,13 @@ void SimulationManager::invertMatrix(std::vector<std::vector<double>> &a, int n)
 }
 
 // Dispatching lu_factor: uses sparse or dense solver based on solverType setting
-bool SimulationManager::lu_factor(std::vector<std::vector<double>> &a, int n, std::vector<int> &ipvt, CircuitMatrix &) {
-    // TODO: sparse solver (DMatrixSparseCSC/SparseLU) for matrices >= SPARSE_THRESHOLD
+bool SimulationManager::lu_factor(std::vector<std::vector<double>> &a, int n, std::vector<int> &ipvt, CircuitMatrix &cm) {
+    SimulationManager *sm = theSim;
+    if (sm != nullptr && sm->usingSparse) {
+        DMatrixSparseCSC sparse = DMatrixSparseCSC::convert(a, DMatrixSparseCSC::EPS);
+        if (!cm.sparseLU) cm.sparseLU = std::make_unique<SparseLU>();
+        return cm.sparseLU->setA(sparse);
+    }
     return lu_factor_dense(a, n, ipvt);
 }
 
@@ -1519,7 +1524,12 @@ bool SimulationManager::lu_factor_dense(std::vector<std::vector<double>> &a, int
 
 // Dispatching lu_solve: uses sparse or dense solver based on solverType setting
 void SimulationManager::lu_solve(std::vector<std::vector<double>> &a, int n, std::vector<int> &ipvt,
-                                 std::vector<double> &b, CircuitMatrix &) {
+                                 std::vector<double> &b, CircuitMatrix &cm) {
+    SimulationManager *sm = theSim;
+    if (sm != nullptr && sm->usingSparse && cm.sparseLU) {
+        cm.sparseLU->solve(b, b);
+        return;
+    }
     lu_solve_dense(a, n, ipvt, b);
 }
 

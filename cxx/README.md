@@ -143,7 +143,12 @@ as a library file, and deletes them.  Persistent models are kept with QSettings
 File → Save is refused while editing a model, since it would write the model's
 circuit over the file.
 
-Not yet ported: sparse solver (matrices of 150 or more rows), and the rest.
+Sparse solver: `core/matrix/` is a port of the TS DMatrixSparseCSC/SparseLU (from
+EJML), used for matrices of 150 or more rows, or always when the circuit asks for it.
+`SOLVER=n` makes both trace tools use solver n (0=auto, 1=dense, 2=sparse); with
+sparse forced, every example circuit that runs gives bit-identical traces.
+
+Not yet ported: the rest.
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS
 version byte for byte; `AUDIOOUT=file` makes both tools save the WAV that Play

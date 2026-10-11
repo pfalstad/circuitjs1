@@ -20,7 +20,7 @@ else()
 endif()
 
 # simulator core: no UI dependencies
-file(GLOB CORE_SOURCES CONFIGURE_DEPENDS src/core/*.cpp src/elements/*.cpp)
+file(GLOB CORE_SOURCES CONFIGURE_DEPENDS src/core/*.cpp src/core/matrix/*.cpp src/elements/*.cpp)
 add_library(circuitcore STATIC ${CORE_SOURCES} src/third_party/v8/ieee754.cc)
 
 # V8's math functions, built the way Node/Chrome build them.  On arm64, clang's default
