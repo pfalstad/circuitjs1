@@ -90,6 +90,10 @@ export class CircuitXMLSerializer {
         return sb;
     }
 
+    // false leaves out simulation state and scopes, whose settings drift as they run (auto
+    // scale, plot speed), for checking whether the circuit itself has changed since it was saved
+    saveState = true;
+
     dumpCircuit(): string {
         const doc = document.implementation.createDocument(null, "cir", null);
         const root = doc.documentElement;
@@ -118,13 +122,15 @@ export class CircuitXMLSerializer {
         for (const ce of this.app.elmList) {
             const elem = doc.createElement(ce.getXmlDumpType());
             ce.dumpXml(doc, elem);
-            ce.dumpXmlState(doc, elem);
+            if (this.saveState)
+                ce.dumpXmlState(doc, elem);
             root.appendChild(elem);
         }
         HookRegistry.dumpUnusedLocalSubcircuitModels?.(doc);
         const sm = this.app.scopeManager;
-        for (let i = 0; i !== sm.scopeCount; i++)
-            sm.scopes[i].dumpXml(doc, root);
+        if (this.saveState)
+            for (let i = 0; i !== sm.scopeCount; i++)
+                sm.scopes[i].dumpXml(doc, root);
         for (let i = 0; i !== this.app.adjustables.length; i++)
             this.app.adjustables[i].dumpXml(doc, root, this.app);
         if (this.app.hintType !== -1) {
