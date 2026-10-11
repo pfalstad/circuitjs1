@@ -45,6 +45,8 @@
 
 void CircuitLoader::clearCircuit() {
     WireRouter::lastRouter = nullptr;
+    // (before the elements go away, since the subcircuit view shows some of them)
+    app->resetSubcircuitView();
     app->deleteAllElms();
     sim->resetTime();
     sim->solverType = SimulationManager::SOLVER_AUTO;
@@ -65,9 +67,8 @@ void CircuitLoader::clearCircuit() {
     if (app->scopeManager != nullptr)
         app->scopeManager->clearScopes();
     app->hintType = -1;
-    // (TS: only when not editing a subcircuit's model)
-    SubcircuitModel::clearLocalModels();
-    // TODO: subcircuit stack
+    if (!app->isEditingContext())
+        SubcircuitModel::clearLocalModels();
 }
 
 // subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
@@ -135,6 +136,13 @@ void CircuitLoader::finishReadCircuit(int flags) {
             }
         }
     }
+}
+
+void CircuitLoader::readCircuitFromDoc(const XmlElement *doc) {
+    clearCircuit();
+    CircuitXMLDeserializer xml(app);
+    xml.readElements(doc);
+    finishReadCircuit(0);
 }
 
 void CircuitLoader::readCircuitText(const std::string &text, int flags) {

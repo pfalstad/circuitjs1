@@ -19,6 +19,8 @@
 
 #include "ElementFactory.h"
 
+#include "../elements/SubcircuitElm.h"
+
 #include <unordered_map>
 
 #include "CircuitElm.h"
@@ -128,6 +130,13 @@ CircuitElm *ElementFactory::constructElement(const std::string &n, int x1, int y
     // if you take out UserDefinedLogicElm, it will break people's saved shortcuts
     if (n == "UserDefinedLogicElm")
         return create("CustomLogicElm", x1, y1);
+
+    if (n.rfind("SubcircuitElm:", 0) == 0) {
+        std::string name = n.substr(n.find(':') + 1);
+        CircuitElm *se = new SubcircuitElm(x1, y1, name);
+        finishConstruction(se, nullptr);
+        return se;
+    }
     return nullptr;
 }
 

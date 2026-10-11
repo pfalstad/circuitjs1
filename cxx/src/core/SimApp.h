@@ -20,6 +20,7 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 #include <cmath>
 #include <optional>
 #include <random>
@@ -207,6 +208,25 @@ public:
     void updateModels();
     // open an edit dialog for a model (the custom logic chip's Edit Model button)
     virtual void doEditModel(class Editable *) {}
+
+    // is anything selected?
+    bool isSelection() const;
+    virtual void closeEditDialog() {}
+
+    // the subcircuit UI (the Qt app implements these)
+    // show a subcircuit's components (UIManager.pushSubcircuit()); allElms is its display list
+    virtual void pushSubcircuit(CircuitElm *cce, const std::vector<CircuitElm *> &allElms) {}
+    // leave the subcircuit view (UIManager.subcircuitStack is cleared when a circuit is loaded)
+    virtual void resetSubcircuitView() {}
+    // open the pin layout editor for a model (EditSubcircuitModelDialog)
+    virtual void editSubcircuitPinLayout(const std::shared_ptr<class SubcircuitModel> &) {}
+    // save the circuit and start editing a model's circuit in its place (CirSim.pushContext())
+    virtual void pushContext(const std::string &modelName) {}
+    // are we editing a model's circuit?
+    virtual bool isEditingContext() { return false; }
+    virtual void readCircuit(const std::string &text, int flags = 0) {}
+    // replace the circuit with the elements in doc (CircuitXMLDeserializer.readCircuitFromDoc())
+    virtual void readCircuitFromDoc(const class XmlElement *doc) {}
 
 private:
     std::mt19937_64 rng{std::random_device{}()};

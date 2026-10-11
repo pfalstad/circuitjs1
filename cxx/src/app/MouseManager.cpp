@@ -22,6 +22,7 @@
 #include "core/Adjustable.h"
 #include "core/SimulationManager.h"
 #include "elements/RoutedWireElm.h"
+#include "elements/SubcircuitElm.h"
 
 #include <algorithm>
 #include <cmath>
@@ -204,6 +205,9 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
         tempMouseMode = SimApp::MODE_DRAG_ALL;
     }
 
+    if (sim->isReadOnly() && tempMouseMode != SimApp::MODE_DRAG_ALL)
+        tempMouseMode = SimApp::MODE_SELECT;
+
     // TODO: settings wheel -> scope properties dialog
 
     // start drag-to-measure if clicking inside a scope
@@ -226,7 +230,7 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     }
 
     // IES - Grab resize handles in select mode if they are far enough apart and you are on top of them
-    if (tempMouseMode == SimApp::MODE_SELECT && mouseElm != nullptr &&
+    if (tempMouseMode == SimApp::MODE_SELECT && mouseElm != nullptr && !sim->isReadOnly() &&
         mouseElm->getHandleGrabbedClose(gx, gy, POSTGRABSQ, MINPOSTGRABSIZE) >= 0 && !anySelectedButMouse())
         tempMouseMode = SimApp::MODE_DRAG_POST;
 
@@ -310,7 +314,7 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
     case SimApp::MODE_SELECT:
         if (mouseElm == nullptr)
             selectArea(gx, gy, e->modifiers() & Qt::ShiftModifier);
-        else {
+        else if (!sim->isReadOnly()) {
             // wait short delay before dragging -- fixes accidental drags on mobile
             if (sim->currentTimeMillis() - mouseDownTime < 150)
                 return;
@@ -536,9 +540,9 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     CircuitElm *createdElm = endDrag();
     if (createdElm != nullptr) {
         // automatically bring up the property editor for a newly-created element
-        if (createdElm->showPropertiesOnCreate())
+        if (createdElm->showPropertiesOnCreate() && !sim->isReadOnly())
             sim->doEdit(createdElm);
-    } else if (clickedElm != nullptr && sim->showPropsOnClick) {
+    } else if (clickedElm != nullptr && sim->showPropsOnClick && !sim->isReadOnly()) {
         sim->doEdit(clickedElm);
     } else if (clickedEmpty) {
         sim->closeEditDialog();
@@ -600,8 +604,13 @@ void MouseManager::onDoubleClick(QMouseEvent *e) {
     // (double-clicking a scope at the bottom shouldn't edit the scope's element)
     if (mouseElm == nullptr || sim->scopeManager->scopeSelected != -1)
         return;
-    // TODO: double-clicking a subcircuit opens it
-    if (!mouseElm->isSwitchElm())
+    if (mouseElm->isSubcircuitElm()) {
+        // shows its components if it can, otherwise edits it
+        if (!static_cast<SubcircuitElm *>(mouseElm)->onDoubleClick() && !sim->isReadOnly())
+            sim->doEdit(mouseElm);
+        return;
+    }
+    if (!mouseElm->isSwitchElm() && !sim->isReadOnly())
         sim->doEdit(mouseElm);
 }
 

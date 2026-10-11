@@ -69,28 +69,38 @@ public:
 
     void setName(const std::string &n);
     static void initModelMap();
+    static void loadModelsFromStorage();
     static SubcircuitModelRef getModelWithName(const std::string &name);
     // create model from old-style nodeList/elmDump format, converting to XML immediately
     static SubcircuitModelRef createModelFromOldFormat(const std::string &name, const std::string &elmDump,
                                                        const std::string &nodeList, const std::vector<ExtListEntry> &extList);
+    // create model with XML element doc already built
+    static SubcircuitModelRef createModel(const std::string &name, std::unique_ptr<XmlElement> elmDoc,
+                                          const std::vector<ExtListEntry> &extList);
     static void clearDumpedFlags();
     static std::vector<SubcircuitModelRef> getModelList();
     static SubcircuitModelRef undumpModel(StringTokenizer &st);
     void undump(StringTokenizer &st);
     // convert old-style nodeList/elmDump strings to XML element tree
     void convertOldFormatToXml(const std::string &nodeList, const std::string &elmDump);
-    // where this model lives: local to the current circuit or global (TODO: persistent)
+    bool isSaved();
+    void setSaved(bool sv);
+    // where this model lives: local to the current circuit, global (available to all circuits
+    // this session), or persistent (global and saved in local storage across sessions)
     std::string getScope();
     // names of models used by subcircuits in the given circuit, including nested ones
     static std::set<std::string> getModelNamesInUse(const std::vector<class CircuitElm *> &elmList);
     // move model to the global map, replacing any local or global model with the same name
     void makeGlobal();
-    // move model to the local map so it belongs only to the current circuit
+    // move model to the local map so it belongs only to the current circuit,
+    // replacing any local model with the same name, and remove it from storage
     void makeLocal();
+    void makePersistent();
     // dump models as a subcircuit library file, which can be loaded like a circuit
     static std::string dumpLibrary(const std::vector<SubcircuitModelRef> &models);
     // load models from a subcircuit library file and make them global
     static std::vector<SubcircuitModelRef> loadLibrary(CircuitXMLDeserializer &xml, const XmlElement *root);
+    static void loadModelFromStorage(const std::string &data);
     bool showLabel() const { return (flags & FLAG_SHOW_LABEL) != 0; }
     bool isBuiltin() const { return builtin; }
     void setShowLabel(bool sl) { flags = sl ? (flags | FLAG_SHOW_LABEL) : (flags & ~FLAG_SHOW_LABEL); }

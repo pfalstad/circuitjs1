@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "../core/CircuitXMLDeserializer.h"
 #include "../core/CircuitXMLSerializer.h"
@@ -296,6 +297,49 @@ void ChipElm::initBoundingBox() {
     int xs = fsx * cspc2;
     int ys = fsy * cspc2;
     setBbox(xr, yr, xr + xs, yr + ys);
+}
+
+bool ChipElm::getPinPos(int xp, int yp, int currentSide, int pos[2]) {
+    int x0 = x + cspc2;
+    int y0 = y;
+    int xr = x0 - cspc;
+    int yr = y0 - cspc;
+    double xd = (double) (xp - xr) / cspc2 - .5;
+    double yd = (double) (yp - yr) / cspc2 - .5;
+    auto clampRound = [](double d, int size) { return (int) std::max(0.0, std::min(jsmath::round(d), (double) size - 1)); };
+    if (xd >= 0 && xd <= sizeX && yd >= 0 && yd <= sizeY) {
+        double dW = xd, dE = sizeX - xd, dN = yd, dS = sizeY - yd;
+        double curDist = (currentSide == SIDE_N) ? dN : (currentSide == SIDE_S) ? dS : (currentSide == SIDE_W) ? dW : dE;
+        double minDist = std::min(std::min(dW, dE), std::min(dN, dS));
+        int side;
+        if (curDist <= minDist + 1.0)
+            side = currentSide;
+        else
+            side = (minDist == dN) ? SIDE_N : (minDist == dS) ? SIDE_S : (minDist == dW) ? SIDE_W : SIDE_E;
+        pos[0] = (side == SIDE_N || side == SIDE_S) ? clampRound(xd, sizeX) : clampRound(yd, sizeY);
+        pos[1] = side;
+        return true;
+    }
+    const double big = std::numeric_limits<double>::max();
+    double distW = xd < 0 ? -xd : big;
+    double distE = xd > sizeX ? xd - sizeX : big;
+    double distN = yd < 0 ? -yd : big;
+    double distS = yd > sizeY ? yd - sizeY : big;
+    double minDist = std::min(std::min(distW, distE), std::min(distN, distS));
+    if (minDist == distN) {
+        pos[0] = clampRound(xd, sizeX);
+        pos[1] = SIDE_N;
+    } else if (minDist == distS) {
+        pos[0] = clampRound(xd, sizeX);
+        pos[1] = SIDE_S;
+    } else if (minDist == distW) {
+        pos[0] = clampRound(yd, sizeY);
+        pos[1] = SIDE_W;
+    } else {
+        pos[0] = clampRound(yd, sizeY);
+        pos[1] = SIDE_E;
+    }
+    return true;
 }
 
 int ChipElm::getOverlappingPin(int p1, int p2, int pin) {

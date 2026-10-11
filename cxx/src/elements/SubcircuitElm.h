@@ -59,7 +59,11 @@ public:
     bool isFlippedX() const { return (flags & ChipElm::FLAG_FLIP_X) != 0; }
     bool isFlippedY() const { return (flags & ChipElm::FLAG_FLIP_Y) != 0; }
     void flipXY(int xmy, int count) override;
+    // build a display list with all elements including ones skipped by loadCompositeXml
+    std::vector<CircuitElm *> buildDisplayElmList();
     bool canViewComponents();
+    // show our components if we can (returns false if the caller should edit us instead)
+    bool onDoubleClick();
     bool isSubcircuitElm() override { return true; }
     // don't bring up the properties when placing a subcircuit
     bool showPropertiesOnCreate() override { return false; }
@@ -73,4 +77,6 @@ public:
 
 private:
     std::vector<SubcircuitModelRef> models;
+    // the wires, labels etc. that buildDisplayElmList() made (they aren't in compElmList)
+    std::vector<std::unique_ptr<CircuitElm>> displayElms;
 };

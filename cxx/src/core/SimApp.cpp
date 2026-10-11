@@ -54,6 +54,13 @@ void SimApp::deleteSliders(CircuitElm *elm) {
     }
 }
 
+bool SimApp::isSelection() const {
+    for (CircuitElm *ce : *uiElmList)
+        if (ce->isSelected())
+            return true;
+    return false;
+}
+
 void SimApp::updateModels() {
     for (CircuitElm *ce : elmList)
         ce->updateModels();

@@ -24,6 +24,7 @@
 #include "../core/CircuitXMLDeserializer.h"
 #include "../core/CircuitXMLSerializer.h"
 #include "../core/CustomLogicModel.h"
+#include "../core/ElementFactory.h"
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
 #include "../core/StringTokenizer.h"
@@ -208,6 +209,46 @@ void SubcircuitElm::flipXY(int xmy, int count) {
     setPoints();
 }
 
+std::vector<CircuitElm *> SubcircuitElm::buildDisplayElmList() {
+    std::vector<CircuitElm *> allElms(compElmList.begin(), compElmList.end());
+    displayElms.clear();
+    CircuitXMLDeserializer xml(app);
+    size_t compIdx = 0;
+    for (const XmlElement *childElem : model->getElmEntries()) {
+        const std::string *className = ElementFactory::xmlClassName(childElem->tagName);
+        if (className == nullptr)
+            continue;
+        CircuitElm *ce;
+        if (*className == "WireElm" || *className == "RoutedWireElm" ||
+            *className == "LabeledNodeElm" || *className == "ScopeElm" ||
+            *className == "GraphicElm" ||
+            (*className == "GroundElm" && childElem->hasAttribute("x"))) {
+            ce = ElementFactory::constructElement(*className, 0, 0);
+            if (ce == nullptr)
+                continue;
+            displayElms.emplace_back(ce);
+            xml.parseChildElement(childElem);
+            ce->undumpXml(xml);
+            allElms.push_back(ce);
+        } else {
+            if (compIdx >= compElmList.size())
+                continue;
+            ce = compElmList[compIdx++];
+        }
+        ce->setPositionFromXml(childElem);
+    }
+    return allElms;
+}
+
+bool SubcircuitElm::onDoubleClick() {
+    if (!canViewComponents())
+        return false;
+    // the first click of the double-click brought up our properties; hide them
+    app->closeEditDialog();
+    app->pushSubcircuit(this, buildDisplayElmList());
+    return true;
+}
+
 bool SubcircuitElm::canViewComponents() {
     if (model == nullptr)
         return false;
@@ -308,13 +349,12 @@ void SubcircuitElm::setEditValue(int n, EditInfo &ei) {
             app->alert(Locale::LS("Can't edit this model."));
             return;
         }
-        // TODO: EditSubcircuitModelDialog
-        app->alert("Editing the pin layout isn't ported yet.");
+        app->editSubcircuitPinLayout(model);
         return;
     }
     if (n == 2 && canViewComponents()) {
-        // TODO: viewing a subcircuit's components (UIManager.pushSubcircuit)
-        app->alert("Viewing a subcircuit's components isn't ported yet.");
+        app->closeEditDialog();
+        app->pushSubcircuit(this, buildDisplayElmList());
         return;
     }
     int hvIdx = canViewComponents() ? 3 : 2;
@@ -323,7 +363,13 @@ void SubcircuitElm::setEditValue(int n, EditInfo &ei) {
         propagateHighVoltage();
     }
     if (n == hvIdx + 1) {
-        // TODO: editing the model circuit (CirSim.pushContext)
-        app->alert("Editing a subcircuit's model isn't ported yet.");
+        SubcircuitModelRef m = model;
+        // (closing the dialog may delete us)
+        app->closeEditDialog();
+        app->pushContext(m->name);
+        if (m->modelCircuit)
+            app->readCircuit(*m->modelCircuit);
+        else if (m->elmDoc)
+            app->readCircuitFromDoc(m->elmDoc.get());
     }
 }

@@ -129,7 +129,9 @@ public:
     void drag(int xx, int yy) override;
     void setPoints() override;
     void initBoundingBox() override;
-    // TODO: getPinPos/getOverlappingPin (subcircuit editor)
+    // find the pin position (pos[0]) and side (pos[1]) nearest to (xp, yp), preferring
+    // currentSide (for the subcircuit pin layout editor)
+    bool getPinPos(int xp, int yp, int currentSide, int pos[2]);
 
     int getOverlappingPin(int p1, int p2, int pin);
     Point getPost(int n) override { return pins[n].post; }

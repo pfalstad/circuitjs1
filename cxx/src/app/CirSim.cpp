@@ -43,6 +43,10 @@
 #include "Sidebar.h"
 #include "Toolbar.h"
 #include "EditDialog.h"
+#include "EditSubcircuitModelDialog.h"
+#include "QtStorage.h"
+#include "SubcircuitBar.h"
+#include "SubcircuitDialog.h"
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
 #include "core/JsMath.h"
@@ -56,6 +60,7 @@
 #include "AudioPlayer.h"
 #include "core/PanelButton.h"
 #include "elements/RoutedWireElm.h"
+#include "elements/SubcircuitElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
 
@@ -111,7 +116,9 @@ CirSim::CirSim() {
     sidebar = new Sidebar(this);
     createMenus();  // before the toolbar: the Draw menu supplies its tooltips
     toolbar = new Toolbar(this);
+    subcircuitBar = new SubcircuitBar(this);
     left->addWidget(toolbar);
+    left->addWidget(subcircuitBar);
     left->addWidget(canvas, 1);
     layout->addLayout(left, 1);
     layout->addWidget(sidebar);
@@ -120,6 +127,15 @@ CirSim::CirSim() {
     undoManager->enableUndoRedo();
     resize(1400, 860);
 
+    // subcircuit models saved across sessions
+    storage = std::make_unique<QtStorage>();
+    Storage::localStorage = storage.get();
+    try {
+        SubcircuitModel::loadModelsFromStorage();
+    } catch (std::exception &e) {
+        SimulationManager::console(std::string("Exception: ") + e.what());
+    }
+
     // the TS version redraws on a 16ms timer while the simulation runs
     connect(&timer, &QTimer::timeout, canvas, [this] { canvas->update(); });
     timer.start(16);
@@ -127,7 +143,9 @@ CirSim::CirSim() {
 
 CirSim::~CirSim() {
     timer.stop();
+    resetSubcircuitView();
     deleteAllElms();
+    Storage::localStorage = nullptr;
 }
 
 void CirSim::createMenus() {
@@ -145,14 +163,27 @@ void CirSim::createMenus() {
     QAction *saveAsItem = file->addAction(tr("Save &As..."));
     saveAsItem->setShortcut(QKeySequence::SaveAs);
     connect(saveAsItem, &QAction::triggered, this, [this] { saveAs(); });
+    file->addSeparator();
+    QAction *createSub = file->addAction(QString::fromStdString(Locale::LS("Create Subcircuit...")));
+    connect(createSub, &QAction::triggered, this, [this] { doCreateSubcircuit(); });
 
     QMenu *edit = menuBar()->addMenu(tr("&Edit"));
     undoItem = edit->addAction(tr("&Undo"));
     undoItem->setShortcut(QKeySequence::Undo);
-    connect(undoItem, &QAction::triggered, this, [this] { undoManager->doUndo(); });
+    connect(undoItem, &QAction::triggered, this, [this] {
+        if (isReadOnly())
+            alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+        else
+            undoManager->doUndo();
+    });
     redoItem = edit->addAction(tr("&Redo"));
     redoItem->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::Key_Y)});
-    connect(redoItem, &QAction::triggered, this, [this] { undoManager->doRedo(); });
+    connect(redoItem, &QAction::triggered, this, [this] {
+        if (isReadOnly())
+            alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+        else
+            undoManager->doRedo();
+    });
 
     createDrawMenu();
 
@@ -186,6 +217,10 @@ void CirSim::createMenus() {
     addToggle(tr("IEC Gates"), options.euroGates);
     opts->addSeparator();
     addToggle(tr("Show Properties On Click"), showPropsOnClick);
+
+    QMenu *tools = menuBar()->addMenu(tr("&Tools"));
+    QAction *subMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit Manager")));
+    connect(subMgr, &QAction::triggered, this, [this] { (new SubcircuitDialog(this))->show(); });
 
     createCircuitsMenu();
 }
@@ -281,7 +316,14 @@ bool CirSim::loadFile(const QString &path) {
             m += (m.empty() ? "" : ", ") + t;
         SimulationManager::console("not ported yet: " + m);
     }
-    readCircuit(data.toStdString());
+    std::string text = data.toStdString();
+    if (CircuitLoader::isSubcircuitLibrary(text)) {
+        // library files just add global subcircuits; keep the current circuit and its title
+        loader->readCircuit(text);
+        return true;
+    }
+    resetEditingContext();
+    readCircuit(text);
     filePath = path;
     unsavedChanges = false;
     savedDumpPending = true;
@@ -294,6 +336,17 @@ void CirSim::readCircuit(const std::string &text, int flags) {
     closeEditDialog();
     mouse.clearMouseElm();
     loader->readCircuit(text, flags);
+    circuitLoaded(flags);
+}
+
+void CirSim::readCircuitFromDoc(const XmlElement *doc) {
+    closeEditDialog();
+    mouse.clearMouseElm();
+    loader->readCircuitFromDoc(doc);
+    circuitLoaded(0);
+}
+
+void CirSim::circuitLoaded(int flags) {
     for (CircuitElm *ce : elmList)
         ce->setPoints();
     stopMessage.reset();
@@ -330,6 +383,7 @@ void CirSim::newBlankCircuit() {
     if (!maybeSave())
         return;
     pushUndo();
+    resetEditingContext();
     readCircuit("");
     filePath.clear();
     unsavedChanges = false;
@@ -384,12 +438,20 @@ bool CirSim::writeFile(const QString &path) {
 }
 
 bool CirSim::save() {
+    if (isEditingContext()) {
+        alert(Locale::LS("You are editing a subcircuit model.  Save it or go back to the circuit first."));
+        return false;
+    }
     if (filePath.isEmpty())
         return saveAs();
     return writeFile(filePath);
 }
 
 bool CirSim::saveAs() {
+    if (isEditingContext()) {
+        alert(Locale::LS("You are editing a subcircuit model.  Save it or go back to the circuit first."));
+        return false;
+    }
     QString name = filePath;
     if (name.isEmpty()) {
         QString title = sidebar->circuitTitle();
@@ -404,6 +466,10 @@ bool CirSim::saveAs() {
 }
 
 bool CirSim::maybeSave() {
+    // (Save would write the model's circuit over the file, so don't offer it)
+    if (isEditingContext())
+        return confirm(Locale::LS("You are editing subcircuit model ") + getEditingModelName().value_or("") +
+                       Locale::LS(".  Discard your changes to it and to the circuit?"));
     if (!isModified())
         return true;
     QMessageBox box(this);
@@ -752,6 +818,8 @@ void CirSim::drawBottomArea(Graphics &g) {
 }
 
 void CirSim::handleKey(QKeyEvent *e) {
+    if (isReadOnly())
+        return;
     int key = e->key();
     Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
     if (key == Qt::Key_Backspace || key == Qt::Key_Delete) {

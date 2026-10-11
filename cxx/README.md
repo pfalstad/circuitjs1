@@ -131,9 +131,19 @@ Sliders... dialog in the element context menu.  The slider logic is
 `core/Scrollbar.h` (the TS Scrollbar without the drawing), so slider-driven
 values match TS exactly.
 
-Not yet ported: sparse solver (matrices of 150 or more rows),
-the subcircuit UI (viewing and editing a subcircuit's components, the pin
-layout editor, the subcircuit manager, creating subcircuits), and the rest.
+Subcircuit UI: File → Create Subcircuit... makes a model from the circuit (or
+the selection) and opens the pin layout editor; the Draw menu's Subcircuits
+submenu lists the models.  A subcircuit's edit dialog has Edit Pin Layout, View
+Components (also on double-click; read-only, with live voltages, and nested
+subcircuits can be entered too) and Edit Model, which swaps the circuit for the
+model's circuit until you Save, Save Copy or go Back in the bar above the canvas.
+Tools → Subcircuit Manager makes models local, global or persistent, saves them
+as a library file, and deletes them.  Persistent models are kept with QSettings
+(`core/Storage.h` stands in for localStorage; the headless tools have none).
+File → Save is refused while editing a model, since it would write the model's
+circuit over the file.
+
+Not yet ported: sparse solver (matrices of 150 or more rows), and the rest.
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS
 version byte for byte; `AUDIOOUT=file` makes both tools save the WAV that Play

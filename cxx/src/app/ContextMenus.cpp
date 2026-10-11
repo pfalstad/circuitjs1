@@ -33,6 +33,8 @@
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
 void CirSim::doPopupMenu(const QPoint &globalPos) {
+    if (isReadOnly())
+        return;
     CircuitElm *menuElm = mouse.getMouseElm();
     ScopeManager *sm = scopeManager;
     sm->menuScope = -1;

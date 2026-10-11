@@ -142,6 +142,8 @@ public:
     bool validateCircuit();
     void analyzeCircuit();
     bool preStampCircuit(bool subcircuit);
+    // make a subcircuit model from the circuit (or the selection); see GetCircuitAsSubcircuit.cpp
+    std::shared_ptr<class SubcircuitModel> getCircuitAsComposite();
     void preStampAndStampCircuit();
     void stampCircuit();
     void makePostDrawList();

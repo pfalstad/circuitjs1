@@ -24,6 +24,7 @@
 #include <map>
 #include <QTimer>
 #include <QWidget>
+#include <array>
 #include <memory>
 
 #include "core/CircuitLoader.h"
@@ -32,6 +33,7 @@
 #include "core/SimulationManager.h"
 #include "MouseManager.h"
 #include "core/ScopeManager.h"
+#include "core/SubcircuitModel.h"
 #include "UndoManager.h"
 
 class CirSim;
@@ -42,6 +44,8 @@ class QMenu;
 class Graphics;
 class Sidebar;
 class Toolbar;
+class SubcircuitBar;
+class QtStorage;
 class EditDialog;
 class Editable;
 
@@ -63,6 +67,16 @@ protected:
 
 private:
     CirSim *app;
+};
+
+// a saved circuit, for editing a subcircuit model's circuit in its place (CirSim.ts)
+struct CircuitContext {
+    std::string circuitDump;
+    std::vector<UndoItem> undoStack;
+    std::vector<UndoItem> redoStack;
+    std::array<double, 6> transform{};
+    std::string modelName;
+    std::vector<SubcircuitModelRef> changedModels;
 };
 
 // The main window.  Combines the TS version's CirSim and UIManager (the frame loop,
@@ -87,7 +101,8 @@ public:
     void readSetupFile(const QString &file, const QString &title);
     // load the startup circuit from the setup list (the entry marked with '>')
     void loadDefaultCircuit();
-    void readCircuit(const std::string &text, int flags = 0);
+    void readCircuit(const std::string &text, int flags = 0) override;
+    void readCircuitFromDoc(const XmlElement *doc) override;
 
     // saving and undo
     std::unique_ptr<UndoManager> undoManager;
@@ -148,7 +163,7 @@ public:
     EditDialog *modelEditDialog = nullptr;  // the custom logic chip's Edit Model dialog
     void doEditModel(Editable *e) override;
     void doEdit(Editable *e);
-    void closeEditDialog();
+    void closeEditDialog() override;
     void editDialogClosed(EditDialog *d);
     void resetEditDialog() override;
     void elementDeleted(CircuitElm *ce) override;
@@ -156,10 +171,40 @@ public:
     void alert(const std::string &message) override;
     bool showPropsOnClick = true;
 
+    // editing is disabled while viewing a subcircuit's components
+    bool isReadOnly() const { return !subcircuitStack.empty(); }
+
+    // viewing a subcircuit's components (UIManager.ts).  The stack holds the SubcircuitElms
+    // we went into; uiElmList points at subcircuitElmList while it's not empty.
+    std::vector<CircuitElm *> subcircuitStack;
+    std::vector<CircuitElm *> subcircuitElmList;
+    void pushSubcircuit(CircuitElm *cce, const std::vector<CircuitElm *> &allElms) override;
+    void popSubcircuit();
+    void resetSubcircuitView() override;
+    void updateSubcircuitPath();
+    void updateContextButtons();
+
+    // saved context stack for editing subcircuit models
+    std::vector<CircuitContext> contextStack;
+    void pushContext(const std::string &modelName) override;
+    void popContext() { popContextAndGetChangedModels(); }
+    // pop context and return the list of models changed at deeper levels
+    std::vector<SubcircuitModelRef> popContextAndGetChangedModels();
+    void resetEditingContext();
+    bool isEditingContext() override { return !contextStack.empty(); }
+    std::optional<std::string> getEditingModelName();
+    // force all SubcircuitElm with a given model name to re-fetch their model
+    void refreshModels(const std::string &modelName);
+    void editSubcircuitPinLayout(const SubcircuitModelRef &model) override;
+    void doCreateSubcircuit();
+    void composeSubcircuitMenu();
+
 private:
     void createMenus();
     void createCircuitsMenu();
     void createDrawMenu();
+    // the part of readCircuit() after the loader is done
+    void circuitLoaded(int flags);
     QAction *getClassCheckItem(QMenu *menu, const QString &label, const QString &cls, const QString &hint = QString());
     void setCircuitArea() override;
     void drawBottomArea(Graphics &g);
@@ -169,6 +214,10 @@ private:
     Sidebar *sidebar = nullptr;
     std::unique_ptr<class AudioPlayer> audioPlayer;
     Toolbar *toolbar = nullptr;
+    SubcircuitBar *subcircuitBar = nullptr;
+    std::unique_ptr<QtStorage> storage;
+    QMenu *subcircuitMenu = nullptr;
+    int lastSubcircuitMenuUpdate = -1;
     QTimer timer;
     QAction *runStopAction = nullptr;
     QAction *undoItem = nullptr;

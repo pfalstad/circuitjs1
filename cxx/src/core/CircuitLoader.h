@@ -25,6 +25,7 @@
 class SimApp;
 class SimulationManager;
 class StringTokenizer;
+class XmlElement;
 
 // reads circuit files (XML or the old text format) into the app's element list
 class CircuitLoader {
@@ -37,6 +38,10 @@ public:
     CircuitLoader(SimApp *app, SimulationManager *sim) : app(app), sim(sim) {}
 
     void clearCircuit();
+    // subcircuit library files (saved from the Subcircuit Manager) don't replace the circuit
+    static bool isSubcircuitLibrary(const std::string &text);
+    // replace the circuit with the elements in doc (CircuitXMLDeserializer.readCircuitFromDoc())
+    void readCircuitFromDoc(const XmlElement *doc);
     void readCircuit(const std::string &text, int flags = 0);
     void readCircuitFlags(int flags);
 
@@ -46,7 +51,6 @@ public:
 
 private:
     void finishReadCircuit(int flags);
-    static bool isSubcircuitLibrary(const std::string &text);
     void readSubcircuitLibrary(const std::string &text);
     void readCircuitXml(const std::string &text, int flags);
     void readCircuitText(const std::string &text, int flags);

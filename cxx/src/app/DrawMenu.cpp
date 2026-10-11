@@ -276,7 +276,9 @@ void CirSim::createDrawMenu() {
     addSub("Digital Chips", chipItems, N(chipItems));
     addSub("Analog and Hybrid Chips", analogChipItems, N(analogChipItems));
 #undef N
-    // TODO: Subcircuits submenu
+    subcircuitMenu = menu->addMenu(LS("Subcircuits"));
+    composeSubcircuitMenu();
+    connect(subcircuitMenu, &QMenu::aboutToShow, this, [this] { composeSubcircuitMenu(); });
 
     QMenu *dragMenu = menu->addMenu(LS("Drag"));
     getClassCheckItem(dragMenu, LS("Drag All"), "DragAll", LS("(Alt-drag)"));
