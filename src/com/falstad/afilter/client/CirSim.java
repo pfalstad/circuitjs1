@@ -2874,7 +2874,9 @@ MouseOutHandler, MouseWheelHandler {
 		maxResponse = response[i];
 	responseAdjust = 1;
 	responseZero = 0;
-	while (maxResponse*maxResponse*responseAdjust > 1) {
+	// allow a little tolerance (about .01 dB) so rounding error in a response
+	// that peaks at exactly 0 dB doesn't make the scale jump around
+	while (maxResponse*maxResponse*responseAdjust > 1.0025) {
 	    responseAdjust /= 100;
 	    responseZero++;
 	}
