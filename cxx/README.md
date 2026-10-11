@@ -159,6 +159,12 @@ EJML), used for matrices of 150 or more rows, or always when the circuit asks fo
 `SOLVER=n` makes both trace tools use solver n (0=auto, 1=dense, 2=sparse); with
 sparse forced, every example circuit that runs gives bit-identical traces.
 
+Options: Options → Other Options... is a port of EditOptions (time step, voltage
+range, colors, decimal digits, developer mode, frame rate, wheel sensitivity, auto DC,
+auto timestep, matrix solver, value font size).  Colors, decimal digits, font size and
+wheel sensitivity are saved with QSettings, as TS saves them in localStorage.  The
+language choice is saved but does nothing yet, since translations aren't ported.
+
 Not yet ported: the rest.
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS

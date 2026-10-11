@@ -65,6 +65,7 @@ public:
     int mousePost = -1;
     double mouseCursorX = -1, mouseCursorY = -1;
     std::optional<Rectangle> selectedArea;
+    double wheelSensitivity = 1;
 
 private:
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
@@ -99,7 +100,6 @@ private:
     double mouseDownScreenX = 0, mouseDownScreenY = 0;
     double mouseDownTime = 0;
     double zoomTime = 0;
-    double wheelSensitivity = 1;
     std::vector<CircuitElm *> dragRowColElms;
     std::vector<int> dragRowColPosts;
 };

@@ -36,6 +36,7 @@
 #include <QDir>
 #include <QPainter>
 #include <QTextStream>
+#include <QUrl>
 #include <chrono>
 #include <cmath>
 
@@ -43,6 +44,7 @@
 #include "Sidebar.h"
 #include "Toolbar.h"
 #include "EditDialog.h"
+#include "EditOptions.h"
 #include "EditSubcircuitModelDialog.h"
 #include "QtStorage.h"
 #include "SubcircuitBar.h"
@@ -50,6 +52,7 @@
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
 #include "core/JsMath.h"
+#include "core/JsNumber.h"
 #include "core/Locale.h"
 #include "core/Scope.h"
 #include "core/CircuitXMLSerializer.h"
@@ -100,9 +103,13 @@ CirSim::CirSim() {
     scopeManager = scopeManagerOwner.get();
     loader = std::make_unique<CircuitLoader>(this, sim.get());
     undoManager = std::make_unique<UndoManager>(this);
+    // saved settings and subcircuit models, kept across sessions
+    storage = std::make_unique<QtStorage>();
+    Storage::localStorage = storage.get();
     CircuitElm::initClass(this, sim.get());
     registerElements();
     setColors();
+    setWheelSensitivity();
 
     // toolbar above the canvas, left of the sidebar (like the web version)
     QWidget *central = new QWidget(this);
@@ -127,9 +134,6 @@ CirSim::CirSim() {
     undoManager->enableUndoRedo();
     resize(1400, 860);
 
-    // subcircuit models saved across sessions
-    storage = std::make_unique<QtStorage>();
-    Storage::localStorage = storage.get();
     try {
         SubcircuitModel::loadModelsFromStorage();
     } catch (std::exception &e) {
@@ -217,6 +221,13 @@ void CirSim::createMenus() {
     addToggle(tr("IEC Gates"), options.euroGates);
     opts->addSeparator();
     addToggle(tr("Show Properties On Click"), showPropsOnClick);
+    opts->addSeparator();
+    QAction *otherOpts = opts->addAction(QString::fromStdString(Locale::LS("Other Options...")));
+    connect(otherOpts, &QAction::triggered, this, [this] {
+        if (!editOptions)
+            editOptions = std::make_unique<EditOptions>(this, sim.get());
+        doEdit(editOptions.get());
+    });
 
     QMenu *tools = menuBar()->addMenu(tr("&Tools"));
     QAction *subMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit Manager")));
@@ -519,6 +530,8 @@ void CirSim::setSimRunning(bool s) {
 
 void CirSim::resetAction() {
     analyzeFlag = true;
+    if (autoDCOnReset)
+        dcAnalysisFlag = true;
     if (sim->t == 0)
         setSimRunning(true);
     sim->resetTime();
@@ -530,13 +543,68 @@ void CirSim::resetAction() {
 }
 
 void CirSim::setColors() {
-    // TODO: color preferences
-    CircuitElm::positiveColor = Color::green;
-    CircuitElm::negativeColor = Color::red;
-    CircuitElm::neutralColor = Color::gray;
-    CircuitElm::selectColor = Color::cyan;
-    CircuitElm::currentColor = options.conventionalCurrent ? Color::yellow : Color::cyan;
+    std::optional<std::string> positiveColor, negativeColor, neutralColor, selectColor, currentColor;
+    if (Storage *stor = Storage::localStorage) {
+        positiveColor = stor->getItem("positiveColor");
+        negativeColor = stor->getItem("negativeColor");
+        neutralColor = stor->getItem("neutralColor");
+        selectColor = stor->getItem("selectColor");
+        currentColor = stor->getItem("currentColor");
+    }
+    auto decode = [](const std::string &s) {
+        return Color(QUrl::fromPercentEncoding(QByteArray::fromStdString(s)).toStdString());
+    };
+
+    if (positiveColor)
+        CircuitElm::positiveColor = decode(*positiveColor);
+    else if (getOptionFromStorage("alternativeColor", false))
+        CircuitElm::positiveColor = Color::blue;
+    else
+        CircuitElm::positiveColor = Color::green;
+
+    if (negativeColor)
+        CircuitElm::negativeColor = decode(*negativeColor);
+    else
+        CircuitElm::negativeColor = Color::red;
+
+    if (neutralColor)
+        CircuitElm::neutralColor = decode(*neutralColor);
+    else
+        CircuitElm::neutralColor = Color::gray;
+
+    if (selectColor)
+        CircuitElm::selectColor = decode(*selectColor);
+    else
+        CircuitElm::selectColor = Color::cyan;
+
+    if (currentColor)
+        CircuitElm::currentColor = decode(*currentColor);
+    else
+        CircuitElm::currentColor = options.conventionalCurrent ? Color::yellow : Color::cyan;
+
     CircuitElm::setColorScale();
+}
+
+void CirSim::setWheelSensitivity() {
+    mouse.wheelSensitivity = 1;
+    if (Storage::localStorage == nullptr)
+        return;
+    std::optional<std::string> s = Storage::localStorage->getItem("wheelSensitivity");
+    if (!s)
+        return;
+    try {
+        mouse.wheelSensitivity = parseFloatStrict(*s);
+    } catch (std::exception &) {
+    }
+}
+
+bool CirSim::getOptionFromStorage(const std::string &key, bool val) {
+    if (Storage::localStorage == nullptr)
+        return val;
+    std::optional<std::string> s = Storage::localStorage->getItem(key);
+    if (!s)
+        return val;
+    return *s == "true";
 }
 
 void CirSim::setCircuitArea() {
@@ -727,6 +795,24 @@ void CirSim::updateCircuit(QPainter &painter) {
     }
     lastFrameTime = lastTime;
 
+    if (developerMode) {
+        double height = 15;
+        const double increment = 15;
+        g.setColor(CircuitElm::whiteColor);
+        g.drawString("Framerate: " + CircuitElm::showFormat.format(framerate), 10, height);
+        g.drawString("Steprate: " + CircuitElm::showFormat.format(steprate), 10, height += increment);
+        g.drawString("Steprate/iter: " + CircuitElm::showFormat.format(steprate / getIterCount()), 10, height += increment);
+        g.drawString("iterc: " + CircuitElm::showFormat.format(getIterCount()), 10, height += increment);
+        g.drawString("Frames: " + std::to_string(frames), 10, height += increment);
+
+        if (mouse.mouseCursorX >= 0) {
+            int cx = mouse.inverseTransformX(mouse.mouseCursorX);
+            int cy = mouse.inverseTransformY(mouse.mouseCursorY);
+            g.drawString("Mouse: (" + std::to_string(cx) + ", " + std::to_string(cy) + ")", 10, height += increment);
+        }
+        // TODO: PerfMonitor
+    }
+
     if (needCenter) {
         needCenter = false;
         centerCircuit();
@@ -787,6 +873,19 @@ void CirSim::drawBottomArea(Graphics &g) {
             info[0] = Locale::LS(info[0]);
             if (!info[1].empty())
                 info[1] = Locale::LS(info[1]);
+
+            if (developerMode) {
+                // show node numbers for debugging
+                int ni;
+                for (ni = 0; !info[ni].empty() && ni < (int) info.size() - 1; ni++)
+                    ;
+                std::string nodeStr = "nodes:";
+                CircuitElm *me = mouse.getMouseElm();
+                for (int nn = 0; nn < me->getNodeCount(); nn++)
+                    if (me->getNode(nn))
+                        nodeStr += " " + std::to_string(me->getNode(nn)->index);
+                info[ni] = nodeStr;
+            }
         } else {
             info[0] = "V = " + CircuitElm::getUnitText(mouse.getMouseElm()->getPostVoltage(mouse.mousePost), "V");
         }

@@ -62,11 +62,12 @@ public:
     bool analyzeFlag = false;
     std::optional<std::string> stopMessage;
     CircuitElm *stopElm = nullptr;
-    int minFrameRate = 20;
+    double minFrameRate = 20;
     long steps = 0;
     double lastFrameTime = 0;
     int gridSize = 16;
     bool autoDCOnReset = false;
+    bool developerMode = false;
     // the hint shown in the info box for some example circuits
     int hintType = -1, hintItem1 = 0, hintItem2 = 0;
 

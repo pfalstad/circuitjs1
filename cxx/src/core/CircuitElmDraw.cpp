@@ -19,6 +19,7 @@
 
 // CircuitElm's drawing and info-text methods (the rest is in CircuitElm.cpp)
 
+#include <algorithm>
 #include <cmath>
 
 #include "CircuitElm.h"
@@ -33,6 +34,7 @@
 #include "Locale.h"
 #include "SimApp.h"
 #include "SimulationManager.h"
+#include "Storage.h"
 
 std::vector<Color> CircuitElm::colorScale;
 double CircuitElm::currentMult = 0;
@@ -61,7 +63,25 @@ void CircuitElm::initClass(SimApp *app_, SimulationManager *sim_) {
     sim = sim_;
     app = app_;
     colorScale.assign(colorScaleCount, Color());
-    // TODO: decimal digits and font size settings
+
+    Storage *stor = Storage::localStorage;
+    decimalDigits = 3;
+    shortDecimalDigits = 1;
+    if (stor != nullptr) {
+        try {
+            std::optional<std::string> s1 = stor->getItem("decimalDigits");
+            std::optional<std::string> s2 = stor->getItem("decimalDigitsShort");
+            if (s1)
+                decimalDigits = parseIntStrict(*s1);
+            if (s2)
+                shortDecimalDigits = parseIntStrict(*s2);
+            std::optional<std::string> sf = stor->getItem("valueFontSize");
+            if (sf)
+                valueFontSize = parseIntStrict(*sf);
+        } catch (std::exception &) {
+            // a bad saved setting; keep the defaults
+        }
+    }
     setDecimalDigits(decimalDigits, false, false);
     setDecimalDigits(shortDecimalDigits, true, false);
     unitsFont = Font("SansSerif", 0, 12);
@@ -72,23 +92,28 @@ void CircuitElm::initClass(SimApp *app_, SimulationManager *sim_) {
 void CircuitElm::setValueFontSize(int size) {
     valueFontSize = size;
     valueFont = Font("SansSerif", 0, valueFontSize);
+    if (Storage::localStorage != nullptr)
+        Storage::localStorage->setItem("valueFontSize", std::to_string(valueFontSize));
 }
 
-void CircuitElm::setDecimalDigits(int num, bool sf, bool) {
+void CircuitElm::setDecimalDigits(int num, bool sf, bool save) {
     if (sf)
         shortDecimalDigits = num;
     else
         decimalDigits = num;
 
-    std::string s = "####." + std::string(num, '#');
+    std::string s = "####." + std::string(std::max(num, 0), '#');
     NumberFormat nf = NumberFormat::getFormat(s);
     if (sf)
         shortFormat = nf;
     else
         showFormat = nf;
 
+    if (save && Storage::localStorage != nullptr)
+        Storage::localStorage->setItem(sf ? "decimalDigitsShort" : "decimalDigits", std::to_string(num));
+
     if (!sf)
-        fixedFormat = NumberFormat::getFormat("####." + std::string(num, '0'));
+        fixedFormat = NumberFormat::getFormat("####." + std::string(std::max(num, 0), '0'));
 }
 
 void CircuitElm::setColorScale() {

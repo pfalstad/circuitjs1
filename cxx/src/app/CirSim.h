@@ -50,6 +50,7 @@ class SubcircuitBar;
 class QtStorage;
 class EditDialog;
 class Editable;
+class EditOptions;
 
 // the drawing surface; all the work happens in CirSim::updateCircuit()
 class CircuitCanvas : public QWidget {
@@ -173,6 +174,13 @@ public:
     bool confirm(const std::string &question) override;
     void alert(const std::string &message) override;
     bool showPropsOnClick = true;
+    // Options > Other Options...
+    std::unique_ptr<EditOptions> editOptions;
+
+    // circuit colors, from saved settings or the defaults
+    void setColors();
+    void setWheelSensitivity();
+    bool getOptionFromStorage(const std::string &key, bool val);
 
     // editing is disabled while viewing a subcircuit's components
     bool isReadOnly() const { return !subcircuitStack.empty(); }
@@ -211,7 +219,6 @@ private:
     QAction *getClassCheckItem(QMenu *menu, const QString &label, const QString &cls, const QString &hint = QString());
     void setCircuitArea() override;
     void drawBottomArea(Graphics &g);
-    void setColors();
 
     CircuitCanvas *canvas;
     Sidebar *sidebar = nullptr;
