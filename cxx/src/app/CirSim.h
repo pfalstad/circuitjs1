@@ -158,6 +158,21 @@ public:
     void handleKey(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
     void doDelete();
+    // Edit menu commands (CommandManager.ts).  menuElm is the element to act on if it
+    // isn't selected (the context menu's element, or the one under the mouse for keys).
+    void doCut(CircuitElm *menuElm);
+    void doCopy(CircuitElm *menuElm);
+    void doPaste(const std::string *dump = nullptr);  // nullptr: paste the clipboard
+    void doDuplicate(CircuitElm *menuElm);
+    void doSelectAll();
+    void mirrorX(CircuitElm *menuElm);
+    void mirrorY(CircuitElm *menuElm);
+    void rotateCCW(CircuitElm *menuElm);
+    void rotateCW(CircuitElm *menuElm);
+    // the element under the mouse, for commands from shortcut keys
+    CircuitElm *keyMenuElm();
+    void enableDisableMenuItems();
+    void enablePaste();
     void addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se);
     // the right-click menu
     void doPopupMenu(const QPoint &globalPos);
@@ -219,6 +234,16 @@ private:
     QAction *getClassCheckItem(QMenu *menu, const QString &label, const QString &cls, const QString &hint = QString());
     void setCircuitArea() override;
     void drawBottomArea(Graphics &g);
+    struct FlipInfo {
+        int cx, cy, count;
+    };
+    FlipInfo prepareFlip(CircuitElm *menuElm);
+    void setMenuSelection(CircuitElm *menuElm);
+    int countSelected();
+    std::string copyOfSelectedElms();
+    void writeClipboardToStorage();
+    void readClipboardFromStorage();
+    std::string clipboard;
 
     CircuitCanvas *canvas;
     Sidebar *sidebar = nullptr;
@@ -232,6 +257,13 @@ private:
     QAction *runStopAction = nullptr;
     QAction *undoItem = nullptr;
     QAction *redoItem = nullptr;
+    QAction *cutItem = nullptr;
+    QAction *copyItem = nullptr;
+    QAction *pasteItem = nullptr;
+    QAction *mirrorXItem = nullptr;
+    QAction *mirrorYItem = nullptr;
+    QAction *rotateCCWItem = nullptr;
+    QAction *rotateCWItem = nullptr;
     std::string savedDump;      // the circuit (without state) as of the last load or save
     bool savedDumpPending = false;  // take savedDump after the next frame, once scopes are set up
     QActionGroup *modeActions = nullptr;

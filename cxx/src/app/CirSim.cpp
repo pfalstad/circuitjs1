@@ -27,6 +27,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QKeyEvent>
+#include <QLocale>
 #include <QMenuBar>
 #include <QCloseEvent>
 #include <QMessageBox>
@@ -38,6 +39,7 @@
 #include <QTextStream>
 #include <QUrl>
 #include <chrono>
+#include <functional>
 #include <cmath>
 
 #include "QtGraphics.h"
@@ -148,6 +150,7 @@ CirSim::CirSim() {
 
 CirSim::~CirSim() {
     timer.stop();
+    cutItem = nullptr;  // stop enableDisableMenuItems() looking at deleted elements
     resetSubcircuitView();
     deleteAllElms();
     Storage::localStorage = nullptr;
@@ -173,22 +176,51 @@ void CirSim::createMenus() {
     connect(createSub, &QAction::triggered, this, [this] { doCreateSubcircuit(); });
 
     QMenu *edit = menuBar()->addMenu(tr("&Edit"));
-    undoItem = edit->addAction(tr("&Undo"));
-    undoItem->setShortcut(QKeySequence::Undo);
-    connect(undoItem, &QAction::triggered, this, [this] {
-        if (isReadOnly())
-            alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
-        else
-            undoManager->doUndo();
+    auto LSq = [](const char *str) { return QString::fromStdString(Locale::LS(str)); };
+    // an Edit menu item; editing commands are disabled while viewing a subcircuit
+    auto addEditItem = [&](const char *name, QKeySequence key, std::function<void()> fn, bool editing = true) {
+        QAction *a = edit->addAction(LSq(name));
+        if (!key.isEmpty())
+            a->setShortcut(key);
+        connect(a, &QAction::triggered, this, [this, fn, editing] {
+            if (editing && isReadOnly()) {
+                alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+                return;
+            }
+            fn();
+        });
+        return a;
+    };
+    undoItem = addEditItem("Undo", QKeySequence::Undo, [this] { undoManager->doUndo(); });
+    redoItem = addEditItem("Redo", QKeySequence(Qt::CTRL | Qt::Key_Y), [this] { undoManager->doRedo(); });
+    redoItem->setShortcuts({QKeySequence(Qt::CTRL | Qt::Key_Y), QKeySequence::Redo});
+    edit->addSeparator();
+    cutItem = addEditItem("Cut", QKeySequence::Cut, [this] { doCut(keyMenuElm()); });
+    copyItem = addEditItem("Copy", QKeySequence::Copy, [this] { doCopy(keyMenuElm()); });
+    pasteItem = addEditItem("Paste", QKeySequence::Paste, [this] { doPaste(); });
+    addEditItem("Duplicate", QKeySequence(Qt::CTRL | Qt::Key_D), [this] { doDuplicate(keyMenuElm()); });
+    edit->addSeparator();
+    addEditItem("Select All", QKeySequence::SelectAll, [this] { doSelectAll(); }, false);
+    edit->addSeparator();
+    // TODO: the command palette isn't ported yet
+    edit->addAction(LSq("Find Component/Command..."))->setEnabled(false);
+    addEditItem(QLocale::system().territory() == QLocale::UnitedStates ? "Center Circuit" : "Centre Circuit", QKeySequence(), [this] {
+        pushUndo();
+        centerCircuit();
     });
-    redoItem = edit->addAction(tr("&Redo"));
-    redoItem->setShortcuts({QKeySequence::Redo, QKeySequence(Qt::CTRL | Qt::Key_Y)});
-    connect(redoItem, &QAction::triggered, this, [this] {
-        if (isReadOnly())
-            alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
-        else
-            undoManager->doRedo();
+    addEditItem("Zoom 100%", QKeySequence(Qt::Key_0), [this] { mouse.setCircuitScale(1, true); repaint(); }, false);
+    QAction *zoomIn = addEditItem("Zoom In", QKeySequence(Qt::Key_Plus), [this] { mouse.zoomCircuit(20, true); repaint(); }, false);
+    zoomIn->setShortcuts({QKeySequence(Qt::Key_Plus), QKeySequence(Qt::Key_Equal)});
+    addEditItem("Zoom Out", QKeySequence(Qt::Key_Minus), [this] { mouse.zoomCircuit(-20, true); repaint(); }, false);
+    mirrorXItem = addEditItem("Mirror X", QKeySequence(), [this] { mirrorX(keyMenuElm()); });
+    mirrorYItem = addEditItem("Mirror Y", QKeySequence(), [this] { mirrorY(keyMenuElm()); });
+    rotateCCWItem = addEditItem("Rotate CCW", QKeySequence(), [this] { rotateCCW(keyMenuElm()); });
+    rotateCWItem = addEditItem("Rotate CW", QKeySequence(), [this] { rotateCW(keyMenuElm()); });
+    connect(edit, &QMenu::aboutToShow, this, [this] {
+        enablePaste();
+        enableDisableMenuItems();
     });
+    enablePaste();
 
     createDrawMenu();
 
@@ -539,6 +571,7 @@ void CirSim::closeEvent(QCloseEvent *e) {
 void CirSim::needAnalyze() {
     analyzeFlag = true;
     canvas->update();
+    enableDisableMenuItems();
 }
 
 void CirSim::repaint() {

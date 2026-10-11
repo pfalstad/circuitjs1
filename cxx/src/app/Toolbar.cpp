@@ -127,13 +127,13 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
                   "QToolButton { border: none; padding: 1px; }"
                   "QToolButton:checked { background: #e6f7ff; }");
 
-    // TODO: cut/copy/paste/duplicate, and search aren't implemented yet
+    // TODO: search (the command palette) isn't implemented yet
     undoButton = createFontButton(ICON_REPLY, LS("Undo"), [this] { app->undoManager->doUndo(); });
     redoButton = createFontButton(ICON_FORWARD, LS("Redo"), [this] { app->undoManager->doRedo(); });
-    createFontButton(ICON_SCISSORS, LS("Cut"), nullptr);
-    createFontButton(ICON_COPY, LS("Copy"), nullptr);
-    createFontButton(ICON_PASTE, LS("Paste"), nullptr);
-    createFontButton(ICON_CLONE, LS("Duplicate"), nullptr);
+    createFontButton(ICON_SCISSORS, LS("Cut"), [this] { if (!app->isReadOnly()) app->doCut(nullptr); });
+    createFontButton(ICON_COPY, LS("Copy"), [this] { if (!app->isReadOnly()) app->doCopy(nullptr); });
+    createFontButton(ICON_PASTE, LS("Paste"), [this] { if (!app->isReadOnly()) app->doPaste(); });
+    createFontButton(ICON_CLONE, LS("Duplicate"), [this] { if (!app->isReadOnly()) app->doDuplicate(nullptr); });
     createFontButton(ICON_SEARCH, LS("Find Component/Command..."), nullptr);
 
     createFontButton(ICON_ZOOM_11, LS("Zoom 100%"), [this] { app->mouse.setCircuitScale(1, true); app->repaint(); });

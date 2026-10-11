@@ -65,12 +65,14 @@ void MouseManager::setMouseElm(CircuitElm *ce) {
         mouseElm = ce;
         for (Adjustable *adj : sim->adjustables)
             adj->setMouseElm(ce);
+        sim->enableDisableMenuItems();
     }
 }
 
 void MouseManager::clearSelection() {
     for (CircuitElm *ce : *sim->uiElmList)
         ce->setSelected(false);
+    sim->enableDisableMenuItems();
 }
 
 // need to break this out into a separate routine to handle selection,
@@ -176,6 +178,8 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     mouseDownTime = sim->currentTimeMillis();
     mouseDownScreenX = ex;
     mouseDownScreenY = ey;
+    // maybe someone did copy in another window?
+    sim->enablePaste();
     // not left or middle (right-click brings up the context menu instead)
     if (e->button() != Qt::LeftButton && e->button() != Qt::MiddleButton)
         return;
@@ -485,6 +489,7 @@ void MouseManager::selectArea(int x, int y, bool add) {
     selectedArea = Rectangle(x1, y1, x2 - x1, y2 - y1);
     for (CircuitElm *ce : *sim->uiElmList)
         ce->selectRect(*selectedArea, add);
+    sim->enableDisableMenuItems();
 }
 
 bool MouseManager::anySelectedButMouse() {

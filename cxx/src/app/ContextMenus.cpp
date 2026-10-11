@@ -84,18 +84,20 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
             add->addAction(label, this, [s, menuElm] { s->addElm(menuElm); });
         }
         add->setEnabled(menuElm->canViewInScope() && sm->scopeCount + scopeElmCount > 0);
-        menu.addAction(LS("Cut"))->setEnabled(false);   // TODO
-        menu.addAction(LS("Copy"))->setEnabled(false);  // TODO
+        menu.addAction(LS("Cut"), this, [this, menuElm] { doCut(menuElm); });
+        menu.addAction(LS("Copy"), this, [this, menuElm] { doCopy(menuElm); });
         menu.addAction(LS("Delete"), this, [this] { pushUndo(); doDelete(); });
-        menu.addAction(LS("Duplicate"))->setEnabled(false);  // TODO
+        menu.addAction(LS("Duplicate"), this, [this, menuElm] { doDuplicate(menuElm); });
         menu.addAction(LS("Swap Terminals"), this, [this, menuElm] {
             menuElm->flipPosts();
             needAnalyze();
         });
-        menu.addAction(LS("Mirror X"))->setEnabled(false);    // TODO
-        menu.addAction(LS("Mirror Y"))->setEnabled(false);    // TODO
-        menu.addAction(LS("Rotate CCW"))->setEnabled(false);  // TODO
-        menu.addAction(LS("Rotate CW"))->setEnabled(false);   // TODO
+        menu.addAction(LS("Mirror X"), this, [this, menuElm] { mirrorX(menuElm); })->setEnabled(menuElm->canFlipX());
+        menu.addAction(LS("Mirror Y"), this, [this, menuElm] { mirrorY(menuElm); })->setEnabled(menuElm->canFlipY());
+        menu.addAction(LS("Rotate CCW"), this, [this, menuElm] { rotateCCW(menuElm); })
+            ->setEnabled(menuElm->canFlipXY() && menuElm->canFlipY());
+        menu.addAction(LS("Rotate CW"), this, [this, menuElm] { rotateCW(menuElm); })
+            ->setEnabled(menuElm->canFlipXY() && menuElm->canFlipY());
         menu.addAction(LS("Split Wire Manually"), this, [this, menuElm] {
             pushUndo();
             mouse.doSplit(menuElm);
