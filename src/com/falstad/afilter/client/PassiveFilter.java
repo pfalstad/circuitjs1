@@ -1,18 +1,127 @@
 package com.falstad.afilter.client;
 
-import com.gargoylesoftware.htmlunit.javascript.host.Console;
+import com.google.gwt.event.dom.client.ChangeEvent;
+import com.google.gwt.event.dom.client.ChangeHandler;
+import com.google.gwt.xml.client.Element;
 
+// LC ladder filter.  The circuit is generated in code from the filter
+// parameters, so any order, termination and topology can be built.
 class PassiveFilter extends FilterCustomizer {
+    boolean matched;      // source resistance equal to load (else ideal source)
+    boolean shuntFirst;   // first ladder element is a shunt element
+    double rload = 50;
+    Choice sourceChooser, firstChooser;
+
+    // generated circuit
+    String builtKey;
+    InductorElm inds[];
+    CapacitorElm caps[];
+    ResistorElm loadRes;
+    LadderSynth synth;
+
+    static final int X0 = 304, TOP = 176, BOT = TOP+128, SEG = 64;
+
     public PassiveFilter(int f, StringTokenizer st) {
 	super(f, st);
+	if (st == null)
+	    return;
+	// optional parameters added for generated circuits
+	if (st.hasMoreTokens())
+	    initPoles = new Integer(st.nextToken()).intValue();
+	if (st.hasMoreTokens())
+	    matched = new Integer(st.nextToken()).intValue() != 0;
+	if (st.hasMoreTokens())
+	    shuntFirst = new Integer(st.nextToken()).intValue() != 0;
+    }
+
+    void dumpXml(Element elem) {
+	super.dumpXml(elem);
+	if (pslider != null)
+	    XMLSerializer.dumpAttr(elem, "n", pslider.getValue());
+	XMLSerializer.dumpAttr(elem, "rs", matched ? 1 : 0);
+	XMLSerializer.dumpAttr(elem, "sh", shuntFirst ? 1 : 0);
+    }
+
+    void undumpXml(XMLDeserializer xml) {
+	super.undumpXml(xml);
+	int n = xml.parseIntAttr("n", -1);
+	if (n >= 0)
+	    initPoles = n;
+	else if (initPoles >= 0)
+	    initPoles *= 2;  // older files stored the number of 2-pole sections
+	matched    = xml.parseIntAttr("rs", 0) != 0;
+	shuntFirst = xml.parseIntAttr("sh", 0) != 0;
+    }
+
+    // slider gives the order of the lowpass prototype
+    int getMaxPoles() { return 10; }
+    int getDefaultPoles() { return 2; }
+    int getPoleCount() {
+	if (pslider == null)
+	    return -1;
+	int v = pslider.getValue();
+	return isBand() ? v*2 : v;
+    }
+    int getOrder() { return pslider.getValue(); }
+
+    // shunt element first is useless with an ideal voltage source
+    boolean isShuntFirst() { return shuntFirst && matched; }
+
+    void create() {
+	sourceChooser = new Choice();
+	sourceChooser.add("Source Resistance: None");
+	sourceChooser.add("Source Resistance: Matched");
+	sourceChooser.select(matched ? 1 : 0);
+	sourceChooser.addChangeHandler(new ChangeHandler() {
+	    public void onChange(ChangeEvent ev) {
+		matched = sourceChooser.getSelectedIndex() == 1;
+		firstChooser.setEnabled(matched);
+		frequencyChanged();
+	    }
+	});
+	firstChooser = new Choice();
+	firstChooser.add("Series Element First");
+	firstChooser.add("Shunt Element First");
+	firstChooser.select(shuntFirst ? 1 : 0);
+	firstChooser.setEnabled(matched);
+	firstChooser.addChangeHandler(new ChangeHandler() {
+	    public void onChange(ChangeEvent ev) {
+		shuntFirst = firstChooser.getSelectedIndex() == 1;
+		frequencyChanged();
+	    }
+	});
+	sim.addWidgetToVerticalPanel(sourceChooser);
+	sim.addWidgetToVerticalPanel(firstChooser);
+	super.create();
+    }
+
+    void delete() {
+	super.delete();
+	sim.removeWidgetFromVerticalPanel(sourceChooser);
+	sim.removeWidgetFromVerticalPanel(firstChooser);
+    }
+
+    void polesChanged() {
+	frequencyChanged();
+    }
+
+    void getInfo(String info[], int i) {
+	super.getInfo(info, i);
+	while (info[i] != null)
+	    i++;
+	if (synth != null)
+	    info[i++] = "Rs = " + CircuitElm.getUnitText(matched ? rload : 0, CirSim.ohmString) +
+		", RL = " + CircuitElm.getUnitText(rload*synth.load, CirSim.ohmString);
     }
 
     double getScaleFactor(double w, Complex poles[]) {
-	double x = 1;
-	if (isHiPass() || isBandStop()) return 1;
+	double gain = (synth == null) ? 1 : synth.gain;
+	if (isHiPass() || isBandStop())
+	    return gain;
 
+	int i;
+	double x = 1;
 	if (isBandPass()) {
-	    int i;
 	    Complex iw = new Complex(0, 2*Math.PI*cfrequency);
 	    for (i = 0; i != poles.length; i++) {
 		Complex p = new Complex(poles[i]);
@@ -20,154 +129,174 @@ class PassiveFilter extends FilterCustomizer {
 		x *= p.mag();
 	    }
 	    x /= Math.pow(iw.mag(), poles.length/2);
-	    return x;
+	    return x*gain;
 	}
-	
-	int i;
-	for (i = 0; i != poles.length/2; i++)
-	    x *= poles[i].magSquared();
-	return x;
-    }
-    
-    Complex [] polyMult(Complex p1[], Complex p2[]) {
-	Complex pp[] = new Complex[p1.length+p2.length-1];
-	int i, j;
-	for (i = 0; i != pp.length; i++)
-	    pp[i] = new Complex(0);
-	Complex cc = new Complex();
-	for (i = 0; i != p1.length; i++)
-	    for (j = 0; j != p2.length; j++) {
-		cc.set(p1[i]);
-		cc.mult(p2[j]);
-		pp[i+j].add(cc);
-	    }
-	return pp;
-    }
-    
-    double [] getValues() {
-	int poles = sim.countElm(CapacitorElm.class) +
-	    sim.countElm(InductorElm.class);
-	if (isBand())
-	    poles /= 2;
-	//double r = 50;
-	double r = 1;
-	int i;
-	double wc = 2*Math.PI*frequency;
-	Complex poly[] = new Complex[1];
-	poly[0] = new Complex(1);
-	Complex polearr[] = getPoles(true);
-	for (i = 0; i != poles; i++) {
-	    Complex poly2[] = new Complex[2];
-	    poly2[0] = polearr[i];
-	    // calculate the poles for a prototype 1 radian filter
-	    // to avoid overflow problems
-	    poly2[0].mult(-1/wc);
-	    poly2[1] = new Complex(1);
-	    poly = polyMult(poly, poly2);
-	}
-	/*for (i = poly.length-1; i >= 0; i--)
-	  System.out.println(poly[i].asString() + " x^" + i);*/
-	double rpoly[] = new double[poly.length];
-	for (i = 0; i != rpoly.length; i++)
-	    rpoly[i] = poly[i].re;
-	double deven[] = new double[(rpoly.length % 2) == 1 ?
-				    rpoly.length : rpoly.length-1];
-	double dodd[] = new double[(rpoly.length % 2) == 0 ?
-				   rpoly.length : rpoly.length-1];
-	for (i = 0; i != rpoly.length; i++)
-	    if (i % 2 == 0)
-		deven[i] = rpoly[i]*r;
-	    else
-		dodd[i] = rpoly[i];
-	double d1[] = deven;
-	double d2[] = dodd;
-	boolean swap = false;
-	double values[] = new double[poles];
-	i = 0;
-	while (d1.length > 1) {
-	    //System.out.println("d1 " + polyString(d1));
-	    //System.out.println("d2 " + polyString(d2));
-	    double ra = d1[d1.length-1]/d2[d2.length-1];
-	    values[i++] = ra;
-	    /*if (swap)
-		System.out.println("c = " + ra);
-	    else
-		System.out.println("l = " + ra);*/
-	    double q[] = polySub(d1, ra, 1, d2);
-	    d1 = d2;
-	    d2 = q;
-	    swap = !swap;
-	}
-	return values;
+
+	for (i = 0; i != poles.length; i++)
+	    x *= poles[i].mag();
+	return x*gain;
     }
 
-    double [] polySub(double p1[], double mult, int xmult, double p2[]) {
-	double pa[] = new double[p1.length];
+    // ladder values for a 1 rad/s, 1 ohm lowpass prototype
+    LadderSynth synthesize() {
+	Complex poles[] = getPoles(true);
+	double wc = 2*Math.PI*frequency;
 	int i;
-	for (i = 0; i != pa.length; i++)
-	    pa[i] = p1[i];
-	for (i = 0; i != p2.length; i++)
-	    pa[i+xmult] -= p2[i]*mult;
-	//System.out.println("pa = " + polyString(pa));
-	int len = pa.length;
-	while (len > 1 && Math.abs(pa[len-1]) < 1e-8)
-	    len--;
-	if (len == pa.length)
-	    return pa;
-	double pb[] = new double[len];
-	for (i = 0; i != len; i++)
-	    pb[i] = pa[i];
-	return pb;
+	for (i = 0; i != poles.length; i++)
+	    poles[i].mult(1/wc);
+	double e[] = LadderSynth.polyFromPoles(poles);
+	if (matched)
+	    return LadderSynth.doublyTerminated(e, isShuntFirst());
+	return LadderSynth.singlyTerminated(e);
     }
-    
-    String polyString(double p[]) {
-	String s = "";
-	int i;
-	for (i = p.length-1; i >= 0; i--) {
-	    if (s.length() > 0)
-		s += " + ";
-	    s += p[i] + " s^" + i;
+
+    boolean isSeries(int i) { return (i % 2 == 0) != isShuntFirst(); }
+
+    CircuitElm add(String s) {
+	try {
+	    return sim.undump(s);
+	} catch (Exception e) {
+	    e.printStackTrace();
+	    return null;
 	}
-	return s;
     }
-    
-    void frequencyChanged() {
-	double values[] = getValues();
-	int poles2 = sim.countElm(BoxElm.class);
-	int pn;
-	int poles = poles2*2;
-	double r = sim.getElm(0, ResistorElm.class).getValue();
-	int vi = values.length-1;
-	double w = 2*Math.PI*frequency;
-	boolean doInd = !(isHiPass() || isBandStop());
-	int ii = 0, ci = 0;
-	//System.out.println("f0 " + frequency + " " + poles + " " + doInd);
-	//System.out.println("ibs " + isBandStop() + " " + isBand());
-	for (pn = 0; pn != poles; pn++) {
-	    double val = values[vi--];
-	    if (isHiPass() || isBandStop())
-		val = 1/val;
-	    //System.out.println("val = " + val + " " + r);
-	    if (isBand()) {
-		double cw = cfrequency*2*Math.PI;
-		double cw2 = cw*cw;
-		val /= w;
-		if (!doInd) {
-		    sim.getElm(ci++, CapacitorElm.class).setValue(val/r);
-		    sim.getElm(ii++, InductorElm.class).setValue(r/(cw2*val));
+
+    CircuitElm add(char type, int x1, int y1, int x2, int y2, String rest) {
+	return add(type + " " + x1 + " " + y1 + " " + x2 + " " + y2 + " 0 " + rest);
+    }
+
+    void addWire(int x1, int y1, int x2, int y2) { add('w', x1, y1, x2, y2, ""); }
+    void addGround(int x) { add('g', x, BOT, x, BOT+16, ""); }
+    InductorElm addInd(int x1, int y1, int x2, int y2) { return (InductorElm) add('l', x1, y1, x2, y2, "1 0"); }
+    CapacitorElm addCap(int x1, int y1, int x2, int y2) { return (CapacitorElm) add('c', x1, y1, x2, y2, "1e-6 0"); }
+
+    // build the circuit: source, optional source resistor, ladder, load
+    void rebuild() {
+	int n = getOrder();
+	int i;
+	SweepElm src = null;
+	sim.clearMouseElm();
+	for (i = 0; i != sim.elmList.size(); i++) {
+	    CircuitElm ce = sim.getElm(i);
+	    if (src == null && ce instanceof SweepElm) {
+		src = (SweepElm) ce;
+		continue;
+	    }
+	    ce.delete();
+	    sim.elmList.removeElementAt(i--);
+	}
+	if (src == null)
+	    add("170 " + X0 + " " + TOP + " " + (X0-32) + " " + TOP + " 2 20 4000 5 0.1");
+	else
+	    src.move(X0-src.x, TOP-src.y);
+
+	int x = X0;
+	if (matched) {
+	    add('r', x, TOP, x+SEG, TOP, "" + rload);
+	    x += SEG;
+	}
+	inds = new InductorElm[n];
+	caps = new CapacitorElm[n];
+	for (i = 0; i != n; i++) {
+	    boolean ser = isSeries(i);
+	    if (isBandPass()) {
+		if (ser) {
+		    // series LC
+		    inds[i] = addInd(x, TOP, x+SEG, TOP);
+		    caps[i] = addCap(x+SEG, TOP, x+2*SEG, TOP);
+		    x += 2*SEG;
 		} else {
-		    sim.getElm(ii++, InductorElm.class).setValue(val*r);
-		    sim.getElm(ci++, CapacitorElm.class).
-			setValue(1/(cw2*val*r));
+		    // parallel LC to ground
+		    caps[i] = addCap(x, TOP, x, BOT);
+		    addGround(x);
+		    addWire(x, TOP, x+SEG, TOP);
+		    x += SEG;
+		    inds[i] = addInd(x, TOP, x, BOT);
+		    addGround(x);
+		}
+	    } else if (isBandStop()) {
+		if (ser) {
+		    // parallel LC in series with the signal path
+		    caps[i] = addCap(x, TOP, x+SEG, TOP);
+		    inds[i] = addInd(x, TOP-48, x+SEG, TOP-48);
+		    addWire(x, TOP-48, x, TOP);
+		    addWire(x+SEG, TOP-48, x+SEG, TOP);
+		    x += SEG;
+		} else {
+		    // series LC to ground
+		    inds[i] = addInd(x, TOP, x, TOP+SEG);
+		    caps[i] = addCap(x, TOP+SEG, x, BOT);
+		    addGround(x);
 		}
 	    } else {
-		if (doInd)
-		    sim.getElm(ii++, InductorElm.class).setValue(val*r/w);
-		else
-		    sim.getElm(ci++, CapacitorElm.class).setValue(val/(r*w));
+		boolean ind = (ser != isHiPass());
+		if (ser) {
+		    if (ind)
+			inds[i] = addInd(x, TOP, x+SEG, TOP);
+		    else
+			caps[i] = addCap(x, TOP, x+SEG, TOP);
+		    x += SEG;
+		} else {
+		    if (ind)
+			inds[i] = addInd(x, TOP, x, BOT);
+		    else
+			caps[i] = addCap(x, TOP, x, BOT);
+		    addGround(x);
+		}
 	    }
-	    doInd = !doInd;
 	}
+	addWire(x, TOP, x+SEG, TOP);
+	x += SEG;
+	loadRes = (ResistorElm) add('r', x, TOP, x, BOT, "" + rload);
+	addGround(x);
+	add('O', x, TOP, x+48, TOP, "");
+	sim.centerCircuit();
+    }
+
+    void frequencyChanged() {
+	String key = getOrder() + " " + matched + " " + isShuntFirst();
+	if (!key.equals(builtKey)) {
+	    rebuild();
+	    builtKey = key;
+	}
+	synth = synthesize();
+	double r = rload;
+	double w = 2*Math.PI*frequency;
+	double w02 = Math.pow(2*Math.PI*cfrequency, 2);
+	int i;
+	for (i = 0; i != synth.g.length; i++) {
+	    double g = synth.g[i];
+	    boolean ser = isSeries(i);
+	    if (isBandPass()) {
+		// w is the bandwidth
+		if (ser) {
+		    inds[i].setValue(g*r/w);
+		    caps[i].setValue(w/(g*r*w02));
+		} else {
+		    caps[i].setValue(g/(r*w));
+		    inds[i].setValue(r*w/(g*w02));
+		}
+	    } else if (isBandStop()) {
+		if (ser) {
+		    inds[i].setValue(g*r*w/w02);
+		    caps[i].setValue(1/(g*r*w));
+		} else {
+		    inds[i].setValue(r/(g*w));
+		    caps[i].setValue(g*w/(r*w02));
+		}
+	    } else if (isHiPass()) {
+		if (ser)
+		    caps[i].setValue(1/(g*r*w));
+		else
+		    inds[i].setValue(r/(g*w));
+	    } else {
+		if (ser)
+		    inds[i].setValue(g*r/w);
+		else
+		    caps[i].setValue(g/(r*w));
+	    }
+	}
+	loadRes.setValue(r*synth.load);
 	sim.needAnalyze();
     }
 };

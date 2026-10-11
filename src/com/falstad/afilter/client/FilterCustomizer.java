@@ -257,6 +257,15 @@ class FilterCustomizer extends Customizer {
 
     void getBesselPole(int pn, int poles, Complex c1, double wc, boolean lp) {
 	int base = (poles-1)*poles;
+	if (poles % 2 == 1) {
+	    // odd order: real pole is first in the table; put it last
+	    if (pn == poles-1)
+		pn = 0;
+	    else {
+		base += 2;
+		poles--;
+	    }
+	}
 	// conjugate poles should be sorted into second half of pole array
 	if (pn < poles/2)
 	    base += pn*4;

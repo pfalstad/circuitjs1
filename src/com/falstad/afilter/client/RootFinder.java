@@ -33,6 +33,11 @@ class RootFinder {
 	    if (Math.abs(root.im) < Math.abs(root.re) * 1e-10)
 		root.im = 0;
 
+	    // the last root must be real; polishing near a multiple root
+	    // can push it off the axis
+	    if (i == 1)
+		root.im = 0;
+
 	    roots[n - i] = root;
 
 	    // Deflate: divide poly by (x - root)
