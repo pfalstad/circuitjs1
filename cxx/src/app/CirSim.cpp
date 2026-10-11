@@ -70,6 +70,7 @@
 #include "elements/SubcircuitElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
+#include "core/WireConverter.h"
 
 CircuitCanvas::CircuitCanvas(CirSim *a) : QWidget(a), app(a) {
     setAttribute(Qt::WA_OpaquePaintEvent);
@@ -319,6 +320,19 @@ void CirSim::createMenus() {
     });
 
     QMenu *tools = menuBar()->addMenu(tr("&Tools"));
+    QAction *convertWires = tools->addAction(LSq("Convert Wires to Routed Wires"));
+    connect(convertWires, &QAction::triggered, this, [this] {
+        if (isReadOnly()) {
+            alertReadOnly();
+            return;
+        }
+        pushUndo();
+        // the converted wires are deleted, so don't leave dangling pointers to them
+        mouse.setMouseElm(nullptr);
+        WireConverter::convertWires(*this);
+        needAnalyze();
+        writeRecoveryToStorage();
+    });
     QAction *subMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit Manager")));
     connect(subMgr, &QAction::triggered, this, [this] { (new SubcircuitDialog(this))->show(); });
     QAction *consoleItem = tools->addAction(QString::fromStdString(Locale::LS("Console")));
