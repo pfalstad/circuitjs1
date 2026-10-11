@@ -5,14 +5,6 @@ class LowActiveFilter extends ActiveFilter {
 	super(f, st);
     }
 
-    double getScaleFactor(double w, Complex poles[]) {
-	double x = 1;
-	int i;
-	for (i = 0; i != poles.length; i++)
-	    x *= poles[i].mag();
-	return x;
-    }
-
     void buildStage(int i, int x, boolean real) {
 	buildSallenKey(i, x, real, false);
     }
@@ -20,6 +12,10 @@ class LowActiveFilter extends ActiveFilter {
     void setValues() {
 	int i;
 	for (i = 0; i != stagePoles.length; i++) {
+	    if (isBoctor(i)) {
+		circuitGain *= setBoctor(i);
+		continue;
+	    }
 	    Complex c1 = stagePoles[i];
 	    double wp = c1.mag();
 	    if (isReal(c1)) {

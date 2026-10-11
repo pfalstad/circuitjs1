@@ -5,19 +5,6 @@ class BandPassActiveFilter extends ActiveFilter {
 	super(f, st);
     }
 
-    double getScaleFactor(double w, Complex poles[]) {
-	double x = 1;
-	int i;
-	Complex iw = new Complex(0, 2*Math.PI*cfrequency);
-	for (i = 0; i != poles.length; i++) {
-	    Complex p = new Complex(poles[i]);
-	    p.subtract(iw);
-	    x *= p.mag();
-	}
-	x /= Math.pow(iw.mag(), poles.length/2);
-	return x;
-    }
-
     double getCircuitScaleFactor(Complex poles[]) {
         double x = 1;
         int i;
@@ -78,6 +65,17 @@ class BandPassActiveFilter extends ActiveFilter {
 
     void setValues() {
 	int i;
+	if (isInvCheby()) {
+	    // notch stages first, then the bandpass stage (odd orders) makes up
+	    // the gain at the center frequency, if it can
+	    for (i = 0; i != stagePoles.length; i++)
+		if (isBoctor(i))
+		    circuitGain *= setBoctor(i);
+	    for (i = 0; i != stagePoles.length; i++)
+		if (!isBoctor(i))
+		    circuitGain *= setStage(i, stagePoles[i], 1/circuitGain, true);
+	    return;
+	}
 	Complex parr[] = getPoles();
 	double gainneeded = getScaleFactor(0, parr)/getCircuitScaleFactor(parr);
 

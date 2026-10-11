@@ -115,29 +115,7 @@ class PassiveFilter extends FilterCustomizer {
     }
 
     double getScaleFactor(double w, Complex poles[]) {
-	double gain = (synth == null) ? 1 : synth.gain;
-	// gain at infinity equals the lowpass prototype's gain at DC
-	if (isHiPass())
-	    return gain;
-
-	// at the frequency corresponding to DC in the prototype (0, or w0 for
-	// bandpass), the response should equal the gain
-	Complex ref = new Complex(0, isBandPass() ? 2*Math.PI*cfrequency : 0);
-	Complex zeros[] = getZeros();
-	int i;
-	double x = gain;
-	for (i = 0; i != poles.length; i++) {
-	    Complex p = new Complex(poles[i]);
-	    p.subtract(ref);
-	    x *= p.mag();
-	}
-	if (zeros != null)
-	    for (i = 0; i != zeros.length; i++) {
-		Complex z = new Complex(zeros[i]);
-		z.subtract(ref);
-		x /= z.mag();
-	    }
-	return x;
+	return getRefScaleFactor((synth == null) ? 1 : synth.gain, poles);
     }
 
     // ladder values for a 1 rad/s, 1 ohm lowpass prototype

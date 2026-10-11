@@ -179,6 +179,33 @@ class FilterCustomizer extends Customizer {
     }
     void frequencyChanged() {}
     double getScaleFactor(double w, Complex x[]) { return 1; }
+
+    // scale factor giving the response the gain at the frequency that
+    // corresponds to DC in the lowpass prototype
+    double getRefScaleFactor(double gain, Complex poles[]) {
+	// gain at infinity equals the lowpass prototype's gain at DC
+	if (isHiPass())
+	    return gain;
+
+	// at the frequency corresponding to DC in the prototype (0, or w0 for
+	// bandpass), the response should equal the gain
+	Complex ref = new Complex(0, isBandPass() ? 2*Math.PI*cfrequency : 0);
+	Complex zeros[] = getZeros();
+	int i;
+	double x = gain;
+	for (i = 0; i != poles.length; i++) {
+	    Complex p = new Complex(poles[i]);
+	    p.subtract(ref);
+	    x *= p.mag();
+	}
+	if (zeros != null)
+	    for (i = 0; i != zeros.length; i++) {
+		Complex z = new Complex(zeros[i]);
+		z.subtract(ref);
+		x /= z.mag();
+	    }
+	return x;
+    }
     
     double [] getIdealResponse(int size) {
 	Complex poles[] = getPoles();
@@ -495,6 +522,8 @@ class FilterCustomizer extends Customizer {
     // number of the highest finite zeros of the inverse Chebyshev prototype to
     // move to infinity (see calcInvCheby)
     int invChebyMoved;
+    // true if the response must go to zero at infinity, as with an LC ladder
+    boolean needsZeroAtInfinity() { return true; }
     Complex invPoles[];
     double invZeros[];
 
@@ -528,7 +557,7 @@ class FilterCustomizer extends Customizer {
 	// elements.  So move the highest zero to infinity with the transformation
 	// w'^2 = c w^2/(1 - w^2/wz^2), which keeps the 3 dB point fixed and keeps
 	// the stopband equiripple, as is done for elliptic filters.
-	int moved = Math.min(Math.max(invChebyMoved, 1-n%2), invZeros.length);
+	int moved = Math.min(Math.max(invChebyMoved, needsZeroAtInfinity() ? 1-n%2 : 0), invZeros.length);
 	for (k = 0; k != moved; k++) {
 	    int m = invZeros.length-1;
 	    double xz = invZeros[m]*invZeros[m];
