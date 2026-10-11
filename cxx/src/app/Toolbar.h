@@ -39,6 +39,8 @@ public:
     void enableUndoRedo(bool undo, bool redo);
     // highlight the button for the current mouse mode (a class name like "ResistorElm")
     void highlightButton(const QString &key);
+    // show the European or US resistor icon
+    void setEuroResistors(bool euro);
 
     // render one of the SVG icon strings from Toolbar.ts
     static QPixmap svgPixmap(const char *svg, int size, const QColor &color, qreal dpr);
@@ -48,6 +50,7 @@ private:
     QToolButton *createFontButton(int glyph, const QString &tooltip, std::function<void()> action);
     QToolButton *undoButton = nullptr;
     QToolButton *redoButton = nullptr;
+    QToolButton *resistorButton = nullptr;
     // a button with a palette of variants (capacitor/polarized capacitor, etc) that pops
     // up below it on hover.  info is icon, class, icon, class, ...; the first pair is the
     // default.  Choosing a variant makes it the button's element.

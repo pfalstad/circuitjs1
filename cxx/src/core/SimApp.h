@@ -147,6 +147,9 @@ public:
         bool euroGates = false;
         bool conventionalCurrent = true;
         bool printable = false;
+        bool crossHair = false;
+        bool noEdit = false;
+        bool mouseWheelEdit = true;
     } options;
 
     virtual void setStopElm(CircuitElm *ce, const std::optional<std::string> &msg) {

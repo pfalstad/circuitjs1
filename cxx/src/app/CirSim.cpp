@@ -111,6 +111,7 @@ CirSim::CirSim() {
     Storage::localStorage = storage.get();
     CircuitElm::initClass(this, sim.get());
     registerElements();
+    loadOptions();
     setColors();
     setWheelSensitivity();
 
@@ -184,7 +185,7 @@ void CirSim::createMenus() {
             a->setShortcut(key);
         connect(a, &QAction::triggered, this, [this, fn, editing] {
             if (editing && isReadOnly()) {
-                alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+                alertReadOnly();
                 return;
             }
             fn();
@@ -229,7 +230,7 @@ void CirSim::createMenus() {
         QAction *a = scopesMenu->addAction(QString::fromStdString(Locale::LS(name)));
         connect(a, &QAction::triggered, this, [this, fn] {
             if (isReadOnly()) {
-                alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+                alertReadOnly();
                 return;
             }
             pushUndo();
@@ -263,26 +264,66 @@ void CirSim::createMenus() {
     connect(reset, &QAction::triggered, this, [this] { resetAction(); });
 
     QMenu *opts = menuBar()->addMenu(tr("&Options"));
-    auto addToggle = [&](const QString &name, bool &flag) {
-        QAction *a = opts->addAction(name);
+    // a checkbox item for flag.  The loader changes some flags, so the check marks are
+    // refreshed each time the menu opens.  storageKey saves the setting across sessions.
+    std::vector<std::pair<QAction *, bool *>> optToggles;
+    auto addToggle = [&](const char *name, bool &flag, const char *storageKey = nullptr,
+                         std::function<void()> fn = nullptr) {
+        QAction *a = opts->addAction(LSq(name));
         a->setCheckable(true);
         a->setChecked(flag);
-        connect(a, &QAction::toggled, this, [this, &flag](bool on) {
+        std::string key = storageKey ? storageKey : "";
+        connect(a, &QAction::triggered, this, [this, &flag, key, fn](bool on) {
             flag = on;
-            setPowerBarEnable();
+            if (!key.empty())
+                setOptionInStorage(key, on);
+            if (fn)
+                fn();
             canvas->update();
         });
+        optToggles.push_back({a, &flag});
         return a;
     };
-    addToggle(tr("Show &Current"), options.dots);
-    addToggle(tr("Show &Voltage"), options.volts);
-    addToggle(tr("Show &Power"), options.power);
-    addToggle(tr("Show &Values"), options.showValues);
-    addToggle(tr("European Resistors"), options.euroResistor);
-    addToggle(tr("IEC Gates"), options.euroGates);
-    opts->addSeparator();
-    addToggle(tr("Show Properties On Click"), showPropsOnClick);
-    opts->addSeparator();
+    addToggle("Show Current", options.dots);
+    addToggle("Show Voltage", options.volts, nullptr, [this] {
+        if (options.volts)
+            options.power = false;
+        setPowerBarEnable();
+    });
+    addToggle("Show Power", options.power, nullptr, [this] {
+        if (options.power)
+            options.volts = false;
+        setPowerBarEnable();
+    });
+    addToggle("Show Values", options.showValues);
+    addToggle("Small Grid", options.smallGrid, nullptr, [this] { setGrid(); });
+    addToggle("Toolbar", toolbarVisible, nullptr, [this] { toolbar->setVisible(toolbarVisible); });
+    addToggle("Show Properties On Click", showPropsOnClick);
+    addToggle("Show Cursor Cross Hairs", options.crossHair, "crossHair");
+    addToggle("European Resistors", options.euroResistor, "euroResistors",
+              [this] { toolbar->setEuroResistors(options.euroResistor); });
+    addToggle("Show Ω Unit", options.showOhm, "showOhm");
+    addToggle("IEC Gates", options.euroGates, "euroGates", [this] {
+        for (CircuitElm *ce : elmList)
+            ce->setPoints();
+    });
+    addToggle("White Background", options.printable, "whiteBackground", [this] {
+        for (int i = 0; i < scopeManager->scopeCount; i++)
+            scopeManager->scopes[i]->setRect(scopeManager->scopes[i]->rect);
+    });
+    addToggle("Conventional Current Motion", options.conventionalCurrent, "conventionalCurrent", [this] {
+        // change the current color if it hasn't changed from the default
+        std::string cc = CircuitElm::currentColor.getHexValue();
+        if (cc == "#ffff00" || cc == "#00ffff")
+            CircuitElm::currentColor = options.conventionalCurrent ? Color::yellow : Color::cyan;
+    });
+    addToggle("Disable Editing", options.noEdit);
+    addToggle("Edit Values With Mouse Wheel", options.mouseWheelEdit, "mouseWheelEdit");
+    connect(opts, &QMenu::aboutToShow, this, [optToggles] {
+        for (auto &[a, flag] : optToggles)
+            a->setChecked(*flag);
+    });
+    // TODO: Shortcuts... (the shortcut editor isn't ported yet)
     QAction *otherOpts = opts->addAction(QString::fromStdString(Locale::LS("Other Options...")));
     connect(otherOpts, &QAction::triggered, this, [this] {
         if (!editOptions)
@@ -665,6 +706,27 @@ void CirSim::setWheelSensitivity() {
     }
 }
 
+void CirSim::setOptionInStorage(const std::string &key, bool val) {
+    if (Storage::localStorage)
+        Storage::localStorage->setItem(key, val ? "true" : "false");
+}
+
+void CirSim::loadOptions() {
+    QString lang = QLocale::system().name();  // like "en_US"
+    bool inUSorCanada = lang.endsWith("_US") || lang.endsWith("_CA");
+    options.euroResistor = getOptionFromStorage("euroResistors", !inUSorCanada);
+    options.euroGates = getOptionFromStorage("euroGates", lang.startsWith("de"));
+    options.showOhm = getOptionFromStorage("showOhm", false);
+    options.printable = getOptionFromStorage("whiteBackground", false);
+    options.conventionalCurrent = getOptionFromStorage("conventionalCurrent", true);
+    options.mouseWheelEdit = getOptionFromStorage("mouseWheelEdit", true);
+    options.crossHair = getOptionFromStorage("crossHair", false);
+}
+
+void CirSim::alertReadOnly() {
+    alert(Locale::LS(options.noEdit ? "Editing is disabled." : "Editing is disabled while viewing a subcircuit."));
+}
+
 bool CirSim::getOptionFromStorage(const std::string &key, bool val) {
     if (Storage::localStorage == nullptr)
         return val;
@@ -747,6 +809,21 @@ void CirSim::updateCircuit(QPainter &painter) {
         g.setColor(Color::black);
     }
     g.fillRect(0, 0, canvas->width(), canvas->height());
+
+    if (options.noEdit) {
+        // draw a lock
+        g.save();
+        g.setColor(Color(209, 75, 75));
+        g.setLineWidth(3);
+        g.fillRect(20, 30, 30, 20);
+        g.beginPath();
+        g.moveTo(25, 30);
+        g.lineTo(25, 26);
+        g.arc(35, 26, 10, -3.1415, 0);
+        g.lineTo(45, 30);
+        g.stroke();
+        g.restore();
+    }
 
     if (simRunning) {
         try {
@@ -846,6 +923,15 @@ void CirSim::updateCircuit(QPainter &painter) {
     if (mouse.selectedArea) {
         g.setColor(CircuitElm::selectColor);
         g.drawRect(mouse.selectedArea->x, mouse.selectedArea->y, mouse.selectedArea->width, mouse.selectedArea->height);
+    }
+
+    if (options.crossHair && mouse.mouseCursorX >= 0 && mouse.mouseCursorX <= circuitArea.width &&
+        mouse.mouseCursorY <= circuitArea.height) {
+        g.setColor(Color::gray);
+        int x = snapGrid(mouse.inverseTransformX(mouse.mouseCursorX));
+        int y = snapGrid(mouse.inverseTransformY(mouse.mouseCursorY));
+        g.drawLine(x, mouse.inverseTransformY(0), x, mouse.inverseTransformY(circuitArea.height));
+        g.drawLine(mouse.inverseTransformX(0), y, mouse.inverseTransformX(circuitArea.width), y);
     }
 
     g.setTransform(1, 0, 0, 1, 0, 0);

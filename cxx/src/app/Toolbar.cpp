@@ -142,7 +142,7 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
 
     using namespace ToolbarIcons;
     createIconButtonForClass(wireIcon, "WireElm");
-    createIconButtonForClass(resistorIcon, "ResistorElm");
+    resistorButton = createIconButtonForClass(app->options.euroResistor ? euroResistorIcon : resistorIcon, "ResistorElm");
     createIconButtonForClass(groundIcon, "GroundElm");
     createButtonSet({{capacitorIcon, "CapacitorElm"}, {polarCapacitorIcon, "PolarCapacitorElm"}});
     createIconButtonForClass(inductIcon, "InductorElm");
@@ -162,6 +162,10 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
     modeLabel = new QLabel();
     modeLabel->setStyleSheet("QLabel { font-size: 16px; color: #333; padding-left: 8px; padding-right: 10px; }");
     addWidget(modeLabel);
+}
+
+void Toolbar::setEuroResistors(bool euro) {
+    resistorButton->setIcon(makeIcon(euro ? ToolbarIcons::euroResistorIcon : ToolbarIcons::resistorIcon, 24));
 }
 
 void Toolbar::enableUndoRedo(bool undo, bool redo) {

@@ -190,6 +190,7 @@ public:
     bool confirm(const std::string &question) override;
     void alert(const std::string &message) override;
     bool showPropsOnClick = true;
+    bool toolbarVisible = true;
     // Options > Other Options...
     std::unique_ptr<EditOptions> editOptions;
 
@@ -197,9 +198,14 @@ public:
     void setColors();
     void setWheelSensitivity();
     bool getOptionFromStorage(const std::string &key, bool val);
+    void setOptionInStorage(const std::string &key, bool val);
+    // Options menu settings saved from earlier sessions
+    void loadOptions();
 
-    // editing is disabled while viewing a subcircuit's components
-    bool isReadOnly() const { return !subcircuitStack.empty(); }
+    // editing is disabled by Options > Disable Editing, or while viewing a subcircuit's components
+    bool isReadOnly() const { return options.noEdit || !subcircuitStack.empty(); }
+    // tell the user why an editing command didn't work
+    void alertReadOnly();
 
     // viewing a subcircuit's components (UIManager.ts).  The stack holds the SubcircuitElms
     // we went into; uiElmList points at subcircuitElmList while it's not empty.
