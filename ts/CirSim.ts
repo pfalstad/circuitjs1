@@ -111,7 +111,18 @@ export class CirSim {
     dumpMatrix: boolean = false;
     dcAnalysisFlag: boolean = false;
     autoDCOnReset: boolean = false;
-    unsavedChanges: boolean = false;
+    // set by edits (pushUndo() and so on), even ones that change nothing, like a click;
+    // isModified() checks whether the circuit really changed.  Clearing it (after a load
+    // or save) takes a new savedDump after the next frame, once scopes are set up.
+    private unsavedChangesFlag: boolean = false;
+    get unsavedChanges(): boolean { return this.unsavedChangesFlag; }
+    set unsavedChanges(b: boolean) {
+        this.unsavedChangesFlag = b;
+        if (!b)
+            this.savedDumpPending = true;
+    }
+    savedDump: string | null = null;  // the circuit (without state) as of the last load or save
+    savedDumpPending: boolean = true;
     shown: boolean = false;
     developerMode: boolean = false;
     showResistanceInVoltageSources: boolean = false;
@@ -475,7 +486,18 @@ export class CirSim {
         return dump;
     }
 
-    dumpCircuit(): string {
+    // a click pushes an undo item (and so sets unsavedChanges) even if nothing moves,
+    // so check whether the circuit itself is different
+    isModified(): boolean {
+        if (!this.unsavedChanges)
+            return false;
+        if (this.savedDump == null || this.savedDumpPending)
+            return true;
+        return UndoManager.withoutSliders(this.dumpCircuit(false)) !== UndoManager.withoutSliders(this.savedDump);
+    }
+
+    // saveState=false: without simulation state or scopes (see CircuitXMLSerializer)
+    dumpCircuit(saveState: boolean = true): string {
         CustomLogicModel.clearDumpedFlags();
         HookRegistry.clearSubcircuitModelDumpedFlags?.();
         DiodeModel.clearDumpedFlags();
@@ -484,6 +506,7 @@ export class CirSim {
         MosfetModel.clearDumpedFlags();
 
         const xml = new CircuitXMLSerializer(this);
+        xml.saveState = saveState;
         return xml.dumpCircuit();
     }
 
