@@ -20,6 +20,8 @@
 // right-click menus: element, scope, and (on empty space) the Draw menu
 // (MouseManager.doPopupMenu() and ScopePopupMenu in the TS version)
 
+#include <functional>
+
 #include <QContextMenuEvent>
 #include <QMenu>
 
@@ -29,6 +31,8 @@
 #include "core/Locale.h"
 #include "core/Scope.h"
 #include "core/ScopeManager.h"
+#include "core/ElementFactory.h"
+#include "elements/ScopeElm.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
@@ -45,38 +49,41 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
         Scope *s = sm->scopes[sm->scopeSelected].get();
         if (!s->canMenu())
             return;
-        int si = sm->scopeSelected;
-        sm->menuScope = si;
+        sm->menuScope = sm->scopeSelected;
         sm->menuPlot = s->selectedPlot;
-        int plot = s->selectedPlot;
-        menu.addAction(LS("Remove Scope"), this, [this, s] { pushUndo(); s->setElm(nullptr); });  // setupScopes() will clean this up
-        menu.addAction(LS("Undock Scope"))->setEnabled(false);  // TODO: ScopeElm
-        QAction *mx = menu.addAction(LS("Max Scale"), this, [s] { s->maxScaleToggle(); });
-        mx->setCheckable(true);
-        mx->setChecked(s->maxScale);
-        menu.addAction(LS("Stack"), this, [sm, si] { sm->stackScope(si); })->setEnabled(sm->canStackScope(si));
-        menu.addAction(LS("Unstack"), this, [sm, si] { sm->unstackScope(si); })->setEnabled(sm->canUnstackScope(si));
-        menu.addAction(LS("Combine"), this, [sm, si] { sm->combineScope(si); })->setEnabled(sm->canCombineScope(si));
-        menu.addAction(LS("Remove Plot"), this, [s, plot] { s->removePlot(plot); });
-        menu.addAction(LS("Reset"), this, [s] { s->resetGraph(true); });
-        menu.addAction(LS("Export CSV..."))->setEnabled(false);    // TODO
-        menu.addAction(LS("Export Image..."))->setEnabled(false);  // TODO
-        menu.addAction(LS("Properties..."))->setEnabled(false);    // TODO: scope properties dialog
+        addScopePopupItems(menu, s, nullptr);
+    } else if (menuElm != nullptr && menuElm->isScopeElm()) {
+        ScopeElm *se = static_cast<ScopeElm *>(menuElm);
+        Scope *s = se->elmScope.get();
+        if (s == nullptr || !s->canMenu())
+            return;
+        sm->menuPlot = s->selectedPlot;
+        addScopePopupItems(menu, s, se);
     } else if (menuElm != nullptr) {
         menu.addAction(LS("Edit..."), this, [this, menuElm] { doEdit(menuElm); })
             ->setEnabled(menuElm->getEditInfo(0).has_value());
         menu.addAction(LS("View in New Scope"), this, [this, menuElm] { scopeManager->viewInScope(menuElm); })
             ->setEnabled(menuElm->canViewInScope());
-        menu.addAction(LS("View in New Undocked Scope"))->setEnabled(false);  // TODO: ScopeElm
+        menu.addAction(LS("View in New Undocked Scope"), this, [this, menuElm] {
+            ScopeElm *newScope = static_cast<ScopeElm *>(ElementFactory::create(
+                "ScopeElm", snapGrid(menuElm->x + 50), snapGrid(menuElm->y + 50)));
+            elmList.push_back(newScope);
+            newScope->setScopeElm(menuElm);
+            // need to rebuild scopeElmArr
+            needAnalyze();
+        })->setEnabled(menuElm->canViewInScope());
         QMenu *add = menu.addMenu(LS("Add to Existing Scope"));
-        for (int i = 0; i < sm->scopeCount; i++) {
-            Scope *s = sm->scopes[i].get();
+        int scopeElmCount = sm->countScopeElms();
+        for (int i = 0; i < sm->scopeCount + scopeElmCount; i++) {
+            Scope *s = (i < sm->scopeCount) ? sm->scopes[i].get() : sm->getNthScopeElm(i - sm->scopeCount)->elmScope.get();
+            if (s == nullptr)
+                continue;
             QString label = QString::fromStdString(s->getScopeLabelOrText());
             if (label.isEmpty())
                 label = LS("Scope") + " " + QString::number(i + 1);
             add->addAction(label, this, [s, menuElm] { s->addElm(menuElm); });
         }
-        add->setEnabled(menuElm->canViewInScope() && sm->scopeCount > 0);
+        add->setEnabled(menuElm->canViewInScope() && sm->scopeCount + scopeElmCount > 0);
         menu.addAction(LS("Cut"))->setEnabled(false);   // TODO
         menu.addAction(LS("Copy"))->setEnabled(false);  // TODO
         menu.addAction(LS("Delete"), this, [this] { pushUndo(); doDelete(); });
@@ -102,6 +109,62 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
     }
     menu.exec(globalPos);
     repaint();
+}
+
+// the scope popup menu (ScopePopupMenu in the TS version), for a docked scope (se null, and
+// ScopeManager.menuScope says which) or an undocked one (se)
+void CirSim::addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se) {
+    ScopeManager *sm = scopeManager;
+    bool floating = se != nullptr;
+    int si = sm->menuScope;
+    int plot = sm->menuPlot;
+    // every item pushes an undo state first and removes scope elements left with nothing to show
+    auto act = [this, sm](std::function<void()> fn) {
+        return [this, sm, fn] {
+            pushUndo();
+            fn();
+            sm->deleteUnusedScopeElms();
+            needAnalyze();
+        };
+    };
+    menu.addAction(LS("Remove Scope"), this, act([s] { s->setElm(nullptr); }));  // setupScopes() will clean this up
+    if (floating) {
+        menu.addAction(LS("Dock Scope"), this, act([this, sm, se] {
+            if (sm->scopeCount == (int) sm->scopes.size())
+                return;
+            std::unique_ptr<Scope> sc = se->takeElmScope();
+            sc->position = sm->scopeCount;
+            sm->addScope(std::move(sc));
+            doDelete();
+        }));
+    } else {
+        menu.addAction(LS("Undock Scope"), this, act([this, sm, s, si] {
+            CircuitElm *elm = s->getElm();
+            if (elm == nullptr)
+                return;
+            ScopeElm *newScope = static_cast<ScopeElm *>(ElementFactory::create(
+                "ScopeElm", snapGrid(elm->x + 50), snapGrid(elm->y + 50)));
+            elmList.push_back(newScope);
+            newScope->setElmScope(std::move(sm->scopes[si]));
+            // remove scope from list.  setupScopes() will fix the positions
+            for (int i = si; i < sm->scopeCount; i++)
+                sm->scopes[i] = (i + 1 < (int) sm->scopes.size()) ? std::move(sm->scopes[i + 1]) : nullptr;
+            sm->scopeCount--;
+        }));
+    }
+    QAction *mx = menu.addAction(LS("Max Scale"), this, act([s] { s->maxScaleToggle(); }));
+    mx->setCheckable(true);
+    mx->setChecked(s->maxScale);
+    if (!floating) {
+        menu.addAction(LS("Stack"), this, act([sm, si] { sm->stackScope(si); }))->setEnabled(sm->canStackScope(si));
+        menu.addAction(LS("Unstack"), this, act([sm, si] { sm->unstackScope(si); }))->setEnabled(sm->canUnstackScope(si));
+        menu.addAction(LS("Combine"), this, act([sm, si] { sm->combineScope(si); }))->setEnabled(sm->canCombineScope(si));
+    }
+    menu.addAction(LS("Remove Plot"), this, act([s, plot] { s->removePlot(plot); }));
+    menu.addAction(LS("Reset"), this, act([s] { s->resetGraph(true); }));
+    menu.addAction(LS("Export CSV..."))->setEnabled(false);    // TODO
+    menu.addAction(LS("Export Image..."))->setEnabled(false);  // TODO
+    menu.addAction(LS("Properties..."))->setEnabled(false);    // TODO: scope properties dialog
 }
 
 // check if the user can create sliders for this element

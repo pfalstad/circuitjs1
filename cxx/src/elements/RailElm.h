@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <cmath>
+
 #include "VoltageElm.h"
 
 class RailElm : public VoltageElm {
@@ -49,4 +51,33 @@ public:
     void draw(Graphics &g) override;
     virtual void drawRail(Graphics &g);
     void drawRailText(Graphics &g, const std::string &s);
+};
+
+class ACRailElm : public RailElm {
+public:
+    ELM_CLASS(ACRailElm)
+    ACRailElm(int xx, int yy) : RailElm(xx, yy, WF_AC) { maxVoltage = 120 * std::sqrt(2); }
+    std::string getDumpClassName() const override { return "RailElm"; }
+    int getShortcut() override { return 0; }
+};
+
+class SquareRailElm : public RailElm {
+public:
+    ELM_CLASS(SquareRailElm)
+    SquareRailElm(int xx, int yy) : RailElm(xx, yy, WF_SQUARE) {}
+    std::string getDumpClassName() const override { return "RailElm"; }
+    int getShortcut() override { return 0; }
+};
+
+class ClockElm : public RailElm {
+public:
+    ELM_CLASS(ClockElm)
+    ClockElm(int xx, int yy) : RailElm(xx, yy, WF_SQUARE) {
+        maxVoltage = 2.5;
+        bias = 2.5;
+        frequency = 100;
+        flags |= FLAG_CLOCK;
+    }
+    std::string getDumpClassName() const override { return "RailElm"; }
+    int getShortcut() override { return 0; }
 };

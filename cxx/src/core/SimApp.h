@@ -94,10 +94,19 @@ public:
     // ask the user for an audio file and decode its first channel; false if there's none
     // (the headless tools can't).  name is the file name without its extension.
     virtual bool loadAudioFile(std::string &, std::vector<float> &, int &) { return false; }
+    // ask the user for a text file and read it; false if there's none (the headless tools
+    // can't).  name is the file name with its extension.
+    virtual bool loadTextFile(std::string &, std::string &) { return false; }
     virtual void addSlider(Scrollbar *) {}
     virtual void removeSlider(Scrollbar *) {}
     virtual void updateSlider(Scrollbar *) {}
     virtual void repaint() {}
+
+    // circuit-to-screen transform, like canvas setTransform(a,b,c,d,e,f); set by the UI
+    double transform[6] = {1, 0, 0, 1, 0, 0};
+    // circuit coordinates to screen (MouseManager.transformX/Y in the TS version)
+    int transformX(double x) const { return (int) std::floor(x * transform[0] + transform[4]); }
+    int transformY(double y) const { return (int) std::floor(y * transform[3] + transform[5]); }
 
     // the scopes (null in the headless tools)
     ScopeManager *scopeManager = nullptr;

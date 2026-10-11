@@ -41,6 +41,8 @@ class QAction;
 struct PanelButton;
 class QActionGroup;
 class QMenu;
+class Scope;
+class ScopeElm;
 class Graphics;
 class Sidebar;
 class Toolbar;
@@ -91,8 +93,7 @@ public:
     MouseManager mouse{this};
     std::unique_ptr<ScopeManager> scopeManagerOwner;
 
-    // circuit-to-screen transform, like canvas setTransform(a,b,c,d,e,f)
-    double transform[6] = {1, 0, 0, 1, 0, 0};
+    // (the circuit-to-screen transform is SimApp::transform)
 
     bool loadFile(const QString &path);
     // folder holding setuplist.txt and circuits/ (inside the app bundle, or the source tree)
@@ -129,6 +130,7 @@ public:
     void playAudio(const std::vector<short> &samples, int sampleRate) override;
     void saveFile(const std::vector<unsigned char> &bytes, const std::string &suggestedName) override;
     bool loadAudioFile(std::string &name, std::vector<float> &data, int &sampleRate) override;
+    bool loadTextFile(std::string &name, std::string &contents) override;
     void removeSlider(Scrollbar *sb) override;
     void updateSlider(Scrollbar *sb) override;
     void setSimRunning(bool s) override;
@@ -155,6 +157,7 @@ public:
     void handleKey(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
     void doDelete();
+    void addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se);
     // the right-click menu
     void doPopupMenu(const QPoint &globalPos);
 

@@ -96,11 +96,20 @@ latch, SIPO/PISO shift registers, sequence generator, monostable, 555 timer,
 DAC, ADC, multiplexer, demultiplexer, analog mux, bus transceiver, bus
 splitter, 7-segment decoder and display, decimal display, LED array, SRAM, ROM,
 VCO, phase comparator, CCII+/-, time delay relay, custom logic (with models),
-and the controlled sources VCCS/VCVS/CCCS/CCVS with the expression engine
-(Expr, ExprEngine).
+the controlled sources VCCS/VCVS/CCCS/CCVS with the expression engine
+(Expr, ExprEngine), the two-terminal controlled voltage/current sources, AC and
+square-wave rails, clock, push switch, swapped op-amp, polarized capacitor,
+varactor, tunnel diode, SCR, triac, diac, triode, lamp, spark gap, Schmitt
+triggers, tri-state buffer, delay buffer, fuse, LDR, thermistor, AM/FM sources,
+antenna, external voltage, ammeter, ohmmeter, wattmeters, battery, tapped and
+custom transformers, gyrator, DC and 3-phase motors, DPDT and MBB switches, bus
+logic input, instruction display, test point, stop trigger, data recorder and
+data input, box, line, and undocked scopes (ScopeElm).  Every concrete element
+class in `../ts` now has a port.
 
-236 of the 376 example circuits load fully, and every one of them that TS can also
-run gives bit-identical traces. All 12 auto-tests that load are bit-identical
+375 of the 376 example circuits load fully (jsinterface-phase.txt uses an
+ExtClock element that TS doesn't have either), and all of them give bit-identical
+traces and save byte-identically to TS. All 16 auto-tests are bit-identical
 over 3000 steps. `compare.py` checks for exact equality by default; `--tol
 1e-9` allows some slack.
 
@@ -116,10 +125,12 @@ ElementFactory calls once the object is fully constructed.
 Scopes: docked scopes load from files (both formats), draw with auto/max/manual
 scale, triggers, the Max/Min/RMS/frequency overlays and cursor readout, and can
 be added, stacked, combined and removed from the context menus. Not yet: X/Y
-plots, FFT, the scope properties dialog, undocked scopes (ScopeElm), and export.
+plots, FFT, the scope properties dialog, and export.  Undocked scopes (ScopeElm)
+load, save and draw in the circuit, and can be docked, undocked and created with
+"View in New Undocked Scope".
 
-Saving: File → Save / Save As write the same XML as the TS version. All 110
-example circuits that load fully save byte-identically to TS. Undo/redo (Edit
+Saving: File → Save / Save As write the same XML as the TS version. Every
+example circuit that loads saves byte-identically to TS. Undo/redo (Edit
 menu and toolbar) is a port of UndoManager. The app asks about unsaved changes
 before opening another circuit or quitting. That check compares the circuit
 without its simulation state and scopes, so a click that changes nothing

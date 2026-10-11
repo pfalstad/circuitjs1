@@ -112,6 +112,48 @@
 #include "../elements/OutputElm.h"
 #include "../elements/TextElm.h"
 #include "../elements/TransistorElm.h"
+#include "../elements/ScopeElm.h"
+#include "../elements/TestPointElm.h"
+#include "../elements/CustomTransformerElm.h"
+#include "../elements/BatteryElm.h"
+#include "../elements/DataRecorderElm.h"
+#include "../elements/DataInputElm.h"
+#include "../elements/WattmeterElm.h"
+#include "../elements/WattmeterTrueElm.h"
+#include "../elements/OhmMeterElm.h"
+#include "../elements/StopTriggerElm.h"
+#include "../elements/DCMotorElm.h"
+#include "../elements/TriStateElm.h"
+#include "../elements/DelayBufferElm.h"
+#include "../elements/DPDTSwitchElm.h"
+#include "../elements/MBBSwitchElm.h"
+#include "../elements/FuseElm.h"
+#include "../elements/AMElm.h"
+#include "../elements/FMElm.h"
+#include "../elements/LDRElm.h"
+#include "../elements/ThermistorNTCElm.h"
+#include "../elements/BoxElm.h"
+#include "../elements/LineElm.h"
+#include "../elements/AntennaElm.h"
+#include "../elements/GyratorElm.h"
+#include "../elements/TappedTransformerElm.h"
+#include "../elements/ThreePhaseMotorElm.h"
+#include "../elements/ControlledVoltageElm.h"
+#include "../elements/ControlledCurrentElm.h"
+#include "../elements/BusLogicInputElm.h"
+#include "../elements/InstructionDisplayElm.h"
+#include "../elements/ExtVoltageElm.h"
+#include "../elements/AmmeterElm.h"
+#include "../elements/PolarCapacitorElm.h"
+#include "../elements/VaractorElm.h"
+#include "../elements/TunnelDiodeElm.h"
+#include "../elements/SCRElm.h"
+#include "../elements/TriacElm.h"
+#include "../elements/DiacElm.h"
+#include "../elements/TriodeElm.h"
+#include "../elements/LampElm.h"
+#include "../elements/SparkGapElm.h"
+#include "../elements/InvertingSchmittElm.h"
 
 template <class T>
 static void reg(const char *name) {
@@ -129,8 +171,12 @@ void registerElements() {
     reg<GroundElm>("GroundElm");
     reg<InductorElm>("InductorElm");
     reg<RailElm>("RailElm");
+    reg<ACRailElm>("ACRailElm");
+    reg<SquareRailElm>("SquareRailElm");
+    reg<ClockElm>("ClockElm");
     reg<ResistorElm>("ResistorElm");
     reg<SwitchElm>("SwitchElm");
+    reg<PushSwitchElm>("PushSwitchElm");
     reg<VoltageElm>("VoltageElm");
     reg<WireElm>("WireElm");
     reg<DiodeElm>("DiodeElm");
@@ -209,6 +255,7 @@ void registerElements() {
     reg<LogicInputElm>("LogicInputElm");
     reg<LogicOutputElm>("LogicOutputElm");
     reg<OpAmpElm>("OpAmpElm");
+    reg<OpAmpSwapElm>("OpAmpSwapElm");
     reg<OutputElm>("OutputElm");
     reg<TextElm>("TextElm");
     reg<TransistorElm>("TransistorElm");
@@ -224,6 +271,49 @@ void registerElements() {
     reg<ComparatorElm>("ComparatorElm");
     reg<OpAmpRealElm>("OpAmpRealElm");
     reg<OptocouplerElm>("OptocouplerElm");
+    reg<PolarCapacitorElm>("PolarCapacitorElm");
+    reg<VaractorElm>("VaractorElm");
+    reg<TunnelDiodeElm>("TunnelDiodeElm");
+    reg<SCRElm>("SCRElm");
+    reg<TriacElm>("TriacElm");
+    reg<DiacElm>("DiacElm");
+    reg<TriodeElm>("TriodeElm");
+    reg<LampElm>("LampElm");
+    reg<SparkGapElm>("SparkGapElm");
+    reg<InvertingSchmittElm>("InvertingSchmittElm");
+    reg<SchmittElm>("SchmittElm");
+    reg<ControlledVoltageElm>("ControlledVoltageElm");
+    reg<ControlledCurrentElm>("ControlledCurrentElm");
+    reg<BusLogicInputElm>("BusLogicInputElm");
+    reg<InstructionDisplayElm>("InstructionDisplayElm");
+    reg<ExtVoltageElm>("ExtVoltageElm");
+    reg<AmmeterElm>("AmmeterElm");
+    reg<BoxElm>("BoxElm");
+    reg<LineElm>("LineElm");
+    reg<AntennaElm>("AntennaElm");
+    reg<GyratorElm>("GyratorElm");
+    reg<TappedTransformerElm>("TappedTransformerElm");
+    reg<ThreePhaseMotorElm>("ThreePhaseMotorElm");
+    reg<FuseElm>("FuseElm");
+    reg<AMElm>("AMElm");
+    reg<FMElm>("FMElm");
+    reg<LDRElm>("LDRElm");
+    reg<ThermistorNTCElm>("ThermistorNTCElm");
+    reg<TriStateElm>("TriStateElm");
+    reg<DelayBufferElm>("DelayBufferElm");
+    reg<DPDTSwitchElm>("DPDTSwitchElm");
+    reg<MBBSwitchElm>("MBBSwitchElm");
+    reg<OhmMeterElm>("OhmMeterElm");
+    reg<StopTriggerElm>("StopTriggerElm");
+    reg<DCMotorElm>("DCMotorElm");
+    reg<WattmeterElm>("WattmeterElm");
+    reg<WattmeterTrueElm>("WattmeterTrueElm");
+    reg<DataRecorderElm>("DataRecorderElm");
+    reg<DataInputElm>("DataInputElm");
+    reg<BatteryElm>("BatteryElm");
+    reg<CustomTransformerElm>("CustomTransformerElm");
+    reg<TestPointElm>("TestPointElm");
+    reg<ScopeElm>("ScopeElm");
     // last: its sample instance loads the built-in subcircuit models, which need the other classes
     reg<SubcircuitElm>("SubcircuitElm");
 }

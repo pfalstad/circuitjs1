@@ -22,6 +22,7 @@
 #include "core/Adjustable.h"
 #include "core/SimulationManager.h"
 #include "elements/RoutedWireElm.h"
+#include "elements/ScopeElm.h"
 #include "elements/SubcircuitElm.h"
 
 #include <algorithm>
@@ -214,6 +215,8 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     ScopeManager *sm = sim->scopeManager;
     for (int i = 0; i < sm->scopeCount; i++)
         sm->scopes[i]->mousePressed(ex, ey);
+    for (CircuitElm *ce : sim->scopeElmArr)
+        static_cast<ScopeElm *>(ce)->elmScope->mousePressed(ex, ey);
 
     // alt-drag or middle-mouse-drag a scope's selected plot up/down while in manual scale mode
     if (Scope::cursorScope != nullptr && (e->button() == Qt::MiddleButton || (e->button() == Qt::LeftButton && alt)) &&

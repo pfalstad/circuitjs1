@@ -882,8 +882,10 @@ void CirSim::doDelete() {
             hasDeleted = true;
         }
     }
-    if (hasDeleted)
+    if (hasDeleted) {
+        scopeManager->deleteUnusedScopeElms();
         needAnalyze();
+    }
 }
 
 void CirSim::doEdit(Editable *e) {
@@ -942,6 +944,8 @@ void CirSim::resetEditDialog() {
 
 void CirSim::elementDeleted(CircuitElm *ce) {
     SimApp::elementDeleted(ce);
+    if (mouse.getMouseElm() == ce)
+        mouse.setMouseElm(nullptr);
     if (editDialog != nullptr && editDialog->elm == static_cast<Editable *>(ce))
         closeEditDialog();
 }
@@ -998,6 +1002,20 @@ void CirSim::saveFile(const std::vector<unsigned char> &bytes, const std::string
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly) || f.write((const char *) bytes.data(), (qint64) bytes.size()) != (qint64) bytes.size())
         alert(Locale::LS("Can't save file"));
+}
+
+bool CirSim::loadTextFile(std::string &name, std::string &contents) {
+    QString path = QFileDialog::getOpenFileName(this);
+    if (path.isEmpty())
+        return false;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        alert(Locale::LS("Can't read file"));
+        return false;
+    }
+    contents = f.readAll().toStdString();
+    name = QFileInfo(path).fileName().toStdString();
+    return true;
 }
 
 bool CirSim::loadAudioFile(std::string &name, std::vector<float> &data, int &sampleRate) {

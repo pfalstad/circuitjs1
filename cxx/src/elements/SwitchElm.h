@@ -75,3 +75,11 @@ public:
     EditInfo getKeyShortcutEditInfo();
     void setKeyShortcutEditValue(EditInfo &ei);
 };
+
+class PushSwitchElm : public SwitchElm {
+public:
+    ELM_CLASS(PushSwitchElm)
+    PushSwitchElm(int xx, int yy) : SwitchElm(xx, yy, true) {}
+    std::string getDumpClassName() const override { return "SwitchElm"; }
+    int getShortcut() override { return 0; }
+};

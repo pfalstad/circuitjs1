@@ -22,6 +22,8 @@
 #include <cmath>
 
 #include "CircuitElm.h"
+#include "Scope.h"
+#include "../elements/ScopeElm.h"
 #include "CustomLogicModel.h"
 #include "MosfetModel.h"
 #include "RelayModel.h"
@@ -466,8 +468,15 @@ void CircuitElm::setConductanceColor(Graphics &g, double w0) {
 }
 
 bool CircuitElm::needsHighlight() {
-    // TODO: highlight the element a hovered ScopeElm belongs to
-    return mouseElmRef == this || selected || app->scopePlotRoles.count(this) || isOnHighlightedNet();
+    if (mouseElmRef == this || selected || app->scopePlotRoles.count(this))
+        return true;
+    // Test if the current mouseElm is a ScopeElm and, if so, does it belong to this elm
+    if (mouseElmRef != nullptr && mouseElmRef->isScopeElm()) {
+        ScopeElm *se = static_cast<ScopeElm *>(mouseElmRef);
+        if (se->elmScope != nullptr && se->elmScope->getElm() == this)
+            return true;
+    }
+    return isOnHighlightedNet();
 }
 
 bool CircuitElm::isOnHighlightedNet() {

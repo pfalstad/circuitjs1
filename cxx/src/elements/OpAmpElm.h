@@ -77,3 +77,11 @@ public:
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
 };
+
+class OpAmpSwapElm : public OpAmpElm {
+public:
+    ELM_CLASS(OpAmpSwapElm)
+    OpAmpSwapElm(int xx, int yy) : OpAmpElm(xx, yy) { flags |= FLAG_SWAP; }
+    std::string getDumpClassName() const override { return "OpAmpElm"; }
+    int getShortcut() override { return 'A'; }
+};

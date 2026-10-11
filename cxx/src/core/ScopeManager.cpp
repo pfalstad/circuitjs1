@@ -19,6 +19,8 @@
 
 #include "ScopeManager.h"
 
+#include "../elements/ScopeElm.h"
+
 #include "CircuitElm.h"
 #include "Scope.h"
 #include "SimApp.h"
@@ -36,14 +38,15 @@ bool ScopeManager::scopeMenuIsSelected(const Scope *s) const {
         return false;
     if (scopeMenuSelected < scopeCount)
         return scopes[scopeMenuSelected].get() == s;
-    // TODO: ScopeElm (undocked scopes)
-    return false;
+    ScopeElm *se = getNthScopeElm(scopeMenuSelected - scopeCount);
+    return se != nullptr && se->elmScope.get() == s;
 }
 
 void ScopeManager::timeStep() {
     for (int i = 0; i != scopeCount; i++)
         scopes[i]->timeStep();
-    // TODO: ScopeElm (undocked scopes): scopeElmArr[i]->stepScope()
+    for (CircuitElm *ce : sim->scopeElmArr)
+        static_cast<ScopeElm *>(ce)->stepScope();
 }
 
 void ScopeManager::setupScopes() {
@@ -115,8 +118,46 @@ bool ScopeManager::canDelayWireProcessing() const {
     for (int i = 0; i != scopeCount; i++)
         if (scopes[i]->viewingWire())
             return false;
-    // TODO: ScopeElm
+    for (CircuitElm *ce : sim->elmList)
+        if (ce->isScopeElm() && static_cast<ScopeElm *>(ce)->elmScope != nullptr &&
+                static_cast<ScopeElm *>(ce)->elmScope->viewingWire())
+            return false;
     return true;
+}
+
+int ScopeManager::countScopeElms() const {
+    int c = 0;
+    for (CircuitElm *ce : sim->elmList)
+        if (ce->isScopeElm())
+            c++;
+    return c;
+}
+
+ScopeElm *ScopeManager::getNthScopeElm(int n) const {
+    for (CircuitElm *ce : sim->elmList) {
+        if (ce->isScopeElm()) {
+            n--;
+            if (n < 0)
+                return static_cast<ScopeElm *>(ce);
+        }
+    }
+    return nullptr;
+}
+
+void ScopeManager::deleteUnusedScopeElms() {
+    // Remove any scopeElms for elements that no longer exist
+    for (int i = (int) sim->elmList.size() - 1; i >= 0; i--) {
+        CircuitElm *ce = sim->elmList[i];
+        if (ce->isScopeElm() && static_cast<ScopeElm *>(ce)->elmScope != nullptr &&
+                static_cast<ScopeElm *>(ce)->elmScope->needToRemove()) {
+            ce->deleteElm();
+            sim->elmList.erase(sim->elmList.begin() + i);
+            delete ce;
+
+            // need to rebuild scopeElmArr
+            sim->analyzeFlag = true;
+        }
+    }
 }
 
 bool ScopeManager::canStackScope(int s) const {
@@ -241,4 +282,7 @@ void ScopeManager::elementDeleted(const CircuitElm *ce) {
     for (int i = 0; i != scopeCount; i++)
         if (scopes[i])
             scopes[i]->elementDeleted(ce);
+    for (CircuitElm *e : sim->elmList)
+        if (e->isScopeElm() && static_cast<ScopeElm *>(e)->elmScope != nullptr)
+            static_cast<ScopeElm *>(e)->elmScope->elementDeleted(ce);
 }

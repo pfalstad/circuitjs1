@@ -19,15 +19,7 @@
 
 #pragma once
 
-#include "../core/CircuitElm.h"
-
-class GraphicElm : public CircuitElm {
-public:
-    GraphicElm(int xx, int yy) : CircuitElm(xx, yy) {}
-    GraphicElm(int xa, int ya, int xb, int yb, int f) : CircuitElm(xa, ya, xb, yb, f) {}
-    bool isGraphicElm() override { return true; }
-    int getPostCount() override { return 0; }
-};
+#include "GraphicElm.h"
 
 class TextElm : public GraphicElm {
 public:

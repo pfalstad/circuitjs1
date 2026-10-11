@@ -24,6 +24,7 @@
 
 class CircuitElm;
 class Scope;
+class ScopeElm;
 class SimApp;
 
 // the scopes docked along the bottom of the window
@@ -49,6 +50,9 @@ public:
     // we need to calculate wire currents for every iteration if someone is viewing a wire in the
     // scope.  Otherwise we can do it only once per frame.
     bool canDelayWireProcessing() const;
+    int countScopeElms() const;
+    ScopeElm *getNthScopeElm(int n) const;
+    void deleteUnusedScopeElms();
     bool canStackScope(int s) const;
     bool canCombineScope(int s) const { return scopeCount >= 2; }
     bool canUnstackScope(int s) const;
