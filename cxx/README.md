@@ -21,8 +21,12 @@ Qt 6 is found automatically at `~/Qt/6.8.3/macos` (installed with
 `aqt install-qt mac desktop 6.8.3 clang_64 -O ~/Qt`); otherwise pass
 `-DCMAKE_PREFIX_PATH=/path/to/Qt`. Without Qt, only the core and tools build.
 
-    cmake -S . -B build && cmake --build build -j8
-    open build/CircuitJS1.app --args $PWD/../ts/public/circuits/ceamp.txt
+    cmake -S . -B build-mac && cmake --build build-mac -j8
+    open build-mac/CircuitJS1.app --args $PWD/../ts/public/circuits/ceamp.txt
+
+On Windows, install the VS 2022 Build Tools (C++ workload), `pip install cmake ninja aqtinstall`,
+and `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O %USERPROFILE%\Qt`; then
+`build-win.bat` builds into `build-win/` and copies the Qt DLLs next to `CircuitJS1.exe`.
 
 `--screenshot out.png [--frames n]` renders n frames, saves the canvas and quits.
 

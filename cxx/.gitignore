@@ -1,2 +1,3 @@
-build/
+build-mac/
 tools/node_modules/
+build-win/

@@ -48,6 +48,8 @@ ScopeElm::ScopeElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) :
 
 ScopeElm::~ScopeElm() = default;
 
+std::unique_ptr<Scope> ScopeElm::takeElmScope() { return std::move(elmScope); }
+
 void ScopeElm::setScopeElm(CircuitElm *e) {
     elmScope->setElm(e);
     elmScope->resetGraph();

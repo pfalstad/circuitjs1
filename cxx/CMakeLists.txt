@@ -13,6 +13,7 @@ endif()
 
 if(MSVC)
     add_compile_options(/W3 /utf-8 /fp:precise)
+    add_compile_definitions(_USE_MATH_DEFINES NOMINMAX)
 else()
     add_compile_options(-Wall -Wextra -Wno-unused-parameter)
     # JS never fuses a*b+c; doing so here makes results differ from the TS version in the last bit
@@ -41,6 +42,10 @@ target_link_libraries(exprtest circuitcore)
 # the app (needs Qt 6; set CMAKE_PREFIX_PATH or Qt6_DIR, e.g. ~/Qt/6.8.3/macos)
 if(NOT CMAKE_PREFIX_PATH AND EXISTS "$ENV{HOME}/Qt/6.8.3/macos")
     list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/Qt/6.8.3/macos")
+endif()
+if(NOT CMAKE_PREFIX_PATH AND MSVC AND EXISTS "$ENV{USERPROFILE}/Qt/6.8.3/msvc2022_64")
+    file(TO_CMAKE_PATH "$ENV{USERPROFILE}/Qt/6.8.3/msvc2022_64" QT_WIN_DIR)
+    list(APPEND CMAKE_PREFIX_PATH "${QT_WIN_DIR}")
 endif()
 find_package(Qt6 COMPONENTS Widgets Svg PrintSupport)
 if(Qt6_FOUND)
@@ -80,6 +85,15 @@ if(Qt6_FOUND)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DIR}/help
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/../war/customfunction.html ${CMAKE_SOURCE_DIR}/../war/customlogic.html ${CMAKE_SOURCE_DIR}/../war/customtransformer.html ${CMAKE_SOURCE_DIR}/../war/about.html ${RESOURCE_DIR}/help/
         COMMENT "Copying example circuits")
+    if(WIN32)
+        # copy the Qt DLLs and plugins next to the exe so it runs outside the build environment
+        find_program(WINDEPLOYQT windeployqt HINTS ${Qt6_DIR}/../../../bin)
+        if(WINDEPLOYQT)
+            add_custom_command(TARGET CircuitJS1 POST_BUILD
+                COMMAND ${WINDEPLOYQT} --no-translations --no-system-d3d-compiler --no-opengl-sw $<TARGET_FILE:CircuitJS1>
+                COMMENT "Deploying Qt DLLs")
+        endif()
+    endif()
 else()
     message(STATUS "Qt 6 not found; building only the simulator core and tools")
 endif()

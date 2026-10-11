@@ -17,7 +17,7 @@ for arg in "$@"; do
     [[ $spec == *:* ]] && fl="f=${spec#*:} $extra"
     for fmt in xml text; do
         f="$tmp/$cls-$fmt.txt"
-        if ! build/simtrace --testcircuit "$cls" $fmt $fl > "$f"; then fail=1; continue; fi
+        if ! build-mac/simtrace --testcircuit "$cls" $fmt $fl > "$f"; then fail=1; continue; fi
         out=$(tools/compare.py "$f" $steps 2>&1 | tail -4)
         case "$out" in
             ok*) echo "ok   $arg ($fmt)";;

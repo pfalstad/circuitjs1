@@ -42,7 +42,7 @@ public:
     void stepScope();
     void reset() override;
     // (TS: clearElmScope(); here the caller takes ownership of the scope)
-    std::unique_ptr<Scope> takeElmScope() { return std::move(elmScope); }
+    std::unique_ptr<Scope> takeElmScope();
     bool canViewInScope() override { return false; }
     int getDumpType() override { return 403; }
     void dumpXml(XmlElement *doc, XmlElement *elem) override;

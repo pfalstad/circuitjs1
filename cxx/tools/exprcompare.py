@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 text = open(sys.argv[1]).read()
 exprs = [l for l in text.split("\n") if l != ""]
 inp = "\n".join(exprs) + "\n"
-cx = subprocess.run([os.path.join(ROOT, "build", "exprtest")], input=inp, capture_output=True, text=True).stdout.split("\n")
+cx = subprocess.run([os.path.join(ROOT, "build-win" if os.name == "nt" else "build-mac", "exprtest")], input=inp, capture_output=True, text=True).stdout.split("\n")
 ts = subprocess.run(["npx", "--prefix", "tools", "tsx", "tools/exprtest.ts"], cwd=ROOT, input=inp,
                     capture_output=True, text=True).stdout.split("\n")
 bad = 0

@@ -15,7 +15,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TSX = os.path.join(ROOT, "..", "ts", "node_modules", ".bin", "tsx")
-CXX = os.path.join(ROOT, "build", "simtrace")
+BUILD = os.path.join(ROOT, "build-win" if os.name == "nt" else "build-mac")
+CXX = os.path.join(BUILD, "simtrace")
 
 # The C++ core uses V8's own math functions, so traces should be bit-identical.
 # Use --tol to allow some slack (e.g. when comparing against a Node built differently).

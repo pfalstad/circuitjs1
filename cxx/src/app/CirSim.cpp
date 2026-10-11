@@ -234,7 +234,7 @@ void CirSim::createMenus() {
     QAction *unstackAllItem = addScopesItem("Unstack All", &ScopeManager::unstackAll);
     QAction *combineAllItem = addScopesItem("Combine All", &ScopeManager::combineAll);
     QAction *separateAllItem = addScopesItem("Separate All", &ScopeManager::separateAll);
-    connect(scopesMenu, &QMenu::aboutToShow, this, [=, this] {
+    connect(scopesMenu, &QMenu::aboutToShow, this, [this, stackAllItem, unstackAllItem, combineAllItem, separateAllItem] {
         ScopeManager *sm = scopeManager;
         int n = sm->scopeCount;
         stackAllItem->setEnabled(n > 1 && sm->scopes[n - 1]->position > 0);
