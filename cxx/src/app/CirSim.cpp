@@ -43,6 +43,7 @@
 #include "QtGraphics.h"
 #include "Sidebar.h"
 #include "Toolbar.h"
+#include "ConsoleDialog.h"
 #include "EditDialog.h"
 #include "EditOptions.h"
 #include "EditSubcircuitModelDialog.h"
@@ -232,6 +233,11 @@ void CirSim::createMenus() {
     QMenu *tools = menuBar()->addMenu(tr("&Tools"));
     QAction *subMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit Manager")));
     connect(subMgr, &QAction::triggered, this, [this] { (new SubcircuitDialog(this))->show(); });
+    QAction *consoleItem = tools->addAction(QString::fromStdString(Locale::LS("Console")));
+    connect(consoleItem, &QAction::triggered, this, [] {
+        if (ConsoleDialog::instance())
+            ConsoleDialog::instance()->showConsole();
+    });
 
     createCircuitsMenu();
 }

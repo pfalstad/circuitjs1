@@ -165,6 +165,10 @@ auto timestep, matrix solver, value font size).  Colors, decimal digits, font si
 wheel sensitivity are saved with QSettings, as TS saves them in localStorage.  The
 language choice is saved but does nothing yet, since translations aren't ported.
 
+Console: Tools → Console shows everything written to std::cerr/std::cout
+(including `SimulationManager::console()`) and Qt warnings, from startup on, since
+there is no browser console.  Output still goes to the terminal as well.
+
 Not yet ported: the rest.
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS
