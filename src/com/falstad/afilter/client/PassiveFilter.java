@@ -3,6 +3,7 @@ package com.falstad.afilter.client;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.xml.client.Element;
+import java.util.Vector;
 
 // LC ladder filter.  The circuit is generated in code from the filter
 // parameters, so any order, termination and topology can be built.
@@ -14,8 +15,7 @@ class PassiveFilter extends FilterCustomizer {
 
     // generated circuit
     String builtKey;
-    InductorElm inds[];
-    CapacitorElm caps[];
+    Vector<CircuitElm> elms;   // inductors and capacitors, in the order of Net.getLeaves()
     ResistorElm loadRes;
     LadderSynth synth;
 
@@ -62,7 +62,7 @@ class PassiveFilter extends FilterCustomizer {
 	int v = pslider.getValue();
 	return isBand() ? v*2 : v;
     }
-    int getOrder() { return pslider.getValue(); }
+    boolean hasInvCheby() { return true; }
 
     // shunt element first is useless with an ideal voltage source
     boolean isShuntFirst() { return shuntFirst && matched; }
@@ -116,159 +116,255 @@ class PassiveFilter extends FilterCustomizer {
 
     double getScaleFactor(double w, Complex poles[]) {
 	double gain = (synth == null) ? 1 : synth.gain;
-	if (isHiPass() || isBandStop())
+	// gain at infinity equals the lowpass prototype's gain at DC
+	if (isHiPass())
 	    return gain;
 
+	// at the frequency corresponding to DC in the prototype (0, or w0 for
+	// bandpass), the response should equal the gain
+	Complex ref = new Complex(0, isBandPass() ? 2*Math.PI*cfrequency : 0);
+	Complex zeros[] = getZeros();
 	int i;
-	double x = 1;
-	if (isBandPass()) {
-	    Complex iw = new Complex(0, 2*Math.PI*cfrequency);
-	    for (i = 0; i != poles.length; i++) {
-		Complex p = new Complex(poles[i]);
-		p.subtract(iw);
-		x *= p.mag();
-	    }
-	    x /= Math.pow(iw.mag(), poles.length/2);
-	    return x*gain;
+	double x = gain;
+	for (i = 0; i != poles.length; i++) {
+	    Complex p = new Complex(poles[i]);
+	    p.subtract(ref);
+	    x *= p.mag();
 	}
-
-	for (i = 0; i != poles.length; i++)
-	    x *= poles[i].mag();
-	return x*gain;
+	if (zeros != null)
+	    for (i = 0; i != zeros.length; i++) {
+		Complex z = new Complex(zeros[i]);
+		z.subtract(ref);
+		x /= z.mag();
+	    }
+	return x;
     }
 
     // ladder values for a 1 rad/s, 1 ohm lowpass prototype
     LadderSynth synthesize() {
+	// if an inverse Chebyshev ladder would need negative elements, move
+	// finite zeros to infinity until it doesn't
+	invChebyMoved = 0;
+	while (true) {
+	    LadderSynth ls = synthesizeProto();
+	    if (!isInvCheby() || ls.isPositive() || getProtoZeros().length == 0)
+		return ls;
+	    invChebyMoved++;
+	}
+    }
+
+    LadderSynth synthesizeProto() {
 	Complex poles[] = getPoles(true);
 	double wc = 2*Math.PI*frequency;
 	int i;
 	for (i = 0; i != poles.length; i++)
 	    poles[i].mult(1/wc);
 	double e[] = LadderSynth.polyFromPoles(poles);
+	double zeros[] = getProtoZeros();
 	if (matched)
-	    return LadderSynth.doublyTerminated(e, isShuntFirst());
-	return LadderSynth.singlyTerminated(e);
+	    return LadderSynth.doublyTerminated(e, zeros, isShuntFirst());
+	return LadderSynth.singlyTerminated(e, zeros);
     }
 
     boolean isSeries(int i) { return (i % 2 == 0) != isShuntFirst(); }
 
-    void addGround(int x) { add('g', x, BOT, x, BOT+16, ""); }
-    InductorElm addInd(int x1, int y1, int x2, int y2) { return (InductorElm) add('l', x1, y1, x2, y2, "1 0"); }
-    CapacitorElm addCap(int x1, int y1, int x2, int y2) { return (CapacitorElm) add('c', x1, y1, x2, y2, "1e-6 0"); }
+    // two-terminal network of inductors and capacitors.  type is 'l' or 'c' for
+    // a single element, or 's' or 'p' for a series or parallel combination.
+    static class Net {
+	char type;
+	double value;
+	Net parts[];
+	Net(char t, double v) { type = t; value = v; }
+	Net(char t, Net a, Net b) {
+	    type = t;
+	    // flatten nested combinations of the same type
+	    Vector<Net> v = new Vector<Net>();
+	    a.addParts(t, v);
+	    b.addParts(t, v);
+	    parts = v.toArray(new Net[v.size()]);
+	}
+	void addParts(char t, Vector<Net> v) {
+	    if (type != t) {
+		v.add(this);
+		return;
+	    }
+	    for (Net p : parts)
+		v.add(p);
+	}
+	boolean isLeaf() { return parts == null; }
+	// size along the direction of the signal
+	int length() {
+	    if (isLeaf())
+		return SEG;
+	    int len = 0;
+	    for (Net p : parts)
+		len = (type == 's') ? len+p.length() : Math.max(len, p.length());
+	    return len;
+	}
+	// size perpendicular to the signal, with parallel branches sep apart
+	int width(int sep) {
+	    if (isLeaf())
+		return 0;
+	    int w = 0;
+	    for (Net p : parts)
+		w = (type == 's') ? Math.max(w, p.width(sep)) : w+p.width(sep)+sep;
+	    return (type == 's') ? w : w-sep;
+	}
+	String signature() {
+	    if (isLeaf())
+		return "" + type;
+	    String s = type + "(";
+	    for (Net p : parts)
+		s += p.signature();
+	    return s + ")";
+	}
+	void getLeaves(Vector<Net> v) {
+	    if (isLeaf())
+		v.add(this);
+	    else
+		for (Net p : parts)
+		    p.getLeaves(v);
+	}
+    }
+
+    static Net ind(double v) { return new Net('l', v); }
+    static Net cap(double v) { return new Net('c', v); }
+    static Net ser(Net a, Net b) { return new Net('s', a, b); }
+    static Net par(Net a, Net b) { return new Net('p', a, b); }
+
+    // network for a normalized lowpass prototype inductor (or capacitor) of value v,
+    // after the frequency transformation
+    Net transform(boolean isInd, double v) {
+	double r = rload;
+	double w = 2*Math.PI*frequency;  // bandwidth for bandpass/bandstop
+	double w02 = Math.pow(2*Math.PI*cfrequency, 2);
+	if (isBandPass())
+	    return isInd ? ser(ind(v*r/w), cap(w/(v*r*w02))) :
+		par(cap(v/(r*w)), ind(r*w/(v*w02)));
+	if (isBandStop())
+	    return isInd ? par(cap(1/(v*r*w)), ind(v*r*w/w02)) :
+		ser(ind(r/(v*w)), cap(v*w/(r*w02)));
+	if (isHiPass())
+	    return isInd ? cap(1/(v*r*w)) : ind(r/(v*w));
+	return isInd ? ind(v*r/w) : cap(v/(r*w));
+    }
+
+    // network for each ladder element: a series L or shunt C in the prototype,
+    // with a parallel C or series L if it realizes a transmission zero
+    Net [] getNets() {
+	int n = synth.g.length;
+	Net nets[] = new Net[n];
+	int i;
+	for (i = 0; i != n; i++) {
+	    boolean ser = isSeries(i);
+	    double g = synth.g[i];
+	    double wz = synth.wz[i];
+	    nets[i] = transform(ser, g);
+	    if (wz > 0) {
+		Net comp = transform(!ser, 1/(g*wz*wz));
+		nets[i] = ser ? par(nets[i], comp) : ser(nets[i], comp);
+	    }
+	}
+	return nets;
+    }
+
+    void addGround(int x, int y) { add('g', x, y, x, y+16, ""); }
+
+    // lay out a network from (x, y), stretched to length len, going right if horiz
+    // and down otherwise.  parallel branches are stacked above or to the right.
+    void layout(Net net, int x, int y, boolean horiz, int len) {
+	int dx = horiz ? 1 : 0;
+	int dy = horiz ? 0 : 1;
+	int i;
+	if (net.isLeaf()) {
+	    elms.add(add(net.type, x, y, x+dx*len, y+dy*len, (net.type == 'l') ? "1 0" : "1e-6 0"));
+	    return;
+	}
+	if (net.type == 's') {
+	    // the last part takes up any extra length
+	    for (i = 0; i != net.parts.length; i++) {
+		int l = (i == net.parts.length-1) ? len : net.parts[i].length();
+		layout(net.parts[i], x, y, horiz, l);
+		x += dx*l;
+		y += dy*l;
+		len -= l;
+	    }
+	    return;
+	}
+	int sep = horiz ? 48 : SEG;
+	int off = 0;
+	for (i = 0; i != net.parts.length; i++) {
+	    int ox = horiz ? 0 : off;
+	    int oy = horiz ? -off : 0;
+	    if (off > 0) {
+		addWire(x, y, x+ox, y+oy);
+		addWire(x+dx*len, y+dy*len, x+dx*len+ox, y+dy*len+oy);
+	    }
+	    layout(net.parts[i], x+ox, y+oy, horiz, len);
+	    off += net.parts[i].width(sep) + sep;
+	}
+    }
 
     // build the circuit: source, optional source resistor, ladder, load
-    void rebuild() {
-	int n = getOrder();
+    void rebuild(Net nets[]) {
+	int n = nets.length;
 	int i;
 	clearCircuit(X0, TOP);
+	elms = new Vector<CircuitElm>();
+
+	// stretch the shunt branches to the same length so the grounds line up
+	int len = BOT-TOP;
+	for (i = 0; i != n; i++)
+	    if (!isSeries(i))
+		len = Math.max(len, nets[i].length());
 
 	int x = X0;
 	if (matched) {
 	    add('r', x, TOP, x+SEG, TOP, "" + rload);
 	    x += SEG;
 	}
-	inds = new InductorElm[n];
-	caps = new CapacitorElm[n];
 	for (i = 0; i != n; i++) {
-	    boolean ser = isSeries(i);
-	    if (isBandPass()) {
-		if (ser) {
-		    // series LC
-		    inds[i] = addInd(x, TOP, x+SEG, TOP);
-		    caps[i] = addCap(x+SEG, TOP, x+2*SEG, TOP);
-		    x += 2*SEG;
-		} else {
-		    // parallel LC to ground
-		    caps[i] = addCap(x, TOP, x, BOT);
-		    addGround(x);
-		    addWire(x, TOP, x+SEG, TOP);
-		    x += SEG;
-		    inds[i] = addInd(x, TOP, x, BOT);
-		    addGround(x);
-		}
-	    } else if (isBandStop()) {
-		if (ser) {
-		    // parallel LC in series with the signal path
-		    caps[i] = addCap(x, TOP, x+SEG, TOP);
-		    inds[i] = addInd(x, TOP-48, x+SEG, TOP-48);
-		    addWire(x, TOP-48, x, TOP);
-		    addWire(x+SEG, TOP-48, x+SEG, TOP);
-		    x += SEG;
-		} else {
-		    // series LC to ground
-		    inds[i] = addInd(x, TOP, x, TOP+SEG);
-		    caps[i] = addCap(x, TOP+SEG, x, BOT);
-		    addGround(x);
-		}
+	    if (isSeries(i)) {
+		int l = nets[i].length();
+		layout(nets[i], x, TOP, true, l);
+		x += l;
 	    } else {
-		boolean ind = (ser != isHiPass());
-		if (ser) {
-		    if (ind)
-			inds[i] = addInd(x, TOP, x+SEG, TOP);
-		    else
-			caps[i] = addCap(x, TOP, x+SEG, TOP);
-		    x += SEG;
-		} else {
-		    if (ind)
-			inds[i] = addInd(x, TOP, x, BOT);
-		    else
-			caps[i] = addCap(x, TOP, x, BOT);
-		    addGround(x);
-		}
+		layout(nets[i], x, TOP, false, len);
+		addGround(x, TOP+len);
+		x += nets[i].width(SEG);
 	    }
 	}
 	addWire(x, TOP, x+SEG, TOP);
 	x += SEG;
-	loadRes = (ResistorElm) add('r', x, TOP, x, BOT, "" + rload);
-	addGround(x);
+	loadRes = (ResistorElm) add('r', x, TOP, x, TOP+len, "" + rload);
+	addGround(x, TOP+len);
 	add('O', x, TOP, x+48, TOP, "");
 	sim.centerCircuit();
     }
 
     void frequencyChanged() {
-	String key = getOrder() + " " + matched + " " + isShuntFirst();
+	synth = synthesize();
+	Net nets[] = getNets();
+	String key = matched + " " + isShuntFirst();
+	int i;
+	for (i = 0; i != nets.length; i++)
+	    key += " " + nets[i].signature();
 	if (!key.equals(builtKey)) {
-	    rebuild();
+	    rebuild(nets);
 	    builtKey = key;
 	}
-	synth = synthesize();
-	double r = rload;
-	double w = 2*Math.PI*frequency;
-	double w02 = Math.pow(2*Math.PI*cfrequency, 2);
-	int i;
-	for (i = 0; i != synth.g.length; i++) {
-	    double g = synth.g[i];
-	    boolean ser = isSeries(i);
-	    if (isBandPass()) {
-		// w is the bandwidth
-		if (ser) {
-		    inds[i].setValue(g*r/w);
-		    caps[i].setValue(w/(g*r*w02));
-		} else {
-		    caps[i].setValue(g/(r*w));
-		    inds[i].setValue(r*w/(g*w02));
-		}
-	    } else if (isBandStop()) {
-		if (ser) {
-		    inds[i].setValue(g*r*w/w02);
-		    caps[i].setValue(1/(g*r*w));
-		} else {
-		    inds[i].setValue(r/(g*w));
-		    caps[i].setValue(g*w/(r*w02));
-		}
-	    } else if (isHiPass()) {
-		if (ser)
-		    caps[i].setValue(1/(g*r*w));
-		else
-		    inds[i].setValue(r/(g*w));
-	    } else {
-		if (ser)
-		    inds[i].setValue(g*r/w);
-		else
-		    caps[i].setValue(g/(r*w));
-	    }
+	Vector<Net> leaves = new Vector<Net>();
+	for (i = 0; i != nets.length; i++)
+	    nets[i].getLeaves(leaves);
+	for (i = 0; i != leaves.size(); i++) {
+	    CircuitElm ce = elms.get(i);
+	    double v = leaves.get(i).value;
+	    if (ce instanceof InductorElm)
+		((InductorElm) ce).setValue(v);
+	    else
+		((CapacitorElm) ce).setValue(v);
 	}
-	loadRes.setValue(r*synth.load);
+	loadRes.setValue(rload*synth.load);
 	sim.needAnalyze();
     }
 };

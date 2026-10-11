@@ -1,10 +1,14 @@
 package com.falstad.afilter.client;
 
-// Synthesis of LC ladder lowpass prototypes from an all-pole transfer function.
+// Synthesis of LC ladder lowpass prototypes from a transfer function N(s)/E(s),
+// where N(s) is even with zeros on the jw axis (or 1 for an all-pole filter).
 // Element values are normalized to a 1 rad/s prototype and a 1 ohm reference
 // resistance; g[0] is the element nearest the source.
 class LadderSynth {
     double g[];      // normalized element values (L for series, C for shunt)
+    double wz[];     // if nonzero, the element has a companion (C across a series L,
+                     // or L in series with a shunt C) of value 1/(g*wz^2), resonating
+                     // at wz to give a transmission zero there
     double load;     // normalized load resistance
     double gain;     // ratio of actual voltage gain to 1/E(s)
 
@@ -33,9 +37,22 @@ class LadderSynth {
 	return e;
     }
 
+    // numerator polynomial with zeros at +/- j*z[i], scaled so that N(0) = 1
+    static double [] polyFromZeros(double z[]) {
+	double nz[] = new double[2*z.length+1];
+	nz[0] = 1;
+	int i, j;
+	// multiply by (1 + s^2/z^2) for each pair
+	for (i = 0; i != z.length; i++)
+	    for (j = 2*i+2; j >= 2; j--)
+		nz[j] += nz[j-2]/(z[i]*z[i]);
+	return nz;
+    }
+
     // Ideal voltage source (Rs = 0) driving a ladder terminated in a 1 ohm load.
-    // The first element must be in series.
-    static LadderSynth singlyTerminated(double e[]) {
+    // The first element must be in series.  zeros are the finite transmission
+    // zeros (the roots of nz are +/- j*zeros[i]).
+    static LadderSynth singlyTerminated(double e[], double zeros[]) {
 	int n = e.length-1;
 	double deven[] = new double[(n % 2 == 0) ? n+1 : n];
 	double dodd[]  = new double[(n % 2 == 1) ? n+1 : n];
@@ -45,24 +62,18 @@ class LadderSynth {
 		deven[i] = e[i];
 	    else
 		dodd[i] = e[i];
-	// continued fraction expansion of the even/odd parts, starting
-	// with the part of higher degree.  this generates the elements
-	// starting from the load end.
-	double d1[] = (n % 2 == 0) ? deven : dodd;
-	double d2[] = (n % 2 == 0) ? dodd : deven;
-	double vals[] = new double[n];
-	i = 0;
-	while (d1.length > 1 && i < n) {
-	    double ra = d1[d1.length-1]/d2[d2.length-1];
-	    vals[i++] = ra;
-	    double q[] = subtractShifted(d1, ra, d2, Math.max(d2.length-1, 1));
-	    d1 = d2;
-	    d2 = q;
-	}
-	LadderSynth ls = new LadderSynth();
+	// y22 = even/odd part of E, since y21 = N/odd part.  expand it starting
+	// with the part of higher degree, which generates the elements starting
+	// from the load end.
+	boolean isZ = (n % 2 == 1);
+	LadderSynth ls = expand(isZ ? dodd : deven, isZ ? deven : dodd, isZ, zeros, n);
+	double g[] = ls.g, wz[] = ls.wz;
 	ls.g = new double[n];
-	for (i = 0; i != n; i++)
-	    ls.g[i] = vals[n-1-i];
+	ls.wz = new double[n];
+	for (i = 0; i != n; i++) {
+	    ls.g[i] = g[n-1-i];
+	    ls.wz[i] = wz[n-1-i];
+	}
 	ls.load = 1;
 	ls.gain = 1;
 	return ls;
@@ -71,20 +82,23 @@ class LadderSynth {
     // Source and load resistance both present (Darlington synthesis), normalized
     // to Rs = 1.  The load is chosen to give maximum power transfer at the peak of
     // the response; it equals the source except for even-order Chebyshev filters.
-    static LadderSynth doublyTerminated(double e[], boolean shuntFirst) {
+    static LadderSynth doublyTerminated(double e[], double zeros[], boolean shuntFirst) {
 	int n = e.length-1;
 	int i, j;
+	double nz[] = polyFromZeros(zeros);
 
-	// k^2 = 1/max |1/E(jw)|^2, so that |S21| peaks at 1
-	double m = maxGainSquared(e);
+	// k^2 = 1/max |N(jw)/E(jw)|^2, so that |S21| peaks at 1
+	double m = maxGainSquared(e, nz);
 	double k2 = 1/m;
 
-	// P(s) = E(s)E(-s) - k^2 = F(s)F(-s).  P is even, so find roots in w = s^2.
+	// P(s) = E(s)E(-s) - k^2 N(s)^2 = F(s)F(-s).  P is even, so find roots in w = s^2.
 	double p[] = new double[2*n+1];
 	for (i = 0; i <= n; i++)
 	    for (j = 0; j <= n; j++)
 		p[i+j] += e[i]*e[j]*((j % 2 == 0) ? 1 : -1);
-	p[0] -= k2;
+	for (i = 0; i != nz.length; i++)
+	    for (j = 0; j != nz.length; j++)
+		p[i+j] -= k2*nz[i]*nz[j];
 	double q[] = new double[n+1];
 	double qmax = 0;
 	for (i = 0; i <= n; i++) {
@@ -160,24 +174,131 @@ class LadderSynth {
 	    emf[i] = e[i] - c*f[i].re;
 	}
 
-	// Zin = (E+F)/(E-F).  expand as a continued fraction.  num/den is an
-	// impedance when isZ is true, otherwise an admittance.
+	// Zin = (E+F)/(E-F).  num/den is an impedance when isZ is true,
+	// otherwise an admittance.
 	boolean isZ = !shuntFirst;
-	double num[] = isZ ? epf : emf;
-	double den[] = trim(isZ ? emf : epf, n);
-	LadderSynth ls = new LadderSynth();
-	ls.g = new double[n];
-	for (i = 0; i != n; i++) {
-	    double v = num[num.length-1]/den[den.length-1];
-	    ls.g[i] = v;
-	    double rem[] = subtractShifted(num, v, den, Math.max(den.length-1, 1));
-	    num = den;
-	    den = rem;
-	    isZ = !isZ;
-	}
-	ls.load = isZ ? num[0]/den[0] : den[0]/num[0];
+	LadderSynth ls = expand(isZ ? epf : emf, trim(isZ ? emf : epf, n), isZ, zeros, n);
 	ls.gain = .5*Math.sqrt(ls.load)/Math.sqrt(m);
 	return ls;
+    }
+
+    // Expand an LC immittance num/den with a pole at infinity into n ladder
+    // elements, realizing the given finite transmission zeros, and take what
+    // remains as the load.  The rest of the transmission zeros are at infinity;
+    // the last element realizes one of them, and the others may be realized
+    // anywhere in between.  The order affects whether all elements are positive,
+    // so try every order.
+    static LadderSynth expand(double num[], double den[], boolean isZ, double zeros[], int n) {
+	int m = zeros.length;
+	int ninf = n-2*m;
+	int perm[] = new int[m+ninf-1];
+	int i;
+	for (i = 0; i != perm.length; i++)
+	    perm[i] = Math.min(i, m);
+	LadderSynth first = null;
+	while (true) {
+	    double z[] = new double[perm.length];
+	    for (i = 0; i != perm.length; i++)
+		z[i] = (perm[i] == m) ? Double.POSITIVE_INFINITY : zeros[perm[i]];
+	    LadderSynth ls = expandOrder(num, den, isZ, z, n);
+	    if (first == null)
+		first = ls;
+	    if (ls.isPositive())
+		return ls;
+	    if (!nextPermutation(perm))
+		return first;
+	}
+    }
+
+    static LadderSynth expandOrder(double num[], double den[], boolean isZ, double zeros[], int n) {
+	LadderSynth ls = new LadderSynth();
+	ls.g = new double[n];
+	ls.wz = new double[n];
+	int pos = 0, zi = 0;
+	while (pos < n) {
+	    double w = (zi < zeros.length) ? zeros[zi++] : Double.POSITIVE_INFINITY;
+	    if (w != Double.POSITIVE_INFINITY && pos+1 < n) {
+		// partial removal of the pole at infinity, leaving zeros at s = +/- jw
+		Complex wv = evalAt(num, w);
+		wv.divide(evalAt(den, w));
+		double v = wv.im/w;
+		ls.g[pos++] = v;
+		// num - v*s*den now has a factor of s^2+w^2
+		double q[] = divideQuad(subtractShifted(num, v, den, num.length), w);
+		// the reciprocal den/q(s^2+w^2) has poles at +/- jw.  remove them
+		// completely as a resonator with residue K s/(s^2+w^2).
+		Complex kv = evalAt(den, w);
+		kv.divide(evalAt(q, w));
+		kv.divide(new Complex(0, w));
+		double k = kv.re;
+		ls.g[pos] = k/(w*w);
+		ls.wz[pos++] = w;
+		// what remains is r/q, and its reciprocal has a pole at infinity
+		// so the next element is of the same kind as the one before the resonator
+		double r[] = divideQuad(subtractShifted(den, k, q, den.length), w);
+		num = q;
+		den = r;
+	    } else {
+		// full removal of the pole at infinity
+		double v = num[num.length-1]/den[den.length-1];
+		ls.g[pos++] = v;
+		double rem[] = subtractShifted(num, v, den, Math.max(den.length-1, 1));
+		num = den;
+		den = rem;
+		isZ = !isZ;
+	    }
+	}
+	ls.load = isZ ? num[0]/den[0] : den[0]/num[0];
+	return ls;
+    }
+
+    boolean isPositive() {
+	int i;
+	for (i = 0; i != g.length; i++)
+	    if (!(g[i] > 0))
+		return false;
+	return true;
+    }
+
+    // advance to the next permutation in lexicographic order
+    static boolean nextPermutation(int p[]) {
+	int i = p.length-2;
+	while (i >= 0 && p[i] >= p[i+1])
+	    i--;
+	if (i < 0)
+	    return false;
+	int j = p.length-1;
+	while (p[j] <= p[i])
+	    j--;
+	int t = p[i]; p[i] = p[j]; p[j] = t;
+	for (i++, j = p.length-1; i < j; i++, j--) {
+	    t = p[i]; p[i] = p[j]; p[j] = t;
+	}
+	return true;
+    }
+
+    // a(s)/(s^2+w^2), discarding the remainder
+    static double [] divideQuad(double a[], double w) {
+	int d = a.length-1;
+	if (d < 2)
+	    return new double[1];
+	double q[] = new double[d-1];
+	int k;
+	for (k = d-2; k >= 0; k--)
+	    q[k] = a[k+2] - ((k+2 <= d-2) ? w*w*q[k+2] : 0);
+	return q;
+    }
+
+    // a(jw)
+    static Complex evalAt(double a[], double w) {
+	Complex s = new Complex(0, w);
+	Complex x = new Complex(a[a.length-1]);
+	int i;
+	for (i = a.length-2; i >= 0; i--) {
+	    x.mult(s);
+	    x.add(a[i]);
+	}
+	return x;
     }
 
     // roots of a polynomial using Aberth iteration.  this finds all roots
@@ -256,25 +377,19 @@ class LadderSynth {
 	return r;
     }
 
-    static double gainSquared(double e[], double w) {
-	Complex s = new Complex(0, w);
-	Complex x = new Complex(e[e.length-1]);
-	int i;
-	for (i = e.length-2; i >= 0; i--) {
-	    x.mult(s);
-	    x.add(e[i]);
-	}
-	return 1/x.magSquared();
+    // |N(jw)/E(jw)|^2
+    static double gainSquared(double e[], double nz[], double w) {
+	return evalAt(nz, w).magSquared()/evalAt(e, w).magSquared();
     }
 
-    // max over w of |1/E(jw)|^2
-    static double maxGainSquared(double e[]) {
+    // max over w of |N(jw)/E(jw)|^2
+    static double maxGainSquared(double e[], double nz[]) {
 	int steps = 4000;
 	double wmax = 4;
 	int i, best = 0;
-	double bestv = gainSquared(e, 0);
+	double bestv = gainSquared(e, nz, 0);
 	for (i = 1; i <= steps; i++) {
-	    double v = gainSquared(e, i*wmax/steps);
+	    double v = gainSquared(e, nz, i*wmax/steps);
 	    if (v > bestv) {
 		bestv = v;
 		best = i;
@@ -289,11 +404,11 @@ class LadderSynth {
 	for (i = 0; i != 100; i++) {
 	    double x1 = b - gr*(b-a);
 	    double x2 = a + gr*(b-a);
-	    if (gainSquared(e, x1) > gainSquared(e, x2))
+	    if (gainSquared(e, nz, x1) > gainSquared(e, nz, x2))
 		b = x2;
 	    else
 		a = x1;
 	}
-	return Math.max(bestv, gainSquared(e, (a+b)/2));
+	return Math.max(bestv, gainSquared(e, nz, (a+b)/2));
     }
 }

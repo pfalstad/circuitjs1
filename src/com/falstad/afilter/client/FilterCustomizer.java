@@ -19,9 +19,9 @@ class FilterCustomizer extends Customizer {
     static int FILT_BESSEL = 3;
     static int FILT_INVCHEBY = 4;
     static int FILT_ELLIPTIC = 5;
-    Scrollbar slider, cslider, pslider, rslider;
+    Scrollbar slider, cslider, pslider, rslider, aslider;
     // initial slider values restored from xml (-1 = use default)
-    int initPoles = -1, initRipple = -1;
+    int initPoles = -1, initRipple = -1, initAtten = -1;
     public FilterCustomizer(int f, StringTokenizer st) {
 	super(f, st);
 	frequency = 1000;
@@ -43,6 +43,8 @@ class FilterCustomizer extends Customizer {
 	    XMLSerializer.dumpAttr(elem, "po", pslider.getValue());
 	if (rslider != null)
 	    XMLSerializer.dumpAttr(elem, "rp", rslider.getValue());
+	if (aslider != null)
+	    XMLSerializer.dumpAttr(elem, "sa", aslider.getValue());
     }
     void undumpXml(XMLDeserializer xml) {
 	super.undumpXml(xml);
@@ -52,6 +54,7 @@ class FilterCustomizer extends Customizer {
 	design     = xml.parseIntAttr("de", design);
 	initPoles  = xml.parseIntAttr("po", -1);
 	initRipple = xml.parseIntAttr("rp", -1);
+	initAtten  = xml.parseIntAttr("sa", -1);
     }
     boolean isHiPass()   { return (form == FILT_HIPASS); }
     boolean isBandPass() { return (form == FILT_BANDPASS); }
@@ -59,6 +62,9 @@ class FilterCustomizer extends Customizer {
     boolean isBand() { return (form >= FILT_BANDPASS); }
     boolean isCheby()  { return (design == FILT_CHEBY); }
     boolean isBessel() { return (design == FILT_BESSEL); }
+    boolean isInvCheby() { return (design == FILT_INVCHEBY); }
+    // true if this filter can realize the finite transmission zeros of inverse Chebyshev
+    boolean hasInvCheby() { return false; }
     int getMaxPoles() { return 7; }
     int getDefaultPoles() { return 1; }
     int getPoleCount() {
@@ -72,10 +78,14 @@ class FilterCustomizer extends Customizer {
 	designChooser.add("Butterworth");
 	designChooser.add("Chebyshev");
 	designChooser.add("Bessel");
+	if (hasInvCheby())
+	    designChooser.add("Inverse Chebyshev");
 	designChooser.addChangeHandler(new ChangeHandler() {
 	    public void onChange(ChangeEvent ev) {
 		design = designChooser.getSelectedIndex()+1;
 		rslider.setEnabled(design == FILT_CHEBY);
+		if (aslider != null)
+		    aslider.setEnabled(design == FILT_INVCHEBY);
 		frequencyChanged();
 	    }
 	});
@@ -104,6 +114,11 @@ class FilterCustomizer extends Customizer {
 	    rslider = createSlider("Passband Ripple", initRipple >= 0 ? initRipple : 60, 1, 999);
 	    rslider.setEnabled(design == FILT_CHEBY);
 	}
+	aslider = null;
+	if (design > 0 && hasInvCheby()) {
+	    aslider = createSlider("Stopband Attenuation", initAtten >= 0 ? initAtten : 400, 0, 901);
+	    aslider.setEnabled(design == FILT_INVCHEBY);
+	}
 	
 //	sim.main.validate();
 	frequencyChanged();
@@ -122,7 +137,7 @@ class FilterCustomizer extends Customizer {
 	} else if (s == pslider) {
 	    polesChanged();
 	    return;
-	} else if (s == rslider) {
+	} else if (s == rslider || s == aslider) {
 	    frequencyChanged();
 	    return;
 	}
@@ -157,6 +172,9 @@ class FilterCustomizer extends Customizer {
 	    info[i++] = "Poles: " + pl;
 	if (design == FILT_CHEBY)
 	    info[i++] = "Ripple: " + CircuitElm.showFormat.format(ripdb) +
+		" dB";
+	if (isInvCheby())
+	    info[i++] = "Stopband: -" + CircuitElm.showFormat.format(getStopDb()) +
 		" dB";
     }
     void frequencyChanged() {}
@@ -391,25 +409,167 @@ class FilterCustomizer extends Customizer {
 	    getChebyPole(i, pn, c1, wc, lopass);
 	else if (isBessel())
 	    getBesselPole(i, pn, c1, wc, lopass);
+	else if (isInvCheby())
+	    getInvChebyPole(i, pn, c1, wc, lopass);
 	else
 	    getButterPole(i, pn, c1, wc);
     }
     
+    // order of the lowpass prototype
+    int getOrder() {
+	int n = getPoleCount();
+	return isBand() ? n/2 : n;
+    }
+
+    // finite zeros of the lowpass prototype (normalized to 1 rad/s), as the
+    // positive frequencies w of each pair of zeros at +/- jw.  the rest of the
+    // zeros are at infinity.
+    double [] getProtoZeros() {
+	if (!isInvCheby())
+	    return new double[0];
+	calcInvCheby(getOrder());
+	return invZeros;
+    }
+
     Complex [] getZeros() {
-	if (isBandStop())
-	    return getBandStopZeros();
-	if (!isHiPass() && !isBandPass())
-	    return null;
-	int i;
-	int pn = getPoleCount();
-	if (isBandPass())
-	    pn /= 2;
-	Complex zeros[] = new Complex[pn];
-	for (i = 0; i != pn; i++)
-	    zeros[i] = new Complex(0, 0);
+	int n = getOrder();
+	double pz[] = getProtoZeros();
+	int ninf = n-2*pz.length;
+	double wc = 2*Math.PI*frequency;
+	double w0 = 2*Math.PI*cfrequency;
+	int i, j = 0;
+	Complex zeros[];
+	if (isBandPass()) {
+	    // each prototype zero gives a pair on either side of w0; the zeros
+	    // at infinity give zeros at 0 (and infinity)
+	    zeros = new Complex[4*pz.length + ninf];
+	    for (i = 0; i != pz.length; i++) {
+		double a = pz[i]*wc;
+		double b = Math.sqrt(a*a + 4*w0*w0);
+		zeros[j++] = new Complex(0, (a+b)/2);
+		zeros[j++] = new Complex(0, (a-b)/2);
+		zeros[j++] = new Complex(0, -(a+b)/2);
+		zeros[j++] = new Complex(0, -(a-b)/2);
+	    }
+	    while (j < zeros.length)
+		zeros[j++] = new Complex(0, 0);
+	} else if (isBandStop()) {
+	    // each prototype zero gives a pair on either side of w0; the zeros
+	    // at infinity give zeros at w0
+	    zeros = new Complex[4*pz.length + 2*ninf];
+	    for (i = 0; i != pz.length; i++) {
+		double b = Math.sqrt(wc*wc + 4*pz[i]*pz[i]*w0*w0);
+		zeros[j++] = new Complex(0, (wc+b)/(2*pz[i]));
+		zeros[j++] = new Complex(0, (wc-b)/(2*pz[i]));
+		zeros[j++] = new Complex(0, -(wc+b)/(2*pz[i]));
+		zeros[j++] = new Complex(0, -(wc-b)/(2*pz[i]));
+	    }
+	    for (i = 0; i != ninf; i++) {
+		zeros[j++] = new Complex(0, w0);
+		zeros[j++] = new Complex(0, -w0);
+	    }
+	} else if (isHiPass()) {
+	    zeros = new Complex[2*pz.length + ninf];
+	    for (i = 0; i != pz.length; i++) {
+		zeros[j++] = new Complex(0, wc/pz[i]);
+		zeros[j++] = new Complex(0, -wc/pz[i]);
+	    }
+	    while (j < zeros.length)
+		zeros[j++] = new Complex(0, 0);
+	} else {
+	    if (pz.length == 0)
+		return null;
+	    zeros = new Complex[2*pz.length];
+	    for (i = 0; i != pz.length; i++) {
+		zeros[j++] = new Complex(0, wc*pz[i]);
+		zeros[j++] = new Complex(0, -wc*pz[i]);
+	    }
+	}
 	return zeros;
     }
-    
+
+    double getStopDb() {
+	return 10 + aslider.getValue()/10.;
+    }
+
+    // number of the highest finite zeros of the inverse Chebyshev prototype to
+    // move to infinity (see calcInvCheby)
+    int invChebyMoved;
+    Complex invPoles[];
+    double invZeros[];
+
+    // inverse Chebyshev lowpass prototype of order n, with the 3 dB point at 1 rad/s
+    void calcInvCheby(int n) {
+	double epsilon = 1/Math.sqrt(Math.pow(10, getStopDb()/10)-1);
+	double alpha = 1/epsilon + Math.sqrt(1+1/(epsilon*epsilon));
+	double a = .5*(Math.pow(alpha, 1./n) - Math.pow(alpha, -1./n));
+	double b = .5*(Math.pow(alpha, 1./n) + Math.pow(alpha, -1./n));
+	// 3 dB point relative to the stopband edge
+	double w3 = 1/cosh(arccosh(1/epsilon)/n);
+	int i, k;
+	// poles are the reciprocals of the Chebyshev poles
+	invPoles = new Complex[n];
+	for (i = 0; i != n; i++) {
+	    Complex c1 = invPoles[i] = new Complex();
+	    double theta = Math.PI/2 + (2*i+1)*Math.PI/(2*n);
+	    c1.setMagPhase(1, theta);
+	    c1.re *= a;
+	    c1.im *= b;
+	    c1.recip();
+	    c1.mult(1/w3);
+	}
+	// zeros, in increasing order
+	invZeros = new double[n/2];
+	for (k = 0; k != n/2; k++)
+	    invZeros[k] = 1/(Math.cos((2*k+1)*Math.PI/(2*n))*w3);
+
+	// Even orders have a nonzero response at infinity, which an LC ladder can't
+	// produce, and some odd orders have no ladder realization with positive
+	// elements.  So move the highest zero to infinity with the transformation
+	// w'^2 = c w^2/(1 - w^2/wz^2), which keeps the 3 dB point fixed and keeps
+	// the stopband equiripple, as is done for elliptic filters.
+	int moved = Math.min(Math.max(invChebyMoved, 1-n%2), invZeros.length);
+	for (k = 0; k != moved; k++) {
+	    int m = invZeros.length-1;
+	    double xz = invZeros[m]*invZeros[m];
+	    double c = 1-1/xz;
+	    for (i = 0; i != n; i++) {
+		// x = w^2 = -s^2
+		Complex p = invPoles[i];
+		Complex x = new Complex(p);
+		x.square();
+		x.mult(-1);
+		Complex d = new Complex(x);
+		d.mult(-1/xz);
+		d.add(1);
+		x.mult(c);
+		x.divide(d);
+		x.mult(-1);
+		x.sqrt();
+		// pick the left half plane root, in the same half as the original pole
+		if (x.re > 0)
+		    x.mult(-1);
+		if (x.im*p.im < 0)
+		    x.conjugate();
+		invPoles[i] = x;
+	    }
+	    double z[] = new double[m];
+	    for (i = 0; i != m; i++) {
+		double x = invZeros[i]*invZeros[i];
+		z[i] = Math.sqrt(c*x/(1-x/xz));
+	    }
+	    invZeros = z;
+	}
+    }
+
+    void getInvChebyPole(int i, int n, Complex c1, double wc, boolean lp) {
+	calcInvCheby(n);
+	c1.set(invPoles[i]);
+	if (isHiPass() && !lp)
+	    c1.recip();
+	c1.mult(wc);
+    }
+
     double ripdb;
 
     void getChebyPole(int i, int n, Complex c1, double wc, boolean lp) {
