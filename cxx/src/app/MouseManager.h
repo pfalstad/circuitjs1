@@ -65,6 +65,8 @@ public:
     int mousePost = -1;
     double mouseCursorX = -1, mouseCursorY = -1;
     std::optional<Rectangle> selectedArea;
+    // mouse is over the splitter between the circuit and the scope area
+    bool mouseWasOverSplitter = false;
     double wheelSensitivity = 1;
 
 private:
@@ -75,6 +77,8 @@ private:
     void mouseDragged(QMouseEvent *e);
     bool doSwitch(int x, int y);
     void dragAll(double x, double y);
+    void dragSplitter(double y);
+    bool mouseIsOverSplitter(double x, double y);
     void dragRow(int x, int y);
     void dragColumn(int x, int y);
     bool onlyGraphicsElmsSelected();

@@ -92,6 +92,12 @@ void MouseManager::mouseSelect(double sx, double sy, bool shift) {
     mousePost = -1;
     sim->scopePlotRoles.clear();
 
+    if (mouseIsOverSplitter(sx, sy)) {
+        setMouseElm(nullptr);
+        sim->repaint();
+        return;
+    }
+
     if (sim->circuitArea.contains(sx, sy)) {
         if (mouseElm != nullptr && mouseElm->getHandleGrabbedClose(gx, gy, POSTGRABSQ, MINPOSTGRABSIZE) >= 0) {
             newMouseElm = mouseElm;
@@ -194,6 +200,10 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     mouseDragging = true;
     didSwitch = false;
 
+    if (mouseWasOverSplitter) {
+        tempMouseMode = SimApp::MODE_DRAG_SPLITTER;
+        return;
+    }
     if (e->button() == Qt::LeftButton) {
         tempMouseMode = sim->mouseMode;
         if (alt && ctrlOrMeta)
@@ -299,6 +309,10 @@ void MouseManager::onMouseMove(QMouseEvent *e) {
 
 void MouseManager::mouseDragged(QMouseEvent *e) {
     double ex = e->position().x(), ey = e->position().y();
+    if (tempMouseMode == SimApp::MODE_DRAG_SPLITTER) {
+        dragSplitter(ey);
+        return;
+    }
     if (Scope::draggingPlotYScope != nullptr) {
         Scope::draggingPlotYScope->dragPlotY(ey);
         sim->repaint();
@@ -533,6 +547,25 @@ void MouseManager::removeZeroLengthElements() {
     sim->needAnalyze();
 }
 
+void MouseManager::dragSplitter(double y) {
+    double h = std::max(sim->canvasHeight, 1);
+    double &frac = sim->scopeManager->scopeHeightFraction;
+    frac = std::clamp(1.0 - y / h, 0.1, 0.9);
+    static_cast<SimApp *>(sim)->setCircuitArea();
+    sim->repaint();
+}
+
+bool MouseManager::mouseIsOverSplitter(double x, double y) {
+    bool isOverSplitter = sim->scopeManager->scopeCount != 0 &&
+        x >= 0 && x < sim->circuitArea.width &&
+        y >= sim->circuitArea.height - 5 && y < sim->circuitArea.height;
+    if (isOverSplitter != mouseWasOverSplitter) {
+        mouseWasOverSplitter = isOverSplitter;
+        sim->setSplitterCursor(isOverSplitter);
+    }
+    return isOverSplitter;
+}
+
 void MouseManager::onMouseUp(QMouseEvent *e) {
     // click to clear selection (but not on a right-click)
     if (tempMouseMode == SimApp::MODE_SELECT && !selectedArea && e->button() == Qt::LeftButton)
@@ -548,6 +581,7 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     // creating a new element (checked after endDrag(), below) brings up its editor too.
     Qt::KeyboardModifiers mods = e->modifiers();
     bool wasPlainClick = e->button() == Qt::LeftButton && !didSwitch &&
+        tempMouseMode != SimApp::MODE_DRAG_SPLITTER &&
         !(mods & (Qt::ShiftModifier | Qt::AltModifier | Qt::ControlModifier | Qt::MetaModifier));
     CircuitElm *clickedElm = nullptr;
     bool clickedEmpty = false;

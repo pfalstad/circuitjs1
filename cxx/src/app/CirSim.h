@@ -155,6 +155,8 @@ public:
     QString mouseModeStr = "Select";
     void setMouseMode(const QString &s);
     void updateToolbar();
+    // show the resize cursor while over the scope splitter, else the mouse mode's cursor
+    void setSplitterCursor(bool over);
     // the Draw menu items that can have shortcuts (mainMenuItems in the TS version)
     std::vector<QAction *> mainMenuItems;
     // user-assigned key for Start/Stop Simulation, in addition to Ctrl-.

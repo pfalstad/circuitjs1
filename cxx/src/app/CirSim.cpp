@@ -1014,7 +1014,12 @@ void CirSim::drawBottomArea(Graphics &g) {
     // TODO: ScopeElm (undocked scopes)
     for (int i = 0; i != ct; i++)
         scopeManager->scopes[i]->draw(g);
-    // TODO: the splitter for resizing the scope area
+    if (mouse.mouseWasOverSplitter) {
+        g.setColor(CircuitElm::selectColor);
+        g.setLineWidth(4.0);
+        g.drawLine(0, circuitArea.height - 2, circuitArea.width, circuitArea.height - 2);
+        g.setLineWidth(1.0);
+    }
     g.setColor(CircuitElm::whiteColor);
 
     if (stopMessage) {

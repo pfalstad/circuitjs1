@@ -364,6 +364,15 @@ void CirSim::setMouseMode(const QString &s) {
     repaint();
 }
 
+void CirSim::setSplitterCursor(bool over) {
+    if (!canvas)
+        return;
+    if (over)
+        canvas->setCursor(Qt::SplitVCursor);
+    else
+        canvas->setCursor(mouseMode == MODE_ADD_ELM ? Qt::CrossCursor : Qt::ArrowCursor);
+}
+
 // check the menu item and toolbar button for the current mode, and update the mode label
 void CirSim::updateToolbar() {
     for (QAction *a : modeActions->actions())
@@ -371,8 +380,7 @@ void CirSim::updateToolbar() {
             a->setChecked(true);
             break;
         }
-    if (canvas)
-        canvas->setCursor(mouseMode == MODE_ADD_ELM ? Qt::CrossCursor : Qt::ArrowCursor);
+    setSplitterCursor(mouse.mouseWasOverSplitter);
     if (toolbar) {
         if (dragElm != nullptr)
             toolbar->setModeLabel(QString::fromStdString(Locale::LS("Drag Mouse")));
