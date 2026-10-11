@@ -126,6 +126,22 @@ bool CircuitElm::pointOnSegmentInterior(int ax, int ay, int bx, int by, int px, 
     return false;
 }
 
+int CircuitElm::getLeadPost(int px, int py) {
+    // (the TS version's leads are null until set; some elements set them without calcLeads())
+    bool hasLeads = leadsSet || lead1 != Point() || lead2 != Point();
+    if (hasLeads && lead1 != point1 &&
+        pointOnSegmentInterior(point1.x, point1.y, lead1.x, lead1.y, px, py))
+        return 0;
+    if (hasLeads && lead2 != point2 &&
+        pointOnSegmentInterior(lead2.x, lead2.y, point2.x, point2.y, px, py))
+        return 1;
+    // 1-post elements with no explicit leads (e.g. GroundElm): the whole point1→point2 segment is the lead
+    if (!hasLeads && getPostCount() == 1 &&
+        pointOnSegmentInterior(point1.x, point1.y, point2.x, point2.y, px, py))
+        return 0;
+    return -1;
+}
+
 void CircuitElm::adjustLeadsToGrid(bool flipX, bool flipY) {
     double cx = (point1.x + point2.x) / 2.0;
     double cy = (point1.y + point2.y) / 2.0;

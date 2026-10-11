@@ -25,6 +25,8 @@
 #include <QCursor>
 #include <QEvent>
 #include <QFrame>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QPainter>
@@ -106,7 +108,18 @@ QIcon Toolbar::makeIcon(const char *svg, int size) {
     return icon;
 }
 
+namespace {
+// forwards every event in the application to Toolbar::handleToolbarDrag()
+class ToolbarDragFilter : public QObject {
+public:
+    ToolbarDragFilter(QObject *parent, std::function<bool(QObject *, QEvent *)> f) : QObject(parent), f(f) {}
+    bool eventFilter(QObject *obj, QEvent *e) override { return f(obj, e); }
+    std::function<bool(QObject *, QEvent *)> f;
+};
+}
+
 Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
+    dragFilter = new ToolbarDragFilter(this, [this](QObject *obj, QEvent *e) { return handleToolbarDrag(obj, e); });
     setMovable(false);
     setFloatable(false);
     setIconSize(QSize(24, 24));
@@ -116,7 +129,8 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
     paletteCloser = new QTimer(this);
     paletteCloser->setInterval(50);
     connect(paletteCloser, &QTimer::timeout, this, [this] {
-        if (openPalette == nullptr)
+        // (a variant being dragged from the palette keeps it open until the drop)
+        if (openPalette == nullptr || app->mouse.isToolbarDragPending())
             return;
         QPoint pos = QCursor::pos();
         bool overButton = openPaletteButton->rect().contains(openPaletteButton->mapFromGlobal(pos));
@@ -194,7 +208,7 @@ QToolButton *Toolbar::createIconButtonForClass(const char *icon, const QString &
     b->setAutoRaise(true);
     b->setProperty("cls", cls);
     b->setEnabled(ElementFactory::hasClass(cls.toStdString()));
-    // TODO: dragging from the button onto the canvas to drop an element
+    addDragSupport(b);
     connect(b, &QToolButton::clicked, this, [this, b] { buttonClicked(b); });
     highlightableButtons[cls] = b;
     addWidget(b);
@@ -226,17 +240,24 @@ QToolButton *Toolbar::createButtonSet(const std::vector<std::pair<const char *, 
         bool ok = ElementFactory::hasClass(cls.toStdString());
         vb->setEnabled(ok);
         anyEnabled |= ok;
-        // TODO: dragging a variant onto the canvas to drop it
+        vb->setProperty("cls", cls);
         // choosing a variant makes it this button's element, and switches to it
-        connect(vb, &QToolButton::clicked, this, [this, b, icon, cls] {
+        auto selectVariant = [this, b, icon, cls] {
             highlightableButtons.remove(b->property("cls").toString());
             b->setIcon(makeIcon(icon, 24));
             b->setToolTip(app->classToLabelMap.value(cls, cls));
             b->setProperty("cls", cls);
             highlightableButtons[cls] = b;
-            closeAllPalettes();
             app->setMouseMode(cls);
+        };
+        variantSelectors[vb] = selectVariant;
+        connect(vb, &QToolButton::clicked, this, [this, selectVariant] {
+            selectVariant();
+            closeAllPalettes();
         });
+        // pressing and dragging (rather than just clicking) a variant drops that
+        // variant directly, instead of switching modes
+        addDragSupport(vb);
         layout->addWidget(vb);
     }
     palette->adjustSize();
@@ -247,14 +268,116 @@ QToolButton *Toolbar::createButtonSet(const std::vector<std::pair<const char *, 
     return b;
 }
 
-// show the palette on mouse-over (b's Enter event)
+void Toolbar::addDragSupport(QToolButton *b) {
+    b->setProperty("dragSource", true);
+    b->installEventFilter(this);
+}
+
+// show the palette on mouse-over (b's Enter event); start toolbar drags
 bool Toolbar::eventFilter(QObject *obj, QEvent *e) {
+    // (a pending toolbar drag is handled by dragFilter)
+    if (app->mouse.isToolbarDragPending())
+        return QToolBar::eventFilter(obj, e);
+    QToolButton *b = qobject_cast<QToolButton *>(obj);
+    if (b == nullptr)
+        return QToolBar::eventFilter(obj, e);
     if (e->type() == QEvent::Enter) {
-        QToolButton *b = static_cast<QToolButton *>(obj);
         if (palettes.contains(b) && b->isEnabled())
             showPalette(b, palettes[b]);
+        // while hovering over an element-creation button, tell the user how to use it
+        if (b->property("dragSource").toBool() && b->isEnabled()) {
+            QString label = app->classToLabelMap.value(b->property("cls").toString());
+            if (!label.isEmpty())
+                setModeLabel(label + LS(": Drag And Drop To Create"));
+        }
+    } else if (e->type() == QEvent::Leave && b->property("dragSource").toBool()) {
+        app->updateToolbar();
+    } else if (e->type() == QEvent::MouseButtonPress && b->property("dragSource").toBool() && b->isEnabled()) {
+        QMouseEvent *me = static_cast<QMouseEvent *>(e);
+        if (me->button() == Qt::LeftButton) {
+            if (variantSelectors.contains(b))
+                variantSelectors[b]();
+            app->mouse.beginToolbarDrag(b->property("cls").toString(), me->globalPosition().toPoint());
+            if (app->mouse.isToolbarDragPending()) {
+                dragButton = b;
+                qApp->installEventFilter(dragFilter);
+            }
+        }
     }
     return QToolBar::eventFilter(obj, e);
+}
+
+// A press-and-drag gesture started on a toolbar icon may end up anywhere (not just
+// over the canvas), so it is tracked for the whole application while it's pending.
+bool Toolbar::handleToolbarDrag(QObject *obj, QEvent *e) {
+    MouseManager &mouse = app->mouse;
+    auto finish = [this] {
+        qApp->removeEventFilter(dragFilter);
+        if (dragButton != nullptr)
+            dragButton->setDown(false);
+        dragButton = nullptr;
+        // a variant dragged from its palette: close the palette now
+        closeAllPalettes();
+    };
+    if (!mouse.isToolbarDragPending()) {
+        qApp->removeEventFilter(dragFilter);
+        dragButton = nullptr;
+        return false;
+    }
+    // mouse events reach the QWindow and then the widget; handle them once, at the widget
+    bool isWidget = obj->isWidgetType();
+    switch (e->type()) {
+    case QEvent::MouseMove: {
+        if (!isWidget)
+            return false;
+        QMouseEvent *me = static_cast<QMouseEvent *>(e);
+        mouse.toolbarDragMove(me->globalPosition().toPoint(), me->modifiers() & Qt::ShiftModifier);
+        // once the drag is underway, the button shouldn't see it (it would show itself
+        // pressed again when the mouse is back over it)
+        return mouse.isToolbarDragActive();
+    }
+    case QEvent::MouseButtonRelease: {
+        if (!isWidget)
+            return false;
+        QMouseEvent *me = static_cast<QMouseEvent *>(e);
+        if (me->button() != Qt::LeftButton)
+            return false;
+        QToolButton *b = dragButton;
+        bool wasActive = mouse.isToolbarDragActive();
+        qApp->removeEventFilter(dragFilter);
+        dragButton = nullptr;
+        if (wasActive) {
+            // un-press the button first so the release doesn't count as a click
+            if (b != nullptr)
+                b->setDown(false);
+            closeAllPalettes();
+        }
+        mouse.toolbarDragEnd(me->globalPosition().toPoint());
+        return false;
+    }
+    case QEvent::KeyPress:
+    case QEvent::KeyRelease: {
+        QKeyEvent *ke = static_cast<QKeyEvent *>(e);
+        if (ke->isAutoRepeat())
+            return true;
+        if (ke->key() == Qt::Key_Escape && e->type() == QEvent::KeyPress) {
+            mouse.cancelToolbarDrag();
+            finish();
+            return true;
+        }
+        if (ke->key() == Qt::Key_Shift) {
+            mouse.toolbarDragOrientationChanged(e->type() == QEvent::KeyPress);
+            return true;
+        }
+        return false;
+    }
+    case QEvent::ApplicationDeactivate:
+        mouse.cancelToolbarDrag();
+        finish();
+        return false;
+    default:
+        return false;
+    }
 }
 
 void Toolbar::showPalette(QToolButton *b, QFrame *palette) {

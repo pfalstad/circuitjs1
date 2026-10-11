@@ -198,6 +198,8 @@ public:
     void calcLeads(int len);
 
     // adjust leads so that the point exactly between them is a grid point (so we can place a terminal there)
+    // Returns which post (0 or 1) has a lead stub containing (px, py), or -1 if neither.
+    int getLeadPost(int px, int py);
     void adjustLeadsToGrid(bool flipX, bool flipY);
 
     // calculate point fraction f between a and b, linearly interpolated

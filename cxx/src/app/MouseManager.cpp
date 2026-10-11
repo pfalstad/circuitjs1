@@ -627,6 +627,12 @@ CircuitElm *MouseManager::endDrag() {
     dragging = false;
     bool circuitChanged = false;
     CircuitElm *createdElm = nullptr;
+    // auto-split wires when a post is dragged onto a wire's interior
+    if (draggingPost >= 0 && mouseElm != nullptr) {
+        Point p = mouseElm->getPost(draggingPost);
+        if (splitAt(p.x, p.y))
+            circuitChanged = true;
+    }
     if (heldSwitchElm != nullptr) {
         static_cast<SwitchElm *>(heldSwitchElm)->mouseUp();
         heldSwitchElm = nullptr;
@@ -642,13 +648,14 @@ CircuitElm *MouseManager::endDrag() {
             if (sim->mouseMode == SimApp::MODE_SELECT || sim->mouseMode == SimApp::MODE_DRAG_SELECTED)
                 clearSelection();
         } else {
-            // TODO: auto-split wires at the new element's endpoints
+            // auto-split wires at the new element's endpoints before adding it
+            splitAt(de->x, de->y);
+            splitAt(de->x2, de->y2);
             sim->uiElmList->push_back(de);
             de->draggingDone();
             circuitChanged = true;
             sim->writeRecoveryToStorage();
             createdElm = de;
-            // TODO: open the edit dialog for the new element
         }
     }
     if (circuitChanged) {
@@ -759,4 +766,129 @@ bool MouseManager::splitWireAt(int px, int py) {
         }
     }
     return split;
+}
+
+bool MouseManager::splitLeadsAt(int px, int py) {
+    bool split = false;
+    std::vector<CircuitElm *> &list = *sim->uiElmList;
+    for (int i = (int) list.size() - 1; i >= 0; i--) {
+        CircuitElm *ce = list[i];
+        if (ce->isWireElm())
+            continue;
+        int post = ce->getLeadPost(px, py);
+        if (post < 0)
+            continue;
+        int ox = (post == 0) ? ce->x : ce->x2;
+        int oy = (post == 0) ? ce->y : ce->y2;
+        ce->movePoint(post, px - ox, py - oy);
+        CircuitElm *w = ElementFactory::constructElement("WireElm", px, py);
+        w->drag(ox, oy);
+        list.push_back(w);
+        split = true;
+    }
+    return split;
+}
+
+bool MouseManager::splitAt(int px, int py) {
+    bool a = splitWireAt(px, py);
+    bool b = splitLeadsAt(px, py);
+    return a || b;
+}
+
+void MouseManager::beginToolbarDrag(const QString &className, QPoint pos) {
+    if (sim->isReadOnly() || sim->modalDialogIsShowing())
+        return;
+    toolbarDragClass = className;
+    toolbarDragStart = pos;
+    toolbarDragActive = false;
+    toolbarDragVertical = false;
+}
+
+void MouseManager::cancelToolbarDrag() {
+    if (sim->dragElm != nullptr) {
+        sim->dragElm->deleteElm();
+        delete sim->dragElm;
+        sim->dragElm = nullptr;
+    }
+    toolbarDragClass.clear();
+    toolbarDragActive = false;
+    tempMouseMode = sim->mouseMode;
+    dragging = false;
+    sim->repaint();
+}
+
+void MouseManager::toolbarDragOrientationChanged(bool vertical) {
+    if (toolbarDragClass.isEmpty() || sim->dragElm == nullptr)
+        return;
+    toolbarDragVertical = vertical;
+    sim->dragElm->dragPlace(toolbarDragAnchorX, toolbarDragAnchorY, toolbarDragVertical);
+    sim->repaint();
+}
+
+void MouseManager::toolbarDragMove(QPoint pos, bool vertical) {
+    if (toolbarDragClass.isEmpty())
+        return;
+    if (!toolbarDragActive) {
+        QPoint d = pos - toolbarDragStart;
+        if (d.x() * d.x() + d.y() * d.y() < TOOLBAR_DRAG_THRESHOLD * TOOLBAR_DRAG_THRESHOLD)
+            return;
+        toolbarDragActive = true;
+        sim->pushUndo();
+    }
+    QPoint c = sim->canvasWidget()->mapFromGlobal(pos);
+    if (!sim->canvasWidget()->rect().contains(c) || !sim->circuitArea.contains(c.x(), c.y())) {
+        if (sim->dragElm != nullptr)
+            sim->repaint();
+        return;
+    }
+    toolbarDragAnchorX = snapGrid(inverseTransformX(c.x()));
+    toolbarDragAnchorY = snapGrid(inverseTransformY(c.y()));
+    toolbarDragVertical = vertical;
+    if (sim->dragElm == nullptr) {
+        sim->dragElm = ElementFactory::constructElement(toolbarDragClass.toStdString(),
+                                                        toolbarDragAnchorX, toolbarDragAnchorY);
+        tempMouseMode = SimApp::MODE_ADD_ELM;
+        dragging = true;
+    }
+    // (re)place the element at the anchor point; gives it a fixed default length/
+    // orientation since there's no drag-to-size gesture on the circuit area here
+    if (sim->dragElm != nullptr)
+        sim->dragElm->dragPlace(toolbarDragAnchorX, toolbarDragAnchorY, toolbarDragVertical);
+    sim->repaint();
+}
+
+bool MouseManager::toolbarDragEnd(QPoint) {
+    if (toolbarDragClass.isEmpty())
+        return false;
+    bool wasActive = toolbarDragActive;
+    toolbarDragClass.clear();
+    toolbarDragActive = false;
+    if (!wasActive)
+        return false;  // no real drag happened; let the normal click switch modes as before
+    CircuitElm *createdElm = nullptr;
+    if (sim->dragElm != nullptr) {
+        CircuitElm *de = sim->dragElm;
+        sim->dragElm = nullptr;
+        if (de->creationFailed()) {
+            de->deleteElm();
+            delete de;
+        } else {
+            splitAt(de->x, de->y);
+            splitAt(de->x2, de->y2);
+            sim->uiElmList->push_back(de);
+            de->draggingDone();
+            sim->writeRecoveryToStorage();
+            sim->needAnalyze();
+            sim->pushUndo();
+            createdElm = de;
+        }
+    }
+    tempMouseMode = sim->mouseMode;
+    dragging = false;
+    sim->updateToolbar();
+    sim->repaint();
+    // automatically bring up the property editor for a newly-created element
+    if (createdElm != nullptr && createdElm->showPropertiesOnCreate() && !sim->isReadOnly())
+        sim->doEdit(createdElm);
+    return true;
 }

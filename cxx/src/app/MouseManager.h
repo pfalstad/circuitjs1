@@ -21,6 +21,7 @@
 
 #include <QMouseEvent>
 #include <QPointer>
+#include <QString>
 #include <QWheelEvent>
 #include <optional>
 #include <vector>
@@ -71,10 +72,31 @@ public:
     bool mouseWasOverSplitter = false;
     double wheelSensitivity = 1;
 
+    // ---- Toolbar drag-and-drop ----
+    // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
+    // instead of just switching the mouse mode the way a plain click does.
+    // (positions are global screen coordinates)
+    bool isToolbarDragPending() const { return !toolbarDragClass.isEmpty(); }
+    bool isToolbarDragActive() const { return toolbarDragActive; }
+    void beginToolbarDrag(const QString &className, QPoint pos);
+    void cancelToolbarDrag();
+    void toolbarDragMove(QPoint pos, bool vertical);
+    // returns true if a real drag happened (so the button click should be ignored)
+    bool toolbarDragEnd(QPoint pos);
+    // re-place the element being dragged, e.g. when shift is pressed/released
+    // without any mouse movement
+    void toolbarDragOrientationChanged(bool vertical);
+
 private:
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
     bool splitWireAt(int px, int py);
+    // Split the lead stub of any non-wire element whose lead contains (px, py).
+    // Moves the element's post to the split point and inserts a wire for the remainder.
+    // Returns true if any lead was split.
+    bool splitLeadsAt(int px, int py);
+    // Split any wire or element lead whose interior contains (px, py).
+    bool splitAt(int px, int py);
     void mouseSelect(double sx, double sy, bool shift);
     void mouseDragged(QMouseEvent *e);
     bool doSwitch(int x, int y);
@@ -110,4 +132,11 @@ private:
     QPointer<WheelPopup> wheelPopup;
     std::vector<CircuitElm *> dragRowColElms;
     std::vector<int> dragRowColPosts;
+
+    static constexpr int TOOLBAR_DRAG_THRESHOLD = 6;
+    QString toolbarDragClass;
+    QPoint toolbarDragStart;
+    bool toolbarDragActive = false;
+    bool toolbarDragVertical = false;
+    int toolbarDragAnchorX = 0, toolbarDragAnchorY = 0;
 };

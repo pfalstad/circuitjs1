@@ -32,7 +32,10 @@ and `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O %USERPROFILE%\Qt`
 
 Mouse: hover shows info, click toggles switches and logic inputs, drag moves
 elements, Cmd-drag moves posts, Shift-drag selects, Option-drag or right-drag
-pans, wheel zooms.  The wheel over a resistor, capacitor or inductor steps its value
+pans, wheel zooms.  Dragging a toolbar icon (or a palette variant) onto the canvas
+drops that element there (Shift makes it vertical, Escape cancels).  A new element's
+ends, or a dragged post, split any wire or element lead they land on, and the edit
+dialog opens for a newly placed element.  The wheel over a resistor, capacitor or inductor steps its value
 through the E12 series, and over a transistor or MOSFET flips its type (Enter or a
 click keeps the change, Escape reverts it; Options → Edit Values With Mouse Wheel).
 
@@ -179,8 +182,6 @@ there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
 - the command palette and toolbar search
-- splitting wires at a new element's ends, opening the edit dialog after placing
-  an element, and dragging elements from the toolbar onto the canvas
 - switch key shortcuts
 - X/Y role labels on plotted probes and outputs
 - translations (`Locale::LS()` returns English), and the developer-mode PerfMonitor

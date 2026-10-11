@@ -60,6 +60,12 @@ private:
     bool eventFilter(QObject *obj, QEvent *e) override;
     QIcon makeIcon(const char *svg, int size);
     void buttonClicked(QToolButton *b);
+    // set up press-and-drag from a button (whose element class is its "cls" property)
+    // onto the canvas, and the hover hint
+    void addDragSupport(QToolButton *b);
+    // tracks a press-and-drag started on a button (installed on the whole application,
+    // since the gesture ends over the canvas)
+    bool handleToolbarDrag(QObject *obj, QEvent *e);
 
     CirSim *app;
     QLabel *modeLabel;
@@ -70,5 +76,11 @@ private:
     QMap<QToolButton *, QFrame *> palettes;
     QFrame *openPalette = nullptr;
     QToolButton *openPaletteButton = nullptr;
+    // the button a toolbar drag started on
+    QToolButton *dragButton = nullptr;
+    // installed on the application while a toolbar drag is pending
+    QObject *dragFilter;
+    // palette variant buttons -> make that variant its button's element
+    QMap<QToolButton *, std::function<void()>> variantSelectors;
     QTimer *paletteCloser;  // polls the mouse while a palette is open; closes it once the mouse leaves
 };

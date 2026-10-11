@@ -142,6 +142,8 @@ public:
     // one frame: analyze if needed, run the simulation, draw everything
     void updateCircuit(QPainter &painter);
 
+    QWidget *canvasWidget() const { return (QWidget *) canvas; }
+
     // render frames, save the canvas to an image, and quit (for testing)
     void scheduleScreenshot(const QString &path, int frameCount);
 
