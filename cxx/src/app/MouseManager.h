@@ -20,10 +20,12 @@
 #pragma once
 
 #include <QMouseEvent>
+#include <QPointer>
 #include <QWheelEvent>
 #include <optional>
 #include <vector>
 
+#include "ScrollValuePopup.h"
 #include "core/Rectangle.h"
 
 class CirSim;
@@ -104,6 +106,8 @@ private:
     double mouseDownScreenX = 0, mouseDownScreenY = 0;
     double mouseDownTime = 0;
     double zoomTime = 0;
+    // value/type popup opened by the wheel (ScrollValuePopup, TypeScrollPopup)
+    QPointer<WheelPopup> wheelPopup;
     std::vector<CircuitElm *> dragRowColElms;
     std::vector<int> dragRowColPosts;
 };

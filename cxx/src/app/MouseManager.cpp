@@ -29,6 +29,7 @@
 #include <cmath>
 
 #include "CirSim.h"
+#include "TypeScrollPopup.h"
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
 #include "core/Graphics.h"
@@ -677,13 +678,28 @@ void MouseManager::onDoubleClick(QMouseEvent *e) {
 }
 
 void MouseManager::onMouseWheel(QWheelEvent *e) {
-    // browsers report deltaY in pixels, positive = scroll down; Qt reports angle in
-    // eighths of a degree (120 per notch), positive = scroll up
-    double deltaY = !e->pixelDelta().isNull() ? -e->pixelDelta().y() : -e->angleDelta().y() * 100.0 / 120.0;
-    double norm = jsmath::round(deltaY * 0.12);
-    // TODO: mouse wheel editing of values
+    double norm = WheelPopup::normalizeWheelDelta(e);
+
+    // the rest of a trackpad scroll gesture may still come here after a popup opens
+    if (wheelPopup != nullptr && wheelPopup->isShowing()) {
+        wheelPopup->doDeltaY(norm);
+        return;
+    }
+
+    // once we start zooming, don't allow other uses of mouse wheel for a while
+    // so we don't accidentally edit a resistor value while zooming
+    bool zoomOnly = sim->currentTimeMillis() < zoomTime + 1000;
+    if (sim->isReadOnly() || !sim->options.mouseWheelEdit)
+        zoomOnly = true;
+
     ScopeManager *sm = sim->scopeManager;
-    if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
+    QPoint globalPos = e->globalPosition().toPoint();
+    if (!zoomOnly && mouseElm != nullptr && !sim->modalDialogIsShowing() && sm->scopeSelected == -1 &&
+        (mouseElm->isResistorElm() || mouseElm->isCapacitorElm() || mouseElm->isInductorElm())) {
+        wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
+    } else if (!zoomOnly && mouseElm != nullptr && (mouseElm->isMosfetElm() || mouseElm->isTransistorElm())) {
+        wheelPopup = new TypeScrollPopup(globalPos, norm, mouseElm, sim);
+    } else if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
         sm->scopes[sm->scopeSelected]->onMouseWheel(norm, wheelSensitivity);
     } else {
         mouseCursorX = sim->mouseCursorX = e->position().x();

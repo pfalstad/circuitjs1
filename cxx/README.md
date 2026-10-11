@@ -32,7 +32,9 @@ and `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O %USERPROFILE%\Qt`
 
 Mouse: hover shows info, click toggles switches and logic inputs, drag moves
 elements, Cmd-drag moves posts, Shift-drag selects, Option-drag or right-drag
-pans, wheel zooms.
+pans, wheel zooms.  The wheel over a resistor, capacitor or inductor steps its value
+through the E12 series, and over a transistor or MOSFET flips its type (Enter or a
+click keeps the change, Escape reverts it; Options → Edit Values With Mouse Wheel).
 
 ## Test
     (cd tools && npm install)          # once, for the TS harness
@@ -176,8 +178,6 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- mouse wheel over an element: value editing (ScrollValuePopup) and MOSFET type
-  cycling (TypeScrollPopup)
 - the command palette and toolbar search
 - splitting wires at a new element's ends, opening the edit dialog after placing
   an element, and dragging elements from the toolbar onto the canvas
