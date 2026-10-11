@@ -38,6 +38,8 @@ ends, or a dragged post, split any wire or element lead they land on, and the ed
 dialog opens for a newly placed element.  The wheel over a resistor, capacitor or inductor steps its value
 through the E12 series, and over a transistor or MOSFET flips its type (Enter or a
 click keeps the change, Escape reverts it; Options → Edit Values With Mouse Wheel).
+The command palette (Edit → Find Component/Command..., the toolbar's search button, `/`,
+or Shift twice) searches the menu commands, element modes and example circuits.
 
 ## Test
     (cd tools && npm install)          # once, for the TS harness
@@ -181,7 +183,6 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- the command palette and toolbar search
 - switch key shortcuts
 - X/Y role labels on plotted probes and outputs
 - translations (`Locale::LS()` returns English), and the developer-mode PerfMonitor

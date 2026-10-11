@@ -42,10 +42,11 @@ ShortcutsDialog::ShortcutsDialog(CirSim *s) : QDialog(s), sim(s) {
     setMinimumWidth(400);
 
     // everything we can assign a shortcut to: the Draw menu's element items, plus
-    // the "start/stop simulation" action
+    // the "start/stop simulation" action and the command palette
     for (QAction *a : sim->mainMenuItems)
         rows.push_back({a, a->text(), a->shortcut(), nullptr});
     rows.push_back({nullptr, LS("Start/Stop Simulation"), sim->runStopShortcut, nullptr});
+    rows.push_back({nullptr, LS("Command Palette"), sim->paletteShortcut, nullptr, true});
 
     QWidget *table = new QWidget();
     QGridLayout *grid = new QGridLayout(table);
@@ -104,6 +105,8 @@ void ShortcutsDialog::enterPressed() {
     for (Row &row : rows) {
         if (row.action)
             row.action->setShortcut(row.shortcut);
+        else if (row.palette)
+            sim->setPaletteShortcut(row.shortcut);
         else
             sim->setRunStopShortcut(row.shortcut);
     }
@@ -120,7 +123,7 @@ bool ShortcutsDialog::checkForDuplicates() {
         if (row.action)
             rowActions.push_back(row.action);
     for (QAction *a : sim->menuBar()->findChildren<QAction *>()) {
-        if (rowActions.contains(a))
+        if (rowActions.contains(a) || a == sim->searchItem)
             continue;
         for (const QKeySequence &k : a->shortcuts())
             if (a != sim->runStopAction || k != sim->runStopShortcut)

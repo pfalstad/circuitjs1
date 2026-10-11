@@ -66,6 +66,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     void leaveEvent(QEvent *e) override;
@@ -167,11 +168,17 @@ public:
     QKeySequence runStopShortcut;
     QAction *runStopAction = nullptr;
     void setRunStopShortcut(const QKeySequence &k);
+    // key for the command palette (Edit > Find Component/Command...); "/" by default
+    QKeySequence paletteShortcut;
+    QAction *searchItem = nullptr;
+    void setPaletteShortcut(const QKeySequence &k);
+    void openCommandPalette();
     // shortcuts saved in storage from Options > Shortcuts...
     void saveShortcuts();
     void loadShortcuts();
     QMap<QString, QString> classToLabelMap;
     void handleKey(QKeyEvent *e);
+    void handleKeyRelease(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
     void doDelete();
     // Edit menu commands (CommandManager.ts).  menuElm is the element to act on if it
@@ -278,6 +285,9 @@ private:
     QImage getCircuitAsImage(int type);
     void drawCircuitInPainter(QPainter &painter, int type, const Rectangle &bounds, double w, double h);
     QAction *recoverItem = nullptr;
+    // for double-tap Shift, which opens the command palette (see handleKey())
+    qint64 lastShiftKeyUpMs = 0;
+    bool keyPressedSinceShiftUp = false;
     void createCircuitsMenu();
     void createDrawMenu();
     // the part of readCircuit() after the loader is done

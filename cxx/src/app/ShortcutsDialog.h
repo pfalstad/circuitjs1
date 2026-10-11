@@ -28,18 +28,19 @@ class QAction;
 class QKeySequenceEdit;
 class QPushButton;
 
-// Options > Shortcuts...: assign keys to the Draw menu items and to Start/Stop Simulation
-// (ShortcutsDialog.ts)
+// Options > Shortcuts...: assign keys to the Draw menu items, Start/Stop Simulation and
+// the command palette (ShortcutsDialog.ts)
 class ShortcutsDialog : public QDialog {
 public:
     explicit ShortcutsDialog(CirSim *sim);
 
 private:
     struct Row {
-        QAction *action;  // the Draw menu item, or nullptr for run/stop
+        QAction *action;  // the Draw menu item, or nullptr for run/stop and the palette
         QString name;
         QKeySequence shortcut;
         QKeySequenceEdit *edit;
+        bool palette = false;  // the command palette row
     };
     void setRowShortcut(Row &row, const QKeySequence &seq);
     bool checkForDuplicates();

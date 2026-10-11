@@ -20,6 +20,7 @@
 #include "CirSim.h"
 
 #include <QAction>
+#include <QDateTime>
 #include <QApplication>
 #include <QFile>
 #include <QFileDialog>
@@ -65,6 +66,8 @@
 #include "core/RelayModel.h"
 #include "core/SubcircuitModel.h"
 #include "AudioPlayer.h"
+#include "CommandPalette.h"
+#include "CommandPaletteRegistry.h"
 #include "core/PanelButton.h"
 #include "elements/CapacitorElm.h"
 #include "elements/InductorElm.h"
@@ -83,6 +86,7 @@ CircuitCanvas::CircuitCanvas(CirSim *a) : QWidget(a), app(a) {
 }
 
 void CircuitCanvas::keyPressEvent(QKeyEvent *e) { app->handleKey(e); }
+void CircuitCanvas::keyReleaseEvent(QKeyEvent *e) { app->handleKeyRelease(e); }
 
 void CircuitCanvas::contextMenuEvent(QContextMenuEvent *e) {
     // make sure the menu is for what's under the pointer right now
@@ -194,8 +198,8 @@ void CirSim::createMenus() {
     edit->addSeparator();
     addEditItem("Select All", QKeySequence::SelectAll, [this] { doSelectAll(); }, false);
     edit->addSeparator();
-    // TODO: the command palette isn't ported yet
-    edit->addAction(LSq("Find Component/Command..."))->setEnabled(false);
+    searchItem = addEditItem("Find Component/Command...", QKeySequence(), [this] { openCommandPalette(); }, false);
+    setPaletteShortcut(QKeySequence("/"));
     addEditItem(QLocale::system().territory() == QLocale::UnitedStates ? "Center Circuit" : "Centre Circuit", QKeySequence(), [this] {
         pushUndo();
         centerCircuit();
@@ -347,6 +351,11 @@ void CirSim::createMenus() {
 
     createCircuitsMenu();
     loadShortcuts();
+    CommandPaletteRegistry::buildStatic(this);
+}
+
+void CirSim::openCommandPalette() {
+    (new CommandPalette(this))->show();
 }
 
 QString CirSim::resourceDir() {
@@ -372,18 +381,23 @@ void CirSim::createCircuitsMenu() {
     QString text = QString::fromUtf8(f.readAll());
     QMenu *currentMenu = menuBar()->addMenu(tr("&Circuits"));
     std::vector<QMenu *> stack{currentMenu};
+    QStringList submenuStack{""};  // submenu titles for palette circuit hints
     QString circuitsDir = resourceDir() + "/circuits/";
 
     for (const QString &line : text.split(QRegularExpression("\\r?\\n"))) {
         if (line.isEmpty() || line[0] == '#')
             continue;
         if (line[0] == '+') {
-            QMenu *sub = currentMenu->addMenu(QString::fromStdString(Locale::LS(line.mid(1).toStdString())));
+            QString title = QString::fromStdString(Locale::LS(line.mid(1).toStdString()));
+            QMenu *sub = currentMenu->addMenu(title);
             currentMenu = sub;
             stack.push_back(currentMenu);
+            submenuStack.push_back(title);
         } else if (line[0] == '-') {
-            if (stack.size() > 1)
+            if (stack.size() > 1) {
                 stack.pop_back();
+                submenuStack.pop_back();
+            }
             currentMenu = stack.back();
         } else {
             int sp = line.indexOf(' ');
@@ -400,6 +414,8 @@ void CirSim::createCircuitsMenu() {
                     label += " (partial)";
                 QAction *a = currentMenu->addAction(label);
                 connect(a, &QAction::triggered, this, [this, file, title] { readSetupFile(file, title); });
+                // also searchable from the command palette (query length >= 2)
+                CommandPaletteRegistry::registerCircuit(file, title, submenuStack.back(), a);
                 if (first && startCircuit.isEmpty()) {
                     startCircuit = file;
                     startLabel = title;
@@ -1122,10 +1138,34 @@ std::string CirSim::getHint() {
 }
 
 void CirSim::handleKey(QKeyEvent *e) {
-    if (isReadOnly())
-        return;
     int key = e->key();
     Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
+    if (key == Qt::Key_Shift) {
+        if (!e->isAutoRepeat()) {
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            // Second Shift within 400 ms, with no other key in between, opens the palette.
+            if (lastShiftKeyUpMs > 0 && now - lastShiftKeyUpMs < 400 && !keyPressedSinceShiftUp) {
+                openCommandPalette();
+                lastShiftKeyUpMs = 0;
+            }
+        }
+    } else if (!e->isAutoRepeat()) {
+        keyPressedSinceShiftUp = true;
+    }
+    // "/" opens the palette too, unless it's assigned to something else.  (If it's the
+    // palette's own shortcut, the menu item gets it first.)
+    if (e->text() == "/" && !(mods & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier))) {
+        QKeySequence slash("/");
+        bool used = runStopShortcut == slash;
+        for (QAction *a : mainMenuItems)
+            used |= a->shortcut() == slash;
+        if (!used) {
+            openCommandPalette();
+            return;
+        }
+    }
+    if (isReadOnly())
+        return;
     if (key == Qt::Key_Backspace || key == Qt::Key_Delete) {
         pushUndo();
         doDelete();
@@ -1164,6 +1204,13 @@ void CirSim::handleKey(QKeyEvent *e) {
             setMouseMode("Select");
             return;
         }
+    }
+}
+
+void CirSim::handleKeyRelease(QKeyEvent *e) {
+    if (e->key() == Qt::Key_Shift && !e->isAutoRepeat()) {
+        lastShiftKeyUpMs = QDateTime::currentMSecsSinceEpoch();
+        keyPressedSinceShiftUp = false;
     }
 }
 

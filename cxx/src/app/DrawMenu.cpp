@@ -25,6 +25,7 @@
 #include <QMenuBar>
 
 #include "CirSim.h"
+#include "CommandPaletteRegistry.h"
 #include "Toolbar.h"
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
@@ -300,6 +301,12 @@ void CirSim::setRunStopShortcut(const QKeySequence &k) {
 // saved as "1;key=class;..." like the TS version, but the keys are Qt key combinations
 // (QKeyCombination::toCombined()) rather than browser char codes
 static const char *RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
+static const char *COMMAND_PALETTE_SHORTCUT_ACTION = "cmd:key:commandpalette";
+
+void CirSim::setPaletteShortcut(const QKeySequence &k) {
+    paletteShortcut = k;
+    searchItem->setShortcut(k);
+}
 
 void CirSim::saveShortcuts() {
     if (Storage::localStorage == nullptr)
@@ -310,7 +317,11 @@ void CirSim::saveShortcuts() {
             str += ";" + std::to_string(a->shortcut()[0].toCombined()) + "=" + a->data().toString().toStdString();
     if (!runStopShortcut.isEmpty())
         str += ";" + std::to_string(runStopShortcut[0].toCombined()) + "=" + RUNSTOP_SHORTCUT_ACTION;
+    if (!paletteShortcut.isEmpty())
+        str += ";" + std::to_string(paletteShortcut[0].toCombined()) + "=" + COMMAND_PALETTE_SHORTCUT_ACTION;
     Storage::localStorage->setItem("shortcuts", str);
+    // the palette searches for the shortcut keys too
+    CommandPaletteRegistry::buildStatic(this);
 }
 
 void CirSim::loadShortcuts() {
@@ -322,6 +333,7 @@ void CirSim::loadShortcuts() {
     QStringList keys = QString::fromStdString(*str).split(';');
     for (QAction *a : mainMenuItems)
         a->setShortcut(QKeySequence());
+    bool paletteSet = false;
     for (int i = 1; i < keys.size(); i++) {
         QStringList arr = keys[i].split('=');
         if (arr.size() != 2)
@@ -335,11 +347,24 @@ void CirSim::loadShortcuts() {
             setRunStopShortcut(k);
             continue;
         }
+        if (arr[1] == COMMAND_PALETTE_SHORTCUT_ACTION) {
+            setPaletteShortcut(k);
+            paletteSet = true;
+            continue;
+        }
         for (QAction *a : mainMenuItems)
             if (a->data().toString() == arr[1]) {
                 a->setShortcut(k);
                 break;
             }
+    }
+    // the palette keeps "/" unless it was given something else, or "/" is taken
+    if (!paletteSet) {
+        QKeySequence slash("/");
+        bool used = runStopShortcut == slash;
+        for (QAction *a : mainMenuItems)
+            used |= a->shortcut() == slash;
+        setPaletteShortcut(used ? QKeySequence() : slash);
     }
 }
 
