@@ -20,7 +20,9 @@
 #include "QtGraphics.h"
 
 #include <QFontMetricsF>
+#include <QGuiApplication>
 #include <QLinearGradient>
+#include <algorithm>
 #include <cmath>
 
 static constexpr double TWO_PI = 2 * 3.14159265358979323846;
@@ -214,4 +216,31 @@ void QtGraphics::setStrokeGradient(double x0, double y0, double x1, double y1, c
     grad.setColorAt(0, toQColor(c0));
     grad.setColorAt(1, toQColor(c1));
     st.strokeGradient = grad;
+}
+
+void QtGraphics::drawImage(GraphicsImage &img, double x, double y) {
+    p.drawImage(QPointF(x, y), static_cast<QtGraphicsImage &>(img).qimage());
+}
+
+QtGraphicsImage::~QtGraphicsImage() {
+    g.reset();
+    if (painter.isActive())
+        painter.end();
+}
+
+void QtGraphicsImage::resize(int w, int h) {
+    g.reset();
+    if (painter.isActive())
+        painter.end();
+    qreal dpr = qApp->devicePixelRatio();
+    img = QImage(std::max(1, (int) std::ceil(w * dpr)), std::max(1, (int) std::ceil(h * dpr)),
+                 QImage::Format_ARGB32_Premultiplied);
+    img.setDevicePixelRatio(dpr);
+    img.fill(Qt::transparent);
+    painter.begin(&img);
+    g = std::make_unique<QtGraphics>(painter);
+}
+
+void QtGraphicsImage::install() {
+    GraphicsImage::factory = []() -> std::unique_ptr<GraphicsImage> { return std::make_unique<QtGraphicsImage>(); };
 }

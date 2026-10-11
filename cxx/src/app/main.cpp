@@ -21,12 +21,14 @@
 
 #include "CirSim.h"
 #include "ConsoleDialog.h"
+#include "QtGraphics.h"
 
 int main(int argc, char **argv) {
     QApplication qapp(argc, argv);
     QApplication::setApplicationName("CircuitJS1");
     QApplication::setOrganizationName("lushprojects");
 
+    QtGraphicsImage::install();
     // before CirSim, so it captures loading messages and outlives it
     ConsoleDialog console;
     CirSim app;

@@ -42,24 +42,6 @@ int Scope::cursorUnits = 0;
 Scope *Scope::cursorScope = nullptr;
 Scope *Scope::draggingPlotYScope = nullptr;
 
-void ScopePlot2d::draw(Graphics &g) {
-    // TODO: port ScopePlot2d
-    g.saveState();
-    g.translate(scope->rect.x, scope->rect.y);
-    g.setColor(CircuitElm::lightGrayColor);
-    g.drawString("X/Y plot (not ported yet)", 4, 14);
-    g.restoreState();
-}
-
-int ScopePlot2d::validPlotIndex(int idx, int def) const {
-    int n = (int) scope->plots.size();
-    if (n == 0)
-        return 0;
-    if (idx < 0 || idx >= n)
-        return std::min(def, n - 1);
-    return idx;
-}
-
 Scope::Scope(SimApp *app_, SimulationManager *sim_)
     : plot2d(this), fftPlot(this), app(app_), sim(sim_) {
     position = -1;
@@ -206,13 +188,14 @@ void Scope::initialize() {
     showV = showI = false;
     showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     fftPlot.enabled = false;
-    // TODO: saved scope defaults (ScopeSerializer.loadDefaults)
-    // set showV and showI appropriately depending on what plots are present
-    for (auto &plot : plots) {
-        if (plot->units == UNITS_V)
-            showV = true;
-        if (plot->units == UNITS_A)
-            showI = true;
+    if (!serializer->loadDefaults()) {
+        // set showV and showI appropriately depending on what plots are present
+        for (auto &plot : plots) {
+            if (plot->units == UNITS_V)
+                showV = true;
+            if (plot->units == UNITS_A)
+                showI = true;
+        }
     }
 }
 
@@ -997,6 +980,8 @@ std::string Scope::getScopeLabelOrText(bool forInfo) {
     }
     return *text;
 }
+
+void Scope::saveAsDefault() { serializer->saveAsDefault(); }
 
 void Scope::setSpeed(int sp) {
     if (sp < 1)

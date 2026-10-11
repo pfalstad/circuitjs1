@@ -45,6 +45,9 @@ public:
     void dumpXml(XmlElement *root);
     void undumpXml(CircuitXMLDeserializer &xml);
     void undump(StringTokenizer &st);
+    // remember this scope's settings in local storage for new scopes
+    void saveAsDefault();
+    bool loadDefaults();
 
 private:
     static std::string exportAsDecOrHex(int v, int thresh);

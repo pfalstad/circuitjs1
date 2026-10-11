@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,8 @@
 // CanvasRenderingContext2D calls that elements make directly through g.context, so
 // draw() code ports line for line (g.context.arc(...) becomes g.arc(...)).  The Qt app
 // implements it with QPainter.
+class GraphicsImage;
+
 class Graphics {
 public:
     enum TextAlign { ALIGN_LEFT, ALIGN_CENTER, ALIGN_RIGHT };
@@ -124,7 +127,22 @@ public:
     virtual void setGlobalAlpha(double a) = 0;
     virtual void setLineCap(LineCap c) = 0;
     virtual double getLineWidth() = 0;
+    // drawImage(canvas, x, y)
+    virtual void drawImage(GraphicsImage &, double, double) {}
 
 protected:
     virtual void applyFont(const Font &f) = 0;
+};
+
+// An offscreen canvas that can be drawn into and then drawn with Graphics::drawImage().
+// The UI installs the factory; without one (the headless core) create() returns null.
+class GraphicsImage {
+public:
+    virtual ~GraphicsImage() = default;
+    // resize to w x h and clear to transparent
+    virtual void resize(int w, int h) = 0;
+    virtual Graphics &graphics() = 0;
+
+    static inline std::unique_ptr<GraphicsImage> (*factory)() = nullptr;
+    static std::unique_ptr<GraphicsImage> create() { return factory ? factory() : nullptr; }
 };

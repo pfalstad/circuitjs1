@@ -21,8 +21,10 @@
 
 #include <QColor>
 #include <QFont>
+#include <QImage>
 #include <QPainter>
 #include <QPainterPath>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -67,6 +69,7 @@ public:
     void setGlobalAlpha(double a) override { p.setOpacity(a); }
     void setLineCap(LineCap c) override { st.cap = c; }
     double getLineWidth() override { return st.lineWidth; }
+    void drawImage(GraphicsImage &img, double x, double y) override;
 
     static QColor toQColor(const Color &c);
 
@@ -91,4 +94,21 @@ private:
     QPainterPath path;
     State st;
     std::vector<State> stack;
+};
+
+// GraphicsImage backed by a QImage at the screen's device pixel ratio
+class QtGraphicsImage : public GraphicsImage {
+public:
+    ~QtGraphicsImage() override;
+    void resize(int w, int h) override;
+    Graphics &graphics() override { return *g; }
+    const QImage &qimage() const { return img; }
+
+    // install as GraphicsImage::factory
+    static void install();
+
+private:
+    QImage img;
+    QPainter painter;
+    std::unique_ptr<QtGraphics> g;
 };

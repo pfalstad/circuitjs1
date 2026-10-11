@@ -213,10 +213,23 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     if (sim->isReadOnly() && tempMouseMode != SimApp::MODE_DRAG_ALL)
         tempMouseMode = SimApp::MODE_SELECT;
 
-    // TODO: settings wheel -> scope properties dialog
+    ScopeManager *sm = sim->scopeManager;
+    Scope *wheelScope = nullptr;
+    if (sm->scopeSelected != -1 && sm->scopes[sm->scopeSelected]->cursorInSettingsWheel())
+        wheelScope = sm->scopes[sm->scopeSelected].get();
+    else if (sm->scopeSelected == -1 && mouseElm != nullptr && mouseElm->isScopeElm() &&
+             static_cast<ScopeElm *>(mouseElm)->elmScope->cursorInSettingsWheel())
+        wheelScope = static_cast<ScopeElm *>(mouseElm)->elmScope.get();
+    if (wheelScope != nullptr) {
+        if (sim->isReadOnly())
+            return;
+        clearSelection();
+        mouseDragging = false;
+        sim->showScopeProperties(wheelScope);
+        return;
+    }
 
     // start drag-to-measure if clicking inside a scope
-    ScopeManager *sm = sim->scopeManager;
     for (int i = 0; i < sm->scopeCount; i++)
         sm->scopes[i]->mousePressed(ex, ey);
     for (CircuitElm *ce : sim->scopeElmArr)

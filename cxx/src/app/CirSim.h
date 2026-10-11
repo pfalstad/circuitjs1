@@ -124,6 +124,7 @@ public:
     void repaint() override;
     bool sliderItemEnabled(CircuitElm *elm);
     void doSliders(CircuitElm *ce);
+    void showScopeProperties(Scope *s);
     void addSlider(Scrollbar *sb) override;
     void addButton(PanelButton *b) override;
     void removeButton(PanelButton *b) override;

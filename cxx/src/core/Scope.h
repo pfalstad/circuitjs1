@@ -191,6 +191,7 @@ public:
     std::optional<std::string> getScopeText();
     std::string getScopeLabelOrText(bool forInfo = false);
     void setSpeed(int sp);
+    void saveAsDefault();
     void speedUp();
     void slowDown();
     void setPlotPosition(int plot, int v) { visiblePlots[plot]->manVPosition = v; }

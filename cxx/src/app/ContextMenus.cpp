@@ -26,6 +26,7 @@
 #include <QMenu>
 
 #include "CirSim.h"
+#include "ScopePropertiesDialog.h"
 #include "SliderDialog.h"
 #include "core/CircuitElm.h"
 #include "core/Locale.h"
@@ -166,7 +167,7 @@ void CirSim::addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se) {
     menu.addAction(LS("Reset"), this, act([s] { s->resetGraph(true); }));
     menu.addAction(LS("Export CSV..."))->setEnabled(false);    // TODO
     menu.addAction(LS("Export Image..."))->setEnabled(false);  // TODO
-    menu.addAction(LS("Properties..."))->setEnabled(false);    // TODO: scope properties dialog
+    menu.addAction(LS("Properties..."), this, [this, s] { showScopeProperties(s); });
 }
 
 // check if the user can create sliders for this element
@@ -182,6 +183,12 @@ bool CirSim::sliderItemEnabled(CircuitElm *elm) {
         if (ei->canCreateAdjustable())
             return true;
     }
+}
+
+void CirSim::showScopeProperties(Scope *s) {
+    ScopePropertiesDialog dlg(this, s);
+    dlg.exec();
+    repaint();
 }
 
 void CirSim::doSliders(CircuitElm *ce) {

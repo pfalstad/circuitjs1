@@ -29,6 +29,7 @@
 #include "JsNumber.h"
 #include "Scope.h"
 #include "SimApp.h"
+#include "Storage.h"
 #include "StringTokenizer.h"
 #include "XmlDoc.h"
 
@@ -38,6 +39,43 @@ static std::string toHex(int v) {
     char buf[16];
     std::snprintf(buf, sizeof(buf), "%x", v);
     return buf;
+}
+
+void ScopeSerializer::saveAsDefault() {
+    Storage *stor = Storage::localStorage;
+    if (stor == nullptr)
+        return;
+    ScopePlot &vPlot = *scope->plots[0];
+    int flags = getFlags();
+    std::string s = "1 " + std::to_string(flags) + " " + std::to_string(vPlot.scopePlotSpeed);
+    if ((flags & FLAG_TRIGGER) != 0)
+        s += " " + jsNumberToString(scope->trigger.level);
+    stor->setItem("scopeDefaults", s);
+}
+
+bool ScopeSerializer::loadDefaults() {
+    Storage *stor = Storage::localStorage;
+    if (stor == nullptr)
+        return false;
+    std::optional<std::string> str = stor->getItem("scopeDefaults");
+    if (!str)
+        return false;
+    std::vector<std::string> arr;
+    StringTokenizer st(*str, " ");
+    while (st.hasMoreTokens())
+        arr.push_back(st.nextToken());
+    if (arr.size() < 3)
+        return false;
+    try {
+        int flags = parseIntStrict(arr[1]);
+        setFlags(flags);
+        scope->speed = parseIntStrict(arr[2]);
+        if (arr.size() > 3 && (flags & FLAG_TRIGGER) != 0)
+            scope->trigger.level = parseFloatStrict(arr[3]);
+    } catch (std::exception &) {
+        return false;
+    }
+    return true;
 }
 
 int ScopeSerializer::getFlags() const {
