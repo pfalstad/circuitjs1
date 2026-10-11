@@ -192,6 +192,34 @@ void CirSim::createMenus() {
 
     createDrawMenu();
 
+    QMenu *scopesMenu = menuBar()->addMenu(tr("S&copes"));
+    auto addScopesItem = [&](const char *name, void (ScopeManager::*fn)()) {
+        QAction *a = scopesMenu->addAction(QString::fromStdString(Locale::LS(name)));
+        connect(a, &QAction::triggered, this, [this, fn] {
+            if (isReadOnly()) {
+                alert(Locale::LS("Editing is disabled while viewing a subcircuit."));
+                return;
+            }
+            pushUndo();
+            (scopeManager->*fn)();
+            scopeManager->deleteUnusedScopeElms();
+            needAnalyze();
+        });
+        return a;
+    };
+    QAction *stackAllItem = addScopesItem("Stack All", &ScopeManager::stackAll);
+    QAction *unstackAllItem = addScopesItem("Unstack All", &ScopeManager::unstackAll);
+    QAction *combineAllItem = addScopesItem("Combine All", &ScopeManager::combineAll);
+    QAction *separateAllItem = addScopesItem("Separate All", &ScopeManager::separateAll);
+    connect(scopesMenu, &QMenu::aboutToShow, this, [=, this] {
+        ScopeManager *sm = scopeManager;
+        int n = sm->scopeCount;
+        stackAllItem->setEnabled(n > 1 && sm->scopes[n - 1]->position > 0);
+        unstackAllItem->setEnabled(n > 1 && sm->scopes[n - 1]->position != n - 1);
+        combineAllItem->setEnabled(n > 1);
+        separateAllItem->setEnabled(n > 0);
+    });
+
     QMenu *simMenu = menuBar()->addMenu(tr("&Simulation"));
     runStopAction = simMenu->addAction(tr("&Run"));
     runStopAction->setCheckable(true);
