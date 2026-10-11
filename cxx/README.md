@@ -128,10 +128,12 @@ ElementFactory calls once the object is fully constructed.
 
 Scopes: docked scopes load from files (both formats), draw with auto/max/manual
 scale, triggers, the Max/Min/RMS/frequency overlays and cursor readout, and can
-be added, stacked, combined and removed from the context menus. Not yet: X/Y
-plots, FFT, the scope properties dialog, and export.  Undocked scopes (ScopeElm)
-load, save and draw in the circuit, and can be docked, undocked and created with
-"View in New Undocked Scope".
+be added, stacked, combined and removed from the context menus and the Scopes
+menu.  X/Y plots (ScopePlot2d), the spectrum view (ScopeFFT, linear or dB, with
+a frequency/dB cursor readout and the phase angle overlay) and the Scope
+Properties dialog are ported.  Not yet: Export CSV and Export Image.  Undocked
+scopes (ScopeElm) load, save and draw in the circuit, and can be docked,
+undocked and created with "View in New Undocked Scope".
 
 Saving: File → Save / Save As write the same XML as the TS version. Every
 example circuit that loads saves byte-identically to TS. Undo/redo (Edit
@@ -173,7 +175,19 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 (including `SimulationManager::console()`) and Qt warnings, from startup on, since
 there is no browser console.  Output still goes to the terminal as well.
 
-Not yet ported: the rest.
+Not yet ported:
+- scope Export CSV and Export Image (greyed out in the scope menu)
+- Create New Model / Edit Model buttons for diodes and BJTs (MOSFETs and relays
+  have them)
+- mouse wheel over an element: value editing (ScrollValuePopup) and MOSFET type
+  cycling (TypeScrollPopup)
+- the command palette and toolbar search
+- splitting wires at a new element's ends, opening the edit dialog after placing
+  an element, and dragging elements from the toolbar onto the canvas
+- switch key shortcuts
+- X/Y role labels on plotted probes and outputs
+- translations (`Locale::LS()` returns English), and the developer-mode PerfMonitor
+- things only the web page needs: JSInterface, Dropbox import, element JS methods
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS
 version byte for byte; `AUDIOOUT=file` makes both tools save the WAV that Play

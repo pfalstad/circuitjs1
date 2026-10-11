@@ -877,8 +877,12 @@ void Scope::drawCursor(Graphics &g) {
         }
     }
 
-    // TODO: FFT cursor info
-    if (cursorX < rect.x)
+    // show FFT even if there's no plots (in which case cursorTime/cursorX will be invalid)
+    if (fftPlot.enabled && cursorScope == this) {
+        if (cursorX < 0)
+            cursorX = app->mouseCursorX;
+        fftPlot.addCursorInfo(info, app->mouseCursorX);
+    } else if (cursorX < rect.x)
         return;
 
     // draw drag-start cursor and delta readout

@@ -71,21 +71,3 @@ private:
     double draw_ox = -1, draw_oy = -1;
     int alphaCounter = 0;
 };
-
-// FFT display.  TODO: port ScopeFFT.ts
-class ScopeFFT {
-public:
-    explicit ScopeFFT(Scope *s) : scope(s) {}
-
-    bool enabled = false;
-    bool logSpectrum = false;
-    bool showPhaseAngle = false;
-
-    void show(bool b) { enabled = b; }
-    void draw(Graphics &) {}
-    void drawVerticalGridLines(Graphics &) {}
-    void drawPhaseAngle(Graphics &) {}
-
-private:
-    [[maybe_unused]] Scope *scope;
-};

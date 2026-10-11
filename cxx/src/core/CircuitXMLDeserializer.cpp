@@ -89,8 +89,6 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root) {
             SubcircuitModel::undumpModelXml(*this);
             continue;
         }
-        // TODO: models
-        // and test tags come with the ports of those classes
         if (elem->getAttribute("x") == nullptr)
             continue;
         const std::string *className = ElementFactory::xmlClassName(elem->tagName);

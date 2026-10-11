@@ -29,6 +29,7 @@
 #include "Rectangle.h"
 #include "ScopeConstants.h"
 #include "ScopePlot.h"
+#include "ScopeFFT.h"
 #include "ScopePlot2d.h"
 #include "ScopeTrigger.h"
 

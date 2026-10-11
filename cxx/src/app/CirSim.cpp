@@ -70,6 +70,7 @@
 #include "elements/InductorElm.h"
 #include "elements/ResistorElm.h"
 #include "elements/RoutedWireElm.h"
+#include "elements/ScopeElm.h"
 #include "elements/SubcircuitElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
@@ -1014,7 +1015,8 @@ void CirSim::drawBottomArea(Graphics &g) {
     Scope::clearCursorInfo();
     for (int i = 0; i != ct; i++)
         scopeManager->scopes[i]->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
-    // TODO: ScopeElm (undocked scopes)
+    for (CircuitElm *ce : scopeElmArr)
+        static_cast<ScopeElm *>(ce)->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
     for (int i = 0; i != ct; i++)
         scopeManager->scopes[i]->draw(g);
     if (mouse.mouseWasOverSplitter) {
