@@ -1689,6 +1689,12 @@ MouseOutHandler, MouseWheelHandler {
         return ym;
     }    
 
+    // loose tolerance: clusters of real poles (e.g. op-amp poles near GBW) can
+    // come back from the root finder as complex pairs with small imaginary parts
+    static boolean isRealPole(Complex c) {
+        return Math.abs(c.im) < .01 * Math.abs(c.re);
+    }
+
     void drawPoles(Graphics g) {
         Complex poles[] = null;
         // always use our computed poles/zeros
@@ -1728,10 +1734,17 @@ MouseOutHandler, MouseWheelHandler {
             double f = ((FilterCustomizer) customizer).getFrequency();
             mx = 2*Math.PI*f;
         }
+        // skip real poles for auto-scale purposes (op-amp parasitic poles and
+        // source/load resistance poles can be far out), unless they're all real
+        boolean allReal = true;
+        for (i = 0; i != poles.length; i++) {
+            if (!isRealPole(poles[i]))
+                allReal = false;
+	    console("pole " + i + " " + poles[i].re + " " + poles[i].im + " " + isRealPole(poles[i]));
+	}
         for (i = 0; i != poles.length; i++) {
             Complex c = poles[i];
-            // if odd count, skip the lone real pole (im≈0) for auto-scale purposes
-            if (poles.length % 2 == 1 && Math.abs(c.im) < 1e-10 * Math.max(1, Math.abs(c.re)))
+            if (!allReal && isRealPole(c))
                 continue;
             if (Math.abs(c.re) > mx)
                 mx = Math.abs(c.re);
@@ -1800,7 +1813,9 @@ MouseOutHandler, MouseWheelHandler {
             g.setColor((customizer != null && customizer.isPoleSelected(c, mouseElm)) ?
                        CircuitElm.selectColor : Color.white);
             int cx = (int) (rx + c.re*scale);
-            int cy = (int) (my - c.im*scale);
+            // draw near-real poles on the real axis so off-screen ones get
+            // an edge indicator on the axis rather than in a corner
+            int cy = (int) (my - (isRealPole(c) ? 0 : c.im*scale));
             drawPoleMarker(g, cx, cy, false);
         }
         // always use our computed zeros
