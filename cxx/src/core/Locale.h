@@ -20,10 +20,21 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 
-// TODO: translations; for now LS() returns the English string
+// Simplified from util/Locale.java.  The app loads the string catalog (see
+// CirSim::loadLocale()); the headless tools leave the map empty, so LS() returns English.
 namespace Locale {
 inline const std::string ohmString = "Ω";
 inline const std::string muString = "μ";
-inline std::string LS(const std::string &s) { return s; }
+
+extern std::unordered_map<std::string, std::string> localizationMap;
+
+std::string LS(const std::string &s);
+
+// Ported from circuitjs1.java: circuitjs1.convertUnicodeEscapes()
+std::string convertUnicodeEscapes(const std::string &input);
+
+// Ported from circuitjs1.java: circuitjs1.processLocale()
+std::unordered_map<std::string, std::string> processLocale(const std::string &data);
 }

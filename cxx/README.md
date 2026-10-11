@@ -29,6 +29,8 @@ and `aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O %USERPROFILE%\Qt`
 `build-win.bat` builds into `build-win/` and copies the Qt DLLs next to `CircuitJS1.exe`.
 
 `--screenshot out.png [--frames n]` renders n frames, saves the canvas and quits.
+`--lang xx` picks a language (as `?lang=xx` does on the web page); otherwise the one
+chosen in Other Options, or the system language, is used.
 
 Mouse: hover shows info, click toggles switches and logic inputs, drag moves
 elements, Cmd-drag moves posts, Shift-drag selects, Option-drag or right-drag
@@ -176,16 +178,22 @@ Options: Options → Other Options... is a port of EditOptions (time step, volta
 range, colors, decimal digits, developer mode, frame rate, wheel sensitivity, auto DC,
 auto timestep, matrix solver, value font size).  Colors, decimal digits, font size and
 wheel sensitivity are saved with QSettings, as TS saves them in localStorage.  The
-language choice is saved but does nothing yet, since translations aren't ported.
+language choice takes effect after a restart.  Developer mode shows the frame and step
+rates and the PerfMonitor's per-frame timings.
+
+Translations: `Locale::LS()` looks strings up in the TS version's string catalogs
+(`../ts/public/locale`, copied into the app's resources), loaded at startup.  The
+headless tools load none, so they stay in English.
+
+Switches, logic inputs and the other switch types toggle with their Keyboard Shortcut
+(momentary ones are released with the key), overriding a menu shortcut on the same key.
 
 Console: Tools → Console shows everything written to std::cerr/std::cout
 (including `SimulationManager::console()`) and Qt warnings, from startup on, since
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- switch key shortcuts
 - X/Y role labels on plotted probes and outputs
-- translations (`Locale::LS()` returns English), and the developer-mode PerfMonitor
 - things only the web page needs: JSInterface, Dropbox import, element JS methods
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS

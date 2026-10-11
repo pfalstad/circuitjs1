@@ -67,6 +67,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
     void keyReleaseEvent(QKeyEvent *e) override;
+    bool event(QEvent *e) override;
     void contextMenuEvent(QContextMenuEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     void leaveEvent(QEvent *e) override;
@@ -102,6 +103,11 @@ public:
     bool loadFile(const QString &path);
     // folder holding setuplist.txt and circuits/ (inside the app bundle, or the source tree)
     static QString resourceDir();
+    // a top-level menu title: the translation of s if there is one, else the English
+    // title with its mnemonic
+    static QString menuTitle(const char *s, const QString &withMnemonic);
+    // the --lang command-line option, which overrides the saved language (?lang= in the web version)
+    static inline QString langOverride;
     // load one of the example circuits, by file name within circuits/
     void readSetupFile(const QString &file, const QString &title);
     // load the startup circuit from the setup list (the entry marked with '>')
@@ -179,6 +185,9 @@ public:
     QMap<QString, QString> classToLabelMap;
     void handleKey(QKeyEvent *e);
     void handleKeyRelease(QKeyEvent *e);
+    // the key as a switch keyShortcut string ("" if it can't be one), and whether any switch uses it
+    static QString switchKeyStr(QKeyEvent *e);
+    bool isSwitchKey(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
     void doDelete();
     // Edit menu commands (CommandManager.ts).  menuElm is the element to act on if it
@@ -288,6 +297,7 @@ private:
     // for double-tap Shift, which opens the command palette (see handleKey())
     qint64 lastShiftKeyUpMs = 0;
     bool keyPressedSinceShiftUp = false;
+    void loadLocale();
     void createCircuitsMenu();
     void createDrawMenu();
     // the part of readCircuit() after the loader is done

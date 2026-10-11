@@ -19,6 +19,9 @@
 
 #include "Sidebar.h"
 
+#include <QRegularExpression>
+
+#include <QApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -31,6 +34,24 @@
 #include "core/Scrollbar.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
+
+// translates an HTML string from the web version, as plain text for a button
+static QString LSPlain(const char *s) {
+    QString t = LS(s);
+    t.remove(QRegularExpression("<[^>]*>"));
+    return t.replace("&nbsp;", " ");
+}
+
+// shrinks a button's font until its text fits the sidebar (translations can be long)
+static void fitButton(QPushButton *b, int width) {
+    QFont f = b->font();
+    f.setPointSizeF(QApplication::font().pointSizeF());
+    b->setFont(f);
+    while (b->sizeHint().width() > width && f.pointSizeF() > 8) {
+        f.setPointSizeF(f.pointSizeF() - 0.5);
+        b->setFont(f);
+    }
+}
 
 static QSlider *makeSlider(int value, int min, int max) {
     QSlider *s = new QSlider(Qt::Horizontal);
@@ -46,8 +67,8 @@ Sidebar::Sidebar(CirSim *a) : QWidget(a), app(a) {
     v->setContentsMargins(6, 6, 6, 6);
     v->setSpacing(4);
 
-    // make buttons side by side
-    QHBoxLayout *buttons = new QHBoxLayout();
+    // make buttons side by side (stacked if the translated labels don't fit)
+    QBoxLayout *buttons = runButtons = new QBoxLayout(QBoxLayout::LeftToRight);
     buttons->setSpacing(4);
     resetButton = new QPushButton(LS("Reset"));
     runStopButton = new QPushButton();
@@ -58,11 +79,13 @@ Sidebar::Sidebar(CirSim *a) : QWidget(a), app(a) {
     connect(runStopButton, &QPushButton::clicked, this, [this] { app->setSimRunning(!app->simIsRunning()); });
 
     QPushButton *openButton = new QPushButton(LS("Open File..."));
+    fitButton(openButton, WIDTH - 12);
     v->addWidget(openButton);
     connect(openButton, &QPushButton::clicked, this, [this] { app->openFile(); });
 
     auto addLabel = [&](const QString &text) {
         QLabel *l = new QLabel(text);
+        l->setWordWrap(true);
         v->addSpacing(8);
         v->addWidget(l);
         return l;
@@ -107,13 +130,19 @@ void Sidebar::sync() {
 
 void Sidebar::setSimRunning(bool running) {
     if (running) {
-        runStopButton->setText(LS("RUN / Stop"));
+        runStopButton->setText(LSPlain("<strong>RUN</strong>&nbsp;/&nbsp;Stop"));
         runStopButton->setStyleSheet("");
     } else {
-        runStopButton->setText(LS("Run / STOP"));
+        runStopButton->setText(LSPlain("Run&nbsp;/&nbsp;<strong>STOP</strong>"));
         runStopButton->setStyleSheet("QPushButton { background-color: #ff0000; color: white; "
                                      "border: 1px solid #a0a0a0; border-radius: 4px; padding: 4px 6px; }");
     }
+    // side by side if both labels fit, else stacked
+    QFontMetrics fm(runStopButton->font());
+    int textw = fm.horizontalAdvance(resetButton->text()) +
+                std::max(fm.horizontalAdvance(LSPlain("<strong>RUN</strong>&nbsp;/&nbsp;Stop")),
+                         fm.horizontalAdvance(LSPlain("Run&nbsp;/&nbsp;<strong>STOP</strong>")));
+    runButtons->setDirection(textw + 4 * 12 + 4 > WIDTH - 12 ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
 }
 
 void Sidebar::setPowerBarEnable(bool enabled) {
@@ -138,6 +167,7 @@ struct SliderWidget {
 void Sidebar::addSlider(Scrollbar *sb) {
     SliderWidget *w = new SliderWidget;
     w->label = new QLabel(QString::fromStdString(Locale::LS(sb->label)));
+    w->label->setWordWrap(true);
     w->label->setWordWrap(true);
     w->slider = new QSlider(Qt::Horizontal);
     // before the stretch at the end

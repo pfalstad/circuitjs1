@@ -59,7 +59,7 @@ static const char *versionString = "5.0.0cxx (alpha)";
 static QString LSq(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
 void CirSim::createFileMenu() {
-    QMenu *file = menuBar()->addMenu(tr("&File"));
+    QMenu *file = menuBar()->addMenu(menuTitle("File", tr("&File")));
     auto addItem = [&](const char *name, QKeySequence key, std::function<void()> fn) {
         QAction *a = file->addAction(LSq(name));
         if (!key.isEmpty())

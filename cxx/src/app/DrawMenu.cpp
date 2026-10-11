@@ -254,7 +254,7 @@ QAction *CirSim::getClassCheckItem(QMenu *menu, const QString &label, const QStr
 void CirSim::createDrawMenu() {
     modeActions = new QActionGroup(this);
     modeActions->setExclusive(true);
-    QMenu *menu = menuBar()->addMenu(tr("&Draw"));
+    QMenu *menu = menuBar()->addMenu(menuTitle("Draw", tr("&Draw")));
     drawMenu = menu;
 
     auto addItems = [&](QMenu *m, const MenuItemDef *items, size_t n) {

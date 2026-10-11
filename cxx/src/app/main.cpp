@@ -28,14 +28,21 @@ int main(int argc, char **argv) {
     QApplication::setApplicationName("CircuitJS1");
     QApplication::setOrganizationName("lushprojects");
 
+    QStringList args = QCoreApplication::arguments();
+    args.removeFirst();
+    // --lang xx: use that language instead of the saved or system one
+    int li = args.indexOf("--lang");
+    if (li >= 0 && li + 1 < args.size()) {
+        CirSim::langOverride = args[li + 1];
+        args.remove(li, 2);
+    }
+
     QtGraphicsImage::install();
     // before CirSim, so it captures loading messages and outlives it
     ConsoleDialog console;
     CirSim app;
     app.show();
 
-    QStringList args = QCoreApplication::arguments();
-    args.removeFirst();
     // --screenshot out.png [--frames n]: render, save the canvas, quit
     int shot = args.indexOf("--screenshot");
     if (shot >= 0 && shot + 1 < args.size()) {

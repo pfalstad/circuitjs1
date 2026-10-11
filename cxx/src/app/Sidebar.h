@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <QBoxLayout>
+
 #include <QWidget>
 
 class CirSim;
@@ -57,6 +59,7 @@ private:
     CirSim *app;
     QPushButton *resetButton;
     QPushButton *runStopButton;
+    QBoxLayout *runButtons = nullptr;
     QSlider *speedBar;
     QSlider *currentBar;
     QSlider *powerBar;

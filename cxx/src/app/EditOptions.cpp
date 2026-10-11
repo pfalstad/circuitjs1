@@ -147,8 +147,6 @@ void EditOptions::setEditValue(int n, EditInfo &ei) {
             return;
         }
         stor->setItem("language", langString);
-        // TODO: translations aren't ported yet (Locale::LS() returns English), so there's
-        // nothing to restart for
         app->alert(Locale::LS("Must restart to set language."));
     }
     if (n == 3) {

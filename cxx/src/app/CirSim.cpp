@@ -43,6 +43,7 @@
 #include <functional>
 #include <cmath>
 
+#include "PerfMonitor.h"
 #include "QtGraphics.h"
 #include "Sidebar.h"
 #include "ShortcutsDialog.h"
@@ -75,6 +76,7 @@
 #include "elements/RoutedWireElm.h"
 #include "elements/ScopeElm.h"
 #include "elements/SubcircuitElm.h"
+#include "elements/SwitchElm.h"
 #include "core/DiodeModel.h"
 #include "core/TransistorModel.h"
 #include "core/WireConverter.h"
@@ -87,6 +89,16 @@ CircuitCanvas::CircuitCanvas(CirSim *a) : QWidget(a), app(a) {
 
 void CircuitCanvas::keyPressEvent(QKeyEvent *e) { app->handleKey(e); }
 void CircuitCanvas::keyReleaseEvent(QKeyEvent *e) { app->handleKeyRelease(e); }
+
+bool CircuitCanvas::event(QEvent *e) {
+    // a switch's keyboard shortcut wins over a menu shortcut for the same key (element
+    // shortcuts are single letters), as in the web version
+    if (e->type() == QEvent::ShortcutOverride && app->isSwitchKey(static_cast<QKeyEvent *>(e))) {
+        e->accept();
+        return true;
+    }
+    return QWidget::event(e);
+}
 
 void CircuitCanvas::contextMenuEvent(QContextMenuEvent *e) {
     // make sure the menu is for what's under the pointer right now
@@ -119,6 +131,7 @@ CirSim::CirSim() {
     // saved settings and subcircuit models, kept across sessions
     storage = std::make_unique<QtStorage>();
     Storage::localStorage = storage.get();
+    loadLocale();
     readRecovery();
     CircuitElm::initClass(this, sim.get());
     registerElements();
@@ -171,7 +184,7 @@ CirSim::~CirSim() {
 void CirSim::createMenus() {
     createFileMenu();
 
-    QMenu *edit = menuBar()->addMenu(tr("&Edit"));
+    QMenu *edit = menuBar()->addMenu(menuTitle("Edit", tr("&Edit")));
     auto LSq = [](const char *str) { return QString::fromStdString(Locale::LS(str)); };
     // an Edit menu item; editing commands are disabled while viewing a subcircuit
     auto addEditItem = [&](const char *name, QKeySequence key, std::function<void()> fn, bool editing = true) {
@@ -220,7 +233,7 @@ void CirSim::createMenus() {
 
     createDrawMenu();
 
-    QMenu *scopesMenu = menuBar()->addMenu(tr("S&copes"));
+    QMenu *scopesMenu = menuBar()->addMenu(menuTitle("Scopes", tr("S&copes")));
     auto addScopesItem = [&](const char *name, void (ScopeManager::*fn)()) {
         QAction *a = scopesMenu->addAction(QString::fromStdString(Locale::LS(name)));
         connect(a, &QAction::triggered, this, [this, fn] {
@@ -248,17 +261,17 @@ void CirSim::createMenus() {
         separateAllItem->setEnabled(n > 0);
     });
 
-    QMenu *simMenu = menuBar()->addMenu(tr("&Simulation"));
-    runStopAction = simMenu->addAction(tr("&Run"));
+    QMenu *simMenu = menuBar()->addMenu(menuTitle("Simulation", tr("&Simulation")));
+    runStopAction = simMenu->addAction(menuTitle("Run", tr("&Run")));
     runStopAction->setCheckable(true);
     runStopAction->setChecked(true);
     runStopAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Period));
     connect(runStopAction, &QAction::toggled, this, [this](bool on) { setSimRunning(on); });
-    QAction *reset = simMenu->addAction(tr("Re&set"));
+    QAction *reset = simMenu->addAction(menuTitle("Reset", tr("Re&set")));
     reset->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
     connect(reset, &QAction::triggered, this, [this] { resetAction(); });
 
-    QMenu *opts = menuBar()->addMenu(tr("&Options"));
+    QMenu *opts = menuBar()->addMenu(menuTitle("Options", tr("&Options")));
     // a checkbox item for flag.  The loader changes some flags, so the check marks are
     // refreshed each time the menu opens.  storageKey saves the setting across sessions.
     std::vector<std::pair<QAction *, bool *>> optToggles;
@@ -327,7 +340,7 @@ void CirSim::createMenus() {
         doEdit(editOptions.get());
     });
 
-    QMenu *tools = menuBar()->addMenu(tr("&Tools"));
+    QMenu *tools = menuBar()->addMenu(menuTitle("Tools", tr("&Tools")));
     QAction *convertWires = tools->addAction(LSq("Convert Wires to Routed Wires"));
     connect(convertWires, &QAction::triggered, this, [this] {
         if (isReadOnly()) {
@@ -372,6 +385,50 @@ QString CirSim::resourceDir() {
     return QString();
 }
 
+QString CirSim::menuTitle(const char *s, const QString &withMnemonic) {
+    std::string t = Locale::LS(s);
+    return t == s ? withMnemonic : QString::fromStdString(t);
+}
+
+// Ported from circuitjs1.java: circuitjs1.loadLocale()
+void CirSim::loadLocale() {
+    QString lang = langOverride;
+    if (lang.isEmpty()) {
+        if (auto stored = Storage::localStorage->getItem("language"))
+            lang = QString::fromStdString(*stored);
+        else {
+            QStringList languages = QLocale::system().uiLanguages();
+            lang = languages.isEmpty() ? "en-US" : languages[0];
+        }
+    }
+
+    SimulationManager::console("got language " + lang.toStdString());
+
+    // check for Taiwan Chinese. Otherwise, strip the region code
+    if (lang.toLower() == "zh-tw" || lang.toLower() == "zh-cht" || lang.toLower() == "zh-hant-tw")
+        lang = "zh-tw";
+    else
+        lang = lang.section('-', 0, 0).section('_', 0, 0);
+
+    Locale::localizationMap.clear();
+    if (lang.startsWith("en")) {
+        // no need to load locale file for English
+        return;
+    }
+
+    QFile f(resourceDir() + "/locale/locale_" + lang + ".txt");
+    if (!f.open(QIODevice::ReadOnly)) {
+        // default to English (empty map)
+        SimulationManager::console("Can't read " + f.fileName().toStdString());
+        return;
+    }
+    std::string data = f.readAll().toStdString();
+    // fetch().text() drops a byte order mark
+    if (data.rfind("\xEF\xBB\xBF", 0) == 0)
+        data.erase(0, 3);
+    Locale::localizationMap = Locale::processLocale(data);
+}
+
 void CirSim::createCircuitsMenu() {
     QFile f(resourceDir() + "/setuplist.txt");
     if (!f.open(QIODevice::ReadOnly)) {
@@ -379,7 +436,7 @@ void CirSim::createCircuitsMenu() {
         return;
     }
     QString text = QString::fromUtf8(f.readAll());
-    QMenu *currentMenu = menuBar()->addMenu(tr("&Circuits"));
+    QMenu *currentMenu = menuBar()->addMenu(menuTitle("Circuits", tr("&Circuits")));
     std::vector<QMenu *> stack{currentMenu};
     QStringList submenuStack{""};  // submenu titles for palette circuit hints
     QString circuitsDir = resourceDir() + "/circuits/";
@@ -792,11 +849,16 @@ void CirSim::centerCircuit() {
 }
 
 void CirSim::updateCircuit(QPainter &painter) {
+    PerfMonitor perfmon;
+    perfmon.startContext("updateCircuit()");
+
     setCircuitArea();
     bool didAnalyze = analyzeFlag;
     if (analyzeFlag || dcAnalysisFlag) {
+        perfmon.startContext("analyzeCircuit()");
         sim->analyzeCircuit();
         analyzeFlag = false;
+        perfmon.stopContext();
     }
     if (needCenter) {
         // needs bounding boxes, which elements compute when drawn; the first frame's
@@ -805,12 +867,14 @@ void CirSim::updateCircuit(QPainter &painter) {
     }
 
     if (sim->needsStamp && simRunning) {
+        perfmon.startContext("stampCircuit()");
         try {
             sim->preStampAndStampCircuit();
         } catch (std::exception &e) {
             sim->stop("Exception in stampCircuit()", nullptr);
             SimulationManager::console(std::string("Exception in stampCircuit: ") + e.what());
         }
+        perfmon.stopContext();
     }
 
     CircuitElm *stopHighlightElm = stopElm;
@@ -848,11 +912,13 @@ void CirSim::updateCircuit(QPainter &painter) {
     }
 
     if (simRunning) {
+        perfmon.startContext("runCircuit()");
         try {
             sim->runCircuit(didAnalyze);
         } catch (std::exception &e) {
             SimulationManager::console(std::string("exception in runCircuit ") + e.what());
         }
+        perfmon.stopContext();
     }
 
     double sysTime = currentTimeMillis();
@@ -880,12 +946,15 @@ void CirSim::updateCircuit(QPainter &painter) {
 
     CircuitElm::powerMult = jsmath::exp(powerBarValue / 4.762 - 7);
 
+    perfmon.startContext("graphics");
+
     g.setFont(CircuitElm::unitsFont);
     g.setLineCap(Graphics::CAP_ROUND);
     g.setColor(Color::white);
 
     g.setTransform(transform[0], 0, 0, transform[3], transform[4], transform[5]);
 
+    perfmon.startContext("elm.draw()");
     for (CircuitElm *ce : *uiElmList) {
         if (options.power)
             g.setColor(Color::gray);
@@ -899,6 +968,7 @@ void CirSim::updateCircuit(QPainter &painter) {
     // draw stopHighlightElm on top of everything else so it's always visible
     if (stopHighlightElm != nullptr)
         stopHighlightElm->draw(g);
+    perfmon.stopContext();
 
     if (mouseMode != MODE_DRAG_ROW && mouseMode != MODE_DRAG_COLUMN) {
         for (const Point &p : postDrawList)
@@ -957,7 +1027,11 @@ void CirSim::updateCircuit(QPainter &painter) {
     }
 
     g.setTransform(1, 0, 0, 1, 0, 0);
+    perfmon.startContext("drawBottomArea()");
     drawBottomArea(g);
+    perfmon.stopContext();
+
+    perfmon.stopContext(); // graphics
 
     if (stopHighlightElm != nullptr && stopHighlightElm != CircuitElm::mouseElmRef)
         stopHighlightElm->setMouseElm(false);
@@ -969,6 +1043,8 @@ void CirSim::updateCircuit(QPainter &painter) {
         analyzeFlag = true;
     }
     lastFrameTime = lastTime;
+
+    perfmon.stopContext(); // updateCircuit
 
     if (developerMode) {
         double height = 15;
@@ -985,7 +1061,16 @@ void CirSim::updateCircuit(QPainter &painter) {
             int cy = mouse.inverseTransformY(mouse.mouseCursorY);
             g.drawString("Mouse: (" + std::to_string(cx) + ", " + std::to_string(cy) + ")", 10, height += increment);
         }
-        // TODO: PerfMonitor
+
+        height += (increment * 2);
+
+        std::string perfmonResult = perfmon.buildString();
+        size_t start = 0;
+        for (int x = 0; start < perfmonResult.size(); x++) {
+            size_t nl = perfmonResult.find('\n', start);
+            g.drawString(perfmonResult.substr(start, nl - start), 10, height + (increment * x));
+            start = nl + 1;
+        }
     }
 
     if (needCenter) {
@@ -1195,7 +1280,29 @@ void CirSim::handleKey(QKeyEvent *e) {
     }
     if (mods & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier))
         return;
-    // TODO: switch key shortcuts (SwitchElm keyShortcut)
+    // check if any switches have a keyboard shortcut matching this key
+    // (space is included so it can be assigned as a shortcut too; it falls back to the
+    // temporary-select-mode behavior below if unassigned)
+    QString keyStr = switchKeyStr(e);
+    if (!keyStr.isEmpty()) {
+        bool toggled = false;
+        if (!e->isAutoRepeat()) {
+            std::string ks = keyStr.toStdString();
+            for (CircuitElm *ce : elmList) {
+                SwitchElm *se = dynamic_cast<SwitchElm *>(ce);
+                if (se != nullptr && se->keyShortcut && *se->keyShortcut == ks) {
+                    se->toggle();
+                    if (!se->isLogicInputElm())
+                        needAnalyze();
+                    toggled = true;
+                }
+            }
+        }
+        if (toggled || isSwitchKey(e)) {
+            repaint();
+            return;
+        }
+    }
     // element shortcuts are menu item shortcuts, so they don't get here
     QString text = e->text();
     if (text.size() == 1) {
@@ -1212,6 +1319,55 @@ void CirSim::handleKeyRelease(QKeyEvent *e) {
         lastShiftKeyUpMs = QDateTime::currentMSecsSinceEpoch();
         keyPressedSinceShiftUp = false;
     }
+    if (e->isAutoRepeat() || isReadOnly())
+        return;
+
+    // handle momentary switches with keyboard shortcuts
+    QString keyStr = switchKeyStr(e);
+    if (keyStr.isEmpty())
+        return;
+    std::string ks = keyStr.toStdString();
+    bool released = false;
+    for (CircuitElm *ce : elmList) {
+        SwitchElm *se = dynamic_cast<SwitchElm *>(ce);
+        if (se != nullptr && se->momentary && se->keyShortcut && *se->keyShortcut == ks) {
+            se->mouseUp();
+            released = true;
+        }
+    }
+    if (released) {
+        mouse.heldSwitchElm = nullptr;
+        needAnalyze();
+        repaint();
+    }
+}
+
+QString CirSim::switchKeyStr(QKeyEvent *e) {
+    if (e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier))
+        return "";
+    QString text = e->text();
+    if (text.size() == 1 && text[0].unicode() >= 32 && text[0].unicode() < 127)
+        return text.toLower();
+    // key releases may come without text
+    int key = e->key();
+    if ((key >= Qt::Key_A && key <= Qt::Key_Z) || (key >= Qt::Key_0 && key <= Qt::Key_9) || key == Qt::Key_Space)
+        return QString(QChar(key)).toLower();
+    return "";
+}
+
+bool CirSim::isSwitchKey(QKeyEvent *e) {
+    if (isReadOnly())
+        return false;
+    QString keyStr = switchKeyStr(e);
+    if (keyStr.isEmpty())
+        return false;
+    std::string ks = keyStr.toStdString();
+    for (CircuitElm *ce : elmList) {
+        SwitchElm *se = dynamic_cast<SwitchElm *>(ce);
+        if (se != nullptr && se->keyShortcut && *se->keyShortcut == ks)
+            return true;
+    }
+    return false;
 }
 
 void CirSim::doDelete() {

@@ -87,6 +87,9 @@ public:
     // without any mouse movement
     void toolbarDragOrientationChanged(bool vertical);
 
+public:
+    CircuitElm *heldSwitchElm = nullptr;
+
 private:
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
@@ -117,7 +120,6 @@ private:
 
     CirSim *sim;
     CircuitElm *mouseElm = nullptr;
-    CircuitElm *heldSwitchElm = nullptr;
     bool mouseDragging = false;
     bool dragging = false;
     bool didSwitch = false;

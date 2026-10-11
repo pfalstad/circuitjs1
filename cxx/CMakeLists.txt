@@ -79,6 +79,7 @@ if(Qt6_FOUND)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TS_PUBLIC}/setuplist.txt ${RESOURCE_DIR}/setuplist.txt
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${TS_PUBLIC}/circuits ${RESOURCE_DIR}/circuits
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${TS_PUBLIC}/locale ${RESOURCE_DIR}/locale
         COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DIR}/font
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TS_PUBLIC}/circuitjs/font/fontello.ttf ${TS_PUBLIC}/circuitjs/font/LICENSE.txt ${RESOURCE_DIR}/font/
         # help pages that edit dialogs link to (EditInfo.makeLink)
