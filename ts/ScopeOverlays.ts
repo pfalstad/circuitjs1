@@ -233,6 +233,20 @@ export class ScopeOverlays {
         }
     }
 
+    // true if this scope is stacked under another scope with the same label, so we
+    // don't repeat it (e.g. several stacked "logic output" scopes)
+    sameLabelAsScopeAbove(t: string): boolean {
+        const scope = this.scope;
+        if (scope.position < 0 || scope.exporting)
+            return false;
+        const mgr = scope.app.scopeManager;
+        const i = mgr.scopes.indexOf(scope);
+        if (i <= 0 || i >= mgr.scopeCount)
+            return false;
+        const above = mgr.scopes[i - 1];
+        return above.position === scope.position && above.getScopeLabelOrText(true) === t;
+    }
+
     draw(g: Graphics): void {
         g.setColor(CircuitElm.whiteColor);
         this.textY = 10;
@@ -260,7 +274,7 @@ export class ScopeOverlays {
             this.drawDutyCycle(g);
         const t = this.scope.getScopeLabelOrText(true);
         if (t != null && t !== "") {
-            if (this.scope.text !== null || this.hasRoomForText(1))
+            if (!this.sameLabelAsScopeAbove(t) && (this.scope.text !== null || this.hasRoomForText(1)))
                 this.drawInfoText(g, t);
         } else if (this.scope.visiblePlots.length > 1 && this.hasRoomForText(this.scope.visiblePlots.length))
             this.drawLegend(g);
