@@ -25,6 +25,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -138,7 +139,13 @@ public:
     int mouseMode = MODE_SELECT;
     CircuitElm *dragElm = nullptr;
     CircuitNode *highlightedNode = nullptr;
-    std::unordered_set<CircuitElm *> scopePlotRoles;
+    // elements shown in the scope under the mouse, with their X/Y plot roles ("" if none)
+    std::unordered_map<CircuitElm *, std::string> scopePlotRoles;
+    // the element's plot role, or nullptr if it isn't in the scope under the mouse
+    const std::string *getScopePlotRole(CircuitElm *ce) const {
+        auto it = scopePlotRoles.find(ce);
+        return it == scopePlotRoles.end() ? nullptr : &it->second;
+    }
 
     // state of the Options menu checkboxes that elements look at
     struct Options {

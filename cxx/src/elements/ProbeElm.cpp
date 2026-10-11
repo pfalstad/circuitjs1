@@ -108,9 +108,8 @@ std::string ProbeElm::getMeter() {
 
 void ProbeElm::draw(Graphics &g) {
     g.save();
-    // TODO: scope plot role labels (X/Y), when X/Y plots are ported; until then a plotted
-    // probe has an empty role, which still shows the circle
-    bool showCircle = drawAsCircle();
+    const std::string *role = app->getScopePlotRole(this);
+    bool showCircle = drawAsCircle() && (role == nullptr || role->empty());
     int hs = showCircle ? circleSize : 8;
     setBbox(point1, point2, hs);
     bool selected = needsHighlight();
@@ -128,6 +127,8 @@ void ProbeElm::draw(Graphics &g) {
     drawThickLine(g, lead2, point2);
     Font f("SansSerif", Font::BOLD, 14);
     g.setFont(f);
+    if (role != nullptr && !role->empty())
+        drawCenteredText(g, *role, center.x, center.y, true);
     int hsv = showCircle ? circleSize + 3 : 4;
     if (mustShowVoltage()) {
         std::string s;

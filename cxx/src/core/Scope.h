@@ -221,7 +221,12 @@ public:
     bool showingElm(const CircuitElm *e) const;
     bool viewingWire() const;
     // Populate roles with all elements involved in this scope's display
-    void addScopePlotRoles(std::unordered_set<CircuitElm *> &roles) const;
+    // Populate roles map with all elements involved in this scope's display.
+    // In XY mode each element is labelled by its axis role; in normal mode all
+    // visible plot elements get an empty label (highlighted but unlabelled).
+    void addScopePlotRoles(std::unordered_map<CircuitElm *, std::string> &roles) const;
+    void addPlotRole(std::unordered_map<CircuitElm *, std::string> &roles, int idx, const std::string &role) const;
+    static void addElmRole(std::unordered_map<CircuitElm *, std::string> &roles, CircuitElm *elm, const std::string &role);
     bool needToRemove();
     // drop plots of an element that's being deleted
     void elementDeleted(const CircuitElm *ce);

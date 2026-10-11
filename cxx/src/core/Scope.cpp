@@ -1228,11 +1228,34 @@ bool Scope::viewingWire() const {
     return false;
 }
 
-void Scope::addScopePlotRoles(std::unordered_set<CircuitElm *> &roles) const {
-    // TODO: X/Y role labels
-    for (ScopePlot *p : visiblePlots)
-        if (p->elm != nullptr)
-            roles.insert(p->elm);
+void Scope::addScopePlotRoles(std::unordered_map<CircuitElm *, std::string> &roles) const {
+    if (plot2d.plotXY) {
+        addPlotRole(roles, plot2d.plotX,          "X");
+        addPlotRole(roles, plot2d.plotY,          "Y");
+        addPlotRole(roles, plot2d.plotBrightness, "Br");
+        addPlotRole(roles, plot2d.plotColorR,     "R");
+        addPlotRole(roles, plot2d.plotColorG,     "G");
+        addPlotRole(roles, plot2d.plotColorB,     "B");
+    } else {
+        for (ScopePlot *p : visiblePlots)
+            if (p->elm != nullptr)
+                addElmRole(roles, p->elm, "");
+    }
+}
+
+void Scope::addPlotRole(std::unordered_map<CircuitElm *, std::string> &roles, int idx, const std::string &role) const {
+    if (idx < 0 || idx >= (int) plots.size()) return;
+    if (plots[idx]->elm != nullptr)
+        addElmRole(roles, plots[idx]->elm, role);
+}
+
+void Scope::addElmRole(std::unordered_map<CircuitElm *, std::string> &roles, CircuitElm *elm, const std::string &role) {
+    if (elm == nullptr) return;
+    auto it = roles.find(elm);
+    if (it == roles.end())
+        roles[elm] = role;
+    else
+        it->second += "/" + role;
 }
 
 bool Scope::needToRemove() {

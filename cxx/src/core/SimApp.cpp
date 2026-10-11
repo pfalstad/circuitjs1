@@ -87,6 +87,7 @@ bool SimApp::canDelayWireProcessing() {
 }
 
 void SimApp::elementDeleted(CircuitElm *ce) {
+    scopePlotRoles.erase(ce);
     if (scopeManager != nullptr)
         scopeManager->elementDeleted(ce);
 }

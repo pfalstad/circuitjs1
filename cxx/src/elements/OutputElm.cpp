@@ -90,7 +90,9 @@ void OutputElm::draw(Graphics &g) {
     g.setFont(f);
     g.setColor(sel ? selectColor : lightGrayColor);
     std::string s = showVoltage() ? getUnitTextWithScale(nodes[0]->v, "V", scale, isFixed()) : Locale::LS("out");
-    // TODO: show the scope plot role when this output is being plotted
+    const std::string *role = app->getScopePlotRole(this);
+    if (role != nullptr && !role->empty())
+        s = *role;
     interpPoint(point1, point2, lead1, 1 - (std::trunc(g.measureWidth(s) / 2) + 8) / dn);
     setBbox(point1, lead1, 0);
     drawCenteredText(g, s, x2, y2, true);

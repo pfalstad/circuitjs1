@@ -140,7 +140,8 @@ scale, triggers, the Max/Min/RMS/frequency overlays and cursor readout, and can
 be added, stacked, combined and removed from the context menus and the Scopes
 menu.  X/Y plots (ScopePlot2d), the spectrum view (ScopeFFT, linear or dB, with
 a frequency/dB cursor readout and the phase angle overlay) and the Scope
-Properties dialog are ported, as are Export CSV and Export Image (PNG or SVG).  Undocked
+Properties dialog are ported (hovering an X/Y plot labels its probes and outputs
+X, Y, Br, R, G or B), as are Export CSV and Export Image (PNG or SVG).  Undocked
 scopes (ScopeElm) load, save and draw in the circuit, and can be docked,
 undocked and created with "View in New Undocked Scope".
 
@@ -193,7 +194,6 @@ Console: Tools → Console shows everything written to std::cerr/std::cout
 there is no browser console.  Output still goes to the terminal as well.
 
 Not yet ported:
-- X/Y role labels on plotted probes and outputs
 - things only the web page needs: JSInterface, Dropbox import, element JS methods
 
 Audio: the core does the sampling, scaling and WAV encoding (matching the TS
