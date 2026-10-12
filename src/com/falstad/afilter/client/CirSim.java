@@ -1692,10 +1692,9 @@ MouseOutHandler, MouseWheelHandler {
         return ym;
     }    
 
-    // loose tolerance: clusters of real poles (e.g. op-amp poles near GBW) can
-    // come back from the root finder as complex pairs with small imaginary parts
+    // the eigenvalue solver returns real poles with exactly zero imaginary part
     static boolean isRealPole(Complex c) {
-        return Math.abs(c.im) < .01 * Math.abs(c.re);
+        return Math.abs(c.im) < 1e-8;
     }
 
     void drawPoles(Graphics g) {
@@ -1743,7 +1742,7 @@ MouseOutHandler, MouseWheelHandler {
         for (i = 0; i != poles.length; i++) {
             if (!isRealPole(poles[i]))
                 allReal = false;
-	    console("pole " + i + " " + poles[i].re + " " + poles[i].im + " " + isRealPole(poles[i]));
+	    //console("pole " + i + " " + poles[i].re + " " + poles[i].im + " " + isRealPole(poles[i]));
 	}
         for (i = 0; i != poles.length; i++) {
             Complex c = poles[i];
@@ -1816,9 +1815,7 @@ MouseOutHandler, MouseWheelHandler {
             g.setColor((customizer != null && customizer.isPoleSelected(c, mouseElm)) ?
                        CircuitElm.selectColor : Color.white);
             int cx = (int) (rx + c.re*scale);
-            // draw near-real poles on the real axis so off-screen ones get
-            // an edge indicator on the axis rather than in a corner
-            int cy = (int) (my - (isRealPole(c) ? 0 : c.im*scale));
+            int cy = (int) (my - c.im*scale);
             drawPoleMarker(g, cx, cy, false);
         }
         // always use our computed zeros
