@@ -333,7 +333,7 @@ MouseOutHandler, MouseWheelHandler {
     Canvas backcv;
     Context2d backcontext;
     static final int MENUBARHEIGHT=30;
-    static int VERTICALPANELWIDTH=166; // default
+    static int VERTICALPANELWIDTH=249; // default
     static final int POSTGRABSQ=16;
     final Timer timer = new Timer() {
 	      public void run() {
@@ -701,11 +701,11 @@ MouseOutHandler, MouseWheelHandler {
 
 	  
     	int width=(int)RootLayoutPanel.get().getOffsetWidth();
-    	VERTICALPANELWIDTH = width/5;
-    	if (VERTICALPANELWIDTH > 166)
-    	    VERTICALPANELWIDTH = 166;
-    	if (VERTICALPANELWIDTH < 128)
-    	    VERTICALPANELWIDTH = 128;
+    	VERTICALPANELWIDTH = width*3/10;
+    	if (VERTICALPANELWIDTH > 249)
+    	    VERTICALPANELWIDTH = 249;
+    	if (VERTICALPANELWIDTH < 192)
+    	    VERTICALPANELWIDTH = 192;
 
         if (!hideMenu)
 	  layoutPanel.addNorth(menuBar, MENUBARHEIGHT);
