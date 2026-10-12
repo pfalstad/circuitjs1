@@ -76,6 +76,7 @@ import com.google.gwt.event.dom.client.DoubleClickHandler;
 import com.google.gwt.event.dom.client.DoubleClickEvent;
 import com.google.gwt.dom.client.CanvasElement;
 import com.google.gwt.dom.client.NativeEvent;
+import com.google.gwt.dom.client.Document;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.safehtml.shared.SafeHtmlUtils;
 import com.google.gwt.storage.client.Storage;
@@ -119,8 +120,10 @@ MouseOutHandler, MouseWheelHandler {
 //    }
 
 //    static Container main;
-    // IES - remove interaction
-//    Label titleLabel;
+    Label titleLabel;
+    static final String baseTitle = "Analog Filter";
+    String currentSetupFile;
+    HashMap<String,String> setupTitles = new HashMap<String,String>();
     Button resetButton;
     Checkbox soundCheck;
     Timer soundRestartTimer;
@@ -797,6 +800,11 @@ MouseOutHandler, MouseWheelHandler {
 	                                          50, 1, 1, 100, new Command() {
 	    public void execute() { scrollChanged(); }}, null));
 
+	verticalPanel.add(l = new Label("Current Circuit:"));
+	l.addStyleName("topSpace");
+	verticalPanel.add(titleLabel = new Label(""));
+	titleLabel.getElement().getStyle().setMarginBottom(12, Unit.PX);
+
 	verticalPanel.add(iFrame = new Frame("iframe.html"));
 	iFrame.setWidth(VERTICALPANELWIDTH+"px");
 	iFrame.setHeight("100 px");
@@ -870,6 +878,7 @@ MouseOutHandler, MouseWheelHandler {
 	if (startCircuitText != null) {
 	    getSetupList(false);
 	    readSetup(startCircuitText, false);
+	    setCircuitTitle(startLabel);
 	} else {
 	    readSetup(null, 0, false, false);
 	    if (stopMessage == null && startCircuit != null) {
@@ -4154,6 +4163,10 @@ MouseOutHandler, MouseWheelHandler {
     				String file = line.substring(first ? 1 : 0, i);
  //   				menu.add(getMenuItem(title, "setup " + file));
     				currentMenuBar.addItem(new MenuItem(title, new MyCommand("circuits", "setup "+file)));
+    				setupTitles.put(file, title);
+    				// startup circuit may have been loaded before the list arrived
+    				if (file.equals(currentSetupFile) && titleLabel.getText().length() == 0)
+    					setCircuitTitle(title);
     				if (first && startCircuit == null) {
     					startCircuit = file;
     					startLabel = title;
@@ -4195,6 +4208,10 @@ MouseOutHandler, MouseWheelHandler {
 		t = 0;
 		// a built-in circuit, so don't suggest the last file name when saving
 		ExportAsLocalFileDialog.setLastFileName(null);
+		currentSetupFile = str;
+		if (title == null || title.length() == 0)
+			title = setupTitles.get(str);
+		setCircuitTitle(title);
 		System.out.println(str);
 //		try {
 		// TODO: Maybe think about some better approach to cache management!
@@ -4214,8 +4231,14 @@ MouseOutHandler, MouseWheelHandler {
 //				stop("Unable to read " + str + "!", null);
 //			}
 	//	}
-		// IES - remove interaction
-		// titleLabel.setText(title);
+	}
+
+	void setCircuitTitle(String s) {
+		titleLabel.setText(s == null ? "" : s.replace("_", "_\u200B"));
+		if (s != null && s.length() > 0)
+			Document.get().setTitle(s + " - " + baseTitle);
+		else
+			Document.get().setTitle(baseTitle);
 	}
 	
 	void loadFileFromURL(String url, final boolean center) {

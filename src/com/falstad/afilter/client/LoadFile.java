@@ -40,6 +40,8 @@ public class LoadFile extends FileUpload implements  ChangeHandler {
 	
 	static public void doLoadCallback(String s, String t) {
 		sim.readSetup(s, true);
+		sim.currentSetupFile = null;
+		sim.setCircuitTitle(t);
 		sim.createNewLoadFile();
 		ExportAsLocalFileDialog.setLastFileName(t);
 	}
