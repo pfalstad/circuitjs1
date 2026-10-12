@@ -74,28 +74,6 @@ class Polynomial {
 	return r;
     }
 
-    // Exact division: this / divisor with no remainder.
-    // Used in Bareiss algorithm where divisions are guaranteed exact.
-    Polynomial exactDiv(Polynomial divisor) {
-	if (divisor.isZero())
-	    return new Polynomial(0);
-	// Polynomial long division
-	int n = degree();
-	int d = divisor.degree();
-	if (n < d)
-	    return new Polynomial(0);
-	double[] rem = new double[n + 1];
-	for (int i = 0; i <= n; i++)
-	    rem[i] = (i < coeffs.length) ? coeffs[i] : 0;
-	double[] result = new double[n - d + 1];
-	for (int i = n - d; i >= 0; i--) {
-	    result[i] = rem[i + d] / divisor.coeffs[d];
-	    for (int j = 0; j <= d; j++)
-		rem[i + j] -= result[i] * divisor.coeffs[j];
-	}
-	return new Polynomial(result);
-    }
-
     // Evaluate polynomial at complex value s using Horner's method
     Complex evaluate(Complex s) {
 	int d = degree();
