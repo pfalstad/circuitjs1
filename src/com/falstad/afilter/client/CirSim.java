@@ -252,7 +252,10 @@ MouseOutHandler, MouseWheelHandler {
     int voltageSourceCount;
     int circuitMatrixSize, circuitMatrixFullSize;
     Polynomial polyMatrix[][], polyRightSide[];
-    Polynomial transferNum, transferDen;
+    // H(s) = transferGain * prod(s - polyZeros) / prod(s - polyPoles);
+    // zero if the transfer function isn't available
+    double transferGain;
+    boolean transferSingular; // circuit matrix is singular at all frequencies
     Complex[] polyPoles, polyZeros;
     // true if buildTransferFunction() got a usable transfer function, so an empty
     // polyPoles/polyZeros means there really are none
@@ -1860,7 +1863,7 @@ MouseOutHandler, MouseWheelHandler {
         impulseResponse = null;
         if (polyPoles == null || polyPoles.length == 0)
             return;
-        if (transferNum == null || transferNum.isZero() || transferDen == null || transferDen.isZero())
+        if (transferGain == 0)
             return;
 
         // All poles must be in the left-half plane for a stable, decaying response
@@ -1872,35 +1875,7 @@ MouseOutHandler, MouseWheelHandler {
         }
         if (minDecay == Double.MAX_VALUE) return;
 
-        // Choose a real evaluation point far from all poles/zeros for computing K
-        double sigma0 = 1.0;
-        for (int i = 0; i < polyPoles.length; i++)
-            if (Math.abs(polyPoles[i].im) > sigma0) sigma0 = Math.abs(polyPoles[i].im);
-        if (polyZeros != null)
-            for (int i = 0; i < polyZeros.length; i++)
-                if (Math.abs(polyZeros[i].im) > sigma0) sigma0 = Math.abs(polyZeros[i].im);
-        sigma0 *= 10;
-
-        // K = H(sigma0) * prod(sigma0 - p_i) / prod(sigma0 - z_i)
-        Complex s0 = new Complex(sigma0, 0);
-        Complex Hs0 = transferNum.evaluate(s0);
-        Complex Hd0 = transferDen.evaluate(s0);
-        Hs0.divide(Hd0);
-
-        Complex prodP = new Complex(1.0);
-        for (int i = 0; i < polyPoles.length; i++) {
-            prodP.mult(new Complex(sigma0 - polyPoles[i].re, -polyPoles[i].im));
-        }
-        Complex prodZ = new Complex(1.0);
-        if (polyZeros != null)
-            for (int i = 0; i < polyZeros.length; i++)
-                prodZ.mult(new Complex(sigma0 - polyZeros[i].re, -polyZeros[i].im));
-
-        // K = H(s0) * prodP / prodZ  (should be real for a real filter)
-        Hs0.mult(prodP);
-        if (polyZeros != null && polyZeros.length > 0)
-            Hs0.divide(prodZ);
-        double K = Hs0.re;
+        double K = transferGain;
 
         // Time range: show 5 time constants of the slowest pole
         int n = (impulseArea != null) ? impulseArea.width : 512;
@@ -2515,12 +2490,12 @@ MouseOutHandler, MouseWheelHandler {
     void buildTransferFunction() {
 	int i, j;
 	polyAvailable = false;
+	transferSingular = false;
 
 	// Guard: if circuit not yet initialized, bail out
 	if (nodeList == null || circuitMatrixSize == 0) {
 	    console("buildTransferFunction: circuit not initialized yet");
-	    transferNum = new Polynomial(0);
-	    transferDen = new Polynomial(1.0);
+	    transferGain = 0;
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
 	    return;
@@ -2615,14 +2590,13 @@ MouseOutHandler, MouseWheelHandler {
 	    }
 	}
 	console("!!!polymatrixsize " + polyMatrixSize);
-	useOldSolve = hasTransLine || polyMatrixSize > 22;
+	useOldSolve = hasTransLine || polyMatrixSize > 200;
 
-	// If matrix is too large for cofactor expansion or has trans lines,
-	// skip polynomial determinant and fall back to per-frequency solve
+	// If matrix is too large or has trans lines, skip finding poles and
+	// zeros and fall back to per-frequency solve
 	if (useOldSolve) {
 	    //console("buildTransferFunction: skipping polynomial determinant" + (hasTransLine ? " (transmission line present)" : " (matrix too large: " + polyMatrixSize + ")"));
-	    transferNum = new Polynomial(0);
-	    transferDen = new Polynomial(1.0);
+	    transferGain = 0;
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
 	    return;
@@ -2705,8 +2679,7 @@ MouseOutHandler, MouseWheelHandler {
 	//console("buildTransferFunction: outputNode=" + outputNode + " (reduced matrix index)");
 
 	if (outputNode < 0) {
-	    transferNum = new Polynomial(0);
-	    transferDen = new Polynomial(1.0);
+	    transferGain = 0;
 	    polyPoles = new Complex[0];
 	    polyZeros = new Complex[0];
 	    return;
@@ -2721,42 +2694,23 @@ MouseOutHandler, MouseWheelHandler {
 	    console(s);
 	}*/
 
-	// Compute denominator = det(polyMatrix)
-	transferDen = PolynomialMatrix.determinant(polyMatrix, polyMatrixSize);
-	//console("transferDen: " + transferDen.asString());
-
-	// Compute numerator via Cramer's rule
-	transferNum = PolynomialMatrix.cramerNumerator(
+	// Find poles, zeros, and gain
+	PolynomialMatrix.Result pz = PolynomialMatrix.solve(
 		polyMatrix, polyRightSide, polyMatrixSize, outputNode);
-	//console("transferNum (raw): " + transferNum.asString());
 
-	// Strip only the common s^n factor (from the s-multiplication).
-	// The minimum of the two lowest powers is the common factor;
-	// any extra s factors in the numerator are real zeros at the origin.
-	int commonPower = Math.min(transferNum.lowestPower(),
-				   transferDen.lowestPower());
-	/*console("stripping common s^" + commonPower +
-		" (num lowest=" + transferNum.lowestPower() +
-		" den lowest=" + transferDen.lowestPower() + ")");*/
-	transferNum = transferNum.divideByS(commonPower);
-	transferDen = transferDen.divideByS(commonPower);
-	//console("transferNum (stripped): " + transferNum.asString());
-	//console("transferDen (stripped): " + transferDen.asString());
-
-	// Find poles and zeros
-	polyPoles = RootFinder.findRoots(transferDen);
-	polyZeros = RootFinder.findRoots(transferNum);
-
-	/*console("poles (" + polyPoles.length + "):");
-	for (i = 0; i < polyPoles.length; i++)
-	    console("  " + polyPoles[i].asString());
-	console("zeros (" + polyZeros.length + "):");
-	for (i = 0; i < polyZeros.length; i++)
-	    console("  " + polyZeros[i].asString());*/
-
-	// a zero numerator or denominator means the matrix was singular (calcResponse()
-	// falls back to solving per frequency), so the roots mean nothing
-	polyAvailable = !transferNum.isZero() && !transferDen.isZero();
+	// with a zero numerator, calcResponse() falls back to solving per
+	// frequency, so there are no poles or zeros to show
+	if (pz == null || pz.singular || pz.gain == 0) {
+	    transferGain = 0;
+	    transferSingular = pz != null && pz.singular;
+	    polyPoles = new Complex[0];
+	    polyZeros = new Complex[0];
+	    return;
+	}
+	transferGain = pz.gain;
+	polyPoles = pz.poles;
+	polyZeros = pz.zeros;
+	polyAvailable = true;
 	console("got poles/zeroes from transfer function");
     }
 
@@ -2776,6 +2730,20 @@ MouseOutHandler, MouseWheelHandler {
 	}
     }
 
+    // H(s) from the poles, zeros, and gain.  Factors are interleaved to
+    // avoid overflow with many poles or zeros.
+    Complex evalTransfer(Complex s) {
+	Complex h = new Complex(transferGain);
+	int n = Math.max(polyPoles.length, polyZeros.length);
+	for (int i = 0; i < n; i++) {
+	    if (i < polyZeros.length)
+		h.mult(new Complex(s.re - polyZeros[i].re, s.im - polyZeros[i].im));
+	    if (i < polyPoles.length)
+		h.divide(new Complex(s.re - polyPoles[i].re, s.im - polyPoles[i].im));
+	}
+	return h;
+    }
+
     void calcResponse() {
 	int i, fi;
 
@@ -2784,9 +2752,9 @@ MouseOutHandler, MouseWheelHandler {
 	    return;
 
 	// Build transfer function when circuit changed (responseChanged) or first time
-	if (responseChanged || transferNum == null) {
+	if (responseChanged || polyPoles == null) {
 	    buildTransferFunction();
-	    if (useOldSolve || transferNum.isZero()) {
+	    if (useOldSolve || (transferGain == 0 && !transferSingular)) {
 		// Incremental solve: initialize and clear responseChanged now —
 		// the response will update progressively via specStep
 		specStep = response.length;
@@ -2795,7 +2763,7 @@ MouseOutHandler, MouseWheelHandler {
 	    }
 	}
 
-	if (useOldSolve || transferNum.isZero()) {
+	if (useOldSolve || (transferGain == 0 && !transferSingular)) {
 	    // Incremental per-frequency matrix solve (transmission lines or large matrix).
 	    // Each call does up to ~50ms of work, interpolating between solved points.
 	    if (specStep == 0)
@@ -2848,7 +2816,7 @@ MouseOutHandler, MouseWheelHandler {
 		    lastSoundUpdateTime = now;
 		}
 	    }
-	} else if (transferDen.isZero()) {
+	} else if (transferSingular) {
 	    // Singular — fall back to zero response; skip if nothing changed
 	    if (!responseChanged) return;
 	    for (fi = 0; fi < response.length; fi++) {
@@ -2859,15 +2827,12 @@ MouseOutHandler, MouseWheelHandler {
 		scheduleSoundRestart();
 	    responseChanged = false;
 	} else {
-	    // Evaluate H(jw) = N(jw)/D(jw) at each frequency point; skip if nothing changed
+	    // Evaluate H(jw) from the poles and zeros at each frequency point; skip if nothing changed
 	    if (!responseChanged) return;
 	    for (fi = 0; fi < response.length; fi++) {
 		frequency = linearToFrequency(fi/(double) response.length);
 		double w = 2*pi*frequency;
-		Complex jw = new Complex(0, w);
-		Complex num = transferNum.evaluate(jw);
-		Complex den = transferDen.evaluate(jw);
-		num.divide(den);
+		Complex num = evalTransfer(new Complex(0, w));
 		response[fi] = num.mag();
 		phaseResponse[fi] = -num.phase();
 	    }
