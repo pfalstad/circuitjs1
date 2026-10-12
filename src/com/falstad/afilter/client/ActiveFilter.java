@@ -291,7 +291,7 @@ class ActiveFilter extends FilterCustomizer {
 	int top = tall ? Y-128 : Y-80;
 	int bot = tall ? Y+176 : Y+144;
 	for (i = 0; i != n; i++) {
-	    int w = isBoctor(i) ? BW : SW;
+	    int w = isBoctor(i) ? BW : getStageWidth();
 	    boxes[i] = (BoxElm) add("B " + x + " " + top + " " + (x+w) + " " + bot + " 1 Box");
 	    if (isBoctor(i))
 		buildBoctor(i, x, Character.toLowerCase(builtKey.charAt(i)) == 'l',
@@ -306,6 +306,7 @@ class ActiveFilter extends FilterCustomizer {
     }
 
     void buildStage(int i, int x, boolean real) {}
+    int getStageWidth() { return SW; }
 
     ResistorElm addRes(int x1, int y1, int x2, int y2) { return (ResistorElm) add('r', x1, y1, x2, y2, "100"); }
     CapacitorElm addCap(int x1, int y1, int x2, int y2) { return (CapacitorElm) add('c', x1, y1, x2, y2, "1e-6 0"); }
@@ -360,7 +361,7 @@ class ActiveFilter extends FilterCustomizer {
 	}
     }
 
-    static final int BW = 208;
+    static final int BW = 240;
 
     // single op-amp Boctor notch stage, H(s^2+wz^2)/(s^2+s w0/Q+w0^2).  The
     // lowpass notch (wz > w0) omits R2 and the highpass notch (wz < w0) omits
@@ -375,24 +376,25 @@ class ActiveFilter extends FilterCustomizer {
 	// short lead so the input wire doesn't overlap the previous stage
 	addWire(x, y, x+16, y);
 	x += 16;
-	addOpAmp(x+128, y+8, x+176, y+8, false);
-	addWire(x+176, y+8, x+176, y);
-	addWire(x+176, y, x+192, y);
-	addWire(x+96, y, x+128, y);
-	addWire(x+128, y+16, x+128, y+64);
+	// leave room for the values of the vertical parts left of the op-amp
+	addOpAmp(x+160, y+8, x+208, y+8, false);
+	addWire(x+208, y+8, x+208, y);
+	addWire(x+208, y, x+224, y);
+	addWire(x+112, y, x+160, y);
+	addWire(x+160, y+16, x+160, y+64);
 	addWire(x, y, x, y+64);
 	if (lpn) {
 	    // res: R1 R3 R4 R5 R6; caps: C1 C2
 	    caps[i][1] = addCap(x, y, x+48, y);
-	    res[i][4] = addRes(x+48, y, x+96, y);
-	    addWire(x+96, y, x+96, y-48);
-	    caps[i][0] = addCap(x+96, y-48, x+176, y-48);
-	    addWire(x+176, y, x+176, y-48);
+	    res[i][4] = addRes(x+48, y, x+112, y);
+	    addWire(x+112, y, x+112, y-48);
+	    caps[i][0] = addCap(x+112, y-48, x+208, y-48);
+	    addWire(x+208, y, x+208, y-48);
 	    addWire(x+48, y, x+48, y-96);
-	    res[i][2] = addRes(x+48, y-96, x+176, y-96);
-	    addWire(x+176, y-48, x+176, y-96);
-	    res[i][0] = addRes(x+96, y, x+96, y+48);
-	    addGround(x+96, y+48);
+	    res[i][2] = addRes(x+48, y-96, x+208, y-96);
+	    addWire(x+208, y-48, x+208, y-96);
+	    res[i][0] = addRes(x+112, y, x+112, y+48);
+	    addGround(x+112, y+48);
 	    if (scaled) {
 		caps[i][2] = addCap(x+48, y, x+48, y+48);
 		addGround(x+48, y+48);
@@ -400,33 +402,33 @@ class ActiveFilter extends FilterCustomizer {
 	    // input divider to the noninverting input
 	    addWire(x, y+64, x, y+96);
 	    res[i][1] = addRes(x, y+96, x+64, y+96);
-	    addWire(x+64, y+96, x+128, y+96);
-	    addWire(x+128, y+64, x+128, y+96);
-	    res[i][3] = addRes(x+128, y+96, x+128, y+144);
-	    addGround(x+128, y+144);
+	    addWire(x+64, y+96, x+160, y+96);
+	    addWire(x+160, y+64, x+160, y+96);
+	    res[i][3] = addRes(x+160, y+96, x+160, y+144);
+	    addGround(x+160, y+144);
 	} else {
 	    // res: R1 R2 R3 R5 R6; caps: C1 C2
 	    caps[i][1] = addCap(x, y, x+48, y);
-	    res[i][1] = addRes(x+48, y, x+96, y);
-	    addWire(x+96, y, x+96, y-48);
-	    res[i][3] = addRes(x+96, y-48, x+176, y-48);
-	    addWire(x+176, y, x+176, y-48);
+	    res[i][1] = addRes(x+48, y, x+112, y);
+	    addWire(x+112, y, x+112, y-48);
+	    res[i][3] = addRes(x+112, y-48, x+208, y-48);
+	    addWire(x+208, y, x+208, y-48);
 	    if (scaled) {
-		addWire(x+96, y-48, x+96, y-96);
-		res[i][5] = addRes(x+96, y-96, x+32, y-96);
-		addGround(x+32, y-96);
+		addWire(x+112, y-48, x+112, y-96);
+		res[i][5] = addRes(x+112, y-96, x+48, y-96);
+		addGround(x+48, y-96);
 	    }
 	    // noninverting input
-	    addWire(x, y+64, x+64, y+64);
-	    caps[i][0] = addCap(x+64, y+64, x+128, y+64);
-	    res[i][2] = addRes(x+128, y+64, x+176, y+64);
-	    addWire(x+176, y+64, x+176, y+8);
+	    addWire(x, y+64, x+96, y+64);
+	    caps[i][0] = addCap(x+96, y+64, x+160, y+64);
+	    res[i][2] = addRes(x+160, y+64, x+208, y+64);
+	    addWire(x+208, y+64, x+208, y+8);
 	    addWire(x, y+64, x, y+96);
 	    res[i][0] = addRes(x, y+96, x+64, y+96);
-	    addWire(x+64, y+96, x+128, y+96);
-	    addWire(x+128, y+64, x+128, y+96);
-	    res[i][4] = addRes(x+128, y+96, x+128, y+144);
-	    addGround(x+128, y+144);
+	    addWire(x+64, y+96, x+160, y+96);
+	    addWire(x+160, y+64, x+160, y+96);
+	    res[i][4] = addRes(x+160, y+96, x+160, y+144);
+	    addGround(x+160, y+144);
 	}
     }
 

@@ -18,7 +18,10 @@ class BandPassActiveFilter extends ActiveFilter {
 
     int getMaxPoles() { return 10; }
 
-    // multiple-feedback bandpass stage
+    // multiple-feedback bandpass stage.  Caps are longer than usual so
+    // there's room to display their values.
+    static final int BPW = SW+16;
+    int getStageWidth() { return BPW; }
     void buildStage(int i, int x, boolean real) {
 	int y = Y;
 	res[i] = new ResistorElm[3];
@@ -26,16 +29,16 @@ class BandPassActiveFilter extends ActiveFilter {
 	res[i][1] = addRes(x, y, x+48, y);            // input
 	res[i][2] = addRes(x+48, y, x+48, y+88);      // to ground
 	addGround(x+48, y+88);
-	caps[i][0] = addCap(x+48, y, x+96, y);        // to inverting input
+	caps[i][0] = addCap(x+48, y, x+112, y);       // to inverting input
 	addWire(x+48, y-64, x+48, y);
-	caps[i][1] = addCap(x+48, y-64, x+96, y-64);  // to output
-	res[i][0] = addRes(x+96, y-64, x+96, y);      // feedback
-	addWire(x+96, y-64, x+SW, y-64);
-	addOpAmp(x+112, y+8, x+SW, y+8, false);
-	addWire(x+112, y, x+96, y);
-	addGround(x+112, y+16);
-	addWire(x+SW, y+8, x+SW, y);
-	addWire(x+SW, y, x+SW, y-64);
+	caps[i][1] = addCap(x+48, y-64, x+112, y-64); // to output
+	res[i][0] = addRes(x+112, y-64, x+112, y);    // feedback
+	addWire(x+112, y-64, x+BPW, y-64);
+	addOpAmp(x+128, y+8, x+BPW, y+8, false);
+	addWire(x+128, y, x+112, y);
+	addGround(x+128, y+16);
+	addWire(x+BPW, y+8, x+BPW, y);
+	addWire(x+BPW, y, x+BPW, y-64);
     }
 
     // returns k, the gain of the stage, given the gain wanted
