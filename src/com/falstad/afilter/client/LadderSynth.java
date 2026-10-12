@@ -80,16 +80,22 @@ class LadderSynth {
     }
 
     // Source and load resistance both present (Darlington synthesis), normalized
-    // to Rs = 1.  The load is chosen to give maximum power transfer at the peak of
-    // the response; it equals the source except for even-order Chebyshev filters.
-    static LadderSynth doublyTerminated(double e[], double zeros[], boolean shuntFirst) {
+    // to Rs = 1, with the load as close to r as possible.  The load at DC must
+    // equal the ladder's input impedance there, so |S21(0)|^2 = 4r/(1+r)^2.  But
+    // |S21| can't exceed 1, so when the response peaks above DC (even-order
+    // Chebyshev and elliptic) the load is limited to the ratio that gives maximum
+    // power transfer at the peak.  Also, F(0) changes sign only by reflecting a
+    // real root, so with an even number of poles the topology determines whether
+    // the load is greater or less than the source; the reciprocal ratio is used
+    // if r is on the wrong side.
+    static LadderSynth doublyTerminated(double e[], double zeros[], boolean shuntFirst, double r) {
 	int n = e.length-1;
 	int i, j;
 	double nz[] = polyFromZeros(zeros);
 
-	// k^2 = 1/max |N(jw)/E(jw)|^2, so that |S21| peaks at 1
+	// |S21|^2 = k^2 |N(jw)/E(jw)|^2, with k^2 <= 1/max |N/E|^2 so |S21| <= 1
 	double m = maxGainSquared(e, nz);
-	double k2 = 1/m;
+	double k2 = Math.min(4*r/((1+r)*(1+r)), 1/m);
 
 	// P(s) = E(s)E(-s) - k^2 N(s)^2 = F(s)F(-s).  P is even, so find roots in w = s^2.
 	double p[] = new double[2*n+1];
@@ -156,22 +162,20 @@ class LadderSynth {
 
 	// F(s) = c * prod(s - s_i), with c = +/- leading coeff of E.  The sign
 	// determines whether the input impedance starts with a series or shunt element.
-	Complex f[] = new Complex[n+1];
-	for (i = 0; i <= n; i++)
-	    f[i] = new Complex(0);
-	f[0].set(1);
-	for (i = 0; i != n; i++) {
-	    Complex nr = new Complex(sroots[i]);
-	    nr.mult(-1);
-	    for (j = i+1; j >= 0; j--) {
-		Complex c = new Complex(f[j]);
-		c.mult(nr);
-		if (j > 0)
-		    c.add(f[j-1]);
-		f[j] = c;
+	double c = shuntFirst ? -e[n] : e[n];
+	Complex f[] = polyFromRoots(sroots);
+	// Zin(0) = (1+F(0))/(1-F(0)) is the load.  reflect a real root into the
+	// right half plane if needed to get the load on the requested side of 1.
+	if (Math.abs(r-1) > 1e-9 && (c*f[0].re > 0) != (r > 1)) {
+	    for (i = 0; i != n; i++) {
+		Complex s = sroots[i];
+		if (s.mag() > 1e-8 && Math.abs(s.im) < 1e-8*s.mag()) {
+		    s.set(-s.re, 0);
+		    f = polyFromRoots(sroots);
+		    break;
+		}
 	    }
 	}
-	double c = shuntFirst ? -e[n] : e[n];
 	double epf[] = new double[n+1];
 	double emf[] = new double[n+1];
 	for (i = 0; i <= n; i++) {
@@ -183,8 +187,31 @@ class LadderSynth {
 	// otherwise an admittance.
 	boolean isZ = !shuntFirst;
 	LadderSynth ls = expand(isZ ? epf : emf, trim(isZ ? emf : epf, n), isZ, zeros, n);
-	ls.gain = .5*Math.sqrt(ls.load)/Math.sqrt(m);
+	// |Vout/Vs| = |S21| sqrt(RL/Rs)/2
+	ls.gain = .5*Math.sqrt(k2*ls.load);
 	return ls;
+    }
+
+    // monic polynomial with the given roots.  coefficient i is for s^i.
+    static Complex [] polyFromRoots(Complex roots[]) {
+	int n = roots.length;
+	int i, j;
+	Complex f[] = new Complex[n+1];
+	for (i = 0; i <= n; i++)
+	    f[i] = new Complex(0);
+	f[0].set(1);
+	for (i = 0; i != n; i++) {
+	    Complex nr = new Complex(roots[i]);
+	    nr.mult(-1);
+	    for (j = i+1; j >= 0; j--) {
+		Complex c = new Complex(f[j]);
+		c.mult(nr);
+		if (j > 0)
+		    c.add(f[j-1]);
+		f[j] = c;
+	    }
+	}
+	return f;
     }
 
     // Expand an LC immittance num/den with a pole at infinity into n ladder

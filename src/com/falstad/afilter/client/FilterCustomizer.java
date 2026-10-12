@@ -3,6 +3,7 @@ package com.falstad.afilter.client;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.xml.client.Element;
+import java.util.Vector;
 
 class FilterCustomizer extends Customizer {
     Choice designChooser;
@@ -761,6 +762,12 @@ class FilterCustomizer extends Customizer {
     // delete everything but the sweep source, which is moved (or created) so
     // its output is at (x, y)
     void clearCircuit(int x, int y) {
+	clearCircuit(x, y, null);
+    }
+
+    // same, but also keep the elements in keep, so they can be repositioned
+    // rather than recreated (preserving any sliders or edit dialogs on them)
+    void clearCircuit(int x, int y, Vector<CircuitElm> keep) {
 	int i;
 	SweepElm src = null;
 	sim.clearMouseElm();
@@ -770,6 +777,8 @@ class FilterCustomizer extends Customizer {
 		src = (SweepElm) ce;
 		continue;
 	    }
+	    if (keep != null && keep.contains(ce))
+		continue;
 	    ce.delete();
 	    sim.elmList.removeElementAt(i--);
 	}
