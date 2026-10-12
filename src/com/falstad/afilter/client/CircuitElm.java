@@ -615,6 +615,13 @@ public abstract class CircuitElm implements Editable {
 	g.setFont(unitsFont);
 	//FontMetrics fm = g.getFontMetrics();
 	int w = (int)g.context.measureText(s).getWidth();;
+	// shrink long labels (like "470.1nF") to about the width of a short one
+	int maxw = (int)g.context.measureText("180nF").getWidth();
+	if (w > maxw) {
+	    int sz = Math.max(9, unitsFont.size*maxw/w);
+	    g.setFont(new Font("SansSerif", 0, sz));
+	    w = (int)g.context.measureText(s).getWidth();
+	}
 	g.setColor(whiteColor);
 	int ya = (int)g.currentFontSize/2;
 	int xc, yc;
@@ -635,6 +642,7 @@ public abstract class CircuitElm implements Editable {
 		xx = xc-(w+abs(dpx)+2);
 	    g.drawString(s, xx, yc+dpy+ya);
 	}
+	g.setFont(unitsFont);
     }
     void drawCoil(Graphics g, int hs, Point p1, Point p2,
 		  double v1, double v2) {
