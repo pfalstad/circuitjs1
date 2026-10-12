@@ -63,8 +63,12 @@ class FilterCustomizer extends Customizer {
     boolean isCheby()  { return (design == FILT_CHEBY); }
     boolean isBessel() { return (design == FILT_BESSEL); }
     boolean isInvCheby() { return (design == FILT_INVCHEBY); }
+    boolean isElliptic() { return (design == FILT_ELLIPTIC); }
+    // true if the design has finite transmission zeros
+    boolean hasZeros() { return isInvCheby() || isElliptic(); }
     // true if this filter can realize the finite transmission zeros of inverse Chebyshev
     boolean hasInvCheby() { return false; }
+    boolean hasElliptic() { return false; }
     int getMaxPoles() { return 7; }
     int getDefaultPoles() { return 1; }
     int getPoleCount() {
@@ -80,12 +84,12 @@ class FilterCustomizer extends Customizer {
 	designChooser.add("Bessel");
 	if (hasInvCheby())
 	    designChooser.add("Inverse Chebyshev");
+	if (hasElliptic())
+	    designChooser.add("Elliptic");
 	designChooser.addChangeHandler(new ChangeHandler() {
 	    public void onChange(ChangeEvent ev) {
 		design = designChooser.getSelectedIndex()+1;
-		rslider.setEnabled(design == FILT_CHEBY);
-		if (aslider != null)
-		    aslider.setEnabled(design == FILT_INVCHEBY);
+		enableSliders();
 		frequencyChanged();
 	    }
 	});
@@ -110,18 +114,21 @@ class FilterCustomizer extends Customizer {
 	    pslider = createSlider("# of Poles", initPoles >= 0 ? initPoles : getDefaultPoles(), 1, getMaxPoles()+1);
 
 	rslider = null;
-	if (design > 0) {
+	if (design > 0)
 	    rslider = createSlider("Passband Ripple", initRipple >= 0 ? initRipple : 60, 1, 999);
-	    rslider.setEnabled(design == FILT_CHEBY);
-	}
 	aslider = null;
-	if (design > 0 && hasInvCheby()) {
+	if (design > 0 && (hasInvCheby() || hasElliptic()))
 	    aslider = createSlider("Stopband Attenuation", initAtten >= 0 ? initAtten : 400, 0, 901);
-	    aslider.setEnabled(design == FILT_INVCHEBY);
-	}
+	if (design > 0)
+	    enableSliders();
 	
 //	sim.main.validate();
 	frequencyChanged();
+    }
+    void enableSliders() {
+	rslider.setEnabled(design == FILT_CHEBY || design == FILT_ELLIPTIC);
+	if (aslider != null)
+	    aslider.setEnabled(hasZeros());
     }
     void delete() {
 	super.delete();
@@ -170,10 +177,10 @@ class FilterCustomizer extends Customizer {
 	int pl = getPoleCount();
 	if (pl > 0)
 	    info[i++] = "Poles: " + pl;
-	if (design == FILT_CHEBY)
+	if (design == FILT_CHEBY || design == FILT_ELLIPTIC)
 	    info[i++] = "Ripple: " + CircuitElm.showFormat.format(ripdb) +
 		" dB";
-	if (isInvCheby())
+	if (hasZeros())
 	    info[i++] = "Stopband: -" + CircuitElm.showFormat.format(getStopDb()) +
 		" dB";
     }
@@ -436,8 +443,8 @@ class FilterCustomizer extends Customizer {
 	    getChebyPole(i, pn, c1, wc, lopass);
 	else if (isBessel())
 	    getBesselPole(i, pn, c1, wc, lopass);
-	else if (isInvCheby())
-	    getInvChebyPole(i, pn, c1, wc, lopass);
+	else if (hasZeros())
+	    getZeroPole(i, pn, c1, wc, lopass);
 	else
 	    getButterPole(i, pn, c1, wc);
     }
@@ -452,10 +459,10 @@ class FilterCustomizer extends Customizer {
     // positive frequencies w of each pair of zeros at +/- jw.  the rest of the
     // zeros are at infinity.
     double [] getProtoZeros() {
-	if (!isInvCheby())
+	if (!hasZeros())
 	    return new double[0];
-	calcInvCheby(getOrder());
-	return invZeros;
+	calcZeros(getOrder());
+	return protoZeros;
     }
 
     Complex [] getZeros() {
@@ -515,17 +522,27 @@ class FilterCustomizer extends Customizer {
 	return zeros;
     }
 
+    // added to the stopband attenuation if needed to realize the filter
+    double stopDbExtra;
     double getStopDb() {
-	return 10 + aslider.getValue()/10.;
+	return 10 + aslider.getValue()/10. + stopDbExtra;
     }
 
-    // number of the highest finite zeros of the inverse Chebyshev prototype to
-    // move to infinity (see calcInvCheby)
-    int invChebyMoved;
+    // number of the highest finite zeros of the prototype to move to infinity
+    // (see moveZeros)
+    int zerosMoved;
     // true if the response must go to zero at infinity, as with an LC ladder
     boolean needsZeroAtInfinity() { return true; }
-    Complex invPoles[];
-    double invZeros[];
+    // poles and finite zeros of the inverse Chebyshev or elliptic prototype
+    Complex protoPoles[];
+    double protoZeros[];
+
+    void calcZeros(int n) {
+	if (isElliptic())
+	    calcElliptic(n);
+	else
+	    calcInvCheby(n);
+    }
 
     // inverse Chebyshev lowpass prototype of order n, with the 3 dB point at 1 rad/s
     void calcInvCheby(int n) {
@@ -537,9 +554,9 @@ class FilterCustomizer extends Customizer {
 	double w3 = 1/cosh(arccosh(1/epsilon)/n);
 	int i, k;
 	// poles are the reciprocals of the Chebyshev poles
-	invPoles = new Complex[n];
+	protoPoles = new Complex[n];
 	for (i = 0; i != n; i++) {
-	    Complex c1 = invPoles[i] = new Complex();
+	    Complex c1 = protoPoles[i] = new Complex();
 	    double theta = Math.PI/2 + (2*i+1)*Math.PI/(2*n);
 	    c1.setMagPhase(1, theta);
 	    c1.re *= a;
@@ -548,23 +565,76 @@ class FilterCustomizer extends Customizer {
 	    c1.mult(1/w3);
 	}
 	// zeros, in increasing order
-	invZeros = new double[n/2];
+	protoZeros = new double[n/2];
 	for (k = 0; k != n/2; k++)
-	    invZeros[k] = 1/(Math.cos((2*k+1)*Math.PI/(2*n))*w3);
+	    protoZeros[k] = 1/(Math.cos((2*k+1)*Math.PI/(2*n))*w3);
+	moveZeros(n);
+    }
 
-	// Even orders have a nonzero response at infinity, which an LC ladder can't
-	// produce, and some odd orders have no ladder realization with positive
-	// elements.  So move the highest zero to infinity with the transformation
-	// w'^2 = c w^2/(1 - w^2/wz^2), which keeps the 3 dB point fixed and keeps
-	// the stopband equiripple, as is done for elliptic filters.
-	int moved = Math.min(Math.max(invChebyMoved, needsZeroAtInfinity() ? 1-n%2 : 0), invZeros.length);
+    // elliptic lowpass prototype of order n, with the 3 dB point at 1 rad/s
+    void calcElliptic(int n) {
+	double stopDb = getStopDb();
+	// the ripple must be less than the stopband attenuation
+	double passDb = Math.min(getRippleDb(), stopDb-3);
+	ripdb = passDb;
+	Elliptic e = new Elliptic(n, passDb, stopDb);
+	protoPoles = e.poles;
+	protoZeros = e.zeros;
+
+	// find the 3 dB point by bisection where the response is monotonic: in
+	// the passband above the last peak for ripple of at least 3 dB, otherwise
+	// in the transition band
+	double target = protoGainDb(e.peak) - 10*Math.log10(2);
+	double lo = 1, hi = 1/e.k;
+	if (protoGainDb(1) < target) {
+	    lo = e.peak;
+	    hi = 1;
+	}
+	int i;
+	for (i = 0; i != 60; i++) {
+	    double m = (lo+hi)/2;
+	    if (protoGainDb(m) >= target)
+		lo = m;
+	    else
+		hi = m;
+	}
+	double w3 = (lo+hi)/2;
+	for (i = 0; i != n; i++)
+	    protoPoles[i].mult(1/w3);
+	for (i = 0; i != protoZeros.length; i++)
+	    protoZeros[i] /= w3;
+	moveZeros(n);
+    }
+
+    // unnormalized gain of the prototype at w, in dB
+    double protoGainDb(double w) {
+	double x = 1;
+	int i;
+	for (i = 0; i != protoPoles.length; i++) {
+	    Complex c = new Complex(0, w);
+	    c.subtract(protoPoles[i]);
+	    x /= c.mag();
+	}
+	for (i = 0; i != protoZeros.length; i++)
+	    x *= Math.abs(protoZeros[i]*protoZeros[i] - w*w);
+	return 20*Math.log10(x);
+    }
+
+    // Even orders have a nonzero response at infinity, which an LC ladder can't
+    // produce, and some odd orders have no ladder realization with positive
+    // elements.  So move the highest zero to infinity with the transformation
+    // w'^2 = c w^2/(1 - w^2/wz^2), which keeps w = 1 fixed and keeps the
+    // stopband equiripple (and the passband, for elliptic filters).
+    void moveZeros(int n) {
+	int i, k;
+	int moved = Math.min(Math.max(zerosMoved, needsZeroAtInfinity() ? 1-n%2 : 0), protoZeros.length);
 	for (k = 0; k != moved; k++) {
-	    int m = invZeros.length-1;
-	    double xz = invZeros[m]*invZeros[m];
+	    int m = protoZeros.length-1;
+	    double xz = protoZeros[m]*protoZeros[m];
 	    double c = 1-1/xz;
 	    for (i = 0; i != n; i++) {
 		// x = w^2 = -s^2
-		Complex p = invPoles[i];
+		Complex p = protoPoles[i];
 		Complex x = new Complex(p);
 		x.square();
 		x.mult(-1);
@@ -580,20 +650,20 @@ class FilterCustomizer extends Customizer {
 		    x.mult(-1);
 		if (x.im*p.im < 0)
 		    x.conjugate();
-		invPoles[i] = x;
+		protoPoles[i] = x;
 	    }
 	    double z[] = new double[m];
 	    for (i = 0; i != m; i++) {
-		double x = invZeros[i]*invZeros[i];
+		double x = protoZeros[i]*protoZeros[i];
 		z[i] = Math.sqrt(c*x/(1-x/xz));
 	    }
-	    invZeros = z;
+	    protoZeros = z;
 	}
     }
 
-    void getInvChebyPole(int i, int n, Complex c1, double wc, boolean lp) {
-	calcInvCheby(n);
-	c1.set(invPoles[i]);
+    void getZeroPole(int i, int n, Complex c1, double wc, boolean lp) {
+	calcZeros(n);
+	c1.set(protoPoles[i]);
 	if (isHiPass() && !lp)
 	    c1.recip();
 	c1.mult(wc);
@@ -601,14 +671,15 @@ class FilterCustomizer extends Customizer {
 
     double ripdb;
 
-    void getChebyPole(int i, int n, Complex c1, double wc, boolean lp) {
-	Complex c2 = new Complex();
+    double getRippleDb() {
 	int val = rslider.getValue();
-	ripdb = 0;
 	if (val < 300)
-	    ripdb = 5*val/300.;
-	else
-	    ripdb = 5+45*(val-300)/700.;
+	    return 5*val/300.;
+	return 5+45*(val-300)/700.;
+    }
+
+    void getChebyPole(int i, int n, Complex c1, double wc, boolean lp) {
+	ripdb = getRippleDb();
 	double ripval = Math.exp(-ripdb*.1*Math.log(10));
 	double epsilon = Math.sqrt(1/ripval-1);
 	double alpha = 1/epsilon + Math.sqrt(1+1/(epsilon*epsilon));

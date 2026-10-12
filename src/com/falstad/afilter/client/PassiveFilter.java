@@ -63,6 +63,7 @@ class PassiveFilter extends FilterCustomizer {
 	return isBand() ? v*2 : v;
     }
     boolean hasInvCheby() { return true; }
+    boolean hasElliptic() { return true; }
 
     // shunt element first is useless with an ideal voltage source
     boolean isShuntFirst() { return shuntFirst && matched; }
@@ -120,14 +121,20 @@ class PassiveFilter extends FilterCustomizer {
 
     // ladder values for a 1 rad/s, 1 ohm lowpass prototype
     LadderSynth synthesize() {
-	// if an inverse Chebyshev ladder would need negative elements, move
-	// finite zeros to infinity until it doesn't
-	invChebyMoved = 0;
+	// if a ladder with finite zeros would need negative elements, move
+	// zeros to infinity until it doesn't.  that distorts an elliptic
+	// response, so first try increasing its stopband attenuation, which
+	// moves the zeros away from the passband.
+	zerosMoved = 0;
+	stopDbExtra = 0;
 	while (true) {
 	    LadderSynth ls = synthesizeProto();
-	    if (!isInvCheby() || ls.isPositive() || getProtoZeros().length == 0)
+	    if (!hasZeros() || ls.isPositive() || getProtoZeros().length == 0)
 		return ls;
-	    invChebyMoved++;
+	    if (isElliptic() && stopDbExtra < 100)
+		stopDbExtra++;
+	    else
+		zerosMoved++;
 	}
     }
 

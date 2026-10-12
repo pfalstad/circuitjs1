@@ -131,7 +131,7 @@ class LadderSynth {
 	Complex axis[] = new Complex[n];
 	for (i = 0; i != n; i++) {
 	    Complex s = sroots[i];
-	    if (s.mag() > 1e-8 && Math.abs(s.re) < 1e-6*s.mag()) {
+	    if (s.mag() > 1e-8 && Math.abs(s.re) < 1e-3*s.mag()) {
 		s.set(0, Math.abs(s.im));
 		axis[axisCount++] = s;
 	    }
@@ -143,8 +143,13 @@ class LadderSynth {
 		}
 	for (i = 1; i < axisCount; i += 2) {
 	    // the two members of a double root are only accurate to about
-	    // sqrt(machine epsilon), but their mean is accurate
+	    // sqrt(machine epsilon), or worse when roots are clustered (as with
+	    // elliptic filters).  start from their mean and refine it as a simple
+	    // root of the derivative with Newton's method.
 	    double mean = (axis[i-1].im + axis[i].im)/2;
+	    double w = polishDoubleRoot(qr, -mean*mean);
+	    if (w < 0)
+		mean = Math.sqrt(-w);
 	    axis[i-1].im = mean;
 	    axis[i].im = -mean;
 	}
@@ -355,6 +360,29 @@ class LadderSynth {
 		break;
 	}
 	return z;
+    }
+
+    // refine an approximate double root x of polynomial a using Newton's
+    // method on a'
+    static double polishDoubleRoot(double a[], double x) {
+	int n = a.length-1;
+	int i, iter;
+	for (iter = 0; iter != 50; iter++) {
+	    // a'(x) and a''(x) by Horner's method
+	    double d1 = 0, d2 = 0;
+	    for (i = n; i >= 2; i--) {
+		d1 = d1*x + i*a[i];
+		d2 = d2*x + i*(i-1)*a[i];
+	    }
+	    d1 = d1*x + a[1];
+	    if (d2 == 0)
+		break;
+	    double step = d1/d2;
+	    x -= step;
+	    if (Math.abs(step) < 1e-15*Math.abs(x))
+		break;
+	}
+	return x;
     }
 
     // a - mult*s*b, truncated to len coefficients
