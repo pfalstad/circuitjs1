@@ -220,7 +220,12 @@ export class ScopeOverlays {
     // in one scope (so a plain text label can't identify which trace is which)
     drawLegend(g: Graphics): void {
         const plots = this.scope.visiblePlots;
-        for (let i = 0; i !== plots.length; i++) {
+        const order = plots.map((_, i) => i);
+        // in manual mode, plots may be vertically displaced; list them top to bottom
+        // in the order they appear (stable sort keeps original order for ties)
+        if (this.scope.manualScale)
+            order.sort((a, b) => plots[b].manVPosition - plots[a].manVPosition);
+        for (const i of order) {
             if (this.scope.rect.height <= this.textY + 5)
                 return;
             const plot = plots[i];
