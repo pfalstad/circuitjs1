@@ -757,7 +757,21 @@ class FilterCustomizer extends Customizer {
 	return add(type + " " + x1 + " " + y1 + " " + x2 + " " + y2 + " 0 " + rest);
     }
 
-    void addWire(int x1, int y1, int x2, int y2) { add('w', x1, y1, x2, y2, ""); }
+    // add a wire unless an identical one is already there.  layouts can place
+    // the same wire twice (e.g. the side wires of parallel branches in adjacent
+    // series elements), and a doubled wire is a loop that makes phantom currents.
+    void addWire(int x1, int y1, int x2, int y2) {
+	int i;
+	for (i = 0; i != sim.elmList.size(); i++) {
+	    CircuitElm ce = sim.getElm(i);
+	    if (!(ce instanceof WireElm))
+		continue;
+	    if ((ce.x == x1 && ce.y == y1 && ce.x2 == x2 && ce.y2 == y2) ||
+		(ce.x == x2 && ce.y == y2 && ce.x2 == x1 && ce.y2 == y1))
+		return;
+	}
+	add('w', x1, y1, x2, y2, "");
+    }
 
     // delete everything but the sweep source, which is moved (or created) so
     // its output is at (x, y)

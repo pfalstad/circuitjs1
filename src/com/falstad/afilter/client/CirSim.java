@@ -2471,20 +2471,25 @@ MouseOutHandler, MouseWheelHandler {
 	    console.log(text);
 	}-*/;
 
+    // clear results left over from the previous circuit
+    void clearResults() {
+	if (response != null)
+	    java.util.Arrays.fill(response, 0);
+	if (phaseResponse != null)
+	    java.util.Arrays.fill(phaseResponse, 0);
+	polyPoles = new Complex[0];
+	polyZeros = new Complex[0];
+	polyAvailable = false;
+	idealResponse = null;
+	impulseResponse = null;
+    }
+
     void analyzeCircuit() {
 	console("analyzeCircuit " + elmList.size());
 	calcCircuitBottom();
 	if (elmList.isEmpty()) {
-	    // nothing to analyze; clear results left over from the previous circuit
-	    if (response != null)
-		java.util.Arrays.fill(response, 0);
-	    if (phaseResponse != null)
-		java.util.Arrays.fill(phaseResponse, 0);
-	    polyPoles = new Complex[0];
-	    polyZeros = new Complex[0];
-	    polyAvailable = false;
-	    idealResponse = null;
-	    impulseResponse = null;
+	    // nothing to analyze
+	    clearResults();
 	    return;
 	}
 	stopMessage = null;
@@ -2594,6 +2599,20 @@ MouseOutHandler, MouseWheelHandler {
 	}
 	voltageSourceCount = vscount;
 
+	// a loop of wires (or wires and voltage sources) has an undetermined current,
+	// which shows up as huge phantom currents.  the usual cause is two wires on
+	// top of each other.
+	CircuitElm loopElm = findVoltageLoop();
+	if (loopElm != null) {
+	    clearResults();
+	    circuitMatrix = null;
+	    responseChanged = false;
+	    specStep = 0;
+	    stopMessage = "Wire loop detected!";
+	    stopElm = loopElm;
+	    return;
+	}
+
 	// a controlled current source with no current path would make the matrix singular
 	for (i = 0; i != elmList.size(); i++) {
 	    CircuitElm ce = getElm(i);
@@ -2628,6 +2647,35 @@ MouseOutHandler, MouseWheelHandler {
 	idealResponse = null;
 	if (customizer != null)
 	    idealResponse = customizer.getIdealResponse(response.length);
+    }
+
+    // find an element that closes a loop of wires, grounds and voltage sources
+    CircuitElm findVoltageLoop() {
+	int parent[] = new int[nodeList.size()];
+	int i;
+	for (i = 0; i != parent.length; i++)
+	    parent[i] = i;
+	for (i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = getElm(i);
+	    int n1, n2;
+	    if (ce instanceof GroundElm || ce instanceof RailElm || ce instanceof SweepElm) {
+		n1 = 0;
+		n2 = ce.getNode(0);
+	    } else if (ce instanceof WireElm || ce instanceof VoltageElm) {
+		n1 = ce.getNode(0);
+		n2 = ce.getNode(1);
+		// ignore zero-length wires
+		if (n1 == n2 && ce instanceof WireElm)
+		    continue;
+	    } else
+		continue;
+	    int r1 = ufFind(parent, n1);
+	    int r2 = ufFind(parent, n2);
+	    if (r1 == r2)
+		return ce;
+	    parent[r1] = r2;
+	}
+	return null;
     }
 
     int specIndex, specStep;
