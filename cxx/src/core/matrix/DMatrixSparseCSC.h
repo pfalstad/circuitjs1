@@ -166,6 +166,8 @@ public:
     bool isFull() const { return nz_length == numRows * numCols; }
 
     static DMatrixSparseCSC convert(const std::vector<std::vector<double>> &circuitMatrix, double tol);
+    // (not in TS) the same, reading only the given entries (col*n+row, sorted); all others must be zero
+    static DMatrixSparseCSC convert(const std::vector<std::vector<double>> &circuitMatrix, const std::vector<int> &entries, double tol);
 
     class CoordinateIterator {
     public:

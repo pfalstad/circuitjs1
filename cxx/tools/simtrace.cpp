@@ -30,9 +30,11 @@
 //            it by hand.
 //
 // DUMPMATRIX=n prints the matrices at step n; TOGGLE=elm:step,... toggles the switches
-// with those element indexes at those steps (as clicking them in the app does).
+// with those element indexes at those steps (as clicking them in the app does).  BENCH=1
+// prints nothing per step, only the time the steps took.
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -265,6 +267,19 @@ int main(int argc, char **argv) {
             if (item.find(':') != std::string::npos)
                 toggles.emplace_back(std::atoi(item.c_str()), std::atoi(item.c_str() + item.find(':') + 1));
     }
+    bool bench = std::getenv("BENCH") != nullptr;
+    long benchSubiters = 0;
+    if (bench) {
+        std::printf("solver %s; nonlinear matrix sizes:", sim.usingSparse ? "sparse" : "dense");
+        int linear = 0;
+        for (auto &m : sim.matrices)
+            if (m->nonLinear)
+                std::printf(" %d", m->size);
+            else
+                linear++;
+        std::printf("; %d linear matrices\n", linear);
+    }
+    auto benchStart = std::chrono::steady_clock::now();
     for (int s = 0; s < steps; s++) {
         if (s == dumpStep)
             app.dumpMatrix = true;
@@ -287,6 +302,10 @@ int main(int argc, char **argv) {
             std::printf("stop %s\n", app.stopMessage->c_str());
             break;
         }
+        if (bench) {
+            benchSubiters += sim.subIterations + 1;
+            continue;
+        }
         std::printf("%.17g", sim.t);
         for (auto &n : sim.nodeList)
             std::printf(" %.17g", n->v);
@@ -295,6 +314,9 @@ int main(int argc, char **argv) {
             std::printf(" %.17g", ce->getCurrent());
         std::printf("\n");
     }
+    if (bench)
+        std::printf("%d steps, %ld subiterations, %.3f s\n", steps, benchSubiters,
+                    std::chrono::duration<double>(std::chrono::steady_clock::now() - benchStart).count());
     // AUDIOOUT=file: press Play on the first audio output and save the WAV it would play
     if (const char *ao = std::getenv("AUDIOOUT")) {
         for (CircuitElm *ce : app.elmList)

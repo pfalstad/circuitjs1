@@ -274,6 +274,33 @@ DMatrixSparseCSC DMatrixSparseCSC::convert(const std::vector<std::vector<double>
     return dst;
 }
 
+DMatrixSparseCSC DMatrixSparseCSC::convert(const std::vector<std::vector<double>> &circuitMatrix,
+                                           const std::vector<int> &entries, double tol) {
+    int n = (int)circuitMatrix.size();
+    int nonzero = 0;
+    for (int k : entries)
+        if (circuitMatrix[k % n][k / n] != 0)
+            nonzero++;
+    DMatrixSparseCSC dst(n, n, nonzero);
+    dst.nz_length = 0;
+    dst.col_idx[0] = 0;
+    int col = 0;
+    for (int k : entries) {
+        int i = k / n, j = k % n;
+        while (col < i)
+            dst.col_idx[++col] = dst.nz_length;
+        double value = circuitMatrix[j][i];
+        if (!(std::abs(value) <= tol)) {
+            dst.nz_rows[dst.nz_length] = j;
+            dst.nz_values[dst.nz_length] = value;
+            ++dst.nz_length;
+        }
+    }
+    while (col < n)
+        dst.col_idx[++col] = dst.nz_length;
+    return dst;
+}
+
 DMatrixSparseCSC::CoordinateIterator::CoordinateIterator(const DMatrixSparseCSC &m) : matrix(m) {
     incrementColumn();
 }

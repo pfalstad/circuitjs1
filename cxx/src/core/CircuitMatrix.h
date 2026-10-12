@@ -43,4 +43,31 @@ public:
     std::unique_ptr<SparseLU> sparseLU;
     std::vector<CircuitNode *> nodeList;
     std::vector<VoltageSource *> voltageSourceList;
+
+    // (not in TS) the entries stamped since clear(), as col*size+row; every other entry of
+    // matrix and origMatrix is zero, so the sparse solver resets and converts only these
+    // instead of all size*size entries
+    std::vector<int> stamped;
+    bool stampedSorted = true;
+
+    void clear() {
+        matrix.assign(size, std::vector<double>(size, 0.0));
+        origMatrix.assign(size, std::vector<double>(size, 0.0));
+        stampedFlags.assign((size_t) size * size, 0);
+        stamped.clear();
+        stampedSorted = true;
+    }
+
+    void stamp(int row, int col, double x) {
+        matrix[row][col] += x;
+        size_t k = (size_t) col * size + row;
+        if (!stampedFlags[k]) {
+            stampedFlags[k] = 1;
+            stamped.push_back((int) k);
+            stampedSorted = false;
+        }
+    }
+
+private:
+    std::vector<unsigned char> stampedFlags;
 };

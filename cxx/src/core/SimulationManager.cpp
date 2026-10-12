@@ -20,6 +20,7 @@
 #include "SimulationManager.h"
 #include "Locale.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
@@ -902,9 +903,8 @@ void SimulationManager::stampCircuit() {
     for (auto &mp : matrices) {
         CircuitMatrix &m = *mp;
         int sz = m.size;
-        m.matrix.assign(sz, std::vector<double>(sz, 0.0));
+        m.clear();
         m.rightSide.assign(sz, 0.0);
-        m.origMatrix.assign(sz, std::vector<double>(sz, 0.0));
         m.origRightSide.assign(sz, 0.0);
         m.permute.assign(sz, 0);
         m.nodeVoltages.assign(m.nodeCount, 0.0);
@@ -1147,7 +1147,7 @@ void SimulationManager::stampMatrix(const NodeRef &i, const NodeRef &j, double x
         if (i->matrix != j->matrix)
             console("stampMatrix cross-matrix! node " + std::to_string(i->index) + " vs node " + std::to_string(j->index));
         CircuitMatrix *m = (i != CircuitNode::ground) ? i->matrix : j->matrix;
-        m->matrix[i->row - 1][j->row - 1] += x;
+        m->stamp(i->row - 1, j->row - 1, x);
     }
 }
 
@@ -1157,7 +1157,7 @@ void SimulationManager::stampMatrixNV(VoltageSource *i, const NodeRef &j, double
     if (j->row > 0) {
         if (i->matrix != j->matrix)
             console("stampMatrix cross-matrix! vs row " + std::to_string(i->row) + " vs node " + std::to_string(j->index));
-        i->matrix->matrix[i->row - 1][j->row - 1] += x;
+        i->matrix->stamp(i->row - 1, j->row - 1, x);
     }
 }
 
@@ -1167,7 +1167,7 @@ void SimulationManager::stampMatrixVN(const NodeRef &i, VoltageSource *j, double
     if (i->row > 0) {
         if (i->matrix != j->matrix)
             console("stampMatrix cross-matrix! node " + std::to_string(i->index) + " vs vs row " + std::to_string(j->row));
-        j->matrix->matrix[i->row - 1][j->row - 1] += x;
+        j->matrix->stamp(i->row - 1, j->row - 1, x);
     }
 }
 
@@ -1176,7 +1176,7 @@ void SimulationManager::stampMatrixVV(VoltageSource *i, VoltageSource *j, double
         console("stampMatrixVV: non-finite value");
     if (i->matrix != j->matrix)
         console("stampMatrix cross-matrix! vs row " + std::to_string(i->row) + " vs vs row " + std::to_string(j->row));
-    i->matrix->matrix[i->row - 1][j->row - 1] += x;
+    i->matrix->stamp(i->row - 1, j->row - 1, x);
 }
 
 void SimulationManager::stampRightSide(const NodeRef &n, double x) {
@@ -1242,9 +1242,15 @@ void SimulationManager::runCircuit(bool didAnalyze) {
                 for (int i = 0; i != m.size; i++)
                     m.rightSide[i] = m.origRightSide[i];
                 if (m.nonLinear) {
-                    for (int i = 0; i != m.size; i++)
-                        for (int j = 0; j != m.size; j++)
-                            m.matrix[i][j] = m.origMatrix[i][j];
+                    if (usingSparse) {
+                        // the sparse lu_factor leaves m.matrix alone, so only stamped entries can differ
+                        for (int k : m.stamped)
+                            m.matrix[k % m.size][k / m.size] = m.origMatrix[k % m.size][k / m.size];
+                    } else {
+                        for (int i = 0; i != m.size; i++)
+                            for (int j = 0; j != m.size; j++)
+                                m.matrix[i][j] = m.origMatrix[i][j];
+                    }
                 }
             }
             for (CircuitElm *ce : elmArr)
@@ -1440,7 +1446,11 @@ void SimulationManager::invertMatrix(std::vector<std::vector<double>> &a, int n)
 bool SimulationManager::lu_factor(std::vector<std::vector<double>> &a, int n, std::vector<int> &ipvt, CircuitMatrix &cm) {
     SimulationManager *sm = theSim;
     if (sm != nullptr && sm->usingSparse) {
-        DMatrixSparseCSC sparse = DMatrixSparseCSC::convert(a, DMatrixSparseCSC::EPS);
+        if (!cm.stampedSorted) {
+            std::sort(cm.stamped.begin(), cm.stamped.end());
+            cm.stampedSorted = true;
+        }
+        DMatrixSparseCSC sparse = DMatrixSparseCSC::convert(a, cm.stamped, DMatrixSparseCSC::EPS);
         if (!cm.sparseLU) cm.sparseLU = std::make_unique<SparseLU>();
         return cm.sparseLU->setA(sparse);
     }
