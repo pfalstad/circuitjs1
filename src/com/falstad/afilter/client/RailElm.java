@@ -91,5 +91,10 @@ class RailElm extends VoltageElm {
     	g.setColor(c);
 		g.fillRect(x-3, y-3, 7, 7);
     }
-    
+
+    void addRoutingObstacle(WireRouter router) {
+	router.addWire(point1.x, point1.y, point2.x, point2.y);
+	router.addObstacle(point2.x - circleSize, point2.y - circleSize,
+			   point2.x + circleSize, point2.y + circleSize);
+    }
 }

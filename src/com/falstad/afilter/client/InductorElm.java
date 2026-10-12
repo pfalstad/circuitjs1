@@ -87,4 +87,6 @@ import com.google.gwt.xml.client.Element;
 	double getValue() { return inductance; }
 	void setValue(double c) { inductance = c; }
 	int getShortcut() { return 'L'; }
+
+	void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 8); }
     }

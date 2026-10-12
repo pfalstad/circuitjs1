@@ -172,4 +172,6 @@ import com.google.gwt.canvas.dom.client.CanvasGradient;
 	}
 	double getValue() { return resistance; }
 	void setValue(double x) { setResistance(x); }
+
+	void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 6); }
     }

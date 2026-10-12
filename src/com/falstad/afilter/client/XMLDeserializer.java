@@ -102,6 +102,14 @@ class XMLDeserializer {
 	}
     }
 
+    public String parseContents() {
+	try {
+	    return currentXmlElement.getFirstChild().getNodeValue();
+	} catch (Exception e) {
+	    return null;
+	}
+    }
+
     public double parseDoubleAttr(String attr, double def) {
 	String v = currentXmlElement.getAttribute(attr);
 	if (v == null || v.isEmpty())

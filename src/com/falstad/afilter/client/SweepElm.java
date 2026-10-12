@@ -186,5 +186,10 @@ class SweepElm extends CircuitElm {
 	setParams();
     }
     int getShortcut() { return 'i'; }
+
+    void addRoutingObstacle(WireRouter router) {
+	router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	router.addObstacle(point2.x - circleSize, point2.y - circleSize,
+			   point2.x + circleSize, point2.y + circleSize);
+    }
 }
-    

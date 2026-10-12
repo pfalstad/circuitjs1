@@ -83,4 +83,9 @@ package com.falstad.afilter.client;
     }
     
 	int getShortcut() { return 'o'; }
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, x2, y2);
+	    router.addObstacle(x2 - 10, y2 - 10, x2 + 10, y2 + 10);
+	}
     }

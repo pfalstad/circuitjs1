@@ -178,5 +178,10 @@ if(point4==null)System.out.print("Hello\n");
 	if (n == 1 && ei.value > 0)
 	    r_off = ei.value;
     }
-}
 
+    // the control terminal is on one side, which we have no flag to mirror,
+    // but rotating keeps it on the correct side
+    boolean canFlipX() { return false; }
+    boolean canFlipY() { return false; }
+    boolean canRotate() { return true; }
+}

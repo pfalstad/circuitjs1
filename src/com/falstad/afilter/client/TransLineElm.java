@@ -246,5 +246,7 @@ class TransLineElm extends CircuitElm {
     }
     double getDelay() { return delay; }
     void setDelay(double d) { delay = d; }
-}
 
+    boolean canFlipX() { return dy == 0; }
+    boolean canFlipY() { return dx == 0; }
+}

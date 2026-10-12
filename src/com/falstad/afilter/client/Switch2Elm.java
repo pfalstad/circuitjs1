@@ -28,6 +28,7 @@ import com.google.gwt.xml.client.Element;
 	int link;
 	int throwCount;
 	static final int FLAG_CENTER_OFF = 1;
+	static final int FLAG_FLIPPED = 8; // same bit circuitjs uses to track flips
 	
 	public Switch2Elm(int xx, int yy) {
 	    super(xx, yy, false);
@@ -201,4 +202,33 @@ import com.google.gwt.xml.client.Element;
 	boolean hasCenterOff() { return (flags & FLAG_CENTER_OFF) != 0 && throwCount == 2; }
 	
 	int getShortcut() { return 'S'; }
+
+	void flipX(int c2, int count) {
+	    super.flipX(c2, count);
+	    position = posCount-1-position;
+	    flags ^= FLAG_FLIPPED;
+	}
+
+	void flipY(int c2, int count) {
+	    super.flipY(c2, count);
+	    position = posCount-1-position;
+	    flags ^= FLAG_FLIPPED;
+	}
+
+	void flipXY(int c2, int count) {
+	    super.flipXY(c2, count);
+	    position = posCount-1-position;
+	    flags ^= FLAG_FLIPPED;
+	}
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, lead1.x, lead1.y);
+	    for (int i = 0; i != throwCount; i++)
+		router.addWire(swposts[i].x, swposts[i].y, swpoles[i].x, swpoles[i].y);
+	    Point[] pts = new Point[throwCount + 1];
+	    pts[0] = lead1;
+	    for (int i = 0; i != throwCount; i++)
+		pts[i + 1] = swpoles[i];
+	    router.addObstacle(pts);
+	}
     }

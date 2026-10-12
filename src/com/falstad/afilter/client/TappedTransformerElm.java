@@ -27,6 +27,8 @@ import com.google.gwt.xml.client.Element;
 
     class TappedTransformerElm extends CircuitElm {
 	double inductance, ratio;
+	int flip;
+	public static final int FLAG_FLIP = 1;
 	Point ptEnds[], ptCoil[], ptCore[];
 	double current[], curcount[];
 	public TappedTransformerElm(int xx, int yy) {
@@ -90,7 +92,7 @@ import com.google.gwt.xml.client.Element;
 		if (i == 1)
 		    continue;
 		setPowerColor(g, current[i]*(volts[i]-volts[i+1]));
-		drawCoil(g, i > 1 ? -6 : 6,
+		drawCoil(g, i > 1 ? -6*flip : 6*flip,
 			 ptCoil[i], ptCoil[i+1], volts[i], volts[i+1]);
 	    }
 	    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
@@ -120,7 +122,8 @@ import com.google.gwt.xml.client.Element;
 	
 	void setPoints() {
 	    super.setPoints();
-	    int hs = 32;
+	    flip = hasFlag(FLAG_FLIP) ? -1 : 1;
+	    int hs = 32*flip;
 	    ptEnds = newPointArray(5);
 	    ptCoil = newPointArray(5);
 	    ptCore = newPointArray(4);
@@ -267,5 +270,17 @@ import com.google.gwt.xml.client.Element;
 		inductance = ei.value;
 	    if (n == 1)
 		ratio = ei.value;
+	}
+	void flipX(int c2, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipX(c2, count);
+	}
+	void flipY(int c2, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipY(c2, count);
+	}
+	void flipXY(int c2, int count) {
+	    flags ^= FLAG_FLIP;
+	    super.flipXY(c2, count);
 	}
     }

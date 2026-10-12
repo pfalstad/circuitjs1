@@ -109,6 +109,25 @@ import com.google.gwt.xml.client.Element;
 	    triangle = createPolygon(tris[0], tris[1], lead2);
 	    plusFont = new Font("SansSerif", 0, opsize == 2 ? 14 : 10);
 	}
+	void flipX(int c2, int count) {
+	    if (dx == 0)
+		flags ^= FLAG_SWAP;
+	    super.flipX(c2, count);
+	}
+
+	void flipY(int c2, int count) {
+	    if (dy == 0)
+		flags ^= FLAG_SWAP;
+	    super.flipY(c2, count);
+	}
+
+	void flipXY(int xmy, int count) {
+	    flags ^= FLAG_SWAP;
+	    super.flipXY(xmy, count);
+	}
+
+	void addRoutingObstacle(WireRouter router) { addRoutingObstacleWithLeads(router, opwidth); }
+
 	int getPostCount() { return 3; }
 	Point getPost(int n) {
 	    return (n == 0) ? in1p[0] : (n == 1) ? in2p[0] : point2;

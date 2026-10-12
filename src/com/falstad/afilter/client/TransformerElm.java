@@ -29,8 +29,10 @@ import com.google.gwt.xml.client.Element;
 	double inductance, ratio, couplingCoef;
 	Point ptEnds[], ptCoil[], ptCore[];
 	double current[], curcount[];
-	int width;
+	int width, flip;
 	public static final int FLAG_BACK_EULER = 2;
+	public static final int FLAG_VERTICAL = 8;
+	public static final int FLAG_FLIP = 16;
 	public TransformerElm(int xx, int yy) {
 	    super(xx, yy);
 	    inductance = 4;
@@ -44,7 +46,10 @@ import com.google.gwt.xml.client.Element;
 	public TransformerElm(int xa, int ya, int xb, int yb, int f,
 			      StringTokenizer st) {
 	    super(xa, ya, xb, yb, f);
-	    width = max(32, abs(yb-ya));
+	    if (hasFlag(FLAG_VERTICAL))
+		width = -max(32, abs(xb-xa));
+	    else
+		width = max(32, abs(yb-ya));
 	    inductance = new Double(st.nextToken()).doubleValue();
 	    ratio = new Double(st.nextToken()).doubleValue();
 	    current  = new double[2];
@@ -60,7 +65,14 @@ import com.google.gwt.xml.client.Element;
 	void drag(int xx, int yy) {
 	    xx = sim.snapGrid(xx);
 	    yy = sim.snapGrid(yy);
-	    width = max(32, abs(yy-y));
+	    if (abs(xx-x) > abs(yy-y)) {
+		flags &= ~FLAG_VERTICAL;
+	    } else
+		flags |= FLAG_VERTICAL;
+	    if (hasFlag(FLAG_VERTICAL))
+		width = -max(32, abs(xx-x));
+	    else
+		width = max(32, abs(yy-y));
 	    if (xx == x)
 	        yy = y;
 	    x2 = xx; y2 = yy;
@@ -84,6 +96,10 @@ import com.google.gwt.xml.client.Element;
 	}
 	void undumpXml(XMLDeserializer xml) {
 	    super.undumpXml(xml);
+	    if (hasFlag(FLAG_VERTICAL))
+		width = -max(32, abs(x2-x));
+	    else
+		width = max(32, abs(y2-y));
 	    inductance = xml.parseDoubleAttr("in", inductance);
 	    ratio = xml.parseDoubleAttr("ra", ratio);
 	    couplingCoef = xml.parseDoubleAttr("co", couplingCoef);
@@ -100,7 +116,10 @@ import com.google.gwt.xml.client.Element;
 	    }
 	    for (i = 0; i != 2; i++) {
 		setPowerColor(g, current[i]*(volts[i]-volts[i+2]));
-		drawCoil(g, dsign*(i == 1 ? -6 : 6), ptCoil[i], ptCoil[i+2], volts[i], volts[i+2]);
+		int csign = dsign*(i == 1 ? -6 : 6)*flip;
+		if (hasFlag(FLAG_VERTICAL))
+		    csign *= -1;
+		drawCoil(g, csign, ptCoil[i], ptCoil[i+2], volts[i], volts[i+2]);
 	    }
 	    g.setColor(needsHighlight() ? selectColor : lightGrayColor);
 	    for (i = 0; i != 2; i++) {
@@ -119,14 +138,18 @@ import com.google.gwt.xml.client.Element;
 	
 	void setPoints() {
 	    super.setPoints();
-	    point2.y = point1.y;
+	    if (hasFlag(FLAG_VERTICAL))
+		point2.x = point1.x;
+	    else
+		point2.y = point1.y;
 	    ptEnds = newPointArray(4);
 	    ptCoil = newPointArray(4);
 	    ptCore = newPointArray(4);
 	    ptEnds[0] = point1;
 	    ptEnds[1] = point2;
-	    interpPoint(point1, point2, ptEnds[2], 0, -dsign*width);
-	    interpPoint(point1, point2, ptEnds[3], 1, -dsign*width);
+	    flip = hasFlag(FLAG_FLIP) ? -1 : 1;
+	    interpPoint(point1, point2, ptEnds[2], 0, -dsign*width*flip);
+	    interpPoint(point1, point2, ptEnds[3], 1, -dsign*width*flip);
 	    double ce = .5-12/dn;
 	    double cd = .5-2/dn;
 	    int i;
@@ -137,6 +160,22 @@ import com.google.gwt.xml.client.Element;
 		interpPoint(ptEnds[i], ptEnds[i+1], ptCore[i+1], 1-cd);
 	    }
 	}
+	void flipX(int c2, int count) {
+	    if (hasFlag(FLAG_VERTICAL))
+		flags ^= FLAG_FLIP;
+	    super.flipX(c2, count);
+	}
+	void flipY(int c2, int count) {
+	    if (!hasFlag(FLAG_VERTICAL))
+		flags ^= FLAG_FLIP;
+	    super.flipY(c2, count);
+	}
+	void flipXY(int xmy, int count) {
+	    flags ^= FLAG_VERTICAL;
+	    width *= -1;
+	    super.flipXY(xmy, count);
+	}
+
 	Point getPost(int n) {
 	    return ptEnds[n];
 	}

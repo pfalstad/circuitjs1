@@ -346,6 +346,135 @@ public abstract class CircuitElm implements Editable {
 	setPoints();
     }
 
+    boolean hasFlag(int f) { return (flags & f) != 0; }
+
+    // true if the mouse at (gx,gy) (in circuit coordinates) is over this element
+    boolean mouseHits(int gx, int gy) { return boundingBox.contains(gx, gy); }
+
+    // add this element as an obstacle to the wire router grid
+    void addRoutingObstacle(WireRouter router) {
+	if (x == x2 || y == y2) {
+	    router.addWire(x, y, x2, y2);
+	    if (lead1 != null && lead2 != null)
+		router.addObstacle(lead1.x, lead1.y, lead2.x, lead2.y);
+	}
+    }
+
+    void addRoutingObstacleWithLeads(WireRouter router, int width) {
+	if ((x == x2 || y == y2) && lead1 != null && lead2 != null) {
+	    router.addWire(x, y, x2, y2);
+	    Point pa = interpPoint(lead1, lead2, 0, width);
+	    Point pb = interpPoint(lead1, lead2, 1, -width);
+	    router.addObstacle(pa.x, pa.y, pb.x, pb.y);
+	}
+    }
+
+    // true if (px,py) is strictly inside the horizontal or vertical segment a-b
+    static boolean pointOnSegmentInterior(int ax, int ay, int bx, int by, int px, int py) {
+	if (px == ax && py == ay || px == bx && py == by) return false;
+	if (ax == bx && px == ax) {
+	    int miny = Math.min(ay, by), maxy = Math.max(ay, by);
+	    return py > miny && py < maxy;
+	} else if (ay == by && py == ay) {
+	    int minx = Math.min(ax, bx), maxx = Math.max(ax, bx);
+	    return px > minx && px < maxx;
+	}
+	return false;
+    }
+
+    // Returns which post (0 or 1) has a lead stub containing (px,py), or -1 if neither.
+    int getLeadPost(int px, int py) {
+	if (lead1 != null && lead1 != point1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, lead1.x, lead1.y, px, py))
+	    return 0;
+	if (lead2 != null && lead2 != point2 &&
+	    pointOnSegmentInterior(lead2.x, lead2.y, point2.x, point2.y, px, py))
+	    return 1;
+	// 1-post elements with no explicit leads (e.g. GroundElm): the whole point1-point2 segment is the lead
+	if (lead1 == null && getPostCount() == 1 &&
+	    pointOnSegmentInterior(point1.x, point1.y, point2.x, point2.y, px, py))
+	    return 0;
+	return -1;
+    }
+
+    // called after a newly created element has been added to the circuit
+    void draggingDone() { }
+
+    // called when an element is done being dragged out; returns true if it's zero size and should be deleted
+    boolean creationFailed() {
+	return (x == x2 && y == y2);
+    }
+
+    // Default length for an element placed by toolbar drag-and-drop, since there's
+    // no drag-to-size gesture in that case.
+    int getDragLength() {
+	return 64;
+    }
+
+    // Override (ignoring requestedVertical) for elements that should only ever be
+    // placed vertically via toolbar drag-and-drop, e.g. GroundElm.
+    boolean getDragVertical(boolean requestedVertical) {
+	return requestedVertical;
+    }
+
+    // Positions this element for toolbar drag-and-drop placement: (xa,ya) is the
+    // anchor point that tracks the mouse, in circuit coordinates, already snapped to
+    // the grid.  Called repeatedly as the mouse moves and whenever the requested
+    // orientation changes, so it must be idempotent given the same arguments.
+    void dragPlace(int xa, int ya, boolean vertical) {
+	vertical = getDragVertical(vertical);
+	int len = getDragLength();
+	x = xa; y = ya;
+	x2 = xa + (vertical ? 0 : len);
+	y2 = ya + (vertical ? len : 0);
+	setPoints();
+    }
+
+    // mirror left-right around center2/2
+    void flipX(int center2, int count) {
+	x =  center2-x;
+	x2 = center2-x2;
+	initBoundingBox();
+	setPoints();
+    }
+
+    // mirror top-bottom around center2/2
+    void flipY(int center2, int count) {
+	y =  center2-y;
+	y2 = center2-y2;
+	initBoundingBox();
+	setPoints();
+    }
+
+    // mirror around a diagonal line (x-y = xmy)
+    void flipXY(int xmy, int count) {
+	int nx = y+xmy;
+	int ny = x-xmy;
+	int nx2 = y2+xmy;
+	int ny2 = x2-xmy;
+	x = nx; y = ny; x2 = nx2; y2 = ny2;
+	initBoundingBox();
+	setPoints();
+    }
+
+    boolean canFlipX() { return true; }
+    boolean canFlipY() { return true; }
+    boolean canFlipXY() { return canFlipX() || canFlipY(); }
+    // rotation is a diagonal flip followed by a vertical flip
+    boolean canRotate() { return canFlipXY() && canFlipY(); }
+
+    // swap terminals
+    void flipPosts() {
+	int oldx = x;
+	int oldy = y;
+	x = x2;
+	y = y2;
+	x2 = oldx;
+	y2 = oldy;
+	initBoundingBox();
+	setPoints();
+    }
+
     // determine if moving this element by (dx,dy) will put it on top of another element
     boolean allowMove(int dx, int dy) {
 	int nx = x+dx;

@@ -116,4 +116,6 @@ import com.google.gwt.xml.client.Element;
  	void setValue(double c) { capacitance = c; }
 	boolean needsShortcut() { return true; }
 	int getShortcut() { return 'c'; }
+
+	void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 12); }
     }

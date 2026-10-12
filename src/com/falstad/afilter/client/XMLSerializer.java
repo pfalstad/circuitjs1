@@ -111,6 +111,23 @@ class XMLSerializer {
 	return prettyPrint(doc);
     }
 
+    // dump just the selected elements, for the clipboard (same format circuitjs uses)
+    String dumpSelected() {
+	Document doc = XMLParser.createDocument();
+	Element root = doc.createElement("cir");
+	doc.appendChild(root);
+	for (int i = 0; i != app.elmList.size(); i++) {
+	    CircuitElm ce = app.getElm(i);
+	    if (!ce.isSelected())
+		continue;
+	    Element elem = doc.createElement(ce.getXmlDumpType());
+	    ce.dumpXml(doc, elem);
+	    ce.dumpXmlState(doc, elem);
+	    root.appendChild(elem);
+	}
+	return prettyPrint(doc);
+    }
+
     static void checkAttr(Element elem, String name) {
 	if (elem.getAttribute(name) != null)
 	    throw new RuntimeException("naming conflict: " + name);

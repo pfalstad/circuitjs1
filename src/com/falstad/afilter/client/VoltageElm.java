@@ -344,4 +344,6 @@ class VoltageElm extends CircuitElm {
 	if (n == 5)
 	    dutyCycle = ei.value*.01;
     }
+
+    void addRoutingObstacle(WireRouter wr) { addRoutingObstacleWithLeads(wr, 16); }
 }

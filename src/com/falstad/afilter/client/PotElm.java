@@ -32,6 +32,8 @@ import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.event.dom.client.MouseWheelHandler;
 
 class PotElm extends CircuitElm implements Command, MouseWheelHandler {
+    final int FLAG_FLIP = 2;
+    final int FLAG_FLIP_OFFSET = 4;
 	double position, maxResistance, resistance1, resistance2;
 	double current1, current2, current3;
 	double curcount1, curcount2, curcount3;
@@ -180,7 +182,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
     void setPoints() {
 	super.setPoints();
 	int offset = 0;
-	if (abs(dx) > abs(dy)) {
+	if (abs(dx) > abs(dy) != hasFlag(FLAG_FLIP)) {
 	    dx = sim.snapGrid(dx/2)*2;
 	    point2.x = x2 = point1.x + dx;
 	    offset = (dx < 0) ? dy : -dy;
@@ -192,7 +194,7 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	    point2.x = point1.x;
 	}
 	if (offset == 0)
-	    offset = sim.gridSize;
+	    offset = (hasFlag(FLAG_FLIP_OFFSET)) ? -sim.gridSize : sim.gridSize;
 	dn = distance(point1, point2);
 	int bodyLen = 32;
 	calcLeads(bodyLen);
@@ -212,6 +214,22 @@ class PotElm extends CircuitElm implements Command, MouseWheelHandler {
 	ps4 = new Point();
     }
 	
+    void flipX(int c2, int count) {
+	// this is only needed / only has an effect if point1 and point2 are on same grid line
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipX(c2, count);
+    }
+    void flipY(int c2, int count) {
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipY(c2, count);
+    }
+    void flipXY(int xmy, int count) {
+	if (abs(dx) == abs(dy))
+	    flags ^= FLAG_FLIP;
+	flags ^= FLAG_FLIP_OFFSET;
+	super.flipXY(xmy, count);
+    }
+
     void draw(Graphics g) {
 	int segments = 16;
 	int i;

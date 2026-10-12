@@ -27,6 +27,8 @@ package com.falstad.afilter.client;
 	}
 	int getDumpType() { return 'g'; }
 	int getPostCount() { return 1; }
+	boolean getDragVertical(boolean requestedVertical) { return true; }
+	int getDragLength() { return 32; }
 	void draw(Graphics g) {
 	    setVoltageColor(g, 0);
 	    drawThickLine(g, point1, point2);
@@ -60,4 +62,11 @@ package com.falstad.afilter.client;
 	}
 	boolean hasGroundConnection(int n1) { return true; }
 	int getShortcut() { return 'g'; }
+
+	void addRoutingObstacle(WireRouter router) {
+	    router.addWire(point1.x, point1.y, point2.x, point2.y);
+	    Point pa = new Point(), pb = new Point();
+	    interpPoint2(point1, point2, pa, pb, 1+11./dn, 10);
+	    router.addObstacle(new Point[] { pa, pb, point2 });
+	}
     }

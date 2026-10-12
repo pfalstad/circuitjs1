@@ -43,6 +43,11 @@ public class Point {
 		 y=p.y;
 	 }
 	 
+	 public void move(int dx, int dy) {
+		 x += dx;
+		 y += dy;
+	 }
+
 	    public String toString() { return "Point(" + x + "," + y + ")"; }
 
 }

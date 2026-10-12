@@ -22,8 +22,8 @@ package com.falstad.afilter.client;
 import com.google.gwt.user.client.Command;
 
 public class MyCommand implements Command {
-	private final String menuName;
-	private final String itemName;
+	private String menuName;
+	private String itemName;
 	
 	public MyCommand(String name, String item){
 		menuName=name;
@@ -33,5 +33,9 @@ public class MyCommand implements Command {
 	public void execute() {
 		circuitjs1.mysim.menuPerformed(menuName, itemName);
 	}
+
+	public String getMenuName() { return menuName; }
+	public String getItemName() { return itemName; }
+	public void setItemName(String x) { itemName = x; }
 
 }

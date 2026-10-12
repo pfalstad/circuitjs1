@@ -19,6 +19,8 @@
 
 package com.falstad.afilter.client;
 
+import com.google.gwt.storage.client.Storage;
+
 class EditOptions implements Editable {
 	CirSim sim;
 	
@@ -30,6 +32,8 @@ class EditOptions implements Editable {
 		if (n == 0)
 			return new EditInfo("Range for voltage color (V)",
 					CircuitElm.voltageRange, 0, 0);
+		if (n == 1)
+			return new EditInfo("Mouse Wheel Sensitivity", sim.wheelSensitivity, 0, 0);
 
 		return null;
 	}
@@ -39,5 +43,11 @@ class EditOptions implements Editable {
 //			sim.timeStep = ei.value;
 		if (n == 0 && ei.value > 0)
 			CircuitElm.voltageRange = ei.value;
+		if (n == 1 && ei.value > 0) {
+			sim.wheelSensitivity = ei.value;
+			Storage stor = Storage.getLocalStorageIfSupported();
+			if (stor != null)
+				stor.setItem("wheelSensitivity", Double.toString(sim.wheelSensitivity));
+		}
 	}
 };
