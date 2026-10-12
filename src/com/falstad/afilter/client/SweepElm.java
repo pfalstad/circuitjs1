@@ -48,6 +48,15 @@ class SweepElm extends CircuitElm {
 	sweepTime = xml.parseDoubleAttr("sw", sweepTime);
 	reset();
     }
+    // place the source to the left of its post, since the input usually feeds
+    // a circuit to its right
+    void dragPlace(int xa, int ya, boolean vertical) {
+	super.dragPlace(xa, ya, vertical);
+	if (!getDragVertical(vertical)) {
+	    x2 = xa - getDragLength();
+	    setPoints();
+	}
+    }
     void setPoints() {
 	super.setPoints();
 	lead1 = interpPoint(point1, point2, 1-circleSize/dn);
