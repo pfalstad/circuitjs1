@@ -231,7 +231,7 @@ void Scope::setRect(const Rectangle &r) {
     double w = rect.width;
     double h = rect.height;
     rect = r;
-    if (rect.width != w || (plot2d.plotXY && rect.height != h))
+    if (rect.width != w || (plot2d.enabled && rect.height != h))
         resetGraph();
 }
 
