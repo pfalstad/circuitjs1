@@ -178,6 +178,7 @@ MouseOutHandler, MouseWheelHandler {
     MenuBar transScopeMenuBar;
     MenuBar mainMenuBar;
     boolean hideMenu = false;
+    boolean hidePoles = false;
     CheckboxMenuItem scopeVMenuItem;
     CheckboxMenuItem scopeIMenuItem;
     CheckboxMenuItem scopeScaleMenuItem;
@@ -450,6 +451,8 @@ MouseOutHandler, MouseWheelHandler {
 		startLabel   = qp.getValue("startLabel");
 		euro = qp.getBooleanValue("euroResistors", getOptionFromStorage("euroResistors", false));
 		hideMenu = qp.getBooleanValue("hideMenu", false);
+		// hide poles by default when menu is hidden, unless hidePoles is given
+		hidePoles = qp.getBooleanValue("hidePoles", hideMenu);
 //		useFrameStr  = qp.getValue("useFrame");
 //		String x = applet.getParameter("whiteBackground");
 //		if (x != null && x.equalsIgnoreCase("true"))
@@ -657,7 +660,7 @@ MouseOutHandler, MouseWheelHandler {
 		    setCanvasSize();
 		}
 	}));
-	polesCheckItem.setState(true);
+	polesCheckItem.setState(!hidePoles);
 
 	m.addItem(phaseCheckItem = new CheckboxMenuItem("Show Phase"));
 	m.addItem(impulseCheckItem = new CheckboxMenuItem("Show Impulse Response",
