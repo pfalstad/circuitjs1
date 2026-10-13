@@ -80,11 +80,6 @@ export class TextElm extends GraphicElm {
         this.lines.push(s);
     }
 
-    dump(): string {
-        this.flags |= TextElm.FLAG_ESCAPE;
-        return super.dump() + " " + this.size + " " + CustomLogicModel.escape(this.text);
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "si", this.size);

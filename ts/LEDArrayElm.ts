@@ -57,8 +57,6 @@ export class LEDArrayElm extends ChipElm {
         }
     }
 
-    dump(): string { return super.dump() + " " + this.sizeX + " " + this.sizeY; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "sx", this.sizeX);

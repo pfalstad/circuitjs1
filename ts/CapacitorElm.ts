@@ -92,11 +92,6 @@ export class CapacitorElm extends CircuitElm {
     isCapacitorElm(): boolean { return true; }
     getDumpType(): number { return 'c'.charCodeAt(0); }
 
-    dump(): string {
-        this.flags |= CapacitorElm.FLAG_RESISTANCE;
-        return super.dump() + " " + this.capacitance + " " + this.voltdiff + " " + this.initialVoltage + " " + this.seriesResistance;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "c", this.capacitance);

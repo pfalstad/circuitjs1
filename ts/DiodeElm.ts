@@ -95,17 +95,6 @@ export class DiodeElm extends CircuitElm {
 
     getDumpType(): number { return 'd'.charCodeAt(0); }
 
-    dump(): string {
-        this.flags |= DiodeElm.FLAG_MODEL;
-        return super.dump() + " " + CustomLogicModel.escape(this.modelName);
-    }
-
-    dumpModel(): string | null {
-        if (this.model.builtIn || this.model.dumped)
-            return null;
-        return this.model.dump();
-    }
-
     dumpXmlModel(doc: Document): void {
         if (!(this.model.builtIn || this.model.dumped))
             this.model.dumpXml(doc);

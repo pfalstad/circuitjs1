@@ -68,11 +68,6 @@ export class LabeledNodeElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        this.flags |= LabeledNodeElm.FLAG_ESCAPE;
-        return super.dump() + " " + CustomLogicModel.escape(this.text);
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "te", this.text);

@@ -52,10 +52,6 @@ export class LogicOutputElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.threshold;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.threshold !== 2.5)

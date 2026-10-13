@@ -73,10 +73,6 @@ export class SevenSegElm extends ChipElm {
         this.diodeDirection = 0;
     }
 
-    dump(): string {
-        return super.dump() + " " + this.baseSegmentCount + " " + this.extraSegment + " " + this.diodeDirection;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ba", this.baseSegmentCount);

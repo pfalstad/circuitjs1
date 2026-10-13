@@ -51,10 +51,6 @@ export class FuseElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.resistance + " " + this.i2t + " " + this.heat + " " + this.blown;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "re", this.resistance);

@@ -72,10 +72,6 @@ export class AnalogSwitchElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " " + this.threshold;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);

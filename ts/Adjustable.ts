@@ -236,21 +236,6 @@ export class Adjustable {
         return false;
     }
 
-    dump(): string {
-        let ano = -1;
-        if (this.sharedSlider != null)
-            ano = CirSim.theApp.adjustables.indexOf(this.sharedSlider);
-
-        let dumpFlags = 0;
-        if (this.sharedSlider != null)
-            dumpFlags |= this.FLAG_SHARED;
-        if (this.logarithmic)
-            dumpFlags |= this.FLAG_LOG;
-
-        return CirSim.theApp.locateElm(this.elm) + " F" + dumpFlags + " " + this.editItem + " " + this.minValue + " " + this.maxValue + " " + ano + " " +
-            CustomLogicModel.escape(this.sliderText) + " " + this.sliderStep;
-    }
-
     // get the unlocalized name of the edit item this adjustable controls
     getEditItemName(): string {
         if (this.elm == null) return "";

@@ -75,10 +75,6 @@ export class TransLineElm extends CircuitElm {
     getInternalNodeCount(): number { return 2; }
     getXmlDumpType(): string { return "tl"; }
 
-    dump(): string {
-        return super.dump() + " " + this.delay + " " + this.imped + " " + this.width + " " + 0.;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "de", this.delay);

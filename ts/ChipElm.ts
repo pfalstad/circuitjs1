@@ -504,22 +504,6 @@ export abstract class ChipElm extends CircuitElm {
         this.lastClock = false;
     }
 
-    dump(): string {
-        if (this.highVoltage === 5)
-            this.flags &= ~ChipElm.FLAG_CUSTOM_VOLTAGE;
-        else
-            this.flags |= ChipElm.FLAG_CUSTOM_VOLTAGE;
-        let s = super.dump();
-        if (this.needsBits())
-            s += " " + this.bits;
-        if (this.hasCustomVoltage())
-            s += " " + this.highVoltage;
-        for (let i = 0; i !== this.getPostCount(); i++)
-            if (this.pins[i].state)
-                s += " " + this.nodes[i].v;
-        return s;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.bits > 0)

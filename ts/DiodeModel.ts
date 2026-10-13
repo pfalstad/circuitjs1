@@ -347,11 +347,6 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.fwdrop = Math.log(1 / this.saturationCurrent + 1) * this.emissionCoefficient * DiodeModel.vt;
     }
 
-    dump(): string {
-        this.dumped = true;
-        return "34 " + CustomLogicModel.escape(this.name) + " " + this.flags + " " + this.saturationCurrent + " " + this.seriesResistance + " " + this.emissionCoefficient + " " + this.breakdownVoltage + " " + this.forwardCurrent;
-    }
-
     dumpXml(doc: Document): void {
         this.dumped = true;
         const elem = doc.createElement("dm");

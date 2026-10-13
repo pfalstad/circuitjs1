@@ -46,10 +46,6 @@ export class ResistorElm extends CircuitElm {
     isResistorElm(): boolean { return true; }
     getDumpType(): number { return 'r'.charCodeAt(0); }
 
-    dump(): string {
-        return super.dump() + " " + this.resistance;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);

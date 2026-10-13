@@ -73,8 +73,6 @@ export class WattmeterElm extends CircuitElm {
         this.curcounts = [0, 0];
     }
 
-    dump(): string { return super.dump() + " " + this.width + " " + this.meter; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "w", this.width);

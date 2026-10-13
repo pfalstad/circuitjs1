@@ -61,11 +61,6 @@ export class MemristorElm extends CircuitElm {
 
     getDumpType(): number { return 'm'.charCodeAt(0); }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " "
-            + this.dopeWidth + " " + this.totalWidth + " " + this.mobility;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);

@@ -66,11 +66,6 @@ export class AudioInputElm extends RailElm {
         }
     }
 
-    dump(): string {
-        this.genFileNumber();
-        return super.dump() + " " + this.maxVoltage + " " + this.startPosition + " " + this.fileNum;
-    }
-
     genFileNumber(): void {
         // add a file number to the dump so we can preserve the audio file data when doing cut and paste, or undo/redo.
         // we don't save the entire file in the dump because it would be huge.

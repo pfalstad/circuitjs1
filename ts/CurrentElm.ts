@@ -67,10 +67,6 @@ export class CurrentElm extends CircuitElm {
         this.lastVoltDiff = 0;
     }
 
-    dump(): string {
-        return super.dump() + " " + this.currentValue + " " + this.maxVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "cu", this.currentValue);
