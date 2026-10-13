@@ -194,6 +194,7 @@ export class OTAElm extends CompositeElm {
         arr[2] = "V+ - V- = " + CircuitElm.getVoltageText(this.nodes[0].v - this.nodes[1].v);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Positive Supply Voltage (5-20V)", this.posVolt, 5, 20).setUnitStep();
         if (n === 1) return new EditInfo("Negative Supply Voltage (V)",     this.negVolt, -20, -5).setUnitStep();

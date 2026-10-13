@@ -143,6 +143,7 @@ export class SparkGapElm extends CircuitElm {
         arr[6] = "Vbreakdown = " + CircuitElm.getUnitText(this.breakdown, "V");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("On resistance (ohms)", this.onresistance, 0, 0);

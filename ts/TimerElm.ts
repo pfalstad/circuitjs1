@@ -155,6 +155,7 @@ export class TimerElm extends ChipElm {
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
     getDumpType(): number { return 165; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, 0, 0);

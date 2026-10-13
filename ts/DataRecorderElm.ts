@@ -122,6 +122,7 @@ export class DataRecorderElm extends CircuitElm {
         return url;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             return new EditInfo("# of Data Points", this.dataCount, -1, -1).setDimensionless().setPositive();

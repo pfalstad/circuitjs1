@@ -269,6 +269,7 @@ export class SCRElm extends CircuitElm {
         this.ic = -this.ig - this.ia;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Trigger Current (A)", this.triggerI, 0, 0).setPositive();

@@ -321,9 +321,17 @@ export class MouseManager {
 	this.dragging = false;
 	this.sim.updateToolbar();
 	this.sim.repaint();
-	// automatically bring up the property editor for a newly-created element
-	if (createdElm != null && createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
-	    this.sim.commands.doEdit(createdElm, false);
+	if (createdElm != null)
+	    this.editCreatedElm(createdElm);
+    }
+
+    // automatically bring up the property editor for a newly-created element,
+    // or close the editor for some other element if this one doesn't want it
+    private editCreatedElm(elm: CircuitElm): void {
+	if (elm.showPropertiesOnCreate() && !this.ui.isReadOnly())
+	    this.sim.commands.doEdit(elm, false);
+	else if (CirSim.editDialog != null)
+	    CirSim.editDialog.closeDialog();
     }
 
     private doSwitch(x: number, y: number): boolean {
@@ -946,7 +954,7 @@ export class MouseManager {
 		    this.sim.menus.elmAddScopeMenuItem.setSubMenu(this.sim.scopeManager.selectScopeMenuBar);
 		    this.sim.menus.elmAddScopeMenuItem.setEnabled(this.mouseElm.canViewInScope());
 		}
-		this.sim.menus.elmEditMenuItem.setEnabled(this.mouseElm.getEditInfo(0) != null);
+		this.sim.menus.elmEditMenuItem.setEnabled(this.mouseElm.hasProperties());
 		this.sim.menus.elmSplitMenuItem.setEnabled(this.mouseElm.isWireElm());
 		this.sim.menus.elmSliderMenuItem.setEnabled(this.sliderItemEnabled(this.mouseElm));
 
@@ -1009,7 +1017,7 @@ export class MouseManager {
 	    (this.mouseElm as any).onDoubleClick();
 	    return;
 	}
-	if (!this.mouseElm.isSwitchElm() && !this.ui.isReadOnly())
+	if (!this.mouseElm.isSwitchElm() && this.mouseElm.hasProperties() && !this.ui.isReadOnly())
 	    this.sim.commands.doEdit(this.mouseElm);
     }
 
@@ -1230,13 +1238,14 @@ export class MouseManager {
 	const createdElm = this.endDrag();
 
 	if (createdElm != null) {
-	    // automatically bring up the property editor for a newly-created element
-	    if (createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
-		this.sim.commands.doEdit(createdElm, false);
+	    this.editCreatedElm(createdElm);
 	} else if (clickedElm != null && !(e as any).fromTouch &&
 		   this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
 	    // (tapping an element on a touch screen doesn't bring up its properties)
-	    this.sim.commands.doEdit(clickedElm);
+	    if (clickedElm.hasProperties())
+		this.sim.commands.doEdit(clickedElm);
+	    else if (CirSim.editDialog != null)
+		CirSim.editDialog.closeDialog();
 	} else if (clickedEmpty && CirSim.editDialog != null) {
 	    CirSim.editDialog.closeDialog();
 	}

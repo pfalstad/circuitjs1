@@ -307,6 +307,7 @@ export class MultiplexerElm extends ChipElm {
     getDumpType(): number { return 184; }
     getXmlDumpType(): string { return "mux"; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Select Bits", this.selectBitCount, 1, 8).setDimensionless();

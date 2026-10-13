@@ -90,6 +90,7 @@ export class JKFlipFlopElm extends ChipElm {
 
     getDumpType(): number { return 156; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return EditInfo.createCheckbox("Reset Pin", this.hasReset());

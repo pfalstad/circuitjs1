@@ -81,6 +81,7 @@ export class PhaseCompElm extends ChipElm {
 
     getPostCount(): number { return 3; }
     getVoltageSourceCount(): number { return 1; }
+    showPropertiesOnCreate(): boolean { return false; }
     getDumpType(): number { return 161; }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
 }

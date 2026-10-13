@@ -157,6 +157,7 @@ export class InverterElm extends CircuitElm {
         arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);

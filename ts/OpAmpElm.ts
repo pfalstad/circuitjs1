@@ -235,6 +235,7 @@ export class OpAmpElm extends CircuitElm {
     getVoltageDiff(): number { return this.nodes[2].v - this.nodes[1].v; }
     getDumpType(): number { return 'a'.charCodeAt(0); }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Max Output (V)", this.maxOut, 1, 20);

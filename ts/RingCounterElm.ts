@@ -100,6 +100,7 @@ export class RingCounterElm extends ChipElm {
         this.lastClock = this.pins[0].value;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

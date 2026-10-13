@@ -267,6 +267,7 @@ export class WattmeterElm extends CircuitElm {
     canFlipX(): boolean { return false; }
     canFlipY(): boolean { return false; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Value", 0, -1, -1);

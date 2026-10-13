@@ -172,6 +172,7 @@ export class AnalogMuxElm extends ChipElm {
         arr[2] = "Vout = " + CircuitElm.getVoltageText(this.nodes[this.outputPin].v);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("# of Select Bits", this.selectBitCount, 1, 8).setDimensionless();
         if (n === 1) return new EditInfo("On Resistance (ohms)", this.r_on, 0, 0).setPositive();

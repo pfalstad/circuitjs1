@@ -241,6 +241,7 @@ export class DeMultiplexerElm extends ChipElm {
     getDumpType(): number { return 185; }
     getXmlDumpType(): string { return "dmux"; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         const D = DeMultiplexerElm;
         if (n === 0)

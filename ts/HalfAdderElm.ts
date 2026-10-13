@@ -54,5 +54,6 @@ export class HalfAdderElm extends ChipElm {
         this.pins[0].value = this.pins[2].value !== this.pins[3].value;
         this.pins[1].value = this.pins[2].value && this.pins[3].value;
     }
+    showPropertiesOnCreate(): boolean { return false; }
     getDumpType(): number { return 195; }
 }

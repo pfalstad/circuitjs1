@@ -205,6 +205,7 @@ export class DiodeElm extends CircuitElm {
 
     models: DiodeModel[];
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);
