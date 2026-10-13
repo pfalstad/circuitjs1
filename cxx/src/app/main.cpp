@@ -19,12 +19,17 @@
 
 #include <QApplication>
 
+#include <clocale>
+
 #include "CirSim.h"
 #include "ConsoleDialog.h"
 #include "QtGraphics.h"
 
 int main(int argc, char **argv) {
     QApplication qapp(argc, argv);
+    // QApplication sets the C locale from the environment on Unix; keep '.' as
+    // the decimal point so strtod/printf work the same in comma-decimal locales
+    std::setlocale(LC_NUMERIC, "C");
     QApplication::setApplicationName("CircuitJS1");
     QApplication::setOrganizationName("lushprojects");
 
