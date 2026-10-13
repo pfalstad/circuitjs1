@@ -155,6 +155,7 @@ export class BusLogicInputElm extends SwitchElm {
     }
     getShortcut(): number { return 0; }
 
+    showPropertiesOnCreate(): boolean { return true; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Bus Width", this.busWidth, 2, 32).setDimensionless();

@@ -31,6 +31,7 @@ export class OhmMeterElm extends CurrentElm {
         super(xa, ya, xb, yb, f, st);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getDumpType(): number { return 216; }
 
     setPoints(): void {

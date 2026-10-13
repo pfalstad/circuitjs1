@@ -257,6 +257,7 @@ export class SevenSegDecoderElm extends ChipElm {
         }
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Segments", 0, -1, -1);

@@ -236,6 +236,7 @@ export class OptocouplerElm extends CompositeElm {
         arr[3] = "Iout = " + CircuitElm.getCurrentText(this.getCurrentIntoNode(2));
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("CTR Scale", this.ctr, 0, 0).setDimensionless();

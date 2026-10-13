@@ -205,6 +205,7 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
 
     getDumpType(): number { return 155; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

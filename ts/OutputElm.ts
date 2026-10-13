@@ -103,6 +103,7 @@ export class OutputElm extends CircuitElm {
         arr[1] = "V = " + CircuitElm.getVoltageText(this.nodes[0].v);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return EditInfo.createCheckbox("Show Voltage", this.showVoltage());

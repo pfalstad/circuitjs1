@@ -172,6 +172,7 @@ export class MemristorElm extends CircuitElm {
         return x === VAL_R;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Min Resistance (ohms)", this.r_on, 0, 0);

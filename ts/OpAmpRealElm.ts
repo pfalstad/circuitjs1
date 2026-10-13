@@ -269,6 +269,7 @@ export class OpAmpRealElm extends CompositeElm {
         arr[4] = "Iout = " + CircuitElm.getCurrentText(this.getCurrentIntoNode(2));
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo(EditInfo.makeLink("opampreal.html", "Model"), this.modelType);

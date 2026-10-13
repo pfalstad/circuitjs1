@@ -647,6 +647,7 @@ export class TransistorElm extends CircuitElm {
 
     models: TransistorModel[];
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Beta/hFE", this.beta, 10, 1000).setDimensionless();

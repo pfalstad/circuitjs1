@@ -74,6 +74,7 @@ export class BoxElm extends GraphicElm {
         g.setLineDash(0, 0);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return EditInfo.createCheckbox("Zoom In", this.zoomIn());

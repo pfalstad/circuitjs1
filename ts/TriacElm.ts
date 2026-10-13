@@ -268,6 +268,7 @@ export class TriacElm extends CircuitElm {
             (this.nodes[this.gnode].v - this.nodes[this.mt1node].v) * this.ig;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Trigger Current (A)",        this.triggerI,    0, 0).setPositive();
         if (n === 1) return new EditInfo("Holding Current (A)",        this.holdingI,    0, 0).setPositive();

@@ -179,6 +179,7 @@ export class ThermistorNTCElm extends CircuitElm {
         arr[5] = "T = " + CircuitElm.getUnitText(this.temperature, "°C");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("R at 25°C", this.r25, this.r50 + 100, 100000);
         if (n === 1) return new EditInfo("R at 50°C", this.r50, 100, this.r25 - 100);

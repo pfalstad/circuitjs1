@@ -155,6 +155,7 @@ export class VaractorElm extends DiodeElm {
         CircuitElm.sim.updateVoltageSource(this.nodes[0], this.nodes[2], this.voltSource, this.voltSourceValue);
     }
 
+    showPropertiesOnCreate(): boolean { return true; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 1)
             return new EditInfo("Capacitance @ 0V (F)", this.baseCapacitance, 10, 1000);

@@ -60,6 +60,7 @@ export class LineElm extends GraphicElm {
         g.drawLine(this.x, this.y, this.x2, this.y2);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         return null;
     }

@@ -115,6 +115,7 @@ export class DecimalDisplayElm extends ChipElm {
     getDumpType(): number { return 419; }
     getVoltageSourceCount(): number { return 0; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bitCount, 1, 8).setDimensionless();

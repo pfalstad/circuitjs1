@@ -84,6 +84,7 @@ export class TFlipFlopElm extends ChipElm {
         this.lastClock = this.pins[3].value;
     }
     getDumpType(): number { return 193; }
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

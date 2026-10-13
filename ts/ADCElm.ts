@@ -66,6 +66,7 @@ export class ADCElm extends ChipElm {
     // there's already a V+ pin, how does that relate to high logic voltage?  figure out later
     isDigitalChip(): boolean { return false; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();

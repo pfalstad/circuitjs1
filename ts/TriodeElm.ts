@@ -247,6 +247,7 @@ export class TriodeElm extends CircuitElm {
     getConnection(n1: number, n2: number): boolean { return !(n1 === 1 || n2 === 1); }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("mu", this.mu, 0, 0).setDimensionless().setPositive();

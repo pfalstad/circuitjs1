@@ -762,6 +762,7 @@ export class MosfetElm extends CircuitElm {
     // terminal, digital symbol, body diode - now live on MosfetModel, not here.)
     hasSwapDS(): boolean { return true; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);

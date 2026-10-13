@@ -172,6 +172,7 @@ export class GroundElm extends CircuitElm {
     }
 
     getCurrentIntoNode(n: number): number { return -this.current; }
+    showPropertiesOnCreate(): boolean { return false; }
 }
 
 HookRegistry.resetGroundNodeList = () => GroundElm.resetNodeList();

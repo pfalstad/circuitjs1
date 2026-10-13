@@ -200,6 +200,7 @@ export class AnalogSwitchElm extends CircuitElm {
         return this.needsPulldown() && (n1 < 2);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

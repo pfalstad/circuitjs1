@@ -178,6 +178,7 @@ export class InverterElm extends CircuitElm {
             appendInfoLine(arr, "opt: " + digitalStateTextForOutput(this, 0));
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);

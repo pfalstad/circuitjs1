@@ -159,6 +159,7 @@ export class LDRElm extends CircuitElm {
         arr[4] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Slider Text", 0, -1, -1);

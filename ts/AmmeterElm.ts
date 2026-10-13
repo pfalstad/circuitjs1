@@ -244,6 +244,7 @@ export class AmmeterElm extends CircuitElm {
         return (this.flags & AmmeterElm.FLAG_CIRCLE) !== 0;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Value", this.selectedValue, -1, -1);

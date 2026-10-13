@@ -160,6 +160,7 @@ export class InvertingSchmittElm extends CircuitElm {
     }
     dlt: number = 0;
     dut: number = 0;
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             this.dlt = this.lowerTrigger;
