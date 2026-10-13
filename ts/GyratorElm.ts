@@ -18,6 +18,8 @@
 */
 
 import { CircuitElm } from "./CircuitElm";
+import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -140,6 +142,22 @@ export class GyratorElm extends CircuitElm {
             this.arrowHead = new Point(cx + 8, cy + 8);
         }
         this.arrowPoly = this.calcArrow(this.arrowTail, this.arrowHead, 4, 3);
+    }
+
+    dumpXml(doc: Document, elem: Element): void {
+        super.dumpXml(doc, elem);
+        CircuitXMLSerializer.dumpAttr(elem, "r", this.gyrResistance);
+        CircuitXMLSerializer.dumpAttr(elem, "wi", this.width);
+    }
+
+    undumpXml(xml: CircuitXMLDeserializer): void {
+        super.undumpXml(xml);
+        if (this.hasFlag(GyratorElm.FLAG_VERTICAL))
+            this.width = -Math.max(32, Math.abs(this.x2 - this.x));
+        else
+            this.width = Math.max(32, Math.abs(this.y2 - this.y));
+        this.gyrResistance = xml.parseDoubleAttr("r", this.gyrResistance);
+        this.width = xml.parseIntAttr("wi", this.width);
     }
 
     getPost(n: number): Point {
