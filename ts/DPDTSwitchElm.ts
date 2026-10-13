@@ -59,10 +59,6 @@ export class DPDTSwitchElm extends SwitchElm {
     getDumpType(): number { return 429; }
     getXmlDumpType(): string { return "dpdt"; }
 
-    dump(): string {
-        return super.dump() + " " + this.poleCount;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "po", this.poleCount);

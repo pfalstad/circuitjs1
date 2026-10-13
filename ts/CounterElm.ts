@@ -48,10 +48,6 @@ export class CounterElm extends ChipElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.invertreset + " " + this.modulus;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "in", this.invertreset);

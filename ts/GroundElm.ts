@@ -56,9 +56,6 @@ export class GroundElm extends CircuitElm {
             }
         }
     }
-    dump(): string {
-        return super.dump() + " " + this.symbolType;
-    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);

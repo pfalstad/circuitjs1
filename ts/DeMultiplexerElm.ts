@@ -68,8 +68,6 @@ export class DeMultiplexerElm extends ChipElm {
 
     getChipName(): string { return "Demultiplexer"; }
 
-    dump(): string { return super.dump() + " " + this.selectBitCount; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "se", this.selectBitCount);

@@ -62,9 +62,6 @@ export class AudioOutputElm extends CircuitElm {
             this.createButton();
         }
     }
-    dump(): string {
-        return super.dump() + " " + this.duration + " " + this.samplingRate + " " + this.labelNum;
-    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);

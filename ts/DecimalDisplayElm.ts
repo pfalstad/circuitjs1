@@ -83,8 +83,6 @@ export class DecimalDisplayElm extends ChipElm {
         g.restore();
     }
 
-    dump(): string { return super.dump() + " " + this.bitCount + " " + this.displayMode; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "bc", this.bitCount);

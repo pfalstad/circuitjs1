@@ -54,11 +54,6 @@ export class UnijunctionElm extends CompositeElm {
         CircuitElm.sim.adjustTimeStep = true;
     }
 
-    dump(): string {
-        // don't want model details dumped, takes up space and will make it hard to change
-        return this.dumpWithMask(0);
-    }
-
     reset(): void {
         super.reset();
         this.curcountb1 = this.curcountb2 = this.curcounte = 0;

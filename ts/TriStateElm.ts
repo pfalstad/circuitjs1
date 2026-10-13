@@ -72,10 +72,6 @@ export class TriStateElm extends CircuitElm {
         this.allocNodes();
     }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " " + this.r_off_ground + " " + this.highVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);

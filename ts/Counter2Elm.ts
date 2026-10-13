@@ -41,10 +41,6 @@ export class Counter2Elm extends ChipElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.modulus;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "mo", this.modulus);

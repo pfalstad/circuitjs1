@@ -44,10 +44,6 @@ export class PolarCapacitorElm extends CapacitorElm {
     getDumpType(): number { return 209; }
     getXmlDumpType(): string { return "pc"; }
 
-    dump(): string {
-        return super.dump() + " " + this.maxNegativeVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "mv", this.maxNegativeVoltage);

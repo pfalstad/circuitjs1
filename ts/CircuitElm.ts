@@ -269,13 +269,6 @@ export abstract class CircuitElm implements Editable {
         }
     }
 
-    // dump component state for export/undo
-    dump(): string {
-        const t = this.getDumpType();
-        return (t < 127 ? String.fromCharCode(t)+" " : t+" ") + this.x + " " + this.y + " " +
-            this.x2 + " " + this.y2 + " " + this.flags;
-    }
-
     // handle reset button
     reset(): void {
         this.curcount = 0;
@@ -1495,7 +1488,6 @@ export abstract class CircuitElm implements Editable {
         return this.lineDistanceSq(this.x, this.y, this.x2, this.y2, gx, gy);
     }
 
-    dumpModel(): string | null { return null; }
     dumpXmlModel(doc: Document): void {}
 
     isMouseElm(): boolean {

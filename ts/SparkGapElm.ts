@@ -57,11 +57,6 @@ export class SparkGapElm extends CircuitElm {
     nonLinear(): boolean { return true; }
     getDumpType(): number { return 187; }
 
-    dump(): string {
-        return super.dump() + " " + this.onresistance + " " + this.offresistance + " "
-            + this.breakdown + " " + this.holdcurrent;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "on", this.onresistance);

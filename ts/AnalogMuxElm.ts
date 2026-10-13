@@ -58,10 +58,6 @@ export class AnalogMuxElm extends ChipElm {
     nonLinear(): boolean { return true; }
     getDumpType(): number { return 432; }
 
-    dump(): string {
-        return super.dump() + " " + this.selectBitCount + " " + this.r_on + " " + this.r_off + " " + this.threshold;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "sb", this.selectBitCount);

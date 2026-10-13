@@ -58,10 +58,6 @@ export class InverterElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.slewRate + " " + this.highVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "sl", this.slewRate);
