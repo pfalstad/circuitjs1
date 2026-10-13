@@ -54,14 +54,17 @@ ShortcutsDialog::ShortcutsDialog(CirSim *s) : QDialog(s), sim(s) {
         Row &row = rows[i];
         grid->addWidget(new QLabel(row.name), (int) i, 0);
         row.edit = new QKeySequenceEdit(row.shortcut);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         row.edit->setMaximumSequenceLength(1);
         row.edit->setFinishingKeyCombinations({});
+#endif
         connect(row.edit, &QKeySequenceEdit::keySequenceChanged, this, [this, i](const QKeySequence &seq) {
             // backspace/delete clears the shortcut, like the web version
             QKeyCombination k = seq.isEmpty() ? QKeyCombination() : seq[0];
             bool clear = k.keyboardModifiers() == Qt::NoModifier &&
                          (k.key() == Qt::Key_Backspace || k.key() == Qt::Key_Delete);
-            setRowShortcut(rows[i], clear ? QKeySequence() : seq);
+            // before Qt 6.5 the edit can't be limited to one key, so keep only the first
+            setRowShortcut(rows[i], clear || seq.isEmpty() ? QKeySequence() : QKeySequence(k));
         });
         grid->addWidget(row.edit, (int) i, 1);
         QPushButton *clearButton = new QPushButton(LS("Clear"));
