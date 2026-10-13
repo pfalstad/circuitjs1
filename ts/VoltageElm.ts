@@ -525,7 +525,9 @@ export class VoltageElm extends CircuitElm {
     hasTimingOptions(): boolean { return this.waveform == VoltageElm.WF_PULSE || this.waveform == VoltageElm.WF_SQUARE; }
     timeSpec(): boolean { return this.hasFlag(VoltageElm.FLAG_TIME_SPEC) && this.hasTimingOptions(); }
 
-    setFrequency(newFreq: number): void {
+    // continuous changes (sliders) keep the waveform continuous by shifting freqTimeZero;
+    // other changes reset it so the waveform is phase-coherent with other sources (as after a reload)
+    setFrequency(newFreq: number, continuous: boolean = false): void {
 	const oldfreq = this.frequency;
 	this.frequency = newFreq;
 	const maxfreq = 1/(8*CircuitElm.sim.maxTimeStep);
@@ -535,13 +537,13 @@ export class VoltageElm extends CircuitElm {
 	    else
 		this.frequency = maxfreq;
 	}
-	this.freqTimeZero = (this.frequency == 0) ? 0 : CircuitElm.sim.t-oldfreq*(CircuitElm.sim.t-this.freqTimeZero)/this.frequency;
+	this.freqTimeZero = (!continuous || this.frequency == 0) ? 0 : CircuitElm.sim.t-oldfreq*(CircuitElm.sim.t-this.freqTimeZero)/this.frequency;
     }
 
-    setFrequencyFromTimes(highTime: number, lowTime: number): void {
+    setFrequencyFromTimes(highTime: number, lowTime: number, continuous: boolean): void {
 	const newFreq = 1 / (highTime + lowTime);
 	const newDuty = highTime / (highTime + lowTime);
-	this.setFrequency(newFreq);
+	this.setFrequency(newFreq, continuous);
 	this.dutyCycle = newDuty;
     }
 
@@ -622,6 +624,9 @@ export class VoltageElm extends CircuitElm {
 	return null;
     }
     setEditValue(n: number, ei: EditInfo): void {
+	// any edit-dialog change makes the waveform phase-coherent with other sources
+	if (!ei.continuous)
+	    this.freqTimeZero = 0;
 	if (n == 0)
 	    this.maxVoltage = ei.value;
 	if (n == 2)
@@ -669,10 +674,10 @@ export class VoltageElm extends CircuitElm {
 		    const highTime = ei.value;
 		    const lowTime = (1 - this.dutyCycle) / this.frequency;
 		    if (highTime > 0 && lowTime > 0) {
-			this.setFrequencyFromTimes(highTime, lowTime);
+			this.setFrequencyFromTimes(highTime, lowTime, ei.continuous);
 		    }
 		} else if (ei.value != 0) {
-		    this.setFrequency(ei.value);
+		    this.setFrequency(ei.value, ei.continuous);
 		}
 	    }
 	    if (n2 == 2) {
@@ -685,7 +690,7 @@ export class VoltageElm extends CircuitElm {
 		    const highTime = this.dutyCycle / this.frequency;
 		    const lowTime = ei.value;
 		    if (highTime > 0 && lowTime > 0) {
-			this.setFrequencyFromTimes(highTime, lowTime);
+			this.setFrequencyFromTimes(highTime, lowTime, ei.continuous);
 		    }
 		} else {
 		    this.dutyCycle = ei.value * .01;
@@ -695,7 +700,7 @@ export class VoltageElm extends CircuitElm {
 		this.riseTime = ei.value;
 	} else {
 	    if (n2 == 0 && this.waveform != VoltageElm.WF_DC && ei.value != 0)
-		this.setFrequency(ei.value);
+		this.setFrequency(ei.value, ei.continuous);
 	    if (n2 == 1) {
 		this.phaseShift = ei.value*VoltageElm.pi/180;
 		this.phaseShift = ((this.phaseShift % (2*VoltageElm.pi)) + 2*VoltageElm.pi) % (2*VoltageElm.pi);
