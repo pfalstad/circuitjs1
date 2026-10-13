@@ -354,7 +354,7 @@ export class Scope {
         const w = this.rect.width;
         const h = this.rect.height;
         this.rect = r;
-        if (this.rect.width !== w || (this.plot2d.plotXY && this.rect.height !== h))
+        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h))
             this.resetGraph();
     }
 
