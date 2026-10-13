@@ -20,6 +20,7 @@
 import { CirSim } from "./CirSim";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { CircuitElm } from "./CircuitElm";
+import { Point } from "./Point";
 import { CircuitNode } from "./CircuitNode";
 import { Scope } from "./Scope";
 import { Graphics } from "./Graphics";
@@ -84,6 +85,8 @@ export class MouseManager {
     // elements grabbed at mouse-down for DragRow/DragColumn
     dragRowColElms: CircuitElm[] = [];
     dragRowColPosts: number[] = [];
+    // elements moved by dragSelected during the current drag
+    dragMovedElms: Set<CircuitElm> = new Set();
 
     // ---- Toolbar drag-and-drop ----
     // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
@@ -521,8 +524,10 @@ export class MouseManager {
 
 	if (allowed) {
 	    for (const ce of this.ui.elmList) {
-		if (ce.isSelected())
+		if (ce.isSelected()) {
 		    ce.move(dx, dy);
+		    this.dragMovedElms.add(ce);
+		}
 	    }
 	    // move connected routed wires' shared posts
 	    if (this.sim.sim.routedWireMap != null) {
@@ -600,11 +605,11 @@ export class MouseManager {
 
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
-    private splitWireAt(px: number, py: number): boolean {
+    private splitWireAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
 	let split = false;
 	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
 	    const ce = this.ui.elmList[i];
-	    if (!ce.isWireElm())
+	    if (!ce.isWireElm() || exclude?.has(ce))
 		continue;
 	    const we = ce as any;
 	    if (!we.pointOnWireInterior(px, py))
@@ -621,11 +626,11 @@ export class MouseManager {
     // Split the lead stub of any non-wire element whose lead contains (px, py).
     // Moves the element's post to the split point and inserts a wire for the remainder.
     // Returns true if any lead was split.
-    private splitLeadsAt(px: number, py: number): boolean {
+    private splitLeadsAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
 	let split = false;
 	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
 	    const ce = this.ui.elmList[i];
-	    if (ce.isWireElm())
+	    if (ce.isWireElm() || exclude?.has(ce))
 		continue;
 	    const post = ce.getLeadPost(px, py);
 	    if (post < 0)
@@ -641,10 +646,11 @@ export class MouseManager {
 	return split;
     }
 
-    // Split any wire or element lead whose interior contains (px, py).
-    private splitAt(px: number, py: number): boolean {
-	const a = this.splitWireAt(px, py);
-	const b = this.splitLeadsAt(px, py);
+    // Split any wire or element lead whose interior contains (px, py),
+    // skipping elements in exclude.
+    private splitAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
+	const a = this.splitWireAt(px, py, exclude);
+	const b = this.splitLeadsAt(px, py, exclude);
 	return a || b;
     }
 
@@ -1142,6 +1148,7 @@ export class MouseManager {
 	this.initDragGridX = gx;
 	this.initDragGridY = gy;
 	this.dragging = true;
+	this.dragMovedElms.clear();
 
 	// capture elements for DragRow/DragColumn at mouse-down so we don't
 	// pick up new elements as we sweep over them
@@ -1267,6 +1274,23 @@ export class MouseManager {
 	    const p = this.mouseElm.getPost(this.draggingPost);
 	    if (p != null && this.splitAt(p.x, p.y))
 		circuitChanged = true;
+	}
+	// auto-split wires/leads that moved elements' posts were dropped onto.
+	// Moved elements aren't split themselves, since they moved together.
+	if (this.dragMovedElms.size > 0) {
+	    const posts: Point[] = [];
+	    for (const ce of this.dragMovedElms) {
+		for (let i = 0; i < ce.getPostCount(); i++) {
+		    const p = ce.getPost(i);
+		    if (p != null)
+			posts.push(p);
+		}
+	    }
+	    for (const p of posts) {
+		if (this.splitAt(p.x, p.y, this.dragMovedElms))
+		    circuitChanged = true;
+	    }
+	    this.dragMovedElms.clear();
 	}
 	if (this.heldSwitchElm != null) {
 	    (this.heldSwitchElm as any).mouseUp();
