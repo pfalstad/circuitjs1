@@ -178,6 +178,7 @@ export class Adjustable {
         const ei = this.elm.getEditInfo(this.editItem);
         if (ei == null) return;
         ei.value = this.getSliderValue();
+        ei.continuous = true;
         this.elm.setEditValue(this.editItem, ei);
         CirSim.theApp.repaint();
     }

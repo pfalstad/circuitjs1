@@ -43,6 +43,8 @@ export class EditInfo {
     textArea: any = null;
     widget: any = null;
     newDialog: boolean = false;
+    // set when value comes from a slider rather than the edit dialog
+    continuous: boolean = false;
     textf: any = null;
     loadFile: any = null;
     minBox: any = null;
