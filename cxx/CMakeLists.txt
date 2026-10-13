@@ -52,9 +52,12 @@ if(Qt6_FOUND)
     set(CMAKE_AUTOMOC ON)
     file(GLOB APP_SOURCES CONFIGURE_DEPENDS src/app/*.cpp)
     add_executable(CircuitJS1 MACOSX_BUNDLE WIN32 ${APP_SOURCES})
+    # app icon (made from ../icon.png)
     if(WIN32)
-        # exe icon (made from ../icon.png)
         target_sources(CircuitJS1 PRIVATE src/app/CircuitJS1.rc)
+    elseif(APPLE)
+        target_sources(CircuitJS1 PRIVATE src/app/CircuitJS1.icns)
+        set_source_files_properties(src/app/CircuitJS1.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     endif()
     # audio playback and audio file decoding (third_party/miniaudio)
     add_library(miniaudio STATIC src/third_party/miniaudio/miniaudio.c)
@@ -70,7 +73,8 @@ if(Qt6_FOUND)
     target_link_libraries(CircuitJS1 circuitcore miniaudio Qt6::Widgets Qt6::Svg Qt6::PrintSupport)
     set_target_properties(CircuitJS1 PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER com.lushprojects.circuitjs1
-        MACOSX_BUNDLE_BUNDLE_NAME CircuitJS1)
+        MACOSX_BUNDLE_BUNDLE_NAME CircuitJS1
+        MACOSX_BUNDLE_ICON_FILE CircuitJS1.icns)
 
     # the example circuits and the Circuits menu list, from the TS version
     set(TS_PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../ts/public)
