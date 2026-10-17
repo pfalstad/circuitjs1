@@ -9,8 +9,8 @@ Open `studio.html` instead of `circuitjs.html` to use them. The original simulat
 
 ## Running it
 
-1. Build CircuitJS as described in [README.md](README.md) (Gradle, `./dev.sh`, or Eclipse). The build writes the compiled simulator to `war/circuitjs1/`.
-2. Start the Circuit Studio server (needs Node.js 18 or newer):
+1. The compiled simulator is already included in `war/circuitjs1/`, so you don't need Java. Rebuild it only if you change the Java code (see [README.md](README.md); `./dev.sh` works on Linux only).
+2. Start the Circuit Studio server (needs Node.js 18 or newer from https://nodejs.org):
 
    ```bash
    cd server

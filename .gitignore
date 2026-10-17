@@ -1,7 +1,7 @@
 #GWT cache
 gwt-unitCache/
-war/circuitjs1/
-war/circuitjs1/circuits/
+# war/circuitjs1/ (the compiled simulator) is committed in this fork so
+# Circuit Studio runs without installing Java. Rebuild it after Java changes.
 war/e-*.html
 war/WEB-INF/
 
