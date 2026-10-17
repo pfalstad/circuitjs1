@@ -73,3 +73,6 @@ Temporary Items
 *.tgz
 
 /.apt_generated/
+
+# Circuit Studio server dependencies
+server/node_modules/

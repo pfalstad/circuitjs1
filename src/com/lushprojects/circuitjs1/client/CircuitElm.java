@@ -1443,6 +1443,9 @@ public abstract class CircuitElm implements Editable {
 	    return 0;
 	return volts[n];
     }
+
+    int getPostXJS(int n) { return getPost(n).x; }
+    int getPostYJS(int n) { return getPost(n).y; }
     
     native void addJSMethods() /*-{
         var that = this;
@@ -1453,6 +1456,7 @@ public abstract class CircuitElm implements Editable {
         this.getCurrent = $entry(function() { return that.@com.lushprojects.circuitjs1.client.CircuitElm::getCurrent()(); });
         this.getLabelName = $entry(function() { return that.@com.lushprojects.circuitjs1.client.LabeledNodeElm::getName()(); });
         this.getPostCount = $entry(function() { return that.@com.lushprojects.circuitjs1.client.CircuitElm::getPostCount()(); });
+        this.getPost = $entry(function(n) { return [that.@com.lushprojects.circuitjs1.client.CircuitElm::getPostXJS(I)(n), that.@com.lushprojects.circuitjs1.client.CircuitElm::getPostYJS(I)(n)]; });
     }-*/;
     
     native JavaScriptObject getJavaScriptObject() /*-{ return this; }-*/;
