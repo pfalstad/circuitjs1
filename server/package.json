@@ -1,0 +1,14 @@
+{
+  "name": "circuit-studio-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Serves CircuitJS with the AI circuit builder and 3D view",
+  "type": "module",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0"
+  }
+}

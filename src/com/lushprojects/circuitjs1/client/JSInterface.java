@@ -49,6 +49,8 @@ public class JSInterface {
     void setTimeStep(double ts) { app.sim.timeStep = ts; }
     double getMaxTimeStep() { return app.sim.maxTimeStep; }
     void setMaxTimeStep(double ts) { app.sim.maxTimeStep = app.sim.timeStep = ts; }
+    String getStopMessage() { return app.stopMessage; }
+    int getBadConnectionCount() { return app.badConnectionList == null ? 0 : app.badConnectionList.size(); }
 
     native void setupJSInterface() /*-{
 	var that = this;
@@ -65,7 +67,9 @@ public class JSInterface {
 	    getElements: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::getJSElements()(); } ),
 	    getCircuitAsSVG: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::doExportAsSVGFromAPI()(); } ),
 	    exportCircuit: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::dumpCircuit()(); } ),
-	    importCircuit: $entry(function(circuit, subcircuitsOnly) { return that.@com.lushprojects.circuitjs1.client.JSInterface::importCircuitFromText(Ljava/lang/String;Z)(circuit, subcircuitsOnly); })
+	    importCircuit: $entry(function(circuit, subcircuitsOnly) { return that.@com.lushprojects.circuitjs1.client.JSInterface::importCircuitFromText(Ljava/lang/String;Z)(circuit, subcircuitsOnly); }),
+	    getStopMessage: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::getStopMessage()(); } ),
+	    getBadConnectionCount: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::getBadConnectionCount()(); } )
 	};
 	var hook = $wnd.oncircuitjsloaded;
 	if (hook)
