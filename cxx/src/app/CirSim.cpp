@@ -123,6 +123,21 @@ void CircuitCanvas::mouseDoubleClickEvent(QMouseEvent *e) { app->mouse.onDoubleC
 void CircuitCanvas::wheelEvent(QWheelEvent *e) { app->mouse.onMouseWheel(e); }
 void CircuitCanvas::leaveEvent(QEvent *) { app->mouse.onMouseOut(); }
 
+void CircuitCanvas::resizeEvent(QResizeEvent *e) {
+    QWidget::resizeEvent(e);
+    // recenter if the window was resized in the last second, as in the web version
+    // (but not when the canvas resizes because a panel was toggled)
+    if (QDateTime::currentMSecsSinceEpoch() - app->lastResizeTime < 1000)
+        app->centerCircuit();
+}
+
+void CirSim::resizeEvent(QResizeEvent *e) {
+    lastResizeTime = QDateTime::currentMSecsSinceEpoch();
+    QMainWindow::resizeEvent(e);
+    // the layout may already have resized the canvas before we got here
+    centerCircuit();
+}
+
 CirSim::CirSim() {
     sim = std::make_unique<SimulationManager>(this);
     scopeManagerOwner = std::make_unique<ScopeManager>(this);

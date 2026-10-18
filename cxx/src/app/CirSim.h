@@ -72,6 +72,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     void leaveEvent(QEvent *e) override;
+    void resizeEvent(QResizeEvent *e) override;
 
 private:
     CirSim *app;
@@ -133,6 +134,7 @@ public:
     bool isModified();
     void newBlankCircuit();
     void closeEvent(QCloseEvent *e) override;
+    void resizeEvent(QResizeEvent *e) override;
     void needAnalyze();
     void repaint() override;
     bool sliderItemEnabled(CircuitElm *elm);
@@ -292,6 +294,7 @@ public:
     void writeRecoveryToStorage();
     void readRecovery();
     void doRecover();
+    qint64 lastResizeTime = 0;  // when the window was last resized
 
 private:
     void createMenus();
