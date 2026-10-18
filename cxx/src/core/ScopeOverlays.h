@@ -35,8 +35,7 @@ public:
     Scope *scope;
     double textY = 0;
 
-    // true if `lines` more lines of text fit in the top half of the scope, so
-    // optional text (label, legend) doesn't cover the waveform in short scopes
+    // true if `lines` more lines of text fit in the scope
     bool hasRoomForText(int lines) const;
     void drawInfoText(Graphics &g, const std::string &text);
     void drawScale(ScopePlot &plot, Graphics &g);

@@ -33,7 +33,7 @@
 #include "SimulationManager.h"
 
 bool ScopeOverlays::hasRoomForText(int lines) const {
-    return textY + 15 * (lines - 1) <= scope->rect.height / 2;
+    return textY + 15 * (lines - 1) <= scope->rect.height * 3 / 4;
 }
 
 void ScopeOverlays::drawInfoText(Graphics &g, const std::string &text) {

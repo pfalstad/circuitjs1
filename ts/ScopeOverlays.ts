@@ -32,10 +32,9 @@ export class ScopeOverlays {
         this.scope = scope;
     }
 
-    // true if `lines` more lines of text fit in the top half of the scope, so
-    // optional text (label, legend) doesn't cover the waveform in short scopes
+    // true if `lines` more lines of text fit in the scope
     hasRoomForText(lines: number): boolean {
-        return this.textY + 15 * (lines - 1) <= this.scope.rect.height / 2;
+        return this.textY + 15 * (lines - 1) <= (this.scope.rect.height*3/4);
     }
 
     drawInfoText(g: Graphics, text: string): void {
