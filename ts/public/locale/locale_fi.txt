@@ -1265,6 +1265,7 @@
 "Edit Relay Model"="Muokkaa relemallia"
 "Edit Subcircuit Pin Layout"="Muokkaa oman piirin pinnien asettelua"
 "Edit Transistor Model"="Muokkaa transistorimallia"
+"Edit MOSFET Model"="Muokkaa MOSFET-mallia"
 "Editing disabled.  Re-enable from the Options menu."="Muokkaus estetty. Ota käyttöön uudelleen Asetukset-valikosta."
 "Editing: "="Muokataan: "
 "Enable Pins"="Enable-pinnit"

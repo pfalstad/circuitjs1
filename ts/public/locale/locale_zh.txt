@@ -1564,6 +1564,7 @@
 "Edit Diode Model"="编辑二极管模型"
 "Edit Relay Model"="编辑继电器模型"
 "Edit Transistor Model"="编辑晶体管模型"
+"Edit MOSFET Model"="编辑MOSFET模型"
 "Enable Pins"="使能引脚"
 "End"="End"
 "F10"="F10"

@@ -61,7 +61,9 @@ export class EditDialog extends Dialog {
 
         // Title
         let title = "Edit Component";
-        if (ce instanceof CircuitElm) {
+        if (ce.getEditTitle)
+            title = ce.getEditTitle();
+        else if (ce instanceof CircuitElm) {
             const name = (ce as CircuitElm).getElmType();
             if (name)
                 title = "Edit " + name.charAt(0).toUpperCase() + name.slice(1);

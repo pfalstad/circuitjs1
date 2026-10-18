@@ -312,6 +312,8 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     getDialogTitle(): string { return "Edit " + (this.isJfet() ? "JFET" : "MOSFET") + " Model"; }
 
+    getEditTitle(): string { return "Edit MOSFET Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model Name", 0);

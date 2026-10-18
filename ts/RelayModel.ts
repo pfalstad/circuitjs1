@@ -265,6 +265,8 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
         this.pulldown      = xml.parseIntAttr("pd",  this.pulldown ? 1 : 0) !== 0;
     }
 
+    getEditTitle(): string { return "Edit Relay Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model Name", 0);

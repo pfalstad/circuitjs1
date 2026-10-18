@@ -1577,6 +1577,7 @@
 "Edit Diode Model"="Редактировать модель диода"
 "Edit Relay Model"="Редактировать модель реле"
 "Edit Transistor Model"="Редактировать модель транзистора"
+"Edit MOSFET Model"="Редактировать модель MOSFET"
 "Enable Pins"="Выводы разрешения"
 "End"="End"
 "F10"="F10"
