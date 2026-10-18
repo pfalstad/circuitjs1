@@ -372,6 +372,12 @@ export class MouseManager {
 	    this.dragSplitter(ex, ey);
 	    return;
 	}
+	// mouse was pressed in one of the scopes at the bottom (scopeSelected isn't updated
+	// while dragging), so don't drag the element it's plotting
+	if (this.sim.scopeManager.scopeSelected !== -1) {
+	    this.sim.repaint();
+	    return;
+	}
 	const gx = this.inverseTransformX(ex);
 	const gy = this.inverseTransformY(ey);
 	if (!this.sim.circuitArea.contains(ex, ey)) {
