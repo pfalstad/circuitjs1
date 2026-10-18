@@ -321,6 +321,12 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
         sim->repaint();
         return;
     }
+    // mouse was pressed in one of the scopes at the bottom (scopeSelected isn't updated
+    // while dragging), so don't drag the element it's plotting
+    if (sim->scopeManager->scopeSelected != -1) {
+        sim->repaint();
+        return;
+    }
     int gx = inverseTransformX(ex);
     int gy = inverseTransformY(ey);
     if (!sim->circuitArea.contains(ex, ey)) {
