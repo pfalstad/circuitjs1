@@ -23,4 +23,5 @@ import { EditInfo } from "./EditInfo";
 export interface Editable {
     getEditInfo(n: number): EditInfo | null;
     setEditValue(n: number, ei: EditInfo): void;
+    getEditTitle?(): string;
 }

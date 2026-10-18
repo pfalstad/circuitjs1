@@ -277,6 +277,8 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.updateModel();
     }
 
+    getEditTitle(): string { return "Edit Diode Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model Name", 0);

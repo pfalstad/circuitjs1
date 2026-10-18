@@ -1564,6 +1564,7 @@
 "Edit Diode Model"="Upravit model diody"
 "Edit Relay Model"="Upravit model relé"
 "Edit Transistor Model"="Upravit model tranzistoru"
+"Edit MOSFET Model"="Upravit model MOSFETu"
 "Enable Pins"="Povolovací piny"
 "End"="End"
 "F10"="F10"
