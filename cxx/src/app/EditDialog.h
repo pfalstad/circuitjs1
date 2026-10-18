@@ -32,8 +32,9 @@ class QLabel;
 class QVBoxLayout;
 class QWidget;
 
-// the property editor for an element or model (EditDialog.ts).  Non-modal: it stays up
-// while you work on the circuit, and clicking another element retargets it.
+// the property editor for an element or model (EditDialog.ts).  Element editors are
+// non-modal: they stay up while you work on the circuit, and clicking another element
+// retargets them.  Editors for models and Other Options are modal.
 class EditDialog : public QDialog {
 public:
     EditDialog(Editable *ce, CirSim *f);

@@ -23,6 +23,7 @@
 
 class RingCounterElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(RingCounterElm)
     static constexpr int FLAG_CLOCK_INHIBIT = 2;
     static constexpr int FLAG_RESET_HIGH = 4;

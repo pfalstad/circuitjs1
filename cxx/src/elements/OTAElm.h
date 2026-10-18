@@ -24,6 +24,7 @@
 
 class OTAElm : public CompositeElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(OTAElm)
     double posVolt = 9.0;
     double negVolt = -9.0;

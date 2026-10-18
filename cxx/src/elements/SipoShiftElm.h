@@ -24,6 +24,7 @@
 // contributed by Edward Calver
 class SipoShiftElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(SipoShiftElm)
     static constexpr int DATA_PIN_INDEX = 2;
     bool clockstate = false;

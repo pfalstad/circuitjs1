@@ -95,6 +95,7 @@ public:
     static MosfetModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string getDialogTitle() { return std::string("Edit ") + (isJfet() ? "JFET" : "MOSFET") + " Model"; }
+    std::string getEditTitle() override { return "Edit MOSFET Model"; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

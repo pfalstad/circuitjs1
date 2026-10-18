@@ -23,6 +23,7 @@
 
 class PhaseCompElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(PhaseCompElm)
     bool ff1 = false;
     bool ff2 = false;

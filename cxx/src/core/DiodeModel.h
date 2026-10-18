@@ -87,10 +87,10 @@ public:
     void setEmissionCoefficient();
     void setForwardVoltage();
     void updateModel();
-    std::string dump();
     void dumpXml(XmlElement *root);
     bool isSimple() const { return (flags & FLAGS_SIMPLE) != 0; }
     void setSimple(bool s) { flags = s ? FLAGS_SIMPLE : 0; }
+    std::string getEditTitle() override { return "Edit Diode Model"; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

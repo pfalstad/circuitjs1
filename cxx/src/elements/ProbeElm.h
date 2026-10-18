@@ -24,6 +24,7 @@
 // much of this was adapted from Bill Collis's code in TestPointElm.java
 class ProbeElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(ProbeElm)
     static constexpr int FLAG_SHOWVOLTAGE = 1;
     static constexpr int FLAG_CIRCLE = 2;

@@ -24,6 +24,7 @@
 
 class DiacElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DiacElm)
     // resistor from 0 to 2, 3
     // diodes from 2, 3 to 1

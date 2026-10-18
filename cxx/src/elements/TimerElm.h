@@ -23,6 +23,7 @@
 
 class TimerElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(TimerElm)
     static constexpr int FLAG_RESET = 2;
     static constexpr int FLAG_GROUND = 4;

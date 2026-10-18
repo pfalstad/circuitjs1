@@ -23,6 +23,7 @@
 
 class FullAdderElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(FullAdderElm)
     static constexpr int FLAG_BITS = 2;
     int carryIn = 0;

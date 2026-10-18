@@ -80,7 +80,9 @@ public:
     double getVoltageDiff() override { return nodes[1]->v - nodes[0]->v; }
     bool hasTimingOptions() const { return waveform == WF_PULSE || waveform == WF_SQUARE; }
     bool timeSpec() const { return hasFlag(FLAG_TIME_SPEC) && hasTimingOptions(); }
-    void setFrequency(double newFreq);
+    // continuous changes (sliders) keep the waveform continuous by shifting freqTimeZero;
+    // other changes reset it so the waveform is phase-coherent with other sources (as after a reload)
+    void setFrequency(double newFreq, bool continuous = false);
     bool validate() override;
     void draw(Graphics &g) override;
     void drawWaveform(Graphics &g, const Point &center);
@@ -93,5 +95,5 @@ public:
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     virtual int getFrequencyOffset() { return 5; }
-    void setFrequencyFromTimes(double highTime, double lowTime);
+    void setFrequencyFromTimes(double highTime, double lowTime, bool continuous);
 };

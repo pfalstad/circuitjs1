@@ -23,6 +23,7 @@
 
 class DataRecorderElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DataRecorderElm)
     int dataCount;
     int dataPtr = 0;

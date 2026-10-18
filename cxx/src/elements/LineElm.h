@@ -25,6 +25,7 @@
 
 class LineElm : public GraphicElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(LineElm)
     LineElm(int xx, int yy);
     LineElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);

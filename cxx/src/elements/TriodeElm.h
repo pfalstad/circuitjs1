@@ -23,6 +23,7 @@
 
 class TriodeElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(TriodeElm)
     static constexpr int FLAG_FLIP = 1;
     static constexpr int FLAG_DSIGN_FIX = 2;

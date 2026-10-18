@@ -23,6 +23,7 @@
 
 class OhmMeterElm : public CurrentElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(OhmMeterElm)
     OhmMeterElm(int xx, int yy) : CurrentElm(xx, yy) {}
     OhmMeterElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) : CurrentElm(xa, ya, xb, yb, f, st) {}

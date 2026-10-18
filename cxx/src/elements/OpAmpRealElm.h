@@ -26,6 +26,7 @@ class CapacitorElm;
 
 class OpAmpRealElm : public CompositeElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(OpAmpRealElm)
     static constexpr int MODEL_741 = 0;
     static constexpr int MODEL_324 = 1;

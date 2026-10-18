@@ -72,6 +72,10 @@ Sidebar::Sidebar(CirSim *a) : QWidget(a), app(a) {
     buttons->setSpacing(4);
     resetButton = new QPushButton(LS("Reset"));
     runStopButton = new QPushButton();
+    // keep Reset and Run/Stop from taking keyboard focus, so a later
+    // space/enter keypress doesn't trigger them again
+    resetButton->setFocusPolicy(Qt::NoFocus);
+    runStopButton->setFocusPolicy(Qt::NoFocus);
     buttons->addWidget(resetButton);
     buttons->addWidget(runStopButton, 1);
     v->addLayout(buttons);

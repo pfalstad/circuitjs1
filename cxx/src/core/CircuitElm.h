@@ -147,9 +147,6 @@ public:
     // which a C++ base constructor can't do.  The default just calls allocNodes().
     virtual void postConstruct(StringTokenizer *st) { allocNodes(); }
 
-    // dump component state for export/undo
-    virtual std::string dump();
-
     // handle reset button
     virtual void reset() { curcount = 0; }
 
@@ -431,7 +428,10 @@ public:
     virtual bool isRoutedWireElm() { return false; }
     virtual bool isSwitchElm() { return false; }
     // whether to automatically bring up the property editor when this element is created
-    virtual bool showPropertiesOnCreate() { return true; }
+    // (overridden to false for elements whose settings are rarely changed on creation)
+    virtual bool showPropertiesOnCreate() { return hasProperties(); }
+    // whether this element has any editable properties
+    bool hasProperties() { return getEditInfo(0).has_value(); }
     virtual bool isLogicInputElm() { return false; }
     virtual bool isVarRailElm() { return false; }
     virtual bool isPotElm() { return false; }

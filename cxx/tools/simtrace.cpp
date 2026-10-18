@@ -67,6 +67,14 @@ public:
     int randomInt() override { return 0; }
 };
 
+// an old-format text line for an element at its defaults (type, position and flags only)
+static std::string textDumpLine(CircuitElm *e) {
+    int t = e->getDumpType();
+    return (t < 127 ? std::string(1, (char) t) + " " : std::to_string(t) + " ") + std::to_string(e->x) + " " +
+           std::to_string(e->y) + " " + std::to_string(e->x2) + " " + std::to_string(e->y2) + " " +
+           std::to_string(e->flags);
+}
+
 static int testCircuit(TraceApp &app, SimulationManager &sim, const std::string &cls, bool text, bool ui, int flags,
                        const std::vector<std::pair<std::string, std::string>> &attrs) {
     CircuitElm *elm = ElementFactory::create(cls, 192, 96);
@@ -164,14 +172,14 @@ static int testCircuit(TraceApp &app, SimulationManager &sim, const std::string 
                     std::printf("L %d %d %d %d 0 %d false 5 0\n", e->x, e->y, e->x2, e->y2,
                                 static_cast<LogicInputElm *>(e)->position);
                 else
-                    std::printf("%s\n", e->dump().c_str());
+                    std::printf("%s\n", textDumpLine(e).c_str());
             }
             std::printf("%s", lines.c_str());
             return 0;
         }
     }
     if (text) {
-        std::printf("$ 1 5.0E-6 10 50 5.0 50 5e-11\n%s\n%s", elm->dump().c_str(), lines.c_str());
+        std::printf("$ 1 5.0E-6 10 50 5.0 50 5e-11\n%s\n%s", textDumpLine(elm).c_str(), lines.c_str());
         return 0;
     }
     sim.maxTimeStep = sim.timeStep = 5e-6;

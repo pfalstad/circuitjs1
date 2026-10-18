@@ -23,6 +23,7 @@
 
 class ThreePhaseMotorElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(ThreePhaseMotorElm)
     double Rs, Rr, Ls, Lr, Lm;
     double b;

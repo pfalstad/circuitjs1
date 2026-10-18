@@ -23,6 +23,7 @@
 
 class AnalogSwitchElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(AnalogSwitchElm)
     static constexpr int FLAG_INVERT = 1;
     static constexpr int FLAG_PULLDOWN = 2;

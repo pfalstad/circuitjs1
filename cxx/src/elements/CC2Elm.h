@@ -23,6 +23,7 @@
 
 class CC2Elm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(CC2Elm)
     double gain = 1;
 

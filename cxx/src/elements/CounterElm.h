@@ -23,6 +23,7 @@
 
 class CounterElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(CounterElm)
     bool invertreset = false;
     int modulus = 0;

@@ -23,6 +23,7 @@
 
 class InverterElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(InverterElm)
     void addRoutingObstacle(WireRouter &wr) override;
     static constexpr int FLAG_DEMORGAN = 1 << 3;

@@ -13,6 +13,7 @@
 
 class LDRElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(LDRElm)
     double position;
     double resistance = 0;

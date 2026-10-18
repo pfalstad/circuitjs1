@@ -23,6 +23,7 @@
 
 class CrystalElm : public CompositeElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(CrystalElm)
     static constexpr int FLAG_SHOW_FREQ = 2;
 

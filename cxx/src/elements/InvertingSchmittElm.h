@@ -25,6 +25,7 @@
 
 class InvertingSchmittElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(InvertingSchmittElm)
     double slewRate;  // V/ns
     double lowerTrigger;

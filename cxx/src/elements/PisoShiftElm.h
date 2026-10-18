@@ -24,6 +24,7 @@
 // contributed by Edward Calver
 class PisoShiftElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(PisoShiftElm)
     static constexpr int FLAG_NEW_BEHAVIOR = 2;
     std::vector<bool> data;

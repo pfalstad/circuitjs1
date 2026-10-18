@@ -57,6 +57,7 @@ public:
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string arrayToList(const std::vector<std::string> &arr);
     std::vector<std::string> listToArray(const std::string &arr);
+    std::string getEditTitle() override { return "Edit Custom Logic Model"; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void parseRules(EditInfo *ei);

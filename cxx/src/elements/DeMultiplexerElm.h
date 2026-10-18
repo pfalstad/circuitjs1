@@ -24,6 +24,7 @@
 // contributed by Edward Calver
 class DeMultiplexerElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DeMultiplexerElm)
     static constexpr int FLAG_BUS_SELECT = 1 << 3;
     static constexpr int FLAG_INVERT_OUTPUTS = 1 << 4;

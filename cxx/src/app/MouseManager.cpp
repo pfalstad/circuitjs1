@@ -271,6 +271,8 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     initDragGridX = gx;
     initDragGridY = gy;
     dragging = true;
+    dragMovedSet.clear();
+    dragMovedElms.clear();
 
     // capture elements for DragRow/DragColumn at mouse-down so we don't
     // pick up new elements as we sweep over them
@@ -458,8 +460,11 @@ bool MouseManager::dragSelected(int x, int y) {
 
     if (allowed) {
         for (CircuitElm *ce : *sim->uiElmList)
-            if (ce->isSelected())
+            if (ce->isSelected()) {
                 ce->move(ddx, ddy);
+                if (dragMovedSet.insert(ce).second)
+                    dragMovedElms.push_back(ce);
+            }
         // move connected routed wires' shared posts
         for (CircuitElm *ce : *sim->uiElmList) {
             if (!ce->isSelected())
@@ -601,11 +606,12 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     }
     CircuitElm *createdElm = endDrag();
     if (createdElm != nullptr) {
-        // automatically bring up the property editor for a newly-created element
-        if (createdElm->showPropertiesOnCreate() && !sim->isReadOnly())
-            sim->doEdit(createdElm);
+        editCreatedElm(createdElm);
     } else if (clickedElm != nullptr && sim->showPropsOnClick && !sim->isReadOnly()) {
-        sim->doEdit(clickedElm);
+        if (clickedElm->hasProperties())
+            sim->doEdit(clickedElm);
+        else
+            sim->closeEditDialog();
     } else if (clickedEmpty) {
         sim->closeEditDialog();
     }
@@ -632,6 +638,19 @@ CircuitElm *MouseManager::endDrag() {
         Point p = mouseElm->getPost(draggingPost);
         if (splitAt(p.x, p.y))
             circuitChanged = true;
+    }
+    // auto-split wires/leads that moved elements' posts were dropped onto.
+    // Moved elements aren't split themselves, since they moved together.
+    if (!dragMovedElms.empty()) {
+        std::vector<Point> posts;
+        for (CircuitElm *ce : dragMovedElms)
+            for (int i = 0; i < ce->getPostCount(); i++)
+                posts.push_back(ce->getPost(i));
+        for (const Point &p : posts)
+            if (splitAt(p.x, p.y, &dragMovedSet))
+                circuitChanged = true;
+        dragMovedSet.clear();
+        dragMovedElms.clear();
     }
     if (heldSwitchElm != nullptr) {
         static_cast<SwitchElm *>(heldSwitchElm)->mouseUp();
@@ -680,7 +699,7 @@ void MouseManager::onDoubleClick(QMouseEvent *e) {
             sim->doEdit(mouseElm);
         return;
     }
-    if (!mouseElm->isSwitchElm() && !sim->isReadOnly())
+    if (!mouseElm->isSwitchElm() && mouseElm->hasProperties() && !sim->isReadOnly())
         sim->doEdit(mouseElm);
 }
 
@@ -749,12 +768,12 @@ void MouseManager::doSplit(CircuitElm *ce) {
         sim->needAnalyze();
 }
 
-bool MouseManager::splitWireAt(int px, int py) {
+bool MouseManager::splitWireAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude) {
     bool split = false;
     std::vector<CircuitElm *> &list = *sim->uiElmList;
     for (int i = (int) list.size() - 1; i >= 0; i--) {
         CircuitElm *ce = list[i];
-        if (!ce->isWireElm())
+        if (!ce->isWireElm() || (exclude != nullptr && exclude->count(ce)))
             continue;
         WireElm *we = static_cast<WireElm *>(ce);
         if (!we->pointOnWireInterior(px, py))
@@ -768,12 +787,12 @@ bool MouseManager::splitWireAt(int px, int py) {
     return split;
 }
 
-bool MouseManager::splitLeadsAt(int px, int py) {
+bool MouseManager::splitLeadsAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude) {
     bool split = false;
     std::vector<CircuitElm *> &list = *sim->uiElmList;
     for (int i = (int) list.size() - 1; i >= 0; i--) {
         CircuitElm *ce = list[i];
-        if (ce->isWireElm())
+        if (ce->isWireElm() || (exclude != nullptr && exclude->count(ce)))
             continue;
         int post = ce->getLeadPost(px, py);
         if (post < 0)
@@ -789,9 +808,9 @@ bool MouseManager::splitLeadsAt(int px, int py) {
     return split;
 }
 
-bool MouseManager::splitAt(int px, int py) {
-    bool a = splitWireAt(px, py);
-    bool b = splitLeadsAt(px, py);
+bool MouseManager::splitAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude) {
+    bool a = splitWireAt(px, py, exclude);
+    bool b = splitLeadsAt(px, py, exclude);
     return a || b;
 }
 
@@ -887,8 +906,16 @@ bool MouseManager::toolbarDragEnd(QPoint) {
     dragging = false;
     sim->updateToolbar();
     sim->repaint();
-    // automatically bring up the property editor for a newly-created element
-    if (createdElm != nullptr && createdElm->showPropertiesOnCreate() && !sim->isReadOnly())
-        sim->doEdit(createdElm);
+    if (createdElm != nullptr)
+        editCreatedElm(createdElm);
     return true;
+}
+
+// automatically bring up the property editor for a newly-created element,
+// or close the editor for some other element if this one doesn't want it
+void MouseManager::editCreatedElm(CircuitElm *elm) {
+    if (elm->showPropertiesOnCreate() && !sim->isReadOnly())
+        sim->doEdit(elm);
+    else
+        sim->closeEditDialog();
 }

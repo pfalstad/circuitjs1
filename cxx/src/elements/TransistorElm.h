@@ -25,6 +25,7 @@ class TransistorModel;
 
 class TransistorElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(TransistorElm)

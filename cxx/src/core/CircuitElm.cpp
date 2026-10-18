@@ -77,13 +77,6 @@ void CircuitElm::allocNodes() {
         nodes.assign(n, CircuitNode::ground);
 }
 
-std::string CircuitElm::dump() {
-    int t = getDumpType();
-    return (t < 127 ? std::string(1, (char) t) + " " : std::to_string(t) + " ") +
-        std::to_string(x) + " " + std::to_string(y) + " " +
-        std::to_string(x2) + " " + std::to_string(y2) + " " + std::to_string(flags);
-}
-
 void CircuitElm::deleteElm() {
     if (mouseElmRef == this)
         mouseElmRef = nullptr;

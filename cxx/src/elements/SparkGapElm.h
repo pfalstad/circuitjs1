@@ -23,6 +23,7 @@
 
 class SparkGapElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(SparkGapElm)
     double resistance;
     double onresistance;

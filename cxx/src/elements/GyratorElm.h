@@ -39,6 +39,8 @@ public:
 
     GyratorElm(int xx, int yy);
 
+    void dumpXml(XmlElement *doc, XmlElement *elem) override;
+    void undumpXml(CircuitXMLDeserializer &xml) override;
     void drag(int xx, int yy) override;
     // Wikipedia gyrator symbol: rectangular box with the Greek letter pi
     // (denoting the 180-degree phase shift in the gyration direction)

@@ -24,6 +24,7 @@
 // contributed by Edward Calver
 class MultiplexerElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(MultiplexerElm)
     static constexpr int FLAG_INVERTED_OUTPUT = 1 << 1;
     static constexpr int FLAG_STROBE = 1 << 2;

@@ -23,6 +23,7 @@
 
 class JKFlipFlopElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(JKFlipFlopElm)
     static constexpr int FLAG_RESET = 2;
     static constexpr int FLAG_POSITIVE_EDGE = 4;

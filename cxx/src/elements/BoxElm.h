@@ -23,6 +23,7 @@
 
 class BoxElm : public GraphicElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(BoxElm)
     BoxElm(int xx, int yy);
     BoxElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);

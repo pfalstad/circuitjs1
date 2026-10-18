@@ -24,6 +24,7 @@
 
 class SCRElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(SCRElm)
     static constexpr int anode = 0;
     static constexpr int cnode = 1;

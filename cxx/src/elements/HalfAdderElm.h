@@ -23,6 +23,7 @@
 
 class HalfAdderElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(HalfAdderElm)
     bool hasReset() { return false; }
 

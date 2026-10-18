@@ -23,6 +23,7 @@
 
 class DFlipFlopElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DFlipFlopElm)
     static constexpr int FLAG_RESET = 2;
     static constexpr int FLAG_SET = 4;

@@ -234,14 +234,6 @@ void DiodeModel::updateModel() {
     fwdrop = jsmath::log(1 / saturationCurrent + 1) * emissionCoefficient * vt;
 }
 
-std::string DiodeModel::dump() {
-    dumped = true;
-    return "34 " + CustomLogicModel::escape(name) + " " + std::to_string(flags) + " " +
-        jsNumberToString(saturationCurrent) + " " + jsNumberToString(seriesResistance) + " " +
-        jsNumberToString(emissionCoefficient) + " " + jsNumberToString(breakdownVoltage) + " " +
-        jsNumberToString(forwardCurrent);
-}
-
 void DiodeModel::dumpXml(XmlElement *root) {
     dumped = true;
     XmlElement *elem = root->createChild("dm");

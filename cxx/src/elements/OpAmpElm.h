@@ -23,6 +23,7 @@
 
 class OpAmpElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(OpAmpElm)
     void addRoutingObstacle(WireRouter &wr) override;
     int opsize = 2;

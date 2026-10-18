@@ -24,6 +24,7 @@
 
 class TriacElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(TriacElm)
     static constexpr int mt1node = 1;
     static constexpr int mt2node = 0;

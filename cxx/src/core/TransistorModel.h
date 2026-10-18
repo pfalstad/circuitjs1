@@ -87,6 +87,7 @@ public:
     void dumpXml(XmlElement *root);
     static TransistorModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
+    std::string getEditTitle() override { return "Edit Transistor Model"; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

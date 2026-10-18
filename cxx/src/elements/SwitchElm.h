@@ -24,6 +24,7 @@
 // SPST switch
 class SwitchElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(SwitchElm)
     bool momentary;

@@ -73,7 +73,6 @@ public:
     void deleteSlider(SimApp *sim);
     void setMouseElm(CircuitElm *e);
     bool sliderBeingShared();
-    std::string dump();
     // get the unlocalized name of the edit item this adjustable controls
     std::string getEditItemName();
     // find the edit item index by name, falling back to the given index

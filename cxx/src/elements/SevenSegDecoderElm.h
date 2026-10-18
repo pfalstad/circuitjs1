@@ -23,6 +23,7 @@
 
 class SevenSegDecoderElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(SevenSegDecoderElm)
     static const bool symbols[16][7];
     static const bool symbols14[16][14];

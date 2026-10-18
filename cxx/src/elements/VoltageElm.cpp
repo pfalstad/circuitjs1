@@ -253,7 +253,7 @@ double VoltageElm::getRmsMultiplier() {
     }
 }
 
-void VoltageElm::setFrequency(double newFreq) {
+void VoltageElm::setFrequency(double newFreq, bool continuous) {
     double oldfreq = frequency;
     frequency = newFreq;
     double maxfreq = 1 / (8 * sim->maxTimeStep);
@@ -263,7 +263,7 @@ void VoltageElm::setFrequency(double newFreq) {
         else
             frequency = maxfreq;
     }
-    freqTimeZero = (frequency == 0) ? 0 : sim->t - oldfreq * (sim->t - freqTimeZero) / frequency;
+    freqTimeZero = (!continuous || frequency == 0) ? 0 : sim->t - oldfreq * (sim->t - freqTimeZero) / frequency;
 }
 
 bool VoltageElm::validate() {
@@ -480,10 +480,10 @@ void VoltageElm::getInfo(std::vector<std::string> &arr) {
     arr[i++] = "P = " + getUnitText(getPower(), "W");
 }
 
-void VoltageElm::setFrequencyFromTimes(double highTime, double lowTime) {
+void VoltageElm::setFrequencyFromTimes(double highTime, double lowTime, bool continuous) {
     double newFreq = 1 / (highTime + lowTime);
     double newDuty = highTime / (highTime + lowTime);
-    setFrequency(newFreq);
+    setFrequency(newFreq, continuous);
     dutyCycle = newDuty;
 }
 
@@ -561,6 +561,9 @@ std::optional<EditInfo> VoltageElm::getEditInfo(int n) {
 }
 
 void VoltageElm::setEditValue(int n, EditInfo &ei) {
+    // any edit-dialog change makes the waveform phase-coherent with other sources
+    if (!ei.continuous)
+        freqTimeZero = 0;
     if (n == 0)
         maxVoltage = ei.value;
     if (n == 2)
@@ -605,9 +608,9 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
                 double highTime = ei.value;
                 double lowTime = (1 - dutyCycle) / frequency;
                 if (highTime > 0 && lowTime > 0)
-                    setFrequencyFromTimes(highTime, lowTime);
+                    setFrequencyFromTimes(highTime, lowTime, ei.continuous);
             } else if (ei.value != 0) {
-                setFrequency(ei.value);
+                setFrequency(ei.value, ei.continuous);
             }
         }
         if (n2 == 2) {
@@ -620,7 +623,7 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
                 double highTime = dutyCycle / frequency;
                 double lowTime = ei.value;
                 if (highTime > 0 && lowTime > 0)
-                    setFrequencyFromTimes(highTime, lowTime);
+                    setFrequencyFromTimes(highTime, lowTime, ei.continuous);
             } else {
                 dutyCycle = ei.value * .01;
             }
@@ -629,7 +632,7 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
             riseTime = ei.value;
     } else {
         if (n2 == 0 && waveform != WF_DC && ei.value != 0)
-            setFrequency(ei.value);
+            setFrequency(ei.value, ei.continuous);
         if (n2 == 1) {
             phaseShift = ei.value * pi / 180;
             phaseShift = std::fmod(std::fmod(phaseShift, 2 * pi) + 2 * pi, 2 * pi);

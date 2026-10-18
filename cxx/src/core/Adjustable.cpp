@@ -133,6 +133,7 @@ void Adjustable::executeSlider() {
     if (!ei)
         return;
     ei->value = getSliderValue();
+    ei->continuous = true;
     elm->setEditValue(editItem, *ei);
     CircuitElm::app->repaint();
 }
@@ -181,25 +182,6 @@ bool Adjustable::sliderBeingShared() {
         if (adj->sharedSlider == this)
             return true;
     return false;
-}
-
-std::string Adjustable::dump() {
-    SimApp *app = CircuitElm::app;
-    int ano = -1;
-    if (sharedSlider != nullptr) {
-        auto it = std::find(app->adjustables.begin(), app->adjustables.end(), sharedSlider);
-        ano = it == app->adjustables.end() ? -1 : (int) (it - app->adjustables.begin());
-    }
-
-    int dumpFlags = 0;
-    if (sharedSlider != nullptr)
-        dumpFlags |= FLAG_SHARED;
-    if (logarithmic)
-        dumpFlags |= FLAG_LOG;
-
-    return std::to_string(app->locateElm(elm)) + " F" + std::to_string(dumpFlags) + " " + std::to_string(editItem) +
-           " " + jsNumberToString(minValue) + " " + jsNumberToString(maxValue) + " " + std::to_string(ano) + " " +
-           CustomLogicModel::escape(sliderText) + " " + jsNumberToString(sliderStep);
 }
 
 std::string Adjustable::getEditItemName() {

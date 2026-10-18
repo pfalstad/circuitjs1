@@ -27,6 +27,7 @@ class MosfetModel;
 
 class MosfetElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(MosfetElm)

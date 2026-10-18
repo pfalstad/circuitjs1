@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../core/CircuitXMLDeserializer.h"
+#include "../core/CircuitXMLSerializer.h"
 #include "../core/Graphics.h"
 #include "../core/SimulationManager.h"
 
@@ -31,6 +33,22 @@ GyratorElm::GyratorElm(int xx, int yy) : CircuitElm(xx, yy) {
     noDiagonal = true;
     currents[0] = currents[1] = 0;
     curcounts[0] = curcounts[1] = 0;
+}
+
+void GyratorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
+    CircuitElm::dumpXml(doc, elem);
+    CircuitXMLSerializer::dumpAttr(elem, "r", gyrResistance);
+    CircuitXMLSerializer::dumpAttr(elem, "wi", width);
+}
+
+void GyratorElm::undumpXml(CircuitXMLDeserializer &xml) {
+    CircuitElm::undumpXml(xml);
+    if (hasFlag(FLAG_VERTICAL))
+        width = -std::max(32, std::abs(x2 - x));
+    else
+        width = std::max(32, std::abs(y2 - y));
+    gyrResistance = xml.parseDoubleAttr("r", gyrResistance);
+    width = xml.parseIntAttr("wi", width);
 }
 
 void GyratorElm::drag(int xx, int yy) {

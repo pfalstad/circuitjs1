@@ -23,6 +23,7 @@
 
 class BusLogicInputElm : public SwitchElm {
 public:
+    bool showPropertiesOnCreate() override { return true; }
     ELM_CLASS(BusLogicInputElm)
     int busWidth = 4;
     int value = 0;

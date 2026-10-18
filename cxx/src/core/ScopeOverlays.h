@@ -52,5 +52,6 @@ public:
     void drawElmInfo(Graphics &g);
     // legend showing each plot's color and description, used when multiple plots are combined
     void drawLegend(Graphics &g);
+    bool sameLabelAsScopeAbove(const std::string &t) const;
     void draw(Graphics &g);
 };

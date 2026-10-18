@@ -71,12 +71,18 @@ EditDialog::EditDialog(Editable *ce, CirSim *f) : QDialog(f, Qt::Tool), elm(ce),
 
     // Title
     std::string title = "Edit Component";
-    if (CircuitElm *e = dynamic_cast<CircuitElm *>(ce)) {
+    if (!ce->getEditTitle().empty())
+        title = ce->getEditTitle();
+    else if (CircuitElm *e = dynamic_cast<CircuitElm *>(ce)) {
         std::string name = e->getElmType();
         if (!name.empty())
             title = "Edit " + std::string(1, (char) std::toupper((unsigned char) name[0])) + name.substr(1);
     }
     setWindowTitle(LS(title));
+    // Element editors are non-modal (see EditDialog.h).  Editors for anything else (models,
+    // Other Options) are opened explicitly, so they are modal like other dialogs.
+    if (dynamic_cast<CircuitElm *>(ce) == nullptr)
+        setWindowModality(Qt::ApplicationModal);
 
     QVBoxLayout *main = new QVBoxLayout(this);
     errorLabel = new QLabel();

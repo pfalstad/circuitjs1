@@ -23,6 +23,7 @@
 
 class GroundElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(GroundElm)
     static int lastSymbolType;

@@ -23,6 +23,7 @@
 
 class MemristorElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(MemristorElm)
     double r_on, r_off, dopeWidth, totalWidth, mobility, resistance;
     Point ps3, ps4;

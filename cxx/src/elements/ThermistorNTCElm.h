@@ -13,6 +13,7 @@
 
 class ThermistorNTCElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(ThermistorNTCElm)
     double position;
     double resistance = 0;

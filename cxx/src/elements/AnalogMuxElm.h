@@ -23,6 +23,7 @@
 
 class AnalogMuxElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(AnalogMuxElm)
     static constexpr int FLAG_PULLDOWN = 2;
     int selectBitCount = 2;

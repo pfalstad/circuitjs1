@@ -23,6 +23,7 @@
 
 class DACElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DACElm)
     CHIP_CONSTRUCTORS(DACElm, ChipElm)
     std::string getChipName() override { return "DAC"; }

@@ -25,6 +25,7 @@
 // http://www.camotruck.net/rollins/simulator.html
 class ZenerElm : public DiodeElm {
 public:
+    bool showPropertiesOnCreate() override { return true; }
     ELM_CLASS(ZenerElm)
     static std::string lastZenerModelName;
     std::vector<Point> wing;

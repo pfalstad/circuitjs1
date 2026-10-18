@@ -23,6 +23,7 @@
 
 class LatchElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(LatchElm)
     static constexpr int FLAG_STATE = 2;
     static constexpr int FLAG_NO_EDGE = 4;

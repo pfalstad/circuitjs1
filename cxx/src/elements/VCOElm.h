@@ -23,6 +23,7 @@
 
 class VCOElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(VCOElm)
     const double cResistance = 1e6;
     double cCurrent = 0;

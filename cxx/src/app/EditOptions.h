@@ -32,6 +32,7 @@ class EditOptions : public Editable {
 public:
     EditOptions(CirSim *a, SimulationManager *s) : app(a), sim(s) {}
 
+    std::string getEditTitle() override { return "Other Options"; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
 

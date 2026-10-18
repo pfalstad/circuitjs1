@@ -62,7 +62,7 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
         addScopePopupItems(menu, s, se);
     } else if (menuElm != nullptr) {
         menu.addAction(LS("Edit..."), this, [this, menuElm] { doEdit(menuElm); })
-            ->setEnabled(menuElm->getEditInfo(0).has_value());
+            ->setEnabled(menuElm->hasProperties());
         menu.addAction(LS("View in New Scope"), this, [this, menuElm] { scopeManager->viewInScope(menuElm); })
             ->setEnabled(menuElm->canViewInScope());
         menu.addAction(LS("View in New Undocked Scope"), this, [this, menuElm] {

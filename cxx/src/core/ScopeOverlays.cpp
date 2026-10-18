@@ -19,13 +19,17 @@
 
 #include "ScopeOverlays.h"
 
+#include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 #include "CircuitElm.h"
 #include "Graphics.h"
 #include "Locale.h"
 #include "Scope.h"
+#include "ScopeManager.h"
+#include "SimApp.h"
 #include "SimulationManager.h"
 
 bool ScopeOverlays::hasRoomForText(int lines) const {
@@ -205,9 +209,32 @@ void ScopeOverlays::drawElmInfo(Graphics &g) {
         drawInfoText(g, info[i]);
 }
 
+// true if this scope is stacked under another scope with the same label, so we
+// don't repeat it (e.g. several stacked "logic output" scopes)
+bool ScopeOverlays::sameLabelAsScopeAbove(const std::string &t) const {
+    if (scope->position < 0 || scope->exporting)
+        return false;
+    ScopeManager *mgr = scope->app->scopeManager;
+    int i = -1;
+    for (int j = 0; j < mgr->scopeCount; j++)
+        if (mgr->scopes[j].get() == scope)
+            i = j;
+    if (i <= 0)
+        return false;
+    Scope *above = mgr->scopes[i - 1].get();
+    return above->position == scope->position && above->getScopeLabelOrText(true) == t;
+}
+
 void ScopeOverlays::drawLegend(Graphics &g) {
     std::vector<ScopePlot *> &plots = scope->visiblePlots;
-    for (size_t i = 0; i != plots.size(); i++) {
+    std::vector<size_t> order(plots.size());
+    std::iota(order.begin(), order.end(), 0);
+    // in manual mode, plots may be vertically displaced; list them top to bottom
+    // in the order they appear (stable sort keeps original order for ties)
+    if (scope->manualScale)
+        std::stable_sort(order.begin(), order.end(),
+                         [&](size_t a, size_t b) { return plots[b]->manVPosition < plots[a]->manVPosition; });
+    for (size_t i : order) {
         if (scope->rect.height <= textY + 5)
             return;
         ScopePlot *plot = plots[i];
@@ -248,7 +275,7 @@ void ScopeOverlays::draw(Graphics &g) {
         drawDutyCycle(g);
     std::string t = scope->getScopeLabelOrText(true);
     if (!t.empty()) {
-        if (scope->text || hasRoomForText(1))
+        if (!sameLabelAsScopeAbove(t) && (scope->text || hasRoomForText(1)))
             drawInfoText(g, t);
     } else if (scope->visiblePlots.size() > 1 && hasRoomForText((int) scope->visiblePlots.size()))
         drawLegend(g);

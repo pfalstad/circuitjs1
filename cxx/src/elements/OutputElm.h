@@ -23,6 +23,7 @@
 
 class OutputElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(OutputElm)
     static constexpr int FLAG_VALUE = 1;
@@ -49,6 +50,7 @@ public:
 
 class LogicOutputElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(LogicOutputElm)
     static constexpr int FLAG_TERNARY = 1;

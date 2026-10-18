@@ -23,6 +23,7 @@
 
 class ADCElm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(ADCElm)
     CHIP_CONSTRUCTORS(ADCElm, ChipElm)
     std::string getChipName() override { return "ADC"; }

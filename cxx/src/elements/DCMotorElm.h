@@ -24,6 +24,7 @@
 
 class DCMotorElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DCMotorElm)
     Inductor ind;
     Inductor indInertia;

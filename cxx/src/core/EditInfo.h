@@ -85,6 +85,8 @@ public:
     // set by setEditValue() to ask the dialog to rebuild itself (e.g. a choice changed
     // which fields exist)
     bool newDialog = false;
+    // set when value comes from a slider rather than the edit dialog
+    bool continuous = false;
     // the text field the dialog shows for plain values and text
     std::optional<TextField> textf;
 
@@ -129,4 +131,6 @@ public:
     virtual ~Editable() = default;
     virtual std::optional<EditInfo> getEditInfo(int n) { return std::nullopt; }
     virtual void setEditValue(int n, EditInfo &ei) {}
+    // the edit dialog's title, if not the default (empty)
+    virtual std::string getEditTitle() { return ""; }
 };

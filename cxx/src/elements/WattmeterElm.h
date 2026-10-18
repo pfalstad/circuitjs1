@@ -23,6 +23,7 @@
 
 class WattmeterElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(WattmeterElm)
     int width = 0;
     VoltageSource *voltSources[2] = {nullptr, nullptr};

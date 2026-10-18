@@ -26,6 +26,7 @@
 
 class AudioOutputElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(AudioOutputElm)
     int dataCount = 0;
     int dataPtr = 0;

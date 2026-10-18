@@ -27,6 +27,7 @@ class TransistorElm;
 
 class OptocouplerElm : public CompositeElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(OptocouplerElm)
     int csize = 2;
     int cspc = 0;

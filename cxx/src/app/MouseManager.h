@@ -24,6 +24,7 @@
 #include <QString>
 #include <QWheelEvent>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include "ScrollValuePopup.h"
@@ -93,13 +94,14 @@ public:
 private:
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
-    bool splitWireAt(int px, int py);
+    bool splitWireAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude = nullptr);
     // Split the lead stub of any non-wire element whose lead contains (px, py).
     // Moves the element's post to the split point and inserts a wire for the remainder.
     // Returns true if any lead was split.
-    bool splitLeadsAt(int px, int py);
-    // Split any wire or element lead whose interior contains (px, py).
-    bool splitAt(int px, int py);
+    bool splitLeadsAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude = nullptr);
+    // Split any wire or element lead whose interior contains (px, py),
+    // skipping elements in exclude.
+    bool splitAt(int px, int py, const std::unordered_set<CircuitElm *> *exclude = nullptr);
     void mouseSelect(double sx, double sy, bool shift);
     void mouseDragged(QMouseEvent *e);
     bool doSwitch(int x, int y);
@@ -116,6 +118,7 @@ private:
     void removeZeroLengthElements();
     // returns the element that was just created, if any
     CircuitElm *endDrag();
+    void editCreatedElm(CircuitElm *elm);
     int snapGrid(int x) const;
 
     CirSim *sim;
@@ -134,6 +137,10 @@ private:
     QPointer<WheelPopup> wheelPopup;
     std::vector<CircuitElm *> dragRowColElms;
     std::vector<int> dragRowColPosts;
+    // elements moved by dragSelected during the current drag (the set, and the
+    // vector in the order they were first moved)
+    std::unordered_set<CircuitElm *> dragMovedSet;
+    std::vector<CircuitElm *> dragMovedElms;
 
     static constexpr int TOOLBAR_DRAG_THRESHOLD = 6;
     QString toolbarDragClass;

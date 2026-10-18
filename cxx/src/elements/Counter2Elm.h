@@ -23,6 +23,7 @@
 
 class Counter2Elm : public ChipElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(Counter2Elm)
     int modulus = 0;
     // pin indices, set by setupPins()

@@ -23,6 +23,7 @@
 
 class TriStateElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(TriStateElm)
     double resistance = 0;
     double r_on;

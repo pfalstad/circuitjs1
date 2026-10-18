@@ -23,6 +23,7 @@
 
 class VaractorElm : public DiodeElm {
 public:
+    bool showPropertiesOnCreate() override { return true; }
     ELM_CLASS(VaractorElm)
     double baseCapacitance;
     double capacitance = 0;

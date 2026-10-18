@@ -35,6 +35,7 @@ class RelayModel;
 // 3n+2 = end of coil resistor
 class RelayElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(RelayElm)
     void dumpXmlModel(XmlElement *doc) override;
     static constexpr int FLAG_SWAP_COIL = 1;

@@ -23,6 +23,7 @@
 
 class AmmeterElm : public CircuitElm {
 public:
+    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(AmmeterElm)
     int meter = 0;
     int scale;
