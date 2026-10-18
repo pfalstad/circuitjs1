@@ -89,6 +89,8 @@ export class CommandManager {
             this.doExportAsText();
             this.app.unsavedChanges = false;
         }
+        if (item == "exportaskicad")
+            this.doExportAsKicad();
         if (item == "exportasimage")
             this.app.imageExporter?.doExportAsImage();
         if (item == "copypng") {
@@ -399,6 +401,33 @@ export class CommandManager {
     doExportAsLocalFile(): void {
         const dump = this.app.dumpCircuit();
         CirSim.dialogShowing = new ExportAsLocalFileDialog(dump);
+        CirSim.dialogShowing.show();
+    }
+
+    async doExportAsKicad(): Promise<void> {
+        // the exporter carries KiCad's symbol library, so load it only when needed
+        const { exportKicadProject } = await import("./KicadExporter");
+        const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
+        const res = exportKicadProject(this.app.elmList, name);
+        let note: string | null = null;
+        if (res.warnings.length > 0) {
+            const counts = new Map<string, number>();
+            for (const w of res.warnings)
+                counts.set(w, (counts.get(w) ?? 0) + 1);
+            note = Locale.LS("These elements have no KiCad equivalent and were left out: ") +
+                [...counts].map(([w, n]) => n > 1 ? w + " (" + n + ")" : w).join(", ");
+        }
+        // subcircuits are sheets of their own, so then it's a project folder, zipped
+        let data: string | Uint8Array = res.files[0].text;
+        let fileName = name + ".kicad_sch";
+        if (res.files.length > 1) {
+            const { makeZip } = await import("./ZipWriter");
+            const pro = JSON.stringify({ meta: { filename: name + ".kicad_pro", version: 1 } }, null, 2) + "\n";
+            data = makeZip([{ name: name + ".kicad_pro", text: pro }, ...res.files]
+                .map(f => ({ name: name + "/" + f.name, text: f.text })));
+            fileName = name + ".zip";
+        }
+        CirSim.dialogShowing = new ExportAsLocalFileDialog(data, fileName, "Export As KiCad Schematic", note);
         CirSim.dialogShowing.show();
     }
 
