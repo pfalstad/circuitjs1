@@ -1130,10 +1130,14 @@ void CirSim::drawBottomArea(Graphics &g) {
     if (stopMessage)
         ct = 0;
     Scope::clearCursorInfo();
-    for (int i = 0; i != ct; i++)
-        scopeManager->scopes[i]->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
-    for (CircuitElm *ce : scopeElmArr)
-        static_cast<ScopeElm *>(ce)->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
+    // while dragging the splitter, the mouse sits on the top edge of the scopes;
+    // don't treat that as hovering over a plot
+    if (mouse.tempMouseMode != SimApp::MODE_DRAG_SPLITTER) {
+        for (int i = 0; i != ct; i++)
+            scopeManager->scopes[i]->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
+        for (CircuitElm *ce : scopeElmArr)
+            static_cast<ScopeElm *>(ce)->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
+    }
     for (int i = 0; i != ct; i++)
         scopeManager->scopes[i]->draw(g);
     if (mouse.mouseWasOverSplitter) {

@@ -1288,11 +1288,15 @@ export class UIManager {
         if (this.app.stopMessage != null)
             ct = 0;
         Scope.clearCursorInfo();
-        for (let i = 0; i !== ct; i++)
-            this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
-        if (this.app.scopeElmArr != null)
-            for (let i = 0; i !== this.app.scopeElmArr.length; i++)
-                this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+        // while dragging the splitter, the mouse sits on the top edge of the scopes;
+        // don't treat that as hovering over a plot
+        if (this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_SPLITTER) {
+            for (let i = 0; i !== ct; i++)
+                this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+            if (this.app.scopeElmArr != null)
+                for (let i = 0; i !== this.app.scopeElmArr.length; i++)
+                    this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+        }
         for (let i = 0; i !== ct; i++)
             this.app.scopeManager.scopes[i].draw(g);
         if (this.mouse.mouseWasOverSplitter) {
