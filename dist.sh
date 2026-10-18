@@ -61,7 +61,7 @@ cp -r "$DIR/ts/dist/." site
     sed -i.bak "s#circuitjs\.html#circuitjs$num.html#g" "$f"
     rm -f "$f.bak"
   done
-  mv circuitjs.html "circuitjs$num.html"
+  cp circuitjs.html "circuitjs$num.html"
 )
 
 echo "=== Done: site/circuitjs$num (entry: site/circuitjs$num.html) ==="
