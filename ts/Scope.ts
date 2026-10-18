@@ -838,6 +838,7 @@ export class Scope {
             positionOffset = gridMax * 2.0 * (plot.manVPosition) / (V_POSITION_STEPS);
             this.gridStepY = plot.manScale;
         }
+        plot.gridStepY = this.gridStepY;
         plot.plotOffset = -gridMid + positionOffset;
         plot.gridMult = maxy / gridMax;
         return gridMid;

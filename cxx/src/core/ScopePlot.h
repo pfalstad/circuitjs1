@@ -45,6 +45,7 @@ public:
     double manScale = 1.0;  // Units per division
     int manVPosition = 0;  // 0 is center of screen. +V_POSITION_STEPS/2 is top of screen
     double gridMult = 0;
+    double gridStepY = 0;  // units per vertical division, set by Scope::calcGridParams
     double plotOffset = 0;
     bool acCoupled = false;
     double acAlpha = 0.9999;  // Filter coefficient for AC coupling

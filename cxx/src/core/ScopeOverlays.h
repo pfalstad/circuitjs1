@@ -38,7 +38,7 @@ public:
     // true if `lines` more lines of text fit in the scope
     bool hasRoomForText(int lines) const;
     void drawInfoText(Graphics &g, const std::string &text);
-    void drawScale(ScopePlot &plot, Graphics &g);
+    void drawScale(Graphics &g);
     // shared cycle-detection loop for drawAverage, drawRMS, drawDutyCycle.
     // calls onCycleStart at first rising edge, onSample each sample thereafter,
     // onCycleEnd at each subsequent rising edge.  returns end-start span, or 0.

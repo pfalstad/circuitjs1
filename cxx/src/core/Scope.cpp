@@ -728,6 +728,7 @@ double Scope::calcGridParams(ScopePlot &plot, bool allPlotsSameUnits) {
         positionOffset = gridMax * 2.0 * plot.manVPosition / V_POSITION_STEPS;
         gridStepY = plot.manScale;
     }
+    plot.gridStepY = gridStepY;
     plot.plotOffset = -gridMid + positionOffset;
     plot.gridMult = maxy / gridMax;
     return gridMid;

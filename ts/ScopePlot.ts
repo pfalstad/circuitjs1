@@ -49,6 +49,7 @@ export class ScopePlot {
     manScale: number = 1.0; // Units per division
     manVPosition: number = 0; // 0 is center of screen. +V_POSITION_STEPS/2 is top of screen
     gridMult: number = 0;
+    gridStepY: number = 0; // units per vertical division, set by Scope.calcGridParams
     plotOffset: number = 0;
     acCoupled: boolean = false;
     acAlpha: number = 0.9999; // Filter coefficient for AC coupling

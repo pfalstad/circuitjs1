@@ -44,42 +44,46 @@ export class ScopeOverlays {
         this.textY += 15;
     }
 
-    drawScale(plot: ScopePlot, g: Graphics): void {
-        if (!this.scope.isManualScale()) {
-            if (this.scope.gridStepY !== 0 && !(this.scope.showV && this.scope.showI)) {
-                const vScaleText = " V=" + plot.getUnitText(this.scope.gridStepY) + "/div";
-                this.drawInfoText(g, "H=" + CircuitElm.getUnitText(this.scope.gridStepX, "s") + "/div" + vScaleText);
-            }
-        } else {
-            if (this.scope.rect.height <= this.textY + 5)
-                return;
-            let x = 0;
-            const hs = "H=" + CircuitElm.getUnitText(this.scope.gridStepX, "s") + "/div";
-            g.drawString(hs, 0, this.textY);
-            x += g.measureWidth(hs);
-            const bulletWidth = 17;
-            for (let i = 0; i < this.scope.visiblePlots.length; i++) {
-                const p = this.scope.visiblePlots[i];
-                const s = p.getUnitText(p.manScale);
-                if (p !== null) {
-                    const vScaleText = "=" + s + "/div";
-                    const vScaleWidth = g.measureWidth(vScaleText);
-                    if (x + bulletWidth + vScaleWidth > this.scope.rect.width) {
-                        x = 0;
-                        this.textY += 15;
-                        if (this.scope.rect.height <= this.textY + 5)
-                            return;
-                    }
-                    g.setColor(p.color);
-                    g.fillOval(x + 7, this.textY - 9, 8, 8);
-                    x += bulletWidth;
-                    g.setColor(CircuitElm.whiteColor);
-                    g.drawString(vScaleText, x, this.textY);
-                    x += vScaleWidth;
-                }
-            }
-            this.textY += 15;
+    drawScale(g: Graphics): void {
+        if (this.scope.rect.height <= this.textY + 5)
+            return;
+        const plots = this.scope.visiblePlots;
+        const hs = "H=" + CircuitElm.getUnitText(this.scope.gridStepX, "s") + "/div";
+
+        // if every plot has the same vertical scale, just show it once
+        const vs = plots[0].getUnitText(plots[0].gridStepY);
+        if (plots.every(p => p.getUnitText(p.gridStepY) === vs)) {
+            this.drawInfoText(g, hs + " V=" + vs + "/div");
+            return;
         }
+        // in auto mode, plots of different units have no common grid, so just show the time scale
+        if (!this.scope.isManualScale()) {
+            this.drawInfoText(g, hs);
+            return;
+        }
+
+        // otherwise show the scale of each plot next to a bullet in its color
+        let x = 0;
+        g.drawString(hs, 0, this.textY);
+        x += g.measureWidth(hs);
+        const bulletWidth = 17;
+        for (const p of plots) {
+            const vScaleText = "=" + p.getUnitText(p.gridStepY) + "/div";
+            const vScaleWidth = g.measureWidth(vScaleText);
+            if (x + bulletWidth + vScaleWidth > this.scope.rect.width) {
+                x = 0;
+                this.textY += 15;
+                if (this.scope.rect.height <= this.textY + 5)
+                    return;
+            }
+            g.setColor(p.color);
+            g.fillOval(x + 7, this.textY - 9, 8, 8);
+            x += bulletWidth;
+            g.setColor(CircuitElm.whiteColor);
+            g.drawString(vScaleText, x, this.textY);
+            x += vScaleWidth;
+        }
+        this.textY += 15;
     }
 
     // shared cycle-detection loop for drawAverage, drawRMS, drawDutyCycle.
@@ -261,7 +265,7 @@ export class ScopeOverlays {
         }
         const plot = this.scope.visiblePlots[0];
         if (this.scope.showScale)
-            this.drawScale(plot, g);
+            this.drawScale(g);
         if (this.scope.showMax)
             this.drawInfoText(g, "Max=" + plot.getUnitText(this.scope.maxValue));
         if (this.scope.showMin) {

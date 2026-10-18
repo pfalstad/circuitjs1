@@ -43,38 +43,50 @@ void ScopeOverlays::drawInfoText(Graphics &g, const std::string &text) {
     textY += 15;
 }
 
-void ScopeOverlays::drawScale(ScopePlot &plot, Graphics &g) {
-    if (!scope->isManualScale()) {
-        if (scope->gridStepY != 0 && !(scope->showV && scope->showI)) {
-            std::string vScaleText = " V=" + plot.getUnitText(scope->gridStepY) + "/div";
-            drawInfoText(g, "H=" + CircuitElm::getUnitText(scope->gridStepX, "s") + "/div" + vScaleText);
-        }
-    } else {
-        if (scope->rect.height <= textY + 5)
-            return;
-        double x = 0;
-        std::string hs = "H=" + CircuitElm::getUnitText(scope->gridStepX, "s") + "/div";
-        g.drawString(hs, 0, textY);
-        x += g.measureWidth(hs);
-        const double bulletWidth = 17;
-        for (ScopePlot *p : scope->visiblePlots) {
-            std::string vScaleText = "=" + p->getUnitText(p->manScale) + "/div";
-            double vScaleWidth = g.measureWidth(vScaleText);
-            if (x + bulletWidth + vScaleWidth > scope->rect.width) {
-                x = 0;
-                textY += 15;
-                if (scope->rect.height <= textY + 5)
-                    return;
-            }
-            g.setColor(p->color);
-            g.fillOval(x + 7, textY - 9, 8, 8);
-            x += bulletWidth;
-            g.setColor(CircuitElm::whiteColor);
-            g.drawString(vScaleText, x, textY);
-            x += vScaleWidth;
-        }
-        textY += 15;
+void ScopeOverlays::drawScale(Graphics &g) {
+    if (scope->rect.height <= textY + 5)
+        return;
+    std::vector<ScopePlot *> &plots = scope->visiblePlots;
+    std::string hs = "H=" + CircuitElm::getUnitText(scope->gridStepX, "s") + "/div";
+
+    // if every plot has the same vertical scale, just show it once
+    std::string vs = plots[0]->getUnitText(plots[0]->gridStepY);
+    bool sameScale = true;
+    for (ScopePlot *p : plots)
+        if (p->getUnitText(p->gridStepY) != vs)
+            sameScale = false;
+    if (sameScale) {
+        drawInfoText(g, hs + " V=" + vs + "/div");
+        return;
     }
+    // in auto mode, plots of different units have no common grid, so just show the time scale
+    if (!scope->isManualScale()) {
+        drawInfoText(g, hs);
+        return;
+    }
+
+    // otherwise show the scale of each plot next to a bullet in its color
+    double x = 0;
+    g.drawString(hs, 0, textY);
+    x += g.measureWidth(hs);
+    const double bulletWidth = 17;
+    for (ScopePlot *p : plots) {
+        std::string vScaleText = "=" + p->getUnitText(p->gridStepY) + "/div";
+        double vScaleWidth = g.measureWidth(vScaleText);
+        if (x + bulletWidth + vScaleWidth > scope->rect.width) {
+            x = 0;
+            textY += 15;
+            if (scope->rect.height <= textY + 5)
+                return;
+        }
+        g.setColor(p->color);
+        g.fillOval(x + 7, textY - 9, 8, 8);
+        x += bulletWidth;
+        g.setColor(CircuitElm::whiteColor);
+        g.drawString(vScaleText, x, textY);
+        x += vScaleWidth;
+    }
+    textY += 15;
 }
 
 int ScopeOverlays::iterateCycles(ScopeDataIterator &sdi, double mid, const std::function<void()> &onCycleStart,
@@ -258,7 +270,7 @@ void ScopeOverlays::draw(Graphics &g) {
     }
     ScopePlot &plot = *scope->visiblePlots[0];
     if (scope->showScale)
-        drawScale(plot, g);
+        drawScale(g);
     if (scope->showMax)
         drawInfoText(g, "Max=" + plot.getUnitText(scope->maxValue));
     if (scope->showMin) {
