@@ -477,11 +477,16 @@ export class EditDialog extends Dialog {
         this.einfocount = 0;
     }
 
-    // Non-modal and docked to the side: unlike other dialogs, this one pops up automatically
-    // whenever an element is created or clicked on, so it must not block interacting with the
-    // rest of the circuit (clicking other elements re-targets this same dialog instead of
-    // opening a second one; see CommandManager.doEdit).
+    // Element editors are non-modal and docked to the side: unlike other dialogs, they pop up
+    // automatically whenever an element is created or clicked on, so they must not block
+    // interacting with the rest of the circuit (clicking other elements re-targets this same
+    // dialog instead of opening a second one; see CommandManager.doEdit).  Editors for anything
+    // else (models, Other Options) are opened explicitly, so they are modal like other dialogs.
     show(topOffset: number = 70): void {
+        if (!(this.elm instanceof CircuitElm)) {
+            super.show();
+            return;
+        }
         this.dialogEl.style.position = "fixed";
         this.dialogEl.style.margin = "0";
         this.dialogEl.style.top = topOffset + "px";
