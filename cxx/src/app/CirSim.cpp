@@ -22,6 +22,9 @@
 #include <QAction>
 #include <QDateTime>
 #include <QApplication>
+#include <QCursor>
+#include <QScreen>
+#include <QStyle>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -176,7 +179,13 @@ CirSim::CirSim() {
     setCentralWidget(central);
     updateToolbar();
     undoManager->enableUndoRedo();
-    resize(1400, 860);
+    // center on the screen under the mouse, shrinking to fit small screens
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    QRect avail = screen->availableGeometry();
+    QSize size(std::min(1400, avail.width()), std::min(860, avail.height()));
+    setGeometry(QStyle::alignedRect(Qt::LeftToRight, Qt::AlignCenter, size, avail));
 
     try {
         SubcircuitModel::loadModelsFromStorage();
