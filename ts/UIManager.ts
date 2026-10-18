@@ -731,6 +731,13 @@ export class UIManager {
         this.runStopButton.addEventListener('click', () => this.setSimRunning(!this.simIsRunning()));
         this.buttonPanel.appendChild(this.runStopButton);
 
+        // keep Reset and Run/Stop from taking keyboard focus, so a later
+        // space/enter keypress doesn't trigger them again
+        for (const b of [this.resetButton, this.runStopButton]) {
+            b.tabIndex = -1;
+            b.addEventListener('mousedown', (e) => e.preventDefault());
+        }
+
         /*
         dumpMatrixButton = new Button("Dump Matrix");
         dumpMatrixButton.addClickHandler(new ClickHandler() {

@@ -459,6 +459,7 @@ export abstract class GateElm extends CircuitElm {
         CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.inputCount], this.voltSource, res);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Inputs", this.inputCount, 1, 8).setDimensionless();

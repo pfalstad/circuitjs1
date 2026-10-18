@@ -56,9 +56,6 @@ export class GroundElm extends CircuitElm {
             }
         }
     }
-    dump(): string {
-        return super.dump() + " " + this.symbolType;
-    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
@@ -172,6 +169,7 @@ export class GroundElm extends CircuitElm {
     }
 
     getCurrentIntoNode(n: number): number { return -this.current; }
+    showPropertiesOnCreate(): boolean { return false; }
 }
 
 HookRegistry.resetGroundNodeList = () => GroundElm.resetNodeList();

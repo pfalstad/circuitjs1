@@ -52,10 +52,6 @@ export class LogicOutputElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.threshold;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         if (this.threshold !== 2.5)
@@ -73,6 +69,7 @@ export class LogicOutputElm extends CircuitElm {
     isTernary(): boolean { return (this.flags & LogicOutputElm.FLAG_TERNARY) !== 0; }
     isNumeric(): boolean { return (this.flags & (LogicOutputElm.FLAG_TERNARY | LogicOutputElm.FLAG_NUMERIC)) !== 0; }
     needsPullDown(): boolean { return (this.flags & LogicOutputElm.FLAG_PULLDOWN) !== 0; }
+    showPropertiesOnCreate(): boolean { return false; }
 
     setPoints(): void {
         super.setPoints();

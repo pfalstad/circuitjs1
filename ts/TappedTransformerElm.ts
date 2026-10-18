@@ -75,11 +75,6 @@ export class TappedTransformerElm extends CircuitElm {
     getDumpType(): number { return 169; }
     getXmlDumpType(): string { return "tt"; }
 
-    dump(): string {
-        return super.dump() + " " + this.inductance + " " + this.ratio + " " +
-            this.currents[0] + " " + this.currents[1] + " " + this.currents[2] + " " + this.couplingCoef;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "in", this.inductance);

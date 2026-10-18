@@ -72,10 +72,6 @@ export class TriStateElm extends CircuitElm {
         this.allocNodes();
     }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " " + this.r_off_ground + " " + this.highVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);
@@ -230,6 +226,7 @@ export class TriStateElm extends CircuitElm {
     getConnection(n1: number, n2: number): boolean { return false; }
     hasGroundConnection(n1: number): boolean { return n1 >= this.busWidth && n1 < 2 * this.busWidth; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("On Resistance (ohms)", this.r_on, 0, 0).setPositive();
         if (n === 1) return new EditInfo("Off Resistance (ohms)", this.r_off, 0, 0).setPositive();

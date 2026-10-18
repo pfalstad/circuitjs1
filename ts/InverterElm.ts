@@ -58,10 +58,6 @@ export class InverterElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.slewRate + " " + this.highVoltage;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "sl", this.slewRate);
@@ -157,6 +153,7 @@ export class InverterElm extends CircuitElm {
         arr[2] = "Vo = " + CircuitElm.getVoltageText(this.nodes[1].v);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Slew Rate (V/ns)", this.slewRate, 0, 0);

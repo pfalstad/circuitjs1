@@ -62,9 +62,6 @@ export class AudioOutputElm extends CircuitElm {
             this.createButton();
         }
     }
-    dump(): string {
-        return super.dump() + " " + this.duration + " " + this.samplingRate + " " + this.labelNum;
-    }
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
@@ -180,6 +177,7 @@ export class AudioOutputElm extends CircuitElm {
 
     readonly samplingRateChoices = [8000, 11025, 16000, 22050, 44100, 48000];
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             return new EditInfo("Duration (s)", this.duration, 0, 5).setPositive();

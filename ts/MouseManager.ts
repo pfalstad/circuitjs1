@@ -20,6 +20,7 @@
 import { CirSim } from "./CirSim";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { CircuitElm } from "./CircuitElm";
+import { Point } from "./Point";
 import { CircuitNode } from "./CircuitNode";
 import { Scope } from "./Scope";
 import { Graphics } from "./Graphics";
@@ -84,6 +85,8 @@ export class MouseManager {
     // elements grabbed at mouse-down for DragRow/DragColumn
     dragRowColElms: CircuitElm[] = [];
     dragRowColPosts: number[] = [];
+    // elements moved by dragSelected during the current drag
+    dragMovedElms: Set<CircuitElm> = new Set();
 
     // ---- Toolbar drag-and-drop ----
     // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
@@ -321,9 +324,17 @@ export class MouseManager {
 	this.dragging = false;
 	this.sim.updateToolbar();
 	this.sim.repaint();
-	// automatically bring up the property editor for a newly-created element
-	if (createdElm != null && createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
-	    this.sim.commands.doEdit(createdElm, false);
+	if (createdElm != null)
+	    this.editCreatedElm(createdElm);
+    }
+
+    // automatically bring up the property editor for a newly-created element,
+    // or close the editor for some other element if this one doesn't want it
+    private editCreatedElm(elm: CircuitElm): void {
+	if (elm.showPropertiesOnCreate() && !this.ui.isReadOnly())
+	    this.sim.commands.doEdit(elm, false);
+	else if (CirSim.editDialog != null)
+	    CirSim.editDialog.closeDialog();
     }
 
     private doSwitch(x: number, y: number): boolean {
@@ -513,8 +524,10 @@ export class MouseManager {
 
 	if (allowed) {
 	    for (const ce of this.ui.elmList) {
-		if (ce.isSelected())
+		if (ce.isSelected()) {
 		    ce.move(dx, dy);
+		    this.dragMovedElms.add(ce);
+		}
 	    }
 	    // move connected routed wires' shared posts
 	    if (this.sim.sim.routedWireMap != null) {
@@ -592,11 +605,11 @@ export class MouseManager {
 
     // Split any WireElm (including RoutedWireElm) whose interior contains (px, py).
     // Returns true if any wire was split.
-    private splitWireAt(px: number, py: number): boolean {
+    private splitWireAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
 	let split = false;
 	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
 	    const ce = this.ui.elmList[i];
-	    if (!ce.isWireElm())
+	    if (!ce.isWireElm() || exclude?.has(ce))
 		continue;
 	    const we = ce as any;
 	    if (!we.pointOnWireInterior(px, py))
@@ -613,11 +626,11 @@ export class MouseManager {
     // Split the lead stub of any non-wire element whose lead contains (px, py).
     // Moves the element's post to the split point and inserts a wire for the remainder.
     // Returns true if any lead was split.
-    private splitLeadsAt(px: number, py: number): boolean {
+    private splitLeadsAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
 	let split = false;
 	for (let i = this.ui.elmList.length - 1; i >= 0; i--) {
 	    const ce = this.ui.elmList[i];
-	    if (ce.isWireElm())
+	    if (ce.isWireElm() || exclude?.has(ce))
 		continue;
 	    const post = ce.getLeadPost(px, py);
 	    if (post < 0)
@@ -633,10 +646,11 @@ export class MouseManager {
 	return split;
     }
 
-    // Split any wire or element lead whose interior contains (px, py).
-    private splitAt(px: number, py: number): boolean {
-	const a = this.splitWireAt(px, py);
-	const b = this.splitLeadsAt(px, py);
+    // Split any wire or element lead whose interior contains (px, py),
+    // skipping elements in exclude.
+    private splitAt(px: number, py: number, exclude?: Set<CircuitElm>): boolean {
+	const a = this.splitWireAt(px, py, exclude);
+	const b = this.splitLeadsAt(px, py, exclude);
 	return a || b;
     }
 
@@ -946,7 +960,7 @@ export class MouseManager {
 		    this.sim.menus.elmAddScopeMenuItem.setSubMenu(this.sim.scopeManager.selectScopeMenuBar);
 		    this.sim.menus.elmAddScopeMenuItem.setEnabled(this.mouseElm.canViewInScope());
 		}
-		this.sim.menus.elmEditMenuItem.setEnabled(this.mouseElm.getEditInfo(0) != null);
+		this.sim.menus.elmEditMenuItem.setEnabled(this.mouseElm.hasProperties());
 		this.sim.menus.elmSplitMenuItem.setEnabled(this.mouseElm.isWireElm());
 		this.sim.menus.elmSliderMenuItem.setEnabled(this.sliderItemEnabled(this.mouseElm));
 
@@ -1009,7 +1023,7 @@ export class MouseManager {
 	    (this.mouseElm as any).onDoubleClick();
 	    return;
 	}
-	if (!this.mouseElm.isSwitchElm() && !this.ui.isReadOnly())
+	if (!this.mouseElm.isSwitchElm() && this.mouseElm.hasProperties() && !this.ui.isReadOnly())
 	    this.sim.commands.doEdit(this.mouseElm);
     }
 
@@ -1134,6 +1148,7 @@ export class MouseManager {
 	this.initDragGridX = gx;
 	this.initDragGridY = gy;
 	this.dragging = true;
+	this.dragMovedElms.clear();
 
 	// capture elements for DragRow/DragColumn at mouse-down so we don't
 	// pick up new elements as we sweep over them
@@ -1230,13 +1245,14 @@ export class MouseManager {
 	const createdElm = this.endDrag();
 
 	if (createdElm != null) {
-	    // automatically bring up the property editor for a newly-created element
-	    if (createdElm.showPropertiesOnCreate() && !this.ui.isReadOnly())
-		this.sim.commands.doEdit(createdElm, false);
+	    this.editCreatedElm(createdElm);
 	} else if (clickedElm != null && !(e as any).fromTouch &&
 		   this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
 	    // (tapping an element on a touch screen doesn't bring up its properties)
-	    this.sim.commands.doEdit(clickedElm);
+	    if (clickedElm.hasProperties())
+		this.sim.commands.doEdit(clickedElm);
+	    else if (CirSim.editDialog != null)
+		CirSim.editDialog.closeDialog();
 	} else if (clickedEmpty && CirSim.editDialog != null) {
 	    CirSim.editDialog.closeDialog();
 	}
@@ -1258,6 +1274,23 @@ export class MouseManager {
 	    const p = this.mouseElm.getPost(this.draggingPost);
 	    if (p != null && this.splitAt(p.x, p.y))
 		circuitChanged = true;
+	}
+	// auto-split wires/leads that moved elements' posts were dropped onto.
+	// Moved elements aren't split themselves, since they moved together.
+	if (this.dragMovedElms.size > 0) {
+	    const posts: Point[] = [];
+	    for (const ce of this.dragMovedElms) {
+		for (let i = 0; i < ce.getPostCount(); i++) {
+		    const p = ce.getPost(i);
+		    if (p != null)
+			posts.push(p);
+		}
+	    }
+	    for (const p of posts) {
+		if (this.splitAt(p.x, p.y, this.dragMovedElms))
+		    circuitChanged = true;
+	    }
+	    this.dragMovedElms.clear();
 	}
 	if (this.heldSwitchElm != null) {
 	    (this.heldSwitchElm as any).mouseUp();

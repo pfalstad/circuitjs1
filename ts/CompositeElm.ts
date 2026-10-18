@@ -270,28 +270,6 @@ export abstract class CompositeElm extends CircuitElm {
         this.allocNodes();
     }
 
-    dump(): string {
-        return super.dump() + this.dumpElements();
-    }
-
-    dumpElements(): string;
-    dumpElements(mask: number): string;
-    dumpElements(mask?: number): string {
-        let dumpStr = "";
-        for (let i = 0; i < this.compElmList.length; i++) {
-            if (mask !== undefined && (mask & (1 << i)) === 0)
-                continue;
-            let tstring = this.compElmList[i].dump();
-            tstring = tstring.replace(/[A-Za-z0-9]+ 0 0 0 0 /, ""); // remove unused tint x1 y1 x2 y2 coords
-            dumpStr += " " + CustomLogicModel.escape(tstring);
-        }
-        return dumpStr;
-    }
-
-    dumpWithMask(mask: number): string {
-        return super.dump() + this.dumpElements(mask);
-    }
-
     dumpXmlState(doc: Document, elem: Element): void {
         for (let i = 0; i !== this.compElmList.length; i++) {
             const ce = this.compElmList[i];

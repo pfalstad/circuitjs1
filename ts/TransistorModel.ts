@@ -290,6 +290,8 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
         this.updateModel();
     }
 
+    getEditTitle(): string { return "Edit Transistor Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model Name", 0);

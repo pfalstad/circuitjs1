@@ -305,6 +305,7 @@ export class ThreePhaseMotorElm extends CircuitElm {
         return n % 2 === 1 ? this.coilCurrents[Math.trunc(n/2)] : -this.coilCurrents[Math.trunc(n/2)];
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Stator Inductance (H)", this.Ls, 0, 0);
         if (n === 1) return new EditInfo("Rotor Inductance (H)", this.Lr, 0, 0);

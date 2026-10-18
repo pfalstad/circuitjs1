@@ -35,4 +35,30 @@ export class CircuitMatrix {
     sparseLU: SparseLU | null = null;
     nodeList: CircuitNode[] = [];
     voltageSourceList: VoltageSource[] = [];
+
+    // the entries stamped since clear(), as col*size+row; every other entry of
+    // matrix and origMatrix is zero, so the sparse solver resets and converts only these
+    // instead of all size*size entries
+    stamped: number[] = [];
+    stampedSorted: boolean = true;
+    private stampedFlags: Uint8Array = new Uint8Array(0);
+
+    clear(): void {
+        const sz = this.size;
+        this.matrix = Array.from({length: sz}, () => new Array(sz).fill(0));
+        this.origMatrix = Array.from({length: sz}, () => new Array(sz).fill(0));
+        this.stampedFlags = new Uint8Array(sz * sz);
+        this.stamped = [];
+        this.stampedSorted = true;
+    }
+
+    stamp(row: number, col: number, x: number): void {
+        this.matrix[row][col] += x;
+        const k = col * this.size + row;
+        if (!this.stampedFlags[k]) {
+            this.stampedFlags[k] = 1;
+            this.stamped.push(k);
+            this.stampedSorted = false;
+        }
+    }
 }

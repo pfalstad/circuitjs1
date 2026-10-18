@@ -48,10 +48,6 @@ export class CounterElm extends ChipElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.invertreset + " " + this.modulus;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "in", this.invertreset);
@@ -131,6 +127,7 @@ export class CounterElm extends ChipElm {
         this.lastClock = this.pins[0].value;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

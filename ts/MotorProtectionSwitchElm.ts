@@ -63,10 +63,6 @@ export class MotorProtectionSwitchElm extends CircuitElm {
         this.curcounts = [0, 0, 0];
     }
 
-    dump(): string {
-        return super.dump() + " " + this.resistance + " " + this.i2t + " " + this.blown + " " + CustomLogicModel.escape(this.label);
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "re", this.resistance);

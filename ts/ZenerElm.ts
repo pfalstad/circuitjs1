@@ -50,6 +50,7 @@ export class ZenerElm extends DiodeElm {
         }
     }
 
+    showPropertiesOnCreate(): boolean { return true; }
     getDumpType(): number { return 'z'.charCodeAt(0); }
 
     readonly hs = 8;

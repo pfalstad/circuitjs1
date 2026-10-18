@@ -1588,6 +1588,7 @@
 "Edit Diode Model"="ダイオードモデルを編集"
 "Edit Relay Model"="リレーモデルを編集"
 "Edit Transistor Model"="トランジスタモデルを編集"
+"Edit MOSFET Model"="MOSFETモデルを編集"
 "Enable Pins"="イネーブルピン"
 "End"="End"
 "F10"="F10"

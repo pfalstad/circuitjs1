@@ -1063,9 +1063,8 @@ export class SimulationManager {
 	for (i = 0; i !== this.matrices!.length; i++) {
 	    const m = this.matrices![i];
 	    const sz = m.size;
-	    m.matrix = Array.from({length: sz}, () => new Array(sz).fill(0));
+	    m.clear();
 	    m.rightSide = new Array(sz).fill(0);
-	    m.origMatrix = Array.from({length: sz}, () => new Array(sz).fill(0));
 	    m.origRightSide = new Array(sz).fill(0);
 	    m.permute = new Array(sz).fill(0);
 	    m.nodeVoltages = new Array(m.nodeCount).fill(0);
@@ -1331,7 +1330,7 @@ export class SimulationManager {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! node " + i.index + " (matrix row " + i.row + ") vs node " + j.index + " (matrix row " + j.row + ")");
 	    const m = (i !== CircuitNode.ground) ? i.matrix! : j.matrix!;
-	    m.matrix[i.row-1][j.row-1] += x;
+	    m.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1342,7 +1341,7 @@ export class SimulationManager {
 	if (j.row > 0) {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! vs row " + i.row + " vs node " + j.index + " (row " + j.row + ")");
-	    i.matrix!.matrix[i.row-1][j.row-1] += x;
+	    i.matrix!.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1353,7 +1352,7 @@ export class SimulationManager {
 	if (i.row > 0) {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! node " + i.index + " (row " + i.row + ") vs vs row " + j.row);
-	    j.matrix!.matrix[i.row-1][j.row-1] += x;
+	    j.matrix!.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1363,7 +1362,7 @@ export class SimulationManager {
 	    SimulationManager.debugger();
 	if (i.matrix !== j.matrix)
 	    SimulationManager.console("stampMatrix cross-matrix! vs row " + i.row + " vs vs row " + j.row);
-	i.matrix!.matrix[i.row-1][j.row-1] += x;
+	i.matrix!.stamp(i.row-1, j.row-1, x);
     }
 
     // stamp value x on the right side of row i, representing an
@@ -1445,9 +1444,18 @@ export class SimulationManager {
 		    for (i = 0; i !== m.size; i++)
 			m.rightSide[i] = m.origRightSide[i];
 		    if (m.nonLinear) {
-			for (i = 0; i !== m.size; i++)
-			    for (j = 0; j !== m.size; j++)
-				m.matrix[i][j] = m.origMatrix[i][j];
+			if (this.usingSparse) {
+			    // the sparse lu_factor leaves m.matrix alone, so only stamped entries can differ
+			    const st = m.stamped;
+			    for (let k = 0; k !== st.length; k++) {
+				const r = st[k] % m.size, c = (st[k] - r) / m.size;
+				m.matrix[r][c] = m.origMatrix[r][c];
+			    }
+			} else {
+			    for (i = 0; i !== m.size; i++)
+				for (j = 0; j !== m.size; j++)
+				    m.matrix[i][j] = m.origMatrix[i][j];
+			}
 		    }
 		}
 		for (i = 0; i !== this.elmArr.length; i++)
@@ -1666,7 +1674,11 @@ export class SimulationManager {
     static lu_factor(a: number[][], n: number, ipvt: number[], cm: CircuitMatrix): boolean {
 	const sm = SimulationManager.theSim;
 	if (sm !== null && sm.usingSparse) {
-	    const sparse = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
+	    if (!cm.stampedSorted) {
+		cm.stamped.sort((x, y) => x - y);
+		cm.stampedSorted = true;
+	    }
+	    const sparse = DMatrixSparseCSC.convertEntries(a, cm.stamped, DMatrixSparseCSC.EPS);
 	    if (cm.sparseLU === null) cm.sparseLU = new SparseLU();
 	    return cm.sparseLU.setA(sparse);
 	}

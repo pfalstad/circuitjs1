@@ -1417,6 +1417,7 @@
 "Edit Diode Model"="Rediger diodemodel"
 "Edit Relay Model"="Rediger relæmodel"
 "Edit Transistor Model"="Rediger transistormodel"
+"Edit MOSFET Model"="Rediger MOSFET-model"
 "Enable Pins"="Enable-pins"
 "End"="End"
 "F10"="F10"

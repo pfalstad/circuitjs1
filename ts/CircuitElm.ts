@@ -269,13 +269,6 @@ export abstract class CircuitElm implements Editable {
         }
     }
 
-    // dump component state for export/undo
-    dump(): string {
-        const t = this.getDumpType();
-        return (t < 127 ? String.fromCharCode(t)+" " : t+" ") + this.x + " " + this.y + " " +
-            this.x2 + " " + this.y2 + " " + this.flags;
-    }
-
     // handle reset button
     reset(): void {
         this.curcount = 0;
@@ -1444,7 +1437,10 @@ export abstract class CircuitElm implements Editable {
     isRoutedWireElm(): boolean { return false; }
     isSwitchElm(): boolean { return false; }
     // whether to automatically bring up the property editor when this element is created
-    showPropertiesOnCreate(): boolean { return true; }
+    // (overridden to false for elements whose settings are rarely changed on creation)
+    showPropertiesOnCreate(): boolean { return this.hasProperties(); }
+    // whether this element has any editable properties
+    hasProperties(): boolean { return this.getEditInfo(0) != null; }
     isLogicInputElm(): boolean { return false; }
     isVarRailElm(): boolean { return false; }
     isPotElm(): boolean { return false; }
@@ -1492,7 +1488,6 @@ export abstract class CircuitElm implements Editable {
         return this.lineDistanceSq(this.x, this.y, this.x2, this.y2, gx, gy);
     }
 
-    dumpModel(): string | null { return null; }
     dumpXmlModel(doc: Document): void {}
 
     isMouseElm(): boolean {

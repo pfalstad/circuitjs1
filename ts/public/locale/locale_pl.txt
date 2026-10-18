@@ -1548,6 +1548,7 @@
 "Edit Diode Model"="Edytuj model diody"
 "Edit Relay Model"="Edytuj model przekaźnika"
 "Edit Transistor Model"="Edytuj model tranzystora"
+"Edit MOSFET Model"="Edytuj model MOSFET-a"
 "Enable Pins"="Piny Enable"
 "End"="End"
 "F10"="F10"

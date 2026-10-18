@@ -73,10 +73,6 @@ export class SevenSegElm extends ChipElm {
         this.diodeDirection = 0;
     }
 
-    dump(): string {
-        return super.dump() + " " + this.baseSegmentCount + " " + this.extraSegment + " " + this.diodeDirection;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ba", this.baseSegmentCount);
@@ -352,6 +348,7 @@ export class SevenSegElm extends ChipElm {
     getDumpType(): number { return 157; }
     getXmlDumpType(): string { return "ssd"; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Segments", 0, -1, -1);

@@ -61,11 +61,6 @@ export class MemristorElm extends CircuitElm {
 
     getDumpType(): number { return 'm'.charCodeAt(0); }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " "
-            + this.dopeWidth + " " + this.totalWidth + " " + this.mobility;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);
@@ -172,6 +167,7 @@ export class MemristorElm extends CircuitElm {
         return x === VAL_R;
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Min Resistance (ohms)", this.r_on, 0, 0);

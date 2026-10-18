@@ -534,6 +534,7 @@ export class RelayElm extends CircuitElm {
 
     models: RelayModel[];
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);

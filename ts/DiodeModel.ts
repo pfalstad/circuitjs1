@@ -277,6 +277,8 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.updateModel();
     }
 
+    getEditTitle(): string { return "Edit Diode Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model Name", 0);
@@ -345,11 +347,6 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.vscale = this.emissionCoefficient * DiodeModel.vt;
         this.vdcoef = 1 / this.vscale;
         this.fwdrop = Math.log(1 / this.saturationCurrent + 1) * this.emissionCoefficient * DiodeModel.vt;
-    }
-
-    dump(): string {
-        this.dumped = true;
-        return "34 " + CustomLogicModel.escape(this.name) + " " + this.flags + " " + this.saturationCurrent + " " + this.seriesResistance + " " + this.emissionCoefficient + " " + this.breakdownVoltage + " " + this.forwardCurrent;
     }
 
     dumpXml(doc: Document): void {

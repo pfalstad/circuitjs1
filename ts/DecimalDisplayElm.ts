@@ -83,8 +83,6 @@ export class DecimalDisplayElm extends ChipElm {
         g.restore();
     }
 
-    dump(): string { return super.dump() + " " + this.bitCount + " " + this.displayMode; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "bc", this.bitCount);
@@ -115,6 +113,7 @@ export class DecimalDisplayElm extends ChipElm {
     getDumpType(): number { return 419; }
     getVoltageSourceCount(): number { return 0; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bitCount, 1, 8).setDimensionless();

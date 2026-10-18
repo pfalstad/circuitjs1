@@ -77,6 +77,7 @@ export class FullAdderElm extends ChipElm {
     needsBits(): boolean { return (this.flags & FullAdderElm.FLAG_BITS) !== 0; }
     allowBus(): boolean { return this.needsBits(); }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setPositive();

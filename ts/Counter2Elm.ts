@@ -41,10 +41,6 @@ export class Counter2Elm extends ChipElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.modulus;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "mo", this.modulus);
@@ -100,6 +96,7 @@ export class Counter2Elm extends ChipElm {
     getPostCount(): number {
         return this.bits * 2 + 6;
     }
+    showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();

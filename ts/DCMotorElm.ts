@@ -208,6 +208,7 @@ export class DCMotorElm extends CircuitElm {
         arr[6] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Armature inductance (H)", this.inductance, 0, 0).setPositive();
         if (n === 1) return new EditInfo("Armature Resistance (ohms)", this.resistance, 0, 0).setPositive();

@@ -1446,6 +1446,7 @@
 "Edit Diode Model"="다이오드 모델 편집"
 "Edit Relay Model"="릴레이 모델 편집"
 "Edit Transistor Model"="트랜지스터 모델 편집"
+"Edit MOSFET Model"="MOSFET 모델 편집"
 "Enable Pins"="인에이블 핀"
 "End"="End"
 "F10"="F10"

@@ -73,8 +73,6 @@ export class DarlingtonElm extends CompositeElm {
 
     getDumpType(): number { return 400; }
 
-    dump(): string { return super.dump() + " " + this.pnp; }
-
     getXmlDumpType(): string { return "dar"; }
 
     dumpXml(doc: Document, elem: Element): void {

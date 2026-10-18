@@ -250,6 +250,7 @@ export class SwitchElm extends CircuitElm {
 
     useIECSymbol(): boolean { return (this.flags & SwitchElm.FLAG_IEC) !== 0; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

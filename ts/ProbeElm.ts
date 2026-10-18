@@ -361,6 +361,7 @@ export class ProbeElm extends CircuitElm {
 
     getConnection(n1: number, n2: number): boolean { return this.resistance !== 0; }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return EditInfo.createCheckbox("Show Value", this.mustShowVoltage());

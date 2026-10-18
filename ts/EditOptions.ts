@@ -33,6 +33,8 @@ export class EditOptions implements Editable {
 
     constructor(a: CirSim, s: SimulationManager) { this.app = a; this.sim = s; }
 
+    getEditTitle(): string { return "Other Options"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Time step size (s)", this.sim.maxTimeStep, 0, 0).setPositive();

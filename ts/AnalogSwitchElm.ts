@@ -72,10 +72,6 @@ export class AnalogSwitchElm extends CircuitElm {
         }
     }
 
-    dump(): string {
-        return super.dump() + " " + this.r_on + " " + this.r_off + " " + this.threshold;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ron", this.r_on);
@@ -200,6 +196,7 @@ export class AnalogSwitchElm extends CircuitElm {
         return this.needsPulldown() && (n1 < 2);
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);

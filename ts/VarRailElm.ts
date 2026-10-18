@@ -67,11 +67,6 @@ export class VarRailElm extends RailElm {
     getDumpType(): number { return 172; }
     isVarRailElm(): boolean { return true; }
 
-    dump(): string {
-        // encode '+' for the old text format tokenizer
-        return super.dump() + " " + this.sliderText.replace(/\+/g, "%2B");
-    }
-
     createSlider(): void {
         this.waveform = VoltageElm.WF_VAR;
         const denom = this.maxVoltage - this.bias;

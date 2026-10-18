@@ -167,6 +167,7 @@ export class DiacElm extends CircuitElm {
         arr[8] = "P = "      + CircuitElm.getUnitText(this.getPower(), "W");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("On resistance (ohms)",      this.onresistance,  0, 0);
         if (n === 1) return new EditInfo("Off resistance (ohms)",     this.offresistance, 0, 0);

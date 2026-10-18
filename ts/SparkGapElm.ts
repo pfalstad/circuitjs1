@@ -57,11 +57,6 @@ export class SparkGapElm extends CircuitElm {
     nonLinear(): boolean { return true; }
     getDumpType(): number { return 187; }
 
-    dump(): string {
-        return super.dump() + " " + this.onresistance + " " + this.offresistance + " "
-            + this.breakdown + " " + this.holdcurrent;
-    }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "on", this.onresistance);
@@ -143,6 +138,7 @@ export class SparkGapElm extends CircuitElm {
         arr[6] = "Vbreakdown = " + CircuitElm.getUnitText(this.breakdown, "V");
     }
 
+    showPropertiesOnCreate(): boolean { return false; }
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("On resistance (ohms)", this.onresistance, 0, 0);
