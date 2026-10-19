@@ -125,6 +125,30 @@ iframe.contentWindow.oncircuitjsloaded = function() {
     <li><strong>Example:</strong> <code>CircuitJS1.setMaxTimeStep(1e-3);</code></li>
 </ul>
 
+<h3><code>setSpeedBarBounds(int min, int max)</code></h3>
+<ul>
+    <li><strong>Description:</strong> Sets the range of the Simulation Speed slider. The default range is 0 to 659. The current slider value is clamped into the new range.</li>
+    <li><strong>Parameters:</strong>
+        <ul>
+            <li><code>min</code> (int): The minimum slider value (inclusive).</li>
+            <li><code>max</code> (int): The maximum slider value (inclusive). Must be greater than <code>min</code>.</li>
+        </ul>
+    </li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setSpeedBarBounds(50, 200);</code></li>
+</ul>
+
+<h3><code>getSpeedBarBounds()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Returns the current range of the Simulation Speed slider.</li>
+    <li><strong>Returns:</strong> An object <code>{min, max}</code> (both inclusive).</li>
+</ul>
+
+<h3><code>setSpeedBarValue(int v)</code> / <code>getSpeedBarValue()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Sets or gets the Simulation Speed slider position. Values outside the current bounds are clamped.</li>
+    <li><strong>Example:</strong> <code>CircuitJS1.setSpeedBarValue(117);</code></li>
+</ul>
+
 <h3><code>isRunning()</code></h3>
 <ul>
     <li><strong>Description:</strong> Checks if the simulation is currently running.</li>

@@ -223,6 +223,13 @@ export class JSInterface {
     setTimeStep(ts: number): void { this.app.sim.timeStep = ts; }
     getMaxTimeStep(): number { return this.app.sim.maxTimeStep; }
     setMaxTimeStep(ts: number): void { this.app.sim.maxTimeStep = this.app.sim.timeStep = ts; }
+    getSpeedBarBounds(): { min: number, max: number } {
+        const sb = this.app.ui.speedBar;
+        return { min: sb.getMin(), max: sb.getMax() };
+    }
+    setSpeedBarBounds(min: number, max: number): void { this.app.ui.speedBar.setBounds(min, max); }
+    getSpeedBarValue(): number { return this.app.ui.speedBar.getValue(); }
+    setSpeedBarValue(v: number): void { this.app.ui.speedBar.setValue(v); }
 
     setupJSInterface(): void {
         const that = this;
@@ -233,6 +240,10 @@ export class JSInterface {
             setTimeStep:    (ts: number) => that.setTimeStep(ts), // don't use this, see #843
             getMaxTimeStep: () => that.getMaxTimeStep(),
             setMaxTimeStep: (ts: number) => that.setMaxTimeStep(ts),
+            getSpeedBarBounds: () => that.getSpeedBarBounds(),
+            setSpeedBarBounds: (min: number, max: number) => that.setSpeedBarBounds(min, max),
+            getSpeedBarValue:  () => that.getSpeedBarValue(),
+            setSpeedBarValue:  (v: number) => that.setSpeedBarValue(v),
             isRunning:      () => that.simIsRunning(),
             getNodeVoltage: (n: string) => that.getLabeledNodeVoltage(n),
             setExtVoltage:  (n: string, v: number) => that.setExtVoltage(n, v),

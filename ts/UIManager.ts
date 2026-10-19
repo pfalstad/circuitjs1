@@ -260,6 +260,18 @@ export class Scrollbar {
         if (this.command) this.command();
     }
 
+    getMin(): number { return this.min; }
+    getMax(): number { return this.max; }
+
+    // min/max are inclusive (unlike the constructor's max, which is exclusive).
+    // The current value is clamped into the new range.
+    setBounds(min: number, max: number): void {
+        if (!(max > min)) return;
+        this.min = min;
+        this.max = max;
+        this.setValue(this.val);
+    }
+
     enable():  void { this.enabled = true;  this.draw(); }
     disable(): void { this.enabled = false; this.dragging = false; this.draw(); }
 
