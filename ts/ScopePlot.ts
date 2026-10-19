@@ -31,8 +31,10 @@ import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
 
 // plot of single value on a scope
 export class ScopePlot implements HistoryWatcher {
-    minValues: number[];
-    maxValues: number[];
+    // The buffers timeStep()/fillFromDigitalHistory() record into. Everything outside this class
+    // except ScopeTrigger's edge detection reads minValues/maxValues instead (see below).
+    liveMin: number[];
+    liveMax: number[];
     scopePointCount: number;
     ptr: number; // ptr is pointer to the current sample
     value: number; // Value - the property being shown - e.g. VAL_CURRENT
@@ -57,6 +59,16 @@ export class ScopePlot implements HistoryWatcher {
     acAlpha: number = 0.9999; // Filter coefficient for AC coupling
     acLastOut: number = 0; // Store y[i-1] term for AC coupling filter
 
+    // Snapshot of liveMin/liveMax taken by ScopeTrigger once a triggered sweep has been fully
+    // captured. The live buffer has to keep recording (the next trigger needs pre-trigger
+    // history), so without this the displayed sweep gets overwritten as soon as the write pointer
+    // laps it - long before a rare trigger event comes around again. null means show live data.
+    private frozenMin: number[] | null = null;
+    private frozenMax: number[] | null = null;
+    // Earliest `history` tick ScopeTrigger still needs kept to build a pending snapshot from
+    // (see freezeFromHistory()), or -1 if none - folded into historyFloor() below.
+    triggerFloor: number = -1;
+
     // If this plot is showing a single-output digital element's voltage
     // (GateElm/InverterElm/DelayBufferElm, or a digital RailElm source) -
     // or a wire-equivalent node (LabeledNodeElm, ...) driven by one - this
@@ -68,7 +80,7 @@ export class ScopePlot implements HistoryWatcher {
     // element - only the voltage trace goes through the digital fast path).
     // NOT readonly: see refreshDigitalSource().
     digitalChip: Chip | null;
-    // Tick fillFromDigitalHistory() has folded `history` into minValues/maxValues through so
+    // Tick fillFromDigitalHistory() has folded `history` into liveMin/liveMax through so
     // far - so a redundant draw() within the same tick (e.g. no simulation progress between
     // frames) doesn't repeat the work, AND (once >= 0) the point at which the NEXT call resumes
     // incrementally rather than rebuilding the whole visible window from scratch - see that
@@ -108,8 +120,8 @@ export class ScopePlot implements HistoryWatcher {
         this.lastUpdateTime = 0;
         this.lastValue = 0;
         this.color = "#FFFFFF";
-        this.minValues = [];
-        this.maxValues = [];
+        this.liveMin = [];
+        this.liveMax = [];
         this.digitalChip = null;
         this.setDigitalChip((u === UNITS_V) ? digitalScopeSourceNew(e) : null);
         if (v !== undefined && manS !== undefined) {
@@ -186,12 +198,16 @@ export class ScopePlot implements HistoryWatcher {
 
     // HistoryWatcher: the earliest `history` entry this plot might still look at on its next
     // fillFromDigitalHistory() call - see that interface's own comment. Once lastDigitalFillTick
-    // is established, everything before it has already been folded into minValues/maxValues and
+    // is established, everything before it has already been folded into liveMin/liveMax and
     // will never be read again (the whole point of going incremental - see
     // fillFromDigitalHistory()'s docstring).
     historyFloor(): number {
-        return this.lastDigitalFillTick < 0 ? -1 : this.lastDigitalFillTick;
+        if (this.lastDigitalFillTick < 0) return -1;
+        return this.triggerFloor >= 0 ? Math.min(this.triggerFloor, this.lastDigitalFillTick) : this.lastDigitalFillTick;
     }
+
+    // Tick `history` has been folded into the live buffer through, or -1 if not yet
+    get digitalFillTick(): number { return this.lastDigitalFillTick; }
 
     // Stops watching this plot's chip (if any) for good - called wherever a ScopePlot is
     // dropped rather than just re-pointed (see Scope.ts's various `this.plots = ...`/splice
@@ -203,6 +219,30 @@ export class ScopePlot implements HistoryWatcher {
             this.digitalChip.removeHistoryWatcher(this);
             this.digitalChip = null;
         }
+    }
+
+    // What the display shows: the frozen trigger snapshot if there is one, else live data.
+    // Assigning replaces the live buffer (and drops any snapshot).
+    get minValues(): number[] { return this.frozenMin ?? this.liveMin; }
+    set minValues(a: number[]) { this.liveMin = a; this.thaw(); }
+    get maxValues(): number[] { return this.frozenMax ?? this.liveMax; }
+    set maxValues(a: number[]) { this.liveMax = a; this.thaw(); }
+
+    // Builds the trigger snapshot straight from `history` rather than from the live buffer,
+    // which may never have held these columns at all (a frame that jumps further than the whole
+    // buffer cold-starts it - see fillFromDigitalHistory()). Columns [startIdx, startIdx + nCols)
+    // (mod scopePointCount) get filled, the first one covering ticks [startTick, startTick + sp);
+    // the rest are zero. The caller must not ask for columns past digitalFillTick.
+    freezeFromHistory(startTick: number, startIdx: number, nCols: number): void {
+        const spc = this.scopePointCount;
+        this.frozenMin = new Array(spc).fill(0);
+        this.frozenMax = new Array(spc).fill(0);
+        if (this.digitalChip !== null)
+            this.fillColumnsFromHistory(this.frozenMin, this.frozenMax, startIdx, nCols, startTick);
+    }
+
+    thaw(): void {
+        this.frozenMin = this.frozenMax = null;
     }
 
     startIndex(w: number): number {
@@ -218,22 +258,24 @@ export class ScopePlot implements HistoryWatcher {
         // Adjust the time constant of the AC coupled filter in proportion to the number of samples
         // we are seeing on the scope (if my maths is right). The constant is empirically determined
         this.acAlpha = 1.0 - 1.0 / (1.15 * sp * spc);
-        const oldMin = this.minValues;
-        const oldMax = this.maxValues;
-        this.minValues = new Array(spc).fill(0);
-        this.maxValues = new Array(spc).fill(0);
+        const oldMin = this.liveMin;
+        const oldMax = this.liveMax;
+        this.liveMin = new Array(spc).fill(0);
+        this.liveMax = new Array(spc).fill(0);
         if (oldMin !== null && oldMin.length > 0 && !full) {
             // preserve old data if possible
             let i;
             for (i = 0; i !== spc && i !== oldSpc; i++) {
                 const i1 = (-i) & (spc - 1);
                 const i2 = (this.ptr - i) & (oldSpc - 1);
-                this.minValues[i1] = oldMin[i2];
-                this.maxValues[i1] = oldMax[i2];
+                this.liveMin[i1] = oldMin[i2];
+                this.liveMax[i1] = oldMax[i2];
             }
         } else
             this.lastUpdateTime = SimulationManager.theSim!.t;
         this.ptr = 0;
+        this.thaw();
+        this.triggerFloor = -1;
         // Array size/window just changed (or was thrown away above) - force
         // the next draw() to fully rebuild from history rather than trusting
         // whatever partial data the copy loop above preserved.
@@ -258,20 +300,20 @@ export class ScopePlot implements HistoryWatcher {
         this.acLastOut = newAcOut;
         if (this.isAcCoupled())
             v = newAcOut;
-        if (v < this.minValues[this.ptr])
-            this.minValues[this.ptr] = v;
-        if (v > this.maxValues[this.ptr])
-            this.maxValues[this.ptr] = v;
+        if (v < this.liveMin[this.ptr])
+            this.liveMin[this.ptr] = v;
+        if (v > this.liveMax[this.ptr])
+            this.liveMax[this.ptr] = v;
         const maxTimeStep = SimulationManager.theSim!.maxTimeStep;
         if (SimulationManager.theSim!.t - this.lastUpdateTime >= maxTimeStep * this.scopePlotSpeed) {
             this.ptr = (this.ptr + 1) & (this.scopePointCount - 1);
-            this.minValues[this.ptr] = this.maxValues[this.ptr] = v;
+            this.liveMin[this.ptr] = this.liveMax[this.ptr] = v;
             this.lastUpdateTime += maxTimeStep * this.scopePlotSpeed;
         }
     }
 
     /** Folds digitalChip.history - the Chip's own append-only list of (tick, value) changes
-     * (see digital/chip.ts) - into minValues/maxValues, the same per-pixel-column min/max arrays
+     * (see digital/chip.ts) - into liveMin/liveMax, the same per-pixel-column min/max arrays
      * timeStep() accretes one simulation tick at a time for an analog plot. This is *not* called
      * once per simulation timestep the way timeStep() is: under the digital fast-path
      * optimization, a promoted/sleeping chip can skip real work for thousands of ticks at a
@@ -344,42 +386,10 @@ export class ScopePlot implements HistoryWatcher {
             // a column whose colEnd === now open, rather than opening an empty one past it).
             const colEndNow = Math.ceil((now + epoch) / sp) * sp - epoch;
             const windowStart = colEndNow - spc * sp;
-            // Never look further back than this plot's own historyEpoch - see its docstring.
-            const searchFloor = Math.max(windowStart, Number(this.historyEpoch));
+            const curVal = this.fillColumnsFromHistory(this.liveMin, this.liveMax, 0, spc, windowStart);
 
-            // Binary search: first history index with tick > searchFloor.
-            let lo = 0, hi = hist.length;
-            while (lo < hi) {
-                const mid = (lo + hi) >> 1;
-                if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
-            }
-            let hIdx = lo;
-            // Before the first recorded transition (lo === 0, hist non-empty): `history` only
-            // ever records real toggles (see Chip's `output` setter), so whatever value hist[0]
-            // toggles TO is exactly the opposite of what was in effect immediately before it -
-            // see ScopePlot2d.fillDigitalRaster()'s identical fix for the full reasoning and the
-            // bug this produced (a scope's flat pre-first-transition segment retroactively
-            // showing the WRONG level the moment the real first transition happens). Only when
-            // `history` is still completely empty does chip.output - the chip's actual,
-            // unchanging value so far - apply.
-            let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
-
-            for (let col = 0; col < spc; col++) {
-                const colEnd = windowStart + (col + 1) * sp;
-                const v0 = curVal ? hv : 0;
-                let mn = v0, mx = v0;
-                while (hIdx < hist.length && Number(hist[hIdx].time) < colEnd) {
-                    curVal = hist[hIdx].value;
-                    const v = curVal ? hv : 0;
-                    if (v < mn) mn = v;
-                    if (v > mx) mx = v;
-                    hIdx++;
-                }
-                this.minValues[col] = mn;
-                this.maxValues[col] = mx;
-            }
             // See startIndex()/reset()'s (ptr - i) & (spc - 1) convention: ptr is the newest
-            // column. minValues/maxValues were just filled oldest-to-newest at indices
+            // column. liveMin/liveMax were just filled oldest-to-newest at indices
             // 0..spc-1, so ptr = spc - 1 makes index spc-1 (the last one written, i.e. newest)
             // resolve to offset 0 from ptr - exactly matching that convention without needing an
             // actual circular write. `colEnd` for that last column is `colEndNow` (windowStart
@@ -417,8 +427,8 @@ export class ScopePlot implements HistoryWatcher {
                     // or from the previous transition within it), so only the new one needs adding.
                     val = hist[hIdx].value;
                     const v = val ? hv : 0;
-                    if (v < this.minValues[this.ptr]) this.minValues[this.ptr] = v;
-                    if (v > this.maxValues[this.ptr]) this.maxValues[this.ptr] = v;
+                    if (v < this.liveMin[this.ptr]) this.liveMin[this.ptr] = v;
+                    if (v > this.liveMax[this.ptr]) this.liveMax[this.ptr] = v;
                     cursor = nextHistTime;
                     hIdx++;
                 } else {
@@ -436,8 +446,8 @@ export class ScopePlot implements HistoryWatcher {
                         // open the next one flat at the currently-held value, same as timeStep()'s
                         // own ptr advance.
                         this.ptr = (this.ptr + 1) & (spc - 1);
-                        const v = val ? hv : 0;
-                        this.minValues[this.ptr] = this.maxValues[this.ptr] = v;
+                                    const v = val ? hv : 0;
+                        this.liveMin[this.ptr] = this.liveMax[this.ptr] = v;
                         colEnd += sp;
                     }
                 }
@@ -447,6 +457,51 @@ export class ScopePlot implements HistoryWatcher {
         }
         this.lastDigitalFillTick = now;
         this.lastValue = this.curDigitalVal ? hv : 0;
+    }
+
+    // Fills `n` columns of min/max starting at index `start` (mod their length) from `history`,
+    // column `start` covering ticks [tick0, tick0 + sp). Returns the value in effect at the end.
+    private fillColumnsFromHistory(min: number[], max: number[], start: number, n: number, tick0: number): number {
+        const chip = this.digitalChip!;
+        const hist = chip.history;
+        const sp = this.scopePlotSpeed;
+        const mask = min.length - 1;
+        const hv = (this.elm as any)?.highVoltage ?? 5;
+        // Never look further back than this plot's own historyEpoch - see its docstring.
+        const searchFloor = Math.max(tick0, Number(this.historyEpoch));
+
+        // Binary search: first history index with tick > searchFloor.
+        let lo = 0, hi = hist.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (Number(hist[mid].time) <= searchFloor) lo = mid + 1; else hi = mid;
+        }
+        let hIdx = lo;
+        // Before the first recorded transition (lo === 0, hist non-empty): `history` only
+        // ever records real toggles (see Chip's `output` setter), so whatever value hist[0]
+        // toggles TO is exactly the opposite of what was in effect immediately before it -
+        // see ScopePlot2d.fillDigitalRaster()'s identical fix for the full reasoning and the
+        // bug this produced (a scope's flat pre-first-transition segment retroactively
+        // showing the WRONG level the moment the real first transition happens). Only when
+        // `history` is still completely empty does chip.output - the chip's actual,
+        // unchanging value so far - apply.
+        let curVal = lo > 0 ? hist[lo - 1].value : (hist.length > 0 ? (hist[0].value ^ 1) : chip.output);
+
+        for (let col = 0; col < n; col++) {
+            const colEnd = tick0 + (col + 1) * sp;
+            const v0 = curVal ? hv : 0;
+            let mn = v0, mx = v0;
+            while (hIdx < hist.length && Number(hist[hIdx].time) < colEnd) {
+                curVal = hist[hIdx].value;
+                const v = curVal ? hv : 0;
+                if (v < mn) mn = v;
+                if (v > mx) mx = v;
+                hIdx++;
+            }
+            min[(start + col) & mask] = mn;
+            max[(start + col) & mask] = mx;
+        }
+        return curVal;
     }
 
     getUnitText(v: number): string {

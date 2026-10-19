@@ -23,6 +23,7 @@ import { ScopePlot } from "./ScopePlot";
 import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
+import type { Chip } from "./digital/chip";
 
 export class ScopeTrigger {
     // Trigger mode constants
@@ -46,39 +47,45 @@ export class ScopeTrigger {
 
     // State machine
     state: number = ScopeTrigger.TRIG_STATE_ARMED;
-    ptr: number = 0;
-    prevValue: number = 0;
-    holdoff: number = 0;
-    autoTimeout: number = 0;
     waiting: boolean = false;
+    // The sweep being displayed: its trigger column in the frozen snapshot (see
+    // ScopePlot.freezeFromHistory()) and the sim time at the start of that column.
+    ptr: number = 0;
     time: number = 0;
+    // Whether a sweep has been captured and is being displayed
     fired: boolean = false;
-    lastCheckPtr: number = -1;
+    // Edge being captured while TRIGGERED, in the chip's own ticks
+    capTick: number = 0;
+    // Edges at or before this tick have already been dealt with
+    scanTick: number = 0;
+    // Tick of the last capture (or of arming), for the auto-mode timeout
+    lastTrigTick: number = 0;
+    lastCheckTick: number = -1;
+    // Chip being scanned; ticks restart whenever the digital graph is rebuilt, so a new chip
+    // means starting over.
+    chip: Chip | null = null;
+    autoTimeout: number = 0;
 
     isActive(): boolean {
         return this.mode !== ScopeTrigger.TRIGGER_FREERUN;
     }
 
     isTriggered(): boolean {
-        return this.isActive() && this.fired && this.state !== ScopeTrigger.TRIG_STATE_AUTO_RUN;
+        return this.isActive() && this.fired;
     }
 
     // Returns the start index for display, accounting for trigger mode.
     displayStartIndex(plot: ScopePlot, w: number, scopePointCount: number): number {
-        if (this.mode === ScopeTrigger.TRIGGER_FREERUN || !this.fired || this.state === ScopeTrigger.TRIG_STATE_AUTO_RUN)
+        if (!this.isTriggered())
             return plot.startIndex(w);
         // Trigger point at center of display
         return this.ptr + scopePointCount - w / 2;
     }
 
-    // Returns the number of valid data points to display, clamped to width w.
-    // In triggered mode, data beyond plot.ptr is stale (old circular buffer
-    // contents) and must not be drawn or used for measurements.
+    // Returns the number of valid data points to display, clamped to width w. A triggered sweep
+    // is only ever shown once it's been fully captured, so this is always the full width.
     validDataCount(plot: ScopePlot, ipa: number, w: number, scopePointCount: number): number {
-        if (!this.isTriggered())
-            return w;
-        const count = ((plot.ptr - ipa) & (scopePointCount - 1)) + 1;
-        return Math.min(count, w);
+        return w;
     }
 
     dumpXml(xmlElm: Element): void {
@@ -96,103 +103,130 @@ export class ScopeTrigger {
         this.level = xml.parseDoubleAttr("triggerLevel", 0);
     }
 
-    // Reset trigger state; called from Scope.resetGraph().
+    // Reset trigger state; called from Scope.resetGraph(), after the plots' own reset() has
+    // dropped their snapshots.
     reset(scopePointCount: number): void {
         this.state = ScopeTrigger.TRIG_STATE_ARMED;
-        this.holdoff = 0;
         this.waiting = false;
         this.fired = false;
-        this.lastCheckPtr = -1;
+        this.chip = null;
+        this.lastCheckTick = -1;
         this.autoTimeout = 2 * scopePointCount;
     }
 
-    // Trigger edge detection and state machine.
+    // Trigger edge detection and state machine, called from Scope.draw() after the plots have
+    // been brought up to date from their chips' history (see ScopePlot.fillFromDigitalHistory()).
     //
-    // Called from Scope.timeStep() (analog plots, whose ptr advances by at most one column per
-    // simulation tick) and again from Scope.draw() after the digital plots have been folded in
-    // from their change-list history (see ScopePlot.fillFromDigitalHistory()). A digital plot
-    // isn't sampled per tick at all - it advances ptr by however many columns one rendered frame
-    // covers - so this walks every column that has appeared since the last call instead of only
-    // looking at the newest one, which is what makes an edge that fell in the middle of a frame
-    // visible to the state machine at all. For an analog plot that walk is a single step and
-    // behaves exactly as before.
+    // Edges are found in the first plot's chip `history` rather than in the column buffer: a
+    // frame can cover more ticks than the whole buffer holds (fillFromDigitalHistory() then
+    // cold-starts it), so columns can be skipped entirely, but history never is. Likewise the
+    // displayed sweep is built from history (ScopePlot.freezeFromHistory()) once the sim has run
+    // half a screen past the edge, rather than copied from a buffer that may never have held it.
     check(visiblePlots: ScopePlot[], plot2d: boolean, sim: SimulationManager, scopePointCount: number, rectWidth: number): void {
         if (this.mode === ScopeTrigger.TRIGGER_FREERUN || visiblePlots.length === 0 || plot2d)
             return;
 
         const plot = visiblePlots[0];
-        const currentPtr = plot.ptr;
-
-        // Only check when ptr advances (new sample point)
-        if (currentPtr === this.lastCheckPtr)
+        const chip = plot.digitalChip;
+        const now = plot.digitalFillTick;
+        const sp = plot.scopePlotSpeed;
+        if (chip === null || now < 0 || sp <= 0 || now === this.lastCheckTick)
             return;
-
-        // How many new columns have appeared since last time.  A jump of more than half the
-        // buffer means we can't trust the columns in between (a digital plot's cold-start path
-        // rewrites the whole window and parks ptr at the end - see fillFromDigitalHistory()), so
-        // resync on the newest column rather than walking stale data.
-        let count = this.lastCheckPtr < 0 ? 1 : (currentPtr - this.lastCheckPtr) & (scopePointCount - 1);
-        if (count > scopePointCount / 2)
-            count = 1;
-        this.lastCheckPtr = currentPtr;
-
-        // Wall-clock duration of one column, so a trigger found partway through the walk gets the
-        // time of its own column rather than of the newest one.
-        const colTime = sim.maxTimeStep * (plot.scopePlotSpeed > 0 ? plot.scopePlotSpeed : 1);
-
-        for (let k = count; k >= 1; k--) {
-            const idx = (currentPtr - (k - 1)) & (scopePointCount - 1);
-            const val = (plot.maxValues[idx] + plot.minValues[idx]) * .5;
-            const time = sim.t - (k - 1) * colTime;
-
-            let edgeCrossing: boolean;
-            if (this.edge === ScopeTrigger.TRIGGER_EDGE_RISING)
-                edgeCrossing = this.prevValue < this.level && val >= this.level;
-            else
-                edgeCrossing = this.prevValue > this.level && val <= this.level;
-
-            switch (this.state) {
-            case ScopeTrigger.TRIG_STATE_ARMED:
-                if (edgeCrossing) {
-                    this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
-                    this.ptr = idx;
-                    this.time = time;
-                    this.holdoff = 0;
-                    this.waiting = false;
-                    this.fired = true;
-                } else {
-                    this.waiting = true;
-                    if (this.mode === ScopeTrigger.TRIGGER_AUTO) {
-                        this.holdoff++;
-                        if (this.holdoff >= this.autoTimeout) {
-                            this.state = ScopeTrigger.TRIG_STATE_AUTO_RUN;
-                            this.waiting = false;
-                        }
-                    }
-                }
-                break;
-
-            case ScopeTrigger.TRIG_STATE_TRIGGERED:
-                this.holdoff++;
-                if (this.holdoff >= rectWidth) {
-                    this.state = ScopeTrigger.TRIG_STATE_ARMED;
-                    this.holdoff = 0;
-                }
-                break;
-
-            case ScopeTrigger.TRIG_STATE_AUTO_RUN:
-                if (edgeCrossing) {
-                    this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
-                    this.ptr = idx;
-                    this.time = time;
-                    this.holdoff = 0;
-                    this.fired = true;
-                }
-                break;
-            }
-
-            this.prevValue = val;
+        this.lastCheckTick = now;
+        if (chip !== this.chip) {
+            this.chip = chip;
+            this.scanTick = this.lastTrigTick = now;
+            if (this.state === ScopeTrigger.TRIG_STATE_TRIGGERED)
+                this.state = ScopeTrigger.TRIG_STATE_ARMED;
         }
+
+        // Columns sit on the same absolute grid fillFromDigitalHistory() uses.
+        const epoch = (sim as any).digitalTickEpoch ?? 0;
+        const colStart = (t: number) => Math.floor((t + epoch) / sp) * sp - epoch;
+        const half = Math.ceil(rectWidth / 2);
+        // A snapshot covers half + 1 columns either side of the trigger column, a little more
+        // than the display needs, so odd widths round safely.
+        const capStart = (t: number) => colStart(t) - (half + 1) * sp;
+        const capEnd = (t: number) => colStart(t) + (half + 2) * sp;
+        const hist = chip.history;
+        const want = this.edge === ScopeTrigger.TRIGGER_EDGE_RISING ? 1 : 0;
+
+        const capture = (edge: number) => {
+            const P = scopePointCount / 2;
+            for (const p of visiblePlots)
+                p.freezeFromHistory(capStart(edge), P - half - 1, 2 * half + 3);
+            this.ptr = P;
+            this.time = sim.t - (chip.circuit.globalTime - colStart(edge)) * sim.maxTimeStep;
+            this.fired = true;
+            this.lastTrigTick = edge;
+            // Edges still on screen don't trigger another sweep.
+            this.scanTick = Math.max(this.scanTick, colStart(edge) + half * sp);
+            this.state = ScopeTrigger.TRIG_STATE_ARMED;
+        };
+        // index of the first history entry after tick t
+        const after = (t: number) => {
+            let lo = 0, hi = hist.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (hist[mid].time <= t) lo = mid + 1; else hi = mid;
+            }
+            return lo;
+        };
+
+        if (this.state === ScopeTrigger.TRIG_STATE_TRIGGERED) {
+            if (capEnd(this.capTick) > now) {
+                this.setFloor(visiblePlots, capStart(this.capTick));
+                return;
+            }
+            capture(this.capTick);
+        }
+
+        // The latest edge since scanTick whose sweep is already complete (if a frame covered
+        // several, showing the most recent one is what a real scope would end up doing). history
+        // only records toggles, so a matching edge is at most one entry back.
+        const first = after(this.scanTick);
+        let lo = first, hi = after(now);
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (capEnd(hist[mid].time) <= now) lo = mid + 1; else hi = mid;
+        }
+        let i = lo - 1;
+        if (i >= first && hist[i].value !== want)
+            i--;
+        if (i >= first)
+            capture(hist[i].time);
+
+        // Then the next edge, whose sweep is still coming in.
+        let j = after(this.scanTick);
+        if (j < hist.length && hist[j].value !== want)
+            j++;
+        if (j < hist.length && hist[j].time <= now) {
+            this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
+            this.capTick = hist[j].time;
+            this.waiting = false;
+            this.setFloor(visiblePlots, capStart(this.capTick));
+            return;
+        }
+        this.scanTick = Math.max(this.scanTick, now);
+
+        if (this.state === ScopeTrigger.TRIG_STATE_ARMED) {
+            this.waiting = true;
+            if (this.mode === ScopeTrigger.TRIGGER_AUTO && now - this.lastTrigTick >= this.autoTimeout * sp) {
+                this.state = ScopeTrigger.TRIG_STATE_AUTO_RUN;
+                this.waiting = false;
+                this.fired = false;
+                for (const p of visiblePlots)
+                    p.thaw();
+            }
+        }
+        // A future edge's sweep starts half a screen before it.
+        this.setFloor(visiblePlots, capStart(now));
+    }
+
+    // Keeps the history a pending capture will need from being trimmed.
+    private setFloor(plots: ScopePlot[], tick: number): void {
+        for (const p of plots)
+            p.triggerFloor = Math.max(0, tick);
     }
 
     // Draw trigger indicator: dashed level line, edge arrow, and status text
