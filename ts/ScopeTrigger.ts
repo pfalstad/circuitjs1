@@ -46,7 +46,15 @@ export class ScopeTrigger {
 
     // State machine
     state: number = ScopeTrigger.TRIG_STATE_ARMED;
+    // Trigger column and time of the sweep being DISPLAYED. That stays the previous (frozen)
+    // sweep until the one being captured (capPtr/capTime) is complete - see check().
     ptr: number = 0;
+    capPtr: number = 0;
+    capTime: number = 0;
+    // Whether the current capture has been completed and frozen yet
+    captured: boolean = false;
+    // Whether the visible plots hold a frozen snapshot of a complete sweep (see ScopePlot.freeze())
+    frozen: boolean = false;
     prevValue: number = 0;
     holdoff: number = 0;
     autoTimeout: number = 0;
@@ -75,7 +83,7 @@ export class ScopeTrigger {
     // In triggered mode, data beyond plot.ptr is stale (old circular buffer
     // contents) and must not be drawn or used for measurements.
     validDataCount(plot: ScopePlot, ipa: number, w: number, scopePointCount: number): number {
-        if (!this.isTriggered())
+        if (!this.isTriggered() || this.frozen)
             return w;
         const count = ((plot.ptr - ipa) & (scopePointCount - 1)) + 1;
         return Math.min(count, w);
@@ -103,6 +111,8 @@ export class ScopeTrigger {
         this.waiting = false;
         this.fired = false;
         this.lastCheckPtr = -1;
+        // the plots' own reset() has already dropped their snapshots
+        this.frozen = false;
         this.autoTimeout = 2 * scopePointCount;
     }
 
@@ -119,7 +129,7 @@ export class ScopeTrigger {
             return;
         this.lastCheckPtr = currentPtr;
 
-        const val = (plot.maxValues[currentPtr] + plot.minValues[currentPtr]) * .5;
+        const val = (plot.liveMax[currentPtr] + plot.liveMin[currentPtr]) * .5;
 
         let edgeCrossing: boolean;
         if (this.edge === ScopeTrigger.TRIGGER_EDGE_RISING)
@@ -130,12 +140,8 @@ export class ScopeTrigger {
         switch (this.state) {
         case ScopeTrigger.TRIG_STATE_ARMED:
             if (edgeCrossing) {
-                this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
-                this.ptr = currentPtr;
-                this.time = sim.t;
-                this.holdoff = 0;
+                this.startCapture(currentPtr, sim.t);
                 this.waiting = false;
-                this.fired = true;
             } else {
                 this.waiting = true;
                 if (this.mode === ScopeTrigger.TRIGGER_AUTO) {
@@ -143,6 +149,7 @@ export class ScopeTrigger {
                     if (this.holdoff >= this.autoTimeout) {
                         this.state = ScopeTrigger.TRIG_STATE_AUTO_RUN;
                         this.waiting = false;
+                        this.thaw(visiblePlots);
                     }
                 }
             }
@@ -150,6 +157,15 @@ export class ScopeTrigger {
 
         case ScopeTrigger.TRIG_STATE_TRIGGERED:
             this.holdoff++;
+            // Sweep fully captured: replace the displayed snapshot with it, so it stays on screen
+            // until the next one is complete.
+            if (this.holdoff >= Math.floor(rectWidth / 2) && !this.captured) {
+                for (const p of visiblePlots)
+                    p.freeze();
+                this.frozen = this.captured = true;
+                this.ptr = this.capPtr;
+                this.time = this.capTime;
+            }
             if (this.holdoff >= rectWidth) {
                 this.state = ScopeTrigger.TRIG_STATE_ARMED;
                 this.holdoff = 0;
@@ -157,17 +173,33 @@ export class ScopeTrigger {
             break;
 
         case ScopeTrigger.TRIG_STATE_AUTO_RUN:
-            if (edgeCrossing) {
-                this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
-                this.ptr = currentPtr;
-                this.time = sim.t;
-                this.holdoff = 0;
-                this.fired = true;
-            }
+            if (edgeCrossing)
+                this.startCapture(currentPtr, sim.t);
             break;
         }
 
         this.prevValue = val;
+    }
+
+    private startCapture(ptr: number, time: number): void {
+        this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
+        this.capPtr = ptr;
+        this.capTime = time;
+        this.captured = false;
+        this.holdoff = 0;
+        // With nothing frozen (first sweep, or coming out of auto free-run), show this one live
+        // as it fills in; otherwise keep showing the last complete sweep until this one is done.
+        if (!this.frozen) {
+            this.ptr = ptr;
+            this.time = time;
+        }
+        this.fired = true;
+    }
+
+    private thaw(plots: ScopePlot[]): void {
+        for (const p of plots)
+            p.thaw();
+        this.frozen = false;
     }
 
     // Draw trigger indicator: dashed level line, edge arrow, and status text
