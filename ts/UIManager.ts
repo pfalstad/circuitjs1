@@ -762,16 +762,16 @@ export class UIManager {
         l = document.createElement('div');
         l.textContent = Locale.LS("Current Speed");
         l.className = 'topSpace';
-        this.verticalPanel.appendChild(l);
+        //this.verticalPanel.appendChild(l);
         this.currentBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 100);
-        this.verticalPanel.appendChild(this.currentBar.element);
+        //this.verticalPanel.appendChild(this.currentBar.element);
 
         this.powerLabel = document.createElement('div');
         this.powerLabel.textContent = Locale.LS("Power Brightness");
         this.powerLabel.className = 'topSpace';
-        this.verticalPanel.appendChild(this.powerLabel);
+        //this.verticalPanel.appendChild(this.powerLabel);
         this.powerBar = new Scrollbar(Scrollbar.HORIZONTAL, 50, 1, 1, 100);
-        this.verticalPanel.appendChild(this.powerBar.element);
+        //this.verticalPanel.appendChild(this.powerBar.element);
         this.setPowerBarEnable();
 
         /*
