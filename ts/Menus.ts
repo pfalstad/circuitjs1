@@ -370,6 +370,7 @@ export class Menus {
         fileMenu.addMenuItem(this.exportAsTextItem,
             iconHtml("export", "Export As Text..."), "file", "exportastext");
         fileMenu.addCommand(iconHtml("export", "Export As KiCad Schematic..."),         "file", "exportaskicad");
+        fileMenu.addCommand(iconHtml("export", "Export As SPICE Netlist..."),           "file", "exportasspice");
         fileMenu.addCommand(iconHtml("image", "Export As Image..."),                    "file", "exportasimage");
         fileMenu.addCommand(iconHtml("image", "Copy Circuit Image to Clipboard"),       "file", "copypng");
         fileMenu.addCommand(iconHtml("image", "Export As SVG..."),                      "file", "exportassvg");

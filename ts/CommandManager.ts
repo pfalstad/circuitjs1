@@ -91,6 +91,8 @@ export class CommandManager {
         }
         if (item == "exportaskicad")
             this.doExportAsKicad();
+        if (item == "exportasspice")
+            this.doExportAsSpice();
         if (item == "exportasimage")
             this.app.imageExporter?.doExportAsImage();
         if (item == "copypng") {
@@ -428,6 +430,25 @@ export class CommandManager {
             fileName = name + ".zip";
         }
         CirSim.dialogShowing = new ExportAsLocalFileDialog(data, fileName, "Export As KiCad Schematic", note);
+        CirSim.dialogShowing.show();
+    }
+
+    async doExportAsSpice(): Promise<void> {
+        const { exportSpiceNetlist } = await import("./SpiceExporter");
+        const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
+        const sim = this.app.sim;
+        // simulate as long as CircuitJS has so far, or 1000 steps if that's longer
+        const res = exportSpiceNetlist(this.app.elmList, {
+            title: name, timeStep: sim.maxTimeStep, stopTime: Math.max(sim.t, sim.maxTimeStep * 1000) });
+        let note: string | null = null;
+        if (res.warnings.length > 0) {
+            const counts = new Map<string, number>();
+            for (const w of res.warnings)
+                counts.set(w, (counts.get(w) ?? 0) + 1);
+            note = Locale.LS("These elements have no SPICE equivalent and were left out: ") +
+                [...counts].map(([w, n]) => n > 1 ? w + " (" + n + ")" : w).join(", ");
+        }
+        CirSim.dialogShowing = new ExportAsLocalFileDialog(res.text, name + ".cir", "Export As SPICE Netlist", note);
         CirSim.dialogShowing.show();
     }
 

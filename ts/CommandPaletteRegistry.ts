@@ -134,6 +134,7 @@ export class CommandPaletteRegistry {
         CommandPaletteRegistry.add("file:exportasurl", "Export As Link...", "File", "export url link share", "file", "exportasurl");
         CommandPaletteRegistry.add("file:exportastext", "Export As Text...", "File", "export text", "file", "exportastext");
         CommandPaletteRegistry.add("file:exportaskicad", "Export As KiCad Schematic...", "File", "export kicad schematic eeschema pcb", "file", "exportaskicad");
+        CommandPaletteRegistry.add("file:exportasspice", "Export As SPICE Netlist...", "File", "export spice netlist ngspice ltspice cir", "file", "exportasspice");
         CommandPaletteRegistry.add("file:exportasimage", "Save As Image...", "File", "export image png", "file", "exportasimage");
         CommandPaletteRegistry.add("file:copypng", "Copy Circuit Image to Clipboard", "File", "copy image clipboard png", "file", "copypng");
         CommandPaletteRegistry.add("file:exportassvg", "Save As SVG...", "File", "export svg vector", "file", "exportassvg");
