@@ -73,6 +73,10 @@ function copyPublicAssets(): Plugin {
       }
       fs.cpSync(path.join(publicDir, 'circuitjs', 'font'), path.join(nested, 'font'), { recursive: true })
       fs.cpSync(path.join(publicDir, 'setuplist.txt'), path.join(nested, 'setuplist.txt'))
+      for (const page of ['iframe.html', 'jsinterface.html', 'jsinterface-2dscope.html',
+                          'jsinterface-phase-signal.html', 'circuitjs/about.html']) {
+        fs.cpSync(path.join(tsRoot, page), path.join(tsRoot, 'dist', page))
+      }
     }
   }
 }
@@ -88,15 +92,17 @@ export default defineConfig({
     assetsDir,
     copyPublicDir: false,
     rolldownOptions: {
+      // circuitjs.html is the only page with app code. The other static
+      // pages are copied by copyPublicAssets(), since codeSplitting: false
+      // doesn't allow multiple inputs.
       input: {
         circuitjs: 'circuitjs.html',
-        about: 'circuitjs/about.html',
-        iframe: 'iframe.html',
-        jsinterface: 'jsinterface.html',
-        'jsinterface-2dscope': 'jsinterface-2dscope.html',
-        'jsinterface-phase-signal': 'jsinterface-phase-signal.html',
       },
       output: {
+        // Emit the app as a single JS file. CirSim.init() awaits all its
+        // dynamic imports at startup anyway, so splitting only added a
+        // waterfall of sequential requests.
+        codeSplitting: false,
         // Several element classes look up their own class name at runtime
         // (CircuitElm.getClassName() uses this.constructor.name) to resolve
         // types via ElementFactory. Minifying away class names breaks that.
