@@ -285,11 +285,13 @@ void ScopeOverlays::draw(Graphics &g) {
         drawAverage(g);
     if (scope->showDutyCycle)
         drawDutyCycle(g);
-    std::string t = scope->getScopeLabelOrText(true);
+    // embedded (ScopeElm) scopes only show a user-set label, not the elm text or legend
+    bool embedded = scope->position < 0;
+    std::string t = embedded ? (scope->text ? *scope->text : std::string()) : scope->getScopeLabelOrText(true);
     if (!t.empty()) {
         if (!sameLabelAsScopeAbove(t) && (scope->text || hasRoomForText(1)))
             drawInfoText(g, t);
-    } else if (scope->visiblePlots.size() > 1 && hasRoomForText((int) scope->visiblePlots.size()))
+    } else if (!embedded && scope->visiblePlots.size() > 1 && hasRoomForText((int) scope->visiblePlots.size()))
         drawLegend(g);
     if (scope->showFreq)
         drawFrequency(g);

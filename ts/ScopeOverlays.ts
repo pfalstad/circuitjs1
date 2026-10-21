@@ -280,11 +280,13 @@ export class ScopeOverlays {
             this.drawAverage(g);
         if (this.scope.showDutyCycle)
             this.drawDutyCycle(g);
-        const t = this.scope.getScopeLabelOrText(true);
+        // embedded (ScopeElm) scopes only show a user-set label, not the elm text or legend
+        const embedded = this.scope.position < 0;
+        const t = embedded ? this.scope.text : this.scope.getScopeLabelOrText(true);
         if (t != null && t !== "") {
             if (!this.sameLabelAsScopeAbove(t) && (this.scope.text !== null || this.hasRoomForText(1)))
                 this.drawInfoText(g, t);
-        } else if (this.scope.visiblePlots.length > 1 && this.hasRoomForText(this.scope.visiblePlots.length))
+        } else if (!embedded && this.scope.visiblePlots.length > 1 && this.hasRoomForText(this.scope.visiblePlots.length))
             this.drawLegend(g);
         if (this.scope.showFreq)
             this.drawFrequency(g);
