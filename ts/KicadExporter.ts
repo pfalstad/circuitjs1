@@ -240,8 +240,9 @@ export function describe(ce: CircuitElm): Desc | null {
         return { kind: "part", sym: "SPDT", pins: ["2"], value: "SW_SPDT", dir: dirOf(ce), swapTies: true,
                  ties: [{ pin: "1", power: railName(e.hiV) }, { pin: "3", power: e.loV === 0 ? "GND" : railName(e.loV) }] };
     }
+    // CircuitJS keeps line breaks as "\n"
     if (C === TextElm)
-        return { kind: "text", text: e.text };
+        return { kind: "text", text: e.text.replace(/\\n/g, "\n") };
     if (C === SubcircuitElm)
         return e.model?.extList.every((x: any) => x.busWidth === 1) ? { kind: "sheet", model: e.model } : null;
     if (ce.getPostCount() === 0 || C === ScopeElm || C === ProbeElm || C === OutputElm ||
@@ -1277,8 +1278,9 @@ export class KicadExporter {
             out.push(`\t(hierarchical_label ${quote(l.name)} (shape passive) (at ${num(l.p.x)} ${num(l.p.y)} ${l.angle}) ` +
                      `${effects(just)} (uuid ${quote(uuid())}))`);
         }
+        // CircuitJS puts the first line's baseline at the text's position, with more lines below
         for (const t of this.texts)
-            out.push(`\t(text ${quote(t.text)} (exclude_from_sim no) (at ${num(t.p.x)} ${num(t.p.y)} 0) ${effects("left bottom")} (uuid ${quote(uuid())}))`);
+            out.push(`\t(text ${quote(t.text)} (exclude_from_sim no) (at ${num(t.p.x)} ${num(t.p.y - 1)} 0) ${effects("left top")} (uuid ${quote(uuid())}))`);
 
         for (const s of [...this.symbols, ...this.powerSyms])
             this.writeSymbol(out, ctx, s, effects);
@@ -1387,6 +1389,12 @@ export interface KicadProject {
     paths: Map<KicadExporter, { path: string; refs: Map<string, string> }[]>;
 }
 
+// was a subcircuit model saved with its elements' positions?  the definition also holds the
+// models its elements use (relay, diode, subcircuit models and so on), which have none
+export function hasLayout(children: Element[]): boolean {
+    return children.every(c => !CirSim.xmlDumpTypeMap.has(c.tagName) || c.getAttribute("x") != null);
+}
+
 // the elements of a subcircuit model, built from its saved definition.  a model saved
 // with positions is drawn as it was laid out, with its labeled-node pins as hierarchical
 // labels.  one without (an old format) gets its parts in a grid, every pin labeled with its net
@@ -1394,10 +1402,10 @@ function modelSheet(model: any): { elms: CircuitElm[]; opts: SheetOptions } {
     const xml = new CircuitXMLDeserializer(CirSim.theApp);
     const children = model.elmDoc ? [...model.elmDoc.documentElement.children] as Element[] : [];
     const elms: CircuitElm[] = [], nodes: number[][] = [];
-    const laidOut = children.every(c => c.tagName === "ccm" || c.getAttribute("x") != null);
+    const laidOut = hasLayout(children);
     for (const child of children) {
         const className = CirSim.xmlDumpTypeMap.get(child.tagName);
-        if (child.tagName === "ccm" || className == null)
+        if (className == null)
             continue;
         const ce: CircuitElm = CirSim.constructElement(className, 0, 0);
         if (ce == null)

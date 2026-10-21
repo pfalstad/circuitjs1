@@ -12,8 +12,10 @@ import { LogicInputElm } from "./LogicInputElm";
 import { AndGateElm } from "./AndGateElm";
 import { SevenSegElm } from "./SevenSegElm";
 import { RelayElm } from "./RelayElm";
+import { TextElm } from "./TextElm";
 import { KICAD_SYMBOLS } from "./KicadSymbols";
-import { exportKicadSchematic, KicadExporter, kicadValue, symbolOffset } from "./KicadExporter";
+import { exportKicadSchematic, hasLayout, KicadExporter, kicadValue, symbolOffset } from "./KicadExporter";
+import { CirSim } from "./CirSim";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
     e.x = x1; e.y = y1; e.x2 = x2; e.y2 = y2;
@@ -171,5 +173,22 @@ describe("KiCad export", () => {
         // the coil and contacts are all wired straight to their posts
         expect(text).not.toContain("(label ");
         expect(text.match(/\(lib_id "power:GND"\)/g)?.length).toBe(1);
+    });
+
+    it("uses a subcircuit's layout even when it holds a relay model", () => {
+        const elm = (tagName: string, attrs: Record<string, string>) =>
+            ({ tagName, getAttribute: (k: string) => attrs[k] ?? null }) as unknown as Element;
+        CirSim.xmlDumpTypeMap.set("rl", "RelayElm");
+        const relay = elm("rl", { x: "0 0 64 0" }), model = elm("rlm", { nm: "default" });
+        expect(hasLayout([model, relay])).toBe(true);
+        expect(hasLayout([model, elm("rl", {})])).toBe(false);
+    });
+
+    it("breaks text into lines where CircuitJS does", () => {
+        const t: any = new TextElm(0, 0);
+        t.text = "first\\nsecond";
+        const text = exportKicadSchematic([t], "test").text;
+        // KiCad reads \n in a string as a line break
+        expect(text).toContain('(text "first\\nsecond"');
     });
 });
