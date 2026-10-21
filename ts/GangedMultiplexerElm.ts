@@ -70,8 +70,6 @@ export class GangedMultiplexerElm extends ChipElm {
 
     getChipName(): string { return "Ganged Multiplexer"; }
 
-    dump(): string { return super.dump() + " " + this.count; }
-
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ct", this.count);
