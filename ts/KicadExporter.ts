@@ -87,6 +87,7 @@ import { MemristorElm } from "./MemristorElm";
 import { ThermistorNTCElm } from "./ThermistorNTCElm";
 import { LDRElm } from "./LDRElm";
 import { TransformerElm } from "./TransformerElm";
+import { RelayElm } from "./RelayElm";
 import { SevenSegElm } from "./SevenSegElm";
 import { SubcircuitElm } from "./SubcircuitElm";
 import { CirSim } from "./CirSim";
@@ -325,6 +326,18 @@ export function describe(ce: CircuitElm): Desc | null {
     // posts: primary ends, then the secondary ends beside them
     if (C === TransformerElm)
         return { kind: "part", sym: "XFMR", pins: ["1", "2", "4", "3"], value: "Transformer" };
+    // posts: each pole's common, normally closed and normally open contacts, then the coil.
+    // relay pins: x1 common, x2 NC, x4 NO for pole x; A1, A2 coil, which may be swapped
+    if (C === RelayElm) {
+        const poles = e.poleCount();
+        if (poles > 2)
+            return null;
+        const pins: string[] = [];
+        for (let p = 1; p <= poles; p++)
+            pins.push(p + "1", p + "2", p + "4");
+        return { kind: "part", sym: "RELAY" + poles, pins: [...pins, "A1", "A2"], swap: [3 * poles, 3 * poles + 1],
+                 value: poles === 1 ? "Relay_SPDT" : "Relay_DPDT" };
+    }
     // a 555 without reset or ground posts has reset tied to Vcc and is grounded internally
     if (C === TimerElm) {
         const n = ce.getPostCount();
@@ -717,12 +730,12 @@ export class KicadExporter {
     private netTag(p: Pt, net: string, toward: Pt): void {
         const name = this.netNames.get(net)!;
         const d = axisDir({ x: toward.x - p.x, y: toward.y - p.y });
-        if (this.uf.find("P" + name) === net)
-            this.powers.push({ p, name, angle: this.powerAngle(name, d) });
-        else if (this.uf.find("H" + name) === net)
-            this.hlabels.push({ p, name, angle: this.labelAngle(d) });
-        else
-            this.labels.push({ p, name, angle: this.labelAngle(d) });
+        const list = this.uf.find("P" + name) === net ? this.powers :
+                     this.uf.find("H" + name) === net ? this.hlabels : this.labels;
+        // a post may already have the name, from a ground or labeled node there
+        if (list.some(l => l.name === name && samePt(l.p, p)))
+            return;
+        list.push({ p, name, angle: list === this.powers ? this.powerAngle(name, d) : this.labelAngle(d) });
     }
 
     // place everything; the result is written by write()
@@ -1056,9 +1069,11 @@ export class KicadExporter {
             }
         }
         const body = bodyRect(placed.pinPts);
+        // every pin first, so no pin's stub runs over another
+        for (let k = 0; k !== posts.length; k++)
+            this.addPoint(b.pinPts[k], nets[k]);
         const tied: number[] = [];
         for (let k = 0; k !== posts.length; k++) {
-            this.addPoint(b.pinPts[k], nets[k]);
             if (!posts[k]) {
                 tied.push(k);
                 continue;

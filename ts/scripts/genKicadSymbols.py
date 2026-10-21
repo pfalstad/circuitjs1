@@ -49,6 +49,9 @@ SYMBOLS = {
     "NTC":   "Device:Thermistor_NTC",
     "LDR":   "Device:R_Photo",
     "XFMR":  "Device:Transformer_1P_1S",
+    # relays with their contacts flipped (see flip_contacts)
+    "RELAY1": "Relay:Relay_SPDT",
+    "RELAY2": "Relay:Relay_DPDT",
     "555":   "Timer:NE555P",
     # logic, by CircuitJS gate name and input count
     "AND2":  "74xx:74LS08",
@@ -77,6 +80,10 @@ SYMBOLS = {
     "7SEG_CA": "Display_Character:SA39-11EWA",
     "JKFF":  "74xx:74LS107",
 }
+
+# symbols changed from the library's, under a library name of our own so updating from
+# KiCad's library doesn't undo the change: key -> (new lib id, function to apply)
+MODIFIED = {}
 
 # tokens newer than KiCad 9 that we drop
 DROP = {"show_name", "do_not_autoplace", "in_pos_files", "duplicate_pin_numbers_are_jumpers"}
@@ -156,6 +163,62 @@ def flatten(libname, name):
     out[first_unit:first_unit] = props
     return out
 
+# KiCad's relays draw each pole's normally closed contact on the coil's side of the common,
+# CircuitJS's on the far side.  mirror each pole's arm and contacts about its common (pins
+# x1, x2 NC, x4 NO) so the two match, and extend the dashed linkage to the moved arms
+def flip_contacts(sym, poles):
+    units = [u for u in sym if isinstance(u, list) and u[0] == 'symbol']
+    pin = {}
+    for u in units:
+        for p in u:
+            if isinstance(p, list) and p[0] == 'pin':
+                pin[child(p, 'number')[1].strip('"')] = child(p, 'at')
+    fmt = lambda v: ('%.4f' % v).rstrip('0').rstrip('.')
+    for u in units:
+        shapes = [g for g in u if isinstance(g, list) and g[0] == 'polyline']
+        def xy(g):
+            return [c for c in child(g, 'pts')[1:]]
+        dashes = [g for g in shapes if len(xy(g)) == 2 and all(float(c[2]) == 0 for c in xy(g))]
+        for n in range(1, poles + 1):
+            cx = float(pin[f"{n}1"][1])
+            for g in shapes:
+                if g in dashes or not all(abs(float(c[1]) - cx) <= 2.54 for c in xy(g)):
+                    continue
+                for c in xy(g):
+                    c[1] = fmt(2 * cx - float(c[1]))
+        if dashes:
+            dash_end = max(float(c[1]) for g in dashes for c in xy(g))
+            template = dashes[-1]
+            # the last pole's arm crosses the linkage this far past its common
+            cx = float(pin[f"{poles}1"][1])
+            arm = next(g for g in shapes if g not in dashes and len(xy(g)) == 2 and
+                       float(xy(g)[0][1]) == cx and float(xy(g)[0][2]) < 0 < float(xy(g)[1][2]))
+            (x0, y0), (x1, y1) = [(float(c[1]), float(c[2])) for c in xy(arm)]
+            cross = x0 + (x1 - x0) * (0 - y0) / (y1 - y0)
+            x = dash_end + 0.635
+            while x + 0.635 <= cross - 0.5:
+                d = json.loads(json.dumps(template))
+                xy(d)[0][1], xy(d)[1][1] = fmt(x), fmt(x + 0.635)
+                u.insert(u.index(template) + 1, d)
+                template = d
+                x += 1.27
+    for n in range(1, poles + 1):
+        nc, no = pin[f"{n}2"], pin[f"{n}4"]
+        nc[1], no[1] = no[1], nc[1]
+    return sym
+
+MODIFIED["RELAY1"] = ("CircuitJS:Relay_SPDT", lambda s: flip_contacts(s, 1))
+MODIFIED["RELAY2"] = ("CircuitJS:Relay_DPDT", lambda s: flip_contacts(s, 2))
+
+def rename(sym, libid):
+    old = sym[1].strip('"').split(':')[-1]
+    new = libid.split(':')[1]
+    sym[1] = f'"{libid}"'
+    for u in sym:
+        if isinstance(u, list) and u[0] == 'symbol':
+            u[1] = '"' + new + u[1].strip('"')[len(old):] + '"'
+    return sym
+
 def to_kicad9(x):
     if not isinstance(x, list):
         return x
@@ -221,6 +284,9 @@ print("export const KICAD_SYMBOLS: Record<string, KicadSymbol> = {")
 for key, libid in SYMBOLS.items():
     libname, name = libid.split(':')
     sym = to_kicad9(flatten(libname, name))
+    if key in MODIFIED:
+        libid, change = MODIFIED[key]
+        sym = rename(change(sym), libid)
     sym[1] = f'"{libid}"'
     entry = {
         "libId": libid,

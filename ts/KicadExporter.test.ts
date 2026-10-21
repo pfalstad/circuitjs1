@@ -11,8 +11,9 @@ import { XorGateElm } from "./XorGateElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { AndGateElm } from "./AndGateElm";
 import { SevenSegElm } from "./SevenSegElm";
+import { RelayElm } from "./RelayElm";
 import { KICAD_SYMBOLS } from "./KicadSymbols";
-import { exportKicadSchematic, kicadValue, symbolOffset } from "./KicadExporter";
+import { exportKicadSchematic, KicadExporter, kicadValue, symbolOffset } from "./KicadExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
     e.x = x1; e.y = y1; e.x2 = x2; e.y2 = y2;
@@ -147,5 +148,28 @@ describe("KiCad export", () => {
         const text = exportKicadSchematic([place(new LogicInputElm(0, 0), 0, 0, -32, 0)], "test").text;
         expect(symbols(text).map(s => s[0]).sort()).toEqual(["Switch:SW_SPDT", "power:GND", "power:VCC"]);
         expect(text).toContain('(property "Value" "+5V"');
+    });
+
+    it("exports a relay with its contacts and coil on the right pins", () => {
+        const relay = place(new RelayElm(0, 0), 0, 0, 64, 0);
+        const exp = new KicadExporter([relay]);
+        exp.export();
+        expect(exp.warnings).toEqual([]);
+        const pins = exp.pinMap.get(relay)!;
+        expect(pins.slice(0, 3)).toEqual(["11", "12", "14"]);
+        expect(pins.slice(3).sort()).toEqual(["A1", "A2"]);
+    });
+
+    it("lays out a relay's coil and contacts the way CircuitJS does", () => {
+        // coil posts are below the contacts, left and right; ground the right one
+        const relay = place(new RelayElm(0, 0), 0, 0, 64, 0);
+        const left = relay.getPost(3), right = relay.getPost(4);
+        const elms = [relay,
+            place(new ResistorElm(0, 0), left.x, left.y, left.x - 64, left.y),
+            place(new GroundElm(0, 0), right.x, right.y, right.x, right.y + 16)];
+        const text = exportKicadSchematic(elms, "test").text;
+        // the coil and contacts are all wired straight to their posts
+        expect(text).not.toContain("(label ");
+        expect(text.match(/\(lib_id "power:GND"\)/g)?.length).toBe(1);
     });
 });
