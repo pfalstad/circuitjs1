@@ -36,7 +36,7 @@ int ScopeTrigger::displayStartIndex(const ScopePlot &plot, int w, int scopePoint
 }
 
 int ScopeTrigger::validDataCount(const ScopePlot &plot, int ipa, int w, int scopePointCount) const {
-    if (!isTriggered())
+    if (!isTriggered() || frozen)
         return w;
     int count = ((plot.ptr - ipa) & (scopePointCount - 1)) + 1;
     return std::min(count, w);
@@ -62,6 +62,8 @@ void ScopeTrigger::reset(int scopePointCount) {
     waiting = false;
     fired = false;
     lastCheckPtr = -1;
+    // the plots' own reset() has already dropped their snapshots
+    frozen = false;
     autoTimeout = 2 * scopePointCount;
 }
 
@@ -78,7 +80,7 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, bool plot
         return;
     lastCheckPtr = currentPtr;
 
-    double val = (plot.maxValues[currentPtr] + plot.minValues[currentPtr]) * .5;
+    double val = (plot.liveMax[currentPtr] + plot.liveMin[currentPtr]) * .5;
 
     bool edgeCrossing;
     if (edge == TRIGGER_EDGE_RISING)
@@ -89,12 +91,8 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, bool plot
     switch (state) {
     case TRIG_STATE_ARMED:
         if (edgeCrossing) {
-            state = TRIG_STATE_TRIGGERED;
-            ptr = currentPtr;
-            time = sim->t;
-            holdoff = 0;
+            startCapture(currentPtr, sim->t);
             waiting = false;
-            fired = true;
         } else {
             waiting = true;
             if (mode == TRIGGER_AUTO) {
@@ -102,6 +100,7 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, bool plot
                 if (holdoff >= autoTimeout) {
                     state = TRIG_STATE_AUTO_RUN;
                     waiting = false;
+                    thaw(visiblePlots);
                 }
             }
         }
@@ -109,6 +108,15 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, bool plot
 
     case TRIG_STATE_TRIGGERED:
         holdoff++;
+        // Sweep fully captured: replace the displayed snapshot with it, so it stays on screen
+        // until the next one is complete.
+        if (holdoff >= rectWidth / 2 && !captured) {
+            for (ScopePlot *p : visiblePlots)
+                p->freeze();
+            frozen = captured = true;
+            ptr = capPtr;
+            time = capTime;
+        }
         if (holdoff >= rectWidth) {
             state = TRIG_STATE_ARMED;
             holdoff = 0;
@@ -116,17 +124,33 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, bool plot
         break;
 
     case TRIG_STATE_AUTO_RUN:
-        if (edgeCrossing) {
-            state = TRIG_STATE_TRIGGERED;
-            ptr = currentPtr;
-            time = sim->t;
-            holdoff = 0;
-            fired = true;
-        }
+        if (edgeCrossing)
+            startCapture(currentPtr, sim->t);
         break;
     }
 
     prevValue = val;
+}
+
+void ScopeTrigger::startCapture(int ptr_, double time_) {
+    state = TRIG_STATE_TRIGGERED;
+    capPtr = ptr_;
+    capTime = time_;
+    captured = false;
+    holdoff = 0;
+    // With nothing frozen (first sweep, or coming out of auto free-run), show this one live
+    // as it fills in; otherwise keep showing the last complete sweep until this one is done.
+    if (!frozen) {
+        ptr = ptr_;
+        time = time_;
+    }
+    fired = true;
+}
+
+void ScopeTrigger::thaw(const std::vector<ScopePlot *> &plots) {
+    for (ScopePlot *p : plots)
+        p->thaw();
+    frozen = false;
 }
 
 void ScopeTrigger::drawIndicator(Graphics &g, const std::vector<ScopePlot *> &visiblePlots, const Rectangle &rect) const {

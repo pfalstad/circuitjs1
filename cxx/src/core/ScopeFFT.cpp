@@ -65,8 +65,8 @@ void ScopeFFT::draw(Graphics &g) {
     std::vector<double> real(n, 0.0);
     std::vector<double> imag(n, 0.0);
     ScopePlot &plot = scope->visiblePlots.empty() ? *scope->plots[0] : *scope->visiblePlots[0];
-    const std::vector<double> &maxV = plot.maxValues;
-    const std::vector<double> &minV = plot.minValues;
+    const std::vector<double> &maxV = plot.maxValues();
+    const std::vector<double> &minV = plot.minValues();
     int ptr = plot.ptr;
     for (int i = 0; i < n; i++) {
         int ii = (ptr - i + n) & (n - 1);
@@ -155,8 +155,8 @@ void ScopeFFT::drawPhaseAngle(Graphics &g) {
     int validCount = scope->validDataCount(*vPlot, ipa, (int) scope->rect.width);
     for (int i = 0; i < validCount; i++) {
         int ip = (i + ipa) & (n - 1);
-        vReal[i] = 0.5 * (vPlot->maxValues[ip] + vPlot->minValues[ip]);
-        iReal[i] = 0.5 * (iPlot->maxValues[ip] + iPlot->minValues[ip]);
+        vReal[i] = 0.5 * (vPlot->maxValues()[ip] + vPlot->minValues()[ip]);
+        iReal[i] = 0.5 * (iPlot->maxValues()[ip] + iPlot->minValues()[ip]);
     }
     fft->fft(vReal, vImag, true);
     fft->fft(iReal, iImag, true);

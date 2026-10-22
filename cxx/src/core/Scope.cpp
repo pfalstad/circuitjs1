@@ -506,8 +506,8 @@ std::string Scope::getCSV() const {
         sb += jsNumberToString(t);
         for (const ScopePlot *plot : visiblePlots) {
             int ip = (i + plot->startIndex(w)) & (plot->scopePointCount - 1);
-            sb += "," + jsNumberToString(plot->minValues[ip]);
-            sb += "," + jsNumberToString(plot->maxValues[ip]);
+            sb += "," + jsNumberToString(plot->minValues()[ip]);
+            sb += "," + jsNumberToString(plot->maxValues()[ip]);
         }
         sb += "\n";
     }
@@ -788,8 +788,8 @@ void Scope::drawPlot(Graphics &g, ScopePlot &plot, bool allPlotsSameUnits, bool 
         color = plot.color;
 
     int ipa = displayStartIndex(plot, (int) rect.width);
-    const std::vector<double> &maxV = plot.maxValues;
-    const std::vector<double> &minV = plot.minValues;
+    const std::vector<double> &maxV = plot.maxValues();
+    const std::vector<double> &minV = plot.minValues();
 
     double gridMid = calcGridParams(plot, allPlotsSameUnits);
     int minRangeLo = -10 - (int) std::trunc(gridMid * plot.gridMult);
@@ -888,7 +888,7 @@ void Scope::checkForSelection(double mouseX, double mouseY) {
     int best = -1;
     for (size_t i = 0; i != visiblePlots.size(); i++) {
         ScopePlot *plot = visiblePlots[i];
-        double maxvy = plot->gridMult * (plot->maxValues[ip] + plot->plotOffset);
+        double maxvy = plot->gridMult * (plot->maxValues()[ip] + plot->plotOffset);
         double dist = std::abs(mouseY - (rect.y + y - maxvy));
         if (dist < bestdist) {
             bestdist = dist;
@@ -911,7 +911,7 @@ double Scope::drawPlotDot(Graphics &g, ScopePlot &plot, int x) {
         return std::numeric_limits<double>::quiet_NaN();
     int ipa = displayStartIndex(*plots[0], (int) rect.width);
     int ip = ((int) (x - rect.x) + ipa) & (scopePointCount - 1);
-    double value = plot.maxValues[ip];
+    double value = plot.maxValues()[ip];
     double vy = plot.gridMult * (value + plot.plotOffset);
     double dotY = rect.y + std::trunc((rect.height - 1) / 2) - vy;
     g.setColor(plot.color);

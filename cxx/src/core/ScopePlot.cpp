@@ -56,21 +56,22 @@ void ScopePlot::reset(int spc, int sp, bool full) {
     // restart AC coupling filter so we don't carry over stale state (e.g. after reset)
     acDc = 0;
     acCount = 0;
-    std::vector<double> oldMin = std::move(minValues);
-    std::vector<double> oldMax = std::move(maxValues);
-    minValues.assign(spc, 0.0);
-    maxValues.assign(spc, 0.0);
+    std::vector<double> oldMin = std::move(liveMin);
+    std::vector<double> oldMax = std::move(liveMax);
+    liveMin.assign(spc, 0.0);
+    liveMax.assign(spc, 0.0);
     if (!oldMin.empty() && !full) {
         // preserve old data if possible
         for (int i = 0; i != spc && i != oldSpc; i++) {
             int i1 = (-i) & (spc - 1);
             int i2 = (ptr - i) & (oldSpc - 1);
-            minValues[i1] = oldMin[i2];
-            maxValues[i1] = oldMax[i2];
+            liveMin[i1] = oldMin[i2];
+            liveMax[i1] = oldMax[i2];
         }
     } else
         lastUpdateTime = SimulationManager::theSim->t;
     ptr = 0;
+    thaw();
 }
 
 void ScopePlot::timeStep() {
@@ -88,14 +89,14 @@ void ScopePlot::timeStep() {
     lastValue = v;
     if (isAcCoupled())
         v -= acDc;
-    if (v < minValues[ptr])
-        minValues[ptr] = v;
-    if (v > maxValues[ptr])
-        maxValues[ptr] = v;
+    if (v < liveMin[ptr])
+        liveMin[ptr] = v;
+    if (v > liveMax[ptr])
+        liveMax[ptr] = v;
     double maxTimeStep = SimulationManager::theSim->maxTimeStep;
     if (SimulationManager::theSim->t - lastUpdateTime >= maxTimeStep * scopePlotSpeed) {
         ptr = (ptr + 1) & (scopePointCount - 1);
-        minValues[ptr] = maxValues[ptr] = v;
+        liveMin[ptr] = liveMax[ptr] = v;
         lastUpdateTime += maxTimeStep * scopePlotSpeed;
     }
 }

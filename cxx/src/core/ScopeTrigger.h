@@ -52,7 +52,15 @@ public:
 
     // State machine
     int state = TRIG_STATE_ARMED;
+    // Trigger column and time of the sweep being DISPLAYED. That stays the previous (frozen)
+    // sweep until the one being captured (capPtr/capTime) is complete - see check().
     int ptr = 0;
+    int capPtr = 0;
+    double capTime = 0;
+    // Whether the current capture has been completed and frozen yet
+    bool captured = false;
+    // Whether the visible plots hold a frozen snapshot of a complete sweep (see ScopePlot::freeze())
+    bool frozen = false;
     double prevValue = 0;
     int holdoff = 0;
     int autoTimeout = 0;
@@ -80,4 +88,8 @@ public:
                int scopePointCount, int rectWidth);
     // Draw trigger indicator: dashed level line, edge arrow, and status text
     void drawIndicator(Graphics &g, const std::vector<ScopePlot *> &visiblePlots, const Rectangle &rect) const;
+
+private:
+    void startCapture(int ptr, double time);
+    void thaw(const std::vector<ScopePlot *> &plots);
 };

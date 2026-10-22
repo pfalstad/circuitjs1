@@ -27,8 +27,10 @@ class CircuitElm;
 // one trace in a scope: a ring buffer of min/max values per pixel column
 class ScopePlot {
 public:
-    std::vector<double> minValues;
-    std::vector<double> maxValues;
+    // The buffers timeStep() records into. Everything outside this class except ScopeTrigger's
+    // edge detection reads minValues()/maxValues() instead (see below).
+    std::vector<double> liveMin;
+    std::vector<double> liveMax;
     int scopePointCount = 0;
     int ptr = 0;  // ptr is pointer to the current sample
     int value = 0;  // Value - the property being shown - e.g. VAL_CURRENT
@@ -67,6 +69,25 @@ public:
     bool canAcCouple() const;
     bool isAcCoupled() const { return acCoupled; }
     int getPlotFlags() const { return acCoupled ? FLAG_AC : 0; }
+
+    // What the display shows: the frozen trigger snapshot if there is one, else live data.
+    const std::vector<double> &minValues() const { return frozen ? frozenMin : liveMin; }
+    const std::vector<double> &maxValues() const { return frozen ? frozenMax : liveMax; }
+    void freeze() {
+        frozenMin = liveMin;
+        frozenMax = liveMax;
+        frozen = true;
+    }
+    void thaw() { frozen = false; }
+
+private:
+    // Snapshot of liveMin/liveMax taken by ScopeTrigger once a triggered sweep has been fully
+    // captured. The live buffer has to keep recording (the next trigger needs pre-trigger
+    // history), so without this the displayed sweep gets overwritten as soon as the write pointer
+    // laps it - long before a rare trigger event comes around again.
+    std::vector<double> frozenMin;
+    std::vector<double> frozenMax;
+    bool frozen = false;  // false means show live data
 };
 
 // iterates over the valid samples of a plot, oldest first (ScopeDataIterator.ts)
@@ -85,14 +106,14 @@ public:
     double skipNonzeroValues() {
         for (; startIndex < validCount; startIndex++) {
             int ip = (startIndex + ipa) & (scopePointCount - 1);
-            if (plot.maxValues[ip] != 0)
-                return plot.maxValues[ip];
+            if (plot.maxValues()[ip] != 0)
+                return plot.maxValues()[ip];
         }
         return 0;
     }
 
-    double getMin() const { return plot.minValues[currentIp]; }
-    double getMax() const { return plot.maxValues[currentIp]; }
+    double getMin() const { return plot.minValues()[currentIp]; }
+    double getMax() const { return plot.maxValues()[currentIp]; }
 
     // for (int i = sdi.begin(); sdi.more(i); i++) -- sets currentIp as it goes
     int begin() const { return startIndex; }
