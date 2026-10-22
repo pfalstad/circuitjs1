@@ -410,7 +410,7 @@ export class CommandManager {
         // the exporter carries KiCad's symbol library, so load it only when needed
         const { exportKicadProject } = await import("./KicadExporter");
         const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
-        const res = exportKicadProject(this.app.elmList, name);
+        const res = exportKicadProject(this.app.elmList, name, this.app.sim.maxTimeStep);
         let note: string | null = null;
         if (res.warnings.length > 0) {
             const counts = new Map<string, number>();

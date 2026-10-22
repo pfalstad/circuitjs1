@@ -45,6 +45,19 @@ import { SwitchElm } from "./SwitchElm";
 import { Switch2Elm } from "./Switch2Elm";
 import { VoltageElm } from "./VoltageElm";
 import { RailElm } from "./RailElm";
+import { VarRailElm } from "./VarRailElm";
+import { AnalogSwitchElm } from "./AnalogSwitchElm";
+import { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
+import { DarlingtonElm } from "./DarlingtonElm";
+import { ChipElm } from "./ChipElm";
+import { CounterElm } from "./CounterElm";
+import { LatchElm } from "./LatchElm";
+import { VCCSElm } from "./VCCSElm";
+import { VCVSElm } from "./VCVSElm";
+import { CC2Elm } from "./CC2Elm";
+import { CC2NegElm } from "./CC2NegElm";
+import { DecimalDisplayElm } from "./DecimalDisplayElm";
+import { SweepElm } from "./SweepElm";
 import { CurrentElm } from "./CurrentElm";
 import { BatteryElm } from "./BatteryElm";
 import { LampElm } from "./LampElm";
@@ -108,7 +121,8 @@ interface PinTie { pin: string; post?: number; power?: string; }
 
 export type Desc =
     // pins[i] is the symbol pin for post i (null = not exported).  a pin is given by its
-    // number or its name, or for a logic gate as "@in" (the unit's next input) or "@out"
+    // number or its name, or for a logic gate as "@in" (the unit's next input) or "@out",
+    // or "@pas" (the next passive pin)
     { kind: "part"; sym: string; pins: (string | null)[]; value: string; props?: Record<string, string>;
       ties?: PinTie[];
       // posts whose pins may be swapped (a gate's inputs)
@@ -118,7 +132,13 @@ export type Desc =
       // the ties' supplies may be swapped (a switch's throws), to put the higher one on top
       swapTies?: boolean;
       // logic that comes several to a package: the package's supply
-      supply?: string; } |
+      supply?: string;
+      // a symbol made for this part, instead of one from the library
+      symbol?: KicadSymbol;
+      // posts that aren't pins, but whose nets the part's properties name: props() gives
+      // the properties from those nets' SPICE names (null if they can't be named)
+      inputs?: number[];
+      inputProps?: (nets: string[] | null) => Record<string, string>; } |
     // a subcircuit, which becomes a sheet
     { kind: "sheet"; model: any } |
     { kind: "wire"; pts: Point[] } |
@@ -134,8 +154,8 @@ const GATES = new Map<Function, [number, string, string?][]>([
     [NandGateElm, [[2, "NAND2"], [3, "NAND3"], [4, "NAND4"], [8, "NAND8"], [13, "NAND13"]]],
     [OrGateElm,   [[2, "OR2"], [3, "OR3"], [4, "OR4"], [8, "OR8", "1"]]],
     [NorGateElm,  [[2, "NOR2"], [3, "NOR3"], [4, "NOR4"], [8, "OR8", "13"]]],
-    [XorGateElm,  [[2, "XOR2"]]],
-    [XnorGateElm, [[2, "XNOR2"]]],
+    [XorGateElm,  [[2, "XOR2"], [9, "PARITY9", "Odd"]]],
+    [XnorGateElm, [[2, "XNOR2"], [9, "PARITY9", "Even"]]],
 ]);
 
 // part numbers for the logic symbols.  KiCad's library has some only as 74LS or CD4000 parts,
@@ -146,9 +166,12 @@ const LOGIC_VALUES: Record<string, string> = {
     NAND2: "74HC00", NAND3: "74HC10", NAND4: "74HC20", NAND8: "74HC30", NAND13: "74HC133",
     OR2: "74HC32", OR3: "CD4075B", OR4: "CD4072B", OR8: "CD4078B",
     NOR2: "74HC02", NOR3: "74HC27", NOR4: "CD4002B",
-    XOR2: "74HC86", XNOR2: "CD4077B",
+    XOR2: "74HC86", XNOR2: "CD4077B", PARITY9: "74HC280",
     INV: "74HC04", SCHMITTINV: "74HC14", SCHMITT: "74HC7014",
-    DFF: "74HC74", JKFF: "74HC107",
+    DFF: "74HC74", DFF_H: "CD4013B", JKFF: "74HC107",
+    COUNTER161: "74HC161", COUNTER160: "74HC160", COUNTER4520: "CD4520B", COUNTER4518: "CD4518B",
+    COUNTER4040: "CD4040B", REG175: "74HC175", REG273: "74HC273", LATCH373: "74HC373",
+    ASW: "CD4066B", ASW2: "CD4053B",
 };
 
 function logic(sym: string, pins: (string | null)[], supply: number, rest?: Partial<PartDesc>): PartDesc {
@@ -181,34 +204,77 @@ function dirOf(ce: CircuitElm): Pt {
     return Math.abs(dx) >= Math.abs(dy) ? { x: Math.sign(dx) || 1, y: 0 } : { x: 0, y: Math.sign(dy) };
 }
 
+// the voltage of a supply named by railName, or null if it isn't one
+function railVoltage(name: string): number | null {
+    const m = name.match(/^([+-])([\d.]+)([fpnumkMGT]?)V$/);
+    if (!m)
+        return null;
+    const scale = "fpnum kMGT".indexOf(m[3] || " ") - 5;
+    return (m[1] === "-" ? -1 : 1) * parseFloat(m[2]) * Math.pow(1000, scale);
+}
+
 function railName(v: number): string {
     return (v >= 0 ? "+" : "-") + kicadValue(Math.abs(v), "V");
 }
 
+// a waveform shifted by phaseShift (in radians) starts that much later in its cycle
+function delayFor(e: any, extra: number = 0): number {
+    const per = 1 / e.frequency;
+    const d = (-e.phaseShift / (2 * Math.PI) * per + extra) % per;
+    return d < 0 ? d + per : d;
+}
+
 // KiCad simulation source for a VoltageElm's waveform, or null if there isn't one
-function sourceSpec(e: any): { sym: string; value: string; props: Record<string, string> } | null {
+function sourceSpec(e: any, timeStep: number): { sym: string; value: string; props: Record<string, string> } | null {
     const max = e.maxVoltage, bias = e.bias, f = e.frequency;
+    const per = 1 / f;
     const freq = " " + kicadValue(f, "Hz");
+    const pulse = (y1: number, y2: number, td: number, tr: number, tf: number, tw: number) =>
+        ({ sym: "VPULSE", value: kicadValue(max, "V") + freq,
+           props: { "Sim.Params": `y1=${simNum(y1)} y2=${simNum(y2)} td=${simNum(td)} tr=${simNum(tr)} ` +
+                                  `tf=${simNum(tf)} tw=${simNum(tw)} per=${simNum(per)}` } });
     switch (e.waveform) {
     case VoltageElm.WF_DC:
         return { sym: "VDC", value: kicadValue(max + bias, "V"), props: { "Sim.Params": "dc=" + simNum(max + bias) } };
-    case VoltageElm.WF_AC:
+    // a variable rail is a source at its present voltage (kept in frequency), so it can
+    // still be changed
+    case VoltageElm.WF_VAR:
+        return { sym: "VDC", value: kicadValue(f, "V"), props: { "Sim.Params": "dc=" + simNum(f) } };
+    case VoltageElm.WF_AC: {
+        const phase = e.phaseShift ? " phase=" + simNum(e.phaseShift * 180 / Math.PI) : "";
         return { sym: "VSIN", value: kicadValue(max, "V") + freq,
-                 props: { "Sim.Params": `dc=${simNum(bias)} ampl=${simNum(max)} f=${simNum(f)}` } };
-    // a square wave is high for the duty cycle and then low; a pulse is high, then zero
+                 props: { "Sim.Params": `dc=${simNum(bias)} ampl=${simNum(max)} f=${simNum(f)}${phase}` } };
+    }
+    // a square wave is high for the duty cycle and then low; a pulse is high, then zero.
+    // CircuitJS centers the edges on the cycle's start and the end of the duty cycle
     case VoltageElm.WF_SQUARE:
     case VoltageElm.WF_PULSE: {
-        const per = 1 / f;
         const lo = e.waveform === VoltageElm.WF_SQUARE ? bias - max : bias;
-        return { sym: "VPULSE", value: kicadValue(max, "V") + freq,
-                 props: { "Sim.Params": `y1=${simNum(lo)} y2=${simNum(bias + max)} td=0 tr=0 tf=0 ` +
-                                        `tw=${simNum(e.dutyCycle * per)} per=${simNum(per)}` } };
+        const rise = Math.min(e.riseTime, e.dutyCycle * per);
+        return pulse(lo, bias + max, delayFor(e, -rise / 2), rise, rise, e.dutyCycle * per - rise);
     }
+    // a triangle rises for half the cycle; a sawtooth rises for all of it
+    case VoltageElm.WF_TRIANGLE:
+        return pulse(bias - max, bias + max, delayFor(e), per / 2, per / 2, 0);
+    case VoltageElm.WF_SAWTOOTH:
+        return pulse(bias - max, bias + max, delayFor(e), per * .999, per * .001, 0);
+    // a new random value, uniform over the range, each time step
+    case VoltageElm.WF_NOISE:
+        return { sym: "VRANDOM", value: "Noise",
+                 props: { "Sim.Params": `ts=${simNum(timeStep)} td=0 range=${simNum(max)} offset=${simNum(bias)}` } };
     }
     return null;
 }
 
-export function describe(ce: CircuitElm): Desc | null {
+export function describe(ce: CircuitElm, timeStep: number = 1e-6): Desc | null {
+    const d = describePart(ce, timeStep);
+    if (d !== null || !(ce instanceof ChipElm))
+        return d;
+    const C = ce.getDumpClass();
+    return C === CC2Elm || C === CC2NegElm || C === DecimalDisplayElm ? null : chipBox(ce);
+}
+
+function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     // the class a loaded element gets (a DC rail placed from the menu is an ACRailElm
     // edited to DC, but loads back as a RailElm)
     const C = ce.getDumpClass();
@@ -227,12 +293,17 @@ export function describe(ce: CircuitElm): Desc | null {
     if (C === LabeledNodeElm)
         return e.busWidth > 1 ? null : { kind: "label", name: e.text, dir: dirOf(ce) };
     // a DC rail is a supply; anything else is a source to ground
-    if (C === RailElm) {
+    if (C === RailElm || C === VarRailElm) {
         if (e.waveform === VoltageElm.WF_DC)
             return { kind: "power", name: railName(e.maxVoltage + e.bias), dir: dirOf(ce) };
-        const spec = sourceSpec(e);
+        const spec = sourceSpec(e, timeStep);
         return spec ? { kind: "part", ...spec, pins: ["1"], ties: [{ pin: "2", power: "GND" }], dir: dirOf(ce) } : null;
     }
+    // KiCad has no swept source, so a sweep is a sine at its starting frequency
+    if (C === SweepElm)
+        return { kind: "part", sym: "VSIN", pins: ["1"], ties: [{ pin: "2", power: "GND" }], dir: dirOf(ce),
+                 value: kicadValue(e.maxV, "V") + " " + kicadValue(e.minF, "Hz") + "-" + kicadValue(e.maxF, "Hz"),
+                 props: { "Sim.Params": `dc=0 ampl=${simNum(e.maxV)} f=${simNum(e.minF)}` } };
     // a logic input is a switch between the high and low levels
     if (C === LogicInputElm) {
         if (e.isTernary())
@@ -278,9 +349,15 @@ export function describe(ce: CircuitElm): Desc | null {
         return { kind: "part", sym: e.pnp === 1 ? "NJFET" : "PJFET",
                  pins: e.pnp === 1 ? ["2", "3", "1"] : ["2", "1", "3"],
                  value: e.pnp === 1 ? "NJFET" : "PJFET" };
-    // posts: -, +, out.  OPAMP pins: 1=+ 2=- 5=out (3, 4 are supplies)
+    // posts: base, collector, emitter.  TIP120/TIP125 pins: 1=B 2=C 3=E
+    if (C === DarlingtonElm)
+        return { kind: "part", sym: e.pnp === 1 ? "DARL_NPN" : "DARL_PNP", pins: ["1", "2", "3"],
+                 value: e.pnp === 1 ? "TIP120" : "TIP125" };
+    // posts: -, +, out.  OPAMP pins: 1=+ 2=- 5=out, 3=vcc 4=vee.  the output limits are the
+    // supplies, which KiCad's model limits the output to
     if (C === OpAmpElm)
-        return { kind: "part", sym: "OPAMP", pins: ["2", "1", "5"], value: "OpAmp" };
+        return { kind: "part", sym: "OPAMP", pins: ["2", "1", "5"], value: "OpAmp",
+                 ties: [{ pin: "3", power: railName(e.maxOut) }, { pin: "4", power: e.minOut === 0 ? "GND" : railName(e.minOut) }] };
     // posts: end 1, end 2, wiper.  pot pins: 1, 3 ends, 2 wiper
     if (C === PotElm)
         return { kind: "part", sym: "POT", pins: ["1", "3", "2"], value: kicadValue(e.maxResistance) };
@@ -290,9 +367,24 @@ export function describe(ce: CircuitElm): Desc | null {
     // posts: common, throw 1, throw 2.  SPDT pins: 2=common, 1, 3 throws
     if (C === Switch2Elm)
         return e.throwCount === 2 ? { kind: "part", sym: "SPDT", pins: ["2", "1", "3"], value: "SW_SPDT" } : null;
+    // posts: the switch's ends, then the control.  the switches have 5V logic; the 4053
+    // connects X to X0 when A is low, so a normally closed switch is one side of it.
+    // 4053 pins: 14=X 12=X0 13=X1 11=A, 6=Inh 10=B 9=C
+    if (C === AnalogSwitchElm) {
+        if (!e.hasFlag(e.FLAG_INVERT))
+            return logic("ASW", ["@pas", "@pas", "@in"], 5, { swap: [0, 1] });
+        return logic("ASW2", ["14", "12", "11"], 5,
+                     { ties: [{ pin: "6", power: "GND" }, { pin: "10", power: "GND" }, { pin: "9", power: "GND" }] });
+    }
+    // posts: common, the contact made above the threshold, the one made below, control
+    if (C === AnalogSwitch2Elm) {
+        const swap = e.hasFlag(e.FLAG_INVERT);
+        return logic("ASW2", ["14", swap ? "12" : "13", swap ? "13" : "12", "11"], 5,
+                     { ties: [{ pin: "6", power: "GND" }, { pin: "10", power: "GND" }, { pin: "9", power: "GND" }] });
+    }
     // CircuitJS voltage sources are (-, +); KiCad sources are (+, -)
     if (C === VoltageElm && ce.getPostCount() === 2) {
-        const spec = sourceSpec(e);
+        const spec = sourceSpec(e, timeStep);
         return spec ? { kind: "part", ...spec, pins: ["2", "1"] } : null;
     }
     // CircuitJS current flows from post 0 through the source to post 1, as SPICE does from + to -
@@ -388,15 +480,19 @@ export function describe(ce: CircuitElm): Desc | null {
         return logic(C === SchmittElm ? "SCHMITT" : "SCHMITTINV", ["@in", "@out"], e.logicOnLevel);
     // posts: D, Q, ~Q, clock, then reset and set
     if (C === DFlipFlopElm) {
-        if (e.hasReset() && !e.invertSetReset())
-            return null;
+        const pins = ["D", "Q", "~{Q}", "C", "~{R}", "~{S}"].slice(0, ce.getPostCount());
+        // the 4013 has active-high set and reset
+        if (e.hasReset() && !e.invertSetReset()) {
+            const ties: PinTie[] = e.hasSet() ? [] : [{ pin: "S", power: "GND" }];
+            return logic("DFF_H", pins.map(p => p.replace(/~\{([RS])\}/, "$1")), e.highVoltage, { ties });
+        }
         const vcc = railName(e.highVoltage);
         const ties: PinTie[] = [];
         if (!e.hasReset())
             ties.push({ pin: "~{R}", power: vcc });
         if (!e.hasSet())
             ties.push({ pin: "~{S}", power: vcc });
-        return logic("DFF", ["D", "Q", "~{Q}", "C", "~{R}", "~{S}"].slice(0, ce.getPostCount()), e.highVoltage, { ties });
+        return logic("DFF", pins, e.highVoltage, { ties });
     }
     // posts: J, clock, K, Q, ~Q, then reset.  the 74107 triggers on the falling edge
     if (C === JKFlipFlopElm) {
@@ -405,7 +501,156 @@ export function describe(ce: CircuitElm): Desc | null {
         const ties: PinTie[] = e.hasReset() ? [] : [{ pin: "~{R}", power: railName(e.highVoltage) }];
         return logic("JKFF", ["J", "C", "K", "Q", "~{Q}", "~{R}"].slice(0, ce.getPostCount()), e.highVoltage, { ties });
     }
+    if (C === CounterElm)
+        return counter(e);
+    if (C === LatchElm)
+        return latch(e);
+    if (C === VCVSElm || C === VCCSElm)
+        return behavioralSource(e, C === VCVSElm);
     return null;
+}
+
+// posts: clock, reset, then the outputs, most significant first, then up/down
+function counter(e: any): PartDesc | null {
+    const bits: number = e.bits;
+    if (e.useBus() || e.hasUpDown() || bits > 12)
+        return null;
+    const mod = e.modulus || (1 << bits);
+    const fall = e.negativeEdgeTriggered(), lowReset = e.invertreset;
+    const outs = (name: (i: number) => string) => Array.from({ length: bits }, (_, j) => name(bits - 1 - j));
+    const vcc = railName(e.highVoltage);
+    // the 74HC161 and 160 count on the rising edge, with an active-low reset
+    if (!fall && lowReset && bits <= 4 && (mod === 1 << bits || (mod === 10 && bits === 4)))
+        return logic(mod === 10 ? "COUNTER160" : "COUNTER161", ["CP", "~{MR}", ...outs(i => "Q" + i)], e.highVoltage, {
+            ties: [{ pin: "~{PE}", power: vcc }, { pin: "CEP", power: vcc }, { pin: "CET", power: vcc },
+                   ...[0, 1, 2, 3].map(i => ({ pin: "D" + i, power: "GND" }))] });
+    if (lowReset)
+        return null;
+    // the 4520 and 4518 count on CK rising with Enable high, or on Enable falling with CK low
+    if (bits <= 4 && (mod === 1 << bits || (mod === 10 && bits === 4)))
+        return logic(mod === 10 ? "COUNTER4518" : "COUNTER4520", [fall ? "Enable" : "CK", "Reset", ...outs(i => "Q" + (i + 1))],
+                     e.highVoltage, { ties: [{ pin: fall ? "CK" : "Enable", power: fall ? "GND" : vcc }] });
+    // the 4040 counts on the falling edge
+    if (fall && mod === 1 << bits)
+        return logic("COUNTER4040", ["CLK", "Reset", ...outs(i => "Q" + i)], e.highVoltage);
+    return null;
+}
+
+// posts: inputs, outputs, load, then reset, set and the enables
+function latch(e: any): PartDesc | null {
+    const bits: number = e.bits;
+    if (e.useBus() || e.hasSet() || e.hasOutputEnable() || bits > 8 || (e.hasReset() && !e.resetActiveLow()))
+        return null;
+    const ins = Array.from({ length: bits }, (_, i) => "D" + i);
+    const vcc = railName(e.highVoltage);
+    // the 74HC373 is transparent while LE is high, and has no reset
+    if (!e.isEdgeTriggered())
+        return e.hasReset() ? null :
+            logic("LATCH373", [...ins, ...ins.map((_, i) => "O" + i), "LE"], e.highVoltage, { ties: [{ pin: "OE", power: "GND" }] });
+    const pins = [...ins, ...ins.map((_, i) => "Q" + i), "Cp", ...(e.hasReset() ? ["~{Mr}"] : [])];
+    return logic(bits <= 4 ? "REG175" : "REG273", pins, e.highVoltage,
+                 { ties: e.hasReset() ? [] : [{ pin: "~{Mr}", power: vcc }] });
+}
+
+// CircuitJS expression functions that ngspice's behavioral sources also have
+const SPICE_FUNCS = new Set(["sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+                             "abs", "exp", "log", "sqrt", "floor", "ceil", "min", "max", "pi"]);
+
+// a CircuitJS expression as an ngspice one, with input i's voltage read from inputs[i], or
+// null if it uses something ngspice doesn't have (the last output, the time step...)
+export function spiceExpr(expr: string, inputs: string[]): string | null {
+    let ok = true;
+    const out = expr.replace(/[A-Za-z_][A-Za-z0-9_]*/g, id => {
+        const k = id.length === 1 ? id.toLowerCase().charCodeAt(0) - 97 : -1;
+        if (id === "t")
+            return "time";
+        if (k >= 0 && k < inputs.length)
+            return "V(" + inputs[k] + ")";
+        if (!SPICE_FUNCS.has(id))
+            ok = false;
+        return id;
+    });
+    return ok ? out : null;
+}
+
+// a VCVS or VCCS is a behavioral source; its inputs are read by net name.
+// posts: inputs, then +, -
+function behavioralSource(e: any, voltage: boolean): PartDesc {
+    const n: number = e.inputCount;
+    const expr: string = e.exprString;
+    return { kind: "part", sym: "BSOURCE", pins: [...Array(n).fill(null), "1", "2"], value: expr,
+             inputs: Array.from({ length: n }, (_, i) => i),
+             inputProps: nets => {
+                 const x = nets && spiceExpr(expr, nets);
+                 return x === null ? { "Sim.Enable": "0" } :
+                     { "Sim.Params": `type="B" model="${voltage ? "v" : "i"}=${x}"` };
+             } };
+}
+
+// symbols made by chipBox, with their outlines (left, bottom, right, top in symbol coordinates)
+const boxSymbols = new WeakMap<KicadSymbol, number[]>();
+
+// a chip with no KiCad part is a box like the one CircuitJS draws, with its pin names
+function chipBox(ce: ChipElm): PartDesc | null {
+    const pins = ce.pins.slice(0, ce.getPostCount());
+    if (pins.some(p => p.busWidth > 1))
+        return null;
+    // symbol coordinates (mm, y up) from post 0
+    const o = ce.getPost(0)!;
+    const mm = (x: number, y: number): [number, number] =>
+        [round3((x - o.x) / PIXELS_PER_UNIT * MM_PER_UNIT), round3(-(y - o.y) / PIXELS_PER_UNIT * MM_PER_UNIT)];
+    const [x0, y0] = mm(ce.rectPointsX[0], ce.rectPointsY[0]);
+    const [x1, y1] = mm(ce.rectPointsX[2], ce.rectPointsY[2]);
+    const [l, r, b, t] = [Math.min(x0, x1), Math.max(x0, x1), Math.min(y0, y1), Math.max(y0, y1)];
+    const sym: KicadSymbol = { libId: "", ref: "U", footprint: "", pins: {}, names: {}, types: {}, units: {}, angles: {}, def: "" };
+    const pinDefs: string[] = [];
+    pins.forEach((p, j) => {
+        const num = String(j + 1);
+        const at = mm(ce.getPost(j)!.x, ce.getPost(j)!.y);
+        // toward the body, and the distance to it
+        const angle = at[0] <= l ? 0 : at[0] >= r ? 180 : at[1] >= t ? 270 : 90;
+        const len = round3(angle === 0 ? l - at[0] : angle === 180 ? at[0] - r : angle === 270 ? at[1] - t : b - at[1]);
+        const name = p.lineOver ? "~{" + p.text + "}" : p.text;
+        const type = p.output ? "output" : "input";
+        const shape = p.bubble ? (p.clock ? "inverted_clock" : "inverted") : p.clock ? "clock" : "line";
+        sym.pins[num] = at;
+        sym.names[num] = name;
+        sym.types[num] = type;
+        sym.units[num] = 1;
+        sym.angles[num] = angle;
+        pinDefs.push(`(pin ${type} ${shape} (at ${at[0]} ${at[1]} ${angle}) (length ${len}) ` +
+                     `(name ${quote(name)} (effects (font (size 1.27 1.27)))) (number ${quote(num)} (effects (font (size 1.27 1.27)))))`);
+    });
+    const value = ce.getChipName().replace(/\s+/g, " ");
+    const body = `(rectangle (start ${l} ${b}) (end ${r} ${t}) (stroke (width 0.254) (type default)) (fill (type background)))`;
+    const font = "(effects (font (size 1.27 1.27)) (justify left))";
+    const hidden = "(effects (font (size 1.27 1.27)) (hide yes))";
+    const rest = `(pin_names (offset 0.508)) (exclude_from_sim yes) (in_bom yes) (on_board yes)\n` +
+        `\t\t\t(property "Reference" "U" (at ${l} ${round3(t + 1.27)} 0) ${font})\n` +
+        `\t\t\t(property "Value" ${quote(value)} (at ${l} ${round3(b - 1.27)} 0) ${font})\n` +
+        `\t\t\t(property "Footprint" "" (at 0 0 0) ${hidden})\n` +
+        `\t\t\t(property "Datasheet" "" (at 0 0 0) ${hidden})\n` +
+        `\t\t\t(property "Description" "CircuitJS chip" (at 0 0 0) ${hidden})\n`;
+    const units = `\t\t\t(symbol "@_0_1" ${body})\n\t\t\t(symbol "@_1_1"\n` +
+        pinDefs.map(d => "\t\t\t\t" + d + "\n").join("") + "\t\t\t)\n";
+    // the same layout always gets the same name
+    const base = value.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "Chip";
+    const name = base + "_" + hashString(rest + units);
+    sym.libId = "CircuitJS:" + name;
+    sym.def = `(symbol ${quote(sym.libId)} ${rest}${units.replace(/@/g, name)}\t\t)`;
+    boxSymbols.set(sym, [l, b, r, t]);
+    return { kind: "part", sym: "", symbol: sym, pins: pins.map((_, j) => String(j + 1)), value };
+}
+
+function round3(v: number): number {
+    return Math.round(v * 1000) / 1000 + 0;
+}
+
+function hashString(s: string): string {
+    let h = 0x811c9dc5;
+    for (let i = 0; i !== s.length; i++)
+        h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+    return (h >>> 0).toString(16).padStart(8, "0");
 }
 
 // symbol orientation: rotation (degrees counterclockwise) and optional mirror about the x axis
@@ -583,14 +828,18 @@ function unitPins(sym: KicadSymbol, unit: number): string[] {
     return Object.keys(sym.units).filter(n => sym.units[n] === unit || sym.units[n] === 0);
 }
 
-// resolve pin names (and "@in"/"@out") to the unit's pin numbers
+// resolve pin names (and "@in"/"@out", and "@pas" for the unit's next passive pin) to the
+// unit's pin numbers
 function resolvePins(sym: KicadSymbol, unit: number, names: string[]): string[] {
     const pins = unitPins(sym, unit);
     const inputs = pins.filter(n => sym.types[n] === "input").sort((a, b) => sym.pins[b][1] - sym.pins[a][1]);
-    let nextInput = 0;
+    const passive = pins.filter(n => sym.types[n] === "passive");
+    let nextInput = 0, nextPassive = 0;
     return names.map(name => {
         if (name === "@in")
             return inputs[nextInput++];
+        if (name === "@pas")
+            return passive[nextPassive++];
         if (name === "@out")
             return pins.find(n => sym.types[n] === "output")!;
         if (pins.includes(name))
@@ -612,6 +861,8 @@ interface SheetOptions {
     // labeled nodes that are the sheet's pins, so get hierarchical labels
     hier?: Set<string>;
     tags?: NetTag[];
+    // the simulation's time step, for random sources
+    timeStep?: number;
 }
 
 // a subcircuit's box on its parent sheet
@@ -658,9 +909,15 @@ export class KicadExporter {
     private originY = 0;
     warnings: string[] = [];
 
+    private timeStep: number;
+    // a subcircuit's sheet, whose nets' SPICE names depend on where it's used
+    private sub: boolean;
+
     constructor(private elms: CircuitElm[], opts: SheetOptions = {}) {
         this.hier = opts.hier ?? new Set();
         this.tags = opts.tags ?? [];
+        this.timeStep = opts.timeStep ?? 1e-6;
+        this.sub = opts.hier !== undefined;
     }
 
     private toUnits(p: Point | Pt): Pt {
@@ -741,7 +998,7 @@ export class KicadExporter {
 
     // place everything; the result is written by write()
     export(): void {
-        const descs = this.elms.map(ce => describe(ce));
+        const descs = this.elms.map(ce => describe(ce, this.timeStep));
 
         let minX = Infinity, minY = Infinity;
         for (let i = 0; i !== this.elms.length; i++) {
@@ -773,7 +1030,7 @@ export class KicadExporter {
                     this.uf.find("p" + ptKey(this.toUnits(ce.getPost(j)!)));
             } else {
                 for (let j = 0; j !== ce.getPostCount(); j++)
-                    if (d.pins[j] != null)
+                    if (d.pins[j] != null || d.inputs?.includes(j))
                         this.uf.find("p" + ptKey(this.toUnits(ce.getPost(j)!)));
                 for (const t of d.ties ?? [])
                     if (t.power)
@@ -818,6 +1075,8 @@ export class KicadExporter {
             } else if (d.kind === "text") {
                 this.texts.push({ p: this.toUnits(ce), text: d.text });
             } else if (d.kind === "part" || d.kind === "sheet") {
+                if (d.kind === "part" && d.inputs)
+                    this.nameInputs(ce, d);
                 for (let j = 0; j !== ce.getPostCount(); j++) {
                     if (d.kind === "part" && d.pins[j] == null)
                         continue;
@@ -849,6 +1108,59 @@ export class KicadExporter {
             sym: p.name === "GND" ? KICAD_SYMBOLS.GND : KICAD_SYMBOLS.VCC, ref: this.nextRef("#PWR"), unit: 1,
             value: p.name, at: p.p, orient: { angle: p.angle, mirror: false }, pins: ["1"], pinPts: [p.p],
         }));
+    }
+
+    // label the nets a part reads by name, and give it the properties that name them.  on a
+    // subcircuit's sheet the names depend on where it's used, so there are none
+    private nameInputs(ce: CircuitElm, d: PartDesc): void {
+        const names: string[] = [];
+        for (const j of d.inputs!) {
+            const p = this.toUnits(ce.getPost(j)!), net = this.net(p);
+            const name = this.netNames.get(net)!;
+            this.addPoint(p, net);
+            this.netTag(p, net, { x: 2 * p.x - this.toUnits(ce).x, y: p.y });
+            // KiCad names a net with a local label after the sheet it's on
+            names.push(name === "GND" ? "0" : this.uf.find("P" + name) === net ? name : "/" + name);
+        }
+        d.props = { ...d.props, ...d.inputProps!(this.sub ? null : names) };
+    }
+
+    // the supplies this sheet's power symbols name
+    supplyNames(): string[] {
+        return this.powerSyms.map(p => p.value).filter(n => n !== "GND");
+    }
+
+    // a power symbol only names a net, so KiCad's simulator needs a source for each supply.
+    // put them in a row below everything else
+    addSupplySources(names: string[]): void {
+        const supplies = names.map(n => ({ name: n, v: railVoltage(n) })).filter(s => s.v !== null);
+        if (supplies.length === 0)
+            return;
+        let maxY = 0;
+        this.points.forEach(q => maxY = Math.max(maxY, q.p.y));
+        this.texts.forEach(t => maxY = Math.max(maxY, t.p.y));
+        this.symbols.forEach(s => maxY = Math.max(maxY, s.at.y));
+        this.sheets.forEach(s => maxY = Math.max(maxY, s.y1));
+        const top = maxY + 6;
+        this.texts.push({ p: { x: MARGIN, y: top }, text: "Supplies for simulation" });
+        const orient = { angle: 0, mirror: false };
+        supplies.forEach(({ name, v }, i) => {
+            const at = { x: MARGIN + 2 + 10 * i, y: top + 10 };
+            const pinPts = ["1", "2"].map(n => {
+                const o = symbolOffset(KICAD_SYMBOLS.VDC.pins[n], orient);
+                return { x: at.x + o.x, y: at.y + o.y };
+            });
+            this.symbols.push({ sym: KICAD_SYMBOLS.VDC, ref: this.nextRef("V"), unit: 1, value: kicadValue(v!, "V"), at, orient,
+                                props: { "Sim.Params": "dc=" + simNum(v!) }, pins: ["1", "2"], pinPts });
+            pinPts.forEach((p, k) => {
+                const net = k === 0 ? name : "GND";
+                this.addPoint(p, "P" + net);
+                this.powerSyms.push({
+                    sym: k === 0 ? KICAD_SYMBOLS.VCC : KICAD_SYMBOLS.GND, ref: this.nextRef("#PWR"), unit: 1, value: net, at: p,
+                    orient: { angle: this.powerAngle(net, { x: 0, y: k === 0 ? -1 : 1 }), mirror: false }, pins: ["1"], pinPts: [p],
+                });
+            });
+        });
     }
 
     // this sheet's own reference designators, which become the project's in each place it's used
@@ -946,7 +1258,7 @@ export class KicadExporter {
     }
 
     private placePart(ce: CircuitElm, d: PartDesc): void {
-        const sym = KICAD_SYMBOLS[d.sym];
+        const sym = d.symbol ?? KICAD_SYMBOLS[d.sym];
         const { ref, unit } = this.allocUnit(sym, d);
 
         // every pin that gets connected: to a post (posts[k] set), or to a supply.  logic
@@ -1336,6 +1648,14 @@ export class KicadExporter {
             refAt = { x: at.x, y: at.y + below * 5 };
             valAt = { x: at.x, y: at.y + below * 3 };
             just = "";
+        } else if (boxSymbols.has(s.sym)) {
+            // a box's origin is one of its pins, so go by its outline: above and below it
+            const [l, b, r, t] = boxSymbols.get(s.sym)!;
+            const cs = [[l, b], [r, t]].map(c => symbolOffset(c as [number, number], s.orient));
+            const left = Math.min(...cs.map(c => at.x + c.x));
+            refAt = { x: left, y: Math.min(y0, ...cs.map(c => at.y + c.y)) - 1.5 };
+            valAt = { x: left, y: Math.max(y1, ...cs.map(c => at.y + c.y)) + 1.5 };
+            just = "left";
         } else if (y1 - y0 >= x1 - x0) {
             refAt = { x: Math.max(x1, at.x + 1) + 1.5, y: at.y - 1 };
             valAt = { x: Math.max(x1, at.x + 1) + 1.5, y: at.y + 1 };
@@ -1477,8 +1797,8 @@ function modelSheet(model: any): { elms: CircuitElm[]; opts: SheetOptions } {
 
 // export a circuit as a KiCad project: the circuit's sheet, plus a sheet for each subcircuit
 // model it uses (including subcircuits inside those).  the first file is the top sheet
-export function exportKicadProject(elms: CircuitElm[], project: string): KicadProject {
-    const root = new KicadExporter(elms);
+export function exportKicadProject(elms: CircuitElm[], project: string, timeStep?: number): KicadProject {
+    const root = new KicadExporter(elms, { timeStep });
     root.export();
     const warnings = [...root.warnings];
 
@@ -1488,7 +1808,7 @@ export function exportKicadProject(elms: CircuitElm[], project: string): KicadPr
         if (sheets.has(model) || depth > 8)
             return;
         const { elms: modelElms, opts } = modelSheet(model);
-        const exp = new KicadExporter(modelElms, opts);
+        const exp = new KicadExporter(modelElms, { ...opts, timeStep });
         let file = model.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + ".kicad_sch";
         for (let n = 2; fileNames.has(file); n++)
             file = model.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "_" + n + ".kicad_sch";
@@ -1502,6 +1822,8 @@ export function exportKicadProject(elms: CircuitElm[], project: string): KicadPr
     try {
         for (const sh of root.sheets)
             build(sh.model, 1);
+        // power symbols are global, so one source for each supply on the top sheet
+        root.addSupplySources([...new Set([root, ...[...sheets.values()].map(s => s.exp)].flatMap(e => e.supplyNames()))]);
 
         // number the parts in each place each sheet is used, the top sheet first
         const counts = new Map<string, number>();

@@ -79,6 +79,24 @@ SYMBOLS = {
     "7SEG_CC": "Display_Character:SC39-11EWA",
     "7SEG_CA": "Display_Character:SA39-11EWA",
     "JKFF":  "74xx:74LS107",
+    # active-high set and reset
+    "DFF_H": "4xxx:4013",
+    # 9-bit parity, for XOR and XNOR gates with more than 2 inputs
+    "PARITY9": "74xx:74LS280",
+    "COUNTER161": "74xx:74LS161",
+    "COUNTER160": "74xx:74LS160",
+    "COUNTER4520": "4xxx:4520",
+    "COUNTER4518": "4xxx:4518",
+    "COUNTER4040": "4xxx:4040",
+    "REG175": "74xx:74LS175",
+    "REG273": "74xx:74HC273",
+    "LATCH373": "74xx:74HC373",
+    "ASW": "4xxx:4066",
+    "ASW2": "4xxx:4053",
+    "DARL_NPN": "Transistor_BJT:TIP120",
+    "DARL_PNP": "Transistor_BJT:TIP125",
+    "BSOURCE": "Simulation_SPICE:BSOURCE",
+    "VRANDOM": "Simulation_SPICE:VTRRANDOM",
 }
 
 # symbols changed from the library's, under a library name of our own so updating from
