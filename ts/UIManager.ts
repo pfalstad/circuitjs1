@@ -2104,7 +2104,10 @@ export class UIManager {
                 const arr = keys[i].split("=");
                 if (arr.length !== 2) continue;
                 const c = parseIntStrict(arr[0]);
-                const className = arr[1];
+                let className = arr[1];
+                // CustomCompositeElm was renamed SubcircuitElm; keep shortcuts saved by the old version
+                if (className === "CustomCompositeElm" || className.startsWith("CustomCompositeElm:"))
+                    className = "SubcircuitElm" + className.substring("CustomCompositeElm".length);
                 this.app.shortcuts.set(c, className);
 
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
