@@ -31,6 +31,15 @@ jobs:
         run: npm ci
         working-directory: ts
 
+      # Mark the GitHub Pages build as alpha, with its build time, in the
+      # version string (shown in the title bar and About box). Only the
+      # checked-out copy is changed.
+      - name: Mark version as alpha with build time
+        run: |
+          BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')
+          sed -E -i "s/(versionString: string = \"[^\"]*)\"/\1 (alpha $BUILT)\"/" ts/CirSim.ts
+          grep 'versionString: string = ".* (alpha .*)"' ts/CirSim.ts
+
       - name: Build site
         run: ./dist-offline.sh
 

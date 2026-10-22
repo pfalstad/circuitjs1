@@ -18,6 +18,7 @@
 */
 
 import { Dialog } from "./Dialog";
+import { moduleBaseURL } from "./ModuleBase";
 
 export class AboutBox extends Dialog {
 
@@ -32,7 +33,10 @@ export class AboutBox extends Dialog {
         this.dialogEl.appendChild(vp);
 
         const iframe = document.createElement("iframe");
-        iframe.src = "circuitjs/about.html";
+        // The build copies about.html alongside the bundle, so find it relative
+        // to the script like circuits/ and locale/.  The dev server serves
+        // modules from the root, but about.html stays at circuitjs/about.html.
+        iframe.src = import.meta.env.DEV ? "circuitjs/about.html" : moduleBaseURL + "about.html";
         iframe.width = "400";
         iframe.height = "430";
         iframe.scrolling = "auto";

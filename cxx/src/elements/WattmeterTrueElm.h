@@ -1,0 +1,91 @@
+/*
+    Copyright (C) Paul Falstad and Iain Sharp
+
+    This file is part of CircuitJS1.
+
+    CircuitJS1 is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
+
+    CircuitJS1 is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#pragma once
+
+#include "../core/CircuitElm.h"
+
+class WattmeterTrueElm : public CircuitElm {
+public:
+    bool showPropertiesOnCreate() override { return false; }
+    ELM_CLASS(WattmeterTrueElm)
+    int width = 0;
+    VoltageSource *voltSources[2] = {nullptr, nullptr};
+    double currents[2] = {0, 0};
+    double curcounts[2] = {0, 0};
+
+    int meter = 0;
+    static constexpr int PM_INST = 0;
+    static constexpr int PM_AVG = 1;
+    double selectedValue = 0;
+    double avgPower = 0;
+    double totalEnergy = 0;
+    double cycleTime = 0;
+    double lastCycleTime = 0;
+    double runEnergy = 0;
+    double runTime = 0;
+    double zeroTime = 0;
+    double peak = 0;
+    double trough = 0;
+    double curPeak = 0;
+    double curTrough = 0;
+    bool wasAboveMid = false;
+    bool haveFullCycle = false;
+
+    std::vector<Point> posts, inner;
+    std::vector<int> rectPointsX, rectPointsY;
+    Point center;
+    int maxTextLen = 0;
+
+    WattmeterTrueElm(int xx, int yy) : CircuitElm(xx, yy) { setup(); }
+    WattmeterTrueElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) : CircuitElm(xa, ya, xb, yb, f) {
+        setup();
+    }
+
+    void setup();
+    void dumpXml(XmlElement *doc, XmlElement *elem) override;
+    void undumpXml(CircuitXMLDeserializer &xml) override;
+    int getVoltageSourceCount() override { return 1; }
+    int getPostCount() override { return 4; }
+    void drag(int xx, int yy) override;
+    void setPoints() override;
+    Point getPost(int n) override { return posts[n]; }
+    void stamp() override;
+    void setVoltageSource(int j, VoltageSource *vs) override { voltSources[j] = vs; }
+    void draw(Graphics &g) override;
+    // Average over whole cycles, delimited by rising crossings of the long-run mean
+    // (ported from WattmeterElm.stepFinished(), which fixed the same averaging
+    // against local extrema of the power waveform that this element used to do).
+    void stepFinished() override;
+    void setCurrent(VoltageSource *vn, double c) override { currents[vn == voltSources[1] ? 0 : 1] = c; }
+    double getCurrentIntoNode(int n) override { return n % 2 == 0 ? -currents[n / 2] : currents[n / 2]; }
+    bool getConnection(int n1, int n2) override { return n1 / 2 == n2 / 2; }
+    bool hasGroundConnection(int n1) override { return false; }
+    void getInfo(std::vector<std::string> &arr) override;
+    double getPower() override { return getVoltageDiff() * getCurrent(); }
+    double getMeterPower();
+    bool canViewInScope() override { return true; }
+    double getCurrent() override { return currents[1]; }
+    double getVoltageDiff() override { return nodes[1]->v - nodes[0]->v; }
+    double getAveragePower() { return avgPower; }
+    bool canFlipX() override { return false; }
+    bool canFlipY() override { return false; }
+    std::optional<EditInfo> getEditInfo(int n) override;
+    void setEditValue(int n, EditInfo &ei) override;
+};

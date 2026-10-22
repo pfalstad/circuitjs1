@@ -1549,6 +1549,7 @@
 "Edit Diode Model"="Modifica Modello di Diodo"
 "Edit Relay Model"="Modifica Modello di Relè"
 "Edit Transistor Model"="Modifica Modello di Transistor"
+"Edit MOSFET Model"="Modifica Modello di MOSFET"
 "Enable Pins"="Pin di Abilitazione"
 "End"="Fine"
 "F10"="F10"

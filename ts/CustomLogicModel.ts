@@ -130,6 +130,8 @@ export class CustomLogicModel implements Editable {
         return arr.split(",");
     }
 
+    getEditTitle(): string { return "Edit Custom Logic Model"; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Inputs", 0, -1, -1);

@@ -1658,6 +1658,7 @@
 "Edit Diode Model"="編輯二極體模型"
 "Edit Relay Model"="編輯繼電器模型"
 "Edit Transistor Model"="編輯電晶體模型"
+"Edit MOSFET Model"="編輯MOSFET模型"
 "Enable Pins"="致能接腳"
 "End"="End"
 "F10"="F10"

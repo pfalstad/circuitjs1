@@ -12,10 +12,20 @@ const urlsToCache = [
 FILE_LIST_GOES_HERE
 ];
 
+// Cache each file individually rather than with cache.addAll(): addAll is
+// all-or-nothing, so a single file the server refuses (e.g. a stray .py the
+// web server 403s) would fail the whole install, leaving the previous
+// version's worker in control and serving its stale cache indefinitely.
+// skipWaiting() activates the new version right away instead of waiting
+// for every open tab of the site to close.
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.all(urlsToCache.map(url =>
+        cache.add(url).catch(err => console.warn('Service worker: failed to cache', url, err))
+      ))
+    )
   );
 });
 
@@ -77,6 +87,6 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });

@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@xmldom/xmldom": "^0.9.8"
+  }
+}

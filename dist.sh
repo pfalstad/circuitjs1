@@ -41,7 +41,8 @@ cp -r "$DIR/ts/dist/." site
   # for offline caching, and give this version its own cache name (old
   # caches are cleaned up in the 'activate' handler) so updates take effect
   # instead of serving a stale cached copy.
-  find "circuitjs$num" -type f -print | sed "s/.*/  '&',/" > filelist.$$
+  # Skip dotfiles (.DS_Store) and stray scripts the web server won't serve.
+  find "circuitjs$num" -type f ! -name '.*' ! -name '*.py' -print | sed "s/.*/  '&',/" > filelist.$$
   sed "/^FILE_LIST_GOES_HERE$/{
     r filelist.$$
     d
@@ -61,7 +62,7 @@ cp -r "$DIR/ts/dist/." site
     sed -i.bak "s#circuitjs\.html#circuitjs$num.html#g" "$f"
     rm -f "$f.bak"
   done
-  mv circuitjs.html "circuitjs$num.html"
+  cp circuitjs.html "circuitjs$num.html"
 )
 
 echo "=== Done: site/circuitjs$num (entry: site/circuitjs$num.html) ==="

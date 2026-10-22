@@ -28,8 +28,16 @@ import {
 
 // plot of single value on a scope
 export class ScopePlot {
-    minValues: number[];
-    maxValues: number[];
+    // The buffers timeStep() records into. Everything outside this class except ScopeTrigger's
+    // edge detection reads minValues/maxValues instead (see below).
+    liveMin: number[];
+    liveMax: number[];
+    // Snapshot of liveMin/liveMax taken by ScopeTrigger once a triggered sweep has been fully
+    // captured. The live buffer has to keep recording (the next trigger needs pre-trigger
+    // history), so without this the displayed sweep gets overwritten as soon as the write pointer
+    // laps it - long before a rare trigger event comes around again. null means show live data.
+    private frozenMin: number[] | null = null;
+    private frozenMax: number[] | null = null;
     scopePointCount: number;
     ptr: number; // ptr is pointer to the current sample
     value: number; // Value - the property being shown - e.g. VAL_CURRENT
@@ -49,6 +57,7 @@ export class ScopePlot {
     manScale: number = 1.0; // Units per division
     manVPosition: number = 0; // 0 is center of screen. +V_POSITION_STEPS/2 is top of screen
     gridMult: number = 0;
+    gridStepY: number = 0; // units per vertical division, set by Scope.calcGridParams
     plotOffset: number = 0;
     acCoupled: boolean = false;
     acAlpha: number = 0.9999; // Filter coefficient for AC coupling
@@ -69,8 +78,8 @@ export class ScopePlot {
         this.lastUpdateTime = 0;
         this.lastValue = 0;
         this.color = "#FFFFFF";
-        this.minValues = [];
-        this.maxValues = [];
+        this.liveMin = [];
+        this.liveMax = [];
         if (v !== undefined && manS !== undefined) {
             this.value = v;
             this.manScale = manS;
@@ -97,22 +106,39 @@ export class ScopePlot {
         // restart AC coupling filter so we don't carry over stale state (e.g. after reset)
         this.acDc = 0;
         this.acCount = 0;
-        const oldMin = this.minValues;
-        const oldMax = this.maxValues;
-        this.minValues = new Array(spc).fill(0);
-        this.maxValues = new Array(spc).fill(0);
+        const oldMin = this.liveMin;
+        const oldMax = this.liveMax;
+        this.liveMin = new Array(spc).fill(0);
+        this.liveMax = new Array(spc).fill(0);
         if (oldMin !== null && oldMin.length > 0 && !full) {
             // preserve old data if possible
             let i;
             for (i = 0; i !== spc && i !== oldSpc; i++) {
                 const i1 = (-i) & (spc - 1);
                 const i2 = (this.ptr - i) & (oldSpc - 1);
-                this.minValues[i1] = oldMin[i2];
-                this.maxValues[i1] = oldMax[i2];
+                this.liveMin[i1] = oldMin[i2];
+                this.liveMax[i1] = oldMax[i2];
             }
         } else
             this.lastUpdateTime = SimulationManager.theSim!.t;
         this.ptr = 0;
+        this.thaw();
+    }
+
+    // What the display shows: the frozen trigger snapshot if there is one, else live data.
+    // Assigning replaces the live buffer (and drops any snapshot).
+    get minValues(): number[] { return this.frozenMin ?? this.liveMin; }
+    set minValues(a: number[]) { this.liveMin = a; this.thaw(); }
+    get maxValues(): number[] { return this.frozenMax ?? this.liveMax; }
+    set maxValues(a: number[]) { this.liveMax = a; this.thaw(); }
+
+    freeze(): void {
+        this.frozenMin = this.liveMin.slice();
+        this.frozenMax = this.liveMax.slice();
+    }
+
+    thaw(): void {
+        this.frozenMin = this.frozenMax = null;
     }
 
     timeStep(): void {
@@ -131,14 +157,14 @@ export class ScopePlot {
         this.lastValue = v;
         if (this.isAcCoupled())
             v -= this.acDc;
-        if (v < this.minValues[this.ptr])
-            this.minValues[this.ptr] = v;
-        if (v > this.maxValues[this.ptr])
-            this.maxValues[this.ptr] = v;
+        if (v < this.liveMin[this.ptr])
+            this.liveMin[this.ptr] = v;
+        if (v > this.liveMax[this.ptr])
+            this.liveMax[this.ptr] = v;
         const maxTimeStep = SimulationManager.theSim!.maxTimeStep;
         if (SimulationManager.theSim!.t - this.lastUpdateTime >= maxTimeStep * this.scopePlotSpeed) {
             this.ptr = (this.ptr + 1) & (this.scopePointCount - 1);
-            this.minValues[this.ptr] = this.maxValues[this.ptr] = v;
+            this.liveMin[this.ptr] = this.liveMax[this.ptr] = v;
             this.lastUpdateTime += maxTimeStep * this.scopePlotSpeed;
         }
     }
