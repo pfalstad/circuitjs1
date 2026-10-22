@@ -384,6 +384,10 @@ export class PotElm extends CircuitElm {
         this.slider?.draw();
     }
 
+    onMouseWheel(e: WheelEvent): void {
+        this.slider?.onMouseWheel(e);
+    }
+
     flipX(c2: number, count: number): void {
         this.flags ^= this.FLAG_FLIP_OFFSET;
         super.flipX(c2, count);

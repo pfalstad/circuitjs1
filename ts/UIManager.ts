@@ -119,10 +119,7 @@ export class Scrollbar {
             if (this.enabled && this.attachedElm)
                 CirSim.theApp.mouse.setMouseElm(this.attachedElm);
         });
-        can.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
-        }, { passive: false });
+        can.addEventListener('wheel', (e) => this.onMouseWheel(e), { passive: false });
 
         can.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -248,6 +245,11 @@ export class Scrollbar {
             g.fillRect(p - 2, 2, 5, sh - 4);
             g.strokeRect(p - 2, 2, 5, sh - 4);
         }
+    }
+
+    onMouseWheel(e: WheelEvent): void {
+        e.preventDefault();
+        if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
     }
 
     getValue(): number { return this.val; }
