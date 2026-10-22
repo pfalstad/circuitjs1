@@ -1,0 +1,10 @@
+<cir f="1" ts="0.005" ic="1" cb="50" pb="50" vr="5" mts="5e-11">
+  <RelayCoil x="448 480 448 624" f="0" lb="Q1" in="0.2" oc="0.02" cr="20" ofc="0.015" swt="0.005" tp="3" ci="0" st="0" sp="1"/>
+  <s x="448 480 448 384" f="0" p="1" mm="true"/>
+  <R x="448 384 448 352" f="0" wf="0" maxv="5"/>
+  <g x="448 624 448 656" f="0"/>
+  <R x="624 384 624 352" f="0" wf="0" maxv="5"/>
+  <RelayContact x="624 384 624 624" f="4" lb="Q1" ron="0.05" roff="1000000" ip="0"/>
+  <g x="624 624 624 656" f="0"/>
+  <x x="100 40 400 46" f="0" si="16" te="Stock: the relay contacts are missing (drawn at the top left)"/>
+</cir>

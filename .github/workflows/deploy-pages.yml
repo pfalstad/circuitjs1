@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ dev ]   # ← Only trigger on pushes to dev
+    branches: [ dev-ts ]   # ← Only trigger on pushes to dev-ts
 
 permissions:
   contents: read
@@ -20,20 +20,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 8
-        uses: actions/setup-java@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          java-version: '8'
-          distribution: 'temurin'
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ts/package-lock.json
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ts
 
-      - name: Build with Gradle (GWT compile)
-        run: ./gradlew compileGwt --console verbose
+      # Mark the GitHub Pages build as alpha, with its build time, in the
+      # version string (shown in the title bar and About box). Only the
+      # checked-out copy is changed.
+      - name: Mark version as alpha with build time
+        run: |
+          BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')
+          sed -E -i "s/(versionString: string = \"[^\"]*)\"/\1 (alpha $BUILT)\"/" ts/CirSim.ts
+          grep 'versionString: string = ".* (alpha .*)"' ts/CirSim.ts
 
       - name: Build site
-        run: ./gradlew makeSite --console verbose
+        run: ./dist-offline.sh
+
+      # site/ has no index.html of its own (the app's entry point is
+      # circuitjs.html), so GitHub Pages 404s at the site root without this.
+      # Scoped to this workflow only — not added to ts/ or the other build
+      # scripts, which don't need it (dist.sh/dist-offline.sh deployments are
+      # placed under a path where the caller already knows to link straight
+      # to circuitjs.html, and the Electron app loads it directly by name).
+      - name: Add index.html redirect to circuitjs.html
+        run: |
+          cat > site/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="refresh" content="0; url=circuitjs.html">
+            <title>CircuitJS</title>
+          </head>
+          <body>
+            <a href="circuitjs.html">CircuitJS</a>
+          </body>
+          </html>
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -53,4 +83,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        

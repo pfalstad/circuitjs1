@@ -1,0 +1,1 @@
+export { XnorGateElm } from "./GateElm";

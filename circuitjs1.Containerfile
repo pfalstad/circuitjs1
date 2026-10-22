@@ -1,16 +1,11 @@
-FROM docker.io/library/gradle:jdk8-ubi
+FROM docker.io/library/node:22
 
-
-RUN microdnf install -y python3 && microdnf clean all
 COPY . /src
 
-WORKDIR /src
+WORKDIR /src/ts
 
-RUN cd /src &&\
-    gradle compileGwt --console verbose --info &&\
-    gradle makeSite --console verbose --info
-
+RUN npm install && npm run build
 
 EXPOSE 8000
 
-CMD cd /src/site && python3 -m http.server
+CMD ["npm", "run", "preview", "--", "--host", "--port", "8000"]

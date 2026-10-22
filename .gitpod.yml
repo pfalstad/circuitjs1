@@ -1,4 +1,4 @@
 tasks:
   - name: Setup Dev Environment
-    init: ./dev.sh setup
-    command: ./dev.sh start
+    init: cd ts && npm install
+    command: cd ts && npm run dev -- --host

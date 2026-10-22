@@ -63,7 +63,6 @@ Temporary Items
 /site
 
 # Other stuff
-/tests
 /circuits
 /client
 /offline
@@ -73,3 +72,8 @@ Temporary Items
 *.tgz
 
 /.apt_generated/
+
+# ts/ app
+/ts/todo
+/ts/node_modules
+/ts/dist

@@ -1,20 +1,15 @@
-FROM docker.io/library/ubuntu:24.04
-
-
-RUN apt update && apt upgrade -y &&\
-    apt install -y openjdk-8-jdk-headless ant wget unzip python3 python-is-python3 &&\
-    apt clean
+FROM docker.io/library/node:22
 
 COPY . /src
 
-WORKDIR /src
+WORKDIR /src/ts
 
-RUN cd /src && ./dev.sh setup
+RUN npm install
 
-ENV WEB_BINDADDRESS=0.0.0.0
-ENV CODESERVER_BINDADDRESS=0.0.0.0
+EXPOSE 5173
 
-EXPOSE 8000
-EXPOSE 9876
-
-CMD ./dev.sh start
+# npm install runs again at container start (not just at image build time) so
+# that bind-mounting the repo over /src for live editing — which shadows the
+# node_modules installed above — still gets a working install before Vite
+# starts.
+CMD npm install && npm run dev -- --host
