@@ -1053,8 +1053,11 @@ export class MouseManager {
     private onMouseDown(e: MouseEvent): void {
 	e.preventDefault();
 
-	// make sure canvas has focus so all shortcuts work
-	if (this.ui.cv && this.ui.cv.focus) this.ui.cv.focus();
+	// make sure we have keyboard focus so all shortcuts work. The canvas isn't focusable, and
+	// preventDefault() above stops the browser from moving focus here, so when we're in an
+	// iframe, focus would otherwise stay in the parent page if that's where it was.
+	window.focus();
+	(document.activeElement as HTMLElement | null)?.blur?.();
 
 	this.sim.stopElm = null; // if stopped, allow user to select other elements to fix circuit
 	const canvas = this.ui.cv as HTMLCanvasElement;
