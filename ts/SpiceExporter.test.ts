@@ -10,6 +10,8 @@ import { DCVoltageElm } from "./DCVoltageElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { NTransistorElm } from "./NTransistorElm";
 import { SwitchElm } from "./SwitchElm";
+import { AnalogSwitchElm } from "./AnalogSwitchElm";
+import { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
 import { NandGateElm } from "./NandGateElm";
 import { AndGateElm } from "./AndGateElm";
 import { CapacitorElm } from "./CapacitorElm";
@@ -32,8 +34,9 @@ function devices(text: string): string[][] {
 describe("SPICE export", () => {
     beforeAll(() => {
         const off = { getState: () => false };
-        // the elements only read menu checkboxes while being built
-        (CircuitElm as any).app = (CircuitElm as any).app ?? { menus: new Proxy({}, { get: () => off }) };
+        // the elements only read menu checkboxes while being built, and snap to the grid
+        (CircuitElm as any).app = (CircuitElm as any).app ??
+            { menus: new Proxy({}, { get: () => off }), snapGrid: (z: number) => Math.round(z / 8) * 8 };
     });
 
     it("formats values with SPICE suffixes", () => {
@@ -195,5 +198,27 @@ describe("SPICE export", () => {
         expect(text).toContain(".subckt 74HC7014 a y\n");
         expect(text).toMatch(/^Bst_a st_raw_a 0 V=0\.5\*\(1\+tanh\(\S+\*\(V\(a\)-\(3\.33\+-1\.67\*V\(st_a\)\)\)\)\)$/m);
         expect(text).toMatch(/^Braw raw 0 V=0\+5\*V\(st_a\)$/m);
+    });
+
+    it("exports analog switches as voltage-controlled switches", () => {
+        const sw = place(new AnalogSwitchElm(0, 0), 0, 0, 64, 0);
+        const sw2 = place(new AnalogSwitch2Elm(0, 0), 0, 100, 64, 100);
+        sw2.flags = (sw2.flags | sw2.FLAG_INVERT) & ~sw2.FLAG_PULLDOWN;
+        const res = exportSpiceNetlist([sw, sw2]);
+        expect(res.warnings).toEqual([]);
+        const [a, b, c] = res.postNets.get(sw)!;
+        const [com, no, nc, ctl] = res.postNets.get(sw2)!;
+        expect(res.text).toContain(".model S_analog SW (VT=2.5 VH=0 RON=20 ROFF=1t)\n");
+        expect(res.text).toContain(".model S_analog_3 SW (VT=2.5 VH=0 RON=20 ROFF=10g)\n");
+        expect(res.text).toContain(".model S_analog_2 SW (VT=-2.5 VH=0 RON=20 ROFF=10g)\n");
+        const d = devices(res.text).filter(l => !l[0].startsWith("Rfloat"));
+        expect(d).toEqual([
+            ["S1", a, b, c, "0", "S_analog"],
+            ["R1", a, "0", "10g"],
+            ["R2", b, "0", "10g"],
+            // swapped, so the first throw closes when the control is low
+            ["S2", com, no, "0", ctl, "S_analog_2"],
+            ["S3", com, nc, ctl, "0", "S_analog_3"],
+        ]);
     });
 });

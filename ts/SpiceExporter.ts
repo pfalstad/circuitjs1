@@ -40,6 +40,8 @@ import { OpAmpElm } from "./OpAmpElm";
 import { PotElm } from "./PotElm";
 import { SwitchElm } from "./SwitchElm";
 import { Switch2Elm } from "./Switch2Elm";
+import { AnalogSwitchElm } from "./AnalogSwitchElm";
+import { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
 import { VoltageElm } from "./VoltageElm";
 import { RailElm } from "./RailElm";
 import { CurrentElm } from "./CurrentElm";
@@ -510,6 +512,27 @@ class NetlistWriter {
         if (C === Switch2Elm) {
             if (!(e.position === 2 && e.hasCenterOff()))
                 L(this.ref("R"), n[0], n[e.position + 1], spiceValue(e.resistance));
+            return;
+        }
+        // posts: the two ends, then the control (SPDT: common, NO, NC, control).  a SPICE
+        // switch closes when its control is above VT; one that closes when the control is low
+        // sees it negated.  with the pulldown, the simulator leaves an open switch out
+        // entirely and pulls its ends to ground instead
+        if (C === AnalogSwitchElm || C === AnalogSwitch2Elm) {
+            const pulldown = e.needsPulldown(), inv = e.hasFlag(e.FLAG_INVERT);
+            const roff = pulldown ? 1e12 : e.r_off;
+            const sw = (ctlHigh: boolean) => this.exp.model("S", "analog", { kind: "SW",
+                params: `VT=${num(ctlHigh ? e.threshold : -e.threshold)} VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(roff)}` });
+            const ctl = (ctlHigh: boolean) => ctlHigh ? [n[n.length - 1], "0"] : ["0", n[n.length - 1]];
+            const ends = C === AnalogSwitchElm ? [n[1]] : [n[1], n[2]];
+            ends.forEach((end, i) => {
+                // the SPDT's NC throw is closed when the NO one is open
+                const high = (i === 0) !== inv;
+                L(this.ref("S"), n[0], end, ...ctl(high), sw(high));
+            });
+            if (pulldown)
+                for (const p of C === AnalogSwitchElm ? [n[0], n[1]] : ends)
+                    L(this.ref("R"), p, "0", spiceValue(e.r_off));
             return;
         }
         // CircuitJS sources are (-, +); SPICE's are (+, -)
