@@ -315,6 +315,7 @@ class CheckboxMenuItem {
     private _shortcut: string;
     private _state: boolean = false;
     private _command: (() => void) | null = null;
+    _li: HTMLLIElement | null = null;  // linked DOM element, set by Menu.addCheckboxItem
 
     constructor(label: string, shortcut: string = "") {
         this._label = label;
@@ -322,7 +323,13 @@ class CheckboxMenuItem {
     }
 
     getState(): boolean { return this._state; }
-    setState(s: boolean): void { this._state = s; }
+    setState(s: boolean): void {
+        this._state = s;
+        if (this._li) {
+            const mark = this._li.querySelector('.checkMark') as HTMLElement | null;
+            if (mark) mark.style.visibility = s ? 'visible' : 'hidden';
+        }
+    }
     getShortcut(): string { return this._shortcut; }
     setShortcut(s: string): void { this._shortcut = s; }
     setScheduledCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
@@ -815,7 +822,9 @@ export class UIManager {
         this.mouse.enableDisableMenuItems();
         this.setiFrameHeight();
 
-        menuBar.addEventListener('click', () => this.mouse.doMainMenuChecks());
+        // capture phase: menu items call stopPropagation(), which would otherwise keep this from
+        // ever firing (leaving the Draw > Subcircuits menu empty)
+        menuBar.addEventListener('click', () => this.mouse.doMainMenuChecks(), true);
 
         this.registerKeyHandlers();
 
@@ -1936,7 +1945,9 @@ export class UIManager {
             const list = SubcircuitModel.getModelList();
             for (let i = 0; i !== list.length; i++) {
                 const name: string = list[i].name;
-                menu.addCheckboxItem(this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name));
+                const mi = this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name);
+                mi.setState(this.mouseModeStr === "SubcircuitElm:" + name);
+                menu.addCheckboxItem(mi);
             }
         }
         MouseManager.lastSubcircuitMenuUpdate = SubcircuitModel.sequenceNumber;

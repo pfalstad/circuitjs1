@@ -163,8 +163,8 @@ class Menu {
         const sc = item.getShortcut ? item.getShortcut() : '';
         li.innerHTML = `<span class="checkMark">&#10003;</span> <span class="itemLabel">${Locale.LS(label)}</span>` +
             (sc ? `<span class="shortcutHint">${sc}</span>` : '');
-        (li.querySelector('.checkMark') as HTMLElement).style.visibility = 'hidden';
         item._li = li;
+        item.setState(item.getState());
         li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
         li.addEventListener('click', e => {
             e.stopPropagation();
