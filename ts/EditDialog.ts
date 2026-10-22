@@ -51,6 +51,7 @@ export class EditDialog extends Dialog {
     private activeCol: HTMLDivElement;     // current column being filled
     private activeColCount: number = 0;
     private firstInput: HTMLInputElement | HTMLTextAreaElement | null = null;
+    private firstInputNumeric: boolean = false;
     protected applyButton: HTMLButtonElement;
 
     constructor(ce: Editable, f: CirSim) {
@@ -122,6 +123,32 @@ export class EditDialog extends Dialog {
             const inp = this.firstInput;
             requestAnimationFrame(() => { inp.focus(); inp.select(); });
         }
+
+        if (this.firstInputNumeric && ce instanceof CircuitElm)
+            this.passShortcutsThrough();
+    }
+
+    // The editor pops up with its first field focused whenever an element is created, so you
+    // can place a resistor, type 10k and press Enter. But a letter can't start a numeric value,
+    // so if one is typed into that field before it's been touched and it's a tool shortcut,
+    // the user is moving on to the next element: close the editor and act on the shortcut.
+    private passShortcutsThrough(): void {
+        const inp = this.firstInput as HTMLInputElement;
+        let untouched = true;
+        this.dialogEl.addEventListener("mousedown", () => { untouched = false; });
+        inp.addEventListener("keydown", (e: KeyboardEvent) => {
+            const wasUntouched = untouched;
+            untouched = false;
+            if (!wasUntouched || e.ctrlKey || e.metaKey || e.altKey || !/^[a-zA-Z]$/.test(e.key))
+                return;
+            const cc = e.key.charCodeAt(0);
+            if (this.cframe.shortcuts.get(cc) == null)
+                return;
+            e.preventDefault();
+            e.stopPropagation();
+            this.closeDialog();
+            this.cframe.ui.doToolShortcut(cc);
+        });
     }
 
     private addColumn(): HTMLDivElement {
@@ -206,8 +233,10 @@ export class EditDialog extends Dialog {
                 inp.type = "text";
                 inp.style.width = "180px";
                 ei.textf = inp;
-                if (this.firstInput === null)
+                if (this.firstInput === null) {
                     this.firstInput = inp;
+                    this.firstInputNumeric = (ei.text === null);
+                }
                 if (ei.text !== null) {
                     inp.value = ei.text;
                     if (ei.isColor)
@@ -473,6 +502,7 @@ export class EditDialog extends Dialog {
         this.colsRow.innerHTML = "";
         this.activeCol = this.addColumn();
         this.firstInput = null;
+        this.firstInputNumeric = false;
         this.einfos.fill(null);
         this.einfocount = 0;
     }

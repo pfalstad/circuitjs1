@@ -619,7 +619,8 @@ export class UIManager {
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
             (this.app as any).startCircuitLink == null);
-        this.menus.showPropsOnClickCheckItem.setState(this.menus.toolbarCheckItem.getState());
+        this.menus.showPropsOnCreateCheckItem.setState(
+            this.getOptionFromStorage("showPropsOnCreate", this.menus.toolbarCheckItem.getState()));
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({
@@ -1829,28 +1830,34 @@ export class UIManager {
             if (toggled) {
                 e.preventDefault();
                 this.app.repaint();
-            } else {
-                const c = this.app.shortcuts.get(cc);
-                if (c != null) {
-                    e.preventDefault();
-                    if (c.startsWith("cmd:")) {
-                        const parts = c.split(":");
-                        this.app.commands.menuPerformed(parts[1], parts[2]);
-                        return;
-                    }
-                    this.setMouseMode(MouseManager.MODE_ADD_ELM);
-                    this.mouseModeStr = c;
-                    this.updateToolbar();
-                    this.mouse.tempMouseMode = this.mouse.mouseMode;
-                } else if (cc === KEY_SPACE) {
-                    this.setMouseMode(MouseManager.MODE_SELECT);
-                    this.mouseModeStr = "Select";
-                    this.updateToolbar();
-                    this.mouse.tempMouseMode = this.mouse.mouseMode;
-                    e.preventDefault();
-                }
+            } else if (this.doToolShortcut(cc)) {
+                e.preventDefault();
+            } else if (cc === KEY_SPACE) {
+                this.setMouseMode(MouseManager.MODE_SELECT);
+                this.mouseModeStr = "Select";
+                this.updateToolbar();
+                this.mouse.tempMouseMode = this.mouse.mouseMode;
+                e.preventDefault();
             }
         }
+    }
+
+    // select the tool (or run the command) assigned to the key with char code cc.
+    // returns false if no shortcut is assigned to it.
+    doToolShortcut(cc: number): boolean {
+        const c = this.app.shortcuts.get(cc);
+        if (c == null)
+            return false;
+        if (c.startsWith("cmd:")) {
+            const parts = c.split(":");
+            this.app.commands.menuPerformed(parts[1], parts[2]);
+            return true;
+        }
+        this.setMouseMode(MouseManager.MODE_ADD_ELM);
+        this.mouseModeStr = c;
+        this.updateToolbar();
+        this.mouse.tempMouseMode = this.mouse.mouseMode;
+        return true;
     }
 
     private handleReadonlyKeyDown(e: KeyboardEvent, code: number): void {

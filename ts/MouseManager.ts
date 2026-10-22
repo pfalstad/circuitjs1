@@ -331,7 +331,8 @@ export class MouseManager {
     // automatically bring up the property editor for a newly-created element,
     // or close the editor for some other element if this one doesn't want it
     private editCreatedElm(elm: CircuitElm): void {
-	if (elm.showPropertiesOnCreate() && !this.ui.isReadOnly())
+	if (elm.showPropertiesOnCreate() && this.sim.menus.showPropsOnCreateCheckItem.getState() &&
+	    !this.ui.isReadOnly())
 	    this.sim.commands.doEdit(elm, false);
 	else if (CirSim.editDialog != null)
 	    CirSim.editDialog.closeDialog();
@@ -1252,8 +1253,7 @@ export class MouseManager {
 
 	if (createdElm != null) {
 	    this.editCreatedElm(createdElm);
-	} else if (clickedElm != null && !(e as any).fromTouch &&
-		   this.sim.menus.showPropsOnClickCheckItem.getState() && !this.ui.isReadOnly()) {
+	} else if (clickedElm != null && !(e as any).fromTouch && !this.ui.isReadOnly()) {
 	    // (tapping an element on a touch screen doesn't bring up its properties)
 	    if (clickedElm.hasProperties())
 		this.sim.commands.doEdit(clickedElm);
