@@ -26,7 +26,8 @@ import {
     V_POSITION_STEPS,
 } from "./ScopeConstants";
 import { ChipState } from "./digital/chip";
-import type { Chip, HistoryWatcher } from "./digital/chip";
+import type { HistoryWatcher } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
 
 // plot of single value on a scope
@@ -79,7 +80,7 @@ export class ScopePlot implements HistoryWatcher {
     // plot (including current/other non-voltage plots on a digital
     // element - only the voltage trace goes through the digital fast path).
     // NOT readonly: see refreshDigitalSource().
-    digitalChip: Chip | null;
+    digitalChip: EngineChip | null;
     // Tick fillFromDigitalHistory() has folded `history` into liveMin/liveMax through so
     // far - so a redundant draw() within the same tick (e.g. no simulation progress between
     // frames) doesn't repeat the work, AND (once >= 0) the point at which the NEXT call resumes
@@ -176,7 +177,7 @@ export class ScopePlot implements HistoryWatcher {
     // past a stretch that Scope hasn't drawn (and thus recorded) yet, leaving a real gap on ITS
     // left edge - self-healing (it fills back in as time moves on), never wrong values, so not
     // worth a full per-Scope private history/cursor to close.
-    private setDigitalChip(chip: Chip | null): void {
+    private setDigitalChip(chip: EngineChip | null): void {
         // Stop counting against the OLD chip's Chip.trimHistory() floor before switching - it's
         // still alive (just no longer watching this signal), so nothing else will ever do this
         // for us (contrast detach() below, for when this plot itself is being discarded).

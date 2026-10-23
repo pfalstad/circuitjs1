@@ -2,7 +2,8 @@
 // built circuit in WasmCircuit, which mirrors the parts of circuit.ts's Circuit the app drives.
 
 import { CELL_FIELDS, NetKind, type FlatNetlist } from "./netlist";
-import type { Chip } from "./chip";
+import type { Chip, HistoryEntry, HistoryWatcher } from "./chip";
+import type { EngineChip, EngineCircuit } from "./engine";
 import type { CustomLogic } from "./chip_desc";
 
 // Live circuits by their WASM pointer, for routing K_JS cell updates (engine.cpp's
@@ -53,6 +54,7 @@ interface EngineModule {
     _circuit_queue_push(c: number, i: number, delay: number): number;
     _circuit_request_halt(c: number): void;
     _chip_set_param(c: number, i: number, k: number, v: number): void;
+    _chip_retime_clock(c: number, i: number, lowTicks: number, highTicks: number, output: number, edgeDelay: number): void;
     _chip_set_history_watched(c: number, i: number): void;
     _chip_history_length(c: number, i: number): number;
     _chip_history_data(c: number, i: number): number;
@@ -93,14 +95,17 @@ function copyIn(m: EngineModule, data: Float64Array | Int32Array | Uint32Array):
     return p;
 }
 
-export class WasmCircuit {
+export class WasmCircuit implements EngineCircuit {
     private m: EngineModule;
     private c: number;
     readonly numChips: number;
+    /** One WasmChip per chip, made on first use (see chip()); K_JS cells need theirs during
+     * the build. */
+    private chipObjs: WasmChip[] = [];
+    readonly historyWatchedChips = new Set<WasmChip>();
 
-    // Closure per K_JS cell, by chip index, and the proxy each is handed.
+    // Closure per K_JS cell, by chip index.
     private jsCells = new Map<number, CustomLogic>();
-    private proxies = new Map<number, WasmChipProxy>();
 
     /** Builds `net`. Its seeds are not applied here: the app drains zero-delay events first,
      * then seeds, so call drainZeroDelayEvents() and then seed(net.seeds). `jsCells` holds the
@@ -133,20 +138,23 @@ export class WasmCircuit {
         this.numChips = m._circuit_num_chips(this.c);
     }
 
+    /** Every chip, as WasmChips (allocates them all; prefer chip(i)). */
+    get chips(): WasmChip[] {
+        return Array.from({ length: this.numChips }, (_, i) => this.chip(i));
+    }
+
     dispose(): void {
         if (this.c) { liveCircuits.delete(this.c); this.m._circuit_free(this.c); this.c = 0; }
     }
 
     /** @internal Called from engine.cpp for a K_JS cell. */
     jsUpdate(chip: number, mask: number): void {
-        this.jsCells.get(chip)!(this.proxy(chip) as unknown as Chip, mask);
+        this.jsCells.get(chip)!(this.chip(chip) as unknown as Chip, mask);
     }
 
-    /** A stand-in Chip for chip `i`, with the fields custom-cell closures use. */
-    proxy(i: number): WasmChipProxy {
-        let p = this.proxies.get(i);
-        if (!p) { p = new WasmChipProxy(this, i); this.proxies.set(i, p); }
-        return p;
+    /** Chip `i` as a WasmChip; the same object every time. */
+    chip(i: number): WasmChip {
+        return this.chipObjs[i] ??= new WasmChip(this, i);
     }
 
     /** seedChipValues() (DigitalGraphBuilder.ts) on chip indices; null entries are skipped. */
@@ -177,6 +185,18 @@ export class WasmCircuit {
         this.m._chip_trim_history(this.c, i, floor === null ? 0 : 1, floor ?? 0);
     }
     historyLength(i: number): number { return this.m._chip_history_length(this.c, i); }
+    /** Moves chip `i`'s history out of WASM, appending it to `out`. */
+    takeHistory(i: number, out: HistoryEntry[]): void {
+        const n = this.historyLength(i);
+        if (n === 0) return;
+        const p = this.m._chip_history_data(this.c, i);
+        const f = this.m.HEAPF64, w = this.m.HEAP32;
+        for (let k = 0; k < n; k++) out.push({ time: f[(p >> 3) + 2 * k], value: w[(p >> 2) + 4 * k + 2] });
+        this.m._chip_trim_history(this.c, i, 0, 0); // clears it
+    }
+    retimeClock(i: number, lowTicks: number, highTicks: number, output: number, edgeDelay: number): void {
+        this.m._chip_retime_clock(this.c, i, lowTicks, highTicks, output, edgeDelay);
+    }
     /** Copies chip `i`'s history out as parallel arrays. */
     history(i: number): { times: Float64Array; values: Int32Array } {
         const n = this.historyLength(i);
@@ -230,11 +250,15 @@ export class WasmCircuit {
     sramWrite(mem: number, address: number, value: number): void { this.m._sram_write(this.c, mem, address, value); }
 }
 
-/** What a K_JS cell's closure sees as its Chip: the fields the custom cells in this codebase
- * touch, read and written through to the WASM chip. */
-export class WasmChipProxy {
-    readonly circuit: { readonly globalTime: number; queuePush(chip: WasmChipProxy, delay: number): number; requestHalt(): void };
+/** One chip of a WasmCircuit, as an EngineChip: what the app and K_JS cell closures use, read
+ * and written through to the WASM chip. History is moved out of WASM into `history` whenever it
+ * is read, so the watcher bookkeeping and trimming here are chip.ts's own. */
+export class WasmChip implements EngineChip {
+    readonly circuit: { readonly globalTime: number; queuePush(chip: WasmChip, delay: number): number; requestHalt(): void };
     readonly delay: { readonly 0: number; readonly 1: number };
+    private hist: HistoryEntry[] = [];
+    private historyWatchers: Set<WeakRef<HistoryWatcher>> = new Set();
+    private watched = false;
 
     constructor(private w: WasmCircuit, readonly index: number) {
         this.circuit = {
@@ -252,4 +276,56 @@ export class WasmChipProxy {
     get pendingEvent(): number { return this.w.pendingEvent(this.index); }
     set pendingEvent(v: number) { this.w.setPendingEvent(this.index, v); }
     get state(): number { return this.w.state(this.index); }
+    get cycleTime(): number { return this.w.cycleTime(this.index); }
+    get inputLinks(): [number, number][] { return this.w.inputLinks(this.index); }
+    get optimizationDisabled(): boolean { return this.w.optimizationDisabled(this.index); }
+    set optimizationDisabled(v: boolean) { this.w.setOptimizationDisabled(this.index, v); }
+
+    currentValue(): number { return this.w.currentValue(this.index); }
+    setSource(high: boolean): void { this.w.setSource(this.index, high); }
+    setParam(k: number, v: number): void { this.w.setParam(this.index, k, v); }
+    /** RailElm.retimePhase() for a clock cell. */
+    retimeClock(lowTicks: number, highTicks: number, output: number, edgeDelay: number): void {
+        this.w.retimeClock(this.index, lowTicks, highTicks, output, edgeDelay);
+    }
+
+    get history(): HistoryEntry[] {
+        this.w.takeHistory(this.index, this.hist);
+        return this.hist;
+    }
+    backfillHistory(now: number): number { return this.w.backfillHistory(this.index, now); }
+    skipBackfillTo(target: number): void { this.w.skipBackfillTo(this.index, target); }
+
+    // As Chip's.
+    addHistoryWatcher(watcher: HistoryWatcher): void {
+        this.historyWatchers.add(new WeakRef(watcher));
+        if (!this.watched) { this.watched = true; this.w.setHistoryWatched(this.index); }
+        this.w.historyWatchedChips.add(this);
+    }
+    removeHistoryWatcher(watcher: HistoryWatcher): void {
+        for (const ref of this.historyWatchers) {
+            if (ref.deref() === watcher) { this.historyWatchers.delete(ref); break; }
+        }
+    }
+    trimHistory(): void {
+        let floor: number | null = null;
+        for (const ref of this.historyWatchers) {
+            const watcher = ref.deref();
+            if (watcher === undefined) { this.historyWatchers.delete(ref); continue; }
+            const f = watcher.historyFloor();
+            if (floor === null || f < floor) floor = f;
+        }
+        const history = this.history;
+        if (floor === null) {
+            if (history.length !== 0) history.length = 0;
+            return;
+        }
+        if (history.length === 0 || history[0].time >= floor) return;
+        let lo = 0, hi = history.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (history[mid].time < floor) lo = mid + 1; else hi = mid;
+        }
+        if (lo > 0) history.splice(0, lo);
+    }
 }

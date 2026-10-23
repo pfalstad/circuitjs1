@@ -6,9 +6,11 @@
 // pin, not this element's own (forced-to-0-while-writing) output. Same Object.create()-based
 // construction and manualSource()/probe()/connect() helpers as DigitalSynthesisPhase3.test.ts
 // (see its header comment for why).
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { customChipStart } from "./chip_desc";
-import { buildDigitalCircuit } from "./DigitalGraphBuilder";
+import { buildDigitalCircuit, buildDigitalGraph, disposeDigitalGraph } from "./DigitalGraphBuilder";
+import { loadWasmEngine } from "./wasmEngine";
+import { sourceCell, pushSourceValue } from "./nativeKinds";
 import type { Chip } from "./chip";
 import { SRAMElm } from "../SRAMElm";
 import { CircuitElm } from "../CircuitElm";
@@ -300,5 +302,58 @@ describe("SRAMElm.setupPins() - FLAG_SEPARATE_IO analog pin layout", () => {
         expect(sram.pins.length).toBe(sram.getPostCount());
         for (let i = 0; i < sram.getPostCount(); i++) expect(sram.pins[i]).toBeDefined();
         expect(sram.internalNodes).toBe(sram.getPostCount());
+    });
+});
+
+// On the WASM engine the live contents sit inside the engine; SramMemory.syncFromEngine copies
+// them back. Writes must reach `map` before the contents are shown or saved and when the circuit
+// is rebuilt, and a reload-on-reset must not be overwritten by the engine's stale copy.
+describe("SRAMElm on the WASM engine", () => {
+    beforeAll(async () => { await loadWasmEngine(); });
+
+    function rig(initial: [number, number][]) {
+        const sram = makeSram(2, 2, initial, true);
+        const level = new Map<any, boolean>();
+        const src = (high: boolean) => {
+            const s: any = { nodes: [] };
+            level.set(s, high);
+            s.digitalSynthesis = () => ({ desc: [sourceCell(() => level.get(s)!).outputPin(1)], pinMap: new Map([[0, 1]]) });
+            return s;
+        };
+        // WE high (inactive), OE low, address 0, data in 0.
+        const pins = [src(true), src(false), src(false), src(false), src(false), src(false)];
+        pins.forEach((p, k) => connect({ elm: p, num: 0 }, { elm: sram, num: k < 4 ? k : k + 2 }));
+        const graph = buildDigitalGraph([...pins, sram], "wasm");
+        graph.circuit.drainZeroDelayEvents();
+        const set = (k: number, high: boolean) => { level.set(pins[k], high); pushSourceValue(graph.chipsByElm.get(pins[k])![0], high); };
+        const write = (address: number, value: number) => {
+            set(2, (address & 2) !== 0); set(3, (address & 1) !== 0);
+            set(4, (value & 2) !== 0); set(5, (value & 1) !== 0);
+            graph.circuit.run(20);
+            set(0, false); graph.circuit.run(20);
+            set(0, true); graph.circuit.run(20);
+        };
+        return { sram, graph, write };
+    }
+
+    it("copies writes back for the contents text and when the circuit is freed", () => {
+        const { sram, graph, write } = rig([[1, 2]]);
+        write(2, 3);
+        expect(sram.map.get(2)).toBeUndefined(); // still only in the engine
+        expect(sram.contentsToString()).toBe("1: 2 3\n");
+        write(3, 1);
+        disposeDigitalGraph(graph);
+        expect([...sram.map.entries()].filter(([, v]) => v !== 0).sort()).toEqual([[1, 2], [2, 3], [3, 1]]);
+    });
+
+    it("keeps reloaded contents after a reset", () => {
+        const { sram, graph, write } = rig([[1, 2]]);
+        sram.flags |= SRAMElm.FLAG_RELOAD_ON_RESET;
+        sram.initialMap = new Map(sram.map);
+        write(2, 3);
+        sram.pins = Array.from({ length: sram.getPostCount() }, () => ({})); // for ChipElm.reset()
+        sram.reset();
+        disposeDigitalGraph(graph);
+        expect([...sram.map.entries()]).toEqual([[1, 2]]);
     });
 });

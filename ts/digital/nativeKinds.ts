@@ -12,12 +12,19 @@ import type { Chip } from "./chip";
 import { customChipStart, type ChipDescBuilder } from "./chip_desc";
 import { MAX_U64 } from "./constants";
 import { Event, ChipState } from "./chip";
+import type { EngineChip } from "./engine";
+import { WasmChip } from "./wasmEngine";
 
 // Contents of one SRAM, shared by its per-bit cells. `read` returns 0 for an address never
 // written. The element owns the storage (it also needs it for save/load and its edit dialog).
 export interface SramMemory {
     read(address: number): number;
     write(address: number, value: number): void;
+    /** Set while a WASM circuit holds the live contents (the WASM engine copies them in at build
+     * and works on its own copy): copies them back through write(). The element calls it before
+     * reading its storage, and clears it when it replaces the contents itself, so the engine's
+     * stale copy isn't written back over them when the circuit is freed. */
+    syncFromEngine?: (() => void) | null;
 }
 
 // State shared between a monostable's Q and EXP cells. `expireChip` is the EXP cell, recorded
@@ -63,8 +70,11 @@ export function phasedClockUpdate(initialDelayTicks: number): (chip: Chip) => vo
     };
 }
 
-/** Pushes `high` into a source cell's output as a 0-delay self-event, if it differs. */
-export function pushSourceValue(chip: Chip, high: boolean): void {
+/** Pushes `high` into a source cell's output as a 0-delay self-event, if it differs. Takes
+ * either engine's chip. */
+export function pushSourceValue(engineChip: EngineChip, high: boolean): void {
+    if (engineChip instanceof WasmChip) { engineChip.setSource(high); return; }
+    const chip = engineChip as Chip;
     const newOut = high ? 1 : 0;
     if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
 }

@@ -1586,6 +1586,24 @@ EMSCRIPTEN_KEEPALIVE void chip_set_source(Circuit* c, int i, int high) {
     chip->customUpdate(0);
 }
 
+// RailElm.retimePhase() on a K_CLOCK cell: new low/high durations and level, next edge in
+// `edgeDelay` ticks. The caller has already backfilled an ASLEEP chip.
+EMSCRIPTEN_KEEPALIVE void chip_retime_clock(Circuit* c, int i, double lowTicks, double highTicks,
+                                            int output, double edgeDelay) {
+    Chip* chip = c->chips[i];
+    int32_t oldOutput = chip->output();
+    chip->delay[0] = lowTicks;
+    chip->delay[1] = highTicks;
+    chip->setOutput(output);
+    bool valueChanged = chip->output() != oldOutput;
+    chip->param[0] = edgeDelay;
+    chip->initialize();
+    for (ChipLink& link : chip->outputLinks) {
+        if (valueChanged) link.chip->updateInputs(link.mask);
+        else link.chip->deactivateOutputs();
+    }
+}
+
 // For a K_JS cell's closure, which works on a proxy over these.
 EMSCRIPTEN_KEEPALIVE void chip_set_inputs(Circuit* c, int i, int v) { c->chips[i]->inputs = v; }
 EMSCRIPTEN_KEEPALIVE void chip_set_output(Circuit* c, int i, int v) { c->chips[i]->setOutput(v); }

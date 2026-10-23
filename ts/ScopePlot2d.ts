@@ -22,7 +22,8 @@ import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Scope } from "./Scope";
 import { ChipState } from "./digital/chip";
-import type { Chip, HistoryWatcher } from "./digital/chip";
+import type { HistoryWatcher } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 
 export class ScopePlot2d implements HistoryWatcher {
     enabled: boolean = false;
@@ -64,7 +65,7 @@ export class ScopePlot2d implements HistoryWatcher {
     // The raw 0/1 digital value in effect as of rasterFilledTick
     private curVal: number = 0;
 
-    private watchedChip: Chip | null = null;
+    private watchedChip: EngineChip | null = null;
 
     private imageCanvas: HTMLCanvasElement | null = null;
     private imageContext: CanvasRenderingContext2D | null = null;

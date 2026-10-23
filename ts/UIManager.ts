@@ -465,6 +465,11 @@ export class UIManager {
     steps: number = 0;
     framerate: number = 0;
     steprate: number = 0;
+    // Digital performance readout (see updatePerfReadout()): wall ms spent in updateCircuit()
+    // this second, and sim time at the start of the second.
+    busyMs: number = 0;
+    secSimTime: number = 0;
+    perfReadout: string[] | null = null;
     needsRepaint: boolean = false;
     hideInfoBox: boolean = false;
     hideMenu: boolean = false;
@@ -1026,6 +1031,7 @@ export class UIManager {
     // ---- Drawing/Display ----
 
     updateCircuit(): void {
+        const frameStart = performance.now();
         const perfmon = new PerfMonitor();
         perfmon.startContext("updateCircuit()");
 
@@ -1105,6 +1111,7 @@ export class UIManager {
         }
 
         if (sysTime - this.secTime >= 1000) {
+            this.updatePerfReadout(sysTime - this.secTime);
             this.framerate = this.frames;
             this.steprate = this.steps;
             this.frames = 0;
@@ -1277,6 +1284,33 @@ export class UIManager {
         try {
             this.app.jsInterface?.callUpdateHook();
         } catch (e) {}
+        this.busyMs += performance.now() - frameStart;
+    }
+
+    // Once a second: which digital engine is running, the speed actually achieved, how much of
+    // the second the app was busy, how fast the engine itself runs (sim time per second of
+    // engine time), and from those an estimate of the top speed - what the rest of the frame
+    // costs stays put, the engine's share scales with speed.
+    private updatePerfReadout(elapsedMs: number): void {
+        const sim = this.app.sim;
+        const simMs = (sim.t - this.secSimTime) * 1000;
+        const engineMs = sim.digitalEngineMs;
+        const busyMs = this.busyMs;
+        this.secSimTime = sim.t;
+        sim.digitalEngineMs = 0;
+        this.busyMs = 0;
+        if (!sim.digitalReady || simMs <= 0 || engineMs <= 0 || elapsedMs > 5000) {
+            this.perfReadout = null;
+            return;
+        }
+        const fmt = (x: number) => x >= 10 ? x.toFixed(0) : x.toFixed(2);
+        const engineMsPerSimMs = engineMs / simMs;
+        const otherMs = Math.max(0, busyMs - engineMs);
+        const maxSpeed = (elapsedMs - otherMs) / engineMsPerSimMs / elapsedMs;
+        this.perfReadout = [
+            `${sim.digitalEngine}: ${fmt(simMs / elapsedMs)}x, busy ${Math.round(100 * busyMs / elapsedMs)}%`,
+            `engine ${fmt(1 / engineMsPerSimMs)}x, est. max ${fmt(maxSpeed)}x`,
+        ];
     }
 
     // called when updateCircuit() itself threw an exception, so drawBottomArea()
@@ -1367,6 +1401,8 @@ export class UIManager {
                 if (timerate >= 0.1 && this.steprate >= nominalSteprate * 0.9)
                     info[0] += " (" + CircuitElm.showFormat.format(timerate) + "x)";
                 info[1] = Locale.LS("time step = ") + CircuitElm.getTimeText(this.app.sim.timeStep);
+                if (this.perfReadout != null && this.app.simIsRunning())
+                    [info[2], info[3]] = this.perfReadout;
             }
             if (this.app.hintType !== -1) {
                 let i: number;

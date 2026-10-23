@@ -32,6 +32,8 @@ import { phasedClockLogic } from "./digital/clockChip";
 import { TIMESCALE } from "./digital/constants";
 import { ChipState } from "./digital/chip";
 import type { Chip } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
+import { WasmChip } from "./digital/wasmEngine";
 
 export class RailElm extends VoltageElm {
     // Two RailElm waveforms are digital sources: a square-wave rail (any WF_SQUARE RailElm, not
@@ -231,7 +233,7 @@ export class RailElm extends VoltageElm {
      * re-primes the next edge. Downstream links get `updateInputs()` if the value changed (a real
      * toggle) or `deactivateOutputs()` if not (wakes + re-arms for later); an ASLEEP `chip` is
      * backfilled first so `history` doesn't gap. */
-    retimePhase(chip: Chip, phaseShift: number, dutyCycle?: number): void {
+    retimePhase(chip: EngineChip, phaseShift: number, dutyCycle?: number): void {
         this.phaseShift = phaseShift;
         if (dutyCycle !== undefined) this.dutyCycle = dutyCycle;
         if (!this.isDigitalClock()) return;
@@ -248,6 +250,14 @@ export class RailElm extends VoltageElm {
         const nowTicks = Number(now) + (CircuitElm.sim?.digitalTickEpoch ?? 0);
         const { highTicks, lowTicks, startsHigh, edgeDelay } =
             RailElm.phaseLayout(period, effectiveDutyCycle, phaseShift, nowTicks);
+        if (chip instanceof WasmChip) {
+            chip.retimeClock(lowTicks, highTicks, startsHigh ? 1 : 0, edgeDelay); // the same, in engine.cpp
+            return;
+        }
+        this.retimeTsChip(chip as Chip, lowTicks, highTicks, startsHigh, edgeDelay);
+    }
+
+    private retimeTsChip(chip: Chip, lowTicks: number, highTicks: number, startsHigh: boolean, edgeDelay: number): void {
         const oldOutput = chip.output;
         const delay = edgeDelay; // already ticks-from-`now` - see phaseLayout()'s own docstring
         chip.delay = [lowTicks, highTicks];

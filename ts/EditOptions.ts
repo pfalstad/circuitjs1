@@ -27,6 +27,7 @@ import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { Locale } from "./Locale";
 import { setPromotionEnabled, promotionEnabled } from "./digital/constants";
+import { loadWasmEngine, wasmEngineLoaded } from "./digital/wasmEngine";
 
 export class EditOptions implements Editable {
     app: CirSim;
@@ -126,9 +127,18 @@ export class EditOptions implements Editable {
             return ei;
         }
 
+        if (n === 19) {
+            const ei = new EditInfo("Digital Engine", 0, -1, -1);
+            ei.choice = new Choice();
+            ei.choice.add(Locale.LS("WebAssembly"));
+            ei.choice.add(Locale.LS("TypeScript"));
+            ei.choice.select(this.sim.digitalEngine === "wasm" ? 0 : 1);
+            return ei;
+        }
+
         // add new options here (before the adjustTimeStep conditional below)
 
-        if (n === 19 && this.sim.adjustTimeStep)
+        if (n === 20 && this.sim.adjustTimeStep)
             return new EditInfo("Minimum time step size (s)", this.sim.minTimeStep, 0, 0).setPositive();
 
         // do not add new options here because they will be hidden unless adjustTimeStep is set
@@ -242,7 +252,22 @@ export class EditOptions implements Editable {
             setPromotionEnabled(!ei.checkbox!.getState());
             this.app.needAnalyze();
         }
-        if (n === 19 && ei.value > 0)
+        if (n === 19) {
+            // Switching rebuilds the circuit, which carries its state over the same way an edit does.
+            const engine = ei.choice!.getSelectedIndex() === 0 ? "wasm" : "ts";
+            if (engine !== this.sim.digitalEngine) {
+                if (engine === "ts" || wasmEngineLoaded()) {
+                    this.sim.digitalEngine = engine;
+                    this.app.needAnalyze();
+                } else {
+                    loadWasmEngine().then(() => {
+                        this.sim.digitalEngine = "wasm";
+                        this.app.needAnalyze();
+                    }, (e) => console.error("WASM digital engine failed to load", e));
+                }
+            }
+        }
+        if (n === 20 && ei.value > 0)
             this.sim.minTimeStep = ei.value;
     }
 

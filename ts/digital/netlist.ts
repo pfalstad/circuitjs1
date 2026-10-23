@@ -83,9 +83,10 @@ function computeLut(d: ChipDesc): number[] {
 
 /** `labels` optionally names a chip (by its CircuitDesc name) for whoever replays the result.
  * A custom cell with no native kind is an error unless `jsCells` is given, in which case its
- * closure is appended there and the cell refers to it by index. */
+ * closure is appended there and the cell refers to it by index. `sramMems`, if given, receives
+ * each SRAM's memory at its index in `srams`. */
 export function serializeCircuitDesc(desc: CircuitDesc, labels?: Map<string, string>,
-        optimizationDisabled?: Set<string>, jsCells?: CustomLogic[]): SerialDesc {
+        optimizationDisabled?: Set<string>, jsCells?: CustomLogic[], sramMems?: SramMemory[]): SerialDesc {
     if (desc.subCircuits.length) throw new Error("serializeCircuitDesc: sub-circuits are not supported");
 
     const sramIds = new Map<SramMemory, number>();
@@ -111,6 +112,7 @@ export function serializeCircuitDesc(desc: CircuitDesc, labels?: Map<string, str
                     const words: number[] = [];
                     for (let a = 0; a < (1 << n.addrBits); a++) words.push(n.mem.read(a));
                     srams.push({ addrBits: n.addrBits, words });
+                    sramMems?.push(n.mem);
                 }
                 return { kind: "sram", mem: id, addrBits: n.addrBits, bitMask: n.bitMask, invert: n.invert };
             }

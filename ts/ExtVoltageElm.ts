@@ -29,7 +29,7 @@ import { StringTokenizer } from "./StringTokenizer";
 import { sourceCell, pushSourceValue } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
-import type { Chip } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 
 export class ExtVoltageElm extends RailElm {
     name: string;
@@ -43,7 +43,7 @@ export class ExtVoltageElm extends RailElm {
     // shared VCC/GND sentinel chip at graph-build time - not something a later setVoltage() call
     // could push a live change into). Set by whoever builds the digital graph
     // (SimulationManager.initDigitalCircuit()) to this element's own synthesized Chip.
-    digitalChip: Chip | null = null;
+    digitalChip: EngineChip | null = null;
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -81,7 +81,7 @@ export class ExtVoltageElm extends RailElm {
      * shared since the two elements don't share a base class for it. Called once at
      * Circuit-construction time (via digitalSynthesis()'s customUpdate) for the correct initial
      * value, and again from setVoltage() below for every live setExtVoltage() call. */
-    private static pushDigitalValue(chip: Chip, high: boolean): void {
+    private static pushDigitalValue(chip: EngineChip, high: boolean): void {
         pushSourceValue(chip, high);
     }
 

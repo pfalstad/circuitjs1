@@ -210,6 +210,18 @@ export class CirSim {
         const { SimulationManager } = await import('./SimulationManager');
         this.sim = new SimulationManager(this);
 
+        // The digital engine: WASM unless ?engine=ts, or if the module fails to load.
+        if (new QueryParameters().getValue("engine") !== "ts") {
+            try {
+                const { loadWasmEngine } = await import('./digital/wasmEngine');
+                await loadWasmEngine();
+                this.sim.digitalEngine = "wasm";
+            } catch (e) {
+                console.error("WASM digital engine failed to load, using the TypeScript one", e);
+            }
+        }
+        console.log(`digital engine: ${this.sim.digitalEngine}`);
+
         CircuitElm.initClass(this, this.sim);
 
         const { UIManager } = await import('./UIManager');

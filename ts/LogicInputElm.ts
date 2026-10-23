@@ -32,7 +32,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
 import { sourceCell, pushSourceValue } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
-import type { Chip } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { parseFloatStrict } from "./NumberParse";
 
@@ -87,7 +87,7 @@ export class LogicInputElm extends SwitchElm {
      * flip) when the desired value actually differs from the chip's current output. Called once
      * at Circuit-construction time (Chip.initialize()) for the correct initial value, and again
      * from toggle() below for every live click - same function either way. */
-    private static pushDigitalValue(chip: Chip, high: boolean): void {
+    private static pushDigitalValue(chip: EngineChip, high: boolean): void {
         pushSourceValue(chip, high);
     }
 
@@ -95,7 +95,7 @@ export class LogicInputElm extends SwitchElm {
      * chipsByElm) to this element's own synthesized Chip, so toggle() below has something to
      * push a live value change into. null until then (or for a ternary LogicInputElm, which
      * isDigitalSource() excludes from the netlist entirely). */
-    digitalChip: Chip | null = null;
+    digitalChip: EngineChip | null = null;
 
     digitalSynthesis(): DigitalSynthesis | null {
         if (!this.isDigitalSource()) return null;

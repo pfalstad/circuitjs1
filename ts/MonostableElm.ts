@@ -29,6 +29,7 @@ import { monostableQCell, monostableExpCell, type MonostableShared } from "./dig
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
+import { refreshNativeParams } from "./digital/DigitalGraphBuilder";
 import { TIMESCALE } from "./digital/constants";
 import { parseFloatStrict } from "./NumberParse";
 
@@ -158,6 +159,6 @@ export class MonostableElm extends ChipElm {
         super.addJSMethods();
         const p = this._jsProxy!;
         p['getPeriod'] = () => this.delay;
-        p['setPeriod'] = (v: number) => { this.delay = v; };
+        p['setPeriod'] = (v: number) => { this.delay = v; refreshNativeParams(this); };
     }
 }

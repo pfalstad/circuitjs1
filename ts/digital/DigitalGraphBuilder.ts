@@ -20,8 +20,11 @@ import type { ChipDesc, ChipLogic, CustomLogic } from "./chip_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
 import { Circuit, SUBCYCLE_SIZE } from "./circuit";
-import { serializeCircuitDesc } from "./netlist";
+import { serializeCircuitDesc, flattenNetlist } from "./netlist";
 import type { SerialDesc } from "./netlist";
+import type { EngineChip, EngineCircuit, EngineName } from "./engine";
+import type { SramMemory } from "./nativeKinds";
+import { WasmCircuit, WasmChip } from "./wasmEngine";
 
 /**
  * What a digital-capable CircuitElm subclass returns from digitalSynthesis(): the ChipDesc[]
@@ -343,15 +346,21 @@ export function serializeDigitalCircuit(elmList: any[], jsCells?: CustomLogic[])
     return sd;
 }
 
-export interface DigitalGraph {
-    circuit: Circuit;
+/** A built circuit, on either engine (the type parameters narrow it for code that knows which). */
+export interface DigitalGraph<C extends EngineChip = EngineChip, K extends EngineCircuit = EngineCircuit> {
+    circuit: K;
+    /** The same circuit when it runs on the WASM engine, else null. Freed by
+     * disposeDigitalGraph(). */
+    wasm: WasmCircuit | null;
+    /** The WASM circuit's SRAMs (see SramMemory.syncFromEngine). */
+    srams: SramMemory[];
     /** Every digital-capable element's own Chip(s), for whoever built this graph to read
      * output/history from or push a live external change into (e.g. LogicInputElm.toggle() -
      * see its own digitalSynthesis()). A tie source's entry is the shared `_VCC`/`_GND` chip
      * (circuit.chips[0]/[1] - see circuit.ts's createSpecialChips(), never pruned since both are
      * CUSTOM_CHIP), same object for every element tied to that rail. Absent for any element
      * digitalSynthesis()/digitalTie() didn't produce a netlist entry for. */
-    chipsByElm: Map<any, Chip[]>;
+    chipsByElm: Map<any, C[]>;
     /** The real Chip that actually determines a shared node's resolved value, keyed by the
      * CircuitNode object itself - populated for every node resolveNodeDrivers() saw at least one
      * digital-output candidate for, whether or not that node ended up merged. Needed because a
@@ -362,14 +371,20 @@ export interface DigitalGraph {
      * below; digitalScopeSourceNew/digitalStateTextForOutput similarly) must resolve through here
      * instead, or it silently shows whichever driver's own element happens to run last/first
      * rather than the actual merged bus value. */
-    triStateChipByNode: Map<any, Chip>;
+    triStateChipByNode: Map<any, C>;
 }
 
 /** Full netlist build for a freshly-stamped circuit: synthesize + wire every digital-capable
- * element and construct the dice-ts Circuit that runs them. Must run after the node list and
- * wire closure are built (SimulationManager.makeNodeList()/calcWireInfo()), mirroring
- * CircuitWiring.wireDigitalCircuit()'s own precondition. */
-export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
+ * element and construct the circuit that runs them, on `engine` (the WASM one needs
+ * loadWasmEngine() to have finished). Must run after the node list and wire closure are built
+ * (SimulationManager.makeNodeList()/calcWireInfo()), mirroring CircuitWiring.wireDigitalCircuit()'s
+ * own precondition. */
+export function buildDigitalGraph(elmList: any[], engine: EngineName): DigitalGraph {
+    return engine === "wasm" ? buildWasmDigitalCircuit(elmList) : buildDigitalCircuit(elmList);
+}
+
+/** buildDigitalGraph() on the TypeScript engine. */
+export function buildDigitalCircuit(elmList: any[]): DigitalGraph<Chip, Circuit> {
     const synthMap = synthesizeAll(elmList);
     const resolved = resolveNodeDrivers(synthMap);
     const circuit = new Circuit(layoutFromSynth(synthMap, resolved));
@@ -394,7 +409,43 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
             for (const chip of chipsByElm.get(elm)!) chip.optimizationDisabled = true;
     }
 
-    const triStateChipByNode = new Map<any, Chip>();
+    return { circuit, wasm: null, srams: [], chipsByElm, triStateChipByNode: triStateChips(resolved, byName) };
+}
+
+/** buildDigitalGraph() on the WASM engine: the same CircuitDesc, serialized and flattened (see
+ * netlist.ts). Custom cells with no native kind (StopTriggerElm's) run as JS callbacks. */
+function buildWasmDigitalCircuit(elmList: any[]): DigitalGraph<WasmChip, WasmCircuit> {
+    const synthMap = synthesizeAll(elmList);
+    const resolved = resolveNodeDrivers(synthMap);
+    const optDisabled = new Set<string>();
+    for (const entry of synthMap.values()) if (entry.optimizationDisabled) optDisabled.add(entry.name);
+    const jsCells: CustomLogic[] = [];
+    const srams: SramMemory[] = [];
+    const net = flattenNetlist(serializeCircuitDesc(layoutFromSynth(synthMap, resolved), undefined, optDisabled, jsCells, srams));
+    const circuit = new WasmCircuit(net, jsCells);
+    srams.forEach((mem, id) => {
+        const size = 1 << net.srams[id].addrBits;
+        mem.syncFromEngine = () => {
+            for (let a = 0; a < size; a++) {
+                const v = circuit.sramRead(id, a);
+                if (v !== mem.read(a)) mem.write(a, v);
+            }
+        };
+    });
+
+    const byName = new Map<string, WasmChip[]>();
+    for (const [name, cells] of net.chipCells) byName.set(name, cells.map(i => circuit.chip(i)));
+    const chipsByElm = new Map<any, WasmChip[]>();
+    for (const [elm, entry] of synthMap) {
+        if (entry.isTie) chipsByElm.set(elm, [circuit.chip(entry.name === "_VCC" ? 0 : 1)]);
+        else chipsByElm.set(elm, byName.get(entry.name) ?? []);
+    }
+
+    return { circuit, wasm: circuit, srams, chipsByElm, triStateChipByNode: triStateChips(resolved, byName) };
+}
+
+function triStateChips<C>(resolved: ReturnType<typeof resolveNodeDrivers>, byName: Map<string, C[]>): Map<any, C> {
+    const triStateChipByNode = new Map<any, C>();
     for (const [node, driver] of resolved.byNode) {
         // Index by driver.pin's OWN cell, not [0] - an entry with several output cells (a
         // multi-bit TriStateElm bus, ROMElm's per-bit driver cells, ...) would otherwise resolve
@@ -404,8 +455,34 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
         const chip = idx >= 0 ? byName.get(driver.entry.name)?.[idx] : undefined;
         if (chip) triStateChipByNode.set(node, chip);
     }
+    return triStateChipByNode;
+}
 
-    return { circuit, chipsByElm, triStateChipByNode };
+/** Pushes the current values of `elm`'s live native-cell parameters (a monostable's period and
+ * retrigger flag) into the running WASM circuit, after the element changed them without a
+ * rebuild. The TS engine reads them through the cells' closures, so needs nothing. The
+ * parameter slots are netlist.ts's flattenNetlist() layout. */
+export function refreshNativeParams(elm: any): void {
+    if (!currentGraph?.wasm || !isDigitalSynthesizable(elm)) return;
+    const chips = currentGraph.chipsByElm.get(elm) as WasmChip[] | undefined;
+    const synth = elm.digitalSynthesis();
+    if (!chips || synth == null) return;
+    synth.desc.forEach((d: ChipDesc, k: number) => {
+        const n = d.native;
+        if (n?.kind !== "monoQ" && n?.kind !== "monoExp") return;
+        chips[k].setParam(2, n.fallDelay());
+        if (n.kind === "monoQ") chips[k].setParam(3, n.retriggerable() ? 1 : 0);
+    });
+}
+
+/** Frees a graph's WASM circuit, first copying its SRAM contents back to their elements. */
+export function disposeDigitalGraph(graph: DigitalGraph): void {
+    if (!graph.wasm) return;
+    for (const mem of graph.srams) {
+        mem.syncFromEngine?.();
+        mem.syncFromEngine = null;
+    }
+    graph.wasm.dispose();
 }
 
 // --- Phase 5 (see noble-stirring-rabin.md): sync/scope-source helpers against the built
@@ -442,7 +519,7 @@ export function digitalOutputPosts(elm: any): number[] {
  * tell us which cell (index into chipsByElm.get(elm)) owns that pin, since createChip() builds
  * one real Chip per desc[] entry in array order (see circuit.ts's CircuitBuilder.createChip()) -
  * the same order chipsByElm's own build loop above preserves. */
-export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+export function digitalOutputChip<C extends EngineChip>(elm: any, postIndex: number, chipsByElm: Map<any, C[]>): C | null {
     if (isDigitalTieSource(elm) && elm.digitalTie() != null)
         return postIndex === 0 ? (chipsByElm.get(elm)?.[0] ?? null) : null;
     const pin = digitalOutputPin(elm, postIndex);
@@ -459,7 +536,7 @@ export function digitalOutputChip(elm: any, postIndex: number, chipsByElm: Map<a
  * syncDigitalToNodesNew, digitalScopeSourceNew, digitalStateTextForOutput below - needs this
  * instead of digitalOutputChip() directly, or it silently shows whichever driver on the shared
  * node happens to resolve last rather than the actual bus value. */
-export function digitalOutputChipResolved(elm: any, postIndex: number, graph: DigitalGraph): Chip | null {
+export function digitalOutputChipResolved<C extends EngineChip>(elm: any, postIndex: number, graph: DigitalGraph<C, EngineCircuit>): C | null {
     if (isDigitalTriStateDriver(elm) && elm.isTriStateOutput(postIndex)) {
         const node = (elm as any).nodes?.[postIndex];
         const chip = node != null ? graph.triStateChipByNode.get(node) : undefined;
@@ -487,7 +564,7 @@ export function digitalOutputPin(elm: any, postIndex: number): number | null {
  * own - e.g. JKFlipFlopElm's master cell, which outputs onto an internal-only pin later buffered
  * out to the real Q/notQ posts by separate, memoryless cells (see
  * JKFlipFlopElm.digitalSynthesis()'s own docstring). */
-function digitalChipForPin(elm: any, pin: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+function digitalChipForPin<C extends EngineChip>(elm: any, pin: number, chipsByElm: Map<any, C[]>): C | null {
     if (!isDigitalSynthesizable(elm)) return null;
     const synth = elm.digitalSynthesis();
     if (synth == null) return null;
@@ -501,7 +578,7 @@ function digitalChipForPin(elm: any, pin: number, chipsByElm: Map<any, Chip[]>):
  * output pin" (the old engine's `digitalPins[k]` convention - see e.g.
  * CounterElm.getInfo()/DFlipFlopElm.getInfo()) needs instead. For a single-output element (a
  * gate, a rail, a delay buffer, ...) outputIndex is always 0. */
-export function digitalOutputChipAt(elm: any, outputIndex: number, chipsByElm: Map<any, Chip[]>): Chip | null {
+export function digitalOutputChipAt<C extends EngineChip>(elm: any, outputIndex: number, chipsByElm: Map<any, C[]>): C | null {
     const post = digitalOutputPosts(elm)[outputIndex];
     return post === undefined ? null : digitalOutputChip(elm, post, chipsByElm);
 }
@@ -569,6 +646,16 @@ export function isDigitalInitialStateSource(elm: any): elm is DigitalInitialStat
  * edge - see digitalSynthesisWholeRegister()'s own logic - so this is not a redundant no-op). */
 export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
     seedChipValues(initialStateEntries(elmList, (elm, pin) => digitalChipForPin(elm, pin, chipsByElm)));
+}
+
+/** seedInitialDigitalState() on either engine. */
+export function seedDigitalGraph(elmList: any[], graph: DigitalGraph): void {
+    if (graph.wasm) {
+        const chipsByElm = graph.chipsByElm as Map<any, WasmChip[]>;
+        graph.wasm.seed(initialStateEntries(elmList, (elm, pin) => digitalChipForPin(elm, pin, chipsByElm)?.index ?? null));
+    } else {
+        seedInitialDigitalState(elmList, graph.chipsByElm as Map<any, Chip[]>);
+    }
 }
 
 /** Every element's digitalInitialState() entries, in order, each resolved by `resolve` to the
@@ -745,7 +832,7 @@ export function syncNodesToPassiveChips(elmList: any[]): void {
  * fixed-logic cell - never promotes and never needs to, unlike a real Passive chip still proving
  * periodicity), just phrased against dice-ts's ChipState/cycleTime instead of the old engine's
  * State/cycleTime. */
-export function digitalStateTextNew(chip: Chip | null): string {
+export function digitalStateTextNew(chip: EngineChip | null): string {
     if (chip == null) return "not wired";
     if (chip.state === ChipState.PASSIVE && chip.inputLinks.length === 0) return "Constant";
     switch (chip.state) {
@@ -790,7 +877,7 @@ export function digitalStateTextForOutput(elm: any, outputIndex: number): string
 // Resolves `elm` to the single real Chip that supplies this element's digital output
 // voltage, for ScopePlot to source a 1-d trace from history/backfillHistory() instead of
 // per-frame analog sampling.
-export function digitalScopeSourceNew(elm: any): Chip | null {
+export function digitalScopeSourceNew(elm: any): EngineChip | null {
     if (elm == null || currentGraph == null) return null;
     const posts = digitalOutputPosts(elm);
     if (posts.length === 1) return digitalOutputChipResolved(elm, posts[0], currentGraph);

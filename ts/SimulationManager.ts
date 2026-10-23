@@ -29,7 +29,8 @@ import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
 import { setTimescale, promotionEnabled } from "./digital/constants";
-import { buildDigitalCircuit, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedInitialDigitalState } from "./digital/DigitalGraphBuilder";
+import { buildDigitalGraph, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedDigitalGraph, disposeDigitalGraph } from "./digital/DigitalGraphBuilder";
+import type { EngineName } from "./digital/engine";
 import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 import { parseIntStrict } from "./NumberParse";
 
@@ -116,6 +117,11 @@ export class SimulationManager {
     // Built by DigitalGraphBuilder.buildDigitalCircuit() against the ported dice-ts engine
     // (digital/circuit.ts's Circuit/digital/chip.ts's Chip).
     digitalGraph: DigitalGraph | null = null;
+    // Which engine the next build runs on. CirSim switches this to "wasm" once the module has
+    // loaded (see digital/wasmEngine.ts); "ts" is circuit.ts's.
+    digitalEngine: EngineName = "ts";
+    // Wall ms spent inside the engine since UIManager's speed readout last read it.
+    digitalEngineMs = 0;
     digitalReady: boolean = false;
 
     // Ticks that had already elapsed (timeStepCount) when the CURRENT digitalGraph was built.
@@ -1190,7 +1196,8 @@ export class SimulationManager {
         // digitalSynthesis() reads it (RailElm.digitalSynthesis()) to prime its phase against
         // absolute time rather than restarting its cycle at the build instant.
         this.digitalTickEpoch = this.timeStepCount;
-        this.digitalGraph = buildDigitalCircuit(this.elmArr);
+        if (this.digitalGraph) disposeDigitalGraph(this.digitalGraph);
+        this.digitalGraph = buildDigitalGraph(this.elmArr, this.digitalEngine);
         setCurrentDigitalGraph(this.digitalGraph);
 
         if (!promotionEnabled)
@@ -1210,7 +1217,7 @@ export class SimulationManager {
         for (const [elm, chips] of this.digitalGraph.chipsByElm)
             if ("digitalChip" in elm) (elm as any).digitalChip = chips[0] ?? null;
 
-        seedInitialDigitalState(this.elmArr, this.digitalGraph.chipsByElm);
+        seedDigitalGraph(this.elmArr, this.digitalGraph);
 
         this.digitalReady = true;
     }
@@ -1507,7 +1514,9 @@ export class SimulationManager {
 	// count, so a cut-short frame doesn't silently claim sim time that
 	// was never actually simulated.
 	const circuit = this.digitalGraph.circuit;
+	const engineStart = performance.now();
 	const actualTicks = Number(circuit.runWithDeadline(ticks, tm + frameTimeLimit));
+	this.digitalEngineMs += performance.now() - engineStart;
 
 	this.t += actualTicks * this.maxTimeStep;
 	this.timeStepAccum = 0;

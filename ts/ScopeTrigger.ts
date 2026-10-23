@@ -23,7 +23,7 @@ import { ScopePlot } from "./ScopePlot";
 import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
-import type { Chip } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 
 export class ScopeTrigger {
     // Trigger mode constants
@@ -63,7 +63,7 @@ export class ScopeTrigger {
     lastCheckTick: number = -1;
     // Chip being scanned; ticks restart whenever the digital graph is rebuilt, so a new chip
     // means starting over.
-    chip: Chip | null = null;
+    chip: EngineChip | null = null;
     autoTimeout: number = 0;
 
     isActive(): boolean {

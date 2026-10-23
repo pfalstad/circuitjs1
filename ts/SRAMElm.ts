@@ -63,6 +63,23 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     static contentsOverride: string | null = null;
     static fileNameOverride: string | null = null;
 
+    // The digital cells' view of the contents, read live through `this.map` (which reset/load
+    // replace wholesale). One object for the element's lifetime, so syncFromEngine (set while
+    // the WASM engine holds the live contents) can be reached from here.
+    private memObj: SramMemory | undefined;
+    private get mem(): SramMemory {
+        return this.memObj ??= {
+            read: (address) => this.map.get(address) ?? 0,
+            write: (address, value) => { this.map.set(address, value); },
+        };
+    }
+
+    /** Brings `map` up to date with the running digital circuit. */
+    private syncContents(): void { this.mem.syncFromEngine?.(); }
+
+    /** Called when `map` is replaced: the running circuit's copy is no longer wanted. */
+    private detachContents(): void { this.mem.syncFromEngine = null; }
+
     hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
     hasInvertedOutput(): boolean { return this.hasFlag(SRAMElm.FLAG_INVERT_OUTPUT); }
 
@@ -110,6 +127,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     }
     dumpXmlState(doc: Document, elem: Element): void {
         super.dumpXmlState(doc, elem);
+        this.syncContents();
         if (this.map.size > 0)
             elem.appendChild(doc.createTextNode(this.contentsToString()));
     }
@@ -127,8 +145,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 
     reset(): void {
         super.reset();
-        if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0 && this.initialMap !== null)
+        if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0 && this.initialMap !== null) {
+            this.detachContents();
             this.map = new Map(this.initialMap);
+        }
     }
 
     nonLinear(): boolean { return true; }
@@ -263,6 +283,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     }
 
     contentsToString(): string {
+        this.syncContents();
         const hex = this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY);
         let s = "";
         const maxI = 1 << this.addressBits;
@@ -293,6 +314,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     }
 
     parseContentsString(s: string): void {
+        this.detachContents();
         this.map.clear();
         const lines = s.split("\n");
         for (let i = 0; i !== lines.length; i++) {
@@ -354,9 +376,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         const reloadIdx = SRAMElm.loadFileSupported() ? 5 : 4;
         if (n === reloadIdx) {
             this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_RELOAD_ON_RESET);
-            if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
+            if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0) {
+                this.syncContents();
                 this.initialMap = new Map(this.map);
-            else
+            } else
                 this.initialMap = null;
         }
         if (n === reloadIdx + 1) {
@@ -484,17 +507,11 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
         if (separate) for (let i = 0; i < n; i++) pinMap.set(this.dataInNodes + i, dataInPin(i));
 
-        // Read live through `this.map`, which reset/load replace wholesale.
-        const mem: SramMemory = {
-            read: (address) => this.map.get(address) ?? 0,
-            write: (address, value) => { this.map.set(address, value); },
-        };
-
         const desc: ChipDesc[] = [];
         for (let i = 0; i < n; i++) {
             const bitMask = 1 << (n - 1 - i);
 
-            desc.push(sramBitCell(mem, m, bitMask, invert)
+            desc.push(sramBitCell(this.mem, m, bitMask, invert)
                 .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), dataInPin(i))
                 .outputPin(driverPin(i))
                 .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));

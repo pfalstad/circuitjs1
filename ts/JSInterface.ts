@@ -20,7 +20,8 @@
 
 import { digitalScopeSourceNew, serializeDigitalCircuit } from "./digital/DigitalGraphBuilder";
 import { ChipState } from "./digital/chip";
-import type { Chip, HistoryWatcher } from "./digital/chip";
+import type { HistoryWatcher } from "./digital/chip";
+import type { EngineChip } from "./digital/engine";
 
 // One JS-side watch on a named signal. Mirrors ScopePlot's own digitalChip attachment
 // (setDigitalChip()/historyFloor()) - see that file's comments for why a HistoryWatcher has to
@@ -28,7 +29,7 @@ import type { Chip, HistoryWatcher } from "./digital/chip";
 // is the same pattern, just reporting to JS instead of painting a scope trace.
 class JSSignalWatch implements HistoryWatcher {
     name: string;
-    chip: Chip | null = null;
+    chip: EngineChip | null = null;
     // Tick chip.history has been read up through, or -1 if never (see historyEpoch below for
     // where a cold-start read begins instead).
     lastFilledTick: number = -1;
@@ -41,7 +42,7 @@ class JSSignalWatch implements HistoryWatcher {
         return this.lastFilledTick < 0 ? -1 : this.lastFilledTick;
     }
 
-    setChip(chip: Chip | null): void {
+    setChip(chip: EngineChip | null): void {
         if (this.chip !== null)
             this.chip.removeHistoryWatcher(this);
         this.chip = chip;
