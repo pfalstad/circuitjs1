@@ -69,9 +69,12 @@ interface EngineModule {
 let modulePromise: Promise<EngineModule> | null = null;
 let engine: EngineModule | null = null;
 
-/** Loads the WASM module (once). */
+/** Loads the WASM module (once). Rejects where the browser has no WebAssembly, so the caller
+ * can fall back to the TypeScript engine. */
 export function loadWasmEngine(): Promise<EngineModule> {
     if (!modulePromise) {
+        if (typeof WebAssembly !== "object")
+            return Promise.reject(new Error("this browser has no WebAssembly support"));
         modulePromise = import("./wasm/engine.js").then(async (m: any) => {
             engine = await m.default();
             (engine as any).jsCustomUpdate = (c: number, chip: number, mask: number) =>
