@@ -20,6 +20,9 @@ import { SchmittElm } from "./SchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { DFlipFlopElm } from "./DFlipFlopElm";
 import { CounterElm } from "./CounterElm";
+import { FullAdderElm } from "./FullAdderElm";
+import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
+import { DACElm } from "./DACElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -253,5 +256,24 @@ describe("SPICE export", () => {
                                ".subckt COUNTER4_MOD10 clk r q3 q2 q1 q0\n");
         expect(text.match(/^Cst\d /gm)).toEqual(["Cst0 ", "Cst1 ", "Cst2 ", "Cst3 "]);
         expect(text).toMatch(/^Bout_q0 q0 0 V=V\(lag_q0\)$/m);
+    });
+
+    it("exports combinational chips", () => {
+        const add = place(new FullAdderElm(0, 0), 0, 0, 64, 0);
+        const seg = place(new SevenSegDecoderElm(0, 0), 0, 200, 64, 200);
+        const dac = place(new DACElm(0, 0), 0, 400, 64, 400);
+        const res = exportSpiceNetlist([add, seg, dac]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text.match(/^\.subckt .*/gm)).toEqual([
+            ".subckt 74HC283 a0 a1 a2 a3 b0 b1 b2 b3 s0 s1 s2 s3 cin c",
+            ".subckt SEG7DEC a b c d e f g i3 i2 i1 i0",
+            ".subckt DAC4 d0 d1 d2 d3 o vp",
+        ]);
+        // each carry is on its own node, made from the last one
+        expect(res.text).toMatch(/^Bc2 c2 0 V=V\(l_a1\)\*V\(l_b1\)\+V\(c1\)\*/m);
+        // segment b is off only for 5, 6, b, c, e and f
+        const b = res.text.match(/^Braw_b raw_b 0 V=5\*\((.*)\)$/m)![1];
+        expect(b.split("+").length).toBe(10);
+        expect(res.text).toMatch(/^Braw_o raw_o 0 V=V\(vp\)\*\(0\.0666667\*V\(l_d0\)\+0\.133333\*V\(l_d1\)/m);
     });
 });

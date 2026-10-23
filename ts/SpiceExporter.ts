@@ -75,6 +75,14 @@ import { Counter2Elm } from "./Counter2Elm";
 import { RingCounterElm } from "./RingCounterElm";
 import { SipoShiftElm } from "./SipoShiftElm";
 import { LatchElm } from "./LatchElm";
+import { MultiplexerElm } from "./MultiplexerElm";
+import { DeMultiplexerElm } from "./DeMultiplexerElm";
+import { HalfAdderElm } from "./HalfAdderElm";
+import { FullAdderElm } from "./FullAdderElm";
+import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
+import { AnalogMuxElm } from "./AnalogMuxElm";
+import { DACElm } from "./DACElm";
+import { ADCElm } from "./ADCElm";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
@@ -298,7 +306,7 @@ function chipPinNames(e: any): string[] {
         let s = p.text === "" && p.clock ? "clk" : p.text;
         if (p.lineOver || (p.bubble && !p.clock))
             s += "b";
-        s = sanitize(s.toLowerCase());
+        s = sanitize(s.toLowerCase().replace("+", "p"));
         let name = s;
         for (let j = 2; used.has(name); j++)
             name = s + j;
@@ -309,12 +317,12 @@ function chipPinNames(e: any): string[] {
 
 interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[] }
 
-// a sequential logic chip as a logic part, or null if it can't be.  each input is turned into
-// a level from 0 to 1 once, on its own node, and each output is a logic output of the state
-function sequentialPart(ce: CircuitElm, timeStep: number): ChipPart | null {
+// a logic chip as a logic part, or null if it can't be.  each input is turned into a level
+// from 0 to 1 once, on its own node, and each output is a logic output of the inputs and state
+function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
     const C = ce.getDumpClass();
     const e = ce as any;
-    if (e.useBus())
+    if (e.useBus() || e.pins.some((p: any) => p.busWidth > 1))
         return null;
     const hi: number = e.highVoltage, bits: number = e.bits;
     const pins = chipPinNames(e), body: string[] = [];
@@ -458,11 +466,129 @@ function sequentialPart(ce: CircuitElm, timeStep: number): ChipPart | null {
                        (reset ? `, reset active ${e.resetActiveLow() ? "low" : "high"}` : "") + (set ? ", set" : "") +
                        (ies.length ? ", input enables" : "") };
     }
+    // posts: the data inputs, the selects, the output, then the inverted output and the strobe,
+    // which holds the output low
+    if (C === MultiplexerElm) {
+        const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
+        let f = Array.from({ length: count }, (_, k) => `${matches(sel, k)}*${input(k)}`).join("+");
+        if (e.strobe >= 0)
+            f = `${not(input(e.strobe))}*(${f})`;
+        body.push(`Bsel sel 0 V=${f}`);
+        output(e.outputPin, "V(sel)");
+        if (e.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT))
+            output(e.outputPin + 1, not("V(sel)"));
+        return { want: `MUX${count}` + (e.strobe >= 0 ? "_STR" : ""), size: 1, pins, body,
+                 desc: `${count}-input multiplexer, ${logic}` + (e.strobe >= 0 ? ", strobe active high" : "") };
+    }
+    // posts: the outputs, the selects, then the input.  the other outputs are low (high, inverted)
+    if (C === DeMultiplexerElm) {
+        const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
+        const idle = e.invertOutputs() ? "1" : "0";
+        for (let k = 0; k !== count; k++)
+            output(e.outputPin + k, mux(matches(sel, k), input(e.inputPin), idle));
+        return { want: `DEMUX${count}` + (e.invertOutputs() ? "_INV" : ""), size: 1, pins, body,
+                 desc: `${count}-output demultiplexer, ${logic}` + (e.invertOutputs() ? ", unselected outputs high" : "") };
+    }
+    // posts: sum, carry, A, B
+    if (C === HalfAdderElm) {
+        output(0, xor(input(2), input(3)));
+        output(1, `${input(2)}*${input(3)}`);
+        return { want: "HALFADDER", size: 1, pins, body, desc: `half adder, ${logic}` };
+    }
+    // posts: A, B, the sums, least significant first, then carry in and carry out.  each carry
+    // is on its own node, or each would have the last one in it twice
+    if (C === FullAdderElm) {
+        let c = input(e.carryIn);
+        for (let i = 0; i !== bits; i++) {
+            const a = input(i), b = input(bits + i), ab = xor(a, b);
+            output(2 * bits + i, xor(ab, c));
+            body.push(`Bc${i + 1} c${i + 1} 0 V=${a}*${b}+${c}*${ab}`);
+            c = `V(c${i + 1})`;
+        }
+        output(e.carryOut, c);
+        const chip = bits === 4 ? named("74HC283") : undefined;
+        return { want: chip ?? `ADDER${bits}`, size: 1, pins, body, desc: `${bits}-bit adder, ${logic}` };
+    }
+    // posts: the segments, the inputs, most significant first, then blank (active low).  the
+    // segments for each input come from the decoder itself
+    if (C === SevenSegDecoderElm) {
+        const segs: number = e.getSegmentCount();
+        const ins = [3, 2, 1, 0].map(i => input(segs + i));
+        const saved = e.pins.map((p: any) => p.value);
+        const on: number[][] = Array.from({ length: segs }, (): number[] => []);
+        try {
+            for (let v = 0; v !== 16; v++) {
+                ins.forEach((_, i) => e.pins[segs + 3 - i].value = ((v >> i) & 1) === 1);
+                if (e.hasBlank())
+                    e.pins[segs + 4].value = true;
+                e.execute();
+                for (let j = 0; j !== segs; j++)
+                    if (e.pins[j].value)
+                        on[j].push(v);
+            }
+        } finally {
+            e.pins.forEach((p: any, i: number) => p.value = saved[i]);
+        }
+        const blank = e.hasBlank() ? input(segs + 4) + "*" : "";
+        for (let j = 0; j !== segs; j++)
+            output(j, on[j].length === 0 ? "0" : `${blank}(${on[j].map(v => matches(ins, v)).join("+")})`);
+        return { want: `SEG${segs}DEC` + (e.hasBlank() ? "_BI" : ""), size: 1, pins, body,
+                 desc: `${segs}-segment decoder, ${logic}` + (e.hasBlank() ? ", blank active low" : "") +
+                       (e.blankOnF() ? ", blank on 1111" : "") };
+    }
+    // posts: the inputs, the selects, then the output.  each input has a switch to the output,
+    // closed while it's selected.  with the pulldown, an unselected input is pulled to ground
+    // instead of connected through the off resistance
+    if (C === AnalogMuxElm) {
+        const count: number = e.inputCount, th: number = e.threshold;
+        const sel = Array.from({ length: e.selectBitCount }, (_, i) => level(`V(${pins[count + i]})`, num(th), steepness(2 * th)));
+        const out = pins[e.outputPin], pulldown = e.needsPulldown();
+        body.push(`.model ASW SW (VT=0.5 VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(pulldown ? 1e12 : e.r_off)})`);
+        if (pulldown)
+            body.push(`.model APD SW (VT=-0.5 VH=0 RON=${spiceValue(e.r_off)} ROFF=1t)`);
+        for (let k = 0; k !== count; k++) {
+            body.push(`Bsel${k} sel${k} 0 V=${matches(sel, k)}`,
+                      `S${k} ${pins[k]} ${out} sel${k} 0 ASW`);
+            if (pulldown)
+                body.push(`Spd${k} ${pins[k]} 0 0 sel${k} APD`);
+        }
+        const chip = count === 8 && !pulldown ? "CD4051B" : undefined;
+        return { want: `ANALOGMUX${count}`, size: 1, pins, body,
+                 desc: `${count}-input analog multiplexer, ${spiceValue(e.r_on)} ohms on, switching at ${num(th)}V` +
+                       (pulldown ? ", unselected inputs pulled down" : "") + (chip ? ` (like a ${chip} with INH low)` : "") };
+    }
+    // posts: the inputs, least significant first, the output, then the reference.  the output is
+    // the reference times the input's fraction of full scale
+    if (C === DACElm) {
+        const max = 2 ** bits - 1;
+        const f = Array.from({ length: bits }, (_, i) => `${num(2 ** i / max)}*${input(i)}`).join("+");
+        body.push(...logicOutput(pins[bits], `V(${pins[bits + 1]})*(${f})`, timeStep / 4, "_" + pins[bits]));
+        return { want: `DAC${bits}`, size: 1, pins, body, desc: `${bits}-bit DAC, inputs ${logic}` };
+    }
+    // posts: the outputs, least significant first, the input, then the reference.  the output is
+    // the input's fraction of the reference, rounded down: code j starts at j/max of it (a little
+    // below, so the full reference gives the top code), and bit i changes at each multiple of 2^i
+    if (C === ADCElm) {
+        if (bits > 10)
+            return null;
+        const max = 2 ** bits - 1, vin = `V(${pins[bits]})`, ref = `V(${pins[bits + 1]})`;
+        const k = steepness(hi / max);
+        for (let j = 1; j <= max; j++)
+            body.push(`Bt${j} t${j} 0 V=${level(vin, `${num((j - .05) / max)}*${ref}`, k)}`);
+        for (let i = 0; i !== bits; i++) {
+            let f = "";
+            for (let j = 1 << i, sign = 1; j <= max; j += 1 << i, sign = -sign)
+                f += (sign > 0 ? (f ? "+" : "") : "-") + `V(t${j})`;
+            output(i, `(${f})`);
+        }
+        return { want: `ADC${bits}`, size: 1, pins, body, desc: `${bits}-bit ADC, outputs ${logic}` };
+    }
     return null;
 }
 
-const SEQUENTIAL = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, CounterElm, Counter2Elm,
-                                 RingCounterElm, SipoShiftElm, LatchElm]);
+const LOGIC_CHIPS = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, CounterElm, Counter2Elm,
+                                  RingCounterElm, SipoShiftElm, LatchElm, MultiplexerElm, DeMultiplexerElm,
+                                  HalfAdderElm, FullAdderElm, SevenSegDecoderElm, AnalogMuxElm, DACElm, ADCElm]);
 
 class NetlistWriter {
     lines: string[] = [];
@@ -876,8 +1002,8 @@ class NetlistWriter {
             L(this.packRef(name, usual ? 6 : 1), n[0], n[1], name);
             return;
         }
-        if (SEQUENTIAL.has(C)) {
-            const part = sequentialPart(ce, this.exp.timeStep);
+        if (LOGIC_CHIPS.has(C)) {
+            const part = chipPart(ce, this.exp.timeStep);
             if (part === null) {
                 this.leftOut(ce, n);
                 return;
