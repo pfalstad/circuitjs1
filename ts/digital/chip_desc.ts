@@ -46,7 +46,8 @@ export interface ChipDesc {
     // high after the fact instead would manufacture a rising edge that never happened.
     initOutput?: number;
     // For a `custom` cell, which built-in kind it is - see nativeKinds.ts. A custom cell
-    // without one can only run on the TypeScript engine.
+    // without one can only run on the TypeScript engine. An SRAM bit has a kind but neither
+    // `logic` nor `custom`: the engines build its table themselves (see sramBitCell()).
     native?: NativeKind;
 }
 

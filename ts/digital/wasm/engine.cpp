@@ -413,6 +413,12 @@ struct Chip : Cycle {
     uint32_t lutData = 0;
     uint32_t* lut = nullptr;
 
+    // K_SRAM: an SRAM data bit, run as a LUT chip whose table is the read function of the
+    // memory - see chip.ts's `sram`.
+    int32_t* sramWords = nullptr;
+    int sramAddrBits = 0;
+    int32_t sramBitMask = 0, sramInvert = 0;
+
     // Kind parameters (see netlist.ts's flattenNetlist()).
     Time param[4] = { 0, 0, 0, 0 };
 
@@ -476,6 +482,11 @@ struct Chip : Cycle {
     void connect(Chip* chip, int i, int32_t extraMask);
     Time climbToValidCycle(Time globalTime, Time time, Time delay);
     bool catchUpHistoryBeforeWake();
+    void setLutBit(int32_t x, int32_t v);
+    int32_t sramRead(int32_t x) const;
+    int32_t sramAddress(int32_t x) const;
+    bool sramWrite();
+    void forgetHistory();
     void deactivateDiff(const LinkMask& a, const LinkMask& b);
     int32_t getNextOutput(Time time);
     void wakeUp();
@@ -715,37 +726,8 @@ void Chip::customUpdate(int32_t mask) {
         return;
     }
 
-    case K_SRAM: {
-        // nativeKinds.ts sramBitCell(). params: mem, addrBits, bitMask, invert.
-        SramMem& mem = c->srams[(int)param[0]];
-        int m = (int)param[1];
-        int32_t bitMask = (int32_t)param[2];
-        int32_t invert = (int32_t)param[3];
-        inputs ^= mask;
-        bool weActive = (inputs & 1) == 0;
-        bool oeActive = ((inputs >> 1) & 1) == 0;
-        int32_t address = 0;
-        for (int k = 0; k < m; k++) address |= ((inputs >> (2 + k)) & 1) << (m - 1 - k);
-        int32_t dataIn = (inputs >> (2 + m)) & 1;
-
-        int32_t newOut;
-        if (!oeActive) {
-            newOut = 0;
-        } else if (weActive) {
-            int32_t cur = mem.words[address];
-            mem.words[address] = dataIn ? (cur | bitMask) : (cur & ~bitMask);
-            newOut = dataIn;
-        } else {
-            newOut = (mem.words[address] & bitMask) ? 1 : 0;
-        }
-        newOut ^= invert;
-
-        if (newOut != _output && pendingEvent == 0)
-            pendingEvent = c->queuePush(this, delay[_output]);
-        else if (pendingEvent != 0 && newOut == _output)
-            pendingEvent = 0;
+    case K_SRAM: // a LUT chip, never custom - see makeChip()
         return;
-    }
 
     case K_MONO_Q: {
         // nativeKinds.ts monostableQCell(). params: group, invert, fallDelay, retriggerable.
@@ -790,10 +772,66 @@ void Chip::customUpdate(int32_t mask) {
     }
 }
 
+// chip.ts's setLutBit()/sramRead()/sramAddress()/sramWrite()/forgetHistory().
+void Chip::setLutBit(int32_t x, int32_t v) {
+    if (type == SIMPLE_CHIP) {
+        if (v) lutData |= (1u << x); else lutData &= ~(1u << x);
+    } else {
+        if (v) lut[x >> 5] |= (1u << (x & 0x1f)); else lut[x >> 5] &= ~(1u << (x & 0x1f));
+    }
+}
+
+int32_t Chip::sramRead(int32_t x) const {
+    int m = sramAddrBits;
+    int32_t out;
+    if ((x & 2) != 0) out = 0;
+    else if ((x & 1) == 0) out = (x >> (2 + m)) & 1;
+    else out = (sramWords[sramAddress(x)] & sramBitMask) ? 1 : 0;
+    return out ^ sramInvert;
+}
+
+int32_t Chip::sramAddress(int32_t x) const {
+    int m = sramAddrBits;
+    int32_t address = 0;
+    for (int k = 0; k < m; k++) address |= ((x >> (2 + k)) & 1) << (m - 1 - k);
+    return address;
+}
+
+bool Chip::sramWrite() {
+    int32_t x = inputs;
+    if ((x & 3) != 0) return false;
+    int m = sramAddrBits;
+    int32_t address = sramAddress(x);
+    int32_t cur = sramWords[address];
+    int32_t next = ((x >> (2 + m)) & 1) ? (cur | sramBitMask) : (cur & ~sramBitMask);
+    if (next == cur) return false;
+    sramWords[address] = next;
+    int32_t addressBits = x & (((1 << m) - 1) << 2);
+    for (int din = 0; din < 2; din++) {
+        int32_t r = 1 | addressBits | (din << (2 + m));
+        setLutBit(r, sramRead(r));
+    }
+    return true;
+}
+
+void Chip::forgetHistory() {
+    Time globalTime = circuit->globalTime;
+    while (!inputEvents.empty()) {
+        inputEventTable[inputEvents.front().state].pop_front();
+        inputEvents.pop_front();
+    }
+    while (!outputEvents.empty() && outputEvents.front().time < globalTime) {
+        if (outputEvents.front().type)
+            allocatedSubCycles.deallocate(outputEvents.front().subCycle->allocatedSubCycles);
+        outputEvents.pop_front();
+    }
+}
+
 void Chip::initialize() {
     int32_t newOut = _output;
 
     inputs &= eventMask;
+    if (sramWords) sramWrite();
 
     switch (type) {
         case SIMPLE_CHIP: newOut = (int32_t)((lutData >> (inputs & 31)) & 1); break;
@@ -985,6 +1023,7 @@ void Chip::updateInputs(int32_t mask) {
     }
 
     inputs ^= mask;
+    if (sramWords && sramWrite()) forgetHistory();
 
     int32_t newOut = lutLookup();
 
@@ -1030,6 +1069,7 @@ void Chip::updateInputs(int32_t mask) {
 
 void Chip::updateInputsSimple(int32_t mask) {
     inputs ^= mask;
+    if (sramWords) sramWrite();
 
     int32_t newOut = lutLookup();
 
@@ -1485,6 +1525,22 @@ static Chip* makeChip(Circuit* c, const double* f, const double* delays, const u
 
     if (kind == K_DEOPT) chip->isDeoptimizer = true;
 
+    if (kind == K_SRAM) {
+        // params: mem, addrBits, bitMask, invert.
+        chip->sramWords = c->srams[(int)f[8]].words.data();
+        chip->sramAddrBits = (int)f[9];
+        chip->sramBitMask = (int32_t)f[10];
+        chip->sramInvert = (int32_t)f[11];
+        if (nIn <= 5) {
+            chip->type = SIMPLE_CHIP;
+        } else {
+            chip->type = BASIC_CHIP;
+            chip->lut = new uint32_t[1 << (nIn - 5)]();
+        }
+        for (int32_t x = 0; x < (1 << nIn); x++) chip->setLutBit(x, chip->sramRead(x));
+        return chip;
+    }
+
     if (kind != K_LUT) {
         chip->type = CUSTOM_CHIP;
         return chip;
@@ -1685,6 +1741,5 @@ EMSCRIPTEN_KEEPALIVE void circuit_seed(Circuit* c, int n, const int32_t* chipIdx
 }
 
 EMSCRIPTEN_KEEPALIVE int sram_read(Circuit* c, int mem, int address) { return c->srams[mem].words[address]; }
-EMSCRIPTEN_KEEPALIVE void sram_write(Circuit* c, int mem, int address, int value) { c->srams[mem].words[address] = value; }
 
 }

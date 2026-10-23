@@ -63,7 +63,6 @@ interface EngineModule {
     _chip_trim_history(c: number, i: number, haveWatchers: number, floor: number): void;
     _circuit_seed(c: number, n: number, chips: number, values: number): void;
     _sram_read(c: number, mem: number, address: number): number;
-    _sram_write(c: number, mem: number, address: number, value: number): void;
 }
 
 let modulePromise: Promise<EngineModule> | null = null;
@@ -250,7 +249,6 @@ export class WasmCircuit implements EngineCircuit {
     }
 
     sramRead(mem: number, address: number): number { return this.m._sram_read(this.c, mem, address); }
-    sramWrite(mem: number, address: number, value: number): void { this.m._sram_write(this.c, mem, address, value); }
 }
 
 /** One chip of a WasmCircuit, as an EngineChip: what the app and K_JS cell closures use, read

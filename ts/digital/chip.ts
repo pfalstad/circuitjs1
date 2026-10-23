@@ -39,6 +39,9 @@
 import type { Circuit } from "./circuit";
 import { Cirque, CirqueNum } from "./cirque";
 import type { ChipDesc } from "./chip_desc";
+import type { SramMemory } from "./nativeKinds";
+
+interface SramBit { mem: SramMemory; addrBits: number; bitMask: number; invert: number; }
 import { MAX_PINS } from "./chip_desc";
 import { TIMESCALE, MAX_U64, DEBUG_TRACE } from "./constants";
 
@@ -599,6 +602,10 @@ export class Chip extends Cycle {
     lutData = 0;               // SIMPLE_CHIP
     lut: Uint32Array | null = null; // BASIC_CHIP
     customUpdate: ((chip: Chip, mask: number) => void) | null = null; // CUSTOM_CHIP
+    // An SRAM data bit (nativeKinds.ts sramBitCell()): a LUT chip whose table is the read
+    // function of the memory's current contents, so it can be promoted like any other gate
+    // while it is only being read. See sramWrite().
+    sram: SramBit | null = null;
 
     customData: unknown;
     optimizationDisabled = false;
@@ -751,7 +758,8 @@ export class Chip extends Cycle {
         this.inputEventEndTime = new CirqueNum(queueSize);
         this.subCycles = new Array(subcycleSize).fill(null);
 
-        if (desc.logic === null && desc.custom === null) {
+        const sram = desc.native?.kind === "sram" ? desc.native : null;
+        if (desc.logic === null && desc.custom === null && sram === null) {
             this.type = ChipType.CUSTOM_CHIP;
             return;
         }
@@ -793,6 +801,14 @@ export class Chip extends Cycle {
             return;
         }
 
+        if (sram !== null) {
+            this.sram = { mem: sram.mem, addrBits: sram.addrBits, bitMask: sram.bitMask, invert: sram.invert };
+            if (numInputPins <= 5) this.type = ChipType.SIMPLE_CHIP;
+            else { this.type = ChipType.BASIC_CHIP; this.lut = new Uint32Array(1 << (numInputPins - 5)); }
+            for (let x = 0; x < (1 << numInputPins); x++) this.setLutBit(x, this.sramRead(x));
+            return;
+        }
+
         let lutSize = numInputPins;
         for (let k = 0; k < desc.evPins.length; k++) this.eventMask &= ~(1 << lutSize++);
         if (desc.prevOutPin) { this.prevOutputMask = (1 << lutSize); lutSize++; }
@@ -829,10 +845,75 @@ export class Chip extends Cycle {
         }
     }
 
+    private setLutBit(x: number, v: number): void {
+        if (this.type === ChipType.SIMPLE_CHIP) {
+            if (v) this.lutData |= (1 << x); else this.lutData &= ~(1 << x);
+        } else {
+            if (v) this.lut![x >> 5] |= (1 << (x & 0x1f)); else this.lut![x >> 5] &= ~(1 << (x & 0x1f));
+        }
+    }
+
+    // The SRAM bit's output for input state `x`: inputs are /WE, /OE, the address MSB first,
+    // then data in. Tri-stated (0) while /OE is high, otherwise the bit being written while /WE
+    // is low (the 82S16's write-through), else the stored bit - see SRAMElm.doStep().
+    private sramRead(x: number): number {
+        const { mem, addrBits: m, bitMask, invert } = this.sram!;
+        let out: number;
+        if ((x & 2) !== 0) out = 0;
+        else if ((x & 1) === 0) out = (x >> (2 + m)) & 1;
+        else out = (mem.read(this.sramAddress(x)) & bitMask) ? 1 : 0;
+        return out ^ invert;
+    }
+
+    private sramAddress(x: number): number {
+        const m = this.sram!.addrBits;
+        let address = 0;
+        for (let k = 0; k < m; k++) address |= ((x >> (2 + k)) & 1) << (m - 1 - k);
+        return address;
+    }
+
+    // Does the write for the current inputs, if /WE and /OE are both low (/OE stands in for
+    // the 82S16's /CE, which gates writes too). Returns true if the stored bit changed: the
+    // table's two read entries for that address are updated, and the caller must forget the
+    // input history, since the same inputs now give a different output.
+    private sramWrite(): boolean {
+        const x = this.inputs;
+        if ((x & 3) !== 0) return false;
+        const { mem, addrBits: m, bitMask } = this.sram!;
+        const address = this.sramAddress(x);
+        const cur = mem.read(address);
+        const next = ((x >> (2 + m)) & 1) ? (cur | bitMask) : (cur & ~bitMask);
+        if (next === cur) return false;
+        mem.write(address, next);
+        // The read entries for this address: /WE high, /OE low, either data-in value.
+        const addressBits = x & (((1 << m) - 1) << 2);
+        for (let din = 0; din < 2; din++) {
+            const r = 1 | addressBits | (din << (2 + m));
+            this.setLutBit(r, this.sramRead(r));
+        }
+        return true;
+    }
+
+    // Drops what the chip has learned about its input pattern, keeping an output event still
+    // in flight.
+    private forgetHistory(): void {
+        const globalTime = this.circuit.globalTime;
+        while (!this.inputEvents.empty()) {
+            this.inputEventTable[this.inputEvents.front().state].pop_front();
+            this.inputEvents.pop_front();
+        }
+        while (!this.outputEvents.empty() && this.outputEvents.front().time < globalTime) {
+            if (this.outputEvents.front().type)
+                this.allocatedSubCycles.deallocate(this.outputEvents.front().subCycle!.allocatedSubCycles);
+            this.outputEvents.pop_front();
+        }
+    }
+
     initialize(): void {
         let newOut = this.output;
 
         this.inputs &= this.eventMask;
+        if (this.sram !== null) this.sramWrite();
 
         switch (this.type) {
             case ChipType.SIMPLE_CHIP: newOut = (this.lutData >>> this.inputs) & 1; break;
@@ -1144,6 +1225,7 @@ export class Chip extends Cycle {
         }
 
         this.inputs ^= mask;
+        if (this.sram !== null && this.sramWrite()) this.forgetHistory();
 
         let newOut: number;
         if (this.type === ChipType.SIMPLE_CHIP) newOut = (this.lutData >>> this.inputs) & 1;
@@ -1194,6 +1276,7 @@ export class Chip extends Cycle {
 
     static updateInputsSimple(chip: Chip, mask: number): void {
         chip.inputs ^= mask;
+        if (chip.sram !== null) chip.sramWrite();
 
         let newOut: number;
         if (chip.type === ChipType.SIMPLE_CHIP) newOut = (chip.lutData >>> chip.inputs) & 1;

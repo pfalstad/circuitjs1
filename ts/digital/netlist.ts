@@ -136,7 +136,7 @@ export function serializeCircuitDesc(desc: CircuitDesc, labels?: Map<string, str
                     inPins: [...d.inPins], evPins: [...d.evPins], outPin: d.outPin, prevOutPin: d.prevOutPin,
                     delay: [d.delay[0], d.delay[1]], initOutput: d.initOutput ?? 0,
                 };
-                if (d.custom) cell.native = serialNative(d);
+                if (d.custom || d.native) cell.native = serialNative(d);
                 else if (d.logic) cell.lut = computeLut(d);
                 return cell;
             }),

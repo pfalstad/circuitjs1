@@ -9,7 +9,7 @@
 // harness (scripts/bench-wasm.ts) is what catches a mismatch.
 
 import type { Chip } from "./chip";
-import { customChipStart, type ChipDescBuilder } from "./chip_desc";
+import { customChipStart, ChipDescBuilder } from "./chip_desc";
 import { MAX_U64 } from "./constants";
 import { Event, ChipState } from "./chip";
 import type { EngineChip } from "./engine";
@@ -86,39 +86,17 @@ export function sourceCell(high: () => boolean): ChipDescBuilder {
         .nativeKind({ kind: "source", high });
 }
 
-/** One data bit of an SRAM. Inputs: /WE, /OE, address bits MSB first, data in. */
+/** One data bit of an SRAM. Inputs: /WE, /OE, address bits MSB first, data in. Not a custom
+ * cell: both engines run it as a LUT chip whose table is the read function of `mem`, doing the
+ * write themselves while /WE is low (chip.ts's sramWrite()), so that it can be promoted like a
+ * gate while it is only being read.
+ *
+ * 82S16 has no real /OE pin - this element's /OE stands in for its 3-input /CE, which alone
+ * gates whether the output drives at all. /WE only selects whether that driven value is the
+ * stored bit (read) or the bit being written (write-through) - see SRAMElm.doStep()'s matching
+ * logic. */
 export function sramBitCell(mem: SramMemory, addrBits: number, bitMask: number, invert: number): ChipDescBuilder {
-    const m = addrBits;
-    const update = (chip: Chip, mask: number): void => {
-        chip.inputs ^= mask;
-        const weActive = (chip.inputs & 1) === 0; // WE is active low
-        const oeActive = ((chip.inputs >> 1) & 1) === 0; // OE is active low
-        let address = 0;
-        for (let k = 0; k < m; k++) address |= ((chip.inputs >> (2 + k)) & 1) << (m - 1 - k);
-        const dataIn = (chip.inputs >> (2 + m)) & 1;
-
-        // 82S16 has no real /OE pin - this element's /OE stands in for its 3-input /CE,
-        // which alone gates whether the output drives at all. /WE only selects whether
-        // that driven value is the stored bit (read) or the bit being written
-        // (write-through) - see SRAMElm.doStep()'s matching logic.
-        let newOut: number;
-        if (!oeActive) {
-            newOut = 0; // tri-stated whenever disabled, regardless of /WE
-        } else if (weActive) {
-            const cur = mem.read(address);
-            mem.write(address, dataIn ? (cur | bitMask) : (cur & ~bitMask));
-            newOut = dataIn;
-        } else {
-            newOut = (mem.read(address) & bitMask) ? 1 : 0;
-        }
-        newOut ^= invert;
-
-        if (newOut !== chip.output && chip.pendingEvent === 0)
-            chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);
-        else if (chip.pendingEvent !== 0 && newOut === chip.output)
-            chip.pendingEvent = 0;
-    };
-    return customChipStart(update).nativeKind({ kind: "sram", mem, addrBits, bitMask, invert });
+    return new ChipDescBuilder(null, null).nativeKind({ kind: "sram", mem, addrBits, bitMask, invert });
 }
 
 /** A monostable's Q cell. Inputs: T (trigger), EXP (the timer cell's output). */
