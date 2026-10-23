@@ -216,6 +216,53 @@ describe("Chip.backfillHistory()", () => {
             expect(chip.history).toEqual(expected);
         });
 
+        it("currentValue() skips whole root periods when the root is nothing but sub-cycle placeholders", () => {
+            // The shape Breakout's video counters sleep in: root [SS], two bursts of a fast clock,
+            // so the cursor never sits at the root itself. Reference values come from
+            // backfillHistory()'s stepped walk (record mode never skips) over a few periods;
+            // the far-ahead ones then follow from the state repeating every 2 root periods.
+            const ROOT = 2000;
+            const ssChip = (): Chip => {
+                const chip = bareChip();
+                chip.currentCycle = chip as unknown as Cycle;
+                chip.cycleTime = ROOT;
+                const oe = chip.outputEvents;
+                chip.firstOutputEvent = oe.end();
+                oe.push_back(new Event(1000, 0, 1, makeSubCycle([[1000, 0], [1050, 1]], 100, 401)));
+                const sub2 = makeSubCycle([[1500, 0], [1530, 1]], 60, 301);
+                oe.push_back(new Event(1500, 0, 1, sub2));
+                chip.state = ChipState.ASLEEP;
+                chip.sleepTime = 3000;
+                // Asleep right on the second placeholder's crossing, so the cursor is inside sub2's
+                // burst - as captureBackfillPos() would record it (pushEnteredCycle()'s own shape).
+                (chip as any).backfillPos = {
+                    level: chip as unknown as Cycle, idx: chip.firstOutputEvent, entryTime: 0, exitBound: MAX_U64,
+                    sub: { level: sub2, idx: sub2.outputEvents.inc(sub2.firstOutputEvent), entryTime: 3000, exitBound: 3301, sub: null },
+                };
+                (chip as any).backfillAbsTime = 3000;
+                (chip as any).backfillValue = 0;
+                return chip;
+            };
+
+            const ref = ssChip();
+            ref.backfillHistory(ref.sleepTime + 4 * ROOT);
+            const refValue = (t: number): number => {
+                let v = 0;
+                for (const h of ref.history) if (h.time <= t) v = h.value;
+                return v;
+            };
+            expect(ref.history.length).toBeGreaterThan(20);
+
+            for (const k of [0, 1, 2, 3, 1_000_000, 1_000_001]) {
+                for (const offset of [0, 1, 37, 499, 500, 777, 1999]) {
+                    const t = ref.sleepTime + k * ROOT + offset;
+                    const chip = ssChip();
+                    (chip.circuit as any).globalTime = t;
+                    expect(chip.currentValue()).toBe(refValue(t - Math.max(0, k - 2 - (k % 2)) * ROOT));
+                }
+            }
+        });
+
         it("is resumable across many small, irregularly-spaced calls (as ScopePlot really drives it) - regression for a real bug where a call that climbed out of a sub-cycle but landed short of `now` lost track of how much of the sub-cycle's span it had already consumed, corrupting the next call's result", () => {
             const chip = asleepNestedCounterChip();
             const expected = expectedNestedSequence(30);

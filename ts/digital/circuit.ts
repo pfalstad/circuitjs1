@@ -18,6 +18,7 @@ import type { CircuitDesc, ChipInstanceEntry } from "./circuit_desc";
 const MAX_QUEUE_SIZE = 4096;
 export const EVENT_QUEUE_SIZE = 128;
 export const SUBCYCLE_SIZE = 64;
+const DEADLINE_CHECK_INTERVAL = 64;
 
 const chipVCC: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
 const chipGND: ChipDesc = { logic: null, custom: null, delay: [0, 0], inPins: [], evPins: [], outPin: 1, prevOutPin: 0 };
@@ -449,11 +450,17 @@ export class Circuit {
         this.haltRequested = false; // see its own comment - a stale request must not wedge a fresh call
         const startTime = this.globalTime;
         const endTime = this.globalTime + runTimeIn;
-        let first = true;
+        // Date.now() only every DEADLINE_CHECK_INTERVAL events: it's a real cost at millions of
+        // events/sec, and overshooting the deadline by that many events is far below a frame.
+        // The first check still comes at the SECOND event, so an already-expired deadline
+        // processes exactly one event (StopTriggerElm.test.ts's oneHop() relies on that).
+        let sinceCheck = DEADLINE_CHECK_INTERVAL - 2;
 
         while (this.globalTime < endTime) {
-            if (!first && deadlineMs !== undefined && Date.now() >= deadlineMs) break;
-            first = false;
+            if (++sinceCheck >= DEADLINE_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                if (deadlineMs !== undefined && Date.now() >= deadlineMs) break;
+            }
 
             if (this.queueSize) {
                 const nextTime = this.queueTime[1];

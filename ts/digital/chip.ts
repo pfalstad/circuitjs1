@@ -291,6 +291,16 @@ function rebuildBackfillPos(frames: BackfillPos[]): BackfillPos {
     return pos!;
 }
 
+// A copy of `pos` with every frame's absolute times moved `shift` ticks later (MAX_U64 bounds
+// stay MAX_U64) - the same position, a whole number of root periods on. Copies rather than
+// mutates: currentValue() seeds its cursor by sharing backfillPos's frames.
+function shiftBackfillPos(pos: BackfillPos, shift: number): BackfillPos {
+    return {
+        level: pos.level, idx: pos.idx, entryTime: pos.entryTime + shift, exitBound: pos.exitBound + shift,
+        sub: pos.sub === null ? null : shiftBackfillPos(pos.sub, shift),
+    };
+}
+
 // Captures `chip`'s current (possibly nested) currentCycle chain as a BackfillPos, for seeding
 // the resumable backfill cursor at the exact moment this chip falls ASLEEP. Reads each level's
 // real (but, once this chip is dormant, frozen-in-place) currentOutputEvent/endTime - safe
@@ -402,6 +412,26 @@ function advanceBackfillPos(
         if (iterations >= maxIterations) {
             console.warn(`advanceBackfillPos: exceeded ${maxIterations} iterations without reaching now=${now} (at absTime=${absTime}) - deferring the rest to a later call`);
             return { pos, absTime, value, complete: false };
+        }
+
+        // Fast mode, root level: skip whole periods of the chip's OWN schedule, from any nesting
+        // depth. The inner-level skip below only covers the innermost level up to its own
+        // exitBound, so a chip whose root schedule is nothing but sub-cycle placeholders (e.g.
+        // [SS], two bursts of a fast clock) never sits at the root and only ever skips within
+        // one burst - it then walked every burst boundary since the previous call, which on
+        // Breakout's video counters was ~10% of total runtime. A whole root period returns to
+        // the same position at every depth, provided every frame's absolute times move with it;
+        // the root has no enclosing exitBound for the skip to cross. Even counts only
+        // (SKIP_MULT), for the same half-period reason as wakeUp()'s own root skip.
+        if (record === null && pos.level.cycleTime > 0) {
+            let periods = Math.trunc((now - absTime - 1) / pos.level.cycleTime);
+            periods -= periods % SKIP_MULT;
+            if (periods > 0) {
+                const shift = periods * pos.level.cycleTime;
+                absTime += shift;
+                pos = shiftBackfillPos(pos, shift);
+                continue;
+            }
         }
 
         // Resolve the innermost frame - walk `.sub` down, collecting every frame along the way
@@ -1031,9 +1061,9 @@ export class Chip extends Cycle {
 
         delay = this.climbToValidCycle(globalTime, time, delay);
 
-        const wakeWatchdog = new Watchdog(100000000);
+        let wakeSteps = 0;
         while (time > delay) {
-            wakeWatchdog.tick(() => `wakeUp stuck: chip=${this.debugName} time=${time} delay=${delay}`);
+            if (++wakeSteps > 100000000) throw new Error(`wakeUp stuck: chip=${this.debugName} time=${time} delay=${delay}`);
 
             // Fast-forward whole periods AT THE ROOT. Advancing exactly cycleTime from anywhere
             // returns to the same cursor with the same output -- that is what "this chip repeats
@@ -1281,9 +1311,9 @@ export class Chip extends Cycle {
 
             let delay = this.currentCycle.nextOutputEventDelay();
 
-            const activeWatchdog = new Watchdog(100000);
+            let climbSteps = 0;
             while (globalTime + delay >= this.currentCycle.endTime) {
-                activeWatchdog.tick(() => `updateOutput(active) stuck: chip=${this.debugName}`);
+                if (++climbSteps > 100000) throw new Error(`updateOutput(active) stuck: chip=${this.debugName}`);
                 const parent = this.currentCycle.parentCycle!;
                 if (parent.nextOutputEventDelay() > (globalTime - this.currentCycle.activationTime))
                     delay = parent.nextOutputEventDelay() - (globalTime - this.currentCycle.activationTime);
@@ -1310,11 +1340,13 @@ export class Chip extends Cycle {
 
         const inputEventList = this.inputEventTable[this.inputs];
 
-        const watchdog = new Watchdog(1000000);
+        // Plain counters rather than Watchdog in this function and the other per-event loops:
+        // the closure a Watchdog.tick() call site creates every iteration was measurable here.
+        let steps = 0;
         for (let x = this.firstInputTablePos; x !== inputEventList.end();
             x = inputEventList.inc(x), this.firstInputTablePos = inputEventList.inc(this.firstInputTablePos)) {
 
-            watchdog.tick(() => `activationCheck stuck: chip=${this.debugName} inputs=${this.inputs} x=${x} end=${inputEventList.end()} size=${inputEventList.size()} firstInputTablePos=${this.firstInputTablePos}`);
+            if (++steps > 1000000) throw new Error(`activationCheck stuck: chip=${this.debugName} inputs=${this.inputs} x=${x} end=${inputEventList.end()} size=${inputEventList.size()} firstInputTablePos=${this.firstInputTablePos}`);
 
             const i = inputEventList.get(x); // raw index into this.inputEvents
 
@@ -1351,9 +1383,9 @@ export class Chip extends Cycle {
                     const minSave = min;
                     let actMin = MAX_U64;
 
-                    const chainWatchdog = new Watchdog(100000);
+                    let chainSteps = 0;
                     for (let c: Cycle | null = chip.currentCycle; c !== null; c = c.parentCycle) {
-                        chainWatchdog.tick(() => `activationCheck cycle-chain stuck: chip=${chip.debugName}`);
+                        if (++chainSteps > 100000) throw new Error(`activationCheck cycle-chain stuck: chip=${chip.debugName}`);
                         min = minSave;
 
                         if (c.activationTime > min) min = c.activationTime;
@@ -1514,9 +1546,9 @@ export class Chip extends Cycle {
         this.inputEventTable[this.inputs].push_back(this.inputEvents.end());
         this.inputEvents.push_back(new Event(globalTime, this.inputs));
 
-        const fullWatchdog = new Watchdog(100000);
+        let fullSteps = 0;
         while (this.allocatedSubCycles.full()) {
-            fullWatchdog.tick(() => `deactivateOutputs full() loop stuck: chip=${this.debugName}`);
+            if (++fullSteps > 100000) throw new Error(`deactivateOutputs full() loop stuck: chip=${this.debugName}`);
             if (this.outputEvents.begin() === this.firstOutputEvent) {
                 this.inputEvents.clear();
                 this.outputEvents.clear();
