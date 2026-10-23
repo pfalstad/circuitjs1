@@ -2,7 +2,7 @@
 // Node front end for digital/benchHarness.ts (see there for what it checks).
 //
 //   npx tsx scripts/bench-wasm.ts <netlist.json | dir>... [--seconds 12] [--fps 60] [--no-sync]
-//         [--breakout] [--toggle] [--watch N] [--check-every 60] [--engine both|ts|wasm] [--quiet]
+//         [--breakout] [--pong] [--toggle] [--watch N] [--check-every 60] [--engine both|ts|wasm] [--quiet]
 //
 // Given a directory, runs every .json in it. --quiet prints one line per netlist.
 // Get a netlist from the running app (dev console): copy(CircuitJS1.exportDigitalNetlist())
@@ -37,6 +37,7 @@ const o: BenchOptions = {
     checkEvery: opt("check-every", d.checkEvery),
     sync: !flag("no-sync"),
     breakout: flag("breakout"),
+    pong: flag("pong"),
     toggle: flag("toggle"),
     watch: opt("watch", d.watch),
     engine: (engineIdx >= 0 ? args[engineIdx + 1] : d.engine) as BenchOptions["engine"],

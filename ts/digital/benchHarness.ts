@@ -12,6 +12,8 @@
 //
 // `breakout` drives fullgame.txt's ExtVoltage inputs the way ../breakout/fullgame.html does
 // (attract mode, start a 1-player game, serve), so the run reaches mid-game with bricks up.
+// `pong` does the same for ../pong/pong-full.txt as ../pong/fullgame.html drives it: start a
+// game (reset pulse), keep it running, and move both paddles (their monostables' periods).
 // With `sync`, every chip's currentValue() is read each frame, as the app's display sync does.
 // Both engines must agree on every chip's state at every checkpoint and on event counts.
 
@@ -30,19 +32,26 @@ export interface BenchOptions {
     checkEvery: number;   // frames between state comparisons
     sync: boolean;
     breakout: boolean;
+    pong: boolean;
     toggle: boolean;
     watch: number;
     engine: "both" | "ts" | "wasm";
 }
 
 export const DEFAULT_BENCH_OPTIONS: BenchOptions = {
-    seconds: 12, fps: 60, checkEvery: 60, sync: true, breakout: false, toggle: false, watch: 0, engine: "both",
+    seconds: 12, fps: 60, checkEvery: 60, sync: true, breakout: false, pong: false, toggle: false, watch: 0, engine: "both",
 };
+
+// An input change a schedule makes: a source cell's level, or a monostable cell's period
+// (MonostableElm.setPeriod(), in ticks).
+type InputChange = { chip: number; high: boolean } | { chip: number; fallDelay: number };
+type Inputs = (t: number) => InputChange[];
 
 // Common interface over the two engines, for the driver loop.
 interface Engine {
     run(ticks: number): void;
     setSource(chip: number, high: boolean): void;
+    setFallDelay(chip: number, ticks: number): void;
     syncAll(): void;
     snapshot(): Float64Array;
     eventCount(): number;
@@ -82,7 +91,9 @@ class FloorWatcher implements HistoryWatcher {
 const FIELDS = 7;
 const FIELD_NAMES = ["output", "state", "inputs", "pendingEvent", "cycleTime", "lastOutputEvent", "currentValue"];
 
-function tsEngine(sd: SerialDesc, jsCells?: CustomLogic[]): Engine {
+function tsEngine(sdIn: SerialDesc, jsCells?: CustomLogic[]): Engine {
+    // A copy: setFallDelay() changes the monostable periods its cells read.
+    const sd: SerialDesc = structuredClone(sdIn);
     const { desc } = deserializeCircuitDesc(sd, jsCells);
     const circuit = new Circuit(desc);
     const chips = circuit.chips;
@@ -96,10 +107,16 @@ function tsEngine(sd: SerialDesc, jsCells?: CustomLogic[]): Engine {
         if (l) l.push(chip); else byName.set(chip.debugName, [chip]);
     }
     seedChipValues((sd.seeds ?? []).map(([name, cell, value]) => ({ chip: byName.get(name)?.[cell] ?? null, value })));
+    const natives = new Map<Chip, { fallDelay?: number }>();
+    for (const c of sd.chips) c.cells.forEach((cell, k) => {
+        const chip = byName.get(c.name)?.[k];
+        if (chip && cell.native) natives.set(chip, cell.native as { fallDelay?: number });
+    });
     const watched: { chip: Chip; w: FloorWatcher }[] = [];
     return {
         run: (t) => { circuit.runWithDeadline(t); },
         setSource: (i, h) => pushSourceValue(chips[i], h),
+        setFallDelay: (i, t) => { natives.get(chips[i])!.fallDelay = t; },
         syncAll: () => { for (const chip of chips) chip.currentValue(); },
         snapshot: () => {
             const s = new Float64Array(chips.length * FIELDS);
@@ -142,6 +159,7 @@ function wasmEngine(flat: FlatNetlist, jsCells?: CustomLogic[]): Engine {
     return {
         run: (t) => { w.runWithDeadline(t); },
         setSource: (i, h) => w.setSource(i, h),
+        setFallDelay: (i, t) => w.setParam(i, 2, t), // netlist.ts's monoQ/monoExp layout
         syncAll: () => { for (let i = 0; i < n; i++) w.currentValue(i); },
         snapshot: () => {
             const s = new Float64Array(n * FIELDS);
@@ -185,7 +203,7 @@ function rng(seed: number): () => number {
 }
 
 // Flips a random source cell (a LogicInputElm, an ExtVoltageElm...) on about one frame in ten.
-function toggleInputs(sd: SerialDesc, flat: FlatNetlist): (t: number) => [number, boolean][] {
+function toggleInputs(sd: SerialDesc, flat: FlatNetlist): Inputs {
     const sources: { chip: number; high: boolean }[] = [];
     for (const c of sd.chips) c.cells.forEach((cell, k) => {
         if (cell.native?.kind === "source")
@@ -196,18 +214,21 @@ function toggleInputs(sd: SerialDesc, flat: FlatNetlist): (t: number) => [number
         if (sources.length === 0 || r() > 0.1) return [];
         const s = sources[Math.floor(r() * sources.length)];
         s.high = !s.high;
-        return [[s.chip, s.high]];
+        return [{ chip: s.chip, high: s.high }];
     };
 }
 
 // The inputs fullgame.html drives, as a function of simulated time; called once per frame
 // (fullgame.html does it from onupdate, once per app frame). Returns [chip, high] changes.
-function breakoutInputs(sd: SerialDesc, flat: FlatNetlist): (t: number) => [number, boolean][] {
-    const sourceChip = (name: string): number => {
-        const c = sd.chips.find(c => c.label === `ExtVoltageElm:${name}`);
-        if (!c) throw new Error(`no ExtVoltageElm named ${name}`);
-        return flat.chipCells.get(c.name)![0];
-    };
+// The source cell of the ExtVoltageElm named `name`.
+function extVoltageChip(sd: SerialDesc, flat: FlatNetlist, name: string): number {
+    const c = sd.chips.find(c => c.label === `ExtVoltageElm:${name}`);
+    if (!c) throw new Error(`no ExtVoltageElm named ${name}`);
+    return flat.chipCells.get(c.name)![0];
+}
+
+function breakoutInputs(sd: SerialDesc, flat: FlatNetlist): Inputs {
+    const sourceChip = (name: string) => extVoltageChip(sd, flat, name);
     const SFL = sourceChip("SFL"), SERVE = sourceChip("SERVE"), START = sourceChip("START GAME"),
           ATTRACT = sourceChip("ATTRACT"), START1 = sourceChip("STARTGAME1"), PLGM = sourceChip("/2 PLGM");
     let attractOn = true, started = false, startOff: number | null = null;
@@ -228,13 +249,48 @@ function breakoutInputs(sd: SerialDesc, flat: FlatNetlist): (t: number) => [numb
         if (serveOff !== null && t >= serveOff) { out.push([SERVE, false]); serveOff = null; }
         const halfPeriod = 1 / 4 / 2;
         out.push([SFL, attractOn ? false : Math.floor(t / halfPeriod) % 2 === 0]);
+        return out.map(([chip, high]) => ({ chip, high }));
+    };
+}
+
+// The inputs ../pong/fullgame.html drives. Its paddles are the two monostables saved with 1s
+// and 2s periods (see its didAnalyze()); it sets each to a fraction of a frame. Here both sweep
+// up and down at different rates, a game starts at 0.5s (a 10ms SRST pulse with /RUN low), and
+// restarts every 10s, standing in for the page's own restart after a game ends.
+function pongInputs(sd: SerialDesc, flat: FlatNetlist): Inputs {
+    const RUN = extVoltageChip(sd, flat, "/RUN"), SRST = extVoltageChip(sd, flat, "SRST");
+    const paddle = (seconds: number): number[] => {
+        const ticks = Math.round(seconds / sd.timescale);
+        const c = sd.chips.find(c => c.cells.some(cell => cell.native?.kind === "monoQ" && cell.native.fallDelay === ticks));
+        if (!c) throw new Error(`no monostable with a ${seconds}s period`);
+        const cells = flat.chipCells.get(c.name)!;
+        return c.cells.flatMap((cell, k) => cell.native?.kind === "monoQ" || cell.native?.kind === "monoExp" ? [cells[k]] : []);
+    };
+    const paddles = [paddle(1), paddle(2)];
+    const FRAME_SECONDS = 1 / 60.05;
+    let nextStart = 0.5, srstOff: number | null = null, lastMove = -1;
+    return (t) => {
+        const out: InputChange[] = [];
+        if (t >= nextStart) {
+            out.push({ chip: RUN, high: false }, { chip: SRST, high: true });
+            srstOff = t + 0.01; nextStart += 10;
+        }
+        if (srstOff !== null && t >= srstOff) { out.push({ chip: SRST, high: false }); srstOff = null; }
+        if (lastMove < 0 || t - lastMove >= 0.05) {
+            lastMove = t;
+            paddles.forEach((cells, k) => {
+                const pos = 0.53 + 0.42 * Math.sin(t * (1.7 + k * 0.9) + k);
+                const ticks = Math.max(1, Math.round(pos * FRAME_SECONDS / sd.timescale));
+                for (const chip of cells) out.push({ chip, fallDelay: ticks });
+            });
+        }
         return out;
     };
 }
 
 interface RunResult { runMs: number; syncMs: number; checkpoints: Float64Array[]; histories: string[]; events: number; updates: number; endTime: number }
 
-async function drive(e: Engine, o: BenchOptions, inputs: ((t: number) => [number, boolean][]) | null,
+async function drive(e: Engine, o: BenchOptions, inputs: Inputs | null,
         ticksPerFrame: number, numChips: number): Promise<RunResult> {
     const frames = Math.round(o.seconds * o.fps);
     const checkpoints: Float64Array[] = [];
@@ -242,7 +298,9 @@ async function drive(e: Engine, o: BenchOptions, inputs: ((t: number) => [number
     const watchFrom = Math.min(o.fps, Math.floor(frames / 4));
     let runMs = 0, syncMs = 0;
     for (let f = 0; f < frames; f++) {
-        if (inputs) for (const [chip, high] of inputs(f / o.fps)) e.setSource(chip, high);
+        if (inputs) for (const c of inputs(f / o.fps)) {
+            if ("high" in c) e.setSource(c.chip, c.high); else e.setFallDelay(c.chip, c.fallDelay);
+        }
         if (o.watch > 0 && f === watchFrom) for (let i = 3; i < numChips; i += o.watch) e.watch(i);
         const t0 = performance.now();
         e.run(ticksPerFrame);
@@ -333,7 +391,7 @@ export async function runBench(sd: SerialDesc, o: BenchOptions, log: (s: string)
     const ticksPerFrame = Math.round(1 / o.fps / sd.timescale);
     if (o.engine !== "ts") await loadWasmEngine();
     log(`${flat.numCells} chips, ${o.seconds}s at ${o.fps} fps (${ticksPerFrame} ticks/frame)` +
-        `${o.breakout ? ", breakout inputs" : ""}${o.sync ? ", display sync" : ""}`);
+        `${o.breakout ? ", breakout inputs" : ""}${o.pong ? ", pong inputs" : ""}${o.sync ? ", display sync" : ""}`);
 
     if (o.engine === "both") {
         if (!checkStructure(sd, flat, log, jsCells)) return false;
@@ -345,7 +403,8 @@ export async function runBench(sd: SerialDesc, o: BenchOptions, log: (s: string)
         log(`${name.padEnd(5)} run ${perSec(r.runMs)} ms/sim-s, sync ${perSec(r.syncMs)} ms/sim-s, ` +
             `${(o.seconds * 1000 / (r.runMs + r.syncMs)).toFixed(2)}x real time; ${r.events} events, ${r.updates} updates`);
     };
-    const inputs = () => o.breakout ? breakoutInputs(sd, flat) : o.toggle ? toggleInputs(sd, flat) : null;
+    const inputs = () => o.breakout ? breakoutInputs(sd, flat) : o.pong ? pongInputs(sd, flat)
+        : o.toggle ? toggleInputs(sd, flat) : null;
 
     let ts: RunResult | null = null, wasm: RunResult | null = null;
     const n = flat.numCells;
