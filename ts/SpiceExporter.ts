@@ -67,6 +67,14 @@ import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
 import { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
+import { DFlipFlopElm } from "./DFlipFlopElm";
+import { JKFlipFlopElm } from "./JKFlipFlopElm";
+import { TFlipFlopElm } from "./TFlipFlopElm";
+import { CounterElm } from "./CounterElm";
+import { Counter2Elm } from "./Counter2Elm";
+import { RingCounterElm } from "./RingCounterElm";
+import { SipoShiftElm } from "./SipoShiftElm";
+import { LatchElm } from "./LatchElm";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
@@ -210,12 +218,13 @@ const LOGIC_PARTS: Record<string, Record<number, [string, number]>> = {
 
 // a logic output, a source to ground following the expression after a short lag, as the
 // simulator's outputs follow their inputs a step later.  without it, a loop of gates (a
-// latch or a ring oscillator) has nothing to settle or oscillate with
-function logicOutput(out: string, expr: string, tau: number): string[] {
-    return [`Braw raw 0 V=${expr}`,
-            "Rlag raw lag 1k",
-            `Clag lag 0 ${spiceValue(tau / 1000)} IC=0`,
-            `Bout ${out} 0 V=V(lag)`];
+// latch or a ring oscillator) has nothing to settle or oscillate with.  a part with more
+// than one output tags each one's nodes
+function logicOutput(out: string, expr: string, tau: number, tag: string = ""): string[] {
+    return [`Braw${tag} raw${tag} 0 V=${expr}`,
+            `Rlag${tag} raw${tag} lag${tag} 1k`,
+            `Clag${tag} lag${tag} 0 ${spiceValue(tau / 1000)} IC=0`,
+            `Bout${tag} ${out} 0 V=V(lag${tag})`];
 }
 
 // a Schmitt trigger input's state, from 0 to 1: it goes to 1 once the input rises past the
@@ -229,6 +238,231 @@ function schmittInput(input: string, lower: number, upper: number, k: string, ti
                      `C${q} ${q} 0 ${spiceValue(timeStep / 4000)} IC=0`],
              state: `V(${q})` };
 }
+
+// logic expressions on levels from 0 to 1
+const not = (x: string) => `(1-${x})`;
+const and = (xs: string[]) => xs.length === 0 ? "1" : xs.join("*");
+const xor = (a: string, b: string) => `(${a}+${b}-2*${a}*${b})`;
+const mux = (sel: string, a: string, b: string) => `(${sel}*${a}+(1-${sel})*${b})`;
+// whether bits q (least significant first) hold the value v
+const matches = (q: string[], v: number) => and(q.map((x, i) => (v >> i) & 1 ? x : not(x)));
+
+// a state held on a small capacitor, from 0 to 1, which follows expr.  a steep level restores
+// it to 0 or 1, so it holds its value when expr is itself
+function heldState(q: string, expr: string, timeStep: number, init: number): string[] {
+    return [`B${q} ${q}_raw 0 V=${level(expr, ".5", steepness(1))}`,
+            `R${q} ${q}_raw ${q} 1k`,
+            `C${q} ${q} 0 ${spiceValue(timeStep / 4000)} IC=${init}`];
+}
+
+// a state bit that takes the value of next when the clock level clk rises.  it's a master and
+// a slave: the master follows next while the clock is low and holds while it's high, and the
+// slave, the bit, follows the master while the clock is high and holds while it's low.  so
+// the bit changes only on the edge, however next depends on it.  force wraps both stages'
+// inputs, for asynchronous sets and resets
+function clockedBit(q: string, next: string, clk: string, timeStep: number,
+                    init: number = 0, force: (x: string) => string = x => x): string[] {
+    const m = q + "_m";
+    return [...heldState(m, force(mux(clk, `V(${m})`, next)), timeStep, init),
+            ...heldState(q, force(mux(clk, `V(${m})`, `V(${q})`)), timeStep, init)];
+}
+
+// asynchronous set and reset levels, the set winning when both are given
+const setReset = (set: string | null, reset: string | null) => (x: string) =>
+    set && reset ? `(${set}+${not(set)}*${not(reset)}*${x})` : set ? `(${set}+${not(set)}*${x})` :
+    reset ? `(${not(reset)}*${x})` : x;
+
+// a counter's next state, counting up or down from bits q, least significant first, and
+// wrapping around at the modulus (0 for none)
+function countNext(q: string[], up: boolean, mod: number): string[] {
+    const size = 2 ** q.length;
+    let next = q.map((x, i) => xor(x, and(q.slice(0, i).map(y => up ? y : not(y)))));
+    if (mod <= 0 || mod === size)
+        return next;
+    if (up) {
+        if (mod < size) {
+            const top = matches(q, mod - 1);
+            next = next.map(x => `${not(top)}*${x}`);
+        }
+        return next;
+    }
+    // counting down from 0 gives the modulus less one
+    const zero = matches(q, 0), top = (mod - 1) % size;
+    return next.map((x, i) => (top >> i) & 1 ? `(${zero}+${not(zero)}*${x})` : `${not(zero)}*${x}`);
+}
+
+// a chip's pins in its .subckt are named after its labels, with "b" for an inverted one
+function chipPinNames(e: any): string[] {
+    const used = new Set<string>();
+    return e.pins.map((p: any) => {
+        let s = p.text === "" && p.clock ? "clk" : p.text;
+        if (p.lineOver || (p.bubble && !p.clock))
+            s += "b";
+        s = sanitize(s.toLowerCase());
+        let name = s;
+        for (let j = 2; used.has(name); j++)
+            name = s + j;
+        used.add(name);
+        return name;
+    });
+}
+
+interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[] }
+
+// a sequential logic chip as a logic part, or null if it can't be.  each input is turned into
+// a level from 0 to 1 once, on its own node, and each output is a logic output of the state
+function sequentialPart(ce: CircuitElm, timeStep: number): ChipPart | null {
+    const C = ce.getDumpClass();
+    const e = ce as any;
+    if (e.useBus())
+        return null;
+    const hi: number = e.highVoltage, bits: number = e.bits;
+    const pins = chipPinNames(e), body: string[] = [];
+    const levels = new Map<number, string>();
+    const input = (i: number) => {
+        let x = levels.get(i);
+        if (x === undefined) {
+            body.push(`Bl_${pins[i]} l_${pins[i]} 0 V=${level(`V(${pins[i]})`, num(hi / 2), steepness(hi))}`);
+            levels.set(i, x = `V(l_${pins[i]})`);
+        }
+        return x;
+    };
+    const activeLow = (i: number) => not(input(i));
+    const output = (i: number, expr: string) => body.push(...logicOutput(pins[i], `${num(hi)}*${expr}`, timeStep / 4, "_" + pins[i]));
+    // a clock level that rises on the active edge
+    const clock = (i: number, falling: boolean) => falling ? not(input(i)) : input(i);
+    const bitNames = (prefix: string) => Array.from({ length: bits }, (_, i) => prefix + i);
+    const logic = `${num(hi)}V logic`;
+    const named = (chip: string) => hi === 5 ? chip : undefined;
+
+    // posts: D, Q, ~Q, clock, then reset and set
+    if (C === DFlipFlopElm) {
+        const inv = e.invertSetReset();
+        const sr = (i: number) => e.getPostCount() > i ? (inv ? activeLow(i) : input(i)) : null;
+        const set = sr(5), reset = sr(4);
+        const next = input(0);
+        body.push(...clockedBit("st", next, clock(3, false), timeStep, 0, setReset(set, reset)));
+        output(1, "V(st)");
+        // with both set and reset, both outputs are high
+        output(2, reset ? `(${reset}+${not(set ?? "0")}*${not(reset)}*${not("V(st)")})` : not("V(st)"));
+        const chip = set && reset ? named(inv ? "74HC74" : "CD4013B") : undefined;
+        return { want: chip ?? (set ? "DFF_SR" : reset ? "DFF_R" : "DFF"), size: chip ? 2 : 1, pins, body,
+                 desc: `D flip-flop, ${logic}` + (reset ? `, ${set ? "set and reset" : "reset"}${inv ? " active low" : ""}` : "") };
+    }
+    // posts: J, clock, K, Q, ~Q, then reset
+    if (C === JKFlipFlopElm) {
+        const falling = !e.positiveEdgeTriggered();
+        const reset = e.hasReset() ? (e.invertReset() ? activeLow(5) : input(5)) : null;
+        const next = `(${input(0)}*${not("V(st)")}+${not(input(2))}*V(st))`;
+        body.push(...clockedBit("st", next, clock(1, falling), timeStep, 0, setReset(null, reset)));
+        output(3, "V(st)");
+        output(4, not("V(st)"));
+        const chip = falling && e.hasReset() && e.invertReset() ? named("74HC107") : undefined;
+        return { want: chip ?? (reset ? "JKFF_R" : "JKFF"), size: chip ? 2 : 1, pins, body,
+                 desc: `JK flip-flop, ${logic}, ${falling ? "falling" : "rising"} edge` +
+                       (reset ? `, reset${e.invertReset() ? " active low" : ""}` : "") };
+    }
+    // posts: T, Q, ~Q, clock, then reset and set.  the reset wins
+    if (C === TFlipFlopElm) {
+        const set = e.hasSet() ? input(5) : null, reset = e.hasReset() ? input(4) : null;
+        const force = (x: string) => setReset(null, reset)(setReset(set, null)(x));
+        body.push(...clockedBit("st", xor(input(0), "V(st)"), clock(3, false), timeStep, 0, force));
+        output(1, "V(st)");
+        output(2, not("V(st)"));
+        return { want: set ? "TFF_SR" : reset ? "TFF_R" : "TFF", size: 1, pins, body,
+                 desc: `T flip-flop, ${logic}` + (reset ? `, ${set ? "set and reset" : "reset"}` : "") };
+    }
+    // posts: clock, reset, the outputs, most significant first, then up/down (high to count down)
+    if (C === CounterElm) {
+        const falling = e.negativeEdgeTriggered(), mod = Math.max(e.modulus, 0);
+        const reset = e.invertreset ? activeLow(1) : input(1);
+        const q = bitNames("V(st").map(x => x + ")");
+        const up = countNext(q, true, mod);
+        const next = e.hasUpDown() ? countNext(q, false, mod).map((dn, i) => mux(input(bits + 2), dn, up[i])) : up;
+        const clk = clock(0, falling);
+        next.forEach((x, i) => body.push(...clockedBit("st" + i, x, clk, timeStep, 0, setReset(null, reset))));
+        q.forEach((x, i) => output(2 + bits - 1 - i, x));
+        const plain = !e.hasUpDown() && (mod === 0 || mod === 2 ** bits) && falling && !e.invertreset;
+        const chip = plain ? named(bits === 4 ? "74HC393" : bits === 7 ? "CD4024B" : bits === 12 ? "CD4040B" :
+                                   bits === 14 ? "CD4020B" : "") || undefined : undefined;
+        return { want: chip ?? `COUNTER${bits}` + (mod > 0 && mod !== 2 ** bits ? `_MOD${mod}` : "") + (e.hasUpDown() ? "_UD" : ""),
+                 size: chip === "74HC393" ? 2 : 1, pins, body,
+                 desc: `${bits}-bit ${e.hasUpDown() ? "up/down " : ""}counter` + (mod > 0 ? ` modulo ${mod}` : "") +
+                       `, ${logic}, ${falling ? "falling" : "rising"} edge, reset active ${e.invertreset ? "low" : "high"}` };
+    }
+    // posts: the outputs and the inputs, most significant first, then clock, clear, count enable
+    // P, ripple carry, load and count enable T.  clear is active low and asynchronous; load is
+    // active low and synchronous, and wins over counting
+    if (C === Counter2Elm) {
+        const size = 2 ** bits, mod = e.modulus > 0 ? e.modulus : size;
+        const q = bitNames("V(st").map(x => x + ")");
+        const { clk, clr, enp, rco, load, ent } = e;
+        const en = `${input(enp)}*${input(ent)}`, ld = activeLow(load);
+        const count = countNext(q, true, mod);
+        const ck = clock(clk, false);
+        q.forEach((x, i) => body.push(...clockedBit("st" + i, mux(ld, input(2 * bits - 1 - i), mux(en, count[i], x)), ck,
+                                                    timeStep, 0, setReset(null, activeLow(clr)))));
+        q.forEach((x, i) => output(bits - 1 - i, x));
+        output(rco, mod - 1 < size ? `${input(ent)}*${matches(q, mod - 1)}` : "0");
+        const chip = bits === 4 && (mod === 16 || mod === 10) ? named(mod === 10 ? "74HC160" : "74HC161") : undefined;
+        return { want: chip ?? `COUNTER${bits}_LOAD` + (mod !== size ? `_MOD${mod}` : ""), size: 1, pins, body,
+                 desc: `${bits}-bit synchronous counter` + (mod !== size ? ` modulo ${mod}` : "") + `, ${logic}, with load and enables` };
+    }
+    // posts: clock, reset, the outputs, then clock inhibit.  one output is high, starting with the
+    // first, and each clock moves it to the next
+    if (C === RingCounterElm) {
+        const reset = e.hasInvertReset() ? activeLow(1) : input(1);
+        const inhibit = e.hasClockInhibit() ? input(e.clockInhibit) : null;
+        const q = bitNames("V(st").map(x => x + ")");
+        const clk = clock(0, false);
+        q.forEach((x, i) => {
+            const shift = q[(i + bits - 1) % bits];
+            body.push(...clockedBit("st" + i, inhibit ? mux(inhibit, x, shift) : shift, clk, timeStep,
+                                    i === 0 ? 1 : 0, setReset(i === 0 ? reset : null, i === 0 ? null : reset)));
+        });
+        q.forEach((x, i) => output(2 + i, x));
+        return { want: `RING${bits}`, size: 1, pins, body,
+                 desc: `${bits}-output ring counter, ${logic}, reset active ${e.hasInvertReset() ? "low" : "high"}` +
+                       (inhibit ? ", clock inhibit" : "") };
+    }
+    // posts: data, clock, then the outputs.  each clock shifts the data in at Q0
+    if (C === SipoShiftElm) {
+        const clk = clock(1, false);
+        for (let i = 0; i !== bits; i++)
+            body.push(...clockedBit("st" + i, i === 0 ? input(0) : `V(st${i - 1})`, clk, timeStep));
+        for (let i = 0; i !== bits; i++)
+            output(2 + i, `V(st${i})`);
+        return { want: `SIPO${bits}`, size: 1, pins, body, desc: `${bits}-bit serial-in parallel-out shift register, ${logic}` };
+    }
+    // posts: the inputs, the outputs, load (or clock), then reset, set, the input enables and
+    // the output enables.  a register loads on the rising edge of the clock; a latch follows
+    // its inputs while load is high.  the inputs are enabled while the input enables are low
+    if (C === LatchElm) {
+        if (e.hasOutputEnable())
+            return null;
+        const ld = input(e.loadPin);
+        const set = e.hasSet() ? input(e.setPin) : null;
+        const reset = e.hasReset() ? (e.resetActiveLow() ? activeLow(e.resetPin) : input(e.resetPin)) : null;
+        const ies = [e.inputEnableCount() >= 1 ? e.ie1Pin : -1, e.inputEnableCount() >= 2 ? e.ie2Pin : -1]
+            .filter(i => i >= 0).map(activeLow);
+        const edge = e.isEdgeTriggered();
+        for (let i = 0; i !== bits; i++) {
+            const q = `V(st${i})`, d = ies.length ? mux(and(ies), input(i), q) : input(i);
+            body.push(...(edge ? clockedBit("st" + i, d, ld, timeStep, 0, setReset(set, reset)) :
+                                 heldState("st" + i, setReset(set, reset)(mux(ld, d, q)), timeStep, 0)));
+        }
+        for (let i = 0; i !== bits; i++)
+            output(bits + i, `V(st${i})`);
+        return { want: `${edge ? "REG" : "LATCH"}${bits}`, size: 1, pins, body,
+                 desc: `${bits}-bit ${edge ? "register" : "latch"}, ${logic}` +
+                       (reset ? `, reset active ${e.resetActiveLow() ? "low" : "high"}` : "") + (set ? ", set" : "") +
+                       (ies.length ? ", input enables" : "") };
+    }
+    return null;
+}
+
+const SEQUENTIAL = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, CounterElm, Counter2Elm,
+                                 RingCounterElm, SipoShiftElm, LatchElm]);
 
 class NetlistWriter {
     lines: string[] = [];
@@ -640,6 +874,16 @@ class NetlistWriter {
                          `${num(e.upperTrigger)}V, output ${num(off)}V to ${num(on)}V`;
             const name = this.exp.logicPart(want, desc, ["a", "y"], body);
             L(this.packRef(name, usual ? 6 : 1), n[0], n[1], name);
+            return;
+        }
+        if (SEQUENTIAL.has(C)) {
+            const part = sequentialPart(ce, this.exp.timeStep);
+            if (part === null) {
+                this.leftOut(ce, n);
+                return;
+            }
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body);
+            L(this.packRef(name, part.size), ...n, name);
             return;
         }
         if (C === SubcircuitElm) {

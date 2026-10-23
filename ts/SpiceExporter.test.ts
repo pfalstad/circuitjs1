@@ -18,6 +18,8 @@ import { CapacitorElm } from "./CapacitorElm";
 import { TimerElm } from "./TimerElm";
 import { SchmittElm } from "./SchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
+import { DFlipFlopElm } from "./DFlipFlopElm";
+import { CounterElm } from "./CounterElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -220,5 +222,36 @@ describe("SPICE export", () => {
             ["S2", com, no, "0", ctl, "S_analog_2"],
             ["S3", com, nc, ctl, "0", "S_analog_3"],
         ]);
+    });
+
+    it("exports flip-flops as parts named after their chips, with a master and slave state", () => {
+        const dffs = [0, 1, 2].map(i => {
+            const d = place(new DFlipFlopElm(0, 0), 0, i * 100, 64, i * 100);
+            d.flags |= DFlipFlopElm.FLAG_SET | DFlipFlopElm.FLAG_INVERT_SET_RESET;
+            d.setupPins();
+            d.allocNodes();
+            d.setPoints();
+            return d;
+        });
+        const plain = place(new DFlipFlopElm(0, 0), 0, 300, 64, 300);
+        const res = exportSpiceNetlist([...dffs, plain]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text.match(/^\.subckt .*/gm)).toEqual([".subckt 74HC74 d q qb clk rb sb", ".subckt DFF d q qb clk"]);
+        // the master follows D while the clock is low; the state follows the master while it's high
+        expect(res.text).toMatch(/^Bst_m st_m_raw 0 V=.*\(V\(l_clk\)\*V\(st_m\)\+\(1-V\(l_clk\)\)\*/m);
+        expect(res.text).toMatch(/^Bst st_raw 0 V=.*\(V\(l_clk\)\*V\(st_m\)\+\(1-V\(l_clk\)\)\*V\(st\)\)/m);
+        const x = devices(res.text).filter(l => l[0].startsWith("XU"));
+        expect(x.map(l => l[0] + " " + l[l.length - 1])).toEqual(["XU1A 74HC74", "XU1B 74HC74", "XU2A 74HC74", "XU3 DFF"]);
+        expect(x[3].slice(1, -1)).toEqual(res.postNets.get(plain));
+    });
+
+    it("gives counters a state bit for each output", () => {
+        const c = place(new CounterElm(0, 0), 0, 0, 64, 0);
+        c.modulus = 10;
+        const text = exportSpiceNetlist([c]).text;
+        expect(text).toContain("* 4-bit counter modulo 10, 5V logic, rising edge, reset active high\n" +
+                               ".subckt COUNTER4_MOD10 clk r q3 q2 q1 q0\n");
+        expect(text.match(/^Cst\d /gm)).toEqual(["Cst0 ", "Cst1 ", "Cst2 ", "Cst3 "]);
+        expect(text).toMatch(/^Bout_q0 q0 0 V=V\(lag_q0\)$/m);
     });
 });
