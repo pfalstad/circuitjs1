@@ -1042,6 +1042,11 @@ export class MouseManager {
 	// the view keeps panning as the mouse moves, even after the button is released).
 	if (this.mouseDragging)
 	    this.endDrag();
+	// don't leave the last hovered element highlighted after the mouse has left
+	this.mousePost = -1;
+	this.scopePlotRoles.clear();
+	this.setMouseElm(null);
+	this.sim.repaint();
     }
 
     clearMouseElm(): void {
