@@ -23,6 +23,9 @@ import { CounterElm } from "./CounterElm";
 import { FullAdderElm } from "./FullAdderElm";
 import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
 import { DACElm } from "./DACElm";
+import { ChipElm } from "./ChipElm";
+import { BusLogicInputElm } from "./BusLogicInputElm";
+import { BusSplitterElm } from "./BusSplitterElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -275,5 +278,49 @@ describe("SPICE export", () => {
         const b = res.text.match(/^Braw_b raw_b 0 V=5\*\((.*)\)$/m)![1];
         expect(b.split("+").length).toBe(10);
         expect(res.text).toMatch(/^Braw_o raw_o 0 V=V\(vp\)\*\(0\.0666667\*V\(l_d0\)\+0\.133333\*V\(l_d1\)/m);
+    });
+
+    it("gives each line of a bus a net of its own", () => {
+        const add = new FullAdderElm(0, 0);
+        add.bitOrder = ChipElm.BIT_ORDER_BUS;
+        add.setupPins();
+        place(add, 0, 0, 64, 0);
+        const post = (e: any, n: number) => e.getPost(n);
+        // a bus wire from each A, B and sum bus to a bus input or splitter
+        const bus = (p: any, x: number, y: number) => {
+            const w = place(new WireElm(0, 0), p.x, p.y, x, y);
+            w.busWidth = 4;
+            w.allocNodes();
+            return w;
+        };
+        const inA = place(new BusLogicInputElm(0, 0), -64, post(add, 0).y, -96, post(add, 0).y);
+        inA.value = 5;
+        const inB = place(new BusLogicInputElm(0, 0), -64, 200, -96, 200);
+        inB.value = 6;
+        // B reaches the adder through a pair of bus labels
+        const lb = [place(new LabeledNodeElm(0, 0), -64, 200, -64, 232), place(new LabeledNodeElm(0, 0), post(add, 4).x, post(add, 4).y, post(add, 4).x, post(add, 4).y + 32)];
+        for (const l of lb) {
+            l.text = "B";
+            l.busWidth = 4;
+            l.allocNodes();
+        }
+        const split = new BusSplitterElm(0, 0);
+        const sp = post(add, 8);
+        place(split, sp.x + 64, sp.y, sp.x + 128, sp.y);
+        const elms = [add, inA, bus(post(add, 0), -64, post(add, 0).y), inB, ...lb, split, bus(sp, post(split, 0).x, post(split, 0).y)];
+        const res = exportSpiceNetlist(elms);
+        expect(res.warnings).toEqual([]);
+        const nets = res.postNets.get(add)!;
+        // the lines are four different nets, each driven by its own source
+        const a = nets.slice(0, 4), b = nets.slice(4, 8);
+        expect(new Set(a).size).toBe(4);
+        expect(res.postNets.get(inA)).toEqual(a);
+        expect(res.postNets.get(inB)).toEqual(b);
+        expect(b).toEqual(["B_0", "B_1", "B_2", "B_3"]);
+        expect(res.postNets.get(split)!.slice(0, 4)).toEqual(res.postNets.get(split)!.slice(4));
+        expect(res.postNets.get(split)!.slice(0, 4)).toEqual(nets.slice(8, 12));
+        const v = devices(res.text).filter(l => l[0].startsWith("V"));
+        expect(v.map(l => l[1] + " " + l[4])).toEqual([...a.map((x, i) => x + " " + ((5 >> i) & 1 ? 5 : 0)),
+                                                        ...b.map((x, i) => x + " " + ((6 >> i) & 1 ? 5 : 0))]);
     });
 });

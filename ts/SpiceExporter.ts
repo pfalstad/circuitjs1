@@ -20,7 +20,7 @@
 // Exports a circuit as a SPICE netlist (for ngspice or LTspice).
 //
 // Nets are found from the circuit's posts: wires join posts, labeled nodes with the same
-// name are one net, and ground is net 0.  Analog parts become SPICE devices with .model
+// name are one net, and ground is net 0.  each line of a bus is a net of its own.  Analog parts become SPICE devices with .model
 // cards made from their CircuitJS models; switches are written in their current position.
 // Subcircuits become .subckt definitions.  Anything without a SPICE equivalent is left
 // out and listed in the warnings.
@@ -67,6 +67,8 @@ import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
 import { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
+import { BusLogicInputElm } from "./BusLogicInputElm";
+import { BusSplitterElm } from "./BusSplitterElm";
 import { DFlipFlopElm } from "./DFlipFlopElm";
 import { JKFlipFlopElm } from "./JKFlipFlopElm";
 import { TFlipFlopElm } from "./TFlipFlopElm";
@@ -299,13 +301,16 @@ function countNext(q: string[], up: boolean, mod: number): string[] {
     return next.map((x, i) => (top >> i) & 1 ? `(${zero}+${not(zero)}*${x})` : `${not(zero)}*${x}`);
 }
 
-// a chip's pins in its .subckt are named after its labels, with "b" for an inverted one
+// a chip's pins in its .subckt are named after its labels, with "b" for an inverted one, and
+// the line number for one line of a bus
 function chipPinNames(e: any): string[] {
     const used = new Set<string>();
     return e.pins.map((p: any) => {
         let s = p.text === "" && p.clock ? "clk" : p.text;
         if (p.lineOver || (p.bubble && !p.clock))
             s += "b";
+        if (p.busWidth > 1)
+            s += (/\d$/.test(s) ? "_" : "") + p.busZ;
         s = sanitize(s.toLowerCase().replace("+", "p"));
         let name = s;
         for (let j = 2; used.has(name); j++)
@@ -322,8 +327,6 @@ interface ChipPart { want: string; size: number; desc: string; body: string[]; p
 function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
     const C = ce.getDumpClass();
     const e = ce as any;
-    if (e.useBus() || e.pins.some((p: any) => p.busWidth > 1))
-        return null;
     const hi: number = e.highVoltage, bits: number = e.bits;
     const pins = chipPinNames(e), body: string[] = [];
     const levels = new Map<number, string>();
@@ -466,28 +469,38 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
                        (reset ? `, reset active ${e.resetActiveLow() ? "low" : "high"}` : "") + (set ? ", set" : "") +
                        (ies.length ? ", input enables" : "") };
     }
-    // posts: the data inputs, the selects, the output, then the inverted output and the strobe,
-    // which holds the output low
+    // posts: the data inputs (each a bus of width lines, for a bus multiplexer), the selects, the
+    // output, then the inverted output and the strobe, which holds the output low
     if (C === MultiplexerElm) {
         const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
-        let f = Array.from({ length: count }, (_, k) => `${matches(sel, k)}*${input(k)}`).join("+");
-        if (e.strobe >= 0)
-            f = `${not(input(e.strobe))}*(${f})`;
-        body.push(`Bsel sel 0 V=${f}`);
-        output(e.outputPin, "V(sel)");
-        if (e.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT))
-            output(e.outputPin + 1, not("V(sel)"));
-        return { want: `MUX${count}` + (e.strobe >= 0 ? "_STR" : ""), size: 1, pins, body,
-                 desc: `${count}-input multiplexer, ${logic}` + (e.strobe >= 0 ? ", strobe active high" : "") };
+        const width = e.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
+        const inverted = e.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT);
+        for (let i = 0; i !== width; i++) {
+            let f = Array.from({ length: count }, (_, k) => `${matches(sel, k)}*${input(k * width + i)}`).join("+");
+            if (e.strobe >= 0)
+                f = `${not(input(e.strobe))}*(${f})`;
+            body.push(`Bsel${i} sel${i} 0 V=${f}`);
+            output(e.outputPin + i, `V(sel${i})`);
+            if (inverted)
+                output(e.outputPin + width + i, not(`V(sel${i})`));
+        }
+        return { want: `MUX${count}` + (width > 1 ? "X" + width : "") + (e.strobe >= 0 ? "_STR" : ""), size: 1, pins, body,
+                 desc: `${count}-input ${width > 1 ? width + "-bit " : ""}multiplexer, ${logic}` +
+                       (e.strobe >= 0 ? ", strobe active high" : "") };
     }
-    // posts: the outputs, the selects, then the input.  the other outputs are low (high, inverted)
+    // posts: the outputs, the selects, then the input (or the input, the selects, then the outputs,
+    // for a bus demultiplexer, whose input and outputs can be buses of width lines).  the other
+    // outputs are low (high, inverted)
     if (C === DeMultiplexerElm) {
         const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
+        const width = e.outputMode === DeMultiplexerElm.OUTPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
         const idle = e.invertOutputs() ? "1" : "0";
         for (let k = 0; k !== count; k++)
-            output(e.outputPin + k, mux(matches(sel, k), input(e.inputPin), idle));
-        return { want: `DEMUX${count}` + (e.invertOutputs() ? "_INV" : ""), size: 1, pins, body,
-                 desc: `${count}-output demultiplexer, ${logic}` + (e.invertOutputs() ? ", unselected outputs high" : "") };
+            for (let i = 0; i !== width; i++)
+                output(e.outputPin + k * width + i, mux(matches(sel, k), input(e.inputPin + i), idle));
+        return { want: `DEMUX${count}` + (width > 1 ? "X" + width : "") + (e.invertOutputs() ? "_INV" : ""), size: 1, pins, body,
+                 desc: `${count}-output ${width > 1 ? width + "-bit " : ""}demultiplexer, ${logic}` +
+                       (e.invertOutputs() ? ", unselected outputs high" : "") };
     }
     // posts: sum, carry, A, B
     if (C === HalfAdderElm) {
@@ -678,19 +691,20 @@ class NetlistWriter {
             const C = ce.getDumpClass();
             const e = ce as any;
             const k = keys[i];
-            if (C === WireElm || C === RoutedWireElm) {
-                if (e.busWidth > 1)
-                    this.warnings.push("bus wire");
-                else
-                    this.uf.union(k[0], k[1]);
+            // a bus wire's posts are each line at one end, then each at the other, and a bus
+            // splitter's are each line of the bus, then the line's own pin
+            if (C === WireElm || C === RoutedWireElm || C === BusSplitterElm) {
+                const w = k.length / 2;
+                for (let j = 0; j !== w; j++)
+                    this.uf.union(k[j], k[j + w]);
             } else if (C === GroundElm)
                 this.uf.union(k[0], "0");
+            // a bus label names a net for each line
             else if (C === LabeledNodeElm) {
-                if (e.busWidth > 1)
-                    this.warnings.push(ce.getClassName().replace(/Elm$/, ""));
-                else {
-                    this.uf.union(k[0], "L" + e.text);
-                    labels.push([k[0], e.text]);
+                for (let j = 0; j !== k.length; j++) {
+                    const name = k.length > 1 ? e.text + "_" + j : e.text;
+                    this.uf.union(k[j], "L" + name);
+                    labels.push([k[j], name]);
                 }
             // an ideal closed switch is a wire
             } else if (C === SwitchElm && e.position === 0 && !(e.resistance > 0))
@@ -940,6 +954,12 @@ class NetlistWriter {
             L(this.ref("V"), n[0], "0", "DC", num(v));
             return;
         }
+        // a source for each line, at the high or low level for its bit
+        if (C === BusLogicInputElm) {
+            for (let i = 0; i !== n.length; i++)
+                L(this.ref("V"), n[i], "0", "DC", num((e.value >> i) & 1 ? e.hiV : e.loV));
+            return;
+        }
         // posts: inputs, then the output
         if (ce instanceof GateElm) {
             const kind = ce instanceof NandGateElm ? "NAND" : ce instanceof AndGateElm ? "AND" :
@@ -1120,7 +1140,7 @@ export class SpiceExporter {
     export(): SpiceExport {
         const key = (ce: CircuitElm, j: number) => {
             const p = ce.getPost(j)!;
-            return "p" + Math.round(p.x) + "," + Math.round(p.y);
+            return "p" + Math.round(p.x) + "," + Math.round(p.y) + "," + p.z;
         };
         const w = new NetlistWriter(this, {
             elms: this.elms,
