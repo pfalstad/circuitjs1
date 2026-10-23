@@ -46,6 +46,12 @@ public:
     void getInfo(std::vector<std::string> &arr) override;
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
+    void setMouseElm(bool v) override;
+    bool onMouseWheel(double normalizedDelta) override {
+        if (slider)
+            slider->onMouseWheel(normalizedDelta);
+        return true;
+    }
     double calcResistance(double tempr);
     double temprFromSliderPos();
     double calcB25100();

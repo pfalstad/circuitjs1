@@ -98,6 +98,12 @@ void ThermistorNTCElm::deleteElm() {
     CircuitElm::deleteElm();
 }
 
+void ThermistorNTCElm::setMouseElm(bool v) {
+    CircuitElm::setMouseElm(v);
+    if (slider)
+        slider->draw();
+}
+
 void ThermistorNTCElm::setPoints() {
     CircuitElm::setPoints();
     calcLeads(32);

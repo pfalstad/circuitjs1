@@ -181,7 +181,7 @@ void CommandPaletteRegistry::buildStatic(CirSim *app) {
     add(app, "options:showvalues", "Show Values", "Options", "values labels");
     add(app, "options:smallgrid", "Small Grid", "Options", "grid snap");
     add(app, "options:toolbar", "Toolbar", "Options", "toolbar show hide");
-    add(app, "options:showpropsonclick", "Show Properties On Click", "Options", "properties click edit");
+    add(app, "options:showpropsoncreate", "Show Properties On Create", "Options", "properties create edit");
     add(app, "options:crosshair", "Show Cursor Cross Hairs", "Options", "crosshair cursor");
     add(app, "options:euroresistors", "European Resistors", "Options", "european resistors iec");
     add(app, "options:showohm", "Show Ω Unit", "Options", "ohm unit omega");

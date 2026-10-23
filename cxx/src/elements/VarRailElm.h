@@ -46,4 +46,9 @@ public:
     void setEditValue(int n, EditInfo &ei) override;
     int getShortcut() override { return 0; }
     void setMouseElm(bool v) override;
+    bool onMouseWheel(double normalizedDelta) override {
+        if (slider)
+            slider->onMouseWheel(normalizedDelta);
+        return true;
+    }
 };

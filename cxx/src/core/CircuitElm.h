@@ -452,6 +452,9 @@ public:
 
     virtual void setMouseElm(bool v);
     bool isMouseElm() { return mouseElmRef == this; }
+    // the mouse wheel moved over this element (normalizedDelta as from
+    // ScrollValuePopup::normalizeWheelDelta()); returns false if the element doesn't use it
+    virtual bool onMouseWheel(double normalizedDelta) { return false; }
     virtual void draggingDone() {}
 
     double lineDistanceSq(double xa, double ya, double xb, double yb, double gx, double gy);

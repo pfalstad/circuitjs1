@@ -79,6 +79,12 @@ void LDRElm::deleteElm() {
     CircuitElm::deleteElm();
 }
 
+void LDRElm::setMouseElm(bool v) {
+    CircuitElm::setMouseElm(v);
+    if (slider)
+        slider->draw();
+}
+
 void LDRElm::setPoints() {
     CircuitElm::setPoints();
     calcLeads(32);

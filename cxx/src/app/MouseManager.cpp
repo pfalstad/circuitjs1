@@ -613,7 +613,7 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     CircuitElm *createdElm = endDrag();
     if (createdElm != nullptr) {
         editCreatedElm(createdElm);
-    } else if (clickedElm != nullptr && sim->showPropsOnClick && !sim->isReadOnly()) {
+    } else if (clickedElm != nullptr && !sim->isReadOnly()) {
         if (clickedElm->hasProperties())
             sim->doEdit(clickedElm);
         else
@@ -628,6 +628,11 @@ void MouseManager::onMouseOut() {
     // if the mouse leaves the canvas while dragging, end the drag now
     if (mouseDragging)
         endDrag();
+    // don't leave the last hovered element highlighted after the mouse has left
+    mousePost = -1;
+    sim->scopePlotRoles.clear();
+    setMouseElm(nullptr);
+    sim->repaint();
 }
 
 CircuitElm *MouseManager::endDrag() {
@@ -731,6 +736,8 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
         wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
     } else if (!zoomOnly && mouseElm != nullptr && (mouseElm->isMosfetElm() || mouseElm->isTransistorElm())) {
         wheelPopup = new TypeScrollPopup(globalPos, norm, mouseElm, sim);
+    } else if (!zoomOnly && mouseElm != nullptr && mouseElm->onMouseWheel(norm)) {
+        // (the element's slider moved)
     } else if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
         sm->scopes[sm->scopeSelected]->onMouseWheel(norm, wheelSensitivity);
     } else {
@@ -920,7 +927,7 @@ bool MouseManager::toolbarDragEnd(QPoint) {
 // automatically bring up the property editor for a newly-created element,
 // or close the editor for some other element if this one doesn't want it
 void MouseManager::editCreatedElm(CircuitElm *elm) {
-    if (elm->showPropertiesOnCreate() && !sim->isReadOnly())
+    if (elm->showPropertiesOnCreate() && sim->showPropsOnCreate && !sim->isReadOnly())
         sim->doEdit(elm);
     else
         sim->closeEditDialog();

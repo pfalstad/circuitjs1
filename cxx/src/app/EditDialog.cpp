@@ -27,6 +27,7 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QAction>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -119,6 +120,43 @@ EditDialog::EditDialog(Editable *ce, CirSim *f) : QDialog(f, Qt::Tool), elm(ce),
             closeDialog();
     });
     connect(cancelBtn, &QPushButton::clicked, this, [this] { closeDialog(); });
+
+    if (firstInputNumeric && dynamic_cast<CircuitElm *>(ce) != nullptr)
+        passShortcutsThrough();
+}
+
+// The editor pops up with its first field focused whenever an element is created, so you
+// can place a resistor, type 10k and press Enter. But a letter can't start a numeric value,
+// so if one is typed into that field before it's been touched and it's a tool shortcut,
+// the user is moving on to the next element: close the editor and act on the shortcut.
+void EditDialog::passShortcutsThrough() {
+    shortcutInput = firstInput;
+    shortcutInputUntouched = true;
+    // any click in the dialog counts as touching it
+    installEventFilter(this);
+    for (QWidget *w : findChildren<QWidget *>())
+        w->installEventFilter(this);
+}
+
+bool EditDialog::eventFilter(QObject *obj, QEvent *e) {
+    if (e->type() == QEvent::MouseButtonPress)
+        shortcutInputUntouched = false;
+    if (e->type() != QEvent::KeyPress || obj != shortcutInput)
+        return QDialog::eventFilter(obj, e);
+    QKeyEvent *ke = static_cast<QKeyEvent *>(e);
+    bool wasUntouched = shortcutInputUntouched;
+    shortcutInputUntouched = false;
+    QString text = ke->text();
+    if (!wasUntouched || (ke->modifiers() & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier)) ||
+        text.size() != 1 || !((text[0] >= 'a' && text[0] <= 'z') || (text[0] >= 'A' && text[0] <= 'Z')))
+        return QDialog::eventFilter(obj, e);
+    QKeySequence k(QKeyCombination(ke->modifiers() & Qt::ShiftModifier, (Qt::Key) ke->key()));
+    QAction *a = cframe->findToolShortcut(k);
+    if (a == nullptr)
+        return QDialog::eventFilter(obj, e);
+    closeDialog();
+    a->trigger();
+    return true;
 }
 
 QVBoxLayout *EditDialog::addColumn() {
@@ -214,8 +252,10 @@ void EditDialog::buildDialog() {
             QLineEdit *inp = new QLineEdit();
             inp->setFixedWidth(180);
             f.widget = inp;
-            if (!firstInput)
+            if (!firstInput) {
                 firstInput = inp;
+                firstInputNumeric = !ei.text;
+            }
             if (ei.text) {
                 inp->setText(QString::fromStdString(*ei.text));
                 activeCol->addWidget(inp);
@@ -491,6 +531,7 @@ void EditDialog::clearDialog() {
     colsRow = row;
     activeCol = addColumn();
     firstInput = nullptr;
+    firstInputNumeric = false;
     fields.clear();
 }
 

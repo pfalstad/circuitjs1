@@ -54,7 +54,7 @@
 #include "core/LZString.h"
 #include "core/Storage.h"
 
-static const char *versionString = "5.0.0cxx (alpha)";
+static const char *versionString = "5.0.1cxx (alpha)";
 
 static QString LSq(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 

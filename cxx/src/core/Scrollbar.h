@@ -73,6 +73,12 @@ public:
     // tell the UI to update its widget
     void draw();
 
+    // normalizedDelta is the wheel delta from ScrollValuePopup::normalizeWheelDelta()
+    void onMouseWheel(double normalizedDelta) {
+        if (enabled)
+            setValue(val + (int) jsmath::round(normalizedDelta / 3));
+    }
+
     int getValue() const { return val; }
     void setValue(int v) {
         if (v < min)

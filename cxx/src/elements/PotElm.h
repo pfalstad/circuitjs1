@@ -80,6 +80,11 @@ public:
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void setMouseElm(bool v) override;
+    bool onMouseWheel(double normalizedDelta) override {
+        if (slider)
+            slider->onMouseWheel(normalizedDelta);
+        return true;
+    }
     void flipX(int c2, int count) override;
     void flipY(int c2, int count) override;
     void flipXY(int xmy, int count) override;

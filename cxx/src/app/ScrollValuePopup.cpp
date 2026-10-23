@@ -192,7 +192,11 @@ void ScrollValuePopup::setupLabels() {
 }
 
 void ScrollValuePopup::doDeltaY(double dy) {
-    deltaY += dy / sim->devicePixelRatioF();
+    // a single wheel event moves at most one step (times the sensitivity).  a mouse wheel
+    // notch's pixel delta varies a lot by platform, which otherwise skipped values; small
+    // trackpad deltas still accumulate
+    dy /= sim->devicePixelRatioF();
+    deltaY += std::max((double) -scale, std::min((double) scale, dy));
     setElmValue(getSelIdx());
     setupLabels();
 }

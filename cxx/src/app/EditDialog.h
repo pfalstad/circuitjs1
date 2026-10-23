@@ -56,6 +56,7 @@ public:
 protected:
     void keyPressEvent(QKeyEvent *e) override;
     void closeEvent(QCloseEvent *e) override;
+    bool eventFilter(QObject *obj, QEvent *e) override;
 
 private:
     struct Field {
@@ -73,6 +74,7 @@ private:
     std::string unitString(const EditInfo &ei);
     double parseUnitsEi(Field &f);
     void itemStateChanged(int idx);
+    void passShortcutsThrough();
 
     CirSim *cframe;
     std::vector<Field> fields;
@@ -82,6 +84,10 @@ private:
     QVBoxLayout *activeCol = nullptr;
     int activeColCount = 0;
     QWidget *firstInput = nullptr;
+    bool firstInputNumeric = false;
+    // the first field, while letters typed into it may be tool shortcuts (passShortcutsThrough())
+    QWidget *shortcutInput = nullptr;
+    bool shortcutInputUntouched = false;
     bool closeOnEnter = true;
     bool building = false;
 };

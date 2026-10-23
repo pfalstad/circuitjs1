@@ -183,6 +183,8 @@ public:
     QKeySequence runStopShortcut;
     QAction *runStopAction = nullptr;
     void setRunStopShortcut(const QKeySequence &k);
+    // the tool (or command) assigned to key k, or null if there is none
+    QAction *findToolShortcut(const QKeySequence &k);
     // key for the command palette (Edit > Find Component/Command...); "/" by default
     QKeySequence paletteShortcut;
     QAction *searchItem = nullptr;
@@ -229,7 +231,7 @@ public:
     void elementDeleted(CircuitElm *ce) override;
     bool confirm(const std::string &question) override;
     void alert(const std::string &message) override;
-    bool showPropsOnClick = true;
+    bool showPropsOnCreate = true;
     bool toolbarVisible = true;
     // Options > Other Options...
     std::unique_ptr<EditOptions> editOptions;

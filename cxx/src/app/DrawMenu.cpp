@@ -298,6 +298,17 @@ void CirSim::setRunStopShortcut(const QKeySequence &k) {
     runStopAction->setShortcuts(keys);
 }
 
+QAction *CirSim::findToolShortcut(const QKeySequence &k) {
+    for (QAction *a : mainMenuItems)
+        if (a->shortcut() == k)
+            return a->isEnabled() ? a : nullptr;
+    if (runStopShortcut == k)
+        return runStopAction;
+    if (paletteShortcut == k)
+        return searchItem;
+    return nullptr;
+}
+
 // saved as "1;key=class;..." like the TS version, but the keys are Qt key combinations
 // (QKeyCombination::toCombined()) rather than browser char codes
 static const char *RUNSTOP_SHORTCUT_ACTION = "cmd:key:runstop";
@@ -352,8 +363,12 @@ void CirSim::loadShortcuts() {
             paletteSet = true;
             continue;
         }
+        QString className = arr[1];
+        // CustomCompositeElm was renamed SubcircuitElm; keep shortcuts saved by the old version
+        if (className == "CustomCompositeElm" || className.startsWith("CustomCompositeElm:"))
+            className = "SubcircuitElm" + className.mid(QString("CustomCompositeElm").size());
         for (QAction *a : mainMenuItems)
-            if (a->data().toString() == arr[1]) {
+            if (a->data().toString() == className) {
                 a->setShortcut(k);
                 break;
             }
