@@ -26,6 +26,13 @@ import { DACElm } from "./DACElm";
 import { ChipElm } from "./ChipElm";
 import { BusLogicInputElm } from "./BusLogicInputElm";
 import { BusSplitterElm } from "./BusSplitterElm";
+import { CustomLogicElm } from "./CustomLogicElm";
+import { CustomLogicModel } from "./CustomLogicModel";
+import { CirSim } from "./CirSim";
+import { ElementFactory } from "./ElementFactory";
+import { ExtListEntry } from "./ExtListEntry";
+import { SubcircuitModel } from "./SubcircuitModel";
+import { SubcircuitElm } from "./SubcircuitElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -44,7 +51,8 @@ describe("SPICE export", () => {
         const off = { getState: () => false };
         // the elements only read menu checkboxes while being built, and snap to the grid
         (CircuitElm as any).app = (CircuitElm as any).app ??
-            { menus: new Proxy({}, { get: () => off }), snapGrid: (z: number) => Math.round(z / 8) * 8 };
+            { menus: new Proxy({}, { get: () => off }), snapGrid: (z: number) => Math.round(z / 8) * 8, mouse: {},
+              deleteSliders: () => {} };
     });
 
     it("formats values with SPICE suffixes", () => {
@@ -178,7 +186,7 @@ describe("SPICE export", () => {
         const res = exportSpiceNetlist(nands);
         expect(res.warnings).toEqual([]);
         // one definition: two inputs, multiplied, inverted, then a short lag
-        expect(res.text.match(/^\.subckt .*/gm)).toEqual([".subckt 74HC00 a b y"]);
+        expect(res.text.match(/^\.subckt .*/gm)).toEqual([".subckt 74HC00 a b y params: ic_y=0"]);
         expect(res.text).toMatch(/^Braw raw 0 V=5\*\(1-\(0\.5\*\(1\+tanh\(8\*\(V\(a\)-\(2\.5\)\)\)\)\*0\.5\*.*V\(b\)/m);
         expect(res.text).toMatch(/^Bout y 0 V=V\(lag\)$/m);
         // four gates to a package
@@ -194,8 +202,8 @@ describe("SPICE export", () => {
         const nand = place(new NandGateElm(0, 0), 0, 100, 64, 100);
         nand.highVoltage = 3.3;
         const text = exportSpiceNetlist([and5, nand]).text;
-        expect(text).toContain("* 5-input AND gate, 5V logic\n.subckt AND5 a b c d e y\n");
-        expect(text).toContain("* 2-input NAND gate, 3.3V logic\n.subckt NAND2 a b y\n");
+        expect(text).toContain("* 5-input AND gate, 5V logic\n.subckt AND5 a b c d e y params: ic_y=0\n");
+        expect(text).toContain("* 2-input NAND gate, 3.3V logic\n.subckt NAND2 a b y params: ic_y=0\n");
         expect(devices(text).filter(l => l[0].startsWith("XU")).map(l => l[0] + " " + l[l.length - 1]))
             .toEqual(["XU1 AND5", "XU2 NAND2"]);
     });
@@ -203,7 +211,7 @@ describe("SPICE export", () => {
     it("gives Schmitt triggers a state node", () => {
         const s = place(new SchmittElm(0, 0), 0, 0, 64, 0);
         const text = exportSpiceNetlist([s]).text;
-        expect(text).toContain(".subckt 74HC7014 a y\n");
+        expect(text).toContain(".subckt 74HC7014 a y params: ic_st=0 ic_y=0\n");
         expect(text).toMatch(/^Bst_a st_raw_a 0 V=0\.5\*\(1\+tanh\(\S+\*\(V\(a\)-\(3\.33\+-1\.67\*V\(st_a\)\)\)\)\)$/m);
         expect(text).toMatch(/^Braw raw 0 V=0\+5\*V\(st_a\)$/m);
     });
@@ -242,13 +250,16 @@ describe("SPICE export", () => {
         const plain = place(new DFlipFlopElm(0, 0), 0, 300, 64, 300);
         const res = exportSpiceNetlist([...dffs, plain]);
         expect(res.warnings).toEqual([]);
-        expect(res.text.match(/^\.subckt .*/gm)).toEqual([".subckt 74HC74 d q qb clk rb sb", ".subckt DFF d q qb clk"]);
+        expect(res.text.match(/^\.subckt .*/gm)).toEqual([".subckt 74HC74 d q qb clk rb sb params: ic_st=0 ic_q=0 ic_qb=0",
+                                                        ".subckt DFF d q qb clk params: ic_st=0 ic_q=0 ic_qb=0"]);
         // the master follows D while the clock is low; the state follows the master while it's high
         expect(res.text).toMatch(/^Bst_m st_m_raw 0 V=.*\(V\(l_clk\)\*V\(st_m\)\+\(1-V\(l_clk\)\)\*/m);
         expect(res.text).toMatch(/^Bst st_raw 0 V=.*\(V\(l_clk\)\*V\(st_m\)\+\(1-V\(l_clk\)\)\*V\(st\)\)/m);
-        const x = devices(res.text).filter(l => l[0].startsWith("XU"));
+        // (leaving out the state parameters: each starts with ~Q high)
+        const x = devices(res.text).filter(l => l[0].startsWith("XU")).map(l => l.filter(w => !w.includes("=")));
         expect(x.map(l => l[0] + " " + l[l.length - 1])).toEqual(["XU1A 74HC74", "XU1B 74HC74", "XU2A 74HC74", "XU3 DFF"]);
         expect(x[3].slice(1, -1)).toEqual(res.postNets.get(plain));
+        expect(res.text).toMatch(/^XU3 .* DFF ic_qb=5$/m);
     });
 
     it("gives counters a state bit for each output", () => {
@@ -256,7 +267,7 @@ describe("SPICE export", () => {
         c.modulus = 10;
         const text = exportSpiceNetlist([c]).text;
         expect(text).toContain("* 4-bit counter modulo 10, 5V logic, rising edge, reset active high\n" +
-                               ".subckt COUNTER4_MOD10 clk r q3 q2 q1 q0\n");
+                               ".subckt COUNTER4_MOD10 clk r q3 q2 q1 q0 params: ic_st0=0 ic_st1=0 ic_st2=0 ic_st3=0 ic_q0=0 ic_q1=0 ic_q2=0 ic_q3=0\n");
         expect(text.match(/^Cst\d /gm)).toEqual(["Cst0 ", "Cst1 ", "Cst2 ", "Cst3 "]);
         expect(text).toMatch(/^Bout_q0 q0 0 V=V\(lag_q0\)$/m);
     });
@@ -268,9 +279,9 @@ describe("SPICE export", () => {
         const res = exportSpiceNetlist([add, seg, dac]);
         expect(res.warnings).toEqual([]);
         expect(res.text.match(/^\.subckt .*/gm)).toEqual([
-            ".subckt 74HC283 a0 a1 a2 a3 b0 b1 b2 b3 s0 s1 s2 s3 cin c",
-            ".subckt SEG7DEC a b c d e f g i3 i2 i1 i0",
-            ".subckt DAC4 d0 d1 d2 d3 o vp",
+            ".subckt 74HC283 a0 a1 a2 a3 b0 b1 b2 b3 s0 s1 s2 s3 cin c params: ic_s0=0 ic_s1=0 ic_s2=0 ic_s3=0 ic_c=0",
+            ".subckt SEG7DEC a b c d e f g i3 i2 i1 i0 params: ic_a=0 ic_b=0 ic_c=0 ic_d=0 ic_e=0 ic_f=0 ic_g=0",
+            ".subckt DAC4 d0 d1 d2 d3 o vp params: ic_o=0",
         ]);
         // each carry is on its own node, made from the last one
         expect(res.text).toMatch(/^Bc2 c2 0 V=V\(l_a1\)\*V\(l_b1\)\+V\(c1\)\*/m);
@@ -322,5 +333,46 @@ describe("SPICE export", () => {
         const v = devices(res.text).filter(l => l[0].startsWith("V"));
         expect(v.map(l => l[1] + " " + l[4])).toEqual([...a.map((x, i) => x + " " + ((5 >> i) & 1 ? 5 : 0)),
                                                         ...b.map((x, i) => x + " " + ((6 >> i) & 1 ? 5 : 0))]);
+    });
+
+    it("exports custom logic from its rules", () => {
+        const m = CustomLogicModel.getModelWithName("toggle");
+        m.inputs = ["C"];
+        m.outputs = ["Q"];
+        m.rules = "+0=1\n+1=0";
+        m.parseRules(null);
+        CustomLogicElm.lastModelName = "toggle";
+        const e = place(new CustomLogicElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([e]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt TOGGLE c q params: ic_dly0=0 ic_q=0 ic_drv_q=0\n* +0=1\n* +1=0\n");
+        // a rule fires on the rising pulse, seeing the output as it was before the edge (the
+        // slave, during a pulse) and otherwise as the rules last set it (the master)
+        expect(res.text).toMatch(/^Br0 r0 0 V=V\(rise0\)\*\(1-\(V\(anyp\)\*V\(st0\)\+\(1-V\(anyp\)\)\*V\(m0\)\)\)$/m);
+        expect(res.text).toMatch(/^Bf1 f1 0 V=V\(r1\)\*\(1-V\(r0\)\)$/m);
+        // the slave follows the master except during the pulse
+        expect(res.text).toMatch(/^Bst0 st0_raw 0 V=.*\(V\(anyp\)\*V\(st0\)\+\(1-V\(anyp\)\)\*V\(m0\)\)/m);
+    });
+
+    it("gives a subcircuit's bus pin a port for each line", () => {
+        ElementFactory.registerClass("ResistorElm", ResistorElm as any);
+        (CirSim as any).xmlDumpTypeMap = new Map([["r", "ResistorElm"]]);
+        // a resistor from each line of bus D to G.  the loader only reads tagName and
+        // getAttribute(), so stubs stand in for the model's elements
+        const elm = (nn: string) => ({ tagName: "r", nodeType: 1, getAttribute: (k: string) => ({ nn, r: "1000" } as any)[k] ?? null });
+        const elms = [elm("1 3"), elm("2 3")];
+        const doc = { documentElement: { children: elms, childNodes: elms } } as unknown as Document;
+        (globalThis as any).Node ??= class { static ELEMENT_NODE = 1; };
+        const d0 = new ExtListEntry("D", 1, 0, 2), d1 = new ExtListEntry("D", 2, 0, 2);
+        d0.busWidth = d1.busWidth = 2;
+        d1.busZ = 1;
+        SubcircuitModel.createModel("busres", doc, [d0, d1, new ExtListEntry("G", 3, 0, 3)]);
+        const x = place(new SubcircuitElm(0, 0, "busres"), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([x]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt busres D_0 D_1 G\nR1 D_0 G 1k\nR2 D_1 G 1k\n.ends busres\n");
+        const nets = res.postNets.get(x)!;
+        expect(new Set(nets).size).toBe(3);
+        expect(devices(res.text).find(l => l[0] === "X1")).toEqual(["X1", ...nets, "busres"]);
     });
 });

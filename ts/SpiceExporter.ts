@@ -85,6 +85,9 @@ import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
 import { AnalogMuxElm } from "./AnalogMuxElm";
 import { DACElm } from "./DACElm";
 import { ADCElm } from "./ADCElm";
+import { CustomLogicElm } from "./CustomLogicElm";
+import { LEDArrayElm } from "./LEDArrayElm";
+import { DiodeModel } from "./DiodeModel";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
@@ -172,13 +175,23 @@ function sourceSpec(e: any, timeStep: number): string | null {
     case VoltageElm.WF_AC:
         return `SIN(${num(bias)} ${num(max)} ${num(f)} 0 0 ${num(e.phaseShift * 180 / Math.PI)})`;
     // a square wave is high for the duty cycle and then low; a pulse is high, then zero.
-    // CircuitJS centers the edges on the cycle's start and the end of the duty cycle
+    // CircuitJS centers the edges on the cycle's start and the end of the duty cycle.  SPICE
+    // takes a rise time of 0 as the time step, so an instant edge gets a short one.  SPICE
+    // holds the first value until the first edge, so a wave that starts high starts from its
+    // falling edge.  the simulator sees an edge at the start at its first step, when the
+    // parts it clocks see it too, so that's where it goes
     case VoltageElm.WF_SQUARE:
     case VoltageElm.WF_PULSE: {
-        const lo = e.waveform === VoltageElm.WF_SQUARE ? bias - max : bias;
-        const rise = Math.min(e.riseTime, e.dutyCycle * per);
-        return `PULSE(${num(lo)} ${num(bias + max)} ${num(delayFor(e, -rise / 2))} ${num(rise)} ${num(rise)} ` +
-               `${num(e.dutyCycle * per - rise)} ${num(per)})`;
+        const lo = e.waveform === VoltageElm.WF_SQUARE ? bias - max : bias, hi = bias + max;
+        const highTime = e.dutyCycle * per;
+        const rise = Math.min(e.riseTime > 0 ? e.riseTime : timeStep / 100, highTime, per - highTime);
+        const toRise = delayFor(e), toFall = delayFor(e, highTime);
+        const delay = (to: number) => num(Math.max(to, timeStep) - rise / 2);
+        if (toFall < toRise)
+            return `PULSE(${num(hi)} ${num(lo)} ${delay(toFall)} ${num(rise)} ${num(rise)} ` +
+                   `${num(per - highTime - rise)} ${num(per)})`;
+        return `PULSE(${num(lo)} ${num(hi)} ${delay(toRise)} ${num(rise)} ${num(rise)} ` +
+               `${num(highTime - rise)} ${num(per)})`;
     }
     // a triangle rises for half the cycle; a sawtooth rises for all of it
     case VoltageElm.WF_TRIANGLE:
@@ -229,23 +242,23 @@ const LOGIC_PARTS: Record<string, Record<number, [string, number]>> = {
 // a logic output, a source to ground following the expression after a short lag, as the
 // simulator's outputs follow their inputs a step later.  without it, a loop of gates (a
 // latch or a ring oscillator) has nothing to settle or oscillate with.  a part with more
-// than one output tags each one's nodes
-function logicOutput(out: string, expr: string, tau: number, tag: string = ""): string[] {
+// than one output tags each one's nodes.  init is where the output starts
+function logicOutput(out: string, expr: string, tau: number, tag: string = "", init: string = "0"): string[] {
     return [`Braw${tag} raw${tag} 0 V=${expr}`,
             `Rlag${tag} raw${tag} lag${tag} 1k`,
-            `Clag${tag} lag${tag} 0 ${spiceValue(tau / 1000)} IC=0`,
+            `Clag${tag} lag${tag} 0 ${spiceValue(tau / 1000)} IC=${init}`,
             `Bout${tag} ${out} 0 V=V(lag${tag})`];
 }
 
 // a Schmitt trigger input's state, from 0 to 1: it goes to 1 once the input rises past the
 // upper threshold, and back to 0 once it falls past the lower.  the state is held on a small
-// capacitor, which starts it at 0, as the simulator does
-function schmittInput(input: string, lower: number, upper: number, k: string, timeStep: number):
+// capacitor, which starts it at init
+function schmittInput(input: string, lower: number, upper: number, k: string, timeStep: number, init: string = "0"):
         { lines: string[]; state: string } {
     const raw = "st_raw_" + input, q = "st_" + input;
     return { lines: [`B${q} ${raw} 0 V=${level(`V(${input})`, `${num(upper)}+${num(lower - upper)}*V(${q})`, k)}`,
                      `R${q} ${raw} ${q} 1k`,
-                     `C${q} ${q} 0 ${spiceValue(timeStep / 4000)} IC=0`],
+                     `C${q} ${q} 0 ${spiceValue(timeStep / 4000)} IC=${init}`],
              state: `V(${q})` };
 }
 
@@ -259,7 +272,7 @@ const matches = (q: string[], v: number) => and(q.map((x, i) => (v >> i) & 1 ? x
 
 // a state held on a small capacitor, from 0 to 1, which follows expr.  a steep level restores
 // it to 0 or 1, so it holds its value when expr is itself
-function heldState(q: string, expr: string, timeStep: number, init: number): string[] {
+function heldState(q: string, expr: string, timeStep: number, init: number | string): string[] {
     return [`B${q} ${q}_raw 0 V=${level(expr, ".5", steepness(1))}`,
             `R${q} ${q}_raw ${q} 1k`,
             `C${q} ${q} 0 ${spiceValue(timeStep / 4000)} IC=${init}`];
@@ -271,7 +284,7 @@ function heldState(q: string, expr: string, timeStep: number, init: number): str
 // the bit changes only on the edge, however next depends on it.  force wraps both stages'
 // inputs, for asynchronous sets and resets
 function clockedBit(q: string, next: string, clk: string, timeStep: number,
-                    init: number = 0, force: (x: string) => string = x => x): string[] {
+                    init: number | string = 0, force: (x: string) => string = x => x): string[] {
     const m = q + "_m";
     return [...heldState(m, force(mux(clk, `V(${m})`, next)), timeStep, init),
             ...heldState(q, force(mux(clk, `V(${m})`, `V(${q})`)), timeStep, init)];
@@ -320,15 +333,30 @@ function chipPinNames(e: any): string[] {
     });
 }
 
-interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[] }
+// a logic part's .subckt starts its state from parameters, which default to 0.  each instance
+// gives the ones where it is now
+type StateParams = [string, number][];
+
+interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[]; params: StateParams }
 
 // a logic chip as a logic part, or null if it can't be.  each input is turned into a level
-// from 0 to 1 once, on its own node, and each output is a logic output of the inputs and state
+// from 0 to 1 once, on its own node, and each output is a logic output of the inputs and state.
+// the outputs and state start where they are in the simulator
 function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
+    const params: StateParams = [];
+    const part = chipPartBody(ce, timeStep, params);
+    return part && { ...part, params };
+}
+
+function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Omit<ChipPart, "params"> | null {
     const C = ce.getDumpClass();
     const e = ce as any;
     const hi: number = e.highVoltage, bits: number = e.bits;
     const pins = chipPinNames(e), body: string[] = [];
+    // a state parameter, starting at v
+    const ic = (name: string, v: number) => { params.push([name, v]); return `{${name}}`; };
+    // whether pin i is high now
+    const now = (i: number) => e.pins[i].value ? 1 : 0;
     const levels = new Map<number, string>();
     const input = (i: number) => {
         let x = levels.get(i);
@@ -339,7 +367,8 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         return x;
     };
     const activeLow = (i: number) => not(input(i));
-    const output = (i: number, expr: string) => body.push(...logicOutput(pins[i], `${num(hi)}*${expr}`, timeStep / 4, "_" + pins[i]));
+    const output = (i: number, expr: string) =>
+        body.push(...logicOutput(pins[i], `${num(hi)}*${expr}`, timeStep / 4, "_" + pins[i], ic("ic_" + pins[i], now(i) * hi)));
     // a clock level that rises on the active edge
     const clock = (i: number, falling: boolean) => falling ? not(input(i)) : input(i);
     const bitNames = (prefix: string) => Array.from({ length: bits }, (_, i) => prefix + i);
@@ -352,7 +381,7 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const sr = (i: number) => e.getPostCount() > i ? (inv ? activeLow(i) : input(i)) : null;
         const set = sr(5), reset = sr(4);
         const next = input(0);
-        body.push(...clockedBit("st", next, clock(3, false), timeStep, 0, setReset(set, reset)));
+        body.push(...clockedBit("st", next, clock(3, false), timeStep, ic("ic_st", now(1)), setReset(set, reset)));
         output(1, "V(st)");
         // with both set and reset, both outputs are high
         output(2, reset ? `(${reset}+${not(set ?? "0")}*${not(reset)}*${not("V(st)")})` : not("V(st)"));
@@ -365,7 +394,7 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const falling = !e.positiveEdgeTriggered();
         const reset = e.hasReset() ? (e.invertReset() ? activeLow(5) : input(5)) : null;
         const next = `(${input(0)}*${not("V(st)")}+${not(input(2))}*V(st))`;
-        body.push(...clockedBit("st", next, clock(1, falling), timeStep, 0, setReset(null, reset)));
+        body.push(...clockedBit("st", next, clock(1, falling), timeStep, ic("ic_st", now(3)), setReset(null, reset)));
         output(3, "V(st)");
         output(4, not("V(st)"));
         const chip = falling && e.hasReset() && e.invertReset() ? named("74HC107") : undefined;
@@ -377,7 +406,7 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
     if (C === TFlipFlopElm) {
         const set = e.hasSet() ? input(5) : null, reset = e.hasReset() ? input(4) : null;
         const force = (x: string) => setReset(null, reset)(setReset(set, null)(x));
-        body.push(...clockedBit("st", xor(input(0), "V(st)"), clock(3, false), timeStep, 0, force));
+        body.push(...clockedBit("st", xor(input(0), "V(st)"), clock(3, false), timeStep, ic("ic_st", now(1)), force));
         output(1, "V(st)");
         output(2, not("V(st)"));
         return { want: set ? "TFF_SR" : reset ? "TFF_R" : "TFF", size: 1, pins, body,
@@ -391,7 +420,8 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const up = countNext(q, true, mod);
         const next = e.hasUpDown() ? countNext(q, false, mod).map((dn, i) => mux(input(bits + 2), dn, up[i])) : up;
         const clk = clock(0, falling);
-        next.forEach((x, i) => body.push(...clockedBit("st" + i, x, clk, timeStep, 0, setReset(null, reset))));
+        next.forEach((x, i) => body.push(...clockedBit("st" + i, x, clk, timeStep, ic("ic_st" + i, now(2 + bits - 1 - i)),
+                                                       setReset(null, reset))));
         q.forEach((x, i) => output(2 + bits - 1 - i, x));
         const plain = !e.hasUpDown() && (mod === 0 || mod === 2 ** bits) && falling && !e.invertreset;
         const chip = plain ? named(bits === 4 ? "74HC393" : bits === 7 ? "CD4024B" : bits === 12 ? "CD4040B" :
@@ -412,7 +442,7 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const count = countNext(q, true, mod);
         const ck = clock(clk, false);
         q.forEach((x, i) => body.push(...clockedBit("st" + i, mux(ld, input(2 * bits - 1 - i), mux(en, count[i], x)), ck,
-                                                    timeStep, 0, setReset(null, activeLow(clr)))));
+                                                    timeStep, ic("ic_st" + i, now(bits - 1 - i)), setReset(null, activeLow(clr)))));
         q.forEach((x, i) => output(bits - 1 - i, x));
         output(rco, mod - 1 < size ? `${input(ent)}*${matches(q, mod - 1)}` : "0");
         const chip = bits === 4 && (mod === 16 || mod === 10) ? named(mod === 10 ? "74HC160" : "74HC161") : undefined;
@@ -426,10 +456,13 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const inhibit = e.hasClockInhibit() ? input(e.clockInhibit) : null;
         const q = bitNames("V(st").map(x => x + ")");
         const clk = clock(0, false);
+        // with no output high (after a reset), the simulator sets the first
+        const none = q.every((_, i) => !now(2 + i));
         q.forEach((x, i) => {
             const shift = q[(i + bits - 1) % bits];
             body.push(...clockedBit("st" + i, inhibit ? mux(inhibit, x, shift) : shift, clk, timeStep,
-                                    i === 0 ? 1 : 0, setReset(i === 0 ? reset : null, i === 0 ? null : reset)));
+                                    ic("ic_st" + i, none ? (i === 0 ? 1 : 0) : now(2 + i)),
+                                    setReset(i === 0 ? reset : null, i === 0 ? null : reset)));
         });
         q.forEach((x, i) => output(2 + i, x));
         return { want: `RING${bits}`, size: 1, pins, body,
@@ -440,7 +473,7 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
     if (C === SipoShiftElm) {
         const clk = clock(1, false);
         for (let i = 0; i !== bits; i++)
-            body.push(...clockedBit("st" + i, i === 0 ? input(0) : `V(st${i - 1})`, clk, timeStep));
+            body.push(...clockedBit("st" + i, i === 0 ? input(0) : `V(st${i - 1})`, clk, timeStep, ic("ic_st" + i, now(2 + i))));
         for (let i = 0; i !== bits; i++)
             output(2 + i, `V(st${i})`);
         return { want: `SIPO${bits}`, size: 1, pins, body, desc: `${bits}-bit serial-in parallel-out shift register, ${logic}` };
@@ -459,8 +492,9 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         const edge = e.isEdgeTriggered();
         for (let i = 0; i !== bits; i++) {
             const q = `V(st${i})`, d = ies.length ? mux(and(ies), input(i), q) : input(i);
-            body.push(...(edge ? clockedBit("st" + i, d, ld, timeStep, 0, setReset(set, reset)) :
-                                 heldState("st" + i, setReset(set, reset)(mux(ld, d, q)), timeStep, 0)));
+            const init = ic("ic_st" + i, now(bits + i));
+            body.push(...(edge ? clockedBit("st" + i, d, ld, timeStep, init, setReset(set, reset)) :
+                                 heldState("st" + i, setReset(set, reset)(mux(ld, d, q)), timeStep, init)));
         }
         for (let i = 0; i !== bits; i++)
             output(bits + i, `V(st${i})`);
@@ -575,7 +609,8 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
     if (C === DACElm) {
         const max = 2 ** bits - 1;
         const f = Array.from({ length: bits }, (_, i) => `${num(2 ** i / max)}*${input(i)}`).join("+");
-        body.push(...logicOutput(pins[bits], `V(${pins[bits + 1]})*(${f})`, timeStep / 4, "_" + pins[bits]));
+        body.push(...logicOutput(pins[bits], `V(${pins[bits + 1]})*(${f})`, timeStep / 4, "_" + pins[bits],
+                                 ic("ic_" + pins[bits], ce.getPostVoltage(bits))));
         return { want: `DAC${bits}`, size: 1, pins, body, desc: `${bits}-bit DAC, inputs ${logic}` };
     }
     // posts: the outputs, least significant first, the input, then the reference.  the output is
@@ -596,12 +631,108 @@ function chipPart(ce: CircuitElm, timeStep: number): ChipPart | null {
         }
         return { want: `ADC${bits}`, size: 1, pins, body, desc: `${bits}-bit ADC, outputs ${logic}` };
     }
+    // posts: the inputs, then the outputs.  the first rule whose left side matches the pins
+    // sets the outputs, and with none matching they hold their values
+    if (C === CustomLogicElm)
+        return customLogic(e, pins, body, input, ic, timeStep);
     return null;
+}
+
+// a custom logic chip.  each rule's match is a product on a node of its own, and it fires if
+// it matches and no rule before it does.  each output is a held state (and so is whether it's
+// high impedance, if any rule makes it so), which takes the firing rule's value.
+//
+// a rising or falling transition on a pin is a short pulse, while its level differs from a
+// delayed copy of it.  the outputs are a master and a slave: the rules set the master, and the
+// slave follows it except while a pulse is on.  the rules see the outputs as the master has
+// them, except during a pulse, when they see the slave.  so a rule that looks at the outputs
+// (a toggle, say) sees them as they were before the edge, and fires once, and a rule that holds
+// them (ab=ab) holds the new values once the pulse is over
+function customLogic(e: any, pins: string[], body: string[], input: (i: number) => string,
+                     ic: (name: string, v: number) => string, timeStep: number): Omit<ChipPart, "params"> {
+    const model = e.model, ni: number = e.inputCount, no: number = e.outputCount, hi: number = e.highVoltage;
+    const rulesLeft: string[] = model.rulesLeft, rulesRight: string[] = model.rulesRight;
+    const edges = rulesLeft.some(r => /[+-]/.test(r));
+    const tri: boolean = model.triState;
+    // a pin's level: an input's, or an output's state
+    const pinLevel = (j: number) => j < ni ? input(j) : edges ? mux("V(anyp)", `V(st${j - ni})`, `V(m${j - ni})`) : `V(m${j - ni})`;
+    const pulses = new Map<string, string>(), delayed = new Set<number>();
+    const pulse = (j: number, rising: boolean) => {
+        const name = (rising ? "rise" : "fall") + j, d = "dly" + j;
+        if (!pulses.has(name)) {
+            if (!delayed.has(j))
+                body.push(`B${d} ${d}_raw 0 V=${pinLevel(j)}`, `R${d} ${d}_raw ${d} 1k`,
+                          `C${d} ${d} 0 ${spiceValue(timeStep / 1000)} IC=${ic("ic_" + d, e.pins[j].value ? 1 : 0)}`);
+            delayed.add(j);
+            body.push(`B${name} ${name} 0 V=${level(rising ? `${pinLevel(j)}-V(${d})` : `V(${d})-${pinLevel(j)}`, ".5", steepness(1))}`);
+            pulses.set(name, `V(${name})`);
+        }
+        return pulses.get(name)!;
+    };
+    body.push(...model.rules.split("\n").map((l: string) => l.trim()).filter((l: string) => l !== "").map((l: string) => "* " + l));
+    // each rule's match, and the pin where each of its letters is first
+    const bounds = rulesLeft.map((rl, i) => {
+        const lits: string[] = [], bound = new Map<string, number>();
+        for (let j = 0; j !== rl.length; j++) {
+            const x = rl.charAt(j);
+            if (x === "0" || x === "1")
+                lits.push(x === "1" ? pinLevel(j) : not(pinLevel(j)));
+            else if (x === "+" || x === "-")
+                lits.push(pulse(j, x === "+"));
+            else if (x >= "a" && x <= "z")
+                bound.set(x, j);
+            else if (x >= "A" && x <= "Z")
+                lits.push(`(1-${xor(pinLevel(j), pinLevel(bound.get(x.toLowerCase())!))})`);
+        }
+        body.push(`Br${i} r${i} 0 V=${and(lits)}`);
+        return bound;
+    });
+    // whether each rule fires, and whether none does
+    rulesLeft.forEach((_, i) => body.push(`Bf${i} f${i} 0 V=${and([`V(r${i})`, ...rulesLeft.slice(0, i).map((_, h) => not(`V(r${h})`))])}`));
+    body.push(`Bnone none 0 V=${and(rulesLeft.map((_, i) => not(`V(r${i})`)))}`);
+    const ps = [...pulses.values()];
+    if (edges)
+        body.push(`Banyp anyp 0 V=${ps.length === 1 ? ps[0] : not(and(ps.map(not)))}`);
+    for (let k = 0; k !== no; k++) {
+        const terms: string[] = [], zterms: string[] = [];
+        rulesRight.forEach((rr, i) => {
+            const x = rr.charAt(k), bound = bounds[i];
+            if (x === "1")
+                terms.push(`V(f${i})`);
+            else if (x === "_") {
+                // a high impedance output keeps its value for when it's driven again
+                terms.push(`V(f${i})*V(m${k})`);
+                zterms.push(`V(f${i})`);
+            } else if (x >= "a" && x <= "z" && bound.has(x))
+                terms.push(`V(f${i})*${pinLevel(bound.get(x)!)}`);
+        });
+        const out = pins[ni + k], v = e.pins[ni + k].value ? 1 : 0;
+        const init = ic("ic_" + out, v), drv = ic("ic_drv_" + out, v * hi);
+        body.push(...heldState(`m${k}`, [...terms, `V(none)*V(m${k})`].join("+"), timeStep, init));
+        if (edges)
+            body.push(...heldState(`st${k}`, mux("V(anyp)", `V(st${k})`, `V(m${k})`), timeStep, init));
+        if (!tri) {
+            body.push(...logicOutput(out, `${num(hi)}*V(${edges ? "st" : "m"}${k})`, timeStep / 4, "_" + out, drv));
+            continue;
+        }
+        body.push(...heldState(`z${k}`, [...zterms, `V(none)*V(z${k})`].join("+"), timeStep,
+                               ic("ic_z_" + out, e.highImpedance[ni + k] ? 1 : 0)));
+        // the output drives its pin through a switch, which opens while it's high impedance
+        body.push(...logicOutput(`drv_${out}`, `${num(hi)}*V(${edges ? "st" : "m"}${k})`, timeStep / 4, "_" + out, drv),
+                  `Bdrv${k} en${k} 0 V=1-V(z${k})`,
+                  `S${k} drv_${out} ${out} en${k} 0 TRI`);
+    }
+    if (tri)
+        body.push(".model TRI SW (VT=0.5 VH=0 RON=1m ROFF=100meg)");
+    const name = sanitize(model.name === "default" ? "CUSTOM" : model.name).toUpperCase();
+    return { want: name, size: 1, pins, body,
+             desc: `custom logic "${model.infoText.replace(/\s+/g, " ")}", ${num(hi)}V logic` };
 }
 
 const LOGIC_CHIPS = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, CounterElm, Counter2Elm,
                                   RingCounterElm, SipoShiftElm, LatchElm, MultiplexerElm, DeMultiplexerElm,
-                                  HalfAdderElm, FullAdderElm, SevenSegDecoderElm, AnalogMuxElm, DACElm, ADCElm]);
+                                  HalfAdderElm, FullAdderElm, SevenSegDecoderElm, AnalogMuxElm, DACElm, ADCElm,
+                                  CustomLogicElm]);
 
 class NetlistWriter {
     lines: string[] = [];
@@ -760,6 +891,16 @@ class NetlistWriter {
                 }
     }
 
+    // the .model card for a diode model
+    private diodeModel(m: any): string {
+        let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
+        if (m.seriesResistance > 0)
+            params += ` RS=${num(m.seriesResistance)}`;
+        if (m.breakdownVoltage > 0)
+            params += ` BV=${num(m.breakdownVoltage)}`;
+        return this.exp.model("D", m.name, { kind: "D", params });
+    }
+
     private writeElm(ce: CircuitElm, n: string[]): void {
         const C = ce.getDumpClass();
         const e = ce as any;
@@ -808,13 +949,20 @@ class NetlistWriter {
         }
         // posts: anode, cathode
         if (C === DiodeElm || C === LEDElm || C === ZenerElm) {
-            const m = e.model;
-            let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
-            if (m.seriesResistance > 0)
-                params += ` RS=${num(m.seriesResistance)}`;
-            if (m.breakdownVoltage > 0)
-                params += ` BV=${num(m.breakdownVoltage)}`;
-            L(this.ref("D"), n[0], n[1], this.exp.model("D", m.name, { kind: "D", params }));
+            L(this.ref("D"), n[0], n[1], this.diodeModel(e.model));
+            return;
+        }
+        // posts: the columns, then the rows.  each LED goes from its row to its column
+        if (C === LEDArrayElm) {
+            const cols: number = e.sizeX, rows: number = e.sizeY;
+            const model = this.diodeModel(DiodeModel.getModelWithName("default-led"));
+            const pins = [...Array.from({ length: cols }, (_, i) => "c" + i), ...Array.from({ length: rows }, (_, i) => "r" + i)];
+            const body: string[] = [];
+            for (let y = 0; y !== rows; y++)
+                for (let x = 0; x !== cols; x++)
+                    body.push(`D${y}_${x} r${y} c${x} ${model}`);
+            const name = this.exp.logicPart(`LEDARRAY${cols}X${rows}`, `${cols}x${rows} LED array, anodes on the rows`, pins, body);
+            L(this.ref("XU"), ...n, name);
             return;
         }
         // posts: base, collector, emitter.  SPICE: collector, base, emitter
@@ -989,7 +1137,8 @@ class NetlistWriter {
                     ins.map(x => `(1-${x})`).join("*");
             if (ce.isInverting() !== (kind === "OR" || kind === "NOR"))
                 f = `1-(${f})`;
-            body.push(...logicOutput("y", `${num(hi)}*(${f})`, delay > 0 ? delay : this.exp.timeStep / 4));
+            const params: StateParams = [["ic_y", e.lastOutput ? hi : 0]];
+            body.push(...logicOutput("y", `${num(hi)}*(${f})`, delay > 0 ? delay : this.exp.timeStep / 4, "", "{ic_y}"));
 
             // a gate of the usual kind is named after its chip
             let part: [string, number] | undefined;
@@ -997,29 +1146,33 @@ class NetlistWriter {
                 part = schmitt ? (kind === "NAND" && count === 2 ? ["74HC132", 4] : undefined) : LOGIC_PARTS[kind][count];
             const desc = `${count}-input ${kind} gate, ${num(hi)}V logic` + (schmitt ? ", Schmitt inputs" : "") +
                          (inverted ? ", inverted inputs" : "") + (delay > 0 ? `, ${spiceValue(delay)}s delay` : "");
-            const name = this.exp.logicPart(part?.[0] ?? kind + count, desc, [...pins, "y"], body);
-            L(this.packRef(name, part?.[1] ?? 1), ...n.slice(0, count + 1), name);
+            const name = this.exp.logicPart(part?.[0] ?? kind + count, desc, [...pins, "y"], body, params);
+            L(this.packRef(name, part?.[1] ?? 1), ...n.slice(0, count + 1), name, ...SpiceExporter.instanceParams(params));
             return;
         }
         if (C === InverterElm) {
             const hi = e.highVoltage;
-            const body = logicOutput("y", `${num(hi)}*(1-${level("V(a)", num(hi / 2), steepness(hi))})`, this.exp.timeStep / 4);
-            const name = this.exp.logicPart(hi === 5 ? "74HC04" : "INV", `inverter, ${num(hi)}V logic`, ["a", "y"], body);
-            L(this.packRef(name, hi === 5 ? 6 : 1), n[0], n[1], name);
+            const params: StateParams = [["ic_y", ce.getPostVoltage(1)]];
+            const body = logicOutput("y", `${num(hi)}*(1-${level("V(a)", num(hi / 2), steepness(hi))})`, this.exp.timeStep / 4, "", "{ic_y}");
+            const name = this.exp.logicPart(hi === 5 ? "74HC04" : "INV", `inverter, ${num(hi)}V logic`, ["a", "y"], body, params);
+            L(this.packRef(name, hi === 5 ? 6 : 1), n[0], n[1], name, ...SpiceExporter.instanceParams(params));
             return;
         }
         // the output is on once the input rises past the upper trigger, until it falls past the lower
         if (C === SchmittElm || C === InvertingSchmittElm) {
             const on = e.logicOnLevel, off = e.logicOffLevel, invert = C === InvertingSchmittElm;
-            const st = schmittInput("a", e.lowerTrigger, e.upperTrigger, steepness(e.upperTrigger - e.lowerTrigger), this.exp.timeStep);
+            // the simulator's state is whether the input was last low
+            const params: StateParams = [["ic_st", e.state ? 0 : 1], ["ic_y", ce.getPostVoltage(1)]];
+            const st = schmittInput("a", e.lowerTrigger, e.upperTrigger, steepness(e.upperTrigger - e.lowerTrigger), this.exp.timeStep, "{ic_st}");
             const body = [...st.lines,
-                          ...logicOutput("y", `${num(off)}+${num(on - off)}*${invert ? `(1-${st.state})` : st.state}`, this.exp.timeStep / 4)];
+                          ...logicOutput("y", `${num(off)}+${num(on - off)}*${invert ? `(1-${st.state})` : st.state}`, this.exp.timeStep / 4,
+                                         "", "{ic_y}")];
             const usual = on === 5 && off === 0;
             const want = invert ? (usual ? "74HC14" : "SCHMITT_INV") : (usual ? "74HC7014" : "SCHMITT");
             const desc = (invert ? "inverting " : "") + `Schmitt trigger, switching at ${num(e.lowerTrigger)}V and ` +
                          `${num(e.upperTrigger)}V, output ${num(off)}V to ${num(on)}V`;
-            const name = this.exp.logicPart(want, desc, ["a", "y"], body);
-            L(this.packRef(name, usual ? 6 : 1), n[0], n[1], name);
+            const name = this.exp.logicPart(want, desc, ["a", "y"], body, params);
+            L(this.packRef(name, usual ? 6 : 1), n[0], n[1], name, ...SpiceExporter.instanceParams(params));
             return;
         }
         if (LOGIC_CHIPS.has(C)) {
@@ -1028,8 +1181,8 @@ class NetlistWriter {
                 this.leftOut(ce, n);
                 return;
             }
-            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body);
-            L(this.packRef(name, part.size), ...n, name);
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, part.size), ...n, name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
         if (C === SubcircuitElm) {
@@ -1084,8 +1237,9 @@ export class SpiceExporter {
 
     // the name of the .subckt for a logic part with this body, writing it if it's new.  a part
     // that differs from another of the same name (a different logic level, say) is numbered
-    logicPart(want: string, desc: string, pins: string[], body: string[]): string {
-        const key = pins.join(" ") + "\n" + body.join("\n");
+    logicPart(want: string, desc: string, pins: string[], body: string[], params: StateParams = []): string {
+        const decl = params.length ? " params: " + params.map(([p]) => p + "=0").join(" ") : "";
+        const key = pins.join(" ") + decl + "\n" + body.join("\n");
         let name = this.logicParts.get(key);
         if (name !== undefined)
             return name;
@@ -1094,18 +1248,19 @@ export class SpiceExporter {
             name = want + "_" + i;
         this.subcktNames.add(name.toLowerCase());
         this.logicParts.set(key, name);
-        this.subcktText.push("", "* " + desc, ".subckt " + name + " " + pins.join(" "), ...body, ".ends " + name);
+        this.subcktText.push("", "* " + desc, ".subckt " + name + " " + pins.join(" ") + decl, ...body, ".ends " + name);
         return name;
+    }
+
+    // an instance's state parameters, for those not at 0
+    static instanceParams(params: StateParams): string[] {
+        return params.filter(([, v]) => v !== 0).map(([p, v]) => p + "=" + num(v));
     }
 
     // the name of the .subckt for a subcircuit model, writing it if it's new
     subckt(model: any): string | null {
         if (this.subckts.has(model))
             return this.subckts.get(model)!;
-        if (model.extList.some((x: any) => x.busWidth > 1)) {
-            this.subckts.set(model, null);
-            return null;
-        }
         let name = sanitize(model.name);
         while (this.subcktNames.has(name.toLowerCase()))
             name += "_";
@@ -1122,8 +1277,9 @@ export class SpiceExporter {
                 keys: elms.map(x => x.nodes.map(nd => nd === 0 ? "0" : "n" + nd)),
                 names,
             });
+            // a bus pin has an entry for each line, each with a node of its own
             for (const x of model.extList)
-                names.set("n" + x.node, x.name);
+                names.set("n" + x.node, x.busWidth > 1 ? x.name + "_" + x.busZ : x.name);
             w.write();
             for (const x of model.extList)
                 ports.push(x.node === 0 ? "0" : w.net("n" + x.node));
