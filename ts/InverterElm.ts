@@ -25,7 +25,7 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { WireRouter } from "./WireRouter";
-import { GateElm, queueSizeEditInfo, parseQueueSizeEdit } from "./GateElm";
+import { GateElm, queueSizeEditInfo, parseQueueSizeEdit, disableOptimizationEditInfo } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
@@ -39,6 +39,7 @@ export class InverterElm extends CircuitElm {
     slewRate: number; // V/ns
     highVoltage: number;
     queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
+    optimizationDisabled = false; // see DigitalSynthesis.optimizationDisabled
     gatePoly: Polygon;
     pcircle: Point;
     center: Point;
@@ -69,6 +70,8 @@ export class InverterElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "hi", this.highVoltage);
         if (this.queueSize !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
+        if (this.optimizationDisabled)
+            CircuitXMLSerializer.dumpAttr(elem, "nopt", true);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -76,6 +79,7 @@ export class InverterElm extends CircuitElm {
         this.slewRate = xml.parseDoubleAttr("sl", this.slewRate);
         this.highVoltage = xml.parseDoubleAttr("hi", this.highVoltage);
         this.queueSize = xml.parseIntAttr("qs", this.queueSize);
+        this.optimizationDisabled = xml.parseBooleanAttr("nopt", this.optimizationDisabled);
     }
 
     getDumpType(): number { return 'I'.charCodeAt(0); }
@@ -161,7 +165,7 @@ export class InverterElm extends CircuitElm {
         const desc: ChipDesc[] = [
             chipStart((pin) => { pin[2] = pin[1] ^ 1; }).inputPins(1).outputPin(2).outputDelayNs(12.0, 8.0),
         ];
-        return { desc, pinMap: new Map([[0, 1], [1, 2]]), queueSize: this.queueSize };
+        return { desc, pinMap: new Map([[0, 1], [1, 2]]), queueSize: this.queueSize, optimizationDisabled: this.optimizationDisabled };
     }
 
     getVoltageDiff(): number { return this.nodes[0].v; }
@@ -184,6 +188,8 @@ export class InverterElm extends CircuitElm {
             return EditInfo.createCheckbox("DeMorgan's Symbol", this.hasFlag(InverterElm.FLAG_DEMORGAN));
         if (n === 3)
             return queueSizeEditInfo(this.queueSize);
+        if (n === 4)
+            return disableOptimizationEditInfo(this.optimizationDisabled);
         return null;
     }
 
@@ -203,6 +209,8 @@ export class InverterElm extends CircuitElm {
             const qs = parseQueueSizeEdit(ei);
             if (qs !== null) this.queueSize = qs;
         }
+        if (n === 4)
+            this.optimizationDisabled = ei.checkbox!.getState();
     }
 
     // no current path through inverter input, but indirect path through output to ground

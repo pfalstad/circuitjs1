@@ -43,6 +43,11 @@ export interface DigitalSynthesis {
     // that gets activationCheck()ed constantly but rarely promotes scans its whole input
     // history each time, so a small queue (e.g. 8) can make it much cheaper.
     queueSize?: number;
+    // Run every chip in `desc` unoptimized (the same per-chip optimizationDisabled the global
+    // "Disable Digital Optimization" option sets). For a chip that keeps getting promoted and
+    // demoted - e.g. Breakout's brick-display gates, fed by an SRAM whose output changes every
+    // brick - the churn costs more than promotion saves; even a small queueSize doesn't stop it.
+    optimizationDisabled?: boolean;
 }
 
 export interface DigitalSynthesizable {
@@ -76,6 +81,7 @@ interface SynthEntry {
     pinMap: Map<number, number>;
     isTie: boolean; // true: name is "_VCC"/"_GND", already exists in every Circuit - don't emit a CHIP entry
     queueSize?: number;
+    optimizationDisabled?: boolean;
 }
 
 const TIE_OUT_PIN = 1;
@@ -256,7 +262,7 @@ function synthesizeAll(elmList: any[]): Map<any, SynthEntry> {
             const synth = elm.digitalSynthesis();
             if (synth != null)
                 synthMap.set(elm, { name: "e" + counter++, desc: synth.desc, pinMap: synth.pinMap, isTie: false,
-                    queueSize: synth.queueSize });
+                    queueSize: synth.queueSize, optimizationDisabled: synth.optimizationDisabled });
         }
     }
     return synthMap;
@@ -350,6 +356,10 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph {
     for (const [elm, entry] of synthMap) {
         if (entry.isTie) chipsByElm.set(elm, [entry.name === "_VCC" ? circuit.chips[0] : circuit.chips[1]]);
         else chipsByElm.set(elm, byName.get(entry.name) ?? []); // empty: pruned as dead code (see circuit.ts)
+        // Safe here, before the circuit has run: every chip is still PASSIVE - the same point the
+        // global option sets it at (SimulationManager.initDigitalCircuit()).
+        if (entry.optimizationDisabled)
+            for (const chip of chipsByElm.get(elm)!) chip.optimizationDisabled = true;
     }
 
     const triStateChipByNode = new Map<any, Chip>();

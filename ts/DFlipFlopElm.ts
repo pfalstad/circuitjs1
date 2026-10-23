@@ -20,7 +20,7 @@
 import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
-import { queueSizeEditInfo, parseQueueSizeEdit } from "./GateElm";
+import { queueSizeEditInfo, parseQueueSizeEdit, disableOptimizationEditInfo } from "./GateElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { Checkbox } from "./Checkbox";
@@ -36,6 +36,7 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
     static readonly FLAG_INVERT_SET_RESET = 8;
 
     queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
+    optimizationDisabled = false; // see DigitalSynthesis.optimizationDisabled
 
     hasReset():       boolean { return (this.flags & DFlipFlopElm.FLAG_RESET) !== 0 || this.hasSet(); }
     hasSet():         boolean { return (this.flags & DFlipFlopElm.FLAG_SET) !== 0; }
@@ -45,11 +46,14 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
         super.dumpXml(doc, elem);
         if (this.queueSize !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
+        if (this.optimizationDisabled)
+            CircuitXMLSerializer.dumpAttr(elem, "nopt", true);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.queueSize = xml.parseIntAttr("qs", this.queueSize);
+        this.optimizationDisabled = xml.parseBooleanAttr("nopt", this.optimizationDisabled);
     }
 
     /** DigitalInitialState - see its own docstring. this.pins[1].value (Q) already holds what
@@ -135,7 +139,7 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
             chipStart(qBuf).inputPins(internalQ).outputPin(Qpin).outputDelayNs(4.0, 10.0),
             chipStart(notQ).inputPins(...notQIn).outputPin(notQpin).outputDelayNs(4.0, 10.0),
         ];
-        return { desc, pinMap, queueSize: this.queueSize };
+        return { desc, pinMap, queueSize: this.queueSize, optimizationDisabled: this.optimizationDisabled };
     }
 
     constructor(xx: number, yy: number);
@@ -224,6 +228,8 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
         }
         if (n === 3)
             return queueSizeEditInfo(this.queueSize);
+        if (n === 4)
+            return disableOptimizationEditInfo(this.optimizationDisabled);
         return super.getChipEditInfo(n);
     }
 
@@ -255,6 +261,8 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
             const qs = parseQueueSizeEdit(ei);
             if (qs !== null) this.queueSize = qs;
         }
+        if (n === 4)
+            this.optimizationDisabled = ei.checkbox!.getState();
         super.setChipEditValue(n, ei);
     }
 }

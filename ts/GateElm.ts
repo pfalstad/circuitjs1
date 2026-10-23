@@ -46,6 +46,12 @@ export function queueSizeEditInfo(queueSize: number): EditInfo {
     return new EditInfo(`Event Queue Size (0 = default ${EVENT_QUEUE_SIZE})`, queueSize, -1, -1).setDimensionless();
 }
 
+/** Shared "Disable Optimization" checkbox for the same elements (see
+ * DigitalSynthesis.optimizationDisabled). */
+export function disableOptimizationEditInfo(disabled: boolean): EditInfo {
+    return EditInfo.createCheckbox("Disable Optimization", disabled);
+}
+
 /** Validates an "Event Queue Size" edit: 0, or a power of two from 4 to 4096 (Cirque indexes by
  * mask). Returns the new size, or null after flagging the error on `ei`. */
 export function parseQueueSizeEdit(ei: EditInfo): number | null {
@@ -67,6 +73,7 @@ export abstract class GateElm extends CircuitElm {
     propagationDelayLH: number = DEFAULT_GATE_DELAY_LH_S; // seconds; matches DICE's 7400 NAND LH delay
     propagationDelayHL: number = DEFAULT_GATE_DELAY_HL_S; // seconds; matches DICE's 7400 NAND HL delay
     queueSize: number = 0; // digital event queue size, 0 = default - see DigitalSynthesis.queueSize
+    optimizationDisabled = false; // see DigitalSynthesis.optimizationDisabled
     delayEndTime: number = 0;     // time at which pending output change takes effect
     static lastHighVoltage: number = 5;
     static lastSchmitt: boolean = false;
@@ -131,6 +138,8 @@ export abstract class GateElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "pdhl", this.propagationDelayHL);
         if (this.queueSize !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "qs", this.queueSize);
+        if (this.optimizationDisabled)
+            CircuitXMLSerializer.dumpAttr(elem, "nopt", true);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -154,6 +163,7 @@ export abstract class GateElm extends CircuitElm {
         // old saves had a single symmetric "pd" delay; default HL to it when "pdhl" is absent
         this.propagationDelayHL = xml.parseDoubleAttr("pdhl", this.propagationDelayLH);
         this.queueSize = xml.parseIntAttr("qs", this.queueSize);
+        this.optimizationDisabled = xml.parseBooleanAttr("nopt", this.optimizationDisabled);
         const lastOutputVoltage = xml.parseDoubleAttr("o", 0);
         this.lastOutput = lastOutputVoltage > this.highVoltage * .5;
         this.setSize((this.flags & GateElm.FLAG_SMALL) !== 0 ? 1 : 2);
@@ -447,7 +457,7 @@ export abstract class GateElm extends CircuitElm {
             chipStart(logic).inputPins(...inPins).outputPin(outPin)
                 .outputDelayS(this.propagationDelayLH, this.propagationDelayHL),
         ];
-        return { desc, pinMap, queueSize: this.queueSize };
+        return { desc, pinMap, queueSize: this.queueSize, optimizationDisabled: this.optimizationDisabled };
     }
 
     getInfo(arr: string[]): void {
@@ -561,6 +571,8 @@ export abstract class GateElm extends CircuitElm {
             return EditInfo.createCheckbox("DeMorgan's Symbol", this.hasFlag(GateElm.FLAG_DEMORGAN));
         if (n === 7)
             return queueSizeEditInfo(this.queueSize);
+        if (n === 8)
+            return disableOptimizationEditInfo(this.optimizationDisabled);
         return null;
     }
 
@@ -617,6 +629,8 @@ export abstract class GateElm extends CircuitElm {
             const qs = parseQueueSizeEdit(ei);
             if (qs !== null) this.queueSize = qs;
         }
+        if (n === 8)
+            this.optimizationDisabled = ei.checkbox!.getState();
     }
 
     validate(): boolean { return this.validateRailNode(this.inputCount); }
