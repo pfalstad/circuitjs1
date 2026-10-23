@@ -319,8 +319,13 @@ export class Circuit {
     // neutral. See the note above on why the accompanying min-delay clamp is not needed here.
     queuePush(chip: Chip, delay: number): number {
         const time = this.globalTime + delay;
-        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
         const ci = chip.chipIndex;
+        if (this.topDone) {
+            this.topDone = false;
+            this.siftDown(time, chip, ci);
+            return time;
+        }
+        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
 
         let i = ++this.queueSize;
         for (let p = i >> 1;
@@ -338,20 +343,39 @@ export class Circuit {
         return time;
     }
 
-    // NOTE: every caller pops the due entry BEFORE dispatching it, not after. With the canonical
+    // While an event is being dispatched (dispatchTop()) it stays at the root, so that the first
+    // event its handling schedules can REPLACE it with one sift-down instead of a pop plus a
+    // push - most dispatches schedule one. The heap is ordered on (time, chipIndex) alone, so
+    // this doesn't change the order events come out in.
+    //
+    // It also keeps the guarantee popping BEFORE dispatch used to give: with the canonical
     // tie-break above, an event scheduled with zero delay during a dispatch lands at the CURRENT
-    // globalTime, and if its chip sorts ahead of the entry being dispatched it sifts straight to
-    // the root - so a pop performed afterwards would discard that brand-new event instead of the
-    // one just handled, silently dropping it (this is why dice-ts, which pops afterwards, needs
-    // its min-delay clamp to make such a push impossible). Popping first is equivalent for every
-    // strictly-future push (a larger time can never displace the root) and correct for the
-    // same-instant ones ts-digital relies on - see the note on zero-delay pushes above.
-    queuePop(): void {
-        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
-        const time = qt[this.queueSize], chip = qc[this.queueSize], ci = qi[this.queueSize];
+    // globalTime, and if its chip sorts ahead of the entry being dispatched it belongs at the
+    // root - so a pop performed afterwards would discard that brand-new event instead of the one
+    // just handled (this is why dice-ts, which pops afterwards, needs its min-delay clamp to make
+    // such a push impossible). Here nothing touches the heap before that first push, which
+    // consumes the stale root itself; only a dispatch that schedules nothing pops afterwards.
+    private topDone = false;
 
-        let i = 1;
+    private dispatchTop(): void {
+        const chip = this.queueChip[1]!;
+        this.topDone = true;
+        this.eventCount++;
+        if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
+        if (this.topDone) { this.topDone = false; this.queuePop(); }
+    }
+
+    queuePop(): void {
+        const n = this.queueSize;
+        const time = this.queueTime[n], chip = this.queueChip[n]!, ci = this.queueIdx[n];
         this.queueSize--;
+        this.siftDown(time, chip, ci);
+    }
+
+    // Puts (time, chip) at the root and sifts it down into place.
+    private siftDown(time: number, chip: Chip, ci: number): void {
+        const qt = this.queueTime, qc = this.queueChip, qi = this.queueIdx;
+        let i = 1;
         const n = this.queueSize + 1;
 
         // Hot path: when the times differ this must cost exactly what the time-only heap cost, so
@@ -407,12 +431,7 @@ export class Circuit {
      * means every driver has already reached its true configured value by the time seeding runs,
      * so no such transient recompute - and no poisoned pending event - ever happens. */
     drainZeroDelayEvents(): void {
-        while (this.queueSize && this.queueTime[1] === this.globalTime) {
-            const chip = this.queueChip[1]!;
-            this.queuePop();
-            this.eventCount++;
-            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
-        }
+        while (this.queueSize && this.queueTime[1] === this.globalTime) this.dispatchTop();
     }
 
     /**
@@ -439,10 +458,7 @@ export class Circuit {
                 return;
             }
 
-            const chip = this.queueChip[1]!;
-            this.queuePop();
-            this.eventCount++;
-            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
+            this.dispatchTop();
             if (this.haltRequested) return;
         }
     }
@@ -478,10 +494,7 @@ export class Circuit {
                 break;
             }
 
-            const chip = this.queueChip[1]!;
-            this.queuePop();
-            this.eventCount++;
-            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
+            this.dispatchTop();
             if (this.haltRequested) break;
         }
 
