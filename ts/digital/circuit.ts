@@ -239,6 +239,11 @@ export class Circuit {
 
     haltRequested = false;
 
+    // Events popped off the queue, and how many of those reached updateOutput(). Not engine
+    // state - counted so the WASM engine (wasm/engine.cpp) can be checked against this one.
+    eventCount = 0;
+    updateCount = 0;
+
     // for stop trigger
     requestHalt(): void { this.haltRequested = true; }
 
@@ -405,7 +410,8 @@ export class Circuit {
         while (this.queueSize && this.queueTime[1] === this.globalTime) {
             const chip = this.queueChip[1]!;
             this.queuePop();
-            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
+            this.eventCount++;
+            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
         }
     }
 
@@ -435,7 +441,8 @@ export class Circuit {
 
             const chip = this.queueChip[1]!;
             this.queuePop();
-            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
+            this.eventCount++;
+            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
             if (this.haltRequested) return;
         }
     }
@@ -473,7 +480,8 @@ export class Circuit {
 
             const chip = this.queueChip[1]!;
             this.queuePop();
-            if (this.globalTime === chip.pendingEvent) chip.updateOutput();
+            this.eventCount++;
+            if (this.globalTime === chip.pendingEvent) { this.updateCount++; chip.updateOutput(); }
             if (this.haltRequested) break;
         }
 

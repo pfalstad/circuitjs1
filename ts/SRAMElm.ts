@@ -27,7 +27,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S } from "./GateElm";
-import { customChipStart } from "./digital/chip_desc";
+import { sramBitCell, type SramMemory } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis, DigitalTriStateDriver, DigitalTriStateReadback } from "./digital/DigitalGraphBuilder";
@@ -484,41 +484,17 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
         if (separate) for (let i = 0; i < n; i++) pinMap.set(this.dataInNodes + i, dataInPin(i));
 
+        // Read live through `this.map`, which reset/load replace wholesale.
+        const mem: SramMemory = {
+            read: (address) => this.map.get(address) ?? 0,
+            write: (address, value) => { this.map.set(address, value); },
+        };
+
         const desc: ChipDesc[] = [];
         for (let i = 0; i < n; i++) {
             const bitMask = 1 << (n - 1 - i);
 
-            const update = (chip: Chip, mask: number): void => {
-                chip.inputs ^= mask;
-                const weActive = (chip.inputs & 1) === 0; // WE is active low
-                const oeActive = ((chip.inputs >> 1) & 1) === 0; // OE is active low
-                let address = 0;
-                for (let k = 0; k < m; k++) address |= ((chip.inputs >> (2 + k)) & 1) << (m - 1 - k);
-                const dataIn = (chip.inputs >> (2 + m)) & 1;
-
-                // 82S16 has no real /OE pin - this element's /OE stands in for its 3-input /CE,
-                // which alone gates whether the output drives at all. /WE only selects whether
-                // that driven value is the stored bit (read) or the bit being written
-                // (write-through) - see doStep()'s matching logic above.
-                let newOut: number;
-                if (!oeActive) {
-                    newOut = 0; // tri-stated whenever disabled, regardless of /WE
-                } else if (weActive) {
-                    const cur = this.map.get(address) ?? 0;
-                    this.map.set(address, dataIn ? (cur | bitMask) : (cur & ~bitMask));
-                    newOut = dataIn;
-                } else {
-                    newOut = ((this.map.get(address) ?? 0) & bitMask) ? 1 : 0;
-                }
-                newOut ^= invert;
-
-                if (newOut !== chip.output && chip.pendingEvent === 0)
-                    chip.pendingEvent = chip.circuit.queuePush(chip, chip.delay[chip.output]);
-                else if (chip.pendingEvent !== 0 && newOut === chip.output)
-                    chip.pendingEvent = 0;
-            };
-
-            desc.push(customChipStart(update)
+            desc.push(sramBitCell(mem, m, bitMask, invert)
                 .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), dataInPin(i))
                 .outputPin(driverPin(i))
                 .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));

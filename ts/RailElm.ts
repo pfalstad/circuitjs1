@@ -25,7 +25,7 @@ import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { WireRouter } from "./WireRouter";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
-import { customChipStart } from "./digital/chip_desc";
+import { clockCell } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { phasedClockLogic } from "./digital/clockChip";
@@ -213,7 +213,7 @@ export class RailElm extends VoltageElm {
         // loses exactly one count per edit - which is a picture that walks a little further every
         // time the circuit is touched, and never walks back.
         const desc: ChipDesc[] = [
-            customChipStart(phasedClockLogic(edgeDelay))
+            clockCell(edgeDelay)
                 .initialOutput(startsHigh ? 1 : 0)
                 .outputDelayS(RailElm.ticksToSeconds(lowTicks), RailElm.ticksToSeconds(highTicks)).outputPin(1),
         ];

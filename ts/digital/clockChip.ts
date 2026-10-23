@@ -9,6 +9,7 @@
 // noble-stirring-rabin.md).
 import { Chip, ChipState, Event } from "./chip";
 import { MAX_U64 } from "./constants";
+import { phasedClockUpdate } from "./nativeKinds";
 
 export function clockLogic(chip: Chip): void {
     chip.state = ChipState.ACTIVE;
@@ -29,20 +30,6 @@ export function clockLogic(chip: Chip): void {
  * toggle uses `initialDelayTicks` instead of `chip.delay[chip.output]`, and the seeded interval
  * (`outputEvents[1]-outputEvents[0]`) uses `chip.delay[chip.output]` rather than a hardcoded
  * `delay[0]` - otherwise Cycle.nextOutputEventDelay()'s index-parity alternation desyncs from
- * chip.output's real starting value and applies the wrong duration to every state after. */
-export function phasedClockLogic(initialDelayTicks: number): (chip: Chip) => void {
-    return (chip: Chip): void => {
-        chip.state = ChipState.ACTIVE;
-        chip.activationTime = chip.circuit.globalTime;
-
-        chip.outputEvents.clear();
-        chip.outputEvents.push_back(new Event(chip.circuit.globalTime));
-        chip.outputEvents.push_back(new Event(chip.circuit.globalTime + chip.delay[chip.output]));
-        chip.cycleTime = chip.delay[0] + chip.delay[1];
-        chip.firstOutputEvent = chip.outputEvents.begin();
-        chip.currentOutputEvent = chip.outputEvents.begin();
-        chip.endTime = MAX_U64;
-
-        chip.pendingEvent = chip.circuit.queuePush(chip, initialDelayTicks);
-    };
-}
+ * chip.output's real starting value and applies the wrong duration to every state after.
+ * Lives in nativeKinds.ts, since the WASM engine's CLOCK kind must match it. */
+export const phasedClockLogic = phasedClockUpdate;

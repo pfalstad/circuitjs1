@@ -30,7 +30,7 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { appendInfoLine, digitalStateTextForOutput } from "./digital/DigitalGraphBuilder";
-import { customChipStart } from "./digital/chip_desc";
+import { sourceCell, pushSourceValue } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -88,8 +88,7 @@ export class LogicInputElm extends SwitchElm {
      * at Circuit-construction time (Chip.initialize()) for the correct initial value, and again
      * from toggle() below for every live click - same function either way. */
     private static pushDigitalValue(chip: Chip, high: boolean): void {
-        const newOut = high ? 1 : 0;
-        if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
+        pushSourceValue(chip, high);
     }
 
     /** Set by whoever builds the digital graph (DigitalGraphBuilder.buildDigitalCircuit()'s
@@ -101,7 +100,7 @@ export class LogicInputElm extends SwitchElm {
     digitalSynthesis(): DigitalSynthesis | null {
         if (!this.isDigitalSource()) return null;
         const desc: ChipDesc[] = [
-            customChipStart((chip) => LogicInputElm.pushDigitalValue(chip, this.digitalHigh())).outputPin(1),
+            sourceCell(() => this.digitalHigh()).outputPin(1),
         ];
         return { desc, pinMap: new Map([[0, 1]]) };
     }

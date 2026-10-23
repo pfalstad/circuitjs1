@@ -20,6 +20,8 @@ import type { ChipDesc, ChipLogic } from "./chip_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
 import { Circuit, SUBCYCLE_SIZE } from "./circuit";
+import { serializeCircuitDesc } from "./netlist";
+import type { SerialDesc } from "./netlist";
 
 /**
  * What a digital-capable CircuitElm subclass returns from digitalSynthesis(): the ChipDesc[]
@@ -309,6 +311,24 @@ function layoutFromSynth(synthMap: Map<any, SynthEntry>,
 export function buildCircuitDesc(elmList: any[]): CircuitDesc {
     const synthMap = synthesizeAll(elmList);
     return layoutFromSynth(synthMap, resolveNodeDrivers(synthMap));
+}
+
+/** The netlist buildDigitalCircuit() would build, as plain data (see netlist.ts) - for
+ * replaying a real circuit outside the app (scripts/bench-wasm.ts). Each chip is labeled with
+ * its element's class and, where it has one, name (`ExtVoltageElm:SERVE`). */
+export function serializeDigitalCircuit(elmList: any[]): SerialDesc {
+    const synthMap = synthesizeAll(elmList);
+    const desc = layoutFromSynth(synthMap, resolveNodeDrivers(synthMap));
+    const labels = new Map<string, string>();
+    const optDisabled = new Set<string>();
+    for (const [elm, entry] of synthMap) {
+        if (entry.isTie) continue;
+        const cls = elm.getClassName?.() ?? "";
+        const name = typeof elm.getName === "function" ? elm.getName() : undefined;
+        labels.set(entry.name, name !== undefined ? `${cls}:${name}` : cls);
+        if (entry.optimizationDisabled) optDisabled.add(entry.name);
+    }
+    return serializeCircuitDesc(desc, labels, optDisabled);
 }
 
 export interface DigitalGraph {

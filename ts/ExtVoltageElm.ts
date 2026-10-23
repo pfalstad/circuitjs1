@@ -26,7 +26,7 @@ import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
 import { StringTokenizer } from "./StringTokenizer";
-import { customChipStart } from "./digital/chip_desc";
+import { sourceCell, pushSourceValue } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import type { Chip } from "./digital/chip";
@@ -82,8 +82,7 @@ export class ExtVoltageElm extends RailElm {
      * Circuit-construction time (via digitalSynthesis()'s customUpdate) for the correct initial
      * value, and again from setVoltage() below for every live setExtVoltage() call. */
     private static pushDigitalValue(chip: Chip, high: boolean): void {
-        const newOut = high ? 1 : 0;
-        if (newOut !== chip.output) chip.pendingEvent = chip.circuit.queuePush(chip, 0);
+        pushSourceValue(chip, high);
     }
 
     isDigitalSource(): boolean { return true; }
@@ -93,7 +92,7 @@ export class ExtVoltageElm extends RailElm {
 
     digitalSynthesis(): DigitalSynthesis | null {
         const desc: ChipDesc[] = [
-            customChipStart((chip) => ExtVoltageElm.pushDigitalValue(chip, this.digitalHigh())).outputPin(1),
+            sourceCell(() => this.digitalHigh()).outputPin(1),
         ];
         return { desc, pinMap: new Map([[0, 1]]) };
     }

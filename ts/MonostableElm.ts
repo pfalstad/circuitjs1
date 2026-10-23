@@ -24,7 +24,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
-import { chipStart, customChipStart, i1 } from "./digital/chip_desc";
+import { chipStart, i1 } from "./digital/chip_desc";
+import { monostableQCell, monostableExpCell, type MonostableShared } from "./digital/nativeKinds";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
@@ -84,43 +85,13 @@ export class MonostableElm extends ChipElm {
         const fallDelayTicks = () => Math.max(1, Math.round(this.delay / TIMESCALE));
         const invertBit = this.invertTrigger() ? 1 : 0;
 
-        const shared: { expireChip: Chip | null; lastT: boolean } = { expireChip: null, lastT: false };
-
-        const qUpdate = (chip: Chip, mask: number): void => {
-            chip.inputs ^= mask;
-            const tHigh = ((chip.inputs & 1) ^ invertBit) !== 0;
-            const expHigh = (chip.inputs & 2) !== 0;
-            const risingT = tHigh && !shared.lastT;
-            shared.lastT = tHigh;
-
-            if (expHigh && chip.output === 1) {
-                chip.pendingEvent = chip.circuit.queuePush(chip, 0); // fall
-            } else if (risingT) {
-                if (chip.output === 0) {
-                    chip.pendingEvent = chip.circuit.queuePush(chip, 0); // rise
-                } else if (this.retriggerable && shared.expireChip) {
-                    const ec = shared.expireChip;
-                    ec.pendingEvent = ec.circuit.queuePush(ec, fallDelayTicks()); // restart timer
-                }
-            }
-        };
-
-        const expUpdate = (chip: Chip, mask: number): void => {
-            shared.expireChip = chip;
-            chip.inputs ^= mask;
-            const qHigh = (chip.inputs & 1) !== 0;
-            if (qHigh) {
-                chip.pendingEvent = chip.circuit.queuePush(chip, fallDelayTicks()); // arm countdown
-            } else if (chip.output === 1) {
-                chip.pendingEvent = chip.circuit.queuePush(chip, 0); // reset immediately
-            }
-        };
+        const shared: MonostableShared = { expireChip: null, lastT: false };
 
         const qbarLogic: ChipLogic = (pin) => { pin[QBAR] = pin[Q] ? 0 : 1; };
 
         const desc: ChipDesc[] = [
-            customChipStart(qUpdate).inputPins(T, EXP).outputPin(Q),
-            customChipStart(expUpdate).inputPins(Q).outputPin(EXP),
+            monostableQCell(shared, invertBit, fallDelayTicks, () => this.retriggerable).inputPins(T, EXP).outputPin(Q),
+            monostableExpCell(shared, fallDelayTicks).inputPins(Q).outputPin(EXP),
             chipStart(qbarLogic).inputPins(Q).outputPin(QBAR),
         ];
         return { desc, pinMap: new Map([[0, T], [1, Q], [2, QBAR]]) };

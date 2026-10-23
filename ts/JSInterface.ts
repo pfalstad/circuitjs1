@@ -18,7 +18,7 @@
 */
 
 
-import { digitalScopeSourceNew } from "./digital/DigitalGraphBuilder";
+import { digitalScopeSourceNew, serializeDigitalCircuit } from "./digital/DigitalGraphBuilder";
 import { ChipState } from "./digital/chip";
 import type { Chip, HistoryWatcher } from "./digital/chip";
 
@@ -253,6 +253,9 @@ export class JSInterface {
             setExtClock:    (n: string, phaseShift: number, dutyCycle?: number) => that.setExtClock(n, phaseShift, dutyCycle),
             getCircuitAsSVG: () => that.doExportAsSVGFromAPI(),
             exportCircuit:  () => that.dumpCircuit(),
+            // Developer hook: the current circuit's digital netlist as JSON (see
+            // digital/netlist.ts), for scripts/bench-wasm.ts.
+            exportDigitalNetlist: () => JSON.stringify(serializeDigitalCircuit(that.app.sim.elmArr)),
             importCircuit:  (circuit: string, subcircuitsOnly: boolean) => that.importCircuitFromText(circuit, subcircuitsOnly),
         };
         const hook = (window as any).oncircuitjsloaded;

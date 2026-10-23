@@ -11,6 +11,7 @@
 // their own length.
 
 import type { Chip } from "./chip";
+import type { NativeKind } from "./nativeKinds";
 
 // Internal pin numbers i1..i24 (InternalPin enum in chip_desc.h). These share the pin number
 // space with external pins 1..24, but are used for connections between the "logic function"
@@ -44,6 +45,9 @@ export interface ChipDesc {
     // right input bit and the chip's own priming logic sees its real starting value. Toggling it
     // high after the fact instead would manufacture a rising edge that never happened.
     initOutput?: number;
+    // For a `custom` cell, which built-in kind it is - see nativeKinds.ts. A custom cell
+    // without one can only run on the TypeScript engine.
+    native?: NativeKind;
 }
 
 export class ChipDescBuilder implements ChipDesc {
@@ -55,6 +59,7 @@ export class ChipDescBuilder implements ChipDesc {
     outPin = 0;
     prevOutPin = 0;
     initOutput = 0;
+    native?: NativeKind;
 
     constructor(logic: ChipLogic | null, custom: CustomLogic | null) {
         this.logic = logic;
@@ -66,6 +71,7 @@ export class ChipDescBuilder implements ChipDesc {
     outputPin(pin: number): this { this.outPin = pin; return this; }
     prevOutputPin(pin: number): this { this.prevOutPin = pin; return this; }
     initialOutput(v: number): this { this.initOutput = v; return this; }
+    nativeKind(k: NativeKind): this { this.native = k; return this; }
     outputDelayS(lh: number, hl: number): this { this.delay = [lh, hl]; return this; }
     outputDelayMs(lh: number, hl: number): this { return this.outputDelayS(lh * 1e-3, hl * 1e-3); }
     outputDelayUs(lh: number, hl: number): this { return this.outputDelayS(lh * 1e-6, hl * 1e-6); }

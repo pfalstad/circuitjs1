@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Engine Benchmark</title>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 16px; }
+  label { margin-right: 12px; }
+  input[type=number] { width: 5em; }
+  pre { background: #f4f4f4; padding: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<!-- Browser front end for digital/benchHarness.ts: same comparison and timing as
+     scripts/bench-wasm.ts, for measuring on a machine without the Node setup. Get a netlist
+     from the app's dev console with copy(CircuitJS1.exportDigitalNetlist()). -->
+<h3>Digital engine: TypeScript vs WASM</h3>
+<p>
+  <input type="file" id="file" accept=".json">
+  <label>seconds <input type="number" id="seconds" value="12"></label>
+  <label>fps <input type="number" id="fps" value="60"></label>
+  <label><input type="checkbox" id="breakout" checked> Breakout inputs</label>
+  <label><input type="checkbox" id="sync" checked> display sync</label>
+  <select id="engine"><option>both</option><option>ts</option><option>wasm</option></select>
+  <button id="run">Run</button>
+</p>
+<pre id="log"></pre>
+<script type="module">
+import { runBench, DEFAULT_BENCH_OPTIONS } from "./digital/benchHarness.ts";
+
+const $ = (id) => document.getElementById(id);
+const log = (s) => { $("log").textContent += s + "\n"; };
+
+// ?netlist=<url> fetches that netlist and runs right away (with ?seconds=N, ?engine=...).
+const params = new URLSearchParams(location.search);
+for (const k of ["seconds", "fps", "engine"]) if (params.has(k)) $(k).value = params.get(k);
+
+async function run(name, text) {
+  $("run").disabled = true;
+  try {
+    const sd = JSON.parse(text);
+    log(`--- ${name} (${navigator.userAgent})`);
+    await runBench(sd, {
+      ...DEFAULT_BENCH_OPTIONS,
+      seconds: Number($("seconds").value), fps: Number($("fps").value),
+      breakout: $("breakout").checked, sync: $("sync").checked, engine: $("engine").value,
+    }, log);
+  } catch (e) {
+    log("error: " + (e.stack || e));
+  }
+  $("run").disabled = false;
+  log("done");
+}
+
+$("run").onclick = async () => {
+  const f = $("file").files[0];
+  if (!f) { log("choose a netlist .json first"); return; }
+  await run(f.name, await f.text());
+};
+
+if (params.has("netlist")) {
+  const url = params.get("netlist");
+  fetch(url).then(r => r.text()).then(t => run(url, t));
+}
+</script>
+</body>
+</html>
