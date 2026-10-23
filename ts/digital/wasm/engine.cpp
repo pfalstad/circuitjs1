@@ -533,8 +533,23 @@ struct Circuit {
 
     void requestHalt() { haltRequested = true; }
 
+    // While an event is being dispatched it stays at the top of the heap (topDone), so that the
+    // first event its handling schedules can replace it with one sift-down instead of a pop
+    // plus a push (most dispatches schedule one). The heap is ordered on (time, chip index)
+    // alone, so this doesn't change the order events come out in. It also keeps circuit.ts's
+    // pop-before-dispatch guarantee: nothing touches the heap before that first push, which
+    // consumes the stale top, so a zero-delay push sorting ahead of it can't be the entry
+    // removed afterwards.
+    bool topDone = false;
+
     Time queuePush(Chip* chip, Time delay) {
         Time time = globalTime + delay;
+        int32_t ci = chip->chipIndex;
+        if (topDone) {
+            topDone = false;
+            siftDown(time, chip, ci);
+            return time;
+        }
         if (queueSize + 1 >= (int)queueTime.size()) {
             size_t n = queueTime.size() * 2;
             queueTime.resize(n); queueChip.resize(n); queueIdx.resize(n);
@@ -542,7 +557,6 @@ struct Circuit {
         Time* qt = queueTime.data();
         Chip** qc = queueChip.data();
         int32_t* qi = queueIdx.data();
-        int32_t ci = chip->chipIndex;
 
         int i = ++queueSize;
         for (int p = i >> 1;
@@ -561,15 +575,19 @@ struct Circuit {
     }
 
     void queuePop() {
+        Time time = queueTime[queueSize];
+        Chip* chip = queueChip[queueSize];
+        int32_t ci = queueIdx[queueSize];
+        queueSize--;
+        siftDown(time, chip, ci);
+    }
+
+    // Puts (time, chip) at the root and sifts it down into place.
+    void siftDown(Time time, Chip* chip, int32_t ci) {
         Time* qt = queueTime.data();
         Chip** qc = queueChip.data();
         int32_t* qi = queueIdx.data();
-        Time time = qt[queueSize];
-        Chip* chip = qc[queueSize];
-        int32_t ci = qi[queueSize];
-
         int i = 1;
-        queueSize--;
         int n = queueSize + 1;
 
         while ((i << 1) < n) {
@@ -596,9 +614,10 @@ struct Circuit {
 
     inline void dispatchTop() {
         Chip* chip = queueChip[1];
-        queuePop();
+        topDone = true;
         eventCount++;
         if (globalTime == chip->pendingEvent) { updateCount++; chip->updateOutput(); }
+        if (topDone) { topDone = false; queuePop(); }
     }
 
     void drainZeroDelayEvents() {
