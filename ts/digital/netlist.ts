@@ -8,8 +8,8 @@
 // resolves the names into chip indices and connect() calls for the WASM engine, mirroring
 // circuit.ts's CircuitBuilder step for step (the harness checks the two agree).
 
-import type { ChipDesc } from "./chip_desc";
-import { chipStart, MAX_PINS } from "./chip_desc";
+import type { ChipDesc, CustomLogic } from "./chip_desc";
+import { chipStart, customChipStart, MAX_PINS } from "./chip_desc";
 import type { CircuitDesc } from "./circuit_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry } from "./circuit_desc";
@@ -27,7 +27,10 @@ export type SerialNative =
     | { kind: "source"; high: number }
     | { kind: "sram"; mem: number; addrBits: number; bitMask: number; invert: number }
     | { kind: "monoQ"; group: number; invert: number; fallDelay: number; retriggerable: number }
-    | { kind: "monoExp"; group: number; fallDelay: number };
+    | { kind: "monoExp"; group: number; fallDelay: number }
+    // A custom cell with no built-in kind: `id` indexes the closures passed alongside (see
+    // serializeCircuitDesc()'s `jsCells`), so only an in-memory netlist can hold one.
+    | { kind: "js"; id: number };
 
 export interface SerialCell {
     inPins: number[];
@@ -54,6 +57,8 @@ export interface SerialDesc {
     hints: [string, number, number][];
     srams: { addrBits: number; words: number[] }[];
     monoGroups: number;
+    // seedInitialDigitalState()'s entries, resolved: [chip name, cell index, value].
+    seeds?: [string, number, number][];
 }
 
 /** The truth table Chip's constructor would build for `d`, as 32-bit words. */
@@ -76,9 +81,11 @@ function computeLut(d: ChipDesc): number[] {
     return words;
 }
 
-/** `labels` optionally names a chip (by its CircuitDesc name) for whoever replays the result. */
+/** `labels` optionally names a chip (by its CircuitDesc name) for whoever replays the result.
+ * A custom cell with no native kind is an error unless `jsCells` is given, in which case its
+ * closure is appended there and the cell refers to it by index. */
 export function serializeCircuitDesc(desc: CircuitDesc, labels?: Map<string, string>,
-        optimizationDisabled?: Set<string>): SerialDesc {
+        optimizationDisabled?: Set<string>, jsCells?: CustomLogic[]): SerialDesc {
     if (desc.subCircuits.length) throw new Error("serializeCircuitDesc: sub-circuits are not supported");
 
     const sramIds = new Map<SramMemory, number>();
@@ -87,7 +94,11 @@ export function serializeCircuitDesc(desc: CircuitDesc, labels?: Map<string, str
 
     const serialNative = (d: ChipDesc): SerialNative => {
         const n = d.native;
-        if (!n) throw new Error("serializeCircuitDesc: custom cell with no native kind");
+        if (!n) {
+            if (!jsCells) throw new Error("serializeCircuitDesc: custom cell with no native kind");
+            jsCells.push(d.custom!);
+            return { kind: "js", id: jsCells.length - 1 };
+        }
         switch (n.kind) {
             case "nop": return { kind: "nop" };
             case "clock": return { kind: "clock", initialDelay: n.initialDelay };
@@ -150,8 +161,8 @@ export interface DeserializedHandles {
 }
 
 /** Back to a CircuitDesc the TypeScript engine runs. The caller must setTimescale(sd.timescale)
- * before constructing the Circuit. */
-export function deserializeCircuitDesc(sd: SerialDesc): { desc: CircuitDesc; handles: DeserializedHandles } {
+ * before constructing the Circuit. `jsCells` supplies the closures for any "js" cells. */
+export function deserializeCircuitDesc(sd: SerialDesc, jsCells?: CustomLogic[]): { desc: CircuitDesc; handles: DeserializedHandles } {
     const srams = sd.srams.map(s => [...s.words]);
     const mems: SramMemory[] = srams.map(w => ({
         read: (a) => w[a] ?? 0,
@@ -170,6 +181,7 @@ export function deserializeCircuitDesc(sd: SerialDesc): { desc: CircuitDesc; han
                 case "sram": b = sramBitCell(mems[n.mem], n.addrBits, n.bitMask, n.invert); break;
                 case "monoQ": b = monostableQCell(groups[n.group], n.invert, () => n.fallDelay, () => n.retriggerable !== 0); break;
                 case "monoExp": b = monostableExpCell(groups[n.group], () => n.fallDelay); break;
+                case "js": b = customChipStart(jsCells![n.id]); break;
             }
         } else {
             // Chip's constructor calls logic once per LUT index, in order, so replaying the
@@ -200,11 +212,11 @@ export function deserializeCircuitDesc(sd: SerialDesc): { desc: CircuitDesc; han
 // --- Flattening for the WASM engine ---
 
 // Cell kinds, matching engine.cpp's Kind enum.
-export const enum NetKind { LUT = 0, VCC = 1, GND = 2, DEOPT = 3, NOP = 4, CLOCK = 5, SOURCE = 6, SRAM = 7, MONO_Q = 8, MONO_EXP = 9 }
+export const enum NetKind { LUT = 0, VCC = 1, GND = 2, DEOPT = 3, NOP = 4, CLOCK = 5, SOURCE = 6, SRAM = 7, MONO_Q = 8, MONO_EXP = 9, JS = 10 }
 
 const KIND_OF: Record<SerialNative["kind"], NetKind> = {
     nop: NetKind.NOP, clock: NetKind.CLOCK, source: NetKind.SOURCE, sram: NetKind.SRAM,
-    monoQ: NetKind.MONO_Q, monoExp: NetKind.MONO_EXP,
+    monoQ: NetKind.MONO_Q, monoExp: NetKind.MONO_EXP, js: NetKind.JS,
 };
 
 // Fields per cell in FlatNetlist.cells: kind, #inputs, #event pins, has prev-output pin,
@@ -222,6 +234,7 @@ export interface FlatNetlist {
     srams: { addrBits: number; words: number[] }[];
     monoGroups: number;
     names: string[];           // debugName per cell ("" for the specials)
+    seeds: { chip: number | null; value: number }[]; // SerialDesc.seeds, as cell indices
     chipCells: Map<string, number[]>; // CircuitDesc chip name -> its cells' indices
 }
 
@@ -360,6 +373,7 @@ export function flattenNetlist(sd: SerialDesc): FlatNetlist {
             case "sram": cells[o + 8] = nat.mem; cells[o + 9] = nat.addrBits; cells[o + 10] = nat.bitMask; cells[o + 11] = nat.invert; break;
             case "monoQ": cells[o + 8] = nat.group; cells[o + 9] = nat.invert; cells[o + 10] = nat.fallDelay; cells[o + 11] = nat.retriggerable; break;
             case "monoExp": cells[o + 8] = nat.group; cells[o + 10] = nat.fallDelay; break;
+            case "js": cells[o + 8] = nat.id; break;
         }
         if (sc.lut) { cells[o + 10] = lutWords.length; for (const w of sc.lut) lutWords.push(w); }
     }
@@ -367,5 +381,6 @@ export function flattenNetlist(sd: SerialDesc): FlatNetlist {
     return {
         numCells: n, cells, delays, luts: Uint32Array.from(lutWords), connects: Int32Array.from(connects),
         srams: sd.srams, monoGroups: sd.monoGroups, names, chipCells,
+        seeds: (sd.seeds ?? []).map(([name, cell, value]) => ({ chip: chipCells.get(name)?.[cell] ?? null, value })),
     };
 }

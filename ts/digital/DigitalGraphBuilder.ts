@@ -16,7 +16,7 @@
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
 import { chipStart } from "./chip_desc";
-import type { ChipDesc, ChipLogic } from "./chip_desc";
+import type { ChipDesc, ChipLogic, CustomLogic } from "./chip_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
 import { Circuit, SUBCYCLE_SIZE } from "./circuit";
@@ -313,10 +313,12 @@ export function buildCircuitDesc(elmList: any[]): CircuitDesc {
     return layoutFromSynth(synthMap, resolveNodeDrivers(synthMap));
 }
 
-/** The netlist buildDigitalCircuit() would build, as plain data (see netlist.ts) - for
- * replaying a real circuit outside the app (scripts/bench-wasm.ts). Each chip is labeled with
- * its element's class and, where it has one, name (`ExtVoltageElm:SERVE`). */
-export function serializeDigitalCircuit(elmList: any[]): SerialDesc {
+/** The netlist buildDigitalCircuit() would build, as plain data (see netlist.ts), including
+ * the seedInitialDigitalState() values - for replaying a real circuit outside the app
+ * (scripts/bench-wasm.ts), or for building it on the WASM engine. Each chip is labeled with its
+ * element's class and, where it has one, name (`ExtVoltageElm:SERVE`). Custom cells with no
+ * native kind are only allowed when `jsCells` is given (see serializeCircuitDesc()). */
+export function serializeDigitalCircuit(elmList: any[], jsCells?: CustomLogic[]): SerialDesc {
     const synthMap = synthesizeAll(elmList);
     const desc = layoutFromSynth(synthMap, resolveNodeDrivers(synthMap));
     const labels = new Map<string, string>();
@@ -328,7 +330,17 @@ export function serializeDigitalCircuit(elmList: any[]): SerialDesc {
         labels.set(entry.name, name !== undefined ? `${cls}:${name}` : cls);
         if (entry.optimizationDisabled) optDisabled.add(entry.name);
     }
-    return serializeCircuitDesc(desc, labels, optDisabled);
+    const sd = serializeCircuitDesc(desc, labels, optDisabled, jsCells);
+    // Resolved the way digitalChipForPin() resolves them: the cell whose outPin is `pin`.
+    const seeds: [string, number, number][] = [];
+    for (const { chip, value } of initialStateEntries(elmList, (elm, pin) => {
+        const entry = synthMap.get(elm);
+        if (!entry || entry.isTie) return null;
+        const idx = entry.desc.findIndex(d => d.outPin === pin);
+        return idx < 0 ? null : [entry.name, idx] as [string, number];
+    })) if (chip) seeds.push([chip[0], chip[1], value]);
+    if (seeds.length) sd.seeds = seeds;
+    return sd;
 }
 
 export interface DigitalGraph {
@@ -556,6 +568,26 @@ export function isDigitalInitialStateSource(elm: any): elm is DigitalInitialStat
  * general (a whole-register cell's "value" only equals prevPin[out] verbatim absent a clock
  * edge - see digitalSynthesisWholeRegister()'s own logic - so this is not a redundant no-op). */
 export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chip[]>): void {
+    seedChipValues(initialStateEntries(elmList, (elm, pin) => digitalChipForPin(elm, pin, chipsByElm)));
+}
+
+/** Every element's digitalInitialState() entries, in order, each resolved by `resolve` to the
+ * chip it names (null if none) - the input to seedChipValues(). Generic in the chip type so the
+ * WASM engine can resolve to chip indices instead. */
+export function initialStateEntries<C>(elmList: any[], resolve: (elm: any, pin: number) => C | null): { chip: C | null; value: number }[] {
+    const out: { chip: C | null; value: number }[] = [];
+    for (const elm of elmList) {
+        if (!isDigitalInitialStateSource(elm)) continue;
+        const entries = elm.digitalInitialState();
+        if (entries == null) continue;
+        for (const { pin, value } of entries) out.push({ chip: resolve(elm, pin), value });
+    }
+    return out;
+}
+
+/** The core of seedInitialDigitalState() (see its docstring), on already-resolved chips. The
+ * WASM engine's circuit_seed() (wasm/engine.cpp) is a port of this. */
+export function seedChipValues(entries: { chip: Chip | null; value: number }[]): void {
     const seeded = new Set<Chip>();
     // Chips whose `.output` this loop actually overwrote to a DIFFERENT value than what
     // Circuit's constructor had already computed for them via its own blanket initialize()
@@ -566,26 +598,20 @@ export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chi
     // consumer's cached bit for it was already set correctly by that same constructor pass.
     const changed = new Set<Chip>();
 
-    for (const elm of elmList) {
-        if (!isDigitalInitialStateSource(elm)) continue;
-        const entries = elm.digitalInitialState();
-        if (entries == null) continue;
-        // Only the chip a named pin actually resolves to is added to `seeded` - not every chip
-        // belonging to `elm`. A CounterElm names every one of its own bit cells (one per output
-        // post), so in practice all of them end up seeded, same as before; a JKFlipFlopElm names
-        // only its master cell, leaving its qBuf/notQ buffer cells (which hold no state of their
-        // own) out of `seeded` - which is what lets the loop below fall them into
-        // `freshlySynced` and Chip.initialize() them from the master's now-corrected output,
-        // exactly like any other genuinely external, still-cold consumer.
-        for (const { pin, value } of entries) {
-            const chip = digitalChipForPin(elm, pin, chipsByElm);
-            if (!chip || chip.state !== ChipState.PASSIVE) continue;
-            seeded.add(chip);
-            if (chip.output === value) continue;
-            chip.output = value;
-            changed.add(chip);
-            if (value) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
-        }
+    // Only the chip a named pin actually resolves to is added to `seeded` - not every chip
+    // belonging to the element. A CounterElm names every one of its own bit cells (one per
+    // output post), so in practice all of them end up seeded; a JKFlipFlopElm names only its
+    // master cell, leaving its qBuf/notQ buffer cells (which hold no state of their own) out of
+    // `seeded` - which is what lets the loop below fall them into `freshlySynced` and
+    // Chip.initialize() them from the master's now-corrected output, exactly like any other
+    // genuinely external, still-cold consumer.
+    for (const { chip, value } of entries) {
+        if (!chip || chip.state !== ChipState.PASSIVE) continue;
+        seeded.add(chip);
+        if (chip.output === value) continue;
+        chip.output = value;
+        changed.add(chip);
+        if (value) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
     }
 
     const freshlySynced = new Set<Chip>();

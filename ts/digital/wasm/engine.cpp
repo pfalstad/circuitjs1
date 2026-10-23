@@ -47,7 +47,13 @@ enum ChipState { ACTIVE = 0, PASSIVE = 1, ASLEEP = 2 };
 
 // Matches netlist.ts's NetKind.
 enum Kind { K_LUT = 0, K_VCC = 1, K_GND = 2, K_DEOPT = 3, K_NOP = 4, K_CLOCK = 5, K_SOURCE = 6,
-            K_SRAM = 7, K_MONO_Q = 8, K_MONO_EXP = 9 };
+            K_SRAM = 7, K_MONO_Q = 8, K_MONO_EXP = 9, K_JS = 10 };
+
+// A K_JS cell's update, run by the JS closure it was built from (wasmEngine.ts). The escape
+// hatch for custom cells with no built-in kind; slower, since every update crosses into JS.
+EM_JS(void, js_custom_update, (void* circuit, int chip, int mask), {
+    Module.jsCustomUpdate(circuit, chip, mask);
+});
 
 // ---------------------------------------------------------------- cirque.ts
 
@@ -744,6 +750,10 @@ void Chip::customUpdate(int32_t mask) {
         }
         return;
     }
+
+    case K_JS:
+        js_custom_update(c, chipIndex, mask);
+        return;
 
     case K_MONO_EXP: {
         // nativeKinds.ts monostableExpCell(). params: group, -, fallDelay.
@@ -1574,6 +1584,67 @@ EMSCRIPTEN_KEEPALIVE void chip_set_source(Circuit* c, int i, int high) {
     Chip* chip = c->chips[i];
     chip->param[0] = high ? 1 : 0;
     chip->customUpdate(0);
+}
+
+// For a K_JS cell's closure, which works on a proxy over these.
+EMSCRIPTEN_KEEPALIVE void chip_set_inputs(Circuit* c, int i, int v) { c->chips[i]->inputs = v; }
+EMSCRIPTEN_KEEPALIVE void chip_set_output(Circuit* c, int i, int v) { c->chips[i]->setOutput(v); }
+EMSCRIPTEN_KEEPALIVE void chip_set_pending_event(Circuit* c, int i, double v) { c->chips[i]->pendingEvent = v; }
+EMSCRIPTEN_KEEPALIVE double chip_delay(Circuit* c, int i, int k) { return c->chips[i]->delay[k]; }
+EMSCRIPTEN_KEEPALIVE double circuit_queue_push(Circuit* c, int i, double delay) { return c->queuePush(c->chips[i], delay); }
+EMSCRIPTEN_KEEPALIVE void circuit_request_halt(Circuit* c) { c->requestHalt(); }
+
+// A kind parameter (see netlist.ts's CELL_FIELDS), e.g. a monostable's period.
+EMSCRIPTEN_KEEPALIVE void chip_set_param(Circuit* c, int i, int k, double v) { c->chips[i]->param[k] = v; }
+
+// History (chip.ts's history/backfillHistory()/skipBackfillTo()/trimHistory()). The watchers
+// themselves stay in JS, which passes trimHistory()'s floor in.
+EMSCRIPTEN_KEEPALIVE void chip_set_history_watched(Circuit* c, int i) { c->chips[i]->historyWatched = true; }
+EMSCRIPTEN_KEEPALIVE int chip_history_length(Circuit* c, int i) { return (int)c->chips[i]->history.size(); }
+// Entries are 16 bytes: a double time, then an int32 value.
+EMSCRIPTEN_KEEPALIVE HistoryEntry* chip_history_data(Circuit* c, int i) { return c->chips[i]->history.data(); }
+EMSCRIPTEN_KEEPALIVE double chip_backfill_history(Circuit* c, int i, double now) { return c->chips[i]->backfillHistory(now); }
+EMSCRIPTEN_KEEPALIVE void chip_skip_backfill_to(Circuit* c, int i, double target) { c->chips[i]->skipBackfillTo(target); }
+
+// trimHistory() with the watchers' minimum floor already computed; `haveWatchers` 0 means no
+// live watcher is left, which clears the history.
+EMSCRIPTEN_KEEPALIVE void chip_trim_history(Circuit* c, int i, int haveWatchers, double floor) {
+    std::vector<HistoryEntry>& h = c->chips[i]->history;
+    if (!haveWatchers) { h.clear(); return; }
+    if (h.empty() || h[0].time >= floor) return;
+    size_t lo = 0, hi = h.size();
+    while (lo < hi) {
+        size_t mid = (lo + hi) >> 1;
+        if (h[mid].time < floor) lo = mid + 1; else hi = mid;
+    }
+    if (lo > 0) h.erase(h.begin(), h.begin() + lo);
+}
+
+// DigitalGraphBuilder.ts's seedChipValues(): `chips[k]` (-1 for none) seeded to `values[k]`.
+EMSCRIPTEN_KEEPALIVE void circuit_seed(Circuit* c, int n, const int32_t* chipIdx, const int32_t* values) {
+    size_t nc = c->chips.size();
+    std::vector<char> seeded(nc, 0), inChanged(nc, 0), inFresh(nc, 0);
+    std::vector<Chip*> changed, fresh;
+    for (int k = 0; k < n; k++) {
+        if (chipIdx[k] < 0) continue;
+        Chip* chip = c->chips[chipIdx[k]];
+        if (chip->state != PASSIVE) continue;
+        seeded[chip->chipIndex] = 1;
+        int32_t value = values[k];
+        if (chip->_output == value) continue;
+        chip->setOutput(value);
+        if (!inChanged[chip->chipIndex]) { inChanged[chip->chipIndex] = 1; changed.push_back(chip); }
+        if (value) chip->inputs |= chip->prevOutputMask; else chip->inputs &= ~chip->prevOutputMask;
+    }
+    for (Chip* chip : changed) {
+        for (ChipLink& link : chip->outputLinks) {
+            link.chip->inputs ^= link.mask;
+            link.chip->inputs &= link.chip->eventMask;
+            int li = link.chip->chipIndex;
+            if (!seeded[li] && !inFresh[li]) { inFresh[li] = 1; fresh.push_back(link.chip); }
+        }
+    }
+    for (Chip* chip : fresh) chip->initialize();
 }
 
 EMSCRIPTEN_KEEPALIVE int sram_read(Circuit* c, int mem, int address) { return c->srams[mem].words[address]; }
