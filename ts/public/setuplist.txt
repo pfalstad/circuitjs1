@@ -36,6 +36,13 @@ unishiftreg.txt Universal
 -
 divideby2.txt Divide-by-2
 divideby3.txt Divide-by-3
++TD4 CPU
+td4.txt TD4 LED Strobe
+td4-ctr.txt TD4 Counter
+td4-ctr-dn.txt TD4 Down Counter
+td4-ctr-up-dn.txt TD4 Up-Down Counter
+td4-add2.txt TD4 Add 2
+-
 -
 +Phase-Locked Loops
 xorphasedet.txt XOR Phase Detector
