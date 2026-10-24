@@ -165,7 +165,8 @@ it.skipIf(!FILE)("matches the simulator", () => {
     }
     vi.useRealTimers();
 
-    const cir = res.text.replace(/\n\.end\n$/,
+    // (without the .print line, whose table would only fill ngspice's output)
+    const cir = res.text.replace(/^\.print .*\n(\+ .*\n)*/m, "").replace(/\n\.end\n$/,
         `\n.control\nrun\nwrdata ${OUT}.spice ${nets.map(n => `v(${n})`).join(" ")}\n.endc\n.end\n`);
     writeFileSync(OUT + ".cir", cir);
     writeFileSync(OUT + ".sim", rows.map(r => r.join(" ")).join("\n") + "\n");

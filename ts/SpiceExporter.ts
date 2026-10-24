@@ -67,6 +67,10 @@ import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
 import { RelayElm } from "./RelayElm";
 import { TimerElm } from "./TimerElm";
+import { SCRElm } from "./SCRElm";
+import { TriacElm } from "./TriacElm";
+import { DiacElm } from "./DiacElm";
+import { SparkGapElm } from "./SparkGapElm";
 import { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { BusLogicInputElm } from "./BusLogicInputElm";
@@ -95,6 +99,7 @@ import { MBBSwitchElm } from "./MBBSwitchElm";
 import { WattmeterElm } from "./WattmeterElm";
 import { WattmeterTrueElm } from "./WattmeterTrueElm";
 import { DecimalDisplayElm } from "./DecimalDisplayElm";
+import { VAL_CURRENT, VAL_VOLTAGE } from "./ScopeConstants";
 import { InstructionDisplayElm } from "./InstructionDisplayElm";
 import { VCCSElm } from "./VCCSElm";
 import { VCVSElm } from "./VCVSElm";
@@ -130,6 +135,9 @@ export interface SpiceOptions {
     // simulation time step and length, for the .tran line
     timeStep?: number;
     stopTime?: number;
+    // the scopes' traces, each an element and the value shown (Scope.VAL_VOLTAGE, say), for
+    // the .print line
+    scopes?: { elm: CircuitElm | null; value: number }[];
 }
 
 // a value with a SPICE scale suffix.  SPICE reads "M" as milli, so mega is "meg"
@@ -393,6 +401,81 @@ function timerPart(e: any, timeStep: number): ChipPart {
                   `Bdis dis g I=(1-V(qo))*(V(dis)-V(g))/10`];
     return { want: "NE555", size: 1, desc: "555 timer", body, params,
              pins: ["g", "tr", "out", "rst", "ctl", "th", "dis", "vcc"] };
+}
+
+// a diode model's parameters
+function diodeParams(m: any): string {
+    let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
+    if (m.seriesResistance > 0)
+        params += ` RS=${num(m.seriesResistance)}`;
+    if (m.breakdownVoltage > 0)
+        params += ` BV=${num(m.breakdownVoltage)}`;
+    return params;
+}
+
+// an SCR, triac, diac or spark gap as a part, with its on state held like a latch's and a
+// switch for its on and off resistances.  posts: the SCR's anode, cathode and gate; the
+// triac's MT2, MT1 and gate; the diac's and spark gap's two ends.
+//   SCR: a gate resistance to the cathode, and the anode through the switch to a diode to the
+//     cathode.  it's on while (gate current)/(trigger current) + (anode current)/(holding
+//     current) is over 1, so a gate pulse turns it on and the anode current keeps it on.
+//   triac: a gate resistance to MT1, and MT2 through a pair of opposite diodes and the switch
+//     to MT1.  it turns on once the gate current's size is past the trigger current, and off
+//     once the main current's is below the holding current.
+//   diac: two paths between its ends, each a switched resistance and a diode, one each way.
+//   spark gap: a switched resistance.  both turn on once the voltage across them is past the
+//     breakdown voltage, and off once the current is below the holding current
+function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
+    const e = ce as any, C = ce.constructor;
+    const sharp = (th: number) => num(400 / th);
+    const sw = (ron: number, roff: number) => `.model TSW SW (VT=0.5 VH=0 RON=${spiceValue(ron)} ROFF=${spiceValue(roff)})`;
+    const dmodel = `.model DT D (${diodeParams(DiodeModel.getDefaultModel())})`;
+    // turns on once on is, and off once hold isn't
+    const latch = (on: string, hold: string) => heldState("s", `${on}+(1-${on})*${hold}*V(s)`, timeStep, "{ic_s}");
+    if (C === SCRElm) {
+        const ig = `(V(g)-V(c))/${spiceValue(e.gresistance)}`, ia = "I(Vsense)";
+        return { want: "SCR", size: 1, pins: ["a", "c", "g"], params: [["ic_s", e.aresistance < 1 ? 1 : 0]],
+                 desc: `SCR, trigger ${spiceValue(e.triggerI)}A, holding ${spiceValue(e.holdingI)}A`,
+                 body: [`Rgate g c ${spiceValue(e.gresistance)}`,
+                        `Vsense a a1 0`,
+                        `Son a1 i s 0 TSW`,
+                        `D1 i c DT`,
+                        ...heldState("s", level(`${ig}/${spiceValue(e.triggerI)}+${ia}/${spiceValue(e.holdingI)}`, 1, "40"),
+                                     timeStep, "{ic_s}"),
+                        sw(0.0105, 1e6), dmodel] };
+    }
+    if (C === TriacElm) {
+        const ig = `abs(V(g)-V(mt1))/${spiceValue(e.cresistance)}`;
+        return { want: "TRIAC", size: 1, pins: ["mt2", "mt1", "g"], params: [["ic_s", e.state ? 1 : 0]],
+                 desc: `triac, trigger ${spiceValue(e.triggerI)}A, holding ${spiceValue(e.holdingI)}A`,
+                 body: [`Rgate g mt1 ${spiceValue(e.cresistance)}`,
+                        `D1 mt2 i DT`,
+                        `D2 i mt2 DT`,
+                        `Son i i1 s 0 TSW`,
+                        `Vsense i1 mt1 0`,
+                        ...latch(level(ig, num(e.triggerI), sharp(e.triggerI)),
+                                 level("abs(I(Vsense))", num(e.holdingI), sharp(e.holdingI))),
+                        sw(0.01, 1e6), dmodel] };
+    }
+    const breakdown = level("abs(V(a)-V(b))", num(e.breakdown), sharp(e.breakdown));
+    const holding = level("abs(I(Vsense))", num(e.holdcurrent), sharp(e.holdcurrent));
+    const desc = `breakdown ${spiceValue(e.breakdown)}V, holding ${spiceValue(e.holdcurrent)}A, ` +
+                 `${spiceValue(e.onresistance)} ohms on, ${spiceValue(e.offresistance)} off`;
+    const params: StateParams = [["ic_s", e.state ? 1 : 0]];
+    if (C === DiacElm)
+        return { want: "DIAC", size: 1, pins: ["a", "b"], params, desc: "diac, " + desc,
+                 body: [`Vsense a a1 0`,
+                        `Sfwd a1 f s 0 TSW`,
+                        `D1 f b DT`,
+                        `D2 b r DT`,
+                        `Srev r a1 s 0 TSW`,
+                        ...latch(breakdown, holding),
+                        sw(e.onresistance, e.offresistance), dmodel] };
+    return { want: "SPARKGAP", size: 1, pins: ["a", "b"], params, desc: "spark gap, " + desc,
+             body: [`Vsense a a1 0`,
+                    `Son a1 b s 0 TSW`,
+                    ...latch(breakdown, holding),
+                    sw(e.onresistance, e.offresistance)] };
 }
 
 // a relay as a part.  posts: each pole's common, the throw closed when off, the throw closed
@@ -1010,7 +1093,7 @@ class NetlistWriter {
     // each element's nets, and the current through each source or ammeter (from its post 0
     // to its post 1, as CircuitJS has it), for the controlled sources that refer to them
     private elmNets = new Map<CircuitElm, string[]>();
-    private vsources = new Map<CircuitElm, string>();
+    vsources = new Map<CircuitElm, string>();
 
     constructor(private exp: SpiceExporter, private sheet: Sheet) {}
 
@@ -1124,6 +1207,10 @@ class NetlistWriter {
             if (src && !rail)
                 this.uf.union(src.keys[0], "0");
         }
+        // a labeled voltmeter to ground names the net it measures
+        for (const p of parts)
+            if (p.ce.getDumpClass() === ProbeElm && (p.ce as any).label && this.uf.find(p.keys[1]) === "0")
+                labels.push([p.keys[0], (p.ce as any).label]);
         // the sheet's pins are named first, so labels with the same name don't get another
         for (const [key, name] of this.sheet.names ?? [])
             this.nameNet(key, name);
@@ -1168,12 +1255,7 @@ class NetlistWriter {
 
     // the .model card for a diode model, with any more parameters
     private diodeModel(m: any, more: string = ""): string {
-        let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
-        if (m.seriesResistance > 0)
-            params += ` RS=${num(m.seriesResistance)}`;
-        if (m.breakdownVoltage > 0)
-            params += ` BV=${num(m.breakdownVoltage)}`;
-        return this.exp.model("D", m.name, { kind: "D", params: params + more });
+        return this.exp.model("D", m.name, { kind: "D", params: diodeParams(m) + more });
     }
 
     // a controlled source, as a behavioral source.  a VCVS or VCCS's inputs are its input
@@ -1398,6 +1480,12 @@ class NetlistWriter {
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, 1), gnd, n[N.N_TRIG], n[N.N_OUT], rst, n[N.N_CTL], n[N.N_THRES], n[N.N_DIS], n[N.N_VCC],
               name, ...SpiceExporter.instanceParams(part.params));
+            return;
+        }
+        if (C === SCRElm || C === TriacElm || C === DiacElm || C === SparkGapElm) {
+            const part = thyristorPart(ce, this.exp.timeStep);
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
         if (C === RelayElm) {
@@ -1696,6 +1784,7 @@ export class SpiceExporter {
     private subcktText: string[] = [];
     private logicParts = new Map<string, string>();
     private warnings: string[] = [];
+    private scopes: { elm: CircuitElm | null; value: number }[];
     // whether to integrate with Gear's method, as the simulator does relay coils
     gear = false;
 
@@ -1703,6 +1792,7 @@ export class SpiceExporter {
         this.timeStep = opts.timeStep ?? 5e-6;
         this.stopTime = opts.stopTime ?? this.timeStep * 1000;
         this.title = opts.title ?? "CircuitJS circuit";
+        this.scopes = opts.scopes ?? [];
     }
 
     // the name of a .model card with these parameters, adding it if it's new.  models with
@@ -1800,6 +1890,58 @@ export class SpiceExporter {
                               pins, w.lines);
     }
 
+    // a .print line for what's watched: the logic outputs, outputs and voltmeters, the
+    // decimal displays' inputs, and the scopes' voltages, and currents through sources
+    private watched(w: NetlistWriter, postNets: Map<CircuitElm, string[]>): string[] {
+        const vars: string[] = [];
+        const add = (v: string) => { if (!vars.includes(v)) vars.push(v); };
+        let negated = false;
+        const volt = (nets: string[], a: number, b: number) => {
+            const na = a < 0 ? "0" : nets[a], nb = b < 0 ? "0" : nets[b];
+            if (na !== nb)
+                add(nb === "0" ? `V(${na})` : `V(${na},${nb})`);
+        };
+        const used = new Set(w.lines.filter(l => /^[A-Z]/.test(l)).flatMap(l => l.split(/[\s(),=]+/)));
+        for (const ce of this.elms) {
+            const C = ce.getDumpClass(), nets = postNets.get(ce)!;
+            if (C === LogicOutputElm || C === OutputElm || C === ProbeElm)
+                volt(nets, 0, ce.getPostCount() > 1 ? 1 : -1);
+            else if (C === DecimalDisplayElm)
+                nets.forEach((_, j) => volt(nets, j, -1));
+        }
+        for (const { elm, value } of this.scopes) {
+            const nets = elm && postNets.get(elm);
+            if (!nets)
+                continue;
+            if (elm instanceof TransistorElm && value >= 4 && value <= 6) {
+                // posts: base, collector, emitter
+                const [a, b] = ({ 4: [0, 2], 5: [0, 1], 6: [1, 2] } as Record<number, number[]>)[value];
+                volt(nets, a, b);
+            } else if (value === VAL_CURRENT) {
+                // (a voltage source's current is negated: SPICE's is into its + terminal)
+                const i = w.vsources.get(elm);
+                if (i) {
+                    negated ||= i.startsWith("(-");
+                    add(i.replace(/^\(-(.*)\)$/, "$1"));
+                }
+            } else if (value === VAL_VOLTAGE && !(elm instanceof TransistorElm)) {
+                const posts = voltagePosts(elm);
+                if (posts)
+                    volt(nets, ...posts);
+            }
+        }
+        // only nets in the netlist, as a left-out part's can't be printed
+        const ok = vars.filter(v => v.startsWith("I(") || v.slice(2, -1).split(",").every(n => n === "0" || used.has(n)));
+        if (ok.length === 0)
+            return [];
+        const lines = ["* the outputs and scope traces"];
+        if (negated && ok.some(v => v.startsWith("I(")))
+            lines.push("* SPICE's source currents are into the + terminal, the opposite of CircuitJS's");
+        for (let j = 0; j < ok.length; j += 8)
+            lines.push((j === 0 ? ".print tran " : "+ ") + ok.slice(j, j + 8).join(" "));
+        return lines;
+    }
+
     export(): SpiceExport {
         const key = (ce: CircuitElm, j: number) => {
             const p = ce.getPost(j)!;
@@ -1820,18 +1962,41 @@ export class SpiceExporter {
         const tran = `.tran ${spiceValue(this.timeStep)} ${spiceValue(this.stopTime)}`;
         const uic = [...this.subcktText, ...w.lines].some(l => /^[CLKT]/.test(l) || / IC=/.test(l)) ||
                     this.modelCards.some(m => /\b(CJO|CJE|CJC|CGS|CGD|CBD|CBS)=/.test(m));
+        const watched = this.watched(w, postNets);
         const text = ["* " + this.title.replace(/\n/g, " "),
                       ...this.modelCards, ...this.subcktText, "",
                       ...w.lines, "",
                       ...(this.gear ? ["* the simulator integrates relay coils with backward Euler.  with the",
                                        "* trapezoidal method, a coil's kick into an open contact rings",
                                        ".options method=gear"] : []),
+                      ...watched,
                       ...(uic ? ["* uic starts from the parts' initial conditions, as CircuitJS does.  if SPICE",
                                  "* can't start the simulation, remove it to start from the operating point",
                                  tran + " uic"] : [tran]),
                       ".end", ""].join("\n");
         return { text, warnings: this.warnings, postNets };
     }
+}
+
+// the posts an element's voltage is between, as its scope shows it: [a, b] for V(a)-V(b), with
+// -1 for ground, or null if it isn't a difference of post voltages.  the element is given nodes
+// of its own for the moment, each post's at a power of 3, so each difference has its own value
+function voltagePosts(ce: CircuitElm): [number, number] | null {
+    const e = ce as any, count = ce.getPostCount();
+    const saved = e.nodes;
+    let d: number;
+    try {
+        e.nodes = Array.from({ length: Math.max(saved?.length ?? 0, count) }, (_, i) => ({ v: i < count ? 3 ** (i + 1) : 0 }));
+        d = ce.getVoltageDiff();
+    } finally {
+        e.nodes = saved;
+    }
+    const v = (i: number) => i < 0 ? 0 : 3 ** (i + 1);
+    for (let a = -1; a < count; a++)
+        for (let b = -1; b < count; b++)
+            if (a !== b && v(a) - v(b) === d)
+                return [a, b];
+    return null;
 }
 
 // the elements of a subcircuit model, built from its saved definition, with the model's

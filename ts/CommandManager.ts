@@ -18,6 +18,7 @@
 */
 
 import { CirSim } from "./CirSim";
+import { CircuitElm } from "./CircuitElm";
 import { CircuitLoader } from "./CircuitLoader";
 import { WireConverter } from "./WireConverter";
 import { MouseManager } from "./MouseManager";
@@ -433,13 +434,22 @@ export class CommandManager {
         CirSim.dialogShowing.show();
     }
 
+    // each scope's traces, in the scope area and in the circuit
+    private scopeTraces(): { elm: CircuitElm | null; value: number }[] {
+        const sm = this.app.scopeManager;
+        const scopes = [...(sm ? sm.scopes.slice(0, sm.scopeCount) : []),
+                        ...this.app.elmList.filter(ce => ce instanceof ScopeElm).map(ce => (ce as ScopeElm).elmScope)];
+        return scopes.flatMap(s => s.plots.map(p => ({ elm: p.elm, value: p.value })));
+    }
+
     async doExportAsSpice(): Promise<void> {
         const { exportSpiceNetlist } = await import("./SpiceExporter");
         const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
         const sim = this.app.sim;
         // simulate as long as CircuitJS has so far, or 1000 steps if that's longer
         const res = exportSpiceNetlist(this.app.elmList, {
-            title: name, timeStep: sim.maxTimeStep, stopTime: Math.max(sim.t, sim.maxTimeStep * 1000) });
+            title: name, timeStep: sim.maxTimeStep, stopTime: Math.max(sim.t, sim.maxTimeStep * 1000),
+            scopes: this.scopeTraces() });
         let note: string | null = null;
         if (res.warnings.length > 0) {
             const counts = new Map<string, number>();

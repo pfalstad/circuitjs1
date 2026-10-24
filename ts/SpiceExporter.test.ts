@@ -7,6 +7,9 @@ import { RailElm } from "./RailElm";
 import { ACRailElm } from "./ACRailElm";
 import { DiodeElm } from "./DiodeElm";
 import { DCVoltageElm } from "./DCVoltageElm";
+import { LogicOutputElm } from "./LogicOutputElm";
+import { ProbeElm } from "./ProbeElm";
+import { SCRElm } from "./SCRElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { NTransistorElm } from "./NTransistorElm";
 import { SwitchElm } from "./SwitchElm";
@@ -444,6 +447,34 @@ describe("SPICE export", () => {
         const n = res.postNets.get(t)!;
         expect(devices(res.text).find(l => l[0] === "XU1"))
             .toEqual(["XU1", n[7], n[1], n[5], n[6], n[4], n[2], n[0], n[3], "NE555"]);
+    });
+
+    it("exports an SCR as a latch and a switch", () => {
+        const scr = place(new SCRElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([scr]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt SCR a c g params: ic_s=0\n");
+        expect(res.text).toMatch(/^Son a1 i s 0 TSW$/m);
+        expect(devices(res.text).find(l => l[0] === "XU1")).toEqual(["XU1", ...res.postNets.get(scr)!, "SCR"]);
+    });
+
+    it("prints the outputs and the scopes' traces", () => {
+        const v = place(new DCVoltageElm(0, 0), 0, 64, 0, 0);
+        const r = place(new ResistorElm(0, 0), 0, 0, 64, 0);
+        const out = place(new LogicOutputElm(0, 0), 64, 0, 64, 32);
+        const g = place(new GroundElm(0, 0), 0, 64, 0, 96);
+        const meter = place(new ProbeElm(0, 0), 64, 0, 64, 64);
+        meter.label = "vout";
+        const r2 = place(new ResistorElm(0, 0), 64, 0, 64, 64);
+        const g2 = place(new GroundElm(0, 0), 64, 64, 64, 96);
+        const res = exportSpiceNetlist([v, r, out, g, meter, r2, g2],
+            { scopes: [{ elm: r, value: 0 }, { elm: v, value: 3 }, { elm: r2, value: 0 }] });
+        expect(res.warnings).toEqual([]);
+        // the voltmeter names the output's net
+        expect(res.postNets.get(out)![0]).toBe("vout");
+        const top = res.postNets.get(r)![0];
+        expect(res.text).toMatch(new RegExp(`^\\.print tran V\\(vout\\) V\\(${top},vout\\) I\\(V1\\)$`, "m"));
+        expect(res.text).toContain("* SPICE's source currents are into the + terminal");
     });
 
     it("exports an element made of others as a .subckt of them", () => {
