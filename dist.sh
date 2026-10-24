@@ -50,14 +50,13 @@ cp -r "$DIR/ts/dist/." site
   rm -f filelist.$$
 
   # circuitjs.html is the versioned entry point too, so it gets the same
-  # per-version name as its assets directory. Fix up the other files that
-  # reference it by that literal name — jsinterface.html's iframe src, and
-  # service-worker.js's own cached file list — before renaming it. (JS
+  # per-version name as its assets directory. Fix up
+  # service-worker.js's own cached file list. (JS
   # chunks are deliberately NOT touched here: ExportAsUrlDialog hardcodes
   # the canonical https://www.falstad.com/circuit/circuitjs.html for
   # Electron's share-URL fallback, which should always point at "latest",
   # not this specific version.)
-  for f in jsinterface.html service-worker.js; do
+  for f in service-worker.js; do
     [ -f "$f" ] || continue
     sed -i.bak "s#circuitjs\.html#circuitjs$num.html#g" "$f"
     rm -f "$f.bak"
