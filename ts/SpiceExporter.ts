@@ -87,6 +87,32 @@ import { DACElm } from "./DACElm";
 import { ADCElm } from "./ADCElm";
 import { CustomLogicElm } from "./CustomLogicElm";
 import { LEDArrayElm } from "./LEDArrayElm";
+import { DPDTSwitchElm } from "./DPDTSwitchElm";
+import { CrossSwitchElm } from "./CrossSwitchElm";
+import { MBBSwitchElm } from "./MBBSwitchElm";
+import { WattmeterElm } from "./WattmeterElm";
+import { WattmeterTrueElm } from "./WattmeterTrueElm";
+import { DecimalDisplayElm } from "./DecimalDisplayElm";
+import { InstructionDisplayElm } from "./InstructionDisplayElm";
+import { VCCSElm } from "./VCCSElm";
+import { VCVSElm } from "./VCVSElm";
+import { CCCSElm } from "./CCCSElm";
+import { CCVSElm } from "./CCVSElm";
+import { ControlledVoltageElm } from "./ControlledVoltageElm";
+import { ControlledCurrentElm } from "./ControlledCurrentElm";
+import { Expr } from "./Expr";
+import { CompositeElm } from "./CompositeElm";
+import { TriStateElm } from "./TriStateElm";
+import { SevenSegElm } from "./SevenSegElm";
+import { TappedTransformerElm } from "./TappedTransformerElm";
+import { CustomTransformerElm } from "./CustomTransformerElm";
+import { TransLineElm } from "./TransLineElm";
+import { VaractorElm } from "./VaractorElm";
+import { TunnelDiodeElm } from "./TunnelDiodeElm";
+import { AMElm } from "./AMElm";
+import { FMElm } from "./FMElm";
+import { SweepElm } from "./SweepElm";
+import { VarRailElm } from "./VarRailElm";
 import { DiodeModel } from "./DiodeModel";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
@@ -734,6 +760,145 @@ const LOGIC_CHIPS = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, Cou
                                   HalfAdderElm, FullAdderElm, SevenSegDecoderElm, AnalogMuxElm, DACElm, ADCElm,
                                   CustomLogicElm]);
 
+// a CircuitJS expression as a SPICE behavioral source's, or null if it uses something SPICE
+// doesn't have (the last output, the last values of the inputs, bit operations).  input(k)
+// is input k (a, b...) and ref(k) reference k (v() or i()).  powers are **, which ngspice
+// and LTspice both take, and conditions use ngspice's ?:
+function spiceExpression(e: Expr, input: (k: number) => string | null, ref: (k: number) => string | null,
+                         timeStep: number): string | null {
+    const c = e.children ?? [];
+    const x = (i: number) => spiceExpression(c[i], input, ref, timeStep);
+    const all = (...xs: (string | null)[]) => xs.every(v => v !== null);
+    const bin = (op: string) => { const a = x(0), b = x(1); return all(a, b) ? `(${a}${op}${b})` : null; };
+    const fn = (name: string) => { const a = x(0); return a === null ? null : `${name}(${a})`; };
+    // the argument mod 2 pi, from 0 to 2 pi
+    const phase = (a: string) => `(${a}-${num(2 * Math.PI)}*floor((${a})/${num(2 * Math.PI)}))`;
+    switch (e.type) {
+    case Expr.E_ADD: return bin("+");
+    case Expr.E_SUB: return bin("-");
+    case Expr.E_MUL: return bin("*");
+    case Expr.E_DIV: return bin("/");
+    case Expr.E_POW: return bin("**");
+    case Expr.E_OR: return bin("||");
+    case Expr.E_AND: return bin("&&");
+    case Expr.E_EQUALS: return bin("==");
+    case Expr.E_NEQ: return bin("!=");
+    case Expr.E_LEQ: return bin("<=");
+    case Expr.E_GEQ: return bin(">=");
+    case Expr.E_LESS: return bin("<");
+    case Expr.E_GREATER: return bin(">");
+    case Expr.E_TERNARY: { const [a, b, d] = [x(0), x(1), x(2)]; return all(a, b, d) ? `(${a}?${b}:${d})` : null; }
+    case Expr.E_UMINUS: { const a = x(0); return a === null ? null : `(-${a})`; }
+    case Expr.E_NOT: { const a = x(0); return a === null ? null : `(${a}==0)`; }
+    case Expr.E_VAL: return num(e.value);
+    case Expr.E_T: return "time";
+    case Expr.E_TIMESTEP: return num(timeStep);
+    case Expr.E_NODEV: return ref(e.value);
+    case Expr.E_NODEDVDT: { const r = ref(e.value); return r === null ? null : `ddt(${r})`; }
+    case Expr.E_SIN: return fn("sin");
+    case Expr.E_COS: return fn("cos");
+    case Expr.E_TAN: return fn("tan");
+    case Expr.E_ASIN: return fn("asin");
+    case Expr.E_ACOS: return fn("acos");
+    case Expr.E_ATAN: return fn("atan");
+    case Expr.E_SINH: return fn("sinh");
+    case Expr.E_COSH: return fn("cosh");
+    case Expr.E_TANH: return fn("tanh");
+    case Expr.E_ABS: return fn("abs");
+    case Expr.E_EXP: return fn("exp");
+    // log is base 10 in ngspice
+    case Expr.E_LOG: return fn("ln");
+    case Expr.E_SQRT: return fn("sqrt");
+    case Expr.E_FLOOR: return fn("floor");
+    case Expr.E_CEIL: return fn("ceil");
+    case Expr.E_MIN:
+    case Expr.E_MAX: {
+        const xs = c.map((_, i) => x(i));
+        if (!all(...xs))
+            return null;
+        const f = e.type === Expr.E_MIN ? "min" : "max";
+        return xs.reduce((a, b) => `${f}(${a},${b})`)!;
+    }
+    case Expr.E_CLAMP: { const [a, lo, hi] = [x(0), x(1), x(2)]; return all(a, lo, hi) ? `min(max(${a},${lo}),${hi})` : null; }
+    case Expr.E_STEP: {
+        const a = x(0);
+        if (c.length < 2)
+            return a === null ? null : `(${a}<0?0:1)`;
+        const b = x(1);
+        return all(a, b) ? `((${a}>${b})||(${a}<0)?0:1)` : null;
+    }
+    case Expr.E_SELECT: { const [a, b, d] = [x(0), x(1), x(2)]; return all(a, b, d) ? `(${a}>0?${d}:${b})` : null; }
+    case Expr.E_PWR: { const [a, b] = [x(0), x(1)]; return all(a, b) ? `(abs(${a})**${b})` : null; }
+    case Expr.E_PWRS: { const [a, b] = [x(0), x(1)]; return all(a, b) ? `(${a}<0?-((-${a})**${b}):${a}**${b})` : null; }
+    case Expr.E_TRIANGLE: {
+        const a = x(0);
+        if (a === null)
+            return null;
+        const p = `(${phase(a)}/${num(Math.PI)})`;
+        return `(${p}<1?-1+2*${p}:3-2*${p})`;
+    }
+    case Expr.E_SAWTOOTH: { const a = x(0); return a === null ? null : `(${phase(a)}/${num(Math.PI)}-1)`; }
+    // the last point's value past it, the first's before it, and straight lines between
+    case Expr.E_PWL: {
+        const xs = c.map((_, i) => x(i));
+        if (!all(...xs) || xs.length < 3)
+            return null;
+        const v = xs[0]!, pts: [string, string][] = [];
+        for (let i = 1; i + 1 < xs.length; i += 2)
+            pts.push([xs[i]!, xs[i + 1]!]);
+        let f = pts[pts.length - 1][1];
+        for (let i = pts.length - 1; i > 0; i--) {
+            const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+            f = `(${v}<${x1}?${y0}+(${v}-${x0})*(${y1}-${y0})/(${x1}-${x0}):${f})`;
+        }
+        return `(${v}<${pts[0][0]}?${pts[0][1]}:${f})`;
+    }
+    }
+    if (e.type >= Expr.E_LASTA)
+        return null;
+    if (e.type >= Expr.E_DADT) {
+        const a = input(e.type - Expr.E_DADT);
+        return a === null ? null : `ddt(${a})`;
+    }
+    if (e.type >= Expr.E_A)
+        return input(e.type - Expr.E_A);
+    return null;
+}
+
+// a frequency sweep's phase.  the frequency goes from the lowest to the highest (linearly, or
+// by the same ratio each step), then starts again from the lowest, or comes back down.  each
+// sweep advances the phase by the same amount, so the phase is that times the number of
+// sweeps so far, plus the integral of the frequency over this one
+function sweepPhase(e: any): string {
+    const T: number = e.sweepTime, f0: number = e.minF, f1: number = e.maxF;
+    const log = (e.flags & SweepElm.FLAG_LOG) !== 0, bidir = (e.flags & SweepElm.FLAG_BIDIR) !== 0;
+    const r = Math.log(f1 / f0);
+    // the integral over a sweep up, and over the part of one to time x into it
+    const whole = log ? T * (f1 - f0) / r : T * (f0 + f1) / 2;
+    const up = (x: string) => log ? `${num(f0 * T / r)}*(exp(${num(r / T)}*${x})-1)` : `(${num(f0)}*${x}+${num((f1 - f0) / (2 * T))}*${x}*${x})`;
+    const down = (x: string) => log ? `${num(f1 * T / r)}*(1-exp(${num(-r / T)}*${x}))` : `(${num(f1)}*${x}-${num((f1 - f0) / (2 * T))}*${x}*${x})`;
+    const k = `floor(time/${num(T)})`, x = `(time-${num(T)}*${k})`;
+    if (!bidir)
+        return `${num(2 * Math.PI)}*(${num(whole)}*${k}+${up(x)})`;
+    // up on even sweeps, down on odd ones
+    const odd = `(${k}-2*floor(${k}/2))`;
+    return `${num(2 * Math.PI)}*(${num(whole)}*${k}+(${odd}>0.5?${down(x)}:${up(x)}))`;
+}
+
+// a switch's closed connections in its current position, from each pole to its throw.  a
+// make-before-break switch between throws has all its posts connected, through the pole
+function switchConnections(ce: CircuitElm): [number, number][] {
+    const n = ce.getPostCount(), pairs: [number, number][] = [];
+    for (let i = 0; i !== n; i++)
+        for (let j = i + 1; j !== n; j++)
+            if (ce.getConnection(i, j) && !pairs.some(([, b]) => b === i))
+                pairs.push([i, j]);
+    return pairs;
+}
+
+const SWITCHES = new Set<any>([DPDTSwitchElm, CrossSwitchElm, MBBSwitchElm]);
+const CONTROLLED = new Set<any>([VCVSElm, VCCSElm, CCVSElm, CCCSElm, ControlledVoltageElm, ControlledCurrentElm]);
+
 class NetlistWriter {
     lines: string[] = [];
     warnings: string[] = [];
@@ -743,6 +908,10 @@ class NetlistWriter {
     private usedNets = new Set<string>(["0"]);
     private netCount = 0;
     private uf = new UnionFind();
+    // each element's nets, and the current through each source or ammeter (from its post 0
+    // to its post 1, as CircuitJS has it), for the controlled sources that refer to them
+    private elmNets = new Map<CircuitElm, string[]>();
+    private vsources = new Map<CircuitElm, string>();
 
     constructor(private exp: SpiceExporter, private sheet: Sheet) {}
 
@@ -842,6 +1011,9 @@ class NetlistWriter {
                 this.uf.union(k[0], k[1]);
             else if (C === Switch2Elm && !(e.position === 2 && e.hasCenterOff()) && !(e.resistance > 0))
                 this.uf.union(k[0], k[e.position + 1]);
+            else if (SWITCHES.has(C) && !(e.resistance > 0))
+                for (const [a, b] of switchConnections(ce))
+                    this.uf.union(k[a], k[b]);
             else
                 parts.push({ ce, keys: k });
         });
@@ -859,8 +1031,12 @@ class NetlistWriter {
         for (const [key, name] of labels)
             this.nameNet(key, name);
         const written: { ce: CircuitElm; nets: string[] }[] = [];
+        // a controlled source can refer to another element's source, so it goes after them
+        parts.sort((a, b) => +CONTROLLED.has(a.ce.getDumpClass()) - +CONTROLLED.has(b.ce.getDumpClass()));
+        for (const p of parts)
+            this.elmNets.set(p.ce, p.keys.map(k => this.net(k)));
         for (const p of parts) {
-            const nets = p.keys.map(k => this.net(k));
+            const nets = this.elmNets.get(p.ce)!;
             const count = this.lines.length;
             this.writeElm(p.ce, nets);
             if (this.lines.slice(count).some(l => !l.startsWith("*")))
@@ -891,14 +1067,74 @@ class NetlistWriter {
                 }
     }
 
-    // the .model card for a diode model
-    private diodeModel(m: any): string {
+    // the .model card for a diode model, with any more parameters
+    private diodeModel(m: any, more: string = ""): string {
         let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
         if (m.seriesResistance > 0)
             params += ` RS=${num(m.seriesResistance)}`;
         if (m.breakdownVoltage > 0)
             params += ` BV=${num(m.breakdownVoltage)}`;
-        return this.exp.model("D", m.name, { kind: "D", params });
+        return this.exp.model("D", m.name, { kind: "D", params: params + more });
+    }
+
+    // a controlled source, as a behavioral source.  a VCVS or VCCS's inputs are its input
+    // pins' voltages; a CCVS or CCCS's are the currents through a zero volt source between
+    // each pair of its input pins (or, SPICE style, through the source already between them).
+    // v() and i() references are a labeled node's voltage, or an element's voltage or the
+    // current through the source it is
+    private controlledSource(ce: CircuitElm, n: string[]): void {
+        const C = ce.getDumpClass();
+        const e = ce as any;
+        const inputs: string[] = [];
+        if (C === VCVSElm || C === VCCSElm)
+            for (let i = 0; i !== e.inputCount; i++)
+                inputs.push(`V(${n[i]})`);
+        const sensed = C === CCVSElm || C === CCCSElm;
+        const ref = this.ref("B"), senses: string[] = [];
+        if (sensed)
+            for (let i = 0; i + 1 < e.inputCount; i += 2) {
+                if (!e.isSpiceStyle()) {
+                    const v = `V${ref}_${String.fromCharCode(97 + i / 2)}`;
+                    senses.push(`${v} ${n[i]} ${n[i + 1]} DC 0`);
+                    inputs.push(`I(${v})`);
+                    continue;
+                }
+                const src = [...this.vsources].find(([s]) => {
+                    const sn = this.elmNets.get(s)!;
+                    return sn[0] === n[i] && sn[1] === n[i + 1] || sn[0] === n[i + 1] && sn[1] === n[i];
+                });
+                if (src === undefined) {
+                    this.leftOut(ce, n);
+                    return;
+                }
+                inputs.push(src[1]);
+            }
+        const engine = e.engine;
+        const refs = (k: number): string | null => {
+            const r = engine.refs[k], elm = engine.refElms[k];
+            if (elm == null)
+                return r.current ? null : `V(${this.net("L" + r.name)})`;
+            const en = this.elmNets.get(elm);
+            if (en === undefined)
+                return null;
+            if (!r.current)
+                return `V(${en[0]},${en[1]})`;
+            return this.vsources.get(elm) ?? null;
+        };
+        // i is also the first pair's current
+        const input = (k: number) => inputs[k] ?? (sensed && k === 8 ? inputs[0] ?? null : null);
+        const f = engine.expr && spiceExpression(engine.expr, input, refs, this.exp.timeStep);
+        if (!f) {
+            this.leftOut(ce, n);
+            return;
+        }
+        // the outputs: + then - for a voltage, and for a current, the end it flows into the
+        // source from first, as SPICE has it.  a VCCS or CCCS's current flows out of its + pin
+        const no = ce.getPostCount();
+        const [p, m] = C === ControlledVoltageElm ? [n[1], n[0]] : C === ControlledCurrentElm ? [n[0], n[1]] :
+                       C === CCCSElm || C === VCCSElm ? [n[no - 1], n[no - 2]] : [n[no - 2], n[no - 1]];
+        const voltage = C === VCVSElm || C === CCVSElm || C === ControlledVoltageElm;
+        this.lines.push(...senses, `${ref} ${p} ${m} ${voltage ? "V" : "I"}=${f}`);
     }
 
     private writeElm(ce: CircuitElm, n: string[]): void {
@@ -906,8 +1142,8 @@ class NetlistWriter {
         const e = ce as any;
         const L = (...words: (string | number)[]) => this.lines.push(words.join(" "));
         if (ce.getPostCount() === 0 || C === TextElm || C === ScopeElm || C === ProbeElm || C === OutputElm ||
-            C === LogicOutputElm || C === DataRecorderElm || C === TestPointElm ||
-            C === StopTriggerElm || C === AudioOutputElm || C === OhmMeterElm)
+            C === LogicOutputElm || C === DataRecorderElm || C === TestPointElm || C === StopTriggerElm ||
+            C === AudioOutputElm || C === OhmMeterElm || C === DecimalDisplayElm || C === InstructionDisplayElm)
             return;
 
         if (C === ResistorElm) {
@@ -950,6 +1186,24 @@ class NetlistWriter {
         // posts: anode, cathode
         if (C === DiodeElm || C === LEDElm || C === ZenerElm) {
             L(this.ref("D"), n[0], n[1], this.diodeModel(e.model));
+            return;
+        }
+        // a diode with SPICE's junction capacitance, which goes as 1/sqrt(1-v/vf) reverse biased.
+        // (CircuitJS holds it at the zero bias value forward biased, where SPICE's keeps rising)
+        if (C === VaractorElm) {
+            L(this.ref("D"), n[0], n[1], this.diodeModel(e.model, ` CJO=${num(e.baseCapacitance)} VJ=${num(e.model.fwdrop)} M=0.5`));
+            return;
+        }
+        // CircuitJS's tunnel diode equation: its diode part is a diode, which SPICE limits the
+        // voltage steps of, as it doesn't a behavioral source's, and the tunnel and excess
+        // currents are a behavioral current.  a little junction capacitance lets SPICE follow
+        // the jump across the negative resistance in a relaxation oscillator
+        if (C === TunnelDiodeElm) {
+            const { pvp, pip, pvv, pvt, pvpp, piv } = TunnelDiodeElm, v = `V(${n[0]},${n[1]})`;
+            // (N for SPICE's thermal voltage at 27C)
+            const params = `IS=${num(pip * Math.exp(-pvpp / pvt))} N=${num(pvt / 0.0258520)} CJO=1p`;
+            L(this.ref("D"), n[0], n[1], this.exp.model("D", "tunnel", { kind: "D", params }));
+            L(this.ref("B"), n[0], n[1], `I=${num(pip / pvp)}*${v}*exp(1-${v}/${num(pvp)})+${num(piv * Math.exp(-pvv))}*(exp(${v})-1)`);
             return;
         }
         // posts: the columns, then the rows.  each LED goes from its row to its column
@@ -1058,14 +1312,16 @@ class NetlistWriter {
             return;
         }
         // CircuitJS sources are (-, +); SPICE's are (+, -)
-        if ((C === VoltageElm && ce.getPostCount() === 2) || C === RailElm) {
+        if ((C === VoltageElm && ce.getPostCount() === 2) || C === RailElm || C === VarRailElm) {
             const spec = sourceSpec(e, this.exp.timeStep);
             if (spec === null) {
                 this.leftOut(ce, n);
                 return;
             }
+            // SPICE's current is into the + end, which is CircuitJS's post 1 (or a rail's post)
             const ref = this.ref("V");
-            const [plus, minus] = C === RailElm ? [n[0], "0"] : [n[1], n[0]];
+            this.vsources.set(ce, `(-I(${ref}))`);
+            const [plus, minus] = C === VoltageElm ? [n[1], n[0]] : [n[0], "0"];
             if (C === VoltageElm && e.internalResistance > 0) {
                 const mid = this.internalNet(ref + "_int");
                 L(ref, mid, minus, spec);
@@ -1083,7 +1339,30 @@ class NetlistWriter {
         }
         // a zero volt source, which SPICE can measure current through
         if (C === AmmeterElm) {
+            const ref = this.ref("V");
+            this.vsources.set(ce, `I(${ref})`);
+            L(ref, n[0], n[1], "DC 0");
+            return;
+        }
+        // posts: the current path (both pairs, for the wattmeter that also measures current
+        // through its voltage side), as zero volt sources, and a voltmeter's 100 megohms
+        if (C === WattmeterElm) {
             L(this.ref("V"), n[0], n[1], "DC 0");
+            L(this.ref("V"), n[2], n[3], "DC 0");
+            return;
+        }
+        if (C === WattmeterTrueElm) {
+            L(this.ref("R"), n[0], n[1], "100meg");
+            L(this.ref("V"), n[2], n[3], "DC 0");
+            return;
+        }
+        if (SWITCHES.has(C)) {
+            for (const [a, b] of switchConnections(ce))
+                L(this.ref("R"), n[a], n[b], spiceValue(e.resistance));
+            return;
+        }
+        if (CONTROLLED.has(C)) {
+            this.controlledSource(ce, n);
             return;
         }
         // the first winding goes from post 0 to 2, the second from 1 to 3, with the dots on posts 0 and 1
@@ -1094,6 +1373,87 @@ class NetlistWriter {
             L("K" + ref.substring(1), ref + "a", ref + "b", num(Math.min(e.couplingCoef, 1)));
             if (e.saturationCurrent > 0)
                 this.warnings.push("transformer saturation");
+            return;
+        }
+        // posts: primary, then the secondary's ends and its center tap.  each half of the
+        // secondary has a quarter of the inductance of the whole
+        if (C === TappedTransformerElm) {
+            const ref = this.ref("L"), l2 = e.inductance * e.ratio * e.ratio / 4, k = num(Math.min(e.couplingCoef, 1));
+            L(ref + "a", n[0], n[1], spiceValue(e.inductance));
+            L(ref + "b", n[2], n[3], spiceValue(l2));
+            L(ref + "c", n[3], n[4], spiceValue(l2));
+            const r = ref.substring(1);
+            L("K" + r + "ab", ref + "a", ref + "b", k);
+            L("K" + r + "ac", ref + "a", ref + "c", k);
+            L("K" + r + "bc", ref + "b", ref + "c", k);
+            return;
+        }
+        // each coil goes from its node to the next, the other way round for reverse polarity,
+        // and every pair is coupled
+        if (C === CustomTransformerElm) {
+            const ref = this.ref("L"), k = num(Math.min(e.couplingCoef, 1)), r = ref.substring(1);
+            const coils = Array.from({ length: e.coilCount }, (_, i) => ref + "_" + i);
+            coils.forEach((c, i) => {
+                const a = n[e.coilNodes[i]], b = n[e.coilNodes[i] + 1];
+                L(c, ...(e.coilPolarities[i] < 0 ? [b, a] : [a, b]), spiceValue(e.coilInductances[i]));
+            });
+            for (let i = 0; i !== coils.length; i++)
+                for (let j = i + 1; j < coils.length; j++)
+                    L(`K${r}_${i}_${j}`, coils[i], coils[j], k);
+            return;
+        }
+        // posts: the two ends' returns, then their signals
+        if (C === TransLineElm) {
+            L(this.ref("T"), n[2], n[0], n[3], n[1], `Z0=${num(e.imped)}`, `TD=${num(e.delay)}`);
+            return;
+        }
+        // a tri-state buffer drives its output through a switch, which opens while its enable is
+        // low, with a resistor to ground if it has one.  posts: inputs, outputs, enable
+        if (C === TriStateElm) {
+            const w: number = e.busWidth, hi: number = e.highVoltage, k = steepness(hi);
+            const ins = Array.from({ length: w }, (_, i) => "a" + i), outs = ins.map((_, i) => "y" + i);
+            const body = [`.model TRI SW (VT=${num(hi / 2)} VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(e.r_off)})`];
+            const params: StateParams = [];
+            ins.forEach((a, i) => {
+                params.push(["ic_" + a, ce.getPostVoltage(i) > hi / 2 ? hi : 0]);
+                body.push(...logicOutput("d" + i, `${num(hi)}*${level(`V(${a})`, num(hi / 2), k)}`, this.exp.timeStep / 4, "_" + i, `{ic_${a}}`),
+                          `S${i} d${i} ${outs[i]} en 0 TRI`);
+                if (e.r_off_ground > 0)
+                    body.push(`R${i} ${outs[i]} 0 ${spiceValue(e.r_off_ground)}`);
+            });
+            const name = this.exp.logicPart(w === 1 ? "TRISTATE" : "TRISTATE" + w, `${w > 1 ? w + "-bit " : ""}tri-state buffer, ${num(hi)}V logic`,
+                                            [...ins, ...outs, "en"], body, params);
+            L(this.ref("XU"), ...n, name, ...SpiceExporter.instanceParams(params));
+            return;
+        }
+        // an LED from each segment to the common pin (or the other way, common anode)
+        if (C === SevenSegElm) {
+            if (e.diodeDirection === 0)
+                return;
+            const model = this.diodeModel(DiodeModel.getModelWithName("default-led"));
+            const segs = Array.from({ length: e.segmentCount }, (_, i) => String.fromCharCode(97 + i));
+            const cc = e.diodeDirection === 1;
+            const body = segs.map((s, i) => `D${i} ${cc ? s + " com" : "com " + s} ${model}`);
+            const name = this.exp.logicPart(`SEG${e.segmentCount}_${cc ? "CC" : "CA"}`,
+                                            `${e.segmentCount}-segment LED display, common ${cc ? "cathode" : "anode"}`, [...segs, "com"], body);
+            L(this.ref("XU"), ...segs.map((_, i) => n[i]), n[e.commonPin], name);
+            return;
+        }
+        // sources made of sines of the time
+        if (C === AMElm) {
+            const w = (f: number) => `${num(2 * Math.PI * f)}*time`;
+            L(this.ref("B"), n[0], "0", `V=${num(e.maxVoltage)}*(sin(${w(e.signalfreq)})+1)/2*sin(${w(e.carrierfreq)})`);
+            return;
+        }
+        // the phase is the integral of the carrier frequency plus the signal times the deviation
+        if (C === FMElm) {
+            const ws = num(2 * Math.PI * e.signalfreq);
+            L(this.ref("B"), n[0], "0", `V=${num(e.maxVoltage)}*sin(${num(2 * Math.PI * e.carrierfreq)}*time+` +
+              `${num(e.deviation / e.signalfreq)}*(1-cos(${ws}*time)))`);
+            return;
+        }
+        if (C === SweepElm) {
+            L(this.ref("B"), n[0], "0", `V=${num(e.maxV)}*sin(${sweepPhase(e)})`);
             return;
         }
         // a logic input is a source at the high or low level (or in between, for ternary)
@@ -1183,6 +1543,16 @@ class NetlistWriter {
             }
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, part.size), ...n, name, ...SpiceExporter.instanceParams(part.params));
+            return;
+        }
+        // an element made of others (a comparator, a darlington...) is a .subckt of them
+        if (ce instanceof CompositeElm && C !== SubcircuitElm) {
+            const sub = this.exp.compositeSubckt(ce);
+            if (sub === null) {
+                this.leftOut(ce, n);
+                return;
+            }
+            L(this.ref("X"), ...n, sub);
             return;
         }
         if (C === SubcircuitElm) {
@@ -1293,6 +1663,24 @@ export class SpiceExporter {
         return name;
     }
 
+    // the .subckt for an element made of others, or null if they can't all be exported.  its
+    // pins are p0, p1... in the order of the element's posts, and the same parts with the
+    // same values are one .subckt
+    compositeSubckt(ce: CompositeElm): string | null {
+        const c = ce as any;
+        const elms: CircuitElm[] = c.compElmList;
+        const keys = elms.map((_, i) => (c.compNodeInfo[i] as string).trim().split(/\s+/).map(t => t === "0" ? "0" : "n" + t));
+        const names = new Map<string, string>(c.extNodeIds.map((id: number, i: number) => ["n" + id, "p" + i] as [string, string]));
+        const w = new NetlistWriter(this, { elms, keys, names });
+        w.write();
+        if (w.warnings.length)
+            return null;
+        const pins = c.extNodeIds.map((id: number) => w.net("n" + id));
+        const name = ce.getClassName().replace(/Elm$/, "").toUpperCase();
+        return this.logicPart(name, ce.getClassName().replace(/Elm$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase(),
+                              pins, w.lines);
+    }
+
     export(): SpiceExport {
         const key = (ce: CircuitElm, j: number) => {
             const p = ce.getPost(j)!;
@@ -1306,12 +1694,19 @@ export class SpiceExporter {
         w.write();
         this.warnings.push(...w.warnings);
         const postNets = new Map(this.elms.map((ce, i) => [ce, w.postKeys(i).map(k => w.net(k))] as [CircuitElm, string[]]));
+        // with nothing that holds energy, SPICE starts from the operating point, as the
+        // simulator settles to at its first step.  (that's also easier for SPICE to start, with a
+        // loop through a limited behavioral source, say.)  capacitors, inductors, transmission
+        // lines, logic state and junction capacitances start from their initial conditions
+        const tran = `.tran ${spiceValue(this.timeStep)} ${spiceValue(this.stopTime)}`;
+        const uic = [...this.subcktText, ...w.lines].some(l => /^[CLKT]/.test(l) || / IC=/.test(l)) ||
+                    this.modelCards.some(m => /\b(CJO|CJE|CJC|CGS|CGD|CBD|CBS)=/.test(m));
         const text = ["* " + this.title.replace(/\n/g, " "),
                       ...this.modelCards, ...this.subcktText, "",
                       ...w.lines, "",
-                      "* uic starts from the parts' initial conditions, as CircuitJS does.  if SPICE",
-                      "* can't start the simulation, remove it to start from the operating point",
-                      `.tran ${spiceValue(this.timeStep)} ${spiceValue(this.stopTime)} uic`,
+                      ...(uic ? ["* uic starts from the parts' initial conditions, as CircuitJS does.  if SPICE",
+                                 "* can't start the simulation, remove it to start from the operating point",
+                                 tran + " uic"] : [tran]),
                       ".end", ""].join("\n");
         return { text, warnings: this.warnings, postNets };
     }

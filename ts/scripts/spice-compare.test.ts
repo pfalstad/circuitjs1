@@ -5,7 +5,7 @@
 //
 //   CIRCUIT=../tests/custom.txt npx vitest run spice-compare
 //
-// CIRCUIT is the circuit file.  STOP is how long to simulate (0.02s by default), RESET=0
+// CIRCUIT is the circuit file.  STOP is how long to simulate (4000 time steps by default), RESET=0
 // starts from the state the file was saved in instead of from reset, and OUT is where to
 // write the netlist and both sets of voltages (the system's temporary directory by default).
 // it needs ngspice, and skips itself without CIRCUIT.
@@ -25,7 +25,6 @@ import { ElementFactory } from "../ElementFactory";
 import { exportSpiceNetlist } from "../SpiceExporter";
 
 const FILE = process.env.CIRCUIT ?? "";
-const STOP = parseFloat(process.env.STOP ?? "0.02");
 const OUT = process.env.OUT ?? join(tmpdir(), "spice-compare-" + basename(FILE).replace(/\.\w+$/, ""));
 const SAMPLES = 200;
 
@@ -67,6 +66,8 @@ function makeApp(): any {
 
 // the circuit's elements and time step, from a text circuit file
 function loadCircuit(text: string, app: any): number {
+    if (text.trimStart().startsWith("<"))
+        throw new Error("only text circuit files can be read here, not XML ones");
     let timeStep = 5e-6;
     for (const line of text.split(/\r?\n/)) {
         if (!line)
@@ -115,6 +116,7 @@ it.skipIf(!FILE)("matches the simulator", () => {
     vi.useFakeTimers();
     const app = makeApp(), sim = app.sim;
     const timeStep = loadCircuit(readFileSync(FILE, "utf8"), app);
+    const STOP = process.env.STOP ? parseFloat(process.env.STOP) : 4000 * timeStep;
     sim.maxTimeStep = sim.timeStep = timeStep;
     if (process.env.RESET !== "0")
         for (const ce of app.elmList)
@@ -135,7 +137,9 @@ it.skipIf(!FILE)("matches the simulator", () => {
             const pin = e.pins?.[j] ? ":" + (e.pins[j].text || "clk") : ":" + j;
             who.set(n, [...(who.get(n) ?? []), `${ce.getClassName().replace(/Elm$/, "")}@${e.x},${e.y}${pin}`]);
         });
-    const nets = [...probes.keys()];
+    // (a net only a left-out part is on isn't in the netlist)
+    const used = new Set(res.text.split("\n").filter(l => /^[A-Z]/.test(l)).flatMap(l => l.split(/[\s(),]+/)));
+    const nets = [...probes.keys()].filter(n => used.has(n));
 
     // the simulator's voltages, after the first time step past each sample time
     const rows: number[][] = [];
@@ -148,12 +152,16 @@ it.skipIf(!FILE)("matches the simulator", () => {
     vi.setSystemTime(now);
     sim.lastIterTime = 0;
     sim.runCircuit(true);
-    while (rows.length < SAMPLES) {
+    for (let stuck = 0; rows.length < SAMPLES; ) {
+        const t = sim.t;
         vi.setSystemTime(++now);
         app.ui.lastFrameTime = now;
         sim.runCircuit(false);
         if (app.stopMessage)
             throw new Error(app.stopMessage);
+        stuck = sim.t > t ? 0 : stuck + 1;
+        if (stuck === 1000)
+            throw new Error(`the simulator stopped at t=${sim.t} (timeStep ${sim.timeStep})`);
     }
     vi.useRealTimers();
 

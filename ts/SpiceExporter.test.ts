@@ -33,6 +33,12 @@ import { ElementFactory } from "./ElementFactory";
 import { ExtListEntry } from "./ExtListEntry";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { SubcircuitElm } from "./SubcircuitElm";
+import { DPDTSwitchElm } from "./DPDTSwitchElm";
+import { MBBSwitchElm } from "./MBBSwitchElm";
+import { TriStateElm } from "./TriStateElm";
+import { VCCSElm } from "./VCCSElm";
+import { CrystalElm } from "./CrystalElm";
+import { InductorElm } from "./InductorElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -80,7 +86,8 @@ describe("SPICE export", () => {
             ["R1", "n1", "n2", "1k"],
             ["R2", "n2", "0", "1k"],
         ]);
-        expect(res.text).toContain(".tran 1u 1m uic\n.end");
+        // nothing to start from an initial condition, so SPICE starts from the operating point
+        expect(res.text).toContain(".tran 1u 1m\n.end");
     });
 
     it("puts a source's + terminal first", () => {
@@ -168,8 +175,9 @@ describe("SPICE export", () => {
     it("starts capacitors at their initial voltage", () => {
         const c = place(new CapacitorElm(0, 0), 0, 0, 64, 0);
         c.initialVoltage = -10;
-        expect(devices(exportSpiceNetlist([c, place(new GroundElm(0, 0), 0, 0, 0, 16)]).text)[0])
-            .toEqual(["C1", "0", "n1", "10u", "IC=-10"]);
+        const text = exportSpiceNetlist([c, place(new GroundElm(0, 0), 0, 0, 0, 16)]).text;
+        expect(devices(text)[0]).toEqual(["C1", "0", "n1", "10u", "IC=-10"]);
+        expect(text).toMatch(/^\.tran \S+ \S+ uic$/m);
     });
 
     it("lists what it can't export", () => {
@@ -374,5 +382,56 @@ describe("SPICE export", () => {
         const nets = res.postNets.get(x)!;
         expect(new Set(nets).size).toBe(3);
         expect(devices(res.text).find(l => l[0] === "X1")).toEqual(["X1", ...nets, "busres"]);
+    });
+
+    it("joins a switch's pole to its throw in its current position", () => {
+        const dpdt = place(new DPDTSwitchElm(0, 0), 0, 0, 64, 0);
+        dpdt.position = 1;
+        const res = exportSpiceNetlist([dpdt]);
+        expect(res.warnings).toEqual([]);
+        const n = res.postNets.get(dpdt)!;
+        // posts: each pole, then its two throws
+        expect([n[0] === n[2], n[0] === n[1], n[3] === n[5], n[3] === n[4]]).toEqual([true, false, true, false]);
+        // a make-before-break switch between throws, with resistance, has a resistor to each
+        const mbb = place(new MBBSwitchElm(0, 0), 0, 100, 64, 100);
+        mbb.position = 1;
+        mbb.both = true;
+        mbb.resistance = 10;
+        const m = exportSpiceNetlist([mbb]);
+        const mn = m.postNets.get(mbb)!;
+        expect(devices(m.text).filter(l => !l[0].startsWith("Rfloat")))
+            .toEqual([["R1", mn[0], mn[1], "10"], ["R2", mn[0], mn[2], "10"]]);
+    });
+
+    it("exports controlled sources as behavioral sources", () => {
+        const g = place(new VCCSElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([g]);
+        expect(res.warnings).toEqual([]);
+        const [a, b, cp, cm] = res.postNets.get(g)!;
+        // CircuitJS's VCCS pushes its current out of C+, which SPICE has as flowing into C-
+        expect(devices(res.text).find(l => l[0] === "B1")).toEqual(["B1", cm, cp, `I=(0.1*(V(${a})-V(${b})))`]);
+    });
+
+    it("exports a tri-state buffer as an output through a switch", () => {
+        const t = place(new TriStateElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([t]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt TRISTATE a0 y0 en params: ic_a0=0\n");
+        expect(res.text).toMatch(/^S0 d0 y0 en 0 TRI$/m);
+        expect(res.text).toMatch(/^R0 y0 0 100meg$/m);
+    });
+
+    it("exports an element made of others as a .subckt of them", () => {
+        // CapacitorElm 1 2, CapacitorElm 1 3, InductorElm 3 4, ResistorElm 4 2
+        for (const [name, c] of [["CapacitorElm", CapacitorElm], ["InductorElm", InductorElm], ["ResistorElm", ResistorElm]] as const)
+            ElementFactory.registerClass(name, c as any);
+        const x = place(new CrystalElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([x]);
+        expect(res.warnings).toEqual([]);
+        const sub = res.text.match(/^\.subckt CRYSTAL[^]*?^\.ends CRYSTAL$/m)![0].split("\n");
+        expect(sub[0]).toBe(".subckt CRYSTAL p0 p1");
+        expect(sub.slice(1, -1).map(l => l.split(" ").slice(0, 3).join(" ")))
+            .toEqual(["C1 p0 p1", "C2 p0 n1", "L1 n1 L1_int", "RL1 L1_int n2", "R1 n2 p1"]);
+        expect(devices(res.text).find(l => l[0] === "X1")).toEqual(["X1", ...res.postNets.get(x)!, "CRYSTAL"]);
     });
 });
