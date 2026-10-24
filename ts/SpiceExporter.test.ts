@@ -10,6 +10,9 @@ import { DCVoltageElm } from "./DCVoltageElm";
 import { LogicOutputElm } from "./LogicOutputElm";
 import { ProbeElm } from "./ProbeElm";
 import { SCRElm } from "./SCRElm";
+import { RelayCoilElm } from "./RelayCoilElm";
+import { RelayContactElm } from "./RelayContactElm";
+import { LampElm } from "./LampElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { NTransistorElm } from "./NTransistorElm";
 import { SwitchElm } from "./SwitchElm";
@@ -456,6 +459,33 @@ describe("SPICE export", () => {
         expect(res.text).toContain(".subckt SCR a c g params: ic_s=0\n");
         expect(res.text).toMatch(/^Son a1 i s 0 TSW$/m);
         expect(devices(res.text).find(l => l[0] === "XU1")).toEqual(["XU1", ...res.postNets.get(scr)!, "SCR"]);
+    });
+
+    it("exports a relay coil and its contacts, linked by their label", () => {
+        const coil = place(new RelayCoilElm(0, 0), 0, 0, 0, 64);
+        const no = place(new RelayContactElm(0, 0), 64, 0, 64, 64);
+        const nc = place(new RelayContactElm(0, 0), 128, 0, 128, 64);
+        nc.flags |= nc.FLAG_NORMALLY_CLOSED;
+        const other = place(new RelayContactElm(0, 0), 192, 0, 192, 64);
+        other.label = "other";
+        const res = exportSpiceNetlist([coil, no, nc, other]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt RELAYCOIL c1 c2 a params: ic_i=0 ic_avg=0 ic_e=0 ic_a=0\n");
+        const d = devices(res.text);
+        expect(d.find(l => l[0] === "XU1")).toEqual(["XU1", ...res.postNets.get(coil)!, "relay_label", "RELAYCOIL"]);
+        // the normally closed contact sees the position negated
+        expect(d.find(l => l[0] === "S1")!.slice(1, 5)).toEqual([...res.postNets.get(no)!, "relay_label", "0"]);
+        expect(d.find(l => l[0] === "S2")!.slice(1, 5)).toEqual([...res.postNets.get(nc)!, "0", "relay_label"]);
+        // a contact without a coil stays where it is
+        expect(d.find(l => l[0] === "R1")).toEqual(["R1", ...res.postNets.get(other)!, "50m"]);
+    });
+
+    it("exports a lamp with its filament's temperature", () => {
+        const lamp = place(new LampElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([lamp]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt LAMP a b params: ic_dt=0\n");
+        expect(res.text).toMatch(/^Cdt dt 0 1 IC=\{ic_dt\}$/m);
     });
 
     it("prints the outputs and the scopes' traces", () => {

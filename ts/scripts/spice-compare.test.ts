@@ -51,6 +51,7 @@ function makeApp(): any {
         stop: (s: string) => { app.stopMessage = s; },
         addWidgetToVerticalPanel: () => {}, removeWidgetFromVerticalPanel: () => {}, mouse: {},
         deleteSliders: () => {}, getrand: (x: number) => Math.floor(Math.random() * x),
+        random: { nextDouble: () => Math.random() },
     };
     (globalThis as any).document = stub;
     (CircuitElm as any).app = app;
@@ -83,8 +84,9 @@ function loadCircuit(text: string, app: any): number {
             CustomLogicModel.undumpModel(st);
             continue;
         }
-        // scopes, hints, sliders and models other than custom logic
-        if ("o h % ? B . & 34 32 38".split(" ").includes(type) || !(/^\d+$/.test(type) || type.length === 1))
+        // scopes (in the scope area and in the circuit, which can't be built without a
+        // browser and aren't exported), hints, sliders and models other than custom logic
+        if ("o h % ? B . & 34 32 38 403".split(" ").includes(type) || !(/^\d+$/.test(type) || type.length === 1))
             continue;
         const tint = /^\d+$/.test(type) ? parseInt(type) : type.charCodeAt(0);
         const [x1, y1, x2, y2, f] = [0, 0, 0, 0, 0].map(() => parseInt(st.nextToken()));

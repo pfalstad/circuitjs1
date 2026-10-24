@@ -67,6 +67,10 @@ import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
 import { RelayElm } from "./RelayElm";
 import { TimerElm } from "./TimerElm";
+import { RelayCoilElm } from "./RelayCoilElm";
+import { RelayContactElm } from "./RelayContactElm";
+import { LampElm } from "./LampElm";
+import { TriodeElm } from "./TriodeElm";
 import { SCRElm } from "./SCRElm";
 import { TriacElm } from "./TriacElm";
 import { DiacElm } from "./DiacElm";
@@ -236,6 +240,11 @@ function sourceSpec(e: any, timeStep: number): string | null {
         const fall = Math.min(timeStep, per / 100);
         return `PULSE(${num(bias - max)} ${num(bias + max)} ${num(delayFor(e))} ${num(per - fall)} ${num(fall)} 0 ${num(per)})`;
     }
+    // CircuitJS's noise is a new uniform value from -max to max each step; ngspice's is
+    // gaussian, so it gets the same rms, max/sqrt(3).  (LTspice has no TRNOISE; its nearest
+    // is a behavioral source, V=bias+2*max*white(time/step).)
+    case VoltageElm.WF_NOISE:
+        return `DC ${num(bias)} TRNOISE(${num(max / Math.sqrt(3))} ${spiceValue(timeStep)} 0 0)`;
     }
     return null;
 }
@@ -476,6 +485,74 @@ function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
                     `Son a1 b s 0 TSW`,
                     ...latch(breakdown, holding),
                     sw(e.onresistance, e.offresistance)] };
+}
+
+// a relay coil as a part, putting out on pin a whether it's activated, as the simulator's
+// state 2 or 3.  the coil is an inductor and its resistance, with a source measuring its
+// current, which is averaged over a millisecond.  it's energized (state 1 or 2) once that
+// rises past the on current, until it falls below the off current, held like a Schmitt
+// input's.  it's activated once it's been energized for the on delay, and stays activated
+// until it's been unenergized for the off delay.  each delay is timed on a node that rises to
+// 1 over it, and is cleared quickly when the coil changes back
+function relayCoilPart(e: any, timeStep: number): ChipPart {
+    const T = e.switchingTime;
+    const ton = e.type === RelayCoilElm.TYPE_OFF_DELAY ? 0 : T, toff = e.type === RelayCoilElm.TYPE_ON_DELAY ? 0 : T;
+    const on: number = e.onCurrent, off: number = e.offCurrent;
+    const params: StateParams = [["ic_i", e.coilCurrent], ["ic_avg", e.avgCurrent],
+                                 ["ic_e", e.state === 1 || e.state === 2 ? 1 : 0], ["ic_a", e.state >= 2 ? 1 : 0]];
+    const body = [`Vsense c1 coil 0`,
+                  `Lcoil coil coil_int ${spiceValue(e.inductance)} IC={ic_i}`,
+                  `Rcoil coil_int c2 ${spiceValue(e.coilR)}`,
+                  `Bavg avg_raw 0 V=abs(I(Vsense))`,
+                  `Ravg avg_raw avg 1k`,
+                  `Cavg avg 0 1u IC={ic_avg}`,
+                  `Ben e_raw 0 V=${level("V(avg)", `${num(on)}+${num(off - on)}*V(e)`, num(40 / Math.max(on - off, on / 20)))}`,
+                  `Ren e_raw e 1k`,
+                  `Cen e 0 ${spiceValue(timeStep / 4000)} IC={ic_e}`];
+    // a delay's timer, or the condition itself without a delay
+    const done = (t: number, cond: string, node: string) => {
+        if (t === 0)
+            return cond;
+        body.push(`B${node} 0 ${node} I=${cond}*(1-${level(`V(${node})`, "1.002", "1000")})*${spiceValue(1 / t)}` +
+                  `-(1-${cond})*V(${node})*${spiceValue(4 / timeStep)}`,
+                  `C${node} ${node} 0 1`,
+                  `R${node} ${node} 0 1t`);
+        return level(`V(${node})`, "0.999", "1e4");
+    };
+    const onDone = done(ton, "V(e)", "ton"), offDone = done(toff, "(1-V(e))", "toff");
+    body.push(...heldState("a", `${onDone}+(1-${onDone})*(1-${offDone})*V(a)`, timeStep, "{ic_a}"));
+    const kind = ["relay", "on-delay relay", "off-delay relay", "latching relay", "set", "reset"][e.type] ?? "relay";
+    return { want: "RELAYCOIL", size: 1, pins: ["c1", "c2", "a"], params, body,
+             desc: `${kind} coil, ${spiceValue(e.inductance)}H ${spiceValue(e.coilR)} ohms, on at ${spiceValue(on)}A, ` +
+                   `off at ${spiceValue(off)}A` + (T > 0 ? `, switching in ${spiceValue(T)}s` : "") };
+}
+
+// a lamp, a filament whose resistance depends on its temperature, as in the simulator: from
+// http://www.intusoft.com/nlpdf/nl11.pdf.  the temperature over room temperature is a voltage,
+// on a 1F capacitor charged by the power over the filament's warming capacity and leaking
+// heat over its cooling one
+function lampPart(e: any): ChipPart {
+    const nomR = e.nom_v * e.nom_v / e.nom_pow, room = e.roomTemp;
+    const cap = 1.57e-4 * e.nom_pow, capw = cap * e.warmTime / .4, capc = cap * e.coolTime / .4, cr = 2600 / e.nom_pow;
+    const tp = `min(max(V(dt)+${num(room)},200),5390)`;
+    const r = `(${num(nomR)}*(1.26104-4.90662*sqrt(17.1839/${tp}-0.00318794)-7.8569/(${tp}-187.56)))`;
+    return { want: "LAMP", size: 1, pins: ["a", "b"], params: [["ic_dt", e.temp - room]],
+             desc: `lamp, ${num(e.nom_pow)}W at ${num(e.nom_v)}V`,
+             body: [`Blamp a b I=V(a,b)/${r}`,
+                    `Bheat 0 dt I=V(a,b)*V(a,b)/${r}/${spiceValue(capw)}-V(dt)/${spiceValue(capc * cr)}`,
+                    `Cdt dt 0 1 IC={ic_dt}`,
+                    `Rdt dt 0 1t`] };
+}
+
+// a triode, as in the simulator: the plate current is (Vgk+Vpk/mu)^1.5/kg1 once that's
+// positive, and the grid conducts through 6k once it's above the cathode
+function triodePart(e: any): ChipPart {
+    const x = `max(V(g,k)+V(p,k)/${num(e.mu)},0)`;
+    return { want: "TRIODE", size: 1, pins: ["p", "g", "k"], params: [],
+             desc: `triode, mu ${num(e.mu)}, kg1 ${num(e.kg1)}`,
+             body: [`Bplate p k I=${x}*sqrt(${x})/${num(e.kg1)}+V(p,k)*1e-8`,
+                    `Bgrid g k I=max(V(g,k),0)/${num(e.gridCurrentR)}`,
+                    `Rgrid g k 1e8`] };
 }
 
 // a relay as a part.  posts: each pole's common, the throw closed when off, the throw closed
@@ -1221,6 +1298,7 @@ class NetlistWriter {
         parts.sort((a, b) => +CONTROLLED.has(a.ce.getDumpClass()) - +CONTROLLED.has(b.ce.getDumpClass()));
         for (const p of parts)
             this.elmNets.set(p.ce, p.keys.map(k => this.net(k)));
+        this.relayGroups(parts.map(p => p.ce));
         for (const p of parts) {
             const nets = this.elmNets.get(p.ce)!;
             const count = this.lines.length;
@@ -1228,8 +1306,55 @@ class NetlistWriter {
             if (this.lines.slice(count).some(l => !l.startsWith("*")))
                 written.push({ ce: p.ce, nets });
         }
+        this.writeRelayStates();
         if (this.sheet.findGround)
             this.tieFloating(written);
+    }
+
+    // relay coils and the contacts with their label.  each label has a node for its contacts'
+    // position, 1 while the coil holds them over.  a coil's part puts out whether it's
+    // activated: past its on current for its on delay, until it's below its off current for
+    // its off delay.  usually the position is just that; a latching coil toggles it each time
+    // it's activated, and set and reset coils set it to 1 or 0
+    private relays = new Map<string, { position: string; mode: "follow" | "toggle" | "setReset";
+                                       coils: CircuitElm[]; outputs: Map<CircuitElm, string> }>();
+
+    private relayGroups(elms: CircuitElm[]): void {
+        for (const ce of elms) {
+            if (ce.getDumpClass() !== RelayCoilElm)
+                continue;
+            const label: string = (ce as any).label;
+            let g = this.relays.get(label);
+            if (!g) {
+                g = { position: this.internalNet("relay_" + label), mode: "follow", coils: [], outputs: new Map() };
+                this.relays.set(label, g);
+            }
+            g.coils.push(ce);
+        }
+        for (const g of this.relays.values()) {
+            const types = g.coils.map(c => (c as any).type as number);
+            g.mode = types.some(t => t === RelayCoilElm.TYPE_LATCHING_ON || t === RelayCoilElm.TYPE_LATCHING_OFF) ? "setReset" :
+                     types[0] === RelayCoilElm.TYPE_LATCHING ? "toggle" : "follow";
+            g.coils.forEach((c, i) => g.outputs.set(c, g.mode === "follow" && i === 0 ? g.position
+                                                                                  : this.internalNet(`${g.position}_a${i}`)));
+        }
+    }
+
+    private writeRelayStates(): void {
+        for (const g of this.relays.values()) {
+            const q = g.position, init = (g.coils[0] as any).switchPosition;
+            for (const suffix of ["_raw", "_m", "_m_raw"])
+                this.usedNets.add(q + suffix);
+            const a = (c: CircuitElm) => `V(${g.outputs.get(c)})`;
+            if (g.mode === "toggle")
+                this.lines.push(...clockedBit(q, `(1-V(${q}))`, a(g.coils[0]), this.exp.timeStep, init));
+            else if (g.mode === "setReset") {
+                const of = (t: number) => g.coils.filter(c => (c as any).type === t).map(a);
+                const set = of(RelayCoilElm.TYPE_LATCHING_ON), reset = of(RelayCoilElm.TYPE_LATCHING_OFF);
+                const any = (xs: string[]) => xs.length === 0 ? "0" : `(1-${and(xs.map(not))})`;
+                this.lines.push(...heldState(q, `${any(set)}+(1-${any(set)})*(1-${any(reset)})*V(${q})`, this.exp.timeStep, init));
+            }
+        }
     }
 
     // the simulator connects each part of the circuit that has no path to ground to it,
@@ -1484,6 +1609,33 @@ class NetlistWriter {
         }
         if (C === SCRElm || C === TriacElm || C === DiacElm || C === SparkGapElm) {
             const part = thyristorPart(ce, this.exp.timeStep);
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
+            return;
+        }
+        // posts: the coil's ends
+        if (C === RelayCoilElm) {
+            this.exp.gear = true;
+            const g = this.relays.get(e.label)!;
+            const part = relayCoilPart(e, this.exp.timeStep);
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, 1), n[0], n[1], g.outputs.get(ce)!, name, ...SpiceExporter.instanceParams(part.params));
+            return;
+        }
+        // posts: the contact's ends.  without a coil it stays where it is
+        if (C === RelayContactElm) {
+            const g = this.relays.get(e.label), nc = e.isNormallyClosed();
+            if (!g) {
+                L(this.ref("R"), n[0], n[1], spiceValue(e.i_position === 0 ? e.r_on : e.r_off));
+                return;
+            }
+            const sw = this.exp.model("S", "relay", { kind: "SW",
+                params: `VT=${nc ? -0.5 : 0.5} VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(e.r_off)}` });
+            L(this.ref("S"), n[0], n[1], ...(nc ? ["0", g.position] : [g.position, "0"]), sw);
+            return;
+        }
+        if (C === LampElm || C === TriodeElm) {
+            const part = C === LampElm ? lampPart(e) : triodePart(e);
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
             return;
