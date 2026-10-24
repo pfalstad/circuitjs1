@@ -16,6 +16,7 @@ import { NandGateElm } from "./NandGateElm";
 import { AndGateElm } from "./AndGateElm";
 import { CapacitorElm } from "./CapacitorElm";
 import { TimerElm } from "./TimerElm";
+import { MonostableElm } from "./MonostableElm";
 import { SchmittElm } from "./SchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { DFlipFlopElm } from "./DFlipFlopElm";
@@ -182,11 +183,11 @@ describe("SPICE export", () => {
     });
 
     it("lists what it can't export", () => {
-        const timer = place(new TimerElm(0, 0), 0, 0, 64, 0);
-        const res = exportSpiceNetlist([timer]);
-        expect(res.warnings).toEqual(["Timer"]);
+        const mono = place(new MonostableElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([mono]);
+        expect(res.warnings).toEqual(["Monostable"]);
         // and leaves a comment where it was
-        expect(res.text).toContain("\n* XTimer " + res.postNets.get(timer)!.join(" ") + "\n");
+        expect(res.text).toContain("\n* XMonostable " + res.postNets.get(mono)!.join(" ") + "\n");
         expect(devices(res.text)).toEqual([]);
     });
 
@@ -432,6 +433,17 @@ describe("SPICE export", () => {
         expect(res.text).toMatch(/^Son0 com0 no0 closed_on 0 RSW$/m);
         expect(res.text).toContain(".options method=gear\n");
         expect(devices(res.text).find(l => l[0] === "XU1")).toEqual(["XU1", ...res.postNets.get(r)!, "RELAY"]);
+    });
+
+    it("exports a 555 with its pins in the chip's order", () => {
+        const t = place(new TimerElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([t]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt NE555 g tr out rst ctl th dis vcc params: ic_q=0\n");
+        // posts: discharge, trigger, threshold, Vcc, control, output, reset, ground
+        const n = res.postNets.get(t)!;
+        expect(devices(res.text).find(l => l[0] === "XU1"))
+            .toEqual(["XU1", n[7], n[1], n[5], n[6], n[4], n[2], n[0], n[3], "NE555"]);
     });
 
     it("exports an element made of others as a .subckt of them", () => {

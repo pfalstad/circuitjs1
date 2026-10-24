@@ -66,6 +66,7 @@ import { GateElm, AndGateElm, NandGateElm, OrGateElm, NorGateElm, XorGateElm, Xn
 import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
 import { RelayElm } from "./RelayElm";
+import { TimerElm } from "./TimerElm";
 import { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { BusLogicInputElm } from "./BusLogicInputElm";
@@ -365,6 +366,34 @@ function chipPinNames(e: any): string[] {
 type StateParams = [string, number][];
 
 interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[]; params: StateParams }
+
+// a 555 timer, with its pins in the order of the chip's, so a real 555's model can stand in
+// for it.  as in the simulator, a divider puts the control pin at 2/3 Vcc; the output goes low
+// once the threshold rises past the control voltage, and high once the trigger falls past
+// half of it, the trigger winning, and a reset below 0.7V overrides both.  the output is 1
+// ohm to Vcc or ground, and the discharge pin 10 ohms to ground while the output is low.  they
+// follow the state after a short lag, as the simulator's do a step later, so that a trigger
+// that the output itself ends (in a chain of 555s, say) still sets it.  they switch once the
+// state is past halfway, so the discharge pin, often tied to the threshold, can't hold the
+// state partway
+function timerPart(e: any, timeStep: number): ChipPart {
+    const k = steepness(0.1);
+    const trig = level("(V(ctl)+V(g))/2-V(tr)", 0, k), thres = level("V(th)-V(ctl)", 0, k);
+    const run = level("V(rst)-V(g)", 0.7, k);
+    const params: StateParams = [["ic_q", e.out ? 1 : 0]];
+    const body = [`Rdiv1 vcc ctl 5k`,
+                  `Rdiv2 ctl g 10k`,
+                  `Btrig trig 0 V=${trig}`,
+                  ...heldState("q", `${run}*(V(trig)+(1-V(trig))*(1-${thres})*V(q))`, timeStep, "{ic_q}"),
+                  `Bqo qo_raw 0 V=${level("V(q)", ".5", steepness(0.1))}`,
+                  `Rlag qo_raw qo 1k`,
+                  `Clag qo 0 ${spiceValue(timeStep / 4000)} IC={ic_q}`,
+                  `Bhigh vcc out I=V(qo)*(V(vcc)-V(out))`,
+                  `Blow out g I=(1-V(qo))*(V(out)-V(g))`,
+                  `Bdis dis g I=(1-V(qo))*(V(dis)-V(g))/10`];
+    return { want: "NE555", size: 1, desc: "555 timer", body, params,
+             pins: ["g", "tr", "out", "rst", "ctl", "th", "dis", "vcc"] };
+}
 
 // a relay as a part.  posts: each pole's common, the throw closed when off, the throw closed
 // when on, then the coil's ends.  the coil is an inductor and its resistance, with a source
@@ -1358,6 +1387,17 @@ class NetlistWriter {
         if (C === Switch2Elm) {
             if (!(e.position === 2 && e.hasCenterOff()))
                 L(this.ref("R"), n[0], n[e.position + 1], spiceValue(e.resistance));
+            return;
+        }
+        // posts: discharge, trigger, threshold, Vcc, control, output, then reset and ground if
+        // it has them.  without a ground pin it's on ground, and without a reset it's on Vcc
+        if (C === TimerElm) {
+            const part = timerPart(e, this.exp.timeStep);
+            const N = TimerElm;
+            const gnd = e.hasGroundPin() ? n[N.N_GND] : "0", rst = e.hasReset() ? n[N.N_RST] : n[N.N_VCC];
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, 1), gnd, n[N.N_TRIG], n[N.N_OUT], rst, n[N.N_CTL], n[N.N_THRES], n[N.N_DIS], n[N.N_VCC],
+              name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
         if (C === RelayElm) {
