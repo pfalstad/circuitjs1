@@ -134,7 +134,7 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
             pinMap.set(this.dataNodes + i, thisOutPin);
         }
 
-        return { desc, pinMap };
+        return { desc, pinMap, optimizationDisabled: this.optimizationDisabled };
     }
 
     isTriStateOutput(postIndex: number): boolean {

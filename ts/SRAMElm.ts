@@ -26,7 +26,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
-import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S } from "./GateElm";
+import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S, disableOptimizationEditInfo } from "./GateElm";
 import { sramBitCell, type SramMemory } from "./digital/nativeKinds";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
@@ -48,6 +48,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     dataBits: number = 0;
     map: Map<number, number>;
     initialMap: Map<number, number> | null = null; // saved initial contents for restore on reset
+    optimizationDisabled = false; // see DigitalSynthesis.optimizationDisabled
     loadedFileName: string | null = null; // remembers the last file loaded via "Load Contents From File"
     static readonly FLAG_RELOAD_ON_RESET = 2;
     // Splits the single bidirectional data bus into separate Din/Dout pins - matching how real
@@ -124,6 +125,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ab", this.addressBits);
         CircuitXMLSerializer.dumpAttr(elem, "db", this.dataBits);
+        if (this.optimizationDisabled)
+            CircuitXMLSerializer.dumpAttr(elem, "nopt", true);
     }
     dumpXmlState(doc: Document, elem: Element): void {
         super.dumpXmlState(doc, elem);
@@ -135,6 +138,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         super.undumpXml(xml);
         this.addressBits = xml.parseIntAttr("ab", this.addressBits);
         this.dataBits = xml.parseIntAttr("db", this.dataBits);
+        this.optimizationDisabled = xml.parseBooleanAttr("nopt", this.optimizationDisabled);
         this.map = new Map();
         try {
             const s = xml.parseContents();
@@ -238,6 +242,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             ei.checkbox = new Checkbox("Inverted Data Out", this.hasInvertedOutput());
             return ei;
         }
+        if (n === reloadIdx + 3)
+            return disableOptimizationEditInfo(this.optimizationDisabled);
         return super.getChipEditInfo(n);
     }
 
@@ -392,6 +398,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             this.setupPins();
             this.setPoints();
         }
+        if (n === reloadIdx + 3)
+            this.optimizationDisabled = ei.checkbox!.getState();
     }
     getVoltageSourceCount(): number { return this.dataBits; }
     getInternalNodeCount(): number { return this.dataBits; }
@@ -518,7 +526,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             pinMap.set(this.dataNodes + i, driverPin(i));
         }
 
-        return { desc, pinMap };
+        return { desc, pinMap, optimizationDisabled: this.optimizationDisabled };
     }
 
     isTriStateOutput(postIndex: number): boolean {
