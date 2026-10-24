@@ -63,45 +63,55 @@ export class EditOptions implements Editable {
             ei.choice.add("한국어"); // Korean
             return ei;
         }
-        if (n === 3)
-            return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor().newColumnMethod();
-        if (n === 4)
-            return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue()).setIsColor();
+        if (n === 3) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Show Properties on Create", this.app.showPropsOnCreate);
+            return ei;
+        }
+        if (n === 4) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Show Properties on Click", this.app.showPropsOnClick);
+            return ei;
+        }
         if (n === 5)
-            return new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue()).setIsColor();
+            return new EditInfo("Positive Color", CircuitElm.positiveColor.getHexValue()).setIsColor().newColumnMethod();
         if (n === 6)
-            return new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue()).setIsColor();
+            return new EditInfo("Negative Color", CircuitElm.negativeColor.getHexValue()).setIsColor();
         if (n === 7)
+            return new EditInfo("Neutral Color", CircuitElm.neutralColor.getHexValue()).setIsColor();
+        if (n === 8)
+            return new EditInfo("Selection Color", CircuitElm.selectColor.getHexValue()).setIsColor();
+        if (n === 9)
             return new EditInfo("Current Color", CircuitElm.currentColor.getHexValue()).setIsColor();
-        if (n === 8) {
+        if (n === 10) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.button = { label: Locale.LS("Reset Colors to Default") };
             return ei;
         }
-        if (n === 9)
+        if (n === 11)
             return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
-        if (n === 10)
+        if (n === 12)
             return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits).newColumnMethod();
-        if (n === 11) {
+        if (n === 13) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Developer Mode", this.app.developerMode);
             return ei;
         }
-        if (n === 12)
+        if (n === 14)
             return new EditInfo("Minimum Target Frame Rate", this.app.minFrameRate).setPositive();
-        if (n === 13)
+        if (n === 15)
             return new EditInfo("Mouse Wheel Sensitivity", this.app.mouse.wheelSensitivity).setPositive();
-        if (n === 14) {
+        if (n === 16) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Auto-Run DC Operating Point on Reset", this.app.autoDCOnReset);
             return ei;
         }
-        if (n === 15) {
+        if (n === 17) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Auto-Adjust Timestep", this.sim.adjustTimeStep);
             return ei;
         }
-        if (n === 16) {
+        if (n === 18) {
             const ei = new EditInfo("Matrix Solver", 0, -1, -1);
             ei.choice = new Choice();
             ei.choice.add(Locale.LS("Auto"));
@@ -110,12 +120,12 @@ export class EditOptions implements Editable {
             ei.choice.select(this.sim.solverType);
             return ei;
         }
-        if (n === 17)
+        if (n === 19)
             return new EditInfo("Value Label Font Size", CircuitElm.valueFontSize);
 
         // add new options here (before the adjustTimeStep conditional below)
 
-        if (n === 18 && this.sim.adjustTimeStep)
+        if (n === 20 && this.sim.adjustTimeStep)
             return new EditInfo("Minimum time step size (s)", this.sim.minTimeStep, 0, 0).setPositive();
 
         // do not add new options here because they will be hidden unless adjustTimeStep is set
@@ -168,22 +178,30 @@ export class EditOptions implements Editable {
                 window.location.reload();
         }
         if (n === 3) {
+            this.app.showPropsOnCreate = ei.checkbox!.getState();
+            this.app.ui.setOptionInStorage("showPropsOnCreate", this.app.showPropsOnCreate);
+        }
+        if (n === 4) {
+            this.app.showPropsOnClick = ei.checkbox!.getState();
+            this.app.ui.setOptionInStorage("showPropsOnClick", this.app.showPropsOnClick);
+        }
+        if (n === 5) {
             CircuitElm.positiveColor = this.setColor("positiveColor", ei, Color.green);
             CircuitElm.setColorScale();
         }
-        if (n === 4) {
+        if (n === 6) {
             CircuitElm.negativeColor = this.setColor("negativeColor", ei, Color.red);
             CircuitElm.setColorScale();
         }
-        if (n === 5) {
+        if (n === 7) {
             CircuitElm.neutralColor = this.setColor("neutralColor", ei, Color.gray);
             CircuitElm.setColorScale();
         }
-        if (n === 6)
+        if (n === 8)
             CircuitElm.selectColor = this.setColor("selectColor", ei, Color.cyan);
-        if (n === 7)
+        if (n === 9)
             CircuitElm.currentColor = this.setColor("currentColor", ei, Color.yellow);
-        if (n === 8) {
+        if (n === 10) {
             // Reset all colors to defaults
             const stor = typeof localStorage !== 'undefined' ? localStorage : null;
             if (stor != null) {
@@ -196,36 +214,36 @@ export class EditOptions implements Editable {
             this.app.ui.setColors(null, null, null, null, null);
             ei.newDialog = true;
         }
-        if (n === 9)
-            CircuitElm.setDecimalDigits(Math.trunc(ei.value), true, true);
-        if (n === 10)
-            CircuitElm.setDecimalDigits(Math.trunc(ei.value), false, true);
         if (n === 11)
-            this.app.developerMode = ei.checkbox!.getState();
+            CircuitElm.setDecimalDigits(Math.trunc(ei.value), true, true);
         if (n === 12)
+            CircuitElm.setDecimalDigits(Math.trunc(ei.value), false, true);
+        if (n === 13)
+            this.app.developerMode = ei.checkbox!.getState();
+        if (n === 14)
             this.app.minFrameRate = ei.value;
-        if (n === 13) {
+        if (n === 15) {
             this.app.mouse.wheelSensitivity = ei.value;
             const stor = typeof localStorage !== 'undefined' ? localStorage : null;
             if (stor != null)
                 stor.setItem("wheelSensitivity", this.app.mouse.wheelSensitivity.toString());
         }
-        if (n === 14)
+        if (n === 16)
             this.app.autoDCOnReset = ei.checkbox!.getState();
-        if (n === 15) {
+        if (n === 17) {
             this.sim.adjustTimeStep = ei.checkbox!.getState();
             ei.newDialog = true;
         }
-        if (n === 16) {
+        if (n === 18) {
             const newType = ei.choice!.getSelectedIndex();
             if (newType !== this.sim.solverType) {
                 this.sim.solverType = newType;
                 this.app.needAnalyze();
             }
         }
-        if (n === 17)
+        if (n === 19)
             CircuitElm.setValueFontSize(ei.value > 0 ? Math.trunc(ei.value) : 12);
-        if (n === 18 && ei.value > 0)
+        if (n === 20 && ei.value > 0)
             this.sim.minTimeStep = ei.value;
     }
 

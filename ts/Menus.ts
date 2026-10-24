@@ -282,7 +282,6 @@ export class Menus {
     noEditCheckItem          = new CheckItem();
     mouseWheelEditCheckItem  = new CheckItem(true);
     toolbarCheckItem         = new CheckItem(true);
-    showPropsOnCreateCheckItem = new CheckItem(true);
 
     menuBar: HTMLElement = document.createElement('nav');
     // right-click context popup — same Draw menu content, built separately
@@ -439,9 +438,6 @@ export class Menus {
         this.smallGridCheckItem.setCommand({ execute: () => this.app.setGrid() });
         optMenu.addCheckItem(this.toolbarCheckItem, "Toolbar");
         this.toolbarCheckItem.setCommand({ execute: () => this.app.ui?.setToolbar() });
-        optMenu.addCheckItem(this.showPropsOnCreateCheckItem, "Show Properties On Create");
-        this.showPropsOnCreateCheckItem.setCommand({ execute: () =>
-            this.app.ui?.setOptionInStorage("showPropsOnCreate", this.showPropsOnCreateCheckItem.getState()) });
         optMenu.addCheckItem(this.crossHairCheckItem, "Show Cursor Cross Hairs");
         this.crossHairCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("crossHair", this.crossHairCheckItem.getState()) });

@@ -621,8 +621,8 @@ export class UIManager {
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
             (this.app as any).startCircuitLink == null);
-        this.menus.showPropsOnCreateCheckItem.setState(
-            this.getOptionFromStorage("showPropsOnCreate", this.menus.toolbarCheckItem.getState()));
+        this.app.showPropsOnCreate = this.getOptionFromStorage("showPropsOnCreate", false);
+        this.app.showPropsOnClick = this.getOptionFromStorage("showPropsOnClick", true);
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({

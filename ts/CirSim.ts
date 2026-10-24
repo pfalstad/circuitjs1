@@ -111,6 +111,8 @@ export class CirSim {
     dumpMatrix: boolean = false;
     dcAnalysisFlag: boolean = false;
     autoDCOnReset: boolean = false;
+    showPropsOnCreate: boolean = false;
+    showPropsOnClick: boolean = true;
     // set by edits (pushUndo() and so on), even ones that change nothing, like a click;
     // isModified() checks whether the circuit really changed.  Clearing it (after a load
     // or save) takes a new savedDump after the next frame, once scopes are set up.
