@@ -39,6 +39,7 @@ import { TriStateElm } from "./TriStateElm";
 import { VCCSElm } from "./VCCSElm";
 import { CrystalElm } from "./CrystalElm";
 import { InductorElm } from "./InductorElm";
+import { RelayElm } from "./RelayElm";
 import { exportSpiceNetlist, spiceValue } from "./SpiceExporter";
 
 function place(e: any, x1: number, y1: number, x2: number, y2: number) {
@@ -419,6 +420,18 @@ describe("SPICE export", () => {
         expect(res.text).toContain(".subckt TRISTATE a0 y0 en params: ic_a0=0\n");
         expect(res.text).toMatch(/^S0 d0 y0 en 0 TRI$/m);
         expect(res.text).toMatch(/^R0 y0 0 100meg$/m);
+    });
+
+    it("exports a relay as a coil, an armature state and a switch per throw", () => {
+        const r = place(new RelayElm(0, 0), 0, 0, 64, 0);
+        const res = exportSpiceNetlist([r]);
+        expect(res.warnings).toEqual([]);
+        expect(res.text).toContain(".subckt RELAY com0 nc0 no0 c1 c2 params: ic_i=0 ic_on=0 ic_pos=0\n");
+        expect(res.text).toMatch(/^Lcoil coil coil_int /m);
+        expect(res.text).toMatch(/^Soff0 com0 nc0 closed_off 0 RSW$/m);
+        expect(res.text).toMatch(/^Son0 com0 no0 closed_on 0 RSW$/m);
+        expect(res.text).toContain(".options method=gear\n");
+        expect(devices(res.text).find(l => l[0] === "XU1")).toEqual(["XU1", ...res.postNets.get(r)!, "RELAY"]);
     });
 
     it("exports an element made of others as a .subckt of them", () => {

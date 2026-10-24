@@ -65,6 +65,7 @@ import { SubcircuitElm } from "./SubcircuitElm";
 import { GateElm, AndGateElm, NandGateElm, OrGateElm, NorGateElm, XorGateElm, XnorGateElm } from "./GateElm";
 import { InverterElm } from "./InverterElm";
 import { SchmittElm } from "./SchmittElm";
+import { RelayElm } from "./RelayElm";
 import { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { BusLogicInputElm } from "./BusLogicInputElm";
@@ -364,6 +365,75 @@ function chipPinNames(e: any): string[] {
 type StateParams = [string, number][];
 
 interface ChipPart { want: string; size: number; desc: string; body: string[]; pins: string[]; params: StateParams }
+
+// a relay as a part.  posts: each pole's common, the throw closed when off, the throw closed
+// when on, then the coil's ends.  the coil is an inductor and its resistance, with a source
+// measuring its current.  the armature's state turns on once that current rises past the on
+// current and off once it falls below the off current, held like a Schmitt input's, and its
+// position ramps from 0 to 1 and back over the switching time.  a throw is closed only once the
+// position is all the way over, so both are open while it moves, as in the simulator.  relays
+// without a switching time use the old model, where the position follows the coil current.
+// with the pulldown, the simulator pulls the open throws to ground instead of connecting them
+// through the off resistance
+function relayPart(e: any, timeStep: number): ChipPart {
+    const poles: number = e.poleCount(), on: number = e.onCurrent(), off: number = e.offCurrent();
+    const T: number = e.switchingTime(), pulldown: boolean = e.needsPulldown();
+    const pins: string[] = [];
+    for (let p = 0; p !== poles; p++)
+        pins.push(`com${p}`, `nc${p}`, `no${p}`);
+    pins.push("c1", "c2");
+    const params: StateParams = [["ic_i", e.coilCurrent]];
+    const body = [`Vsense c1 coil 0`,
+                  `Lcoil coil coil_int ${spiceValue(e.inductance())} IC={ic_i}`,
+                  `Rcoil coil_int c2 ${spiceValue(e.coilR())}`];
+    const i = "abs(I(Vsense))";
+    let closedOn: string, closedOff: string;
+    if (T > 0) {
+        params.push(["ic_on", e.onState ? 1 : 0], ["ic_pos", e.d_position]);
+        const k = num(40 / Math.max(on - off, on / 20));
+        body.push(`Bon on_raw 0 V=${level(i, `${num(on)}+${num(off - on)}*V(on)`, k)}`,
+                  `Ron on_raw on 1k`,
+                  `Con on 0 ${spiceValue(timeStep / 4000)} IC={ic_on}`,
+                  // the position moves at 1/T toward 1 while on and toward 0 while off, and stops just
+                  // past there.  the stops are smooth, since sharp ones stall ngspice
+                  `Bpos 0 pos I=(V(on)*(1-${level("V(pos)", "1.002", "1000")})-(1-V(on))*${level("V(pos)", "-0.002", "1000")})*${spiceValue(1 / T)}`,
+                  `Cpos pos 0 1 IC={ic_pos}`,
+                  `Rpos pos 0 1t`);
+        closedOn = `V(on)*${level("V(pos)", "0.999", "1e4")}`;
+        closedOff = `(1-V(on))*(1-${level("V(pos)", "0.001", "1e4")})`;
+    } else {
+        // the old model's position, 2.3(I/Ion)^2-1.3 clamped to 0..1, closing a throw past 0.9 or
+        // 0.1.  it lags a little, as the simulator's follows the current a step later
+        params.push(["ic_pos", e.d_position]);
+        body.push(`Bpos pos_raw 0 V=max(0,min(1,2.3*I(Vsense)*I(Vsense)/${spiceValue(on * on)}-1.3))`,
+                  `Rpos pos_raw pos 1k`,
+                  `Cpos pos 0 ${spiceValue(timeStep / 4000)} IC={ic_pos}`);
+        closedOn = level("V(pos)", "0.9", "1000");
+        closedOff = `(1-${level("V(pos)", "0.1", "1000")})`;
+    }
+    body.push(`Bclosed_on closed_on 0 V=${closedOn}`,
+              `Bclosed_off closed_off 0 V=${closedOff}`,
+              `.model RSW SW (VT=0.5 VH=0 RON=${spiceValue(e.r_on())} ROFF=${spiceValue(pulldown ? 1e12 : e.r_off())})`);
+    // with the pulldown, the simulator still connects the pole to both throws through the off
+    // resistance while it moves
+    if (pulldown)
+        body.push(`Bmoving moving 0 V=1-V(closed_on)-V(closed_off)`,
+                  `.model RMID SW (VT=0.5 VH=0 RON=${spiceValue(e.r_off())} ROFF=1t)`);
+    for (let p = 0; p !== poles; p++) {
+        body.push(`Soff${p} com${p} nc${p} closed_off 0 RSW`,
+                  `Son${p} com${p} no${p} closed_on 0 RSW`);
+        if (pulldown)
+            body.push(`Smid_nc${p} com${p} nc${p} moving 0 RMID`,
+                      `Smid_no${p} com${p} no${p} moving 0 RMID`,
+                      `Rpd_nc${p} nc${p} 0 ${spiceValue(e.r_off())}`,
+                      `Rpd_no${p} no${p} 0 ${spiceValue(e.r_off())}`);
+    }
+    const desc = `${poles > 1 ? poles + "-pole " : ""}relay, coil ${spiceValue(e.inductance())}H ${spiceValue(e.coilR())} ohms, ` +
+                 (T > 0 ? `on at ${spiceValue(on)}A, off at ${spiceValue(off)}A, switching in ${spiceValue(T)}s`
+                        : `on near ${spiceValue(on)}A`) +
+                 (pulldown ? ", open throws pulled down" : "");
+    return { want: poles > 1 ? `RELAY${poles}P` : "RELAY", size: 1, desc, body, pins, params };
+}
 
 // a logic chip as a logic part, or null if it can't be.  each input is turned into a level
 // from 0 to 1 once, on its own node, and each output is a logic output of the inputs and state.
@@ -1290,6 +1360,13 @@ class NetlistWriter {
                 L(this.ref("R"), n[0], n[e.position + 1], spiceValue(e.resistance));
             return;
         }
+        if (C === RelayElm) {
+            this.exp.gear = true;
+            const part = relayPart(e, this.exp.timeStep);
+            const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
+            L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
+            return;
+        }
         // posts: the two ends, then the control (SPDT: common, NO, NC, control).  a SPICE
         // switch closes when its control is above VT; one that closes when the control is low
         // sees it negated.  with the pulldown, the simulator leaves an open switch out
@@ -1579,6 +1656,8 @@ export class SpiceExporter {
     private subcktText: string[] = [];
     private logicParts = new Map<string, string>();
     private warnings: string[] = [];
+    // whether to integrate with Gear's method, as the simulator does relay coils
+    gear = false;
 
     constructor(private elms: CircuitElm[], opts: SpiceOptions = {}) {
         this.timeStep = opts.timeStep ?? 5e-6;
@@ -1704,6 +1783,9 @@ export class SpiceExporter {
         const text = ["* " + this.title.replace(/\n/g, " "),
                       ...this.modelCards, ...this.subcktText, "",
                       ...w.lines, "",
+                      ...(this.gear ? ["* the simulator integrates relay coils with backward Euler.  with the",
+                                       "* trapezoidal method, a coil's kick into an open contact rings",
+                                       ".options method=gear"] : []),
                       ...(uic ? ["* uic starts from the parts' initial conditions, as CircuitJS does.  if SPICE",
                                  "* can't start the simulation, remove it to start from the operating point",
                                  tran + " uic"] : [tran]),
