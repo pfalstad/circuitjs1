@@ -5,7 +5,7 @@
 //
 //   CIRCUIT=../tests/custom.txt npx vitest run spice-compare
 //
-// CIRCUIT is the circuit file.  STOP is how long to simulate (4000 time steps by default), RESET=0
+// CIRCUIT is the circuit file, text or XML.  STOP is how long to simulate (4000 time steps by default), RESET=0
 // starts from the state the file was saved in instead of from reset, and OUT is where to
 // write the netlist and both sets of voltages (the system's temporary directory by default).
 // it needs ngspice, and skips itself without CIRCUIT.
@@ -20,6 +20,13 @@ import { CirSim } from "../CirSim";
 import { SimulationManager } from "../SimulationManager";
 import { StringTokenizer } from "../StringTokenizer";
 import { CustomLogicModel } from "../CustomLogicModel";
+import { DiodeModel } from "../DiodeModel";
+import { TransistorModel } from "../TransistorModel";
+import { SubcircuitModel } from "../SubcircuitModel";
+import { MosfetModel } from "../MosfetModel";
+import { RelayModel } from "../RelayModel";
+import { CircuitXMLDeserializer } from "../CircuitXMLDeserializer";
+import { installMiniDom, miniImplementation } from "./minidom";
 import { registerElements } from "../registerElements";
 import { ElementFactory } from "../ElementFactory";
 import { exportSpiceNetlist } from "../SpiceExporter";
@@ -51,9 +58,13 @@ function makeApp(): any {
         stop: (s: string) => { app.stopMessage = s; },
         addWidgetToVerticalPanel: () => {}, removeWidgetFromVerticalPanel: () => {}, mouse: {},
         deleteSliders: () => {}, getrand: (x: number) => Math.floor(Math.random() * x),
-        random: { nextDouble: () => Math.random() },
+        random: { nextDouble: () => Math.random() }, setSimRunning: () => {},
     };
-    (globalThis as any).document = stub;
+    // the stub, but with the XML documents that models and XML circuits need
+    installMiniDom();
+    (globalThis as any).document = new Proxy(stub, {
+        get: (t, k) => k === "implementation" ? miniImplementation : t[k],
+    });
     (CircuitElm as any).app = app;
     (CirSim as any).theApp = app;
     app.sim = (CircuitElm as any).sim = new SimulationManager(app);
@@ -65,10 +76,45 @@ function makeApp(): any {
     return app;
 }
 
-// the circuit's elements and time step, from a text circuit file
+// the circuit's elements and time step, from an XML circuit file.  this is the app's
+// CircuitXMLDeserializer.readElements(), without what needs a browser: scopes, in the scope
+// area or in the circuit, and the UI's settings
+function loadXmlCircuit(text: string, app: any): number {
+    const root = new DOMParser().parseFromString(text, "text/xml").documentElement;
+    const xml = new CircuitXMLDeserializer(app);
+    xml.parseChildElement(root);
+    const timeStep = xml.parseDoubleAttr("ts", 5e-6);
+    const models: Record<string, (x: CircuitXMLDeserializer) => unknown> = {
+        dm: x => DiodeModel.undumpModelXml(x), tm: x => TransistorModel.undumpModelXml(x),
+        mm: x => MosfetModel.undumpModelXml(x), rlm: x => RelayModel.undumpModelXml(x),
+        clm: x => CustomLogicModel.undumpModelXml(x), ccm: x => SubcircuitModel.undumpModelXml(x),
+    };
+    for (const elem of [...root.children]) {
+        const tag = elem.tagName;
+        xml.parseChildElement(elem);
+        if (models[tag]) {
+            models[tag](xml);
+            continue;
+        }
+        const className = CirSim.xmlDumpTypeMap.get(tag);
+        if (elem.getAttribute("x") == null || tag === "Scope")
+            continue;
+        if (className == null)
+            throw new Error("unknown element type " + tag);
+        const ce = CirSim.constructElement(className, 0, 0);
+        xml.parseChildElement(elem);
+        (xml as any).currentElm = ce;
+        ce.undumpXml(xml);
+        ce.setPositionFromXml(elem);
+        app.elmList.push(ce);
+    }
+    return timeStep;
+}
+
+// the circuit's elements and time step, from a circuit file
 function loadCircuit(text: string, app: any): number {
     if (text.trimStart().startsWith("<"))
-        throw new Error("only text circuit files can be read here, not XML ones");
+        return loadXmlCircuit(text, app);
     let timeStep = 5e-6;
     for (const line of text.split(/\r?\n/)) {
         if (!line)
@@ -84,9 +130,22 @@ function loadCircuit(text: string, app: any): number {
             CustomLogicModel.undumpModel(st);
             continue;
         }
+        // diode, transistor and subcircuit models, as the app reads them
+        if (type === "34") {
+            DiodeModel.undumpModel(st);
+            continue;
+        }
+        if (type === "32") {
+            TransistorModel.undumpModel(st);
+            continue;
+        }
+        if (type === ".") {
+            SubcircuitModel.undumpModel(st);
+            continue;
+        }
         // scopes (in the scope area and in the circuit, which can't be built without a
-        // browser and aren't exported), hints, sliders and models other than custom logic
-        if ("o h % ? B . & 34 32 38 403".split(" ").includes(type) || !(/^\d+$/.test(type) || type.length === 1))
+        // browser and aren't exported), hints, sliders and filter settings
+        if ("o h % ? B & 38 403".split(" ").includes(type) || !(/^\d+$/.test(type) || type.length === 1))
             continue;
         const tint = /^\d+$/.test(type) ? parseInt(type) : type.charCodeAt(0);
         const [x1, y1, x2, y2, f] = [0, 0, 0, 0, 0].map(() => parseInt(st.nextToken()));
