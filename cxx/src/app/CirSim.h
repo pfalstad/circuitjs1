@@ -231,7 +231,8 @@ public:
     void elementDeleted(CircuitElm *ce) override;
     bool confirm(const std::string &question) override;
     void alert(const std::string &message) override;
-    bool showPropsOnCreate = true;
+    bool showPropsOnCreate = false;
+    bool showPropsOnClick = true;
     bool toolbarVisible = true;
     // Options > Other Options...
     std::unique_ptr<EditOptions> editOptions;

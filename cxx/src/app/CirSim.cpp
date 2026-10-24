@@ -331,7 +331,6 @@ void CirSim::createMenus() {
     addToggle("Show Values", options.showValues);
     addToggle("Small Grid", options.smallGrid, nullptr, [this] { setGrid(); });
     addToggle("Toolbar", toolbarVisible, nullptr, [this] { toolbar->setVisible(toolbarVisible); });
-    addToggle("Show Properties On Create", showPropsOnCreate, "showPropsOnCreate");
     addToggle("Show Cursor Cross Hairs", options.crossHair, "crossHair");
     addToggle("European Resistors", options.euroResistor, "euroResistors",
               [this] { toolbar->setEuroResistors(options.euroResistor); });
@@ -825,7 +824,8 @@ void CirSim::loadOptions() {
     options.conventionalCurrent = getOptionFromStorage("conventionalCurrent", true);
     options.mouseWheelEdit = getOptionFromStorage("mouseWheelEdit", true);
     options.crossHair = getOptionFromStorage("crossHair", false);
-    showPropsOnCreate = getOptionFromStorage("showPropsOnCreate", toolbarVisible);
+    showPropsOnCreate = getOptionFromStorage("showPropsOnCreate", false);
+    showPropsOnClick = getOptionFromStorage("showPropsOnClick", true);
 }
 
 void CirSim::alertReadOnly() {

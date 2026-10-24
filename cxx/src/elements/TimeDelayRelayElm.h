@@ -42,6 +42,10 @@ public:
     std::string getChipName() override { return "time delay relay"; }
     void setupPins() override;
     bool nonLinear() override { return true; }
+    // Vin/gnd (0,1) are joined by the coil resistance and in/out (2,3) by the contact.
+    // ChipElm's default says no pins are connected, which would let the circuit be
+    // split into separate matrices across the contact.
+    bool getConnection(int n1, int n2) override { return n1 / 2 == n2 / 2; }
     void stamp() override;
     void doStep() override;
     void stepFinished() override;

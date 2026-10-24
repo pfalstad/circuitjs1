@@ -89,9 +89,9 @@ export class EditOptions implements Editable {
             return ei;
         }
         if (n === 11)
-            return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits);
+            return new EditInfo("# of Decimal Digits (short format)", CircuitElm.shortDecimalDigits).setInteger();
         if (n === 12)
-            return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits).newColumnMethod();
+            return new EditInfo("# of Decimal Digits (long format)", CircuitElm.decimalDigits).setInteger().newColumnMethod();
         if (n === 13) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Developer Mode", this.app.developerMode);

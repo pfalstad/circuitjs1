@@ -29,6 +29,7 @@
 #include <cmath>
 
 #include "CirSim.h"
+#include "EditDialog.h"
 #include "TypeScrollPopup.h"
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
@@ -613,8 +614,11 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     CircuitElm *createdElm = endDrag();
     if (createdElm != nullptr) {
         editCreatedElm(createdElm);
-    } else if (clickedElm != nullptr && !sim->isReadOnly()) {
-        if (clickedElm->hasProperties())
+    } else if (clickedElm != nullptr && !sim->isReadOnly() && sim->showPropsOnClick) {
+        // (clicking the element whose properties are already showing dismisses them)
+        if (sim->editDialog != nullptr && sim->editDialog->elm == clickedElm)
+            sim->closeEditDialog();
+        else if (clickedElm->hasProperties())
             sim->doEdit(clickedElm);
         else
             sim->closeEditDialog();

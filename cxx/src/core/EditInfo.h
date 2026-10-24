@@ -74,6 +74,7 @@ public:
     bool newColumn = false;
     bool positive = false;
     bool nonNegative = false;
+    bool integer = false;
     double minVal = 0;
     double maxVal = 0;
     std::optional<std::string> error;
@@ -119,6 +120,8 @@ public:
     EditInfo &setErrorFieldName(const std::string &s) { errorFieldName = s; return *this; }
     EditInfo &setPositive() { positive = true; return *this; }
     EditInfo &setNonNegative() { nonNegative = true; return *this; }
+    // whole numbers only (implies dimensionless, so the stepper buttons step by 1)
+    EditInfo &setInteger() { integer = dimensionless = true; return *this; }
 
     bool canCreateAdjustable() const {
         return !choice && !checkbox && !button && !textArea && !noSliders;

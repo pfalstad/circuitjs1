@@ -459,6 +459,8 @@ bool EditDialog::apply() {
             ei.setError("must be > 0");
         if (ei.nonNegative && ei.value < 0)
             ei.setError("must be >= 0");
+        if (ei.integer && ei.value != std::trunc(ei.value))
+            ei.setError("must be an integer");
         // choices and buttons are handled via itemStateChanged, not apply
         if (ei.button || ei.choice)
             continue;
