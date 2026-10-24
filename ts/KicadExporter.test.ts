@@ -3,11 +3,16 @@ import { CircuitElm } from "./CircuitElm";
 import { ResistorElm } from "./ResistorElm";
 import { GroundElm } from "./GroundElm";
 import { WireElm } from "./WireElm";
+import { BusLogicInputElm } from "./BusLogicInputElm";
+import { BusSplitterElm } from "./BusSplitterElm";
+import { Counter2Elm } from "./Counter2Elm";
+import { ChipElm } from "./ChipElm";
 import { RailElm } from "./RailElm";
 import { ACRailElm } from "./ACRailElm";
 import { VarRailElm } from "./VarRailElm";
 import { SweepElm } from "./SweepElm";
 import { VoltageElm } from "./VoltageElm";
+import { DCVoltageElm } from "./DCVoltageElm";
 import { DiodeElm } from "./DiodeElm";
 import { NandGateElm } from "./NandGateElm";
 import { XorGateElm } from "./XorGateElm";
@@ -26,6 +31,20 @@ import { DFlipFlopElm } from "./DFlipFlopElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { NoiseElm } from "./NoiseElm";
 import { OpAmpElm } from "./OpAmpElm";
+import { RelayCoilElm } from "./RelayCoilElm";
+import { RelayContactElm } from "./RelayContactElm";
+import { TriodeElm } from "./TriodeElm";
+import { TransistorElm } from "./TransistorElm";
+import { MosfetElm } from "./MosfetElm";
+import { SwitchElm } from "./SwitchElm";
+import { CapacitorElm } from "./CapacitorElm";
+import { InductorElm } from "./InductorElm";
+import { TransformerElm } from "./TransformerElm";
+import { TappedTransformerElm } from "./TappedTransformerElm";
+import { ControlledVoltageElm } from "./ControlledVoltageElm";
+import { ControlledCurrentElm } from "./ControlledCurrentElm";
+import { AmmeterElm } from "./AmmeterElm";
+import { ProbeElm } from "./ProbeElm";
 import { KICAD_SYMBOLS } from "./KicadSymbols";
 import { describe as describePart, exportKicadSchematic, exportKicadProject, hasLayout, KicadExporter, kicadValue, spiceExpr, symbolOffset } from "./KicadExporter";
 import { CirSim } from "./CirSim";
@@ -132,7 +151,7 @@ describe("KiCad export", () => {
         expect(res.text).toContain('"Sim.Params" "dc=2.5"');
     });
 
-    it("exports a sweep as a sine source at its starting frequency", () => {
+    it("exports a sweep as a sine source at its starting frequency, simulated as a sweep", () => {
         const sim = CircuitElm.sim;
         (CircuitElm as any).sim = { timeStep: 1e-6 };
         let sweep;
@@ -145,7 +164,10 @@ describe("KiCad export", () => {
         expect(res.warnings).toEqual([]);
         expect(symbols(res.text).map(s => s[0]).sort()).toEqual(["Simulation_SPICE:VSIN", "power:GND"]);
         expect(res.text).toContain('(property "Value" "5V 20Hz-4kHz"');
-        expect(res.text).toContain('"Sim.Params" "dc=0 ampl=5 f=20"');
+        // simulated as the SPICE export sweeps it
+        expect(res.text).toMatch(/"Sim.Name" "VSIN_\w+"/);
+        // (the one Sim.Params is the library symbol's)
+        expect(res.text.match(/"Sim\.Params"/g)!.length).toBe(1);
     });
 
     it("replaces a wire that would short to a post on another net with labels", () => {
@@ -155,6 +177,9 @@ describe("KiCad export", () => {
             place(new ResistorElm(0, 0), 64, 0, 64, 64),
             place(new ResistorElm(0, 0), 0, 0, 0, 64),
             place(new ResistorElm(0, 0), 128, 0, 128, 64),
+            // (grounded, so they aren't tied to ground for simulation)
+            place(new GroundElm(0, 0), 0, 64, 0, 96),
+            place(new GroundElm(0, 0), 64, 64, 64, 96),
         ];
         const res = exportKicadSchematic(elms, "test");
         // 0,0 to 128,0 in CircuitJS is 25.4 to 66.04mm on the sheet
@@ -320,6 +345,175 @@ describe("KiCad export", () => {
         expect(res.text).toContain('"Sim.Params" "type=\\"B\\" model=\\"v=2*V(/in)-V(0)\\""');
     });
 
+    it("exports a controlled voltage source reading a labeled node and a voltmeter", () => {
+        // the source from ground up to a resistor, + at the top; a voltmeter across the resistor
+        const cv: any = place(new ControlledVoltageElm(0, 0), 0, 64, 0, 0);
+        cv.setExpr("2*v(in)+v(m)");
+        const r = place(new ResistorElm(0, 0), 0, 0, 64, 0);
+        const meter: any = place(new ProbeElm(0, 0), 0, 0, 64, 0);
+        meter.label = "m";
+        const lbl: any = place(new LabeledNodeElm(0, 0), 64, 0, 64, 32);
+        lbl.text = "in";
+        const elms = [cv, r, meter, lbl, place(new GroundElm(0, 0), 0, 64, 0, 96)];
+        const exp = new KicadExporter(elms);
+        exp.export();
+        expect(exp.pinMap.get(cv)).toEqual(["2", "1"]);
+        const { text, warnings } = exportKicadSchematic(elms, "test");
+        expect(warnings).toEqual([]);
+        expect(text).toContain('"Sim.Device" "SPICE"');
+        // the voltmeter's ends are labeled, the one at the source's + with an automatic name
+        // (the last is the placed source's; the first is the library symbol's)
+        const m = [...text.matchAll(/"Sim.Params" "type=\\"B\\" model=\\"v=(.*?)\\""/g)].pop()!;
+        expect(m[1]).toMatch(/^\(\(2\*V\(\/in\)\)\+V\(\/(\w+),\/in\)\)$/);
+        const auto = m[1].match(/V\(\/(\w+),/)![1];
+        expect(text).toContain(`(label "${auto}"`);
+    });
+
+    it("exports an ammeter a controlled current source reads as a 0V source", () => {
+        const ci: any = place(new ControlledCurrentElm(0, 0), 128, 0, 128, 64);
+        ci.setExpr("2*i(a)");
+        const amm: any = place(new AmmeterElm(0, 0), 0, 0, 64, 0);
+        amm.label = "a";
+        const elms = [place(new DCVoltageElm(0, 0), 0, 64, 0, 0), amm, place(new ResistorElm(0, 0), 64, 0, 64, 64),
+                      place(new WireElm(0, 0), 0, 64, 64, 64), place(new GroundElm(0, 0), 0, 64, 0, 96),
+                      ci, place(new ResistorElm(0, 0), 128, 64, 160, 64), place(new GroundElm(0, 0), 128, 0, 128, -32)];
+        const exp = new KicadExporter(elms);
+        exp.export();
+        // the current comes out of post 1, into pin 2
+        expect(exp.pinMap.get(ci)).toEqual(["1", "2"]);
+        expect(exp.pinMap.get(amm)).toEqual(["1", "2"]);
+        const { text, warnings } = exportKicadSchematic(elms, "test");
+        expect(warnings).toEqual([]);
+        const ref = text.match(/model=\\"i=\(2\*I\((V\d+)\)\)\\"/)![1];
+        expect(text).toMatch(new RegExp(`"Reference" "${ref}"[^]*?"Value" "0V"`));
+        // the second resistor's far end goes nowhere, which doesn't need tying to ground
+        expect(text).not.toContain('"100M"');
+    });
+
+    it("puts a transformer's windings on its primary and secondary pins, with a model", () => {
+        for (const reverse of [false, true]) {
+            const t: any = new TransformerElm(0, 0);
+            if (reverse)
+                t.flags |= TransformerElm.FLAG_REVERSE;
+            t.polarity = reverse ? -1 : 1;
+            place(t, 0, 0, 64, 0);
+            const exp = new KicadExporter([t]);
+            exp.export();
+            const pins = exp.pinMap.get(t)!;
+            // the primary is posts 0 and 2, the secondary 1 and 3
+            expect([pins[0], pins[2]].sort()).toEqual(["1", "2"]);
+            expect([pins[1], pins[3]].sort()).toEqual(["3", "4"]);
+        }
+        const t = place(new TransformerElm(0, 0), 0, 0, 64, 0);
+        const res = exportKicadProject([t], "test");
+        const lib = res.files.find(f => f.name === "test.lib")!.text;
+        const name = lib.match(/\.subckt (XFMR_\w+) p1 s1 p2 s2/)![1];
+        expect(lib).toContain("K1 L1 L2 0.999");
+        const sch = res.files[0].text;
+        expect(sch).toContain(`"Sim.Name" "${name}"`);
+        expect(sch).toContain('"Sim.Library" "test.lib"');
+        expect(sch).toContain('"Sim.Pins" "1=p1 4=s1 2=p2 3=s2"');
+    });
+
+    it("exports a tapped transformer with its center tap on the middle pin", () => {
+        const t = place(new TappedTransformerElm(0, 0), 0, 0, 64, 0);
+        const res = exportKicadProject([t], "test");
+        expect(res.warnings).toEqual([]);
+        expect(res.root.pinMap.get(t)).toEqual(["1", "2", "5", "4", "3"]);
+        expect(res.files.find(f => f.name === "test.lib")!.text).toMatch(/L2 s1 ct \S+\nL3 ct s2 /);
+    });
+
+    it("grounds a circuit without one where the simulator does", () => {
+        const src = place(new DCVoltageElm(0, 0), 0, 64, 0, 0);
+        const { text } = exportKicadSchematic([src, place(new ResistorElm(0, 0), 0, 0, 0, 64)], "test");
+        // at the source's first post
+        expect(symbols(text).filter(s => s[0] === "power:GND").length).toBe(1);
+        expect(text).not.toContain('"100M"');
+    });
+
+    it("ties a part of the circuit with no path to ground to it, for simulation", () => {
+        const loop = [place(new DCVoltageElm(0, 0), 0, 64, 0, 0), place(new ResistorElm(0, 0), 0, 0, 0, 64)];
+        const grounded = [place(new ResistorElm(0, 0), 128, 0, 128, 64), place(new GroundElm(0, 0), 128, 64, 128, 96)];
+        // a 100M resistor to ground, from the source's first post, as the simulator ties it
+        const text = exportKicadSchematic([...loop, ...grounded], "test").text;
+        expect(text.match(/\(property "Value" "100M"/g)!.length).toBe(1);
+        const [, name] = text.match(/\(label "([^"]+)" \(at [\d.]+ ([\d.]+)/)!;
+        expect(text.match(new RegExp(`\\(label "${name}"`, "g"))!.length).toBe(2);
+        expect(exportKicadSchematic([...loop, place(new GroundElm(0, 0), 0, 64, 0, 96)], "test").text).not.toContain('"100M"');
+    });
+
+    // a placed part's property (the last; the first is the library symbol's)
+    const prop = (text: string, name: string) =>
+        [...text.matchAll(new RegExp(`\\(property "${name.replace(".", "\\.")}" "((?:[^"\\\\]|\\\\.)*)"`, "g"))].pop()?.[1];
+
+    // a part with a post grounded (the first, unless given), so it isn't tied to ground for simulation
+    const grounded = (ce: CircuitElm, j = 0) => {
+        const p = ce.getPost(j)!;
+        return [ce, place(new GroundElm(0, 0), p.x, p.y, p.x, p.y + 32)];
+    };
+
+    it("gives diodes, transistors and mosfets KiCad's models, with their parameters", () => {
+        const d = exportKicadSchematic(grounded(place(new DiodeElm(0, 0), 0, 0, 64, 0)), "test").text;
+        expect(prop(d, "Sim.Device")).toBe("D");
+        expect(prop(d, "Sim.Params")).toMatch(/^is=\S+ n=\S+/);
+        const q = exportKicadSchematic(grounded(place(new TransistorElm(0, 0), 0, 0, 64, 0)), "test").text;
+        expect(prop(q, "Sim.Device")).toBe("NPN");
+        expect(prop(q, "Sim.Type")).toBe("GUMMELPOON");
+        expect(prop(q, "Sim.Params")).toMatch(/\bbf=100\b/);
+        const m = exportKicadSchematic(grounded(place(new MosfetElm(0, 0, false), 0, 0, 64, 0), 1), "test").text;
+        expect(prop(m, "Sim.Type")).toBe("MOS1");
+        // with its body on its source
+        expect(prop(m, "Sim.Pins")).toBe("1=S 2=G 3=D 1=B");
+        expect(prop(m, "Sim.Params")).toMatch(/^vto=\S+ kp=/);
+    });
+
+    it("gives a capacitor its initial voltage, and a series resistance a model", () => {
+        const c: any = place(new CapacitorElm(0, 0), 0, 0, 64, 0);
+        c.initialVoltage = 3;
+        const text = exportKicadSchematic(grounded(c), "test").text;
+        expect(prop(text, "Sim.Params")).toBe("c=0.00001 ic=3");
+        const l: any = place(new InductorElm(0, 0), 0, 0, 64, 0);
+        l.seriesResistance = 2;
+        const lib = exportKicadProject([l], "test").files.find(f => f.name === "test.lib")!.text;
+        expect(lib).toMatch(/L1 a m 1 IC=0\nR1 m b 2\n/);
+    });
+
+    it("models a part KiCad has no model for from the SPICE export of its gates", () => {
+        const g1 = place(new NandGateElm(0, 0), 0, 0, 64, 0), g2 = place(new NandGateElm(0, 0), 0, 96, 64, 96);
+        const res = exportKicadProject([g1, g2, place(new ResistorElm(0, 0), 128, 0, 128, 64)], "test");
+        const lib = res.files.find(f => f.name === "test.lib")!.text;
+        // both gates are in one 74HC00, whose model has the SPICE export's gates on their pins
+        const [, name, pins] = lib.match(/^\.subckt (74HC00_\w+) ((?:n\d+ ?)+)$/m)!;
+        expect(pins.trim().split(" ").length).toBe(6);
+        expect(lib.match(/^XU\w+ n\d+ n\d+ n\d+ 74HC00\b/gm)!.length).toBe(2);
+        const sch = res.files[0].text;
+        expect(sch).toContain(`"Sim.Name" "${name}"`);
+        // the resistor is KiCad's own
+        expect(lib).not.toMatch(/^\.subckt R_/m);
+    });
+
+    it("models a switch as set", () => {
+        for (const position of [0, 1]) {
+            const sw: any = place(new SwitchElm(0, 0), 0, 0, 64, 0);
+            sw.position = position;
+            const lib = exportKicadProject([sw], "test").files.find(f => f.name === "test.lib")!.text;
+            expect(lib).toContain(position === 0 ? "R1 a b 1u" : "R1 a b 1T");
+        }
+    });
+
+    it("models a logic input as connected to its level's supply, whichever pin that's on", () => {
+        for (const position of [0, 1]) {
+            const li: any = place(new LogicInputElm(0, 0), 0, 0, -32, 0);
+            li.position = position;
+            const res = exportKicadProject([li], "test");
+            const sch = res.files[0].text, lib = res.files.find(f => f.name === "test.lib")!.text;
+            // (which pin is which, kicad-compare checks against the simulator)
+            const pins = sch.match(/"Sim\.Pins" "(\S+=out[^"]*|[^"]*=out\b[^"]*)"/)![1];
+            expect(pins.split(" ").map(p => p.split("=")[1]).sort()).toEqual(["hi", "lo", "out"]);
+            expect(lib).toContain(`out ${position === 1 ? "hi" : "lo"} 1u`);
+        }
+    });
+
     it("exports a logic input as a switch between the supply and ground", () => {
         const text = exportKicadSchematic([place(new LogicInputElm(0, 0), 0, 0, -32, 0)], "test").text;
         expect(symbols(text).map(s => s[0]).sort()).toEqual([...SUPPLY_SOURCE, "Switch:SW_SPDT"].sort());
@@ -347,6 +541,80 @@ describe("KiCad export", () => {
         // the coil and contacts are all wired straight to their posts
         expect(text).not.toContain("(label ");
         expect(text.match(/\(lib_id "power:GND"\)/g)?.length).toBe(1);
+    });
+
+    it("makes linked relay coils and contacts the units of one relay", () => {
+        const coil = place(new RelayCoilElm(0, 0), 0, 0, 0, 64);
+        const no = place(new RelayContactElm(0, 0), 96, 0, 96, 64);
+        const nc = place(new RelayContactElm(0, 0), 192, 0, 192, 64);
+        nc.flags |= nc.FLAG_NORMALLY_CLOSED;
+        const other = place(new RelayContactElm(0, 0), 288, 0, 288, 64);
+        other.label = "other";
+        const exp = new KicadExporter([coil, no, nc, other]);
+        exp.export();
+        expect(exp.warnings).toEqual([]);
+        expect(exp.pinMap.get(coil)!.slice().sort()).toEqual(["A1", "A2"]);
+        expect(exp.pinMap.get(no)!.slice().sort()).toEqual(["13", "14"]);
+        expect(exp.pinMap.get(nc)!.slice().sort()).toEqual(["21", "22"]);
+        expect(exp.refs.get(no)).toBe(exp.refs.get(coil));
+        expect(exp.refs.get(nc)).toBe(exp.refs.get(coil));
+        expect(exp.refs.get(other)).not.toBe(exp.refs.get(coil));
+        // (less the resistors tying each to ground for simulation)
+        const text = exportKicadSchematic([coil, no, nc, other], "test").text;
+        expect(symbols(text).map(s => s[0]).filter(s => s !== "Device:R" && s !== "power:GND").sort()).toEqual(
+            ["CircuitJS:Relay_Coil_NO_NC", "CircuitJS:Relay_Coil_NO_NC", "CircuitJS:Relay_Coil_NO_NC", "CircuitJS:Relay_NO"]);
+    });
+
+    it("puts triodes two to an ECC83, with the heater on 6.3V", () => {
+        const tubes = [0, 1, 2].map(i => place(new TriodeElm(0, 0), i * 128, 0, i * 128 + 32, 0));
+        const exp = new KicadExporter(tubes);
+        exp.export();
+        expect(exp.warnings).toEqual([]);
+        expect(exp.pinMap.get(tubes[0])).toEqual(["6", "7", "8"]);
+        expect(exp.pinMap.get(tubes[1])).toEqual(["1", "2", "3"]);
+        expect(exp.refs.get(tubes[1])).toBe(exp.refs.get(tubes[0]));
+        expect(exp.refs.get(tubes[2])).not.toBe(exp.refs.get(tubes[0]));
+        const text = exportKicadSchematic(tubes, "test").text;
+        expect(text).toContain('(property "Value" "+6.3V"');
+    });
+
+    it("exports a bus as a KiCad bus, with a net for each line", () => {
+        // a bus logic input, a bus wire to a splitter, and a resistor on each line
+        const input = place(new BusLogicInputElm(0, 0), 0, 0, 0, 0);
+        input.busWidth = 4;
+        const splitter = place(new BusSplitterElm(0, 0), 64, 0, 96, 0);
+        const wire = place(new WireElm(0, 0), 0, 0, 64, 0);
+        const lines = [0, 1, 2, 3].map(i => {
+            const p = splitter.getPost(4 + i);
+            return place(new ResistorElm(0, 0), p.x, p.y, p.x + 64, p.y);
+        });
+        const elms = [input, wire, splitter, ...lines];
+        const exp = new KicadExporter(elms);
+        exp.export();
+        expect(exp.warnings).toEqual([]);
+        const text = exportKicadSchematic(elms, "test").text;
+        expect(text).toContain("(bus (pts");
+        expect(text.match(/\(bus_entry /g)?.length).toBe(4);
+        expect(text).toContain('(label "BUS1_[0..3]"');
+        // each line's resistor and the input's pin for it are on the line's net
+        for (let i = 0; i !== 4; i++)
+            expect(text.match(new RegExp(`\\(label "BUS1_${i}"`, "g"))?.length).toBe(2);
+    });
+
+    it("gives a chip's bus pin a pin for each line, and moves the pins after it along", () => {
+        const c: any = new Counter2Elm(0, 0);
+        c.bitOrder = ChipElm.BIT_ORDER_BUS;
+        c.setupPins();
+        place(c, 0, 0, 32, 0);
+        const d: any = describePart(c);
+        expect(d.symbol.names).toMatchObject({ 1: "Q3", 2: "Q2", 3: "Q1", 4: "Q0" });
+        // the lines 2.54mm apart, and the pins below them as far apart as before, lower down
+        const y = (n: number) => d.symbol.pins[String(n)][1];
+        expect([4, 3, 2, 1].map(n => y(n) - y(4))).toEqual([0, -2.54, -5.08, -7.62]);
+        const pins = c.pins.slice(0, c.getPostCount()).map((p: any) => p.text);
+        const load = pins.indexOf("LOAD") + 1, ent = pins.indexOf("EnT") + 1;
+        expect(y(load) - y(ent)).toBeCloseTo(10.16);
+        expect(y(1) - y(load)).toBeCloseTo(10.16);
     });
 
     it("uses a subcircuit's layout even when it holds a relay model", () => {

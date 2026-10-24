@@ -413,12 +413,47 @@ function timerPart(e: any, timeStep: number): ChipPart {
 }
 
 // a diode model's parameters
-function diodeParams(m: any): string {
+export function diodeParams(m: any): string {
     let params = `IS=${num(m.saturationCurrent)} N=${num(m.emissionCoefficient)}`;
     if (m.seriesResistance > 0)
         params += ` RS=${num(m.seriesResistance)}`;
     if (m.breakdownVoltage > 0)
         params += ` BV=${num(m.breakdownVoltage)}`;
+    return params;
+}
+
+// a transistor's Gummel-Poon parameters, from its model and its beta
+export function bjtParams(e: any): string {
+    const m = e.model;
+    const p: string[] = [`IS=${num(m.satCur)}`, `BF=${num(e.beta)}`, `BR=${num(m.betaR)}`,
+                         `NF=${num(m.emissionCoeffF)}`, `NR=${num(m.emissionCoeffR)}`];
+    const opt = (name: string, v: number) => { if (v > 0) p.push(`${name}=${num(v)}`); };
+    const inv = (name: string, v: number) => { if (v > 0) p.push(`${name}=${num(1 / v)}`); };
+    inv("VAF", m.invEarlyVoltF);
+    inv("VAR", m.invEarlyVoltR);
+    inv("IKF", m.invRollOffF);
+    inv("IKR", m.invRollOffR);
+    if (m.BEleakCur > 0)
+        p.push(`ISE=${num(m.BEleakCur)}`, `NE=${num(m.leakBEemissionCoeff)}`);
+    if (m.BCleakCur > 0)
+        p.push(`ISC=${num(m.BCleakCur)}`, `NC=${num(m.leakBCemissionCoeff)}`);
+    if (m.junctionCapBE > 0)
+        p.push(`CJE=${num(m.junctionCapBE)}`, `VJE=${num(m.junctionPotBE)}`, `MJE=${num(m.junctionExpBE)}`);
+    if (m.junctionCapBC > 0)
+        p.push(`CJC=${num(m.junctionCapBC)}`, `VJC=${num(m.junctionPotBC)}`, `MJC=${num(m.junctionExpBC)}`);
+    opt("TF", m.transitTimeF);
+    opt("TR", m.transitTimeR);
+    return p.join(" ");
+}
+
+// a mosfet's level 1 parameters.  CircuitJS's mosfet is SPICE's level 1 with KP = beta
+export function mosfetParams(e: any): string {
+    let params = `LEVEL=1 VTO=${num(e.pnp * e.vt)} KP=${num(e.beta)}`;
+    if (e.model.lambda > 0)
+        params += ` LAMBDA=${num(e.model.lambda)}`;
+    // SPICE's bulk junctions are the body diode, which the simulator usually leaves out
+    if (!e.bodyDiodeSimulated)
+        params += " IS=0";
     return params;
 }
 
@@ -1023,7 +1058,7 @@ const LOGIC_CHIPS = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, Cou
 // doesn't have (the last output, the last values of the inputs, bit operations).  input(k)
 // is input k (a, b...) and ref(k) reference k (v() or i()).  powers are **, which ngspice
 // and LTspice both take, and conditions use ngspice's ?:
-function spiceExpression(e: Expr, input: (k: number) => string | null, ref: (k: number) => string | null,
+export function spiceExpression(e: Expr, input: (k: number) => string | null, ref: (k: number) => string | null,
                          timeStep: number): string | null {
     const c = e.children ?? [];
     const x = (i: number) => spiceExpression(c[i], input, ref, timeStep);
@@ -1527,27 +1562,8 @@ class NetlistWriter {
         }
         // posts: base, collector, emitter.  SPICE: collector, base, emitter
         if (C === TransistorElm) {
-            const m = e.model;
-            const p: string[] = [`IS=${num(m.satCur)}`, `BF=${num(e.beta)}`, `BR=${num(m.betaR)}`,
-                                 `NF=${num(m.emissionCoeffF)}`, `NR=${num(m.emissionCoeffR)}`];
-            const opt = (name: string, v: number) => { if (v > 0) p.push(`${name}=${num(v)}`); };
-            const inv = (name: string, v: number) => { if (v > 0) p.push(`${name}=${num(1 / v)}`); };
-            inv("VAF", m.invEarlyVoltF);
-            inv("VAR", m.invEarlyVoltR);
-            inv("IKF", m.invRollOffF);
-            inv("IKR", m.invRollOffR);
-            if (m.BEleakCur > 0)
-                p.push(`ISE=${num(m.BEleakCur)}`, `NE=${num(m.leakBEemissionCoeff)}`);
-            if (m.BCleakCur > 0)
-                p.push(`ISC=${num(m.BCleakCur)}`, `NC=${num(m.leakBCemissionCoeff)}`);
-            if (m.junctionCapBE > 0)
-                p.push(`CJE=${num(m.junctionCapBE)}`, `VJE=${num(m.junctionPotBE)}`, `MJE=${num(m.junctionExpBE)}`);
-            if (m.junctionCapBC > 0)
-                p.push(`CJC=${num(m.junctionCapBC)}`, `VJC=${num(m.junctionPotBC)}`, `MJC=${num(m.junctionExpBC)}`);
-            opt("TF", m.transitTimeF);
-            opt("TR", m.transitTimeR);
             const kind = e.pnp === 1 ? "NPN" : "PNP";
-            L(this.ref("Q"), n[1], n[0], n[2], this.exp.model("Q", m.name, { kind, params: p.join(" ") }));
+            L(this.ref("Q"), n[1], n[0], n[2], this.exp.model("Q", e.model.name, { kind, params: bjtParams(e) }));
             return;
         }
         // posts: gate, source, drain (n) or gate, drain, source (p).  SPICE: drain, gate, source.
@@ -1558,19 +1574,12 @@ class NetlistWriter {
               { kind: e.pnp === 1 ? "NJF" : "PJF", params: `VTO=${num(e.vt)} BETA=${num(e.beta / 2)}` }));
             return;
         }
-        // as above, then the body if it has a terminal; otherwise it's tied to the source.
-        // CircuitJS's mosfet is SPICE's level 1 with KP = beta
+        // as above, then the body if it has a terminal; otherwise it's tied to the source
         if (C === MosfetElm) {
             const [d, s] = e.pnp === 1 ? [n[2], n[1]] : [n[1], n[2]];
             const b = ce.getPostCount() > 3 ? n[3] : s;
             const m = e.model;
-            let params = `LEVEL=1 VTO=${num(e.pnp * e.vt)} KP=${num(e.beta)}`;
-            if (m.lambda > 0)
-                params += ` LAMBDA=${num(m.lambda)}`;
-            // SPICE's bulk junctions are the body diode, which the simulator usually leaves out
-            if (!e.bodyDiodeSimulated)
-                params += " IS=0";
-            L(this.ref("M"), d, n[0], s, b, this.exp.model("M", m.name, { kind: e.pnp === 1 ? "NMOS" : "PMOS", params }));
+            L(this.ref("M"), d, n[0], s, b, this.exp.model("M", m.name, { kind: e.pnp === 1 ? "NMOS" : "PMOS", params: mosfetParams(e) }));
             if (m.capGS > 0)
                 L(this.ref("C"), n[0], s, spiceValue(m.capGS));
             if (m.capGD > 0)
@@ -2024,6 +2033,19 @@ export class SpiceExporter {
         return name;
     }
 
+    // elements on their own (the parts of one schematic symbol): their lines, with element k's
+    // post j on net e<k>_<j>, after the .models and .subckts they use.  null if they can't be
+    // exported, or if they join their posts (an ideal closed switch is a wire)
+    elementsSpice(elms: CircuitElm[]): string[] | null {
+        const keys = elms.map((ce, k) => Array.from({ length: ce.getPostCount() }, (_, j) => `e${k}_${j}`));
+        const w = new NetlistWriter(this, { elms, keys, names: new Map(keys.flat().map(k => [k, k])) });
+        w.write();
+        const nets = keys.flat().map(k => w.net(k));
+        if (w.warnings.length || w.lines.length === 0 || new Set(nets).size !== nets.length)
+            return null;
+        return [...this.modelCards, ...this.subcktText, ...w.lines];
+    }
+
     // the .subckt for an element made of others, or null if they can't all be exported.  its
     // pins are p0, p1... in the order of the element's posts, and the same parts with the
     // same values are one .subckt
@@ -2174,6 +2196,11 @@ function modelElements(model: any): { ce: CircuitElm; nodes: number[] }[] {
         res.push({ ce, nodes });
     }
     return res;
+}
+
+// elements on their own, as SpiceExporter.elementsSpice() has them
+export function elementsSpice(elms: CircuitElm[], timeStep: number): string[] | null {
+    return new SpiceExporter(elms, { timeStep }).elementsSpice(elms);
 }
 
 export function exportSpiceNetlist(elms: CircuitElm[], opts: SpiceOptions = {}): SpiceExport {

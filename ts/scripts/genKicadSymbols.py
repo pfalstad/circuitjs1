@@ -49,10 +49,13 @@ SYMBOLS = {
     "NTC":   "Device:Thermistor_NTC",
     "LDR":   "Device:R_Photo",
     "XFMR":  "Device:Transformer_1P_1S",
+    "XFMR_CT": "Device:Transformer_1P_SS",
     # relays with their contacts flipped (see flip_contacts)
     "RELAY1": "Relay:Relay_SPDT",
     "RELAY2": "Relay:Relay_DPDT",
     "555":   "Timer:NE555P",
+    # two triodes and a heater unit
+    "TRIODE": "Valve:ECC83",
     # logic, by CircuitJS gate name and input count
     "AND2":  "74xx:74LS08",
     "AND3":  "74xx:74LS11",
