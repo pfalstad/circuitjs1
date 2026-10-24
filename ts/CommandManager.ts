@@ -331,6 +331,11 @@ export class CommandManager {
             const sp = item.indexOf(' ', 6);
             this.app.menus.readSetupFile(item.substring(6, sp), item.substring(sp + 1));
         }
+        if (menu.startsWith("extra:") && item.indexOf("setup ") == 0) {
+            this.app.undoManager?.pushUndo();
+            const sp = item.indexOf(' ', 6);
+            this.app.menus.readSetupExtraFile(menu.substring(6), item.substring(6, sp), item.substring(sp + 1));
+        }
         if (item == "newblankcircuit") {
             this.app.undoManager?.pushUndo();
             this.app.menus.readSetupFile("blank.txt", "Blank Circuit");
