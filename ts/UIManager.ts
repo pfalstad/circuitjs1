@@ -1401,7 +1401,7 @@ export class UIManager {
                 if (timerate >= 0.1 && this.steprate >= nominalSteprate * 0.9)
                     info[0] += " (" + CircuitElm.showFormat.format(timerate) + "x)";
                 info[1] = Locale.LS("time step = ") + CircuitElm.getTimeText(this.app.sim.timeStep);
-                if (this.perfReadout != null && this.app.simIsRunning())
+                if (this.perfReadout != null && this.app.simIsRunning() && this.app.developerMode)
                     [info[2], info[3]] = this.perfReadout;
             }
             if (this.app.hintType !== -1) {
