@@ -90,6 +90,11 @@ export class TimeDelayRelayElm extends ChipElm {
 
     nonLinear(): boolean { return true; }
 
+    // Vin/gnd (0,1) are joined by the coil resistance and in/out (2,3) by the contact.
+    // ChipElm's default says no pins are connected, which would let the circuit be
+    // split into separate matrices across the contact.
+    getConnection(n1: number, n2: number): boolean { return Math.trunc(n1 / 2) === Math.trunc(n2 / 2); }
+
     stamp(): void {
         this.resistance = this.onState ? this.onResistance : this.offResistance;
         CircuitElm.sim.stampResistor(this.nodes[0], this.nodes[1], this.vinResistance);
