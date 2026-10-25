@@ -335,7 +335,19 @@ class CheckboxMenuItem {
         }
     }
     getShortcut(): string { return this._shortcut; }
-    setShortcut(s: string): void { this._shortcut = s; }
+    // also redraws the shortcut shown in the menu (the label is built once, before saved
+    // shortcuts are loaded), as a readable name like "F3" rather than the stored char
+    setShortcut(s: string): void {
+        this._shortcut = s;
+        if (!this._li) return;
+        let hint = this._li.querySelector('.shortcutHint') as HTMLElement | null;
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'shortcutHint';
+            this._li.appendChild(hint);
+        }
+        hint.textContent = KeyNames.displayText(s) ?? s;
+    }
     setScheduledCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     setCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     execute(): void { if (this._command) this._command(); }
@@ -2114,9 +2126,11 @@ export class UIManager {
 
             this.app.shortcuts.clear();
 
+            // the element menu is built twice (right-click menu and Draw menu), so there are
+            // two items per class; clear all of them, skipping fixed labels like "(Alt-drag)"
             for (let i = 0; i !== this.mainMenuItems.length; i++) {
                 const item = this.mainMenuItems[i];
-                if (item.getShortcut().length > 1) break;
+                if (item.getShortcut().length > 1) continue;
                 item.setShortcut("");
             }
 
@@ -2133,7 +2147,6 @@ export class UIManager {
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
                     if (this.mainMenuItemNames[j] === className) {
                         this.mainMenuItems[j].setShortcut(String.fromCharCode(c));
-                        break;
                     }
                 }
             }
