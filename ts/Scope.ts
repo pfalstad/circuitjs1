@@ -956,6 +956,11 @@ export class Scope {
         const drawWidth = this.validDataCount(plot, ipa, this.rect.width);
         let ox = -1, oy = -1;
         let i;
+        // exporting: build one connected path per trace (one point per column, at
+        // that column's min/max midpoint) instead of per-column ticks, so the whole
+        // waveform comes out as a single selectable object in a vector editor (SVG) --
+        // mirrors the CSV export's one-sequential-series-per-trace shape
+        let exportPathStarted = false;
         for (i = 0; i !== drawWidth; i++) {
             const ip = (i + ipa) & (this.scopePointCount - 1);
             const minvy = Math.round(plot.gridMult * (minV[ip] + plot.plotOffset));
@@ -966,6 +971,17 @@ export class Scope {
                     this.reduceRange[plot.units] = false;
                     curMinRangeLo = -1000;
                     minRangeHi = 1000;
+                }
+                if (this.exporting) {
+                    const y = maxy - (minvy + maxvy) / 2;
+                    if (!exportPathStarted) {
+                        g.context.beginPath();
+                        g.context.moveTo(i, y);
+                        exportPathStarted = true;
+                    } else {
+                        g.context.lineTo(i, y);
+                    }
+                    continue;
                 }
                 if (ox !== -1) {
                     if (minvy === oy && maxvy === oy)
@@ -979,10 +995,19 @@ export class Scope {
                     continue;
                 }
                 g.drawLine(i, maxy - minvy, i, maxy - maxvy);
+            } else if (exportPathStarted) {
+                // out-of-range clamp hit mid-trace -- close off what we have and
+                // start a fresh subpath rather than bridging across the skip
+                g.context.stroke();
+                exportPathStarted = false;
             }
         }
-        if (ox !== -1)
+        if (this.exporting) {
+            if (exportPathStarted)
+                g.context.stroke();
+        } else if (ox !== -1) {
             g.drawLine(ox, maxy - oy, i - 1, maxy - oy);
+        }
     }
 
     static clearCursorInfo(): void {
