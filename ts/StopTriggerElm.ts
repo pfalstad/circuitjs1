@@ -34,6 +34,10 @@ export class StopTriggerElm extends CircuitElm {
     stopped: boolean = false;
     conditionActive: boolean = false;
     durationMet: boolean = false;
+    // armed: we've seen the condition false at least once since reset, so a later
+    // true counts as a real transition (edge).  Without this, a condition that is
+    // already true when the circuit loads/resets would stop the sim on the first step.
+    armed: boolean = false;
     delay: number = 0;
     triggerTime: number = 0;
     requiredDuration: number = 0;
@@ -79,6 +83,7 @@ export class StopTriggerElm extends CircuitElm {
         this.conditionActive = false;
         this.durationMet = false;
         this.triggerCount = 0;
+        this.armed = false;  // must see the condition go false before it can trigger
     }
     getDumpType(): number { return 408; }
     getPostCount(): number { return 1; }
@@ -106,7 +111,10 @@ export class StopTriggerElm extends CircuitElm {
         this.stopped = false;
         const condition = (this.type === 0 && this.nodes[0].v >= this.triggerVoltage) ||
             (this.type === 1 && this.nodes[0].v <= this.triggerVoltage);
-        if (!this.conditionActive && condition) {
+        if (!condition)
+            this.armed = true;
+        // ignore the condition until armed, i.e. only a false->true transition starts it
+        if (this.armed && !this.conditionActive && condition) {
             this.conditionActive = true;
             this.conditionStartTime = CircuitElm.sim.t;
             this.durationMet = false;
