@@ -1434,6 +1434,9 @@ export abstract class CircuitElm implements Editable {
     elmScope: any = null;
     clearElmScope(): void {}
     isGraphicElm(): boolean { return false; }
+    isShapeElm(): boolean { return false; }
+    isBoxElm(): boolean { return false; }
+    isLineElm(): boolean { return false; }
     isRoutedWireElm(): boolean { return false; }
     isSwitchElm(): boolean { return false; }
     // whether to automatically bring up the property editor when this element is created
@@ -1475,6 +1478,29 @@ export abstract class CircuitElm implements Editable {
     }
 
     draggingDone(): void {}
+
+    // Put boxes first in the list, so they're drawn (and saved) behind everything else,
+    // with larger boxes ahead of the smaller ones they hold.  Everything else keeps its
+    // order.  Boxes have no posts, so this doesn't change the simulation; hints refer to
+    // elements by position, so they're remapped to follow their elements.  (Lives here
+    // rather than in BoxElm so MouseManager etc. don't need to import element classes.)
+    static sortBoxes(list: CircuitElm[]): void {
+        const app = CircuitElm.app;
+        const hint = (list === app.elmList && app.hintType !== -1);
+        const h1 = hint ? app.getElm(app.hintItem1) : null;
+        const h2 = hint ? app.getElm(app.hintItem2) : null;
+        const boxes = list.filter(ce => ce.isBoxElm());
+        if (boxes.length === 0)
+            return;
+        const rest = list.filter(ce => !ce.isBoxElm());
+        boxes.sort((a, b) => (b as any).area() - (a as any).area());	// stable
+        list.length = 0;
+        list.push(...boxes, ...rest);
+        if (hint) {
+            app.hintItem1 = list.indexOf(h1);
+            app.hintItem2 = list.indexOf(h2);
+        }
+    }
 
     lineDistanceSq(xa: number, ya: number, xb: number, yb: number, gx: number, gy: number): number {
         const dtop = (yb-ya)*gx - (xb-xa)*gy + xb*ya - yb*xa;

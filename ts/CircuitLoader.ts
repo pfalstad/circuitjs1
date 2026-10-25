@@ -253,6 +253,10 @@ export class CircuitLoader {
                 if (!this.app.adjustables[i].createSlider(this.app))
                     this.app.adjustables.splice(i--, 1);
             }
+            // boxes behind everything, for files saved with them after their contents.
+            // (not on paste, RC_RETAIN, which selects the new items by position; and only
+            // now, once scopes, sliders and hints have looked up their elements by position)
+            CircuitElm.sortBoxes(this.app.elmList);
         }
 
         this.app.needAnalyze();

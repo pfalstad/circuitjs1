@@ -1158,6 +1158,9 @@ export class UIManager {
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_POST ||
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SELECTED) {
             for (const ce of this.elmList) {
+                // boxes and lines only show their dots while they're the ones being moved
+                if (ce.isShapeElm() && ce !== this.mouse.getMouseElm() && !ce.isSelected())
+                    continue;
                 if (ce !== this.mouse.getMouseElm() || this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);
@@ -1512,6 +1515,7 @@ export class UIManager {
     }
 
     setMouseMode(mode: number): void {
+        this.mouse.cancelLineChain();
         this.mouse.mouseMode = mode;
         if (mode === MouseManager.MODE_ADD_ELM)
             this.setCursorStyle("cursorCross");
@@ -1670,7 +1674,11 @@ export class UIManager {
                 e.preventDefault();
             }
         }
-        if (code === KEY_ESCAPE) {
+        // first Esc ends a chain of lines (staying in line mode), the next returns to Select
+        if (code === KEY_ESCAPE && this.mouse.lineChain) {
+            this.mouse.cancelLineChain();
+            e.preventDefault();
+        } else if (code === KEY_ESCAPE) {
             this.setMouseMode(MouseManager.MODE_SELECT);
             this.mouseModeStr = "Select";
             this.updateToolbar();

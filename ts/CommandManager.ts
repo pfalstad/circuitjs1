@@ -40,6 +40,7 @@ import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
+import { CircuitElm } from "./CircuitElm";
 import { ScopeElm } from "./ScopeElm";
 import { parseIntStrict } from "./NumberParse";
 
@@ -683,6 +684,7 @@ export class CommandManager {
             for (let i = oldsz; i != this.app.elmList.length; i++)
                 this.app.elmList[i].move(dx, dy);
         }
+        CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
         this.app.needAnalyze();
         this.app.undoManager?.writeRecoveryToStorage();
     }
