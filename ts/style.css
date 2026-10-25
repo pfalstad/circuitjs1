@@ -375,6 +375,58 @@ td.gwt-MenuItem.open > .menuDropdown {
         position: absolute;
     }
 
+    /* top menu is hidden until the hamburger is tapped, then shown as a
+       vertical list across the top of the screen */
+    .gwt-MenuBar-horizontal > table {
+        display: none;
+        height: auto;
+        position: fixed;
+        width: 100%;
+        text-align: center;
+        top: 30px;
+        left: 0;
+        background: white;
+        z-index: 3;
+    }
+    .toptrigger:checked ~ div > .gwt-MenuBar-horizontal > table {
+        display: block;
+    }
+    .gwt-MenuBar-horizontal > table > tbody,
+    .gwt-MenuBar-horizontal > table > tbody > tr,
+    .gwt-MenuBar-horizontal > table > tbody > tr > td.gwt-MenuItem {
+        display: block;
+    }
+    td.gwt-MenuItem {
+        position: static;
+    }
+
+    /* dropdowns fill the width of the screen below the hamburger */
+    td.gwt-MenuItem > .menuDropdown {
+        position: fixed;
+        top: 30px;
+        left: 0;
+        width: 100%;
+        max-height: 300px;
+        overflow-y: auto;
+        box-sizing: border-box;
+        z-index: 4;
+        text-align: left;
+        font-weight: normal;
+    }
+
+    /* nested submenus expand inline below their parent item (no room to the right) */
+    .menuDropdown .hasSubmenu {
+        flex-wrap: wrap;
+    }
+    .menuDropdown .menuDropdown {
+        position: static;
+        flex-basis: 100%;
+        box-shadow: none;
+        border: none;
+        border-top: 1px solid #ccc;
+        background: #eef;
+    }
+
     /* when sidebar trigger is checked, slide the tab left */
     .trigger:checked + .triggerLabel {
         right: 128px;
@@ -388,13 +440,18 @@ td.gwt-MenuItem.open > .menuDropdown {
         transition: width 1s;
         overflow: hidden;
     }
-    .trigger:checked ~ .contentRow .verticalPanel {
+    .trigger:checked ~ .verticalPanel {
         width: 128px !important;
     }
 
     /* canvas takes full width on mobile */
     .canvasWrapper {
         width: 100% !important;
+    }
+
+    /* sidebar is collapsed, so toolbar and canvas extend to the right edge */
+    .mainToolbar, .canvasWrapper {
+        right: 0 !important;
     }
 }
 

@@ -693,6 +693,7 @@ export class UIManager {
         }
 
         // toolbar: left of sidebar, below menu bar
+        this.toolbar.element.classList.add('mainToolbar');
         this.toolbar.element.style.position = 'absolute';
         this.toolbar.element.style.left = '0';
         this.toolbar.element.style.top = mbh + 'px';
