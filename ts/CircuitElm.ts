@@ -1452,6 +1452,7 @@ export abstract class CircuitElm implements Editable {
     isSubcircuitElm(): boolean { return false; }
     isTransistorElm(): boolean { return false; }
     isMosfetElm(): boolean { return false; }
+    isGateElm(): boolean { return false; }
     isJfetElm(): boolean { return false; }
     isOutputElm(): boolean { return false; }
     isLogicOutputElm(): boolean { return false; }

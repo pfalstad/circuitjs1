@@ -28,6 +28,8 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
+import { ScrollValuePopup } from "./ScrollValuePopup";
+import { TypeScrollPopup } from "./TypeScrollPopup";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export abstract class GateElm extends CircuitElm {
@@ -76,6 +78,16 @@ export abstract class GateElm extends CircuitElm {
 
     isInverting(): boolean { return false; }
     isXorGateElm(): boolean { return false; }
+    isGateElm(): boolean { return true; }
+
+    // mouse wheel cycles AND/NAND/OR/NOR/XOR/XNOR (see TypeScrollPopup)
+    onMouseWheel(e: WheelEvent): void {
+        if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+            CirSim.typeScrollPopup.doDeltaY(ScrollValuePopup.normalizeWheelDelta(e));
+            return;
+        }
+        CirSim.typeScrollPopup = new TypeScrollPopup(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e), this, CircuitElm.app);
+    }
 
     gsize: number = 0;
     gwidth: number = 0;
