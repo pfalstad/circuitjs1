@@ -763,6 +763,10 @@ export class UIManager {
             b.addEventListener('mousedown', (e) => e.preventDefault());
         }
 
+        // buttons for switches in this circuit (filled in by updateSwitchButtons)
+        this.switchButtonPanel = document.createElement('div');
+        this.verticalPanel.appendChild(this.switchButtonPanel);
+
         /*
         dumpMatrixButton = new Button("Dump Matrix");
         dumpMatrixButton.addClickHandler(new ClickHandler() {
@@ -1859,6 +1863,82 @@ export class UIManager {
                 this.mouse.tempMouseMode = this.mouse.mouseMode;
                 e.preventDefault();
             }
+        }
+    }
+
+    // ---- Sidebar switch buttons ----
+    // One button per switch keyboard shortcut whose switch has "Sidebar Button" ticked, for
+    // users without a keyboard (mobile). They belong to the circuit: rebuilt whenever it changes,
+    // so leaving the circuit removes them. Ordered by when each button was added
+    // (SwitchElm.buttonOrder). A button does what its key does; a momentary switch stays
+    // pressed while the button is held.
+    switchButtonPanel: HTMLElement | null = null;
+    switchButtonKeys = "";	// keys currently shown, to skip rebuilding when unchanged
+    static readonly BUTTON_HELD = -1;	// SwitchElm.heldKeyCode for a switch pressed by a button
+
+    updateSwitchButtons(): void {
+        if (this.switchButtonPanel === null)
+            return;
+        // each key once, at the lowest order of the switches that use it
+        const buttons: { key: string, order: number }[] = [];
+        for (const ce of this.elmList) {
+            if (!(ce instanceof SwitchElm))
+                continue;
+            const key = ce.keyShortcut;
+            if (key === null || ce.buttonOrder <= 0)
+                continue;
+            const b = buttons.find(x => x.key === key);
+            if (b)
+                b.order = Math.min(b.order, ce.buttonOrder);
+            else
+                buttons.push({ key: key, order: ce.buttonOrder });
+        }
+        buttons.sort((a, b) => a.order - b.order);
+        const sig = buttons.map(b => b.key).join("\n");
+        if (sig === this.switchButtonKeys)
+            return;
+        this.switchButtonKeys = sig;
+        this.switchButtonPanel.replaceChildren(...buttons.map(b => this.makeSwitchButton(b.key)));
+    }
+
+    makeSwitchButton(key: string): HTMLButtonElement {
+        const b = document.createElement('button');
+        b.textContent = KeyNames.displayText(key);
+        b.className = 'topButton';
+        b.tabIndex = -1;	// like Reset and Run/Stop: don't take keyboard focus
+        b.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (e.button === 0)
+                this.pressSwitchButton(key);
+        });
+        b.addEventListener('mouseup', () => this.releaseSwitchButton(key));
+        b.addEventListener('mouseleave', () => this.releaseSwitchButton(key));
+        // touch: preventDefault so the browser doesn't also send mouse events afterwards
+        b.addEventListener('touchstart', (e) => { e.preventDefault(); this.pressSwitchButton(key); }, { passive: false });
+        b.addEventListener('touchend', (e) => { e.preventDefault(); this.releaseSwitchButton(key); });
+        b.addEventListener('touchcancel', () => this.releaseSwitchButton(key));
+        return b;
+    }
+
+    pressSwitchButton(key: string): void {
+        if (this.toggleSwitchesForKey(key, UIManager.BUTTON_HELD))
+            this.app.repaint();
+    }
+
+    // let go of momentary switches this button is holding down
+    releaseSwitchButton(key: string): void {
+        let released = false;
+        for (const ce of this.elmList) {
+            if (ce instanceof SwitchElm && ce.momentary && ce.heldKeyCode === UIManager.BUTTON_HELD &&
+                    ce.keyShortcut === key) {
+                ce.mouseUp();
+                ce.heldKeyCode = 0;
+                released = true;
+            }
+        }
+        if (released) {
+            this.app.needAnalyze();
+            this.app.repaint();
         }
     }
 

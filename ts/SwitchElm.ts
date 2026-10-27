@@ -45,6 +45,9 @@ export class SwitchElm extends CircuitElm {
     // KeyNames placeholder (F-keys, Ctrl-<key>, etc). Saved in files by readable name.
     keyShortcut: string | null;
     heldKeyCode = 0; // keyCode that pressed this (momentary) switch, so key-up can release it
+    // 0 = no sidebar button; otherwise this key gets a button in the sidebar, and the number
+    // is its place in the button row (buttons are listed in the order they were added)
+    buttonOrder = 0;
 
     constructor(xx: number, yy: number);
     constructor(xx: number, yy: number, mm: boolean);
@@ -94,6 +97,8 @@ export class SwitchElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "lab", this.label);
         if (this.keyShortcut !== null)
             CircuitXMLSerializer.dumpAttr(elem, "key", KeyNames.displayText(this.keyShortcut)!);
+        if (this.keyShortcut !== null && this.buttonOrder > 0)
+            CircuitXMLSerializer.dumpAttr(elem, "btn", this.buttonOrder);
         if (this.resistance !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);
     }
@@ -104,6 +109,7 @@ export class SwitchElm extends CircuitElm {
         this.momentary = xml.parseBooleanAttr("mm", this.momentary);
         this.label = xml.parseStringAttr("lab", this.label);
         this.keyShortcut = KeyNames.parseName(xml.parseStringAttr("key", null));
+        this.buttonOrder = xml.parseIntAttr("btn", 0);
         this.resistance = xml.parseDoubleAttr("r", 0);
     }
 
@@ -298,12 +304,26 @@ export class SwitchElm extends CircuitElm {
 
     // helper methods for keyboard shortcut edit field, usable by subclasses
     getKeyShortcutEditInfo(): EditInfo {
-        return new EditInfo("Keyboard Shortcut",
+        const ei = new EditInfo("Keyboard Shortcut",
             this.keyShortcut === null ? "" : KeyNames.displayText(this.keyShortcut)!).setKeyCapture();
+        ei.keyButton = new Checkbox("Sidebar Button", this.keyShortcut !== null && this.buttonOrder > 0);
+        return ei;
     }
 
     setKeyShortcutEditValue(ei: EditInfo): void {
         this.keyShortcut = KeyNames.parseName(ei.textf!.value);
+        if (this.keyShortcut === null || !ei.keyButton!.getState())
+            this.buttonOrder = 0;
+        else if (this.buttonOrder === 0)
+            this.buttonOrder = this.nextButtonOrder();	// newly added button goes at the end of the row
+    }
+
+    nextButtonOrder(): number {
+        let max = 0;
+        for (const ce of CircuitElm.sim.elmList)
+            if (ce instanceof SwitchElm)
+                max = Math.max(max, ce.buttonOrder);
+        return max + 1;
     }
 
     addRoutingObstacle(router: WireRouter): void {

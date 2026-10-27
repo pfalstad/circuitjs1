@@ -33,6 +33,9 @@ export class EditInfo {
     newColumn: boolean = false;
     // text field captures a key press (like Edit Shortcuts) instead of taking typed text
     keyCapture: boolean = false;
+    // with keyCapture: optional checkbox under the key field, only usable while a key is set
+    // (switch "Sidebar Button")
+    keyButton: Checkbox | null = null;
     positive: boolean = false;
     nonNegative: boolean = false;
     integer: boolean = false;
