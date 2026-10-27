@@ -20,18 +20,37 @@
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
 import { ScrollValuePopup } from "./ScrollValuePopup";
+import { ElementFactory } from "./ElementFactory";
 import { Locale } from "./Locale";
 
 // popup for toggling MOSFET/JFET/transistor type on scroll wheel, similar to
-// ScrollValuePopup for R/C/L values
+// ScrollValuePopup for R/C/L values.
+// Also cycles logic gates through AND/NAND/OR/NOR/XOR/XNOR. Gate type is the
+// element's class, not a field, so each step replaces the element with a new
+// one of the next class. Invert Inputs and DeMorgan are cleared on each step
+// (Invert Inputs changes the gate's function). A scope on the gate is removed,
+// same as deleting the gate.
 export class TypeScrollPopup {
 
     private myElm: any;
+    private originalElm: any;
     private sim: CirSim;
     private originalPnp: number;
     private currentPnp: number;
+    private gateIndex = 0;
     private typeLabel!: HTMLDivElement;
     private deltaY = 0;
+    private stepsDone = 0;
+
+    // gate cycle order (wraps). the current gate is found by dump type; the next
+    // one is created through ElementFactory by class name.
+    private static readonly gateDumpTypes = [150, 151, 152, 153, 154, 431];
+    private static readonly gateClasses = ["AndGateElm", "NandGateElm", "OrGateElm",
+                                           "NorGateElm", "XorGateElm", "XnorGateElm"];
+    // GateElm flags (not imported, to keep elements out of this file)
+    private static readonly GATE_FLAG_SMALL = 1<<0;
+    private static readonly GATE_FLAG_INVERT_INPUTS = 1<<2;
+    private static readonly GATE_FLAG_DEMORGAN = 1<<3;
 
     private panel: HTMLDivElement;
     private closed = false;
@@ -50,11 +69,14 @@ export class TypeScrollPopup {
 
     constructor(x: number, y: number, dy: number, elm: CircuitElm, sim: CirSim) {
         this.myElm = elm;
+        this.originalElm = elm;
         this.sim = sim;
         this.sim.undoManager.pushUndo();
 
         this.originalPnp = this.myElm.pnp;
         this.currentPnp = this.originalPnp;
+        if (this.myElm.isGateElm())
+            this.gateIndex = TypeScrollPopup.gateDumpTypes.indexOf(this.myElm.getDumpType());
 
         this.panel = document.createElement("div");
         this.panel.className = "scrollValuePopup";
@@ -93,25 +115,61 @@ export class TypeScrollPopup {
             return Locale.LS("JFET Type");
         if (this.myElm.isMosfetElm())
             return Locale.LS("MOSFET Type");
+        if (this.myElm.isGateElm())
+            return Locale.LS("Gate Type");
         return Locale.LS("Transistor Type");
     }
 
     doDeltaY(dy: number): void {
-        this.deltaY += dy;
-        // toggle on every 30 units of scroll (same sensitivity as ScrollValuePopup)
-        while (this.deltaY >= 30) {
-            this.deltaY -= 30;
-            this.toggle();
+        // same as ScrollValuePopup (#421): a single wheel event moves at most one step
+        // (times the sensitivity), so one notch is one step on any browser; small
+        // trackpad deltas still accumulate
+        dy /= (window.devicePixelRatio || 1);
+        this.deltaY += Math.max(-ScrollValuePopup.scale, Math.min(ScrollValuePopup.scale, dy));
+        const steps = Math.round(this.sim.mouse.wheelSensitivity * this.deltaY / ScrollValuePopup.scale);
+        while (this.stepsDone < steps) {
+            this.stepsDone++;
+            this.toggle(1);
         }
-        while (this.deltaY <= -30) {
-            this.deltaY += 30;
-            this.toggle();
+        while (this.stepsDone > steps) {
+            this.stepsDone--;
+            this.toggle(-1);
         }
     }
 
-    private toggle(): void {
+    private stepGate(dir: number): void {
+        const old = this.myElm;
+        const n = TypeScrollPopup.gateClasses.length;
+        this.gateIndex = (this.gateIndex + dir + n) % n;
+        const g = ElementFactory.create(TypeScrollPopup.gateClasses[this.gateIndex], old.x, old.y);
+        g.x2 = old.x2;
+        g.y2 = old.y2;
+        g.flags = old.flags & ~(TypeScrollPopup.GATE_FLAG_INVERT_INPUTS | TypeScrollPopup.GATE_FLAG_DEMORGAN);
+        g.inputCount = old.inputCount;
+        g.highVoltage = old.highVoltage;
+        g.propagationDelay = old.propagationDelay;
+        g.setSize((g.flags & TypeScrollPopup.GATE_FLAG_SMALL) !== 0 ? 1 : 2);
+        g.allocNodes();
+        g.setupVolts();
+        g.setPoints();
+        this.replaceElm(g);
+    }
+
+    // put newElm in myElm's place in the circuit
+    private replaceElm(newElm: any): void {
+        const i = this.sim.locateElm(this.myElm);
+        this.sim.elmList[i] = newElm;
+        newElm.setSelected(this.myElm.isSelected());
+        this.sim.mouse.setMouseElm(newElm);
+        this.myElm = newElm;
+        this.sim.scopeManager.deleteUnusedScopeElms();
+    }
+
+    private toggle(dir: number): void {
         const e = this.myElm;
-        if (e.isMosfetElm()) {
+        if (e.isGateElm()) {
+            this.stepGate(dir);
+        } else if (e.isMosfetElm()) {
             e.pnp = -e.pnp;
             e.flags ^= e.FLAG_PNP;
             e.setPoints();
@@ -127,7 +185,9 @@ export class TypeScrollPopup {
 
     private updateLabel(): void {
         let text: string;
-        if (this.myElm.isMosfetElm()) {
+        if (this.myElm.isGateElm()) {
+            text = Locale.LS(this.myElm.getGateName());
+        } else if (this.myElm.isMosfetElm()) {
             text = this.myElm.isJfetElm()
                 ? (this.currentPnp === -1 ? Locale.LS("P-Channel JFET") : Locale.LS("N-Channel JFET"))
                 : (this.currentPnp === -1 ? Locale.LS("P-Channel") : Locale.LS("N-Channel"));
@@ -143,8 +203,14 @@ export class TypeScrollPopup {
         this.closed = true;
         if (!keepChanges) {
             // revert to original state
-            while (this.currentPnp !== this.originalPnp)
-                this.toggle();
+            if (this.myElm !== this.originalElm) {
+                // gate: put the original element back, flags and all
+                this.replaceElm(this.originalElm);
+                this.sim.needAnalyze();
+            } else {
+                while (this.currentPnp !== this.originalPnp)
+                    this.toggle(1);
+            }
         }
         this.panel.remove();
         CirSim.typeScrollPopup = null;
