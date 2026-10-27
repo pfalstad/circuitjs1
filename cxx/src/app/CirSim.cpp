@@ -1432,7 +1432,41 @@ void CirSim::doEdit(Editable *e) {
     QPoint topRight = mapToGlobal(QPoint(width() - Sidebar::WIDTH - 16, 70));
     editDialog->move(topRight.x() - editDialog->width(), topRight.y());
     editDialog->show();
+    if (CircuitElm *ce = dynamic_cast<CircuitElm *>(e))
+        positionEditDialogNear(ce);
     editDialog->raise();
+}
+
+// place the edit dialog beside the element being edited (right side preferred, else left),
+// so it doesn't cover it.  If there isn't room on either side, leave it docked.
+void CirSim::positionEditDialogNear(CircuitElm *elm) {
+    const Rectangle &bb = elm->boundingBox;
+    const auto &t = transform;
+    QRect cr(canvasWidget()->mapToGlobal(QPoint(0, 0)), canvasWidget()->size());
+    double ex1 = cr.left() + bb.x * t[0] + t[4];
+    double ex2 = cr.left() + (bb.x + bb.width) * t[0] + t[4];
+    double ey1 = cr.top() + bb.y * t[3] + t[5];
+    double ey2 = cr.top() + (bb.y + bb.height) * t[3] + t[5];
+    // frame size, since move() positions the frame
+    int w = editDialog->frameGeometry().width();
+    int h = editDialog->frameGeometry().height();
+    const int gap = 64;
+    const int margin = 8;
+
+    double x;
+    if (ex2 + gap + w <= cr.right() - margin)
+        x = ex2 + gap;
+    else if (ex1 - gap - w >= cr.left() + margin)
+        x = ex1 - gap - w;
+    else
+        return;
+
+    // vertically center on the element, kept within the canvas area
+    double y = (ey1 + ey2) / 2 - h / 2.0;
+    y = std::min(y, (double) std::max(cr.top(), cr.bottom() - h) - margin);
+    y = std::max(y, (double) cr.top() + margin);
+
+    editDialog->move((int) x, (int) y);
 }
 
 void CirSim::doEditModel(Editable *e) {

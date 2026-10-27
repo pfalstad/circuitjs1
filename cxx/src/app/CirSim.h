@@ -225,6 +225,7 @@ public:
     EditDialog *modelEditDialog = nullptr;  // the custom logic chip's Edit Model dialog
     void doEditModel(Editable *e) override;
     void doEdit(Editable *e);
+    void positionEditDialogNear(CircuitElm *elm);
     void closeEditDialog() override;
     void editDialogClosed(EditDialog *d);
     void resetEditDialog() override;

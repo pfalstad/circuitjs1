@@ -526,6 +526,43 @@ export class EditDialog extends Dialog {
         // dock to the left of the element-picker sidebar, not on top of it
         this.dialogEl.style.right = (UIManager.VERTICALPANELWIDTH + 16) + "px";
         this.dialogEl.show();
+        this.positionNearElement(this.elm);
+    }
+
+    // place the dialog beside the element being edited (right side preferred, else left),
+    // so it doesn't cover it.  If there isn't room on either side, leave it docked.
+    private positionNearElement(elm: CircuitElm): void {
+        const cv: HTMLCanvasElement | undefined = this.cframe.ui?.cv;
+        const bb = elm.boundingBox;
+        if (!cv || !bb)
+            return;
+        const t = this.cframe.transform;
+        const cr = cv.getBoundingClientRect();
+        const ex1 = cr.left + bb.x * t[0] + t[4];
+        const ex2 = cr.left + (bb.x + bb.width) * t[0] + t[4];
+        const ey1 = cr.top + bb.y * t[3] + t[5];
+        const ey2 = cr.top + (bb.y + bb.height) * t[3] + t[5];
+        const w = this.dialogEl.offsetWidth;
+        const h = this.dialogEl.offsetHeight;
+        const gap = 64;
+        const margin = 8;
+
+        let x: number;
+        if (ex2 + gap + w <= cr.right - margin)
+            x = ex2 + gap;
+        else if (ex1 - gap - w >= cr.left + margin)
+            x = ex1 - gap - w;
+        else
+            return;
+
+        // vertically center on the element, kept within the canvas area
+        let y = (ey1 + ey2) / 2 - h / 2;
+        y = Math.min(y, Math.max(cr.top, window.innerHeight - h) - margin);
+        y = Math.max(y, cr.top + margin);
+
+        this.dialogEl.style.right = "auto";
+        this.dialogEl.style.left = x + "px";
+        this.dialogEl.style.top = y + "px";
     }
 
     closeDialog(): void {
