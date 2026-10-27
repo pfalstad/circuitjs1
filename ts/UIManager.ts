@@ -1592,6 +1592,7 @@ export class UIManager {
 
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
+        this.lastKeyDownCode = code;
 
         // Handle a press-and-drag gesture started on a toolbar icon, which may end up
         // anywhere on the page (not just over the canvas), so it needs to be tracked here.
@@ -1726,8 +1727,13 @@ export class UIManager {
         let customShortcutHandled = false;
         const placeholder = KeyNames.keyCodeToPlaceholder(code, e.shiftKey, e.ctrlKey, e.altKey, e.metaKey);
         if (placeholder >= 0 && !e.repeat) {
+            // switch keys in this circuit take precedence over simulator shortcuts
             const c = this.app.shortcuts.get(placeholder);
-            if (c != null) {
+            if (this.toggleSwitchesForKey(String.fromCharCode(placeholder), code)) {
+                e.preventDefault();
+                this.app.repaint();
+                customShortcutHandled = true;
+            } else if (c != null) {
                 if (c.startsWith("cmd:")) {
                     const parts = c.split(":");
                     this.app.commands.menuPerformed(parts[1], parts[2]);
@@ -1786,15 +1792,17 @@ export class UIManager {
         if (this.isReadOnly())
             return;
 
-        // handle momentary switches with keyboard shortcuts
-        const keyStr = String.fromCharCode(code).toLowerCase();
+        // handle momentary switches with keyboard shortcuts. Matched by the keyCode that
+        // pressed the switch, so it works for any key (punctuation, F-keys, Ctrl-<key>)
+        // and even if the modifier is let go first.
         let released = false;
         for (let i = 0; i !== this.elmList.length; i++) {
             const ce = this.elmList[i];
             if (ce instanceof SwitchElm) {
                 const se = ce as SwitchElm;
-                if (se.momentary && se.keyShortcut != null && se.keyShortcut === keyStr) {
+                if (se.momentary && se.heldKeyCode !== 0 && se.heldKeyCode === code) {
                     se.mouseUp();
+                    se.heldKeyCode = 0;
                     released = true;
                 }
             }
@@ -1836,22 +1844,9 @@ export class UIManager {
         // (cc==32 for spacebar is included so it can be assigned as a shortcut too;
         // it falls back to the hardcoded temporary-select-mode behavior below if unassigned)
         if (cc >= 32 && cc < 127) {
-            const keyStr = String.fromCharCode(cc).toLowerCase();
             let toggled = false;
-            if (!e.repeat) {
-                for (let i = 0; i !== this.elmList.length; i++) {
-                    const ce = this.elmList[i];
-                    if (ce instanceof SwitchElm) {
-                        const se = ce as SwitchElm;
-                        if (se.keyShortcut != null && se.keyShortcut === keyStr) {
-                            se.toggle();
-                            if (!se.isLogicInputElm())
-                                this.app.needAnalyze();
-                            toggled = true;
-                        }
-                    }
-                }
-            }
+            if (!e.repeat)
+                toggled = this.toggleSwitchesForKey(String.fromCharCode(cc), this.lastKeyDownCode);
             if (toggled) {
                 e.preventDefault();
                 this.app.repaint();
@@ -1865,6 +1860,30 @@ export class UIManager {
                 e.preventDefault();
             }
         }
+    }
+
+    // keyCode of the most recent keydown; keypress doesn't give a usable one, and momentary
+    // switches need it to know which key-up releases them
+    lastKeyDownCode = 0;
+
+    // toggle every switch whose key matches (a stored shortcut char, see KeyNames).
+    // Returns true if any did.
+    toggleSwitchesForKey(key: string, keyCode: number): boolean {
+        let toggled = false;
+        for (let i = 0; i !== this.elmList.length; i++) {
+            const ce = this.elmList[i];
+            if (ce instanceof SwitchElm) {
+                const se = ce as SwitchElm;
+                if (se.keyShortcut != null && se.keyShortcut === key) {
+                    se.toggle();
+                    se.heldKeyCode = keyCode;
+                    if (!se.isLogicInputElm())
+                        this.app.needAnalyze();
+                    toggled = true;
+                }
+            }
+        }
+        return toggled;
     }
 
     // select the tool (or run the command) assigned to the key with char code cc.

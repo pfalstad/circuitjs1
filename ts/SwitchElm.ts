@@ -28,6 +28,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { WireRouter } from "./WireRouter";
 import { parseIntStrict } from "./NumberParse";
+import { KeyNames } from "./KeyNames";
 
 // SPST switch
 export class SwitchElm extends CircuitElm {
@@ -40,7 +41,10 @@ export class SwitchElm extends CircuitElm {
     static readonly FLAG_IEC = 2;
     static readonly FLAG_LABEL = 4;
     label: string | null;
+    // stored like a simulator shortcut: a single char, either the typed character or a
+    // KeyNames placeholder (F-keys, Ctrl-<key>, etc). Saved in files by readable name.
     keyShortcut: string | null;
+    heldKeyCode = 0; // keyCode that pressed this (momentary) switch, so key-up can release it
 
     constructor(xx: number, yy: number);
     constructor(xx: number, yy: number, mm: boolean);
@@ -89,7 +93,7 @@ export class SwitchElm extends CircuitElm {
         if (this.label !== null)
             CircuitXMLSerializer.dumpAttr(elem, "lab", this.label);
         if (this.keyShortcut !== null)
-            CircuitXMLSerializer.dumpAttr(elem, "key", this.keyShortcut);
+            CircuitXMLSerializer.dumpAttr(elem, "key", KeyNames.displayText(this.keyShortcut)!);
         if (this.resistance !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);
     }
@@ -99,7 +103,7 @@ export class SwitchElm extends CircuitElm {
         this.position = xml.parseIntAttr("p", this.position);
         this.momentary = xml.parseBooleanAttr("mm", this.momentary);
         this.label = xml.parseStringAttr("lab", this.label);
-        this.keyShortcut = xml.parseStringAttr("key", this.keyShortcut);
+        this.keyShortcut = KeyNames.parseName(xml.parseStringAttr("key", null));
         this.resistance = xml.parseDoubleAttr("r", 0);
     }
 
@@ -294,15 +298,12 @@ export class SwitchElm extends CircuitElm {
 
     // helper methods for keyboard shortcut edit field, usable by subclasses
     getKeyShortcutEditInfo(): EditInfo {
-        return new EditInfo("Keyboard Shortcut", this.keyShortcut === null ? "" : this.keyShortcut);
+        return new EditInfo("Keyboard Shortcut",
+            this.keyShortcut === null ? "" : KeyNames.displayText(this.keyShortcut)!).setKeyCapture();
     }
 
     setKeyShortcutEditValue(ei: EditInfo): void {
-        const s = ei.textf!.value.trim();
-        if (s.length === 0)
-            this.keyShortcut = null;
-        else
-            this.keyShortcut = s.substring(0, 1).toLowerCase();
+        this.keyShortcut = KeyNames.parseName(ei.textf!.value);
     }
 
     addRoutingObstacle(router: WireRouter): void {

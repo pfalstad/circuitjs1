@@ -26,6 +26,7 @@ import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
 import { parseFloatStrict } from "./NumberParse";
+import { KeyNames } from "./KeyNames";
 
 const ROOT2 = 1.41421356237309504880;
 
@@ -241,6 +242,8 @@ export class EditDialog extends Dialog {
                     inp.value = ei.text;
                     if (ei.isColor)
                         inp.type = "color";
+                    if (ei.keyCapture)
+                        EditDialog.addKeyCapture(inp);
                     this.activeCol.appendChild(inp);
                 } else {
                     inp.value = this.unitString(ei);
@@ -249,6 +252,33 @@ export class EditDialog extends Dialog {
             }
         }
         this.einfocount = i;
+    }
+
+    // Make a text field capture a key press the same way Edit Shortcuts does: plain keys
+    // come from keypress (so the typed character is used), F-keys/Home/etc and anything
+    // with Ctrl/Alt/Meta come from keydown as a placeholder. Backspace/Delete clears it.
+    // The field holds the readable name (KeyNames.displayText); parse it back with
+    // KeyNames.parseName.
+    static addKeyCapture(inp: HTMLInputElement): void {
+        inp.readOnly = true;
+        inp.addEventListener("keydown", (ev: KeyboardEvent) => {
+            const keyCode = ev.keyCode;
+            const placeholder = KeyNames.keyCodeToPlaceholder(keyCode, ev.shiftKey,
+                ev.ctrlKey, ev.altKey, ev.metaKey);
+            if (placeholder >= 0) {
+                ev.preventDefault();
+                inp.value = KeyNames.displayText(String.fromCharCode(placeholder)) ?? "";
+            } else if (keyCode === 8 /* backspace */ || keyCode === 46 /* delete */) {
+                ev.preventDefault();
+                inp.value = "";
+            }
+        });
+        inp.addEventListener("keypress", (ev: KeyboardEvent) => {
+            ev.preventDefault();
+            const cc = ev.charCode ?? ev.which;
+            if (cc >= 32 && cc < 127)
+                inp.value = KeyNames.displayText(String.fromCharCode(cc)) ?? "";
+        });
     }
 
     // preferred-value series used by stepE12(), repeating every decade (reused from the E12
