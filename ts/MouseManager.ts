@@ -1030,7 +1030,7 @@ export class MouseManager {
 	    (this.mouseElm as any).onDoubleClick();
 	    return;
 	}
-	if (!this.mouseElm.isSwitchElm() && this.mouseElm.hasProperties() && !this.ui.isReadOnly())
+	if (!this.mouseElm.isSwitchElm() && this.mouseElm.hasProperties() && this.ui.canEditProperties(this.mouseElm))
 	    this.sim.commands.doEdit(this.mouseElm);
     }
 
@@ -1261,7 +1261,7 @@ export class MouseManager {
 
 	if (createdElm != null) {
 	    this.editCreatedElm(createdElm);
-	} else if (clickedElm != null && !(e as any).fromTouch && !this.ui.isReadOnly() &&
+	} else if (clickedElm != null && !(e as any).fromTouch && this.ui.canEditProperties(clickedElm) &&
 		   this.sim.showPropsOnClick) {
 	    // (tapping an element on a touch screen doesn't bring up its properties)
 	    // (clicking the element whose properties are already showing dismisses them)

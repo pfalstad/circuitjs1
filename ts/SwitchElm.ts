@@ -94,13 +94,21 @@ export class SwitchElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "r", this.resistance);
     }
 
+    // the position is also state, so it's saved per instance inside a subcircuit (the
+    // dumpXml copy is the default, e.g. in a subcircuit model).  always written, so a switch
+    // moved to position 0 doesn't get the model's position back on reload
+    dumpXmlState(doc: Document, elem: Element): void {
+        super.dumpXmlState(doc, elem);
+        CircuitXMLSerializer.dumpAttr(elem, "p", this.position);
+    }
+
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.position = xml.parseIntAttr("p", this.position);
         this.momentary = xml.parseBooleanAttr("mm", this.momentary);
         this.label = xml.parseStringAttr("lab", this.label);
         this.keyShortcut = xml.parseStringAttr("key", this.keyShortcut);
-        this.resistance = xml.parseDoubleAttr("r", 0);
+        this.resistance = xml.parseDoubleAttr("r", this.resistance);
     }
 
     ps: Point = new Point();

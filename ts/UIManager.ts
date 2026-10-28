@@ -40,6 +40,7 @@ import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { EditDialog } from "./EditDialog";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -1408,6 +1409,19 @@ export class UIManager {
 
     isReadOnly(): boolean {
         return this.menus.noEditCheckItem.getState() || this.subcircuitStack.length > 0;
+    }
+
+    isViewingSubcircuit(): boolean {
+        return this.subcircuitStack.length > 0;
+    }
+
+    // can elm's properties be edited?  inside a subcircuit view, only state fields can be
+    // (see EditDialog's state-only mode), so only elements that have some
+    canEditProperties(elm: CircuitElm): boolean {
+        if (!this.isReadOnly())
+            return true;
+        return this.isViewingSubcircuit() && !this.menus.noEditCheckItem.getState() &&
+            EditDialog.hasStateFields(elm);
     }
 
     // show an element (menu bar) as a floating context-menu popup at the given client coordinates

@@ -286,6 +286,13 @@ export abstract class CompositeElm extends CircuitElm {
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
+        this.undumpChildState(xml, false);
+    }
+
+    // restore inner elements' state from the children of the current XML element, as written
+    // by dumpXmlState().  if lenient, children whose type doesn't match the element now at
+    // that index (the model changed) are skipped instead of failing.
+    undumpChildState(xml: CircuitXMLDeserializer, lenient: boolean): void {
         const state = xml.currentXmlElement;
 
         for (const elem of xml.getChildElements()) {
@@ -296,8 +303,11 @@ export abstract class CompositeElm extends CircuitElm {
                 continue;
             }
             const ce = this.compElmList[ix];
-            if (elem.tagName !== ce.getXmlDumpType())
+            if (elem.tagName !== ce.getXmlDumpType()) {
+                if (lenient)
+                    continue;
                 throw new Error("dump type mismatch for composite child: " + ix);
+            }
             ce.undumpXml(xml);
         }
 

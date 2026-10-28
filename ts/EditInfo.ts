@@ -31,6 +31,9 @@ export class EditInfo {
     noSliders: boolean = false;
     isColor: boolean = false;
     newColumn: boolean = false;
+    // field edits per-instance state (saved by dumpXmlState), so it can be edited even on
+    // elements inside a subcircuit instance, where other fields are read-only
+    isState: boolean = false;
     positive: boolean = false;
     nonNegative: boolean = false;
     integer: boolean = false;
@@ -78,6 +81,7 @@ export class EditInfo {
     setUnitStep(): EditInfo { this.unitStep = true; return this; }
     disallowSliders(): EditInfo { this.noSliders = true; return this; }
     setIsColor(): EditInfo { this.isColor = true; return this; }
+    setIsState(): EditInfo { this.isState = true; return this; }
     newColumnMethod(): EditInfo { this.newColumn = true; return this; }
     changeFlag(flags: number, bit: number): number {
         if (this.checkbox.getState())

@@ -89,6 +89,8 @@ export class CircuitLoader {
             SubcircuitModel.clearLocalModels();
         }
         if (this.app.ui.subcircuitStack.length > 0) {
+            // (the editor may be showing an inner element of an instance that's about to be replaced)
+            CirSim.editDialog?.closeDialog();
             this.app.ui.subcircuitStack.length = 0;
             this.app.ui.elmList = this.app.elmList;
             this.app.ui.updateSubcircuitPath();
