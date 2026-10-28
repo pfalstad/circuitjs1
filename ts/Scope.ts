@@ -686,6 +686,8 @@ export class Scope {
 
         if (this.plot2d.enabled) {
             this.plot2d.draw(g);
+            if (this.properties !== null && this.properties.isShowing())
+                this.properties.refreshTrail();
             return;
         }
 

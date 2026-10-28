@@ -51,6 +51,9 @@ export class ScopePlot2d {
     trailPersistence: number = 0;
     static readonly DEFAULT_TRAIL_PERSISTENCE = 0;
     lastTrailSimTime: number = -1;
+    // measured sim time per drawn frame, to express the frame-based default fade in sim time
+    simPerFrame: number = 0;
+    private lastFrameSimTime: number = -1;
 
     scope: Scope;
 
@@ -430,6 +433,19 @@ export class ScopePlot2d {
         return this.dispLo[a] + f * (this.dispHi[a] - this.dispLo[a]);
     }
 
+    // Trail time constant (sim seconds) of the default fade: alpha .01 every 3 frames, so
+    // 3/-ln(.99) ~= 298 frames.  0 if the sim hasn't run yet.
+    defaultTrailTime(): number {
+        return this.simPerFrame * 3 / -Math.log(.99);
+    }
+
+    // trail time constant actually in use (sim seconds)
+    trailTime(): number {
+        if (this.trailPersistence <= 0)
+            return this.defaultTrailTime();
+        return this.trailPersistence * this.scope.sim.maxTimeStep;
+    }
+
     draw(g: Graphics): void {
         if (this.imageContext === null)
             return;
@@ -437,6 +453,12 @@ export class ScopePlot2d {
         g.context.translate(this.scope.rect.x, this.scope.rect.y);
         g.clipRect(0, 0, this.scope.rect.width, this.scope.rect.height);
 
+        const ft = this.scope.sim.t;
+        if (this.lastFrameSimTime >= 0 && ft > this.lastFrameSimTime) {
+            const d = ft - this.lastFrameSimTime;
+            this.simPerFrame = (this.simPerFrame === 0) ? d : this.simPerFrame * .95 + d * .05;
+        }
+        this.lastFrameSimTime = ft;
         this.alphaCounter++;
         if (this.alphaCounter > 2) {
             this.alphaCounter = 0;
