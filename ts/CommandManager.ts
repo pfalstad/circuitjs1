@@ -268,13 +268,21 @@ export class CommandManager {
                 s = (this.app.mouse.menuElm as any)?.elmScope;
 
             if (item == "dock") {
-                if (sm.scopeCount == sm.scopes.length)
+                const elm = this.app.mouse.menuElm as any;
+                if (sm.scopeCount == sm.scopes.length || !elm?.elmScope)
                     return;
-                sm.scopes[sm.scopeCount] = (this.app.mouse.menuElm as any)?.elmScope;
-                (this.app.mouse.menuElm as any)?.clearElmScope();
+                sm.scopes[sm.scopeCount] = elm.elmScope;
+                elm.clearElmScope();
                 sm.scopes[sm.scopeCount].position = sm.scopeCount;
                 sm.scopeCount++;
-                this.doDelete(false);
+                // remove the floating scope element itself.  (doDelete() would miss it, since
+                // it's not the mouse element any more, and would delete any selected elements)
+                const i = this.app.elmList.indexOf(elm);
+                if (i >= 0) {
+                    elm.delete();
+                    this.app.elmList.splice(i, 1);
+                }
+                this.app.needAnalyze();      // need to rebuild scopeElmArr
             }
             if (item == "undock") {
                 const elm = s.getElm();
