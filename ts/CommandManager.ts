@@ -144,7 +144,8 @@ export class CommandManager {
             this.app.mouse.menuElm = this.app.mouse.getMouseElm();
             menu = "elm";
         }
-        if (menu != "elm")
+        // keep menuElm for the floating scope menu too: it is how scopepop finds its scope
+        if (menu != "elm" && menu != "scopepop")
             this.app.mouse.menuElm = null;
 
         if (item == "cut")
@@ -262,13 +263,15 @@ export class CommandManager {
             if (sm.menuScope != -1)
                 s = sm.scopes[sm.menuScope];
             else
-                s = this.app.mouse.getMouseElm()?.elmScope;
+                // floating scope: use the element the menu was opened on.  mouseElm is cleared
+                // once the mouse leaves the canvas to reach the menu
+                s = (this.app.mouse.menuElm as any)?.elmScope;
 
             if (item == "dock") {
                 if (sm.scopeCount == sm.scopes.length)
                     return;
-                sm.scopes[sm.scopeCount] = this.app.mouse.getMouseElm()?.elmScope;
-                this.app.mouse.getMouseElm()?.clearElmScope();
+                sm.scopes[sm.scopeCount] = (this.app.mouse.menuElm as any)?.elmScope;
+                (this.app.mouse.menuElm as any)?.clearElmScope();
                 sm.scopes[sm.scopeCount].position = sm.scopeCount;
                 sm.scopeCount++;
                 this.doDelete(false);
