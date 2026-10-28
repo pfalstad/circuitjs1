@@ -60,7 +60,9 @@ export class BusLogicInputElm extends SwitchElm {
 
     dumpXmlState(doc: Document, elem: Element): void {
         super.dumpXmlState(doc, elem);
-        CircuitXMLSerializer.dumpAttr(elem, "va", this.value);
+        // (for top-level elements, dumpXml may have written it already)
+        if (elem.getAttribute("va") === null)
+            CircuitXMLSerializer.dumpAttr(elem, "va", this.value);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
