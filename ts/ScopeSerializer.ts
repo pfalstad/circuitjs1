@@ -144,6 +144,10 @@ export class ScopeSerializer {
             xmlElm.setAttribute("x", this.scope.text);
         if (this.scope.plot2d.trailPersistence !== ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE)
             CircuitXMLSerializer.dumpAttr(xmlElm, "tp", this.scope.plot2d.trailPersistence);
+        if (!this.scope.plot2d.includeOrigin)
+            CircuitXMLSerializer.dumpAttr(xmlElm, "xyo", 0);
+        if (this.scope.plot2d.alignX)
+            CircuitXMLSerializer.dumpAttr(xmlElm, "xya", 1);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -160,6 +164,8 @@ export class ScopeSerializer {
         this.scope.manDivisions = xml.parseIntAttr("md", 8);
         this.scope.text = xml.parseStringAttr("x", null);
         this.scope.plot2d.trailPersistence = xml.parseIntAttr("tp", ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE);
+        this.scope.plot2d.includeOrigin = xml.parseIntAttr("xyo", 1) !== 0;
+        this.scope.plot2d.alignX = xml.parseIntAttr("xya", 0) !== 0;
         // All of these must be read before parseChildElement() changes the XML context
         // to a child <p> element.
         this.scope.trigger.undumpXml(xml);
