@@ -29,6 +29,10 @@ public:
     bool stopped = false;
     bool conditionActive = false;
     bool durationMet = false;
+    // armed: we've seen the condition false at least once since reset, so a later
+    // true counts as a real transition (edge).  Without this, a condition that is
+    // already true when the circuit loads/resets would stop the sim on the first step.
+    bool armed = false;
     double delay = 0;
     double triggerTime = 0;
     double requiredDuration = 0;

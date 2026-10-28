@@ -64,6 +64,7 @@ void StopTriggerElm::reset() {
     conditionActive = false;
     durationMet = false;
     triggerCount = 0;
+    armed = false;  // must see the condition go false before it can trigger
 }
 
 void StopTriggerElm::setPoints() {
@@ -90,7 +91,10 @@ void StopTriggerElm::stepFinished() {
     stopped = false;
     bool condition = (type == 0 && nodes[0]->v >= triggerVoltage) ||
         (type == 1 && nodes[0]->v <= triggerVoltage);
-    if (!conditionActive && condition) {
+    if (!condition)
+        armed = true;
+    // ignore the condition until armed, i.e. only a false->true transition starts it
+    if (armed && !conditionActive && condition) {
         conditionActive = true;
         conditionStartTime = sim->t;
         durationMet = false;

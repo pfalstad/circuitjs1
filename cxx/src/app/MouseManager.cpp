@@ -705,8 +705,14 @@ void MouseManager::onDoubleClick(QMouseEvent *e) {
     // Qt sends this in place of the second press (browsers send both), so treat it as
     // a press too; otherwise quick clicks on switches and logic inputs get lost
     onMouseDown(e);
-    // (double-clicking a scope at the bottom shouldn't edit the scope's element)
-    if (mouseElm == nullptr || sim->scopeManager->scopeSelected != -1)
+    // double-clicking a scope, docked or floating, opens the scope popup, same as
+    // right-click; it shouldn't edit the scope's element
+    if (sim->scopeManager->scopeSelected != -1 || (mouseElm != nullptr && mouseElm->isScopeElm())) {
+        endDrag();
+        sim->doPopupMenu(e->globalPosition().toPoint());
+        return;
+    }
+    if (mouseElm == nullptr)
         return;
     if (mouseElm->isSubcircuitElm()) {
         // shows its components if it can, otherwise edits it

@@ -20,6 +20,7 @@
 // right-click menus: element, scope, and (on empty space) the Draw menu
 // (MouseManager.doPopupMenu() and ScopePopupMenu in the TS version)
 
+#include <algorithm>
 #include <functional>
 
 #include <QContextMenuEvent>
@@ -138,7 +139,17 @@ void CirSim::addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se) {
             std::unique_ptr<Scope> sc = se->takeElmScope();
             sc->position = sm->scopeCount;
             sm->addScope(std::move(sc));
-            doDelete();
+            // remove the floating scope element itself.  (doDelete() would miss it, since
+            // it's not the mouse element once the mouse leaves the canvas for the menu,
+            // and would delete any selected elements)
+            auto it = std::find(elmList.begin(), elmList.end(), se);
+            if (it != elmList.end()) {
+                if (mouse.getMouseElm() == se)
+                    mouse.setMouseElm(nullptr);
+                se->deleteElm();
+                elmList.erase(it);
+                delete se;
+            }
         }));
     } else {
         menu.addAction(LS("Undock Scope"), this, act([this, sm, s, si] {
