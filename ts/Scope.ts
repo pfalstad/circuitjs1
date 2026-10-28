@@ -261,6 +261,7 @@ export class Scope {
         this.calcVisiblePlots();
         this.scopeTimeStep = this.sim.maxTimeStep;
         this.plot2d.allocImage();
+        this.plot2d.resetFit();
         this.trigger.reset(this.scopePointCount);
         this.plot2d.lastTrailSimTime = -1;
     }
@@ -1561,6 +1562,16 @@ export class Scope {
         }
         if (mi === "manualscale")
             this.setManualScale(state, true);
+        if (mi === "xyorigin") {
+            this.plot2d.includeOrigin = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
+        if (mi === "xyalignx") {
+            this.plot2d.alignX = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
         if (mi === "plotxy") {
             this.plot2d.plotXY = this.plot2d.enabled = state;
             if (this.plot2d.enabled) {

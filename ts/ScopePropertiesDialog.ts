@@ -156,6 +156,8 @@ export class ScopePropertiesDialog extends Dialog {
     private xyPlotsSection: ExpandingSection;
     private viBox: ScopeCheckBox;
     private xyBox: ScopeCheckBox;
+    private xyOriginBox: ScopeCheckBox;
+    private xyAlignBox: ScopeCheckBox;
     private xySettingsDiv: HTMLDivElement;
     private xyPlotXBox: HTMLSelectElement;
     private xyPlotYBox: HTMLSelectElement;
@@ -441,6 +443,10 @@ export class ScopePropertiesDialog extends Dialog {
         this.viBox.element.addEventListener('change', () => this.onCheckboxChange(this.viBox));
         this.xyBox = new ScopeCheckBox('Plot X/Y', 'plotxy', xyBasicDiv);
         this.xyBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyBox));
+        this.xyOriginBox = new ScopeCheckBox('Include Origin', 'xyorigin', xyBasicDiv);
+        this.xyOriginBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyOriginBox));
+        this.xyAlignBox = new ScopeCheckBox('Align X', 'xyalignx', xyBasicDiv);
+        this.xyAlignBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyAlignBox));
 
         this.xySettingsDiv = document.createElement('div');
         this.xySettingsDiv.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px;align-items:center;margin-top:4px;';
@@ -684,6 +690,10 @@ export class ScopePropertiesDialog extends Dialog {
         this.rmsBox.setEnabled(scope.canShowRMS());
         this.viBox.setValue(scope.plot2d.enabled && !scope.plot2d.plotXY);
         this.xyBox.setValue(scope.plot2d.plotXY);
+        this.xyOriginBox.setValue(scope.plot2d.includeOrigin);
+        this.xyOriginBox.setEnabled(scope.plot2d.enabled && !scope.isManualScale());
+        this.xyAlignBox.setValue(scope.plot2d.alignX);
+        this.xyAlignBox.setEnabled(scope.plot2d.enabled && !scope.isManualScale());
         this.resistanceBox.setValue(scope.hasPlotValue(Scope.VAL_R));
         this.resistanceBox.setEnabled(scope.canShowResistance());
         if (this.chargeBox !== null)
