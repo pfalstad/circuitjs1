@@ -34,6 +34,7 @@ import { EditDialog } from "./EditDialog";
 import { EditOptions } from "./EditOptions";
 import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { LoadFile } from "./UIManager";
 import { CommandPalette } from "./CommandPalette";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
@@ -93,8 +94,10 @@ export class CommandManager {
             this.app.imageExporter?.doExportAsImage();
         if (item == "copypng") {
             this.app.imageExporter?.doImageToClipboard();
-            if (this.app.ui?.contextPanel != null)
-                this.app.ui.contextPanel.remove(); this.app.ui.contextPanel = null;
+            if (this.app.ui?.contextPanel != null) {
+                this.app.ui.contextPanel.remove();
+                this.app.ui.contextPanel = null;
+            }
         }
         if (item == "exportassvg")
             this.app.imageExporter?.doExportAsSVG();
@@ -107,8 +110,10 @@ export class CommandManager {
         if (item == "recover")
             this.app.undoManager?.doRecover();
 
-        if ((menu == "elm" || menu == "scopepop") && contextPanel != null)
-            contextPanel.remove(); this.app.ui.contextPanel = null;
+        if ((menu == "elm" || menu == "scopepop") && contextPanel != null) {
+            contextPanel.remove();
+            this.app.ui.contextPanel = null;
+        }
         if (menu == "options" && item == "shortcuts") {
             CirSim.dialogShowing = new (window as any).ShortcutsDialog(this.app);
             CirSim.dialogShowing.show();
@@ -322,8 +327,10 @@ export class CommandManager {
 
         // IES: Moved from itemStateChanged()
         if (menu == "main") {
-            if (contextPanel != null)
-                contextPanel.remove(); this.app.ui.contextPanel = null;
+            if (contextPanel != null) {
+                contextPanel.remove();
+                this.app.ui.contextPanel = null;
+            }
             this.app.setMouseMode(MouseManager.MODE_ADD_ELM);
             const s = item;
             if (s.length > 0)
@@ -699,7 +706,7 @@ export class CommandManager {
 
     static electronOpenFileCallback(text: string, name: string): void {
         const app = CirSim.theApp;
-        (window as any).LoadFile?.doLoadCallback(text, name);
+        LoadFile.doLoadCallback(app, text, name);
         app.allowSave(true);
     }
 

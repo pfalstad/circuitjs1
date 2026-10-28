@@ -268,7 +268,7 @@ export class Scrollbar {
     addChangeHandler(fn: () => void): void { this.command = fn; }
 }
 
-class LoadFile {
+export class LoadFile {
     element: HTMLInputElement;
     static isSupported(): boolean { return !!(window.File && window.FileReader); }
 
@@ -292,23 +292,25 @@ class LoadFile {
         }
         const reader = new FileReader();
         reader.onload = () => {
-            const text = reader.result as string;
-            if (CircuitLoader.isSubcircuitLibrary(text)) {
-                // library files just add global subcircuits; keep the current circuit and its title
-                app.loader.readSubcircuitLibrary(text);
-                app.createNewLoadFile();
-                return;
-            }
-            app.undoManager?.pushUndo();
-            app.resetEditingContext();
-            app.loader.readCircuit(text);
+            LoadFile.doLoadCallback(app, reader.result as string, file.name);
             app.createNewLoadFile();
-            app.setCircuitTitle(file.name);
-            ExportAsLocalFileDialog.setLastFileName(file.name);
-            app.unsavedChanges = false;
-            app.savedFlag = true;
         };
         reader.readAsText(file);
+    }
+
+    static doLoadCallback(app: CirSim, text: string, name: string): void {
+        if (CircuitLoader.isSubcircuitLibrary(text)) {
+            // library files just add global subcircuits; keep the current circuit and its title
+            app.loader.readSubcircuitLibrary(text);
+            return;
+        }
+        app.undoManager?.pushUndo();
+        app.resetEditingContext();
+        app.loader.readCircuit(text);
+        app.setCircuitTitle(name);
+        ExportAsLocalFileDialog.setLastFileName(name);
+        app.unsavedChanges = false;
+        app.savedFlag = true;
     }
 }
 
