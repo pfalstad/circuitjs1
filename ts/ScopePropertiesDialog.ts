@@ -444,15 +444,17 @@ export class ScopePropertiesDialog extends Dialog {
         // Trail Persistence (inside XY Plots section)
         const trailDiv = document.createElement('div');
         trailDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;';
-        trailDiv.appendChild(Object.assign(document.createElement('span'), { textContent: Locale.LS('Trail Persistence (time steps)') }));
+        trailDiv.appendChild(Object.assign(document.createElement('span'), { textContent: Locale.LS('Trail Persistence') }));
+        // slider 0 = default (frame-based fade); 1..TRAIL_MAX = 1/100 to 10x the scope's
+        // horizontal time span, logarithmic, 20 steps per decade
         this.trailBar = document.createElement('input');
         this.trailBar.type = 'range';
         this.trailBar.min  = '0';
-        this.trailBar.max  = '61';
-        this.trailBar.value = String(ScopePropertiesDialog.trailStepsToSlider(scope.plot2d.trailPersistence));
+        this.trailBar.max  = String(ScopePropertiesDialog.TRAIL_MAX);
+        this.trailBar.value = String(this.trailTimeToSlider(scope.plot2d.trailTime()));
         this.trailBar.style.flex = '1';
         this.trailBar.addEventListener('input', () => {
-            scope.plot2d.trailPersistence = ScopePropertiesDialog.trailSliderToSteps(Number(this.trailBar.value));
+            scope.plot2d.trailPersistence = this.trailSliderToSteps(Number(this.trailBar.value));
             this.setTrailLabel();
         });
         trailDiv.appendChild(this.trailBar);
@@ -620,6 +622,9 @@ export class ScopePropertiesDialog extends Dialog {
         const newsp = Math.pow(2, 10 - Number(this.speedBar.value)) | 0;
         if (scope.speed !== newsp) scope.setSpeed(newsp);
         this.setScopeSpeedLabel();
+        // the trail keeps its time; its slider range moves with the horizontal span
+        this.trailBar.value = String(this.trailTimeToSlider(scope.plot2d.trailTime()));
+        this.setTrailLabel();
     }
 
     private setScopeSpeedLabel(): void {
@@ -628,11 +633,26 @@ export class ScopePropertiesDialog extends Dialog {
 
     private setTrailLabel(): void {
         if (this.scope.plot2d.trailPersistence <= 0) {
-            this.trailLabel.textContent = Locale.LS('default');
+            // measured value: 2 significant figures, so it doesn't flicker in the last digits
+            const t = this.scope.plot2d.defaultTrailTime();
+            const r = t > 0 ? Number(t.toPrecision(2)) : 0;
+            this.trailLabel.textContent = Locale.LS('default') + (r > 0 ? ' (\u2248' + CircuitElm.getUnitText(r, 's') + ')' : '');
         } else {
-            const maxTs = this.app.sim?.maxTimeStep ?? 0;
-            this.trailLabel.textContent = CircuitElm.getUnitText(this.scope.plot2d.trailPersistence * maxTs, 's');
+            this.trailLabel.textContent = CircuitElm.getUnitText(this.scope.plot2d.trailTime(), 's');
         }
+    }
+
+    // called while drawing: the default trail time is measured live from the sim speed
+    // (twice a second is plenty for a readout)
+    private lastTrailRefresh: number = 0;
+    refreshTrail(): void {
+        if (this.scope.plot2d.trailPersistence > 0)
+            return;
+        const now = performance.now();
+        if (now - this.lastTrailRefresh < 500)
+            return;
+        this.lastTrailRefresh = now;
+        this.setTrailLabel();
     }
 
     private applyTriggerLevel(): void {
@@ -830,14 +850,19 @@ export class ScopePropertiesDialog extends Dialog {
         return s;
     }
 
-    static trailSliderToSteps(v: number): number {
+    static readonly TRAIL_MAX = 61;
+
+    // slider 1..TRAIL_MAX -> span * 10^((v-1)/20 - 2), stored as timesteps; 0 = default
+    trailSliderToSteps(v: number): number {
         if (v <= 0) return 0;
-        return Math.round(Math.pow(10, v / 10));
+        const t = this.scope.plot2d.fitWindow() * Math.pow(10, (v - 1) / 20 - 2);
+        return Math.max(1, Math.round(t / this.scope.sim.maxTimeStep));
     }
 
-    static trailStepsToSlider(steps: number): number {
-        if (steps <= 0) return 0;
-        return Math.round(Math.log10(steps) * 10);
+    trailTimeToSlider(t: number): number {
+        if (t <= 0) return 0;
+        const v = 1 + Math.round(20 * (Math.log10(t / this.scope.plot2d.fitWindow()) + 2));
+        return Math.max(1, Math.min(ScopePropertiesDialog.TRAIL_MAX, v));
     }
 }
 
