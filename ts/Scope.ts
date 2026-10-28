@@ -261,7 +261,8 @@ export class Scope {
         this.calcVisiblePlots();
         this.scopeTimeStep = this.sim.maxTimeStep;
         this.plot2d.allocImage();
-        this.plot2d.resetFit();
+        if (!this.plot2d.keepOnResize)
+            this.plot2d.resetFit();
         this.trigger.reset(this.scopePointCount);
         this.plot2d.lastTrailSimTime = -1;
     }
@@ -393,8 +394,13 @@ export class Scope {
         const w = this.rect.width;
         const h = this.rect.height;
         this.rect = r;
-        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h))
+        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h)) {
+            // a resize (window resize, or Export Image drawing the circuit at another scale)
+            // keeps the X/Y trail and fit; the trail image is just scaled to the new size
+            this.plot2d.keepOnResize = true;
             this.resetGraph();
+            this.plot2d.keepOnResize = false;
+        }
     }
 
     getWidth(): number { return this.rect.width; }

@@ -45,6 +45,7 @@ export class ScopePlot2d {
     private imageCanvas: HTMLCanvasElement | null = null;
     private imageContext: CanvasRenderingContext2D | null = null;
     private tmpCanvas: HTMLCanvasElement | null = null;   // scratch copy of the trail, for rescaling it
+    keepOnResize: boolean = false;   // set by Scope.setRect(): scale the trail to the new size, don't clear it
     private draw_ox: number = -1;
     private draw_oy: number = -1;
     private alphaCounter: number = 0;
@@ -87,13 +88,41 @@ export class ScopePlot2d {
     allocImage(): void {
         if (!this.enabled)
             return;
+        let ow = 0, oh = 0;
         if (this.imageCanvas === null) {
             this.imageCanvas = document.createElement("canvas");
             this.imageContext = this.imageCanvas.getContext("2d");
+        } else {
+            ow = this.imageCanvas.width;
+            oh = this.imageCanvas.height;
         }
-        this.imageCanvas.width  = this.scope.rect.width;
-        this.imageCanvas.height = this.scope.rect.height;
-        this.clearView();
+        const w = this.scope.rect.width, h = this.scope.rect.height;
+        // The pixel mapping is proportional to the scope size (the margins are a fraction of it),
+        // so on a resize the old trail stays correct if it is simply scaled to the new size.
+        const keep = this.keepOnResize && this.haveDisp && ow > 1 && oh > 1 && (ow !== w || oh !== h);
+        if (keep) {
+            if (this.tmpCanvas === null)
+                this.tmpCanvas = document.createElement("canvas");
+            this.tmpCanvas.width = ow;   // also clears it
+            this.tmpCanvas.height = oh;
+            this.tmpCanvas.getContext("2d")!.drawImage(this.imageCanvas, 0, 0);
+        }
+        this.imageCanvas.width  = w;
+        this.imageCanvas.height = h;
+        if (!keep) {
+            this.clearView();
+            return;
+        }
+        this.fillBackground();
+        const sx = w / ow, sy = h / oh;
+        this.imageContext!.save();
+        this.imageContext!.scale(sx, sy);
+        this.imageContext!.drawImage(this.tmpCanvas!, 0, 0);
+        this.imageContext!.restore();
+        if (this.draw_ox !== -1) {
+            this.draw_ox = Math.trunc(this.draw_ox * sx);
+            this.draw_oy = Math.trunc(this.draw_oy * sy);
+        }
     }
 
     clearView(): void {
