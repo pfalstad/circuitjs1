@@ -196,6 +196,29 @@ export class Scope {
         this.resetGraph();
     }
 
+    // Transistor values (Ib/Ic/Ie, Vbe/Vbc/Vce).  In an X/Y or V-vs-I plot they act as two
+    // radio groups, one current and one voltage: picking one replaces the other in the same
+    // plot slot, so the X/Y axis assignment is kept.  Time plots can still show any mix.
+    showTransistorValue(val: number, state: boolean): void {
+        if (!this.plot2d.enabled) {
+            this.showPlotValue(val, state);
+            return;
+        }
+        if (!state)
+            return;  // radio behavior: can't uncheck, the dialog re-syncs the box
+        for (let i = 0; i < this.plots.length; i++) {
+            const p = this.plots[i];
+            if (p.elm !== null && p.elm.isTransistorElm() && p.value >= VAL_IB && p.value <= VAL_VCE &&
+                    p.units === p.elm.getScopeUnits(val)) {
+                this.plots[i] = new ScopePlot(p.elm, p.units, val, this.getManScaleFromMaxScale(p.units, false));
+                this.calcVisiblePlots();
+                this.resetGraph();
+                return;
+            }
+        }
+        this.showPlotValue(val, true);
+    }
+
     showCharge(b: boolean): void { this.showPlotValue(VAL_CHARGE, b); }
     showPower(b: boolean): void  { this.showPlotValue(VAL_POWER, b); }
 
@@ -1443,17 +1466,17 @@ export class Scope {
         if (mi === "showpower")
             this.showPower(state);
         if (mi === "showib")
-            this.showPlotValue(VAL_IB, state);
+            this.showTransistorValue(VAL_IB, state);
         if (mi === "showic")
-            this.showPlotValue(VAL_IC, state);
+            this.showTransistorValue(VAL_IC, state);
         if (mi === "showie")
-            this.showPlotValue(VAL_IE, state);
+            this.showTransistorValue(VAL_IE, state);
         if (mi === "showvbe")
-            this.showPlotValue(VAL_VBE, state);
+            this.showTransistorValue(VAL_VBE, state);
         if (mi === "showvbc")
-            this.showPlotValue(VAL_VBC, state);
+            this.showTransistorValue(VAL_VBC, state);
         if (mi === "showvce")
-            this.showPlotValue(VAL_VCE, state);
+            this.showTransistorValue(VAL_VCE, state);
         if (mi === "showvcevsic") {
             this.plot2d.enabled = true;
             this.plot2d.plotXY = false;
