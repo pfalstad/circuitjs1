@@ -458,7 +458,7 @@ export class Menus {
         // ---- Tools menu ----
         const toolsMenu = new Menu(this.app);
         toolsMenu.addCommand(Locale.LS("Convert Wires to Routed Wires"), "tools", "convertWires");
-        toolsMenu.addCommand(Locale.LS("Subcircuit Manager"),            "tools", "subcircuits");
+        toolsMenu.addCommand(Locale.LS("Subcircuit/Model Manager"),      "tools", "modelmanager");
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----

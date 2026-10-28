@@ -166,7 +166,7 @@ export class CommandPaletteRegistry {
         CommandPaletteRegistry.add("scopes:separateAll", "Separate All", "Scopes", "separate scopes split", "scopes", "separateAll");
 
         CommandPaletteRegistry.add("tools:convertWires", "Convert Wires to Routed Wires", "Tools", "convert wires routed", "tools", "convertWires");
-        CommandPaletteRegistry.add("tools:subcircuits", "Subcircuit Manager", "Tools", "subcircuit manager", "tools", "subcircuits");
+        CommandPaletteRegistry.add("tools:modelmanager", "Model Manager", "Tools", "model manager subcircuit diode transistor", "tools", "modelmanager");
 
         CommandPaletteRegistry.add("key:runstop", "Run/Stop Simulation", "Simulation", "run stop pause start simulation", "key", "runstop");
 

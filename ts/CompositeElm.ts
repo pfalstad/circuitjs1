@@ -134,6 +134,8 @@ export abstract class CompositeElm extends CircuitElm {
                 SubcircuitModel.undumpEmbeddedModelXml(xml);
                 continue;
             }
+            if (SubcircuitModel.undumpEmbeddedElmModelXml(xml, childElem))
+                continue;
             const className = CirSim.xmlDumpTypeMap.get(tagName);
             if (className == null)
                 continue;

@@ -294,9 +294,9 @@ class LoadFile {
         const reader = new FileReader();
         reader.onload = () => {
             const text = reader.result as string;
-            if (CircuitLoader.isSubcircuitLibrary(text)) {
-                // library files just add global subcircuits; keep the current circuit and its title
-                app.loader.readSubcircuitLibrary(text);
+            if (CircuitLoader.isModelLibrary(text)) {
+                // library files just add global models; keep the current circuit and its title
+                app.loader.readModelLibrary(text);
                 app.createNewLoadFile();
                 return;
             }

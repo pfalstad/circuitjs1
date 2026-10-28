@@ -22,9 +22,9 @@
 // For information about the theory behind this, see Electronic Circuit & System Simulation Methods by Pillage
 // or https://github.com/sharpie7/circuitjs1/blob/master/INTERNALS.md
 
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
-import { HookRegistry } from "./HookRegistry";
 
 export class CircuitXMLSerializer {
     app: CirSim;
@@ -126,7 +126,7 @@ export class CircuitXMLSerializer {
                 ce.dumpXmlState(doc, elem);
             root.appendChild(elem);
         }
-        HookRegistry.dumpUnusedLocalSubcircuitModels?.(doc);
+        ModelRegistry.dumpAllUnusedLocal(doc);
         const sm = this.app.scopeManager;
         if (this.saveState)
             for (let i = 0; i !== sm.scopeCount; i++)

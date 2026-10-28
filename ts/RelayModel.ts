@@ -23,6 +23,7 @@ import { Choice } from "./Choice";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 
 interface Comparable<T> {
@@ -30,7 +31,8 @@ interface Comparable<T> {
 }
 
 export class RelayModel implements Editable, Comparable<RelayModel> {
-    static modelMap: Map<string, RelayModel>;
+    static readonly registry = new ModelRegistry<RelayModel>(
+        () => RelayModel.createModelMap(), "relaymodel:", (m, doc) => m.dumpXml(doc));
 
     flags: number = 0;
     name: string;
@@ -83,19 +85,17 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
     }
 
     static getModelWithName(name: string): RelayModel {
-        RelayModel.createModelMap();
-        let lm = RelayModel.modelMap.get(name);
+        let lm = RelayModel.registry.get(name);
         if (lm != null)
             return lm;
         lm = new RelayModel();
         lm.name = name;
-        RelayModel.modelMap.set(name, lm);
+        RelayModel.registry.setGlobal(lm);
         return lm;
     }
 
     static getModelWithNameOrCopy(name: string, oldmodel: RelayModel | null): RelayModel {
-        RelayModel.createModelMap();
-        const lm = RelayModel.modelMap.get(name);
+        const lm = RelayModel.registry.get(name);
         if (lm != null)
             return lm;
         if (oldmodel == null) {
@@ -105,14 +105,12 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
         CirSim.console("relay model not found yet, using placeholder: " + name);
         const copy = new RelayModel(oldmodel);
         copy.name = name;
-        RelayModel.modelMap.set(name, copy);
+        RelayModel.registry.setLocal(copy);
         return copy;
     }
 
-    static createModelMap(): void {
-        if (RelayModel.modelMap != null)
-            return;
-        RelayModel.modelMap = new Map<string, RelayModel>();
+    // add the built-in models (called by the registry when first used)
+    private static createModelMap(): void {
         RelayModel.addDefaultModel("default", new RelayModel());
         const m2 = new RelayModel();
         m2.poleCount = 2;
@@ -123,9 +121,9 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
     }
 
     static addDefaultModel(name: string, rm: RelayModel): void {
-        RelayModel.modelMap.set(name, rm);
         rm.readOnly = rm.builtIn = true;
         rm.name = name;
+        RelayModel.registry.setGlobal(rm);
     }
 
     static getDefaultModel(): RelayModel {
@@ -136,8 +134,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
     static getModelWithParameters(inductance: number, r_on: number, r_off: number,
             onCurrent: number, offCurrent: number, coilR: number, switchingTime: number,
             coilStyle: number, showBox: boolean, pulldown: boolean, poleCount: number): RelayModel {
-        RelayModel.createModelMap();
-        for (const rm of RelayModel.modelMap.values()) {
+        for (const rm of RelayModel.registry.models()) {
             if (Math.abs(rm.inductance    - inductance)    < 1e-15 &&
                 Math.abs(rm.r_on         - r_on)          < 1e-15 &&
                 Math.abs(rm.r_off        - r_off)         < 1e-15 &&
@@ -153,16 +150,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
         }
         const baseName = "old-relay";
         let name = baseName;
-        if (RelayModel.modelMap.get(name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = baseName + "-" + num;
-                if (RelayModel.modelMap.get(n) == null) {
-                    name = n;
-                    break;
-                }
-            }
-        }
+        name = RelayModel.registry.uniqueName(name);
         const rm = RelayModel.getModelWithName(name);
         rm.inductance    = inductance;
         rm.r_on          = r_on;
@@ -179,16 +167,9 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
         return rm;
     }
 
-    static clearDumpedFlags(): void {
-        if (RelayModel.modelMap == null)
-            return;
-        for (const rm of RelayModel.modelMap.values())
-            rm.dumped = false;
-    }
-
     static getModelList(): RelayModel[] {
         const list: RelayModel[] = [];
-        for (const rm of RelayModel.modelMap.values()) {
+        for (const rm of RelayModel.registry.models()) {
             if (!list.includes(rm))
                 list.push(rm);
         }
@@ -208,17 +189,8 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
 
     pickName(): void {
         this.name = "relaymodel";
-        if (RelayModel.modelMap.get(this.name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = this.name + "-" + num;
-                if (RelayModel.modelMap.get(n) == null) {
-                    this.name = n;
-                    break;
-                }
-            }
-        }
-        RelayModel.modelMap.set(this.name, this);
+        this.name = RelayModel.registry.uniqueName(this.name);
+        RelayModel.registry.setLocal(this);
     }
 
     dumpXml(doc: Document): void {
@@ -245,7 +217,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
 
     static undumpModelXml(xml: CircuitXMLDeserializer): RelayModel {
         const name = xml.parseStringAttr("nm", null);
-        const rm = RelayModel.getModelWithName(name);
+        const rm = RelayModel.registry.getForLoad(name!, () => new RelayModel());
         rm.undumpXml(xml);
         return rm;
     }
@@ -307,9 +279,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.value;
-            if (this.name.length > 0)
-                RelayModel.modelMap.set(this.name, this);
+            RelayModel.registry.rename(this, ei.textf.value);
         }
         if (n === 1 && ei.value > 0) this.inductance    = ei.value;
         if (n === 2 && ei.value > 0) this.r_on          = ei.value;
@@ -322,6 +292,7 @@ export class RelayModel implements Editable, Comparable<RelayModel> {
         if (n === 9) this.coilStyle = ei.choice!.getSelectedIndex();
         if (n === 10) this.showBox  = ei.checkbox!.getState();
         if (n === 11) this.pulldown = ei.checkbox!.getState();
+        RelayModel.registry.resave(this);
         CirSim.theApp.updateModels();
     }
 }

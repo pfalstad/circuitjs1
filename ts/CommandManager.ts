@@ -17,16 +17,11 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { CircuitLoader } from "./CircuitLoader";
 import { WireConverter } from "./WireConverter";
 import { MouseManager } from "./MouseManager";
-import { CustomLogicModel } from "./CustomLogicModel";
-import { DiodeModel } from "./DiodeModel";
-import { MosfetModel } from "./MosfetModel";
-import { RelayModel } from "./RelayModel";
-import { TransistorModel } from "./TransistorModel";
-import { SubcircuitModel } from "./SubcircuitModel";
 import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
@@ -113,8 +108,8 @@ export class CommandManager {
             CirSim.dialogShowing = new (window as any).ShortcutsDialog(this.app);
             CirSim.dialogShowing.show();
         }
-        if (item == "subcircuits") {
-            CirSim.dialogShowing = new (window as any).SubcircuitDialog(this.app);
+        if (item == "modelmanager") {
+            CirSim.dialogShowing = new (window as any).ModelManagerDialog(this.app);
             CirSim.dialogShowing.show();
         }
         // "search" (Edit menu / toolbar) and "commandpalette" (double-tap Shift, / shortcut,
@@ -538,12 +533,7 @@ export class CommandManager {
         const doc = document.implementation.createDocument(null, "cir", null);
         const root = doc.documentElement;
 
-        CustomLogicModel.clearDumpedFlags();
-        SubcircuitModel.clearDumpedFlags();
-        DiodeModel.clearDumpedFlags();
-        TransistorModel.clearDumpedFlags();
-        RelayModel.clearDumpedFlags();
-        MosfetModel.clearDumpedFlags();
+        ModelRegistry.clearAllDumpedFlags();
 
         for (let i = this.app.elmList.length - 1; i >= 0; i--) {
             const ce = this.app.elmList[i];

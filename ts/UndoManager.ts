@@ -86,7 +86,7 @@ export class UndoManager {
     }
 
     loadUndoItem(ui: UndoItem): void {
-        this.sim.loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER);
+        this.sim.loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER | CircuitLoader.RC_KEEP_MODELS);
         this.sim.transform[0] = this.sim.transform[3] = ui.scale;
         this.sim.transform[4] = ui.transform4;
         this.sim.transform[5] = ui.transform5;

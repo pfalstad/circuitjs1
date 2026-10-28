@@ -189,7 +189,7 @@ export class EditSubcircuitModelDialog extends Dialog {
         scopes.forEach(s => this.scopeSelect!.appendChild(Object.assign(document.createElement("option"), { textContent: s })));
         if (this.model.isSaved())
             this.scopeSelect.value = scopes[EditSubcircuitModelDialog.SCOPE_SAVE_ACROSS_SESSIONS];
-        else if (this.model.name && SubcircuitModel.globalModelMap.has(this.model.name))
+        else if (this.model.name && SubcircuitModel.registry.hasGlobal(this.model.name))
             this.scopeSelect.selectedIndex = EditSubcircuitModelDialog.SCOPE_THIS_SESSION;
         else
             this.scopeSelect.selectedIndex = EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT;
@@ -240,13 +240,12 @@ export class EditSubcircuitModelDialog extends Dialog {
         this.model.setName(name);
         }
         const scope = this.scopeSelect!.selectedIndex;
-        SubcircuitModel.localModelMap.delete(this.model.name);
-        SubcircuitModel.globalModelMap.delete(this.model.name);
+        SubcircuitModel.registry.remove(this.model.name);
         this.model.setSaved(false);
         if (scope === EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT) {
-            SubcircuitModel.localModelMap.set(this.model.name, this.model);
+            SubcircuitModel.registry.setLocal(this.model);
         } else if (scope === EditSubcircuitModelDialog.SCOPE_THIS_SESSION) {
-            SubcircuitModel.globalModelMap.set(this.model.name, this.model);
+            SubcircuitModel.registry.setGlobal(this.model);
         } else {
             this.model.setSaved(true);
         }

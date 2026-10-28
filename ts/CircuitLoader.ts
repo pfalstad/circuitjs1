@@ -17,6 +17,8 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { loadModelLibrary } from "./ModelTypes";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { ScopeManager } from "./ScopeManager";
@@ -51,6 +53,9 @@ export class CircuitLoader {
     static readonly RC_NO_CENTER    = 2;
     static readonly RC_SUBCIRCUITS  = 4;
     static readonly RC_KEEP_TITLE   = 8;
+    // restoring an earlier state of the same circuit (undo/redo, leaving a subcircuit editor),
+    // so keep its local models, including ones no element uses yet
+    static readonly RC_KEEP_MODELS  = 16;
 
     constructor(app: CirSim, sim: SimulationManager,
                 scopes: ScopeManager, menus: Menus) {
@@ -85,9 +90,6 @@ export class CircuitLoader {
         CircuitElm.voltageRange = 5;
         this.scopes.clearScopes();
         this.sim.lastIterTime = 0;
-        if (this.app.contextStack.length === 0) {
-            SubcircuitModel.clearLocalModels();
-        }
         if (this.app.ui.subcircuitStack.length > 0) {
             // (the editor may be showing an inner element of an instance that's about to be replaced)
             CirSim.editDialog?.closeDialog();
@@ -97,31 +99,37 @@ export class CircuitLoader {
         }
     }
 
-    // subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
-    // containing only subcircuit models
-    static isSubcircuitLibrary(text: string): boolean {
-        return /^<cir\b[^>]*\bsublib="1"/.test(text);
+    // model library files (saved from the Model Manager) are XML circuit files containing
+    // only models, marked with lib="1" (sublib="1" in older files, which held only subcircuits)
+    static isModelLibrary(text: string): boolean {
+        return /^<cir\b[^>]*\b(sub)?lib="1"/.test(text);
     }
 
-    // load subcircuit models from a library file, making them global.  Leaves the current circuit alone.
-    readSubcircuitLibrary(text: string): void {
+    // load models from a library file, making them global.  Leaves the current circuit alone.
+    readModelLibrary(text: string): void {
         const doc = new DOMParser().parseFromString(text, "text/xml");
         const xml = new CircuitXMLDeserializer(this.app);
-        const models = SubcircuitModel.loadLibrary(xml, doc.documentElement);
-        // make any existing instances pick up the new definitions
-        for (const m of models)
-            this.app.refreshModels(m.name);
+        const models = loadModelLibrary(xml, doc.documentElement);
+        // make any existing subcircuit instances pick up the new definitions
+        for (const tm of models)
+            if (tm.type.tag === "ccm")
+                this.app.refreshModels(tm.model.name);
         if (models.length === 0)
-            this.app.ui.showToast(Locale.LS("No subcircuits found in file"));
+            this.app.ui.showToast(Locale.LS("No models found in file"));
         else
-            this.app.ui.showToast(Locale.LS("Loaded subcircuits: ") + models.map(m => m.name).join(", "));
+            this.app.ui.showToast(Locale.LS("Loaded models: ") + models.map(tm => tm.model.name).join(", "));
     }
 
     readCircuit(text: string, flags: number = 0): void {
-        if (CircuitLoader.isSubcircuitLibrary(text)) {
-            this.readSubcircuitLibrary(text);
+        if (CircuitLoader.isModelLibrary(text)) {
+            this.readModelLibrary(text);
             return;
         }
+        // a different circuit, so drop the previous one's local models (but not when loading a
+        // subcircuit's contents to edit it)
+        if ((flags & (CircuitLoader.RC_RETAIN | CircuitLoader.RC_KEEP_MODELS)) === 0 &&
+                this.app.contextStack.length === 0)
+            ModelRegistry.clearAllLocal();
         if (text.startsWith("<")) {
 	    if ((flags & CircuitLoader.RC_RETAIN) == 0)
 		this.clearCircuit();

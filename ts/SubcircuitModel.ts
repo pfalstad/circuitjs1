@@ -28,13 +28,21 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { StringTokenizer } from "./StringTokenizer";
 import { HookRegistry } from "./HookRegistry";
+import { ModelRegistry } from "./ModelRegistry";
+import { getElmModelType } from "./ModelTypes";
 import { parseIntStrict } from "./NumberParse";
 
 // model for subcircuits
 
 export class SubcircuitModel {
-    static globalModelMap: Map<string, SubcircuitModel> = new Map();
-    static localModelMap:  Map<string, SubcircuitModel> = new Map();
+    // models loaded from circuit files are local; models saved in storage (or made global by
+    // the user) are global
+    static readonly registry = new ModelRegistry<SubcircuitModel>(
+        () => SubcircuitModel.initModelMap(), "subcircuit:", (m, doc) => {
+            const elem = doc.createElement("ccm");
+            m.buildXmlElement(doc, elem);
+            doc.documentElement.appendChild(elem);
+        });
 
     flags:  number = 0;
     sizeX:  number = 0;
@@ -48,47 +56,29 @@ export class SubcircuitModel {
     internal: boolean = false;  // don't show in list
     builtin:  boolean = false;  // included by default, don't allow deletion
 
-    static sequenceNumber: number = 0;
+    // changes whenever the set of models changes
+    static get sequenceNumber(): number { return SubcircuitModel.registry.sequenceNumber; }
     static readonly FLAG_SHOW_LABEL = 1;
 
     setName(n: string): void {
-        if (SubcircuitModel.localModelMap.delete(this.name)) {
-            this.name = n;
-            SubcircuitModel.localModelMap.set(this.name, this);
-        } else {
-            SubcircuitModel.globalModelMap.delete(this.name);
-            this.name = n;
-            SubcircuitModel.globalModelMap.set(this.name, this);
-        }
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.rename(this, n);
     }
 
-    static initModelMap(): void {
-        SubcircuitModel.globalModelMap = new Map();
-        SubcircuitModel.localModelMap  = new Map();
-
+    // add the built-in models (called by the registry when first used)
+    private static initModelMap(): void {
         // create default stub model
         const extList: ExtListEntry[] = [];
         extList.push(new ExtListEntry("gnd", 1));
         const d = SubcircuitModel.createModelFromOldFormat("default", "0 0", "GroundElm 1", extList);
         d.sizeX = d.sizeY = 1;
         d.builtin = true;
-        SubcircuitModel.localModelMap.delete(d.name);
-        SubcircuitModel.globalModelMap.set(d.name, d);
-        SubcircuitModel.sequenceNumber = 1;
+        SubcircuitModel.registry.makeGlobal(d);
 
         SubcircuitModel.loadInternalModels();
     }
 
     static loadModelsFromStorage(): void {
-        const stor = window.localStorage;
-        if (stor === null) return;
-        const len = stor.length;
-        for (let i = 0; i < len; i++) {
-            const key = stor.key(i);
-            if (!key || !key.startsWith("subcircuit:")) continue;
-            const data = stor.getItem(key);
-            if (!data) continue;
+        SubcircuitModel.registry.loadFromStorage((data) => {
             try {
                 if (data.startsWith("<")) {
                     SubcircuitModel.loadModelFromStorage(data);
@@ -101,22 +91,22 @@ export class SubcircuitModel {
                         const model = SubcircuitModel.undumpModel(st);
                         if (lineLen !== -1) model.modelCircuit = data.substring(lineLen + 1);
                         // move from local to global since this is from storage
-                        SubcircuitModel.localModelMap.delete(model.name);
-                        SubcircuitModel.globalModelMap.set(model.name, model);
+                        SubcircuitModel.registry.makeGlobal(model);
                     }
                 }
             } catch (e) {
                 CirSim.console("Exception: " + e);
             }
-        }
+        });
     }
 
     static getModelWithName(name: string): SubcircuitModel | null {
-        if (SubcircuitModel.globalModelMap.size === 0 && SubcircuitModel.localModelMap.size === 0)
-            SubcircuitModel.initModelMap();
-        const lm = SubcircuitModel.localModelMap.get(name);
-        if (lm) return lm;
-        return SubcircuitModel.globalModelMap.get(name) ?? null;
+        return SubcircuitModel.registry.get(name) ?? null;
+    }
+
+    // the model to load a definition into (see ModelRegistry.getForLoad)
+    private static getModelForLoad(name: string): SubcircuitModel {
+        return SubcircuitModel.registry.getForLoad(name, () => new SubcircuitModel());
     }
 
     // create model from old-style nodeList/elmDump format, converting to XML immediately
@@ -125,8 +115,7 @@ export class SubcircuitModel {
         lm.name = name;
         lm.extList = extList;
         lm.convertOldFormatToXml(nodeList, elmDump);
-        SubcircuitModel.localModelMap.set(name, lm);
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.setLocal(lm);
         return lm;
     }
 
@@ -136,22 +125,13 @@ export class SubcircuitModel {
         lm.name = name;
         lm.elmDoc = elmDoc;
         lm.extList = extList;
-        SubcircuitModel.localModelMap.set(name, lm);
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.setLocal(lm);
         return lm;
     }
 
-    static clearDumpedFlags(): void {
-        for (const m of SubcircuitModel.globalModelMap.values()) m.dumped = false;
-        for (const m of SubcircuitModel.localModelMap.values())  m.dumped = false;
-    }
-
     static getModelList(): SubcircuitModel[] {
-        // local entries win on name collision
-        const merged = new Map<string, SubcircuitModel>(SubcircuitModel.globalModelMap);
-        for (const [k, v] of SubcircuitModel.localModelMap) merged.set(k, v);
         const result: SubcircuitModel[] = [];
-        for (const dm of merged.values()) {
+        for (const dm of SubcircuitModel.registry.models()) {
             if (!dm.internal) result.push(dm);
         }
         result.sort((a, b) => a.name.localeCompare(b.name));
@@ -160,19 +140,7 @@ export class SubcircuitModel {
 
     static undumpModel(st: StringTokenizer): SubcircuitModel {
         const name = CustomLogicModel.unescape(st.nextToken());
-        let model = SubcircuitModel.getModelWithName(name);
-        if (model === null) {
-            model = new SubcircuitModel();
-            model.name = name;
-            SubcircuitModel.localModelMap.set(name, model);
-            SubcircuitModel.sequenceNumber++;
-        } else if (SubcircuitModel.globalModelMap.has(name) && !SubcircuitModel.localModelMap.has(name)) {
-            // create a local shadow instead of modifying global
-            model = new SubcircuitModel();
-            model.name = name;
-            SubcircuitModel.localModelMap.set(name, model);
-            SubcircuitModel.sequenceNumber++;
-        }
+        const model = SubcircuitModel.getModelForLoad(name);
         model.undump(st);
         return model;
     }
@@ -240,100 +208,16 @@ export class SubcircuitModel {
     }
 
     isSaved(): boolean {
-        if (!this.name) return false;
-        return localStorage.getItem("subcircuit:" + this.name) !== null;
+        return SubcircuitModel.registry.isSaved(this.name);
     }
 
     setSaved(sv: boolean): void {
         if (sv) {
-            const doc = document.implementation.createDocument(null, "ccm", null);
-            const root = doc.documentElement;
-            this.buildXmlElement(doc, root);
-            const serializer = new window.XMLSerializer();
-            localStorage.setItem("subcircuit:" + this.name, serializer.serializeToString(doc));
-            SubcircuitModel.globalModelMap.set(this.name, this);
+            SubcircuitModel.registry.store(this);
+            SubcircuitModel.registry.setGlobal(this);
         } else {
-            localStorage.removeItem("subcircuit:" + this.name);
+            SubcircuitModel.registry.unsave(this.name);
         }
-    }
-
-    // where this model lives: local to the current circuit, global (available to all circuits
-    // this session), or persistent (global and saved in local storage across sessions)
-    getScope(): string {
-        if (SubcircuitModel.localModelMap.get(this.name) === this) return "local";
-        if (this.isSaved()) return "persistent";
-        return "global";
-    }
-
-    // names of models used by subcircuits in the current circuit, including nested ones
-    static getModelNamesInUse(): Set<string> {
-        const names = new Set<string>();
-        const scan = (list: any[]) => {
-            for (const ce of list) {
-                if (!ce.isSubcircuitElm()) continue;
-                names.add(ce.modelName);
-                if (ce.compElmList) scan(ce.compElmList);
-            }
-        };
-        scan(CirSim.theApp.elmList);
-        return names;
-    }
-
-    // move model to the global map, replacing any local or global model with the same name
-    makeGlobal(): void {
-        SubcircuitModel.localModelMap.delete(this.name);
-        SubcircuitModel.globalModelMap.set(this.name, this);
-        // keep the persistent copy in sync if one exists under this name
-        if (this.isSaved()) this.setSaved(true);
-        SubcircuitModel.sequenceNumber++;
-    }
-
-    // move model to the local map so it belongs only to the current circuit,
-    // replacing any local model with the same name, and remove it from storage
-    makeLocal(): void {
-        if (this.isSaved()) this.setSaved(false);
-        if (SubcircuitModel.globalModelMap.get(this.name) === this)
-            SubcircuitModel.globalModelMap.delete(this.name);
-        SubcircuitModel.localModelMap.set(this.name, this);
-        SubcircuitModel.sequenceNumber++;
-    }
-
-    makePersistent(): void {
-        this.makeGlobal();
-        this.setSaved(true);
-    }
-
-    // dump models as a subcircuit library file, which can be loaded like a circuit
-    static dumpLibrary(models: SubcircuitModel[]): string {
-        const doc = document.implementation.createDocument(null, "cir", null);
-        const root = doc.documentElement;
-        CircuitXMLSerializer.dumpAttr(root, "sublib", 1);
-        for (const m of models) {
-            const elem = doc.createElement("ccm");
-            m.buildXmlElement(doc, elem);
-            root.appendChild(elem);
-        }
-        return CircuitXMLSerializer.prettyPrint(doc);
-    }
-
-    // load models from a subcircuit library file and make them global
-    static loadLibrary(xml: CircuitXMLDeserializer, root: Element): SubcircuitModel[] {
-        // load into an empty local map so we can tell which models (including nested ones) came from the file
-        const oldLocalMap = SubcircuitModel.localModelMap;
-        const loaded = new Map<string, SubcircuitModel>();
-        SubcircuitModel.localModelMap = loaded;
-        try {
-            xml.currentXmlElement = root;
-            for (const child of xml.getChildElements()) {
-                if (child.tagName !== "ccm") continue;
-                xml.parseChildElement(child);
-                SubcircuitModel.undumpModelXml(xml);
-            }
-        } finally {
-            SubcircuitModel.localModelMap = oldLocalMap;
-            for (const m of loaded.values()) m.makeGlobal();
-        }
-        return [...loaded.values()];
     }
 
     static loadModelFromStorage(data: string): void {
@@ -345,8 +229,7 @@ export class SubcircuitModel {
         const model = new SubcircuitModel();
         model.name = modelName;
         model.parseXmlElement(xml);
-        SubcircuitModel.globalModelMap.set(modelName, model);
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.setGlobal(model);
     }
 
     showLabel(): boolean { return (this.flags & SubcircuitModel.FLAG_SHOW_LABEL) !== 0; }
@@ -410,18 +293,7 @@ export class SubcircuitModel {
 
     static undumpModelXml(xml: CircuitXMLDeserializer): SubcircuitModel {
         const name = xml.parseStringAttr("nm", null)!;
-        let model = SubcircuitModel.getModelWithName(name);
-        if (model === null) {
-            model = new SubcircuitModel();
-            model.name = name;
-            SubcircuitModel.localModelMap.set(name, model);
-            SubcircuitModel.sequenceNumber++;
-        } else if (SubcircuitModel.globalModelMap.has(name) && !SubcircuitModel.localModelMap.has(name)) {
-            model = new SubcircuitModel();
-            model.name = name;
-            SubcircuitModel.localModelMap.set(name, model);
-            SubcircuitModel.sequenceNumber++;
-        }
+        const model = SubcircuitModel.getModelForLoad(name);
         model.undumpXml(xml);
         return model;
     }
@@ -434,9 +306,25 @@ export class SubcircuitModel {
         if (SubcircuitModel.getModelWithName(name) !== null) return;
         const model = new SubcircuitModel();
         model.name = name;
-        SubcircuitModel.localModelMap.set(name, model);
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.setLocal(model);
+        SubcircuitModel.registry.markEmbedded(model);
         model.undumpXml(xml);
+    }
+
+    // register an element model definition embedded in a subcircuit model as the subcircuit is
+    // built, unless a model with that name exists.  The definitions are registered when the
+    // subcircuit model is loaded, but as local models; a global subcircuit model outlives them.
+    // Returns false if elm isn't an element model definition.
+    static undumpEmbeddedElmModelXml(xml: CircuitXMLDeserializer, elm: Element): boolean {
+        const type = getElmModelType(elm.tagName);
+        if (!type)
+            return false;
+        const name = elm.getAttribute("nm");
+        if (name !== null && !type.registry.has(name)) {
+            xml.parseChildElement(elm);
+            type.registry.makeGlobal(type.undump(xml));
+        }
+        return true;
     }
 
     // parse XML attributes and children from deserializer
@@ -483,16 +371,13 @@ export class SubcircuitModel {
                 // instantiated from elmDoc (e.g. in CompositeElm.loadCompositeXml())
                 const tagName = child.tagName;
                 xml.parseChildElement(child);
-                if (tagName === "dm")
-                    DiodeModel.undumpModelXml(xml);
-                else if (tagName === "rlm")
-                    RelayModel.undumpModelXml(xml);
-                else if (tagName === "tm")
-                    TransistorModel.undumpModelXml(xml);
-                else if (tagName === "clm")
-                    CustomLogicModel.undumpModelXml(xml);
-                else if (tagName === "mm")
-                    MosfetModel.undumpModelXml(xml);
+                const elmModelType = getElmModelType(tagName);
+                if (elmModelType) {
+                    const isNew = !elmModelType.registry.hasLocal(child.getAttribute("nm") ?? "");
+                    const m = elmModelType.undump(xml);
+                    if (isNew)
+                        elmModelType.registry.markEmbedded(m);
+                }
                 else if (tagName === "ccm")
                     SubcircuitModel.undumpEmbeddedModelXml(xml);
             }
@@ -545,33 +430,16 @@ export class SubcircuitModel {
     }
 
     remove(): void {
-        this.setSaved(false);
-        SubcircuitModel.localModelMap.delete(this.name);
-        SubcircuitModel.globalModelMap.delete(this.name);
-        SubcircuitModel.sequenceNumber++;
+        SubcircuitModel.registry.delete(this);
     }
 
     // replace a model in whichever map it lives in.  A global model replaces any local
     // copy with the same name (e.g. a stale one reloaded from a saved editing context).
     static replaceModel(model: SubcircuitModel): void {
-        if (SubcircuitModel.globalModelMap.get(model.name) === model)
-            SubcircuitModel.localModelMap.delete(model.name);
+        if (SubcircuitModel.registry.isGlobal(model))
+            SubcircuitModel.registry.removeLocal(model.name);
         else
-            SubcircuitModel.localModelMap.set(model.name, model);
-        SubcircuitModel.sequenceNumber++;
-    }
-
-    // dump local models not already dumped (i.e. not used by any element), since local
-    // models belong to the circuit and would otherwise be lost when it is reloaded
-    static dumpUnusedLocalModels(doc: Document): void {
-        for (const m of SubcircuitModel.localModelMap.values())
-            if (!m.dumped && !m.builtin && m.name !== "")
-                m.dumpXml(doc);
-    }
-
-    static clearLocalModels(): void {
-        SubcircuitModel.localModelMap.clear();
-        SubcircuitModel.sequenceNumber++;
+            SubcircuitModel.registry.setLocal(model);
     }
 
     static loadInternalModels(): void {
@@ -584,13 +452,9 @@ export class SubcircuitModel {
             const model = SubcircuitModel.undumpModel(st);
             model.internal = model.builtin = true;
             // move from local to global since these are builtins
-            SubcircuitModel.localModelMap.delete(model.name);
-            SubcircuitModel.globalModelMap.set(model.name, model);
+            SubcircuitModel.registry.makeGlobal(model);
         }
     }
 }
 
 HookRegistry.undumpSubcircuitModel            = (xml) => SubcircuitModel.undumpModelXml(xml as CircuitXMLDeserializer);
-HookRegistry.loadSubcircuitModelsFromStorage  = () => SubcircuitModel.loadModelsFromStorage();
-HookRegistry.clearSubcircuitModelDumpedFlags  = () => SubcircuitModel.clearDumpedFlags();
-HookRegistry.dumpUnusedLocalSubcircuitModels  = (doc) => SubcircuitModel.dumpUnusedLocalModels(doc);

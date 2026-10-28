@@ -23,13 +23,15 @@ import { StringTokenizer } from "./StringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
-    static modelMap: Map<string, MosfetModel>;
+    static readonly registry = new ModelRegistry<MosfetModel>(
+        () => MosfetModel.createModelMap(), "mosfetmodel:", (m, doc) => m.dumpXml(doc));
 
     static readonly FLAG_JFET = 1;
 
@@ -102,19 +104,17 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
     }
 
     static getModelWithName(name: string): MosfetModel {
-        MosfetModel.createModelMap();
-        let lm = MosfetModel.modelMap.get(name);
+        let lm = MosfetModel.registry.get(name);
         if (lm != null)
             return lm;
         lm = new MosfetModel();
         lm.name = name;
-        MosfetModel.modelMap.set(name, lm);
+        MosfetModel.registry.setGlobal(lm);
         return lm;
     }
 
     static getModelWithNameOrCopy(name: string, oldmodel: MosfetModel | null, jfet: boolean): MosfetModel {
-        MosfetModel.createModelMap();
-        const lm = MosfetModel.modelMap.get(name);
+        const lm = MosfetModel.registry.get(name);
         if (lm != null)
             return lm;
         if (oldmodel == null) {
@@ -123,14 +123,12 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         }
         const copy = new MosfetModel(oldmodel);
         copy.name = name;
-        MosfetModel.modelMap.set(name, copy);
+        MosfetModel.registry.setLocal(copy);
         return copy;
     }
 
-    static createModelMap(): void {
-        if (MosfetModel.modelMap != null)
-            return;
-        MosfetModel.modelMap = new Map<string, MosfetModel>();
+    // add the built-in models (called by the registry when first used)
+    private static createModelMap(): void {
 
         MosfetModel.addDefaultModel("default", new MosfetModel("default", 1.5, .02));
 
@@ -155,9 +153,9 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
     }
 
     static addDefaultModel(name: string, dm: MosfetModel): void {
-        MosfetModel.modelMap.set(name, dm);
         dm.readOnly = dm.builtIn = true;
         dm.name = name;
+        MosfetModel.registry.setGlobal(dm);
     }
 
     static getDefaultModel(jfet: boolean): MosfetModel {
@@ -170,8 +168,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
     static getModelWithParameters(vt: number, beta: number, jfet: boolean,
             showBulk: boolean, bodyDiode: boolean, bodyTerminal: boolean, digitalSymbol: boolean,
             showBodyDiodeSymbol: boolean): MosfetModel {
-        MosfetModel.createModelMap();
-        for (const [, mm] of MosfetModel.modelMap) {
+        for (const mm of MosfetModel.registry.models()) {
             if (mm.isJfet() === jfet && Math.abs(mm.threshold - vt) < 1e-15 && Math.abs(mm.beta - beta) < 1e-15 &&
                 mm.lambda === 0 && mm.capGS === 0 && mm.capGD === 0 &&
                 mm.showBulk === showBulk && mm.bodyDiode === bodyDiode && mm.bodyTerminal === bodyTerminal &&
@@ -180,16 +177,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         }
         const baseName = "old-" + (jfet ? "jfet" : "mosfet");
         let name = baseName;
-        if (MosfetModel.modelMap.get(name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = baseName + "-" + num;
-                if (MosfetModel.modelMap.get(n) == null) {
-                    name = n;
-                    break;
-                }
-            }
-        }
+        name = MosfetModel.registry.uniqueName(name);
         const mm = MosfetModel.getModelWithName(name);
         mm.threshold = vt;
         mm.beta = beta;
@@ -208,18 +196,10 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         return mm;
     }
 
-    static clearDumpedFlags(): void {
-        if (MosfetModel.modelMap == null)
-            return;
-        for (const [, mm] of MosfetModel.modelMap)
-            mm.dumped = false;
-    }
-
     // jfet selects whether to return models meant for JfetElm or for MosfetElm
     static getModelList(jfet: boolean): MosfetModel[] {
-        MosfetModel.createModelMap();
         const vector: MosfetModel[] = [];
-        for (const [, mm] of MosfetModel.modelMap) {
+        for (const mm of MosfetModel.registry.models()) {
             if (mm.internal || mm.isJfet() !== jfet)
                 continue;
             if (!vector.includes(mm))
@@ -241,7 +221,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     static undumpModel(st: StringTokenizer): MosfetModel {
         const name = CustomLogicModel.unescape(st.nextToken());
-        const dm = MosfetModel.getModelWithName(name);
+        const dm = MosfetModel.registry.getForLoad(name!, () => new MosfetModel());
         dm.undump(st);
         return dm;
     }
@@ -291,7 +271,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     static undumpModelXml(xml: CircuitXMLDeserializer): MosfetModel {
         const name = xml.parseStringAttr("nm", null);
-        const dm = MosfetModel.getModelWithName(name);
+        const dm = MosfetModel.registry.getForLoad(name!, () => new MosfetModel());
         dm.undumpXml(xml);
         return dm;
     }
@@ -347,9 +327,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.value;
-            if (this.name.length > 0)
-                MosfetModel.modelMap.set(this.name, this);
+            MosfetModel.registry.rename(this, ei.textf.value);
         }
         if (n === 1) this.threshold = ei.value;
         if (n === 2 && ei.value > 0) this.beta = ei.value;
@@ -380,21 +358,14 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         if (n === idx) this.lambda = (ei.value >= 0) ? ei.value : this.lambda;
         else if (n === idx + 1) this.capGS = (ei.value >= 0) ? ei.value : this.capGS;
         else if (n === idx + 2) this.capGD = (ei.value >= 0) ? ei.value : this.capGD;
+        MosfetModel.registry.resave(this);
         CirSim.theApp.updateModels();
     }
 
     pickName(): void {
         this.name = this.isJfet() ? "jfetmodel" : "mosfetmodel";
-        if (MosfetModel.modelMap.get(this.name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = this.name + "-" + num;
-                if (MosfetModel.modelMap.get(n) == null) {
-                    this.name = n;
-                    break;
-                }
-            }
-        }
+        this.name = MosfetModel.registry.uniqueName(this.name);
+        MosfetModel.registry.setLocal(this);
     }
 }
 
