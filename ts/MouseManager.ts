@@ -143,6 +143,8 @@ export class MouseManager {
 	let lastTap = 0;
 	let tmout: any = null;
 	let lastScale = 1;
+	let startX = 0, startY = 0; // where a one-finger touch began
+	let moved = false;           // has this touch moved past the 10px dead zone yet?
 
 	cv.addEventListener("touchstart", (e: TouchEvent) => {
 	    clearTimeout(tmout);
@@ -172,6 +174,9 @@ export class MouseManager {
 		return;
 	    }
 
+	    startX = touch1.clientX;
+	    startY = touch1.clientY;
+	    moved = false;
 	    let etype = "mousedown";
 	    if (e.timeStamp - lastTap < 300) {
 		etype = "dblclick";
@@ -194,9 +199,16 @@ export class MouseManager {
 
 	cv.addEventListener("touchmove", (e: TouchEvent) => {
 	    e.preventDefault();
-	    clearTimeout(tmout);
 	    const touch1 = e.touches[0];
 	    const touch2 = e.touches[e.touches.length - 1];
+	    // a fingertip always wobbles a little: ignore one-finger movement until it passes
+	    // 10px, so a held finger neither cancels the long press nor drags what it's on
+	    if (e.touches.length === 1 && !moved) {
+		if (Math.hypot(touch1.clientX - startX, touch1.clientY - startY) <= 10)
+		    return;
+		moved = true;
+	    }
+	    clearTimeout(tmout);
 	    if (e.touches.length > 1) {
 		const newScale = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
 		this.zoomCircuit(40 * (Math.log(newScale) - Math.log(lastScale)));
@@ -1023,8 +1035,13 @@ export class MouseManager {
 
     private onDoubleClick(e: MouseEvent): void {
 	e.preventDefault();
-	// (double-clicking a scope at the bottom shouldn't edit the scope's element)
-	if (this.mouseElm == null || this.sim.scopeManager.scopeSelected !== -1)
+	// double-clicking (double-tapping) a scope, docked or floating, opens the scope popup,
+	// same as right-click/long press; it shouldn't edit the scope's element
+	if (this.sim.scopeManager.scopeSelected !== -1 || (this.mouseElm != null && this.mouseElm.isScopeElm())) {
+	    this.doPopupMenu();
+	    return;
+	}
+	if (this.mouseElm == null)
 	    return;
 	if (this.mouseElm.isSubcircuitElm()) {
 	    (this.mouseElm as any).onDoubleClick();
