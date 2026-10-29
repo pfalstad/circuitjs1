@@ -382,6 +382,8 @@ describe("SPICE export", () => {
         const d0 = new ExtListEntry("D", 1, 0, 2), d1 = new ExtListEntry("D", 2, 0, 2);
         d0.busWidth = d1.busWidth = 2;
         d1.busZ = 1;
+        // skip adding the built-in models, which needs a real DOM
+        (SubcircuitModel.registry as any).initialized = true;
         SubcircuitModel.createModel("busres", doc, [d0, d1, new ExtListEntry("G", 3, 0, 3)]);
         const x = place(new SubcircuitElm(0, 0, "busres"), 0, 0, 64, 0);
         const res = exportSpiceNetlist([x]);
