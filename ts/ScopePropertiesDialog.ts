@@ -128,6 +128,8 @@ export class ScopePropertiesDialog extends Dialog {
     private triggerLevelTextBox: HTMLInputElement;
     private trigModePDiv: HTMLDivElement;
     private trigLevelDiv: HTMLDivElement;
+    private trigSourceDiv: HTMLDivElement;
+    private trigSourceBox: HTMLSelectElement;
 
     // Trail
     private trailBar: HTMLInputElement;
@@ -362,6 +364,13 @@ export class ScopePropertiesDialog extends Dialog {
         });
         tContent.appendChild(this.trigEdgeDiv);
 
+        this.trigSourceDiv = document.createElement('div');
+        this.trigSourceDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
+        this.trigSourceBox = this.makeXYSelect('Source:', this.trigSourceDiv, (idx) => {
+            if (idx >= 0) { scope.trigger.source = idx; scope.resetGraph(); }
+        });
+        tContent.appendChild(this.trigSourceDiv);
+
         this.trigLevelDiv = document.createElement('div');
         this.trigLevelDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
         const lvlLbl = document.createElement('span');
@@ -375,6 +384,14 @@ export class ScopePropertiesDialog extends Dialog {
         const trigApplyBtn = document.createElement('button');
         trigApplyBtn.textContent = Locale.LS('Apply');
         trigApplyBtn.addEventListener('click', () => this.applyTriggerLevel());
+        this.triggerLevelTextBox.addEventListener('keydown', (e) => {
+            // apply like the button does, without letting the dialog close on Enter
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.applyTriggerLevel();
+            }
+        });
         this.trigLevelDiv.appendChild(trigApplyBtn);
         tContent.appendChild(this.trigLevelDiv);
 
@@ -708,6 +725,9 @@ export class ScopePropertiesDialog extends Dialog {
         this.triggerLevelTextBox.disabled = !trigActive;
         this.trigEdgeDiv.style.display  = trigActive ? '' : 'none';
         this.trigLevelDiv.style.display = trigActive ? '' : 'none';
+        this.trigSourceDiv.style.display = trigActive ? '' : 'none';
+        if (trigActive)
+            this.populatePlotListBox(this.trigSourceBox, scope.plots.indexOf(scope.triggerSourcePlot()!), false);
 
         // XY settings visibility
         const xyActive = scope.plot2d.plotXY;

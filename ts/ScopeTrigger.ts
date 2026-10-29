@@ -39,10 +39,16 @@ export class ScopeTrigger {
     static readonly TRIG_STATE_TRIGGERED = 1;
     static readonly TRIG_STATE_AUTO_RUN  = 2;
 
+    // How close (in pixels) the mouse has to be to the level line to drag it
+    static readonly GRAB_DISTANCE = 4;
+
     // Configuration
     mode: number = ScopeTrigger.TRIGGER_FREERUN;
     edge: number = ScopeTrigger.TRIGGER_EDGE_RISING;
     level: number = 0;
+    // index into the scope's plots of the plot to trigger on; if that plot isn't visible, the
+    // first visible plot is used instead (see sourcePlot())
+    source: number = 0;
 
     // State machine
     state: number = ScopeTrigger.TRIG_STATE_ARMED;
@@ -62,6 +68,19 @@ export class ScopeTrigger {
     time: number = 0;
     fired: boolean = false;
     lastCheckPtr: number = -1;
+    // wall-clock time (ms) the display last switched to a new sweep, to flash the status text
+    lastSweepShown: number = -Infinity;
+
+    // How long (ms) the status text flashes when a new sweep is shown
+    static readonly FLASH_TIME = 150;
+
+    // The plot the trigger watches, or null if nothing is visible
+    sourcePlot(plots: ScopePlot[], visiblePlots: ScopePlot[]): ScopePlot | null {
+        const p = plots[this.source];
+        if (p !== undefined && visiblePlots.includes(p))
+            return p;
+        return visiblePlots.length > 0 ? visiblePlots[0] : null;
+    }
 
     isActive(): boolean {
         return this.mode !== ScopeTrigger.TRIGGER_FREERUN;
@@ -95,6 +114,8 @@ export class ScopeTrigger {
         CircuitXMLSerializer.dumpAttr(xmlElm, "triggerMode", this.mode);
         CircuitXMLSerializer.dumpAttr(xmlElm, "triggerEdge", this.edge);
         CircuitXMLSerializer.dumpAttr(xmlElm, "triggerLevel", this.level);
+        if (this.source !== 0)
+            CircuitXMLSerializer.dumpAttr(xmlElm, "triggerSource", this.source);
     }
 
     // Must be called before xml.parseChildElement() to ensure attrs are read from the parent element
@@ -102,6 +123,7 @@ export class ScopeTrigger {
         this.mode = xml.parseIntAttr("triggerMode", ScopeTrigger.TRIGGER_FREERUN);
         this.edge = xml.parseIntAttr("triggerEdge", ScopeTrigger.TRIGGER_EDGE_RISING);
         this.level = xml.parseDoubleAttr("triggerLevel", 0);
+        this.source = xml.parseIntAttr("triggerSource", 0);
     }
 
     // Reset trigger state; called from Scope.resetGraph().
@@ -117,11 +139,10 @@ export class ScopeTrigger {
     }
 
     // Trigger edge detection and state machine, called every time the plot ptr advances.
-    check(visiblePlots: ScopePlot[], plot2d: boolean, sim: SimulationManager, scopePointCount: number, rectWidth: number): void {
-        if (this.mode === ScopeTrigger.TRIGGER_FREERUN || visiblePlots.length === 0 || plot2d)
+    check(visiblePlots: ScopePlot[], plot: ScopePlot | null, plot2d: boolean, sim: SimulationManager, scopePointCount: number, rectWidth: number): void {
+        if (this.mode === ScopeTrigger.TRIGGER_FREERUN || plot === null || plot2d)
             return;
 
-        const plot = visiblePlots[0];
         const currentPtr = plot.ptr;
 
         // Only check when ptr advances (new sample point)
@@ -165,6 +186,7 @@ export class ScopeTrigger {
                 this.frozen = this.captured = true;
                 this.ptr = this.capPtr;
                 this.time = this.capTime;
+                this.lastSweepShown = performance.now();
             }
             if (this.holdoff >= rectWidth) {
                 this.state = ScopeTrigger.TRIG_STATE_ARMED;
@@ -192,6 +214,7 @@ export class ScopeTrigger {
         if (!this.frozen) {
             this.ptr = ptr;
             this.time = time;
+            this.lastSweepShown = performance.now();
         }
         this.fired = true;
     }
@@ -202,28 +225,56 @@ export class ScopeTrigger {
         this.frozen = false;
     }
 
-    // Draw trigger indicator: dashed level line, edge arrow, and status text
-    drawIndicator(g: Graphics, visiblePlots: ScopePlot[], rect: Rectangle): void {
-        if (this.mode === ScopeTrigger.TRIGGER_FREERUN || visiblePlots.length === 0)
+    // y of the trigger level line, in pixels from the top of the scope
+    levelY(plot: ScopePlot, rect: Rectangle): number {
+        const maxy = Math.trunc((rect.height - 1) / 2);
+        return maxy - Math.trunc((this.level + plot.plotOffset) * plot.gridMult);
+    }
+
+    // Whether y (pixels from the top of the scope) is close enough to the level line to grab it
+    nearLevel(plot: ScopePlot | null, rect: Rectangle, y: number): boolean {
+        if (!this.isActive() || plot === null || plot.gridMult === 0)
+            return false;
+        return Math.abs(y - this.levelY(plot, rect)) <= ScopeTrigger.GRAB_DISTANCE;
+    }
+
+    // Set the level to the value at y (pixels from the top of the scope), rounded to a power of
+    // ten no bigger than one pixel's worth so dragged levels come out as tidy numbers
+    setLevelFromY(plot: ScopePlot | null, rect: Rectangle, y: number): void {
+        if (plot === null || plot.gridMult === 0)
+            return;
+        const maxy = Math.trunc((rect.height - 1) / 2);
+        const step = Math.pow(10, Math.floor(Math.log10(1 / plot.gridMult)));
+        this.level = Math.round(((maxy - y) / plot.gridMult - plot.plotOffset) / step) * step;
+    }
+
+    // Draw trigger indicator: dashed level line, edge arrow, and status text.  highlight means the
+    // level line is being dragged or the mouse is near enough to grab it.
+    drawIndicator(g: Graphics, plot: ScopePlot | null, rect: Rectangle, highlight: boolean): void {
+        if (this.mode === ScopeTrigger.TRIGGER_FREERUN || plot === null)
             return;
 
-        const plot = visiblePlots[0];
-        const maxy = Math.trunc((rect.height - 1) / 2);
+        const trigY = this.levelY(plot, rect);
 
-        // Calculate y position of trigger level line
-        const trigY = maxy - Math.trunc((this.level + plot.plotOffset) * plot.gridMult);
-
-        // Draw trigger level line (dashed, orange)
+        // Draw trigger level line (orange; dashed, or solid with its value when highlighted)
         if (trigY >= 0 && trigY < rect.height) {
             g.setColor("#FF8000");
-            for (let x = 0; x < rect.width; x += 8) {
-                const x2 = Math.min(x + 4, rect.width - 1);
-                g.drawLine(x, trigY, x2, trigY);
+            if (highlight) {
+                g.drawLine(0, trigY - 1, rect.width - 1, trigY - 1);
+                g.drawLine(0, trigY, rect.width - 1, trigY);
+            } else {
+                for (let x = 0; x < rect.width; x += 8) {
+                    const x2 = Math.min(x + 4, rect.width - 1);
+                    g.drawLine(x, trigY, x2, trigY);
+                }
             }
 
             // Draw edge indicator
-            const edgeText = this.edge === ScopeTrigger.TRIGGER_EDGE_RISING ? "T↑" : "T↓";
-            g.drawString(edgeText, rect.width - 25, trigY - 3);
+            let edgeText = this.edge === ScopeTrigger.TRIGGER_EDGE_RISING ? "T↑" : "T↓";
+            if (highlight)
+                edgeText += " " + plot.getUnitText(this.level);
+            const ew = Math.trunc(g.measureWidth(edgeText));
+            g.drawString(edgeText, rect.width - ew - 5, trigY - 3);
         }
 
         // Draw trigger status text
@@ -241,8 +292,14 @@ export class ScopeTrigger {
         default:
             statusText = "";
         }
-        g.setColor("#FF8000");
+        // flash the status text when a new sweep is shown, since the display otherwise gives no
+        // sign that a sweep identical to the last one has come in
         const sw = Math.trunc(g.measureWidth(statusText));
+        g.setColor("#FF8000");
+        if (performance.now() - this.lastSweepShown < ScopeTrigger.FLASH_TIME) {
+            g.fillRect(rect.width - sw - 7, rect.height - 17, sw + 4, 15);
+            g.setColor("#000000");
+        }
         g.drawString(statusText, rect.width - sw - 5, rect.height - 5);
     }
 }

@@ -125,6 +125,8 @@ export class Scope {
     static cursorScope: Scope | null = null;
     static draggingPlotYScope: Scope | null = null;
     draggingPlotY: boolean = false;
+    // the drag started on the trigger level line, so it moves that instead of the plot
+    draggingTriggerLevel: boolean = false;
     dragPlotYMouseStart: number = 0;
     dragPlotYInitialPosition: number = 0;
 
@@ -288,14 +290,25 @@ export class Scope {
         return this.trigger.validDataCount(plot, ipa, w, this.scopePointCount);
     }
 
-    checkTrigger(): void { this.trigger.check(this.visiblePlots, this.plot2d.enabled, this.sim, this.scopePointCount, this.rect.width); }
+    checkTrigger(): void { this.trigger.check(this.visiblePlots, this.triggerSourcePlot(), this.plot2d.enabled, this.sim, this.scopePointCount, this.rect.width); }
+
+    triggerSourcePlot(): ScopePlot | null { return this.trigger.sourcePlot(this.plots, this.visiblePlots); }
 
     setTriggerMode(mode: number): void {
         this.trigger.mode = mode;
         this.resetGraph();
     }
 
-    drawTriggerIndicator(g: Graphics): void { this.trigger.drawIndicator(g, this.visiblePlots, this.rect); }
+    drawTriggerIndicator(g: Graphics, forExport: boolean): void {
+        const highlight = !forExport && (this.draggingTriggerLevel || (Scope.draggingPlotYScope === null && this.cursorNearTriggerLevel()));
+        this.trigger.drawIndicator(g, this.triggerSourcePlot(), this.rect, highlight);
+    }
+
+    cursorNearTriggerLevel(): boolean {
+        const mx = this.app.mouse.mouseCursorX, my = this.app.mouse.mouseCursorY;
+        return this.rect.contains(mx, my) && !this.plot2d.enabled && !this.fftPlot.enabled &&
+            this.trigger.nearLevel(this.triggerSourcePlot(), this.rect, my - this.rect.y);
+    }
 
     initialize(): void {
         this.resetGraph();
@@ -726,7 +739,7 @@ export class Scope {
         if (this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length)
             this.drawPlot(g, this.visiblePlots[this.selectedPlot], allPlotsSameUnits, true, sel);
 
-        this.drawTriggerIndicator(g);
+        this.drawTriggerIndicator(g, forExport);
         this.overlays.draw(g);
 
         g.restore();
@@ -871,7 +884,25 @@ export class Scope {
 
         // vertical (time) gridlines
         const ts = this.sim.maxTimeStep * this.speed;
-        const tRight = this.isTriggered() ? this.trigger.time + ts * this.rect.width / 2 : this.sim.t;
+        if (this.isTriggered()) {
+            // keep the graticule fixed, with the trigger point on a major line in the center,
+            // rather than aligned to absolute time, which makes the lines jump at every trigger
+            const cx = Math.trunc(this.rect.width / 2);
+            const step = this.gridStepX / ts;   // pixels per division
+            if (step <= 0)
+                return;
+            for (let ll = -Math.floor(cx / step); ; ll++) {
+                const gx = cx + Math.round(ll * step);
+                if (gx >= this.rect.width)
+                    break;
+                if (gx < 0)
+                    continue;
+                g.setColor(ll % 10 === 0 ? majorDiv : minorDiv);
+                g.drawLine(gx, 0, gx, this.rect.height - 1);
+            }
+            return;
+        }
+        const tRight = this.sim.t;
         const tstart = tRight - ts * this.rect.width;
         const tx = tRight - (tRight % this.gridStepX);
         for (let ll = 0; ; ll++) {
@@ -1326,10 +1357,16 @@ export class Scope {
         this.visiblePlots[plot].manVPosition = v;
     }
 
-    // start dragging the currently selected plot up/down (manual scale mode only)
+    // start dragging the trigger level line if the mouse is on it, otherwise the currently
+    // selected plot up/down (manual scale mode only)
     startDragPlotY(mouseX: number, mouseY: number): boolean {
         if (!this.rect.contains(mouseX, mouseY))
             return false;
+        if (this.cursorNearTriggerLevel()) {
+            this.draggingPlotY = this.draggingTriggerLevel = true;
+            Scope.draggingPlotYScope = this;
+            return true;
+        }
         if (!this.isManualScale() || this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
             return false;
         this.draggingPlotY = true;
@@ -1340,6 +1377,10 @@ export class Scope {
     }
 
     dragPlotY(mouseY: number): void {
+        if (this.draggingTriggerLevel) {
+            this.trigger.setLevelFromY(this.triggerSourcePlot(), this.rect, mouseY - this.rect.y);
+            return;
+        }
         if (this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
             return;
         const maxy = Math.max(1, Math.trunc((this.rect.height - 1) / 2));
@@ -1351,7 +1392,7 @@ export class Scope {
 
     static endDragPlotY(): void {
         if (Scope.draggingPlotYScope != null)
-            Scope.draggingPlotYScope.draggingPlotY = false;
+            Scope.draggingPlotYScope.draggingPlotY = Scope.draggingPlotYScope.draggingTriggerLevel = false;
         Scope.draggingPlotYScope = null;
     }
 

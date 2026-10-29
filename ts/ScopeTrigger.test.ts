@@ -22,7 +22,7 @@ function setup(mode = ScopeTrigger.TRIGGER_NORMAL) {
         plot.ptr = (plot.ptr + 1) & (SPC - 1);
         plot.liveMin[plot.ptr] = plot.liveMax[plot.ptr] = v;
         sim.t++;
-        trigger.check([plot], false, sim, SPC, W);
+        trigger.check([plot], plot, false, sim, SPC, W);
     };
     const columns = (v: number, n: number) => { for (let i = 0; i < n; i++) column(v); };
     // the displayed screen, one max value per pixel column (only the valid ones)
@@ -77,5 +77,16 @@ describe("ScopeTrigger", () => {
         columns(0, 2 * SPC);
         expect(trigger.isTriggered()).toBe(false);
         expect(plot.minValues).toBe(plot.liveMin);
+    });
+
+    it("uses the selected source plot, falling back to the first visible one", () => {
+        const a = new ScopePlot(null, UNITS_V), b = new ScopePlot(null, UNITS_V);
+        const trigger = new ScopeTrigger();
+        trigger.source = 1;
+        expect(trigger.sourcePlot([a, b], [a, b])).toBe(b);
+        expect(trigger.sourcePlot([a, b], [a])).toBe(a);
+        trigger.source = 5;
+        expect(trigger.sourcePlot([a, b], [a, b])).toBe(a);
+        expect(trigger.sourcePlot([a, b], [])).toBe(null);
     });
 });
