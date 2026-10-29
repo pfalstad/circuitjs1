@@ -243,7 +243,7 @@ export class DeMultiplexerElm extends ChipElm {
     getChipEditInfo(n: number): EditInfo | null {
         const D = DeMultiplexerElm;
         if (n === 0)
-            return new EditInfo("# of Select Bits", this.selectBitCount).setDimensionless();
+            return new EditInfo("# of Select Bits", this.selectBitCount).setDimensionless().setStructural();
         if (n === 1) {
             const ei = new EditInfo("Output Mode", 0, -1, -1);
             ei.choice = new Choice();
@@ -251,14 +251,14 @@ export class DeMultiplexerElm extends ChipElm {
             ei.choice.add("Bus Output (Bit Distribute)");
             ei.choice.add("Bus Input/Output");
             ei.choice.select(this.outputMode);
-            return ei;
+            return ei.setStructural();
         }
         if (n === 2)
-            return EditInfo.createCheckbox("Bus Select", this.busSelect());
+            return EditInfo.createCheckbox("Bus Select", this.busSelect()).setStructural();
         if (n === 3)
             return EditInfo.createCheckbox("Keep Inactive Outputs High (74139)", this.invertOutputs());
         if (n === 4 && this.outputMode === D.OUTPUT_MODE_BUS_BUS)
-            return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless();
+            return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless().setStructural();
         return null;
     }
 

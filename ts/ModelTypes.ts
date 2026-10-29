@@ -26,6 +26,7 @@ import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
 import { MosfetModel } from "./MosfetModel";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { PinLayoutModel } from "./PinLayoutModel";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
@@ -55,6 +56,8 @@ export function elmModelTypes(): ModelType[] {
           typeName: () => "Relay" },
         { tag: "clm", registry: CustomLogicModel.registry, undump: (xml) => CustomLogicModel.undumpModelXml(xml),
           typeName: () => "Custom Logic" },
+        { tag: "plm", registry: PinLayoutModel.registry,   undump: (xml) => PinLayoutModel.undumpModelXml(xml),
+          typeName: () => "Pin Layout" },
     ];
 }
 
@@ -90,6 +93,7 @@ export function getModelsInUse(): Set<RegistryModel> {
     const scan = (list: any[]) => {
         for (const ce of list) {
             if (ce.model) used.add(ce.model);
+            if (ce.pinLayout) used.add(ce.pinLayout);
             if (ce.compElmList) scan(ce.compElmList);
         }
     };

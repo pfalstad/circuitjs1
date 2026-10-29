@@ -30,6 +30,9 @@ import { WireRouter } from "./WireRouter";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
+import { PinLayoutModel } from "./PinLayoutModel";
+import { HookRegistry } from "./HookRegistry";
+import { Locale } from "./Locale";
 
 export class Pin {
     chip: ChipElm;
@@ -173,6 +176,14 @@ export abstract class ChipElm extends CircuitElm {
     justLoaded: boolean = false;
     labelX: number = 0;
     labelY: number = 0;
+    // pin layout model giving the chip's size and pin positions, or null for the default layout
+    pinLayout: PinLayoutModel | null = null;
+    // name of the pin layout model, kept even if it isn't found so it isn't lost on save
+    pinLayoutName: string | null = null;
+    // index (after the digital/bus fields) of the first pin layout field in the edit dialog,
+    // found by getEditInfo(); -1 if not known yet
+    private pinLayoutEditBase: number = -1;
+    private pinLayoutChoices: (PinLayoutModel | null)[] = [];
 
     static readonly FLAG_SMALL         = 1;
     static readonly FLAG_FLIP_X        = 1 << 10;
@@ -326,7 +337,67 @@ export abstract class ChipElm extends CircuitElm {
         this.setPoints();
     }
 
+    // false for chips whose drawing depends on the default pin positions
+    allowsPinLayout(): boolean { return true; }
+
+    // whether a pin layout model fits this chip's current pins
+    pinLayoutFits(pl: PinLayoutModel): boolean {
+        const n = this.getPostCount();
+        if (this.pins == null || pl.elmType !== this.getXmlDumpType() || pl.pins.length !== n ||
+                pl.sizeX < 1 || pl.sizeY < 1)
+            return false;
+        for (let i = 0; i !== n; i++) {
+            const lp = pl.pins[i];
+            if (lp.name !== this.pins[i].text)
+                return false;
+            const max = (lp.side === ChipElm.SIDE_N || lp.side === ChipElm.SIDE_S) ? pl.sizeX : pl.sizeY;
+            if (lp.side < 0 || lp.side > 3 || lp.pos < 0 || lp.pos >= max)
+                return false;
+        }
+        return true;
+    }
+
+    // move the pins to where the pin layout model puts them, if there is one and it fits.
+    // setupPins() puts them back in their default positions.
+    applyPinLayout(): void {
+        const pl = this.pinLayout;
+        if (pl === null || !this.allowsPinLayout() || !this.pinLayoutFits(pl))
+            return;
+        this.sizeX = pl.sizeX;
+        this.sizeY = pl.sizeY;
+        for (let i = 0; i !== pl.pins.length; i++) {
+            this.pins[i].side0 = pl.pins[i].side;
+            this.pins[i].pos   = pl.pins[i].pos;
+        }
+    }
+
+    // attach a pin layout model, or go back to the default layout if null
+    setPinLayout(pl: PinLayoutModel | null): void {
+        const old = this.pinLayout;
+        this.pinLayout = pl;
+        this.pinLayoutName = pl === null ? null : pl.name;
+        if (old !== null) {
+            // put the pins back in their default positions, keeping the pin values
+            const values = this.pins.map(p => p.value);
+            this.setupPins();
+            for (let i = 0; i < this.pins.length && i < values.length; i++)
+                this.pins[i].value = values[i];
+        }
+        this.setPoints();
+    }
+
+    updateModels(): void {
+        if (this.pinLayout !== null)
+            this.pinLayoutName = this.pinLayout.name;
+        else if (this.pinLayoutName !== null)
+            this.pinLayout = PinLayoutModel.registry.get(this.pinLayoutName) ?? null;
+        // the model may have been edited
+        if (this.pinLayout !== null)
+            this.setPoints();
+    }
+
     setPoints(): void {
+        this.applyPinLayout();
         if (this.x2 - this.x > this.sizeX * this.cspc2 && this.isCreating())
             this.setSize(2);
         const x0 = this.x + this.cspc2;
@@ -512,6 +583,12 @@ export abstract class ChipElm extends CircuitElm {
             CircuitXMLSerializer.dumpAttr(elem, "hv", this.highVoltage);
         if (this.bitOrder !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "bo", this.bitOrder);
+        if (this.pinLayout !== null) {
+            if (!this.pinLayout.dumped)
+                this.pinLayout.dumpXml(doc);
+            CircuitXMLSerializer.dumpAttr(elem, "pl", this.pinLayout.name);
+        } else if (this.pinLayoutName !== null)
+            CircuitXMLSerializer.dumpAttr(elem, "pl", this.pinLayoutName);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -534,7 +611,11 @@ export abstract class ChipElm extends CircuitElm {
         this.highVoltage = xml.parseDoubleAttr("hv", this.highVoltage);
         this.bitOrder    = xml.parseIntAttr("bo", this.bitOrder);
         if (!stateRestore) {
+            this.pinLayoutName = xml.parseStringAttr("pl", null);
+            this.pinLayout = this.pinLayoutName === null ? null :
+                PinLayoutModel.registry.get(this.pinLayoutName) ?? null;
             this.setupPins();
+            this.applyPinLayout();
             this.allocNodes();
             this.setSize((this.flags & ChipElm.FLAG_SMALL) !== 0 ? 1 : 2);
         }
@@ -664,11 +745,81 @@ export abstract class ChipElm extends CircuitElm {
                 ei.choice.add("LSB First");
                 ei.choice.add("Bus");
                 ei.choice.select(this.bitOrder);
-                return ei;
+                return this.lockIfStructural(ei.setStructural());
             }
             n--;
         }
-        return this.getChipEditInfo(n);
+        const ei = this.getChipEditInfo(n);
+        if (ei !== null) {
+            if (n >= this.pinLayoutEditBase)
+                this.pinLayoutEditBase = -1;
+            return this.lockIfStructural(ei);
+        }
+        // pin layout fields go after the chip's own fields
+        if (!this.allowsPinLayout())
+            return null;
+        if (this.pinLayoutEditBase < 0)
+            this.pinLayoutEditBase = n;
+        return this.getPinLayoutEditInfo(n - this.pinLayoutEditBase);
+    }
+
+    // a field that would change the pins can't be changed while a pin layout is attached
+    private lockIfStructural(ei: EditInfo): EditInfo {
+        if (ei.structural && this.pinLayout !== null)
+            ei.disabled = true;
+        return ei;
+    }
+
+    getPinLayoutEditInfo(n: number): EditInfo | null {
+        if (n === 0) {
+            const ei = new EditInfo("Pin Layout", 0, -1, -1);
+            const fitting = PinLayoutModel.registry.models().filter(m => this.pinLayoutFits(m));
+            fitting.sort((a, b) => a.name.localeCompare(b.name));
+            if (this.pinLayout !== null && !fitting.includes(this.pinLayout))
+                fitting.push(this.pinLayout);
+            this.pinLayoutChoices = [null, ...fitting];
+            ei.choice = new Choice();
+            ei.choice.add(Locale.LS("Default"));
+            for (const m of fitting)
+                ei.choice.add(m.name);
+            ei.choice.select(this.pinLayoutChoices.indexOf(this.pinLayout));
+            return ei;
+        }
+        if (n === 1) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.button = { label: Locale.LS("Create Pin Layout") };
+            return ei;
+        }
+        // (the editor starts from the current pin positions, so they must be the model's)
+        if (n === 2 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout)) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.button = { label: Locale.LS("Edit Pin Layout") };
+            return ei;
+        }
+        return null;
+    }
+
+    setPinLayoutEditValue(n: number, ei: EditInfo): void {
+        if (n === 0) {
+            const pl = this.pinLayoutChoices[ei.choice!.getSelectedIndex()] ?? null;
+            if (pl !== this.pinLayout)
+                this.setPinLayout(pl);
+            // structural fields are locked or unlocked
+            ei.newDialog = true;
+            return;
+        }
+        if (n === 1)
+            HookRegistry.editPinLayout?.(this, null);
+        if (n === 2 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout))
+            HookRegistry.editPinLayout?.(this, this.pinLayout);
+    }
+
+    // after an edit: if it changed the pins, the pin layout no longer fits, so drop it
+    private checkPinLayoutFits(ei: EditInfo): void {
+        if (this.pinLayout !== null && !this.pinLayoutFits(this.pinLayout)) {
+            this.setPinLayout(null);
+            ei.newDialog = true;
+        }
     }
 
     setEditValue(n: number, ei: EditInfo): void {
@@ -684,11 +835,17 @@ export abstract class ChipElm extends CircuitElm {
                 this.bitOrder = ei.choice!.getSelectedIndex();
                 this.setupPins();
                 this.setPoints();
+                this.checkPinLayoutFits(ei);
                 return;
             }
             n--;
         }
+        if (this.pinLayoutEditBase >= 0 && n >= this.pinLayoutEditBase) {
+            this.setPinLayoutEditValue(n - this.pinLayoutEditBase, ei);
+            return;
+        }
         this.setChipEditValue(n, ei);
+        this.checkPinLayoutFits(ei);
     }
 
     getChipEditInfo(n: number): EditInfo | null { return null; }

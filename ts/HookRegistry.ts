@@ -31,4 +31,6 @@ export const HookRegistry = {
     resetGroundNodeList:         null as (() => void) | null,
     resetLabeledNodeList:        null as (() => void) | null,
     getLabeledNode:              null as ((name: string) => any) | null,
+    // open the pin layout editor for a chip, editing the given model, or creating one if null
+    editPinLayout:               null as ((chip: any, model: any) => void) | null,
 };

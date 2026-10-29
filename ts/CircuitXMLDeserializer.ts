@@ -25,6 +25,7 @@ import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
 import { MosfetModel } from "./MosfetModel";
 import { CustomLogicModel } from "./CustomLogicModel";
+import { PinLayoutModel } from "./PinLayoutModel";
 import { Scope } from "./Scope";
 import { HookRegistry } from "./HookRegistry";
 
@@ -115,6 +116,11 @@ export class CircuitXMLDeserializer {
             if (tagName === "clm") {
                 this.currentXmlElement = elem;
                 CustomLogicModel.undumpModelXml(this);
+                continue;
+            }
+            if (tagName === "plm") {
+                this.currentXmlElement = elem;
+                PinLayoutModel.undumpModelXml(this);
                 continue;
             }
             if (tagName === "ccm") {

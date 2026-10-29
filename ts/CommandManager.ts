@@ -32,6 +32,8 @@ import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
+// registers HookRegistry.editPinLayout
+import "./EditPinLayoutDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";

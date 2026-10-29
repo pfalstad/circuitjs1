@@ -78,6 +78,7 @@ export class CustomLogicElm extends ChipElm {
         this.model = CustomLogicModel.getModelWithNameOrCopy(this.modelName, this.model ?? null);
         this.setupPins();
         this.allocNodes();
+        super.updateModels();
         this.setPoints();
     }
 
@@ -237,7 +238,7 @@ export class CustomLogicElm extends ChipElm {
             const ei = new EditInfo("Model Name", 0, -1, -1);
             ei.text = this.modelName;
             ei.disallowSliders();
-            return ei;
+            return ei.setStructural();
         }
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);

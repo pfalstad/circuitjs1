@@ -345,6 +345,7 @@ export class SevenSegElm extends ChipElm {
 
     getPostCount(): number { return this.pinCount ?? 0; }
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
     getDumpType(): number { return 157; }
     getXmlDumpType(): string { return "ssd"; }
 

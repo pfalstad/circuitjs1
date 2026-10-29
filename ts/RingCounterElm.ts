@@ -108,7 +108,7 @@ export class RingCounterElm extends ChipElm {
             return ei;
         }
         if (n === 1)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         return null;
     }
 

@@ -310,11 +310,11 @@ export class MultiplexerElm extends ChipElm {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Select Bits", this.selectBitCount, 1, 8).setDimensionless();
+            return new EditInfo("# of Select Bits", this.selectBitCount, 1, 8).setDimensionless().setStructural();
         if (n === 1)
-            return EditInfo.createCheckbox("Inverted Output", this.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT));
+            return EditInfo.createCheckbox("Inverted Output", this.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT)).setStructural();
         if (n === 2)
-            return EditInfo.createCheckbox("Strobe Pin", this.hasFlag(MultiplexerElm.FLAG_STROBE));
+            return EditInfo.createCheckbox("Strobe Pin", this.hasFlag(MultiplexerElm.FLAG_STROBE)).setStructural();
         if (n === 3) {
             const ei = new EditInfo("Input Mode", 0, -1, -1);
             ei.choice = new Choice();
@@ -322,12 +322,12 @@ export class MultiplexerElm extends ChipElm {
             ei.choice.add("Bus Input (Bit Select)");
             ei.choice.add("Bus Input/Output");
             ei.choice.select(this.inputMode);
-            return ei;
+            return ei.setStructural();
         }
         if (n === 4)
-            return EditInfo.createCheckbox("Bus Select", this.busSelect());
+            return EditInfo.createCheckbox("Bus Select", this.busSelect()).setStructural();
         if (n === 5 && this.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS)
-            return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless();
+            return new EditInfo("Data Bus Width", this.dataBusWidth, 2, 32).setDimensionless().setStructural();
         return null;
     }
 

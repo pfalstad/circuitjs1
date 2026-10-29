@@ -275,13 +275,13 @@ export class LatchElm extends ChipElm {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         if (n === 1)
             return EditInfo.createCheckbox("Edge Triggered", this.isEdgeTriggered());
         if (n === 2)
-            return EditInfo.createCheckbox("Reset Pin", this.hasReset());
+            return EditInfo.createCheckbox("Reset Pin", this.hasReset()).setStructural();
         if (n === 3)
-            return EditInfo.createCheckbox("Set Pin", this.hasSet());
+            return EditInfo.createCheckbox("Set Pin", this.hasSet()).setStructural();
         if (n === 4) {
             const ei = new EditInfo("Enable Pins", 0);
             ei.choice = new Choice();
@@ -289,7 +289,7 @@ export class LatchElm extends ChipElm {
             ei.choice.add("1 Input/Output Enable");
             ei.choice.add("2 Input/Output Enables");
             ei.choice.select(this.enableMode());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 5 && this.hasReset())
             return EditInfo.createCheckbox("Invert Reset", this.resetActiveLow());

@@ -135,13 +135,13 @@ export class CounterElm extends ChipElm {
             return ei;
         }
         if (n === 1)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         if (n === 2)
             return new EditInfo("Modulus", this.modulus, 1, 1).setDimensionless();
         if (n === 3) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Up/Down Pin", this.hasUpDown());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 4) {
             const ei = new EditInfo("", 0, -1, -1);
