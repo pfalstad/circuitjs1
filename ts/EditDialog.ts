@@ -44,6 +44,9 @@ export class EditDialog extends Dialog {
     cframe: CirSim;
     einfos: (EditInfo | null)[];
     einfocount: number = 0;
+    // editing an element inside a subcircuit instance: only state fields (EditInfo.isState)
+    // are shown, since only state is saved per instance; other edits would be lost on reload
+    stateOnly: boolean;
 
     private mainPanel: HTMLDivElement;
     private errorLabel: HTMLDivElement;
@@ -59,6 +62,7 @@ export class EditDialog extends Dialog {
         this.elm = ce;
         this.cframe = f;
         this.einfos = new Array(20).fill(null);
+        this.stateOnly = ce instanceof CircuitElm && !!f.ui?.isViewingSubcircuit();
 
         // Title
         let title = "Edit Component";
@@ -165,6 +169,8 @@ export class EditDialog extends Dialog {
             this.einfos[i] = this.elm.getEditInfo(i);
             if (this.einfos[i] === null) break;
             const ei = this.einfos[i]!;
+            if (this.stateOnly && !ei.isState)
+                continue;
 
             // Start new column when current is full or element requests it
             if (this.activeColCount > 15 || ei.newColumn) {
@@ -181,6 +187,7 @@ export class EditDialog extends Dialog {
                 label.style.marginTop = "6px";
             this.activeCol.appendChild(label);
             this.activeColCount++;
+            const firstWidget = this.activeCol.childElementCount;
 
             const idx = i; // snapshot loop index for closures
             if (ei.choice !== null) {
@@ -246,6 +253,18 @@ export class EditDialog extends Dialog {
                     inp.value = this.unitString(ei);
                     this.activeCol.appendChild(this.makeValueStepperRow(ei));
                 }
+            }
+            if (ei.disabled) {
+                const kids = this.activeCol.children;
+                for (let k = firstWidget; k < kids.length; k++) {
+                    const w = kids[k] as HTMLElement;
+                    const ctls = w.matches("input, select, button, textarea") ? [w] :
+                        Array.from(w.querySelectorAll("input, select, button, textarea"));
+                    for (const c of ctls)
+                        (c as HTMLInputElement).disabled = true;
+                }
+                if (this.firstInput !== null && (this.firstInput as HTMLInputElement).disabled)
+                    this.firstInput = null;
             }
         }
         this.einfocount = i;
@@ -436,6 +455,8 @@ export class EditDialog extends Dialog {
     apply(): boolean {
         for (let i = 0; i !== this.einfocount; i++) {
             const ei = this.einfos[i]!;
+            if ((this.stateOnly && !ei.isState) || ei.disabled)
+                continue;
             ei.error = null;
             if (ei.textf !== null && ei.text === null) {
                 try {
@@ -474,6 +495,8 @@ export class EditDialog extends Dialog {
 
     itemStateChanged(idx: number): void {
         const ei = this.einfos[idx]!;
+        if (ei.disabled)
+            return;
         let changed = false;
         let applied = false;
 
@@ -492,6 +515,16 @@ export class EditDialog extends Dialog {
             if (!applied) this.apply();
             this.clearDialog();
             this.buildDialog();
+        }
+    }
+
+    static hasStateFields(elm: Editable): boolean {
+        for (let i = 0; ; i++) {
+            const ei = elm.getEditInfo(i);
+            if (ei === null)
+                return false;
+            if (ei.isState)
+                return true;
         }
     }
 

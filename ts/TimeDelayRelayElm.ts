@@ -128,6 +128,7 @@ export class TimeDelayRelayElm extends ChipElm {
     isDigitalChip(): boolean { return false; }
     getPostCount(): number { return 4; }
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
     getDumpType(): number { return 414; }
 
     getChipEditInfo(n: number): EditInfo | null {

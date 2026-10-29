@@ -25,6 +25,7 @@ import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
 import { MosfetModel } from "./MosfetModel";
 import { CustomLogicModel } from "./CustomLogicModel";
+import { PinLayoutModel } from "./PinLayoutModel";
 import { Scope } from "./Scope";
 import { HookRegistry } from "./HookRegistry";
 
@@ -60,7 +61,7 @@ export class CircuitXMLDeserializer {
             this.app.setGrid();
         }
 
-        this.readElements(root);
+        this.readElements(root, (readFlags & CircuitLoader.RC_SUBCIRCUITS) !== 0);
         this.app.loader.finishReadCircuit(readFlags);
     }
 
@@ -71,7 +72,8 @@ export class CircuitXMLDeserializer {
         this.app.loader.finishReadCircuit(0);
     }
 
-    readElements(root: Element): void {
+    // subcircuitsOnly: read only the subcircuit model definitions
+    readElements(root: Element, subcircuitsOnly: boolean = false): void {
         const children = root.childNodes;
 
         for (let i = 0; i < children.length; i++) {
@@ -81,6 +83,8 @@ export class CircuitXMLDeserializer {
 
             const elem    = node as Element;
             const tagName = elem.tagName;
+            if (subcircuitsOnly && tagName !== "ccm")
+                continue;
 
             if (tagName === "o") {
                 const sc = new Scope(this.app, this.app.sim);
@@ -112,6 +116,11 @@ export class CircuitXMLDeserializer {
             if (tagName === "clm") {
                 this.currentXmlElement = elem;
                 CustomLogicModel.undumpModelXml(this);
+                continue;
+            }
+            if (tagName === "plm") {
+                this.currentXmlElement = elem;
+                PinLayoutModel.undumpModelXml(this);
                 continue;
             }
             if (tagName === "ccm") {

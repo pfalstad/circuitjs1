@@ -184,6 +184,7 @@ export class LEDArrayElm extends ChipElm {
 
     getPostCount(): number { return this.sizeX + this.sizeY; }
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }
     getDumpType(): number { return 405; }
 

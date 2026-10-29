@@ -93,7 +93,7 @@ export class JKFlipFlopElm extends ChipElm {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return EditInfo.createCheckbox("Reset Pin", this.hasReset());
+            return EditInfo.createCheckbox("Reset Pin", this.hasReset()).setStructural();
         if (n === 1)
             return EditInfo.createCheckbox("Positive Edge Triggered", this.positiveEdgeTriggered());
         if (n === 2)

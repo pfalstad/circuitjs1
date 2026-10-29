@@ -40,6 +40,7 @@ import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { EditDialog } from "./EditDialog";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -299,9 +300,9 @@ export class LoadFile {
     }
 
     static doLoadCallback(app: CirSim, text: string, name: string): void {
-        if (CircuitLoader.isSubcircuitLibrary(text)) {
-            // library files just add global subcircuits; keep the current circuit and its title
-            app.loader.readSubcircuitLibrary(text);
+        if (CircuitLoader.isModelLibrary(text)) {
+            // library files just add global models; keep the current circuit and its title
+            app.loader.readModelLibrary(text);
             return;
         }
         app.undoManager?.pushUndo();
@@ -1410,6 +1411,19 @@ export class UIManager {
 
     isReadOnly(): boolean {
         return this.menus.noEditCheckItem.getState() || this.subcircuitStack.length > 0;
+    }
+
+    isViewingSubcircuit(): boolean {
+        return this.subcircuitStack.length > 0;
+    }
+
+    // can elm's properties be edited?  inside a subcircuit view, only state fields can be
+    // (see EditDialog's state-only mode), so only elements that have some
+    canEditProperties(elm: CircuitElm): boolean {
+        if (!this.isReadOnly())
+            return true;
+        return this.isViewingSubcircuit() && !this.menus.noEditCheckItem.getState() &&
+            EditDialog.hasStateFields(elm);
     }
 
     // show an element (menu bar) as a floating context-menu popup at the given client coordinates

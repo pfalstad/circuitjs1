@@ -102,12 +102,12 @@ export class DFlipFlopElm extends ChipElm {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Reset Pin", this.hasReset());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Set Pin", this.hasSet());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 2) {
             const ei = new EditInfo("", 0, -1, -1);

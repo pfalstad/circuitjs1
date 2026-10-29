@@ -22,6 +22,7 @@
 // For information about the theory behind this, see Electronic Circuit & System Simulation Methods by Pillage
 // or https://github.com/sharpie7/circuitjs1/blob/master/INTERNALS.md
 
+import { ModelRegistry } from "./ModelRegistry";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ElementFactory } from "./ElementFactory";
@@ -29,11 +30,6 @@ import { StringTokenizer } from "./StringTokenizer";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
 import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerializer";
-import { CustomLogicModel } from "./CustomLogicModel";
-import { DiodeModel } from "./DiodeModel";
-import { MosfetModel } from "./MosfetModel";
-import { RelayModel } from "./RelayModel";
-import { TransistorModel } from "./TransistorModel";
 import { CircuitElm } from "./CircuitElm";
 import { ScopeManager } from "./ScopeManager";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
@@ -223,7 +219,7 @@ export class CirSim {
         await import('./SliderDialog');
         await import('./ScopePropertiesDialog');
         await import('./ShortcutsDialog');
-        await import('./SubcircuitDialog');
+        await import('./ModelManagerDialog');
         await import('./ExportAsUrlDialog');
         await import('./ExportAsImageDialog');
         await import('./ScopeExportImageDialog');
@@ -273,7 +269,7 @@ export class CirSim {
         this.ui.setWheelSensitivity();
 
         try {
-            HookRegistry.loadSubcircuitModelsFromStorage?.();
+            HookRegistry.loadModelsFromStorage?.();
         } catch (e) {
             CirSim.console("Exception: " + e);
         }
@@ -454,9 +450,9 @@ export class CirSim {
     allowSave(b: boolean): void { this.ui.allowSave(b); }
 
     importCircuitFromText(circuitText: string | null, subcircuitsOnly: boolean): void {
-        const RC_SUBCIRCUITS = 2, RC_RETAIN = 4;
-        // subcircuit library files don't replace the circuit
-        if (circuitText != null && this.loader.constructor.isSubcircuitLibrary(circuitText))
+        const { RC_SUBCIRCUITS, RC_RETAIN } = this.loader.constructor;
+        // model library files don't replace the circuit
+        if (circuitText != null && this.loader.constructor.isModelLibrary(circuitText))
             subcircuitsOnly = true;
         const flags = subcircuitsOnly ? (RC_SUBCIRCUITS | RC_RETAIN) : 0;
         if (!subcircuitsOnly)
@@ -500,12 +496,7 @@ export class CirSim {
 
     // saveState=false: without simulation state or scopes (see CircuitXMLSerializer)
     dumpCircuit(saveState: boolean = true): string {
-        CustomLogicModel.clearDumpedFlags();
-        HookRegistry.clearSubcircuitModelDumpedFlags?.();
-        DiodeModel.clearDumpedFlags();
-        TransistorModel.clearDumpedFlags();
-        RelayModel.clearDumpedFlags();
-        MosfetModel.clearDumpedFlags();
+        ModelRegistry.clearAllDumpedFlags();
 
         const xml = new CircuitXMLSerializer(this);
         xml.saveState = saveState;
@@ -540,8 +531,8 @@ export class CirSim {
         if (this.contextStack.length === 0)
             return [];
         const ctx = this.contextStack.splice(this.contextStack.length - 1, 1)[0];
-        const RC_NO_CENTER = 8;
-        this.loader.readCircuit(ctx.circuitDump, RC_NO_CENTER);
+        const { RC_NO_CENTER, RC_KEEP_MODELS } = this.loader.constructor;
+        this.loader.readCircuit(ctx.circuitDump, RC_NO_CENTER | RC_KEEP_MODELS);
         this.transform = ctx.transform;
         this.undoManager.undoStack = ctx.undoStack;
         this.undoManager.redoStack = ctx.redoStack;

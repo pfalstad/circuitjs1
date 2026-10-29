@@ -90,6 +90,10 @@ export class SRAMElm extends ChipElm {
         super.dumpXmlState(doc, elem);
         if (this.map.size > 0)
             elem.appendChild(doc.createTextNode(this.contentsToString()));
+        else
+            // mark empty contents so the state isn't skipped (CompositeElm.dumpXmlState skips
+            // children with no state), which would bring back the model's contents on reload
+            CircuitXMLSerializer.dumpAttr(elem, "em", 1);
     }
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
@@ -100,6 +104,8 @@ export class SRAMElm extends ChipElm {
             const s = xml.parseContents();
             if (s) this.parseContentsString(s);
         } catch (e) {}
+        if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
+            this.initialMap = new Map(this.map);
         this.setupPins();
     }
 
@@ -139,11 +145,11 @@ export class SRAMElm extends ChipElm {
     }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Address Bits", this.addressBits, 1, 1).setDimensionless();
+            return new EditInfo("# of Address Bits", this.addressBits, 1, 1).setDimensionless().setStructural();
         if (n === 1)
-            return new EditInfo("# of Data Bits", this.dataBits, 1, 1).setDimensionless();
+            return new EditInfo("# of Data Bits", this.dataBits, 1, 1).setDimensionless().setStructural();
         if (n === 2) {
-            const ei = new EditInfo("Contents", 0);
+            const ei = new EditInfo("Contents", 0).setIsState();
             ei.textArea = { value: SRAMElm.contentsOverride !== null ? SRAMElm.contentsOverride : this.contentsToString(), element: null };
             SRAMElm.contentsOverride = null;
             if (SRAMElm.fileNameOverride !== null)
@@ -152,14 +158,14 @@ export class SRAMElm extends ChipElm {
             return ei;
         }
         if (n === 3) {
-            const ei = new EditInfo("", 0, -1, -1);
+            const ei = new EditInfo("", 0, -1, -1).setIsState();
             ei.checkbox = new Checkbox("Hex Display", this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY));
             return ei;
         }
         if (n === 4 && SRAMElm.loadFileSupported()) {
             const ei = new EditInfo(
                 this.loadedFileName !== null ? "Loaded: " + this.loadedFileName : "",
-                0, -1, -1);
+                0, -1, -1).setIsState();
             const input = document.createElement("input");
             input.type = "file";
             input.addEventListener("change", () => {

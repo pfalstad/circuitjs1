@@ -95,7 +95,7 @@ export class BusSplitterElm extends ChipElm {
 
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         return null;
     }
     setChipEditValue(n: number, ei: EditInfo): void {

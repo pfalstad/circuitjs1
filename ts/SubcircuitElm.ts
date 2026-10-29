@@ -42,6 +42,8 @@ export class SubcircuitElm extends CompositeElm {
     inputCount: number = 0;
     outputCount: number = 0;
     model: SubcircuitModel = null!;
+    // name of the model compElmList was built from
+    builtModelName: string | null = null;
     highVoltage: number = 0;
     static lastModelName: string = "default";
     static readonly FLAG_SMALL = 2;
@@ -91,7 +93,7 @@ export class SubcircuitElm extends CompositeElm {
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         this.modelName    = xml.parseStringAttr("mo", this.modelName)!;
-        this.highVoltage  = xml.parseDoubleAttr("hv", 0);
+        this.highVoltage  = xml.parseDoubleAttr("hv", this.highVoltage);
         this.updateModels();
         super.undumpXml(xml);
     }
@@ -154,8 +156,25 @@ export class SubcircuitElm extends CompositeElm {
         if (st !== undefined) {
             this._updateModels(st);
         } else {
+            // rebuilding from the same model (e.g. after it was edited): keep the inner
+            // elements' state (SRAM contents etc.), matched up by index
+            let state: Element | null = null;
+            if (this.builtModelName === this.modelName && this.compElmList?.length > 0) {
+                const doc = document.implementation.createDocument(null, "cir", null);
+                state = doc.documentElement;
+                this.dumpXmlState(doc, state);
+            }
             this.model = null!;
             this._updateModels(null);
+            if (state !== null && this.model != null) {
+                const xml = new CircuitXMLDeserializer(CircuitElm.app);
+                xml.parseChildElement(state);
+                try {
+                    this.undumpChildState(xml, true);
+                } catch (e) {
+                    CirSim.console("couldn't restore subcircuit state: " + e);
+                }
+            }
         }
     }
 
@@ -169,6 +188,7 @@ export class SubcircuitElm extends CompositeElm {
             // updateModels() call (if the model becomes available) can still resolve it
             this.postCount = 0;
             this.compElmList = [];
+            this.builtModelName = null;
             this.numPosts = this.numNodes = 0;
             this.posts = [];
             this.allocNodes();
@@ -184,6 +204,7 @@ export class SubcircuitElm extends CompositeElm {
         } else {
             this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
         }
+        this.builtModelName = this.model.name;
         this.propagateHighVoltage();
         this.allocNodes();
         this.setPoints();

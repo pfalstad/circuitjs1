@@ -17,30 +17,21 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { ModelRegistry } from "./ModelRegistry";
 import { ChipElm } from "./ChipElm";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { SubcircuitModel } from "./SubcircuitModel";
-import { CustomLogicModel } from "./CustomLogicModel";
-import { DiodeModel } from "./DiodeModel";
 import { ExtListEntry } from "./ExtListEntry";
 import { HookRegistry } from "./HookRegistry";
 import { LabeledNodeElm } from "./LabeledNodeElm";
-import { RelayModel } from "./RelayModel";
 import { SimulationManager } from "./SimulationManager";
 import { SwitchElm } from "./SwitchElm";
-import { TransistorModel } from "./TransistorModel";
-import { MosfetModel } from "./MosfetModel";
 
 function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     const elmDoc = document.implementation.createDocument(null, "elms");
     const elmRoot = elmDoc.documentElement;
-    CustomLogicModel.clearDumpedFlags();
-    DiodeModel.clearDumpedFlags();
-    TransistorModel.clearDumpedFlags();
-    RelayModel.clearDumpedFlags();
-    SubcircuitModel.clearDumpedFlags();
-    MosfetModel.clearDumpedFlags();
+    ModelRegistry.clearAllDumpedFlags();
 
     const sideLabels: LabeledNodeElm[][] = [[], [], [], []];
     const extList: ExtListEntry[] = [];

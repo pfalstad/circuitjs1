@@ -22,9 +22,7 @@
 
 export const HookRegistry = {
     undumpSubcircuitModel:        null as ((xml: any) => void) | null,
-    loadSubcircuitModelsFromStorage: null as (() => void) | null,
-    clearSubcircuitModelDumpedFlags: null as (() => void) | null,
-    dumpUnusedLocalSubcircuitModels: null as ((doc: Document) => void) | null,
+    loadModelsFromStorage:       null as (() => void) | null,
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,
@@ -33,4 +31,6 @@ export const HookRegistry = {
     resetGroundNodeList:         null as (() => void) | null,
     resetLabeledNodeList:        null as (() => void) | null,
     getLabeledNode:              null as ((name: string) => any) | null,
+    // open the pin layout editor for a chip, editing the given model, or creating one if null
+    editPinLayout:               null as ((chip: any, model: any) => void) | null,
 };

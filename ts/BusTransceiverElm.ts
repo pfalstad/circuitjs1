@@ -143,7 +143,7 @@ export class BusTransceiverElm extends ChipElm {
 
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.dataBits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.dataBits, 1, 1).setDimensionless().setStructural();
         return super.getChipEditInfo(n);
     }
 

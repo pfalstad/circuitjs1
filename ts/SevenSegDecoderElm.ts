@@ -219,12 +219,12 @@ export class SevenSegDecoderElm extends ChipElm {
             ei.choice.add("14 Segment");
             ei.choice.add("16 Segment");
             ei.choice.select(this.segmentType);
-            return ei;
+            return ei.setStructural();
         }
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Blank Pin", this.hasBlank());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 2) {
             const ei = new EditInfo("", 0, -1, -1);

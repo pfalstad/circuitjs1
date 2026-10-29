@@ -160,10 +160,10 @@ export class TimerElm extends ChipElm {
         if (n === 0) {
             const ei = new EditInfo("", 0, 0, 0);
             ei.checkbox = new Checkbox("Ground Pin", this.hasGroundPin());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 1)
-            return EditInfo.createCheckbox("Show Pin Numbers", this.usePinNumbers());
+            return EditInfo.createCheckbox("Show Pin Numbers", this.usePinNumbers()).setStructural();
         return super.getChipEditInfo(n);
     }
 

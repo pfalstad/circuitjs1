@@ -112,6 +112,7 @@ export class DecimalDisplayElm extends ChipElm {
     getPostCount(): number { return this.bitCount ?? 0; }
     getDumpType(): number { return 419; }
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
 
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {

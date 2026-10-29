@@ -80,7 +80,7 @@ export class FullAdderElm extends ChipElm {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setPositive();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setPositive().setStructural();
         return super.getChipEditInfo(n);
     }
     setChipEditValue(n: number, ei: EditInfo): void {
