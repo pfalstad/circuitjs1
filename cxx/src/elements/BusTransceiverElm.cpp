@@ -115,7 +115,7 @@ void BusTransceiverElm::getInfo(std::vector<std::string> &arr) {
 
 std::optional<EditInfo> BusTransceiverElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", dataBits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", dataBits, 1, 1).setDimensionless().setStructural();
     return ChipElm::getChipEditInfo(n);
 }
 

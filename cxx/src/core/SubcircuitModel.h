@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-#include "OrderedMap.h"
+#include "ModelRegistry.h"
 #include "XmlDoc.h"
 
 class CircuitXMLDeserializer;
@@ -47,28 +47,27 @@ class SubcircuitModel;
 using SubcircuitModelRef = std::shared_ptr<SubcircuitModel>;
 
 // model for subcircuits
-class SubcircuitModel : public std::enable_shared_from_this<SubcircuitModel> {
+class SubcircuitModel : public std::enable_shared_from_this<SubcircuitModel>, public RegistryModel {
 public:
-    static OrderedMap<SubcircuitModelRef> globalModelMap;
-    static OrderedMap<SubcircuitModelRef> localModelMap;
+    // models loaded from circuit files are local; models saved in storage (or made global by
+    // the user) are global
+    static ModelRegistry<SubcircuitModel, SubcircuitModelRef> &registry();
 
     int flags = 0;
     int sizeX = 0;
     int sizeY = 0;
-    std::string name;
     std::vector<ExtListEntry> extList;
     // XML tree storing child element definitions (TS: elmDoc, a document with root "elms")
     std::unique_ptr<XmlElement> elmDoc;
     std::optional<std::string> modelCircuit;
-    bool dumped = false;
     bool internal = false;  // don't show in list
     bool builtin = false;   // included by default, don't allow deletion
 
-    static int sequenceNumber;
+    // changes whenever the set of models changes
+    static int sequenceNumber() { return registry().sequenceNumber; }
     static constexpr int FLAG_SHOW_LABEL = 1;
 
     void setName(const std::string &n);
-    static void initModelMap();
     static void loadModelsFromStorage();
     static SubcircuitModelRef getModelWithName(const std::string &name);
     // create model from old-style nodeList/elmDump format, converting to XML immediately
@@ -77,7 +76,6 @@ public:
     // create model with XML element doc already built
     static SubcircuitModelRef createModel(const std::string &name, std::unique_ptr<XmlElement> elmDoc,
                                           const std::vector<ExtListEntry> &extList);
-    static void clearDumpedFlags();
     static std::vector<SubcircuitModelRef> getModelList();
     static SubcircuitModelRef undumpModel(StringTokenizer &st);
     void undump(StringTokenizer &st);
@@ -85,24 +83,10 @@ public:
     void convertOldFormatToXml(const std::string &nodeList, const std::string &elmDump);
     bool isSaved();
     void setSaved(bool sv);
-    // where this model lives: local to the current circuit, global (available to all circuits
-    // this session), or persistent (global and saved in local storage across sessions)
-    std::string getScope();
-    // names of models used by subcircuits in the given circuit, including nested ones
-    static std::set<std::string> getModelNamesInUse(const std::vector<class CircuitElm *> &elmList);
-    // move model to the global map, replacing any local or global model with the same name
-    void makeGlobal();
-    // move model to the local map so it belongs only to the current circuit,
-    // replacing any local model with the same name, and remove it from storage
-    void makeLocal();
-    void makePersistent();
-    // dump models as a subcircuit library file, which can be loaded like a circuit
-    static std::string dumpLibrary(const std::vector<SubcircuitModelRef> &models);
-    // load models from a subcircuit library file and make them global
-    static std::vector<SubcircuitModelRef> loadLibrary(CircuitXMLDeserializer &xml, const XmlElement *root);
     static void loadModelFromStorage(const std::string &data);
     bool showLabel() const { return (flags & FLAG_SHOW_LABEL) != 0; }
     bool isBuiltin() const { return builtin; }
+    bool isUserModel() const override { return !(builtin || internal); }
     void setShowLabel(bool sl) { flags = sl ? (flags | FLAG_SHOW_LABEL) : (flags & ~FLAG_SHOW_LABEL); }
     // check if all bus entries have consecutive node numbers so we can use compact format
     bool busNodesConsecutive();
@@ -114,6 +98,11 @@ public:
     // with that name already exists.  The embedded copy is a snapshot taken when the outer model
     // was created, so it may be stale; it must never overwrite a model that instances are using.
     static void undumpEmbeddedModelXml(CircuitXMLDeserializer &xml);
+    // register an element model definition embedded in a subcircuit model as the subcircuit is
+    // built, unless a model with that name exists.  The definitions are registered when the
+    // subcircuit model is loaded, but as local models; a global subcircuit model outlives them.
+    // Returns false if elm isn't an element model definition.
+    static bool undumpEmbeddedElmModelXml(CircuitXMLDeserializer &xml, const XmlElement *elm);
     // parse XML attributes and children from deserializer
     void parseXmlElement(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml) { parseXmlElement(xml); }
@@ -126,9 +115,11 @@ public:
     // replace a model in whichever map it lives in.  A global model replaces any local
     // copy with the same name (e.g. a stale one reloaded from a saved editing context).
     static void replaceModel(const SubcircuitModelRef &model);
-    // dump local models not already dumped (i.e. not used by any element), since local
-    // models belong to the circuit and would otherwise be lost when it is reloaded
-    static void dumpUnusedLocalModels(XmlElement *root);
-    static void clearLocalModels();
     static void loadInternalModels();
+
+private:
+    // add the built-in models (called by the registry when first used)
+    static void initModelMap();
+    // the model to load a definition into (see ModelRegistry.getForLoad)
+    static SubcircuitModelRef getModelForLoad(const std::string &name);
 };

@@ -101,6 +101,8 @@ public:
     static Scope *cursorScope;
     static Scope *draggingPlotYScope;
     bool draggingPlotY = false;
+    // the drag started on the trigger level line, so it moves that instead of the plot
+    bool draggingTriggerLevel = false;
     double dragPlotYMouseStart = 0;
     int dragPlotYInitialPosition = 0;
 
@@ -112,6 +114,10 @@ public:
     // check if any plot has the given value (unlike showingValue which checks ALL plots)
     bool hasPlotValue(int v) const;
     void showPlotValue(int val, bool b);
+    // Transistor values (Ib/Ic/Ie, Vbe/Vbc/Vce).  In an X/Y or V-vs-I plot they act as two
+    // radio groups, one current and one voltage: picking one replaces the other in the same
+    // plot slot, so the X/Y axis assignment is kept.  Time plots can still show any mix.
+    void showTransistorValue(int val, bool state);
     void showCharge(bool b) { showPlotValue(ScopeConstants::VAL_CHARGE, b); }
     void showPower(bool b) { showPlotValue(ScopeConstants::VAL_POWER, b); }
     void showMaxF(bool b) { showMax = b; }
@@ -133,7 +139,9 @@ public:
     int validDataCount(const ScopePlot &plot, int ipa, int w) const { return trigger.validDataCount(plot, ipa, w, scopePointCount); }
     void checkTrigger();
     void setTriggerMode(int mode);
-    void drawTriggerIndicator(Graphics &g) { trigger.drawIndicator(g, visiblePlots, rect); }
+    ScopePlot *triggerSourcePlot() const { return trigger.sourcePlot(plots, visiblePlots); }
+    void drawTriggerIndicator(Graphics &g, bool forExport);
+    bool cursorNearTriggerLevel() const;
     void initialize();
     void calcVisiblePlots();
     void setRect(const Rectangle &r);
@@ -201,7 +209,8 @@ public:
     void speedUp();
     void slowDown();
     void setPlotPosition(int plot, int v) { visiblePlots[plot]->manVPosition = v; }
-    // start dragging the currently selected plot up/down (manual scale mode only)
+    // start dragging the trigger level line if the mouse is on it, otherwise the currently
+    // selected plot up/down (manual scale mode only)
     bool startDragPlotY(double mouseX, double mouseY);
     void dragPlotY(double mouseY);
     static void endDragPlotY();

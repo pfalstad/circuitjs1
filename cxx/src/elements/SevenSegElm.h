@@ -26,6 +26,7 @@ class SevenSegElm : public ChipElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(SevenSegElm)
+    bool allowsPinLayout() override { return false; }
     // base segment count not including decimal point or colon
     int baseSegmentCount = 0;
     // segment count including decimal point or colon

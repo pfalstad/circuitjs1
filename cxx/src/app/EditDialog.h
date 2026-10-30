@@ -40,6 +40,9 @@ public:
     EditDialog(Editable *ce, CirSim *f);
 
     Editable *elm;
+    // editing an element inside a subcircuit instance: only state fields (EditInfo.isState)
+    // are shown, since only state is saved per instance; other edits would be lost on reload
+    bool stateOnly;
 
     // reapply the fields (returns false and shows an error if a value is invalid)
     bool apply();
@@ -49,6 +52,7 @@ public:
     static constexpr double E12[] = {1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2};
     // step to the next/previous value (in direction dir) in the E12 preferred-value series
     static double stepE12(double value, int dir);
+    static bool hasStateFields(Editable *elm);
     static std::string unitStringVal(const EditInfo *ei, double v);
     // parse "2k2", "10u", "1meg", "5rms", ...; throws on bad input
     static double parseUnits(std::string s);

@@ -30,6 +30,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScreen>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -38,8 +39,10 @@
 #include "CirSim.h"
 #include "EditDialog.h"
 #include "core/CircuitElm.h"
+#include "core/JsMath.h"
 #include "core/JsNumber.h"
 #include "core/Locale.h"
+#include "core/NumberFormat.h"
 #include "core/Scope.h"
 #include "core/ScopeConstants.h"
 #include "core/ScopePlot.h"
@@ -240,6 +243,23 @@ ScopePropertiesDialog::ScopePropertiesDialog(CirSim *app_, Scope *scope_) : QDia
     connect(trigFallingButton, &QRadioButton::clicked, this, [setEdge] { setEdge(ScopeTrigger::TRIGGER_EDGE_FALLING); });
     tContent->addWidget(trigEdgeDiv);
 
+    trigSourceDiv = new QWidget();
+    QHBoxLayout *srcLayout = new QHBoxLayout(trigSourceDiv);
+    srcLayout->setContentsMargins(0, 0, 0, 0);
+    srcLayout->addWidget(new QLabel(LS("Source:")));
+    trigSourceBox = new QComboBox();
+    srcLayout->addWidget(trigSourceBox);
+    srcLayout->addStretch(1);
+    connect(trigSourceBox, &QComboBox::activated, this, [this](int i) {
+        int idx = i < 0 ? -1 : trigSourceBox->itemData(i).toInt();
+        if (idx >= 0) {
+            scope->trigger.source = idx;
+            scope->resetGraph();
+        }
+        app->repaint();
+    });
+    tContent->addWidget(trigSourceDiv);
+
     trigLevelDiv = new QWidget();
     QHBoxLayout *lvlLayout = new QHBoxLayout(trigLevelDiv);
     lvlLayout->setContentsMargins(0, 0, 0, 0);
@@ -288,6 +308,8 @@ ScopePropertiesDialog::ScopePropertiesDialog(CirSim *app_, Scope *scope_) : QDia
     n = 0;
     viBox = makeCheckBox("Show V vs I", "showvvsi", xyBasicGrid, n);
     xyBox = makeCheckBox("Plot X/Y", "plotxy", xyBasicGrid, n);
+    xyOriginBox = makeCheckBox("Include Origin", "xyorigin", xyBasicGrid, n);
+    xyAlignBox = makeCheckBox("Align X", "xyalignx", xyBasicGrid, n);
 
     xySettingsDiv = new QWidget();
     xySettingsGrid = new QGridLayout(xySettingsDiv);
@@ -309,10 +331,12 @@ ScopePropertiesDialog::ScopePropertiesDialog(CirSim *app_, Scope *scope_) : QDia
 
     // Trail Persistence (inside XY Plots section)
     QHBoxLayout *trailDiv = new QHBoxLayout();
-    trailDiv->addWidget(new QLabel(LS("Trail Persistence (time steps)")));
+    trailDiv->addWidget(new QLabel(LS("Trail Persistence")));
+    // slider 0 = default (frame-based fade); 1..TRAIL_MAX = 1/100 to 10x the scope's
+    // horizontal time span, logarithmic, 20 steps per decade
     trailBar = new QSlider(Qt::Horizontal);
-    trailBar->setRange(0, 61);
-    trailBar->setValue(trailStepsToSlider(scope->plot2d.trailPersistence));
+    trailBar->setRange(0, TRAIL_MAX);
+    trailBar->setValue(trailTimeToSlider(scope->plot2d.trailTime()));
     connect(trailBar, &QSlider::valueChanged, this, [this](int v) {
         if (updating)
             return;
@@ -379,7 +403,11 @@ ScopePropertiesDialog::ScopePropertiesDialog(CirSim *app_, Scope *scope_) : QDia
 
     // keep the auto scale value current while the simulation runs
     QTimer *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, [this] { refreshDraw(); });
+    connect(timer, &QTimer::timeout, this, [this] {
+        refreshDraw();
+        if (scope->plot2d.enabled)
+            refreshTrail();
+    });
     timer->start(200);
 }
 
@@ -541,6 +569,12 @@ void ScopePropertiesDialog::scrollbarChanged() {
     if (scope->speed != newsp)
         scope->setSpeed(newsp);
     setScopeSpeedLabel();
+    // the trail keeps its time; its slider range moves with the horizontal span
+    {
+        QSignalBlocker block(trailBar);
+        trailBar->setValue(trailTimeToSlider(scope->plot2d.trailTime()));
+    }
+    setTrailLabel();
     app->repaint();
 }
 
@@ -550,12 +584,26 @@ void ScopePropertiesDialog::setScopeSpeedLabel() {
 
 void ScopePropertiesDialog::setTrailLabel() {
     if (scope->plot2d.trailPersistence <= 0) {
-        trailLabel->setText(LS("default"));
+        // measured value: 2 significant figures, so it doesn't flicker in the last digits
+        double t = scope->plot2d.defaultTrailTime();
+        double r = t > 0 ? jsParseFloat(jsToPrecision(t, 2)) : 0;
+        std::string text = Locale::LS("default");
+        if (r > 0)
+            text += " (\u2248" + CircuitElm::getUnitText(r, "s") + ")";
+        trailLabel->setText(QString::fromStdString(text));
     } else {
-        double maxTs = app->sim ? app->sim->maxTimeStep : 0;
-        trailLabel->setText(
-            QString::fromStdString(CircuitElm::getUnitText(scope->plot2d.trailPersistence * maxTs, "s")));
+        trailLabel->setText(QString::fromStdString(CircuitElm::getUnitText(scope->plot2d.trailTime(), "s")));
     }
+}
+
+void ScopePropertiesDialog::refreshTrail() {
+    if (scope->plot2d.trailPersistence > 0)
+        return;
+    double now = app->currentTimeMillis();
+    if (now - lastTrailRefresh < 500)
+        return;
+    lastTrailRefresh = now;
+    setTrailLabel();
 }
 
 void ScopePropertiesDialog::applyTriggerLevel() {
@@ -629,6 +677,10 @@ void ScopePropertiesDialog::updateUi() {
     rmsBox->setEnabled(scope->canShowRMS());
     viBox->setValue(scope->plot2d.enabled && !scope->plot2d.plotXY);
     xyBox->setValue(scope->plot2d.plotXY);
+    xyOriginBox->setValue(scope->plot2d.includeOrigin);
+    xyOriginBox->setEnabled(scope->plot2d.enabled && !scope->isManualScale());
+    xyAlignBox->setValue(scope->plot2d.alignX);
+    xyAlignBox->setEnabled(scope->plot2d.enabled && !scope->isManualScale());
     resistanceBox->setValue(scope->hasPlotValue(VAL_R));
     resistanceBox->setEnabled(scope->canShowResistance());
     if (chargeBox != nullptr)
@@ -664,6 +716,15 @@ void ScopePropertiesDialog::updateUi() {
         triggerLevelTextBox->setText(QString::fromStdString(EditDialog::unitStringVal(nullptr, scope->trigger.level)));
     trigEdgeDiv->setVisible(trigActive);
     trigLevelDiv->setVisible(trigActive);
+    trigSourceDiv->setVisible(trigActive);
+    if (trigActive) {
+        ScopePlot *src = scope->triggerSourcePlot();
+        int srcIdx = -1;
+        for (int i = 0; i < (int) scope->plots.size(); i++)
+            if (scope->plots[i].get() == src)
+                srcIdx = i;
+        populatePlotListBox(trigSourceBox, srcIdx, false);
+    }
 
     // XY settings visibility
     bool xyActive = scope->plot2d.plotXY;
@@ -786,11 +847,13 @@ bool ScopePropertiesDialog::apply() {
 int ScopePropertiesDialog::trailSliderToSteps(int v) {
     if (v <= 0)
         return 0;
-    return (int) std::round(std::pow(10, v / 10.));
+    double t = scope->plot2d.fitWindow() * jsmath::pow(10, (v - 1) / 20. - 2);
+    return std::max(1, (int) jsmath::round(t / scope->sim->maxTimeStep));
 }
 
-int ScopePropertiesDialog::trailStepsToSlider(int steps) {
-    if (steps <= 0)
+int ScopePropertiesDialog::trailTimeToSlider(double t) {
+    if (t <= 0)
         return 0;
-    return (int) std::round(std::log10(steps) * 10);
+    int v = 1 + (int) jsmath::round(20 * (jsmath::log10(t / scope->plot2d.fitWindow()) + 2));
+    return std::max(1, std::min(TRAIL_MAX, v));
 }

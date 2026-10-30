@@ -69,6 +69,7 @@ static std::string noCommaFormat(double v) {
 
 EditDialog::EditDialog(Editable *ce, CirSim *f) : QDialog(f, Qt::Tool), elm(ce), cframe(f) {
     setAttribute(Qt::WA_DeleteOnClose);
+    stateOnly = dynamic_cast<CircuitElm *>(ce) != nullptr && f->isViewingSubcircuit();
 
     // Title
     std::string title = "Edit Component";
@@ -180,6 +181,8 @@ void EditDialog::buildDialog() {
     for (int i = 0; i < (int) fields.size(); i++) {
         Field &f = fields[i];
         EditInfo &ei = f.ei;
+        if (stateOnly && !ei.isState)
+            continue;
 
         // Start new column when current is full or element requests it
         if (activeColCount > 15 || ei.newColumn)
@@ -261,8 +264,17 @@ void EditDialog::buildDialog() {
                 activeCol->addWidget(inp);
             } else {
                 inp->setText(QString::fromStdString(unitString(ei)));
-                activeCol->addWidget(makeValueStepperRow(i));
+                QWidget *row = makeValueStepperRow(i);
+                // (the "-"/"+" buttons too)
+                if (ei.disabled)
+                    row->setEnabled(false);
+                activeCol->addWidget(row);
             }
+        }
+        if (ei.disabled && f.widget) {
+            f.widget->setEnabled(false);
+            if (firstInput == f.widget)
+                firstInput = nullptr;
         }
     }
     building = false;
@@ -442,10 +454,22 @@ void EditDialog::syncFromWidget(Field &f) {
         ei.textf = TextField{le->text().toStdString()};
 }
 
+bool EditDialog::hasStateFields(Editable *elm) {
+    for (int i = 0;; i++) {
+        std::optional<EditInfo> ei = elm->getEditInfo(i);
+        if (!ei)
+            return false;
+        if (ei->isState)
+            return true;
+    }
+}
+
 bool EditDialog::apply() {
     for (int i = 0; i != (int) fields.size(); i++) {
         Field &f = fields[i];
         EditInfo &ei = f.ei;
+        if ((stateOnly && !ei.isState) || ei.disabled)
+            continue;
         syncFromWidget(f);
         ei.error.reset();
         if (ei.textf && !ei.text) {
@@ -490,6 +514,8 @@ void EditDialog::itemStateChanged(int idx) {
         return;
     Field &f = fields[idx];
     EditInfo &ei = f.ei;
+    if (ei.disabled)
+        return;
     bool changed = false;
     bool applied = false;
 

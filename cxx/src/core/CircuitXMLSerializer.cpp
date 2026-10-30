@@ -113,12 +113,7 @@ std::string CircuitXMLSerializer::prettyPrint(const XmlElement *root) {
 }
 
 std::string CircuitXMLSerializer::dumpCircuit() {
-    CustomLogicModel::clearDumpedFlags();
-    SubcircuitModel::clearDumpedFlags();
-    RelayModel::clearDumpedFlags();
-    MosfetModel::clearDumpedFlags();
-    DiodeModel::clearDumpedFlags();
-    TransistorModel::clearDumpedFlags();
+    ModelRegistryBase::clearAllDumpedFlags();
 
     XmlElement root("cir");
     const SimApp::Options &o = app->options;
@@ -148,7 +143,7 @@ std::string CircuitXMLSerializer::dumpCircuit() {
             ce->dumpXmlState(&root, elem.get());
         root.appendChild(std::move(elem));
     }
-    SubcircuitModel::dumpUnusedLocalModels(&root);
+    ModelRegistryBase::dumpAllUnusedLocal(&root);
     if (app->scopeManager != nullptr && saveState) {
         ScopeManager *sm = app->scopeManager;
         for (int i = 0; i != sm->scopeCount; i++)

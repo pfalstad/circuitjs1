@@ -25,6 +25,7 @@ class VCOElm : public ChipElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(VCOElm)
+    bool allowsPinLayout() override { return false; }
     const double cResistance = 1e6;
     double cCurrent = 0;
     int cDir = 0;

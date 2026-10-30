@@ -614,7 +614,7 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     CircuitElm *createdElm = endDrag();
     if (createdElm != nullptr) {
         editCreatedElm(createdElm);
-    } else if (clickedElm != nullptr && !sim->isReadOnly() && sim->showPropsOnClick) {
+    } else if (clickedElm != nullptr && sim->canEditProperties(clickedElm) && sim->showPropsOnClick) {
         // (clicking the element whose properties are already showing dismisses them)
         if (sim->editDialog != nullptr && sim->editDialog->elm == clickedElm)
             sim->closeEditDialog();
@@ -720,7 +720,7 @@ void MouseManager::onDoubleClick(QMouseEvent *e) {
             sim->doEdit(mouseElm);
         return;
     }
-    if (!mouseElm->isSwitchElm() && mouseElm->hasProperties() && !sim->isReadOnly())
+    if (!mouseElm->isSwitchElm() && mouseElm->hasProperties() && sim->canEditProperties(mouseElm))
         sim->doEdit(mouseElm);
 }
 
@@ -744,7 +744,9 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
     if (!zoomOnly && mouseElm != nullptr && !sim->modalDialogIsShowing() && sm->scopeSelected == -1 &&
         (mouseElm->isResistorElm() || mouseElm->isCapacitorElm() || mouseElm->isInductorElm())) {
         wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
-    } else if (!zoomOnly && mouseElm != nullptr && (mouseElm->isMosfetElm() || mouseElm->isTransistorElm())) {
+    } else if (!zoomOnly && mouseElm != nullptr &&
+               (mouseElm->isMosfetElm() || mouseElm->isTransistorElm() || mouseElm->isGateElm())) {
+        // (GateElm.onMouseWheel() in the TS version, for gates)
         wheelPopup = new TypeScrollPopup(globalPos, norm, mouseElm, sim);
     } else if (!zoomOnly && mouseElm != nullptr && mouseElm->onMouseWheel(norm)) {
         // (the element's slider moved)

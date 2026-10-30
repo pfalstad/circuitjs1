@@ -549,3 +549,7 @@ void RelayElm::dumpXmlModel(XmlElement *doc) {
     if (!(model->builtIn || model->dumped))
         model->dumpXml(doc);
 }
+
+RegistryModel *RelayElm::getModel() {
+    return model;
+}

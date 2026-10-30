@@ -31,9 +31,10 @@
 
 SimApp *RelayModel::app = nullptr;
 
-OrderedMap<RelayModel *> &RelayModel::modelMap() {
-    static OrderedMap<RelayModel *> map;
-    return map;
+ModelRegistry<RelayModel> &RelayModel::registry() {
+    static ModelRegistry<RelayModel> r([] { createModelMap(); }, "relaymodel:",
+                                       [](RelayModel *m, XmlElement *root) { m->dumpXml(root); });
+    return r;
 }
 
 RelayModel::RelayModel(const RelayModel &copy) {
@@ -52,19 +53,17 @@ RelayModel::RelayModel(const RelayModel &copy) {
 }
 
 RelayModel *RelayModel::getModelWithName(const std::string &name) {
-    createModelMap();
-    if (RelayModel **lm = modelMap().get(name))
-        return *lm;
+    if (RelayModel *lm = registry().get(name))
+        return lm;
     RelayModel *lm = new RelayModel();
     lm->name = name;
-    modelMap().set(name, lm);
+    registry().setGlobal(lm);
     return lm;
 }
 
 RelayModel *RelayModel::getModelWithNameOrCopy(const std::string &name, RelayModel *oldmodel) {
-    createModelMap();
-    if (RelayModel **lm = modelMap().get(name))
-        return *lm;
+    if (RelayModel *lm = registry().get(name))
+        return lm;
     if (oldmodel == nullptr) {
         std::cerr << "relay model not found: " << name << "\n";
         return getDefaultModel();
@@ -72,15 +71,12 @@ RelayModel *RelayModel::getModelWithNameOrCopy(const std::string &name, RelayMod
     std::cerr << "relay model not found yet, using placeholder: " << name << "\n";
     RelayModel *copy = new RelayModel(*oldmodel);
     copy->name = name;
-    modelMap().set(name, copy);
+    registry().setLocal(copy);
     return copy;
 }
 
+// add the built-in models (called by the registry when first used)
 void RelayModel::createModelMap() {
-    static bool created = false;
-    if (created)
-        return;
-    created = true;
     addDefaultModel("default", new RelayModel());
     RelayModel *m2 = new RelayModel();
     m2->poleCount = 2;
@@ -91,9 +87,9 @@ void RelayModel::createModelMap() {
 }
 
 void RelayModel::addDefaultModel(const std::string &name, RelayModel *rm) {
-    modelMap().set(name, rm);
     rm->readOnly = rm->builtIn = true;
     rm->name = name;
+    registry().setGlobal(rm);
 }
 
 RelayModel *RelayModel::getDefaultModel() {
@@ -103,9 +99,7 @@ RelayModel *RelayModel::getDefaultModel() {
 RelayModel *RelayModel::getModelWithParameters(double inductance, double r_on, double r_off, double onCurrent,
                                                double offCurrent, double coilR, double switchingTime, int coilStyle,
                                                bool showBox, bool pulldown, int poleCount) {
-    createModelMap();
-    for (auto &kv : modelMap()) {
-        RelayModel *rm = kv.second;
+    for (RelayModel *rm : registry().models()) {
         if (std::abs(rm->inductance - inductance) < 1e-15 && std::abs(rm->r_on - r_on) < 1e-15 &&
             std::abs(rm->r_off - r_off) < 1e-15 && std::abs(rm->onCurrent - onCurrent) < 1e-15 &&
             std::abs(rm->offCurrent - offCurrent) < 1e-15 && std::abs(rm->coilR - coilR) < 1e-15 &&
@@ -115,15 +109,7 @@ RelayModel *RelayModel::getModelWithParameters(double inductance, double r_on, d
     }
     const std::string baseName = "old-relay";
     std::string name = baseName;
-    if (modelMap().get(name) != nullptr) {
-        for (int num = 2;; num++) {
-            std::string n = baseName + "-" + std::to_string(num);
-            if (modelMap().get(n) == nullptr) {
-                name = n;
-                break;
-            }
-        }
-    }
+    name = registry().uniqueName(name);
     RelayModel *rm = getModelWithName(name);
     rm->inductance = inductance;
     rm->r_on = r_on;
@@ -140,17 +126,11 @@ RelayModel *RelayModel::getModelWithParameters(double inductance, double r_on, d
     return rm;
 }
 
-void RelayModel::clearDumpedFlags() {
-    for (auto &kv : modelMap())
-        kv.second->dumped = false;
-}
-
 std::vector<RelayModel *> RelayModel::getModelList() {
-    createModelMap();
     std::vector<RelayModel *> list;
-    for (auto &kv : modelMap())
-        if (std::find(list.begin(), list.end(), kv.second) == list.end())
-            list.push_back(kv.second);
+    for (RelayModel *rm : registry().models())
+        if (std::find(list.begin(), list.end(), rm) == list.end())
+            list.push_back(rm);
     std::stable_sort(list.begin(), list.end(), [](RelayModel *a, RelayModel *b) { return a->name < b->name; });
     return list;
 }
@@ -163,16 +143,8 @@ std::string RelayModel::getDescription() const {
 
 void RelayModel::pickName() {
     name = "relaymodel";
-    if (modelMap().get(name) != nullptr) {
-        for (int num = 2;; num++) {
-            std::string n = name + "-" + std::to_string(num);
-            if (modelMap().get(n) == nullptr) {
-                name = n;
-                break;
-            }
-        }
-    }
-    modelMap().set(name, this);
+    name = registry().uniqueName(name);
+    registry().setLocal(this);
 }
 
 void RelayModel::dumpXml(XmlElement *root) {
@@ -198,7 +170,7 @@ void RelayModel::dumpXml(XmlElement *root) {
 
 RelayModel *RelayModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::string name = xml.parseStringAttr("nm", std::nullopt).value_or("");
-    RelayModel *rm = getModelWithName(name);
+    RelayModel *rm = registry().getForLoad(name, [] { return new RelayModel(); });
     rm->undumpXml(xml);
     return rm;
 }
@@ -258,9 +230,7 @@ std::optional<EditInfo> RelayModel::getEditInfo(int n) {
 
 void RelayModel::setEditValue(int n, EditInfo &ei) {
     if (n == 0) {
-        name = ei.textf->value;
-        if (!name.empty())
-            modelMap().set(name, this);
+        registry().rename(this, ei.textf->value);
     }
     if (n == 1 && ei.value > 0) inductance = ei.value;
     if (n == 2 && ei.value > 0) r_on = ei.value;
@@ -273,6 +243,7 @@ void RelayModel::setEditValue(int n, EditInfo &ei) {
     if (n == 9) coilStyle = ei.choice->getSelectedIndex();
     if (n == 10) showBox = ei.checkbox->getState();
     if (n == 11) pulldown = ei.checkbox->getState();
+    registry().resave(this);
     if (app != nullptr)
         app->updateModels();
 }

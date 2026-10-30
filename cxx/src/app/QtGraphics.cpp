@@ -237,6 +237,8 @@ void QtGraphicsImage::resize(int w, int h) {
     g.reset();
     if (painter.isActive())
         painter.end();
+    width = w;
+    height = h;
     qreal dpr = qApp->devicePixelRatio();
     img = QImage(std::max(1, (int) std::ceil(w * dpr)), std::max(1, (int) std::ceil(h * dpr)),
                  QImage::Format_ARGB32_Premultiplied);

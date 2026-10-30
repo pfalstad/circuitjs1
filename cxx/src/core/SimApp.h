@@ -234,6 +234,8 @@ public:
     void updateModels();
     // open an edit dialog for a model (the custom logic chip's Edit Model button)
     virtual void doEditModel(class Editable *) {}
+    // open the pin layout editor for a chip, editing the given model, or creating one if null
+    virtual void editPinLayout(class ChipElm *, class PinLayoutModel *) {}
 
     // is anything selected?
     bool isSelection() const;

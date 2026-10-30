@@ -28,12 +28,15 @@
 class SubcircuitElm : public CompositeElm {
 public:
     ELM_CLASS(SubcircuitElm)
+    RegistryModel *getModel() override { return model.get(); }
     std::string modelName;
     std::unique_ptr<SubcircuitChipElm> chip;
     int postCount = 0;
     int inputCount = 0;
     int outputCount = 0;
     SubcircuitModelRef model;
+    // name of the model compElmList was built from
+    std::optional<std::string> builtModelName;
     double highVoltage = 0;
     static std::string lastModelName;
     static constexpr int FLAG_SMALL = 2;
@@ -48,7 +51,7 @@ public:
     void draw(Graphics &g) override;
     void addRoutingObstacle(WireRouter &router) override;
     void setPoints() override;
-    void updateModels() override { model = nullptr; updateModelsFrom(nullptr); }
+    void updateModels() override;
     void updateModelsFrom(StringTokenizer *st);
     void propagateHighVoltage();
     void setHighVoltage(double hv) override { highVoltage = hv; }

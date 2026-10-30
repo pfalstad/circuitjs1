@@ -54,11 +54,12 @@
 #include "Toolbar.h"
 #include "ConsoleDialog.h"
 #include "EditDialog.h"
+#include "EditPinLayoutDialog.h"
 #include "EditOptions.h"
 #include "EditSubcircuitModelDialog.h"
 #include "QtStorage.h"
 #include "SubcircuitBar.h"
-#include "SubcircuitDialog.h"
+#include "ModelManagerDialog.h"
 #include "core/CircuitElm.h"
 #include "core/ElementFactory.h"
 #include "core/JsMath.h"
@@ -67,6 +68,7 @@
 #include "core/Scope.h"
 #include "core/CircuitXMLSerializer.h"
 #include "core/CustomLogicModel.h"
+#include "core/ModelTypes.h"
 #include "core/MosfetModel.h"
 #include "core/RelayModel.h"
 #include "core/SubcircuitModel.h"
@@ -188,7 +190,7 @@ CirSim::CirSim() {
     setGeometry(QStyle::alignedRect(Qt::LeftToRight, Qt::AlignCenter, size, avail));
 
     try {
-        SubcircuitModel::loadModelsFromStorage();
+        loadModelsFromStorage();
     } catch (std::exception &e) {
         SimulationManager::console(std::string("Exception: ") + e.what());
     }
@@ -378,8 +380,8 @@ void CirSim::createMenus() {
         needAnalyze();
         writeRecoveryToStorage();
     });
-    QAction *subMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit Manager")));
-    connect(subMgr, &QAction::triggered, this, [this] { (new SubcircuitDialog(this))->show(); });
+    QAction *modelMgr = tools->addAction(QString::fromStdString(Locale::LS("Subcircuit/Model Manager")));
+    connect(modelMgr, &QAction::triggered, this, [this] { (new ModelManagerDialog(this))->show(); });
     QAction *consoleItem = tools->addAction(QString::fromStdString(Locale::LS("Console")));
     connect(consoleItem, &QAction::triggered, this, [] {
         if (ConsoleDialog::instance())
@@ -530,8 +532,8 @@ bool CirSim::loadFile(const QString &path) {
         SimulationManager::console("unknown element types: " + m);
     }
     std::string text = data.toStdString();
-    if (CircuitLoader::isSubcircuitLibrary(text)) {
-        // library files just add global subcircuits; keep the current circuit and its title
+    if (CircuitLoader::isModelLibrary(text)) {
+        // library files just add global models; keep the current circuit and its title
         loader->readCircuit(text);
         return true;
     }
@@ -606,12 +608,7 @@ void CirSim::newBlankCircuit() {
 }
 
 std::string CirSim::dumpCircuit(bool saveState) {
-    CustomLogicModel::clearDumpedFlags();
-    SubcircuitModel::clearDumpedFlags();
-    RelayModel::clearDumpedFlags();
-    MosfetModel::clearDumpedFlags();
-    DiodeModel::clearDumpedFlags();
-    TransistorModel::clearDumpedFlags();
+    ModelRegistryBase::clearAllDumpedFlags();
     CircuitXMLSerializer xml(this, sim.get());
     xml.saveState = saveState;
     return xml.dumpCircuit();
@@ -830,6 +827,12 @@ void CirSim::loadOptions() {
 
 void CirSim::alertReadOnly() {
     alert(Locale::LS(options.noEdit ? "Editing is disabled." : "Editing is disabled while viewing a subcircuit."));
+}
+
+bool CirSim::canEditProperties(CircuitElm *elm) {
+    if (!isReadOnly())
+        return true;
+    return isViewingSubcircuit() && !options.noEdit && EditDialog::hasStateFields(elm);
 }
 
 bool CirSim::getOptionFromStorage(const std::string &key, bool val) {
@@ -1400,11 +1403,12 @@ bool CirSim::isSwitchKey(QKeyEvent *e) {
     return false;
 }
 
-void CirSim::doDelete() {
+void CirSim::doDelete(CircuitElm *menuElm) {
     bool hasDeleted = false;
     for (int i = (int) elmList.size() - 1; i >= 0; i--) {
         CircuitElm *ce = elmList[i];
-        if (ce->isSelected() || ce->isMouseElm()) {
+        // include menuElm: mouseElm is cleared once the mouse leaves the canvas to reach the context menu
+        if (ce->isSelected() || ce->isMouseElm() || ce == menuElm) {
             if (ce->isMouseElm())
                 mouse.setMouseElm(nullptr);
             if (stopElm == ce)
@@ -1467,6 +1471,10 @@ void CirSim::positionEditDialogNear(CircuitElm *elm) {
     y = std::max(y, (double) cr.top() + margin);
 
     editDialog->move((int) x, (int) y);
+}
+
+void CirSim::editPinLayout(ChipElm *chip, PinLayoutModel *model) {
+    (new EditPinLayoutDialog(this, chip, model))->show();
 }
 
 void CirSim::doEditModel(Editable *e) {

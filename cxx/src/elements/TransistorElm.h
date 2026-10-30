@@ -29,6 +29,7 @@ public:
     void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(TransistorElm)
+    RegistryModel *getModel() override;
     // node 0 = base
     // node 1 = collector
     // node 2 = emitter

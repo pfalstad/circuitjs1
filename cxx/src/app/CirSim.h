@@ -200,7 +200,8 @@ public:
     static QString switchKeyStr(QKeyEvent *e);
     bool isSwitchKey(QKeyEvent *e);
     // delete selected elements (and the one under the mouse)
-    void doDelete();
+    // deletes the selected elements and the mouse element, and menuElm if given
+    void doDelete(CircuitElm *menuElm = nullptr);
     // Edit menu commands (CommandManager.ts).  menuElm is the element to act on if it
     // isn't selected (the context menu's element, or the one under the mouse for keys).
     void doCut(CircuitElm *menuElm);
@@ -224,6 +225,7 @@ public:
     EditDialog *editDialog = nullptr;
     EditDialog *modelEditDialog = nullptr;  // the custom logic chip's Edit Model dialog
     void doEditModel(Editable *e) override;
+    void editPinLayout(ChipElm *chip, PinLayoutModel *model) override;
     void doEdit(Editable *e);
     void positionEditDialogNear(CircuitElm *elm);
     void closeEditDialog() override;
@@ -250,6 +252,10 @@ public:
     bool isReadOnly() const { return options.noEdit || !subcircuitStack.empty(); }
     // tell the user why an editing command didn't work
     void alertReadOnly();
+    bool isViewingSubcircuit() const { return !subcircuitStack.empty(); }
+    // can elm's properties be edited?  inside a subcircuit view, only state fields can be
+    // (see EditDialog's state-only mode), so only elements that have some
+    bool canEditProperties(CircuitElm *elm);
 
     // viewing a subcircuit's components (UIManager.ts).  The stack holds the SubcircuitElms
     // we went into; uiElmList points at subcircuitElmList while it's not empty.

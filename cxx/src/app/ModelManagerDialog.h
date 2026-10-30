@@ -21,30 +21,36 @@
 
 #include <QDialog>
 #include <set>
+#include <string>
 #include <vector>
 
-#include "core/SubcircuitModel.h"
+#include "core/ModelTypes.h"
 
 class CirSim;
+class QComboBox;
 class QListWidget;
 
-// the Subcircuit Manager: change where models live, save them as a library, delete them
-class SubcircuitDialog : public QDialog {
+// lists the user's models of all types (subcircuits, diodes, transistors, ...) and lets them
+// change where the models live (see ModelRegistry), save them to a library file, or delete them
+class ModelManagerDialog : public QDialog {
 public:
-    explicit SubcircuitDialog(CirSim *sim);
+    explicit ModelManagerDialog(CirSim *sim);
 
 private:
-    // fill list box, selecting the models in selected
-    void populateList(const std::set<SubcircuitModel *> &selected);
-    std::vector<SubcircuitModelRef> getSelected();
-    static std::set<SubcircuitModel *> asSet(const std::vector<SubcircuitModelRef> &v);
-    void handleMakeLocal();
-    void handleMakeGlobal();
-    void handleMakePersistent();
+    // fill type selector and list box, selecting the models in selected
+    void populateList(const std::set<RegistryModel *> &selected);
+    std::vector<TypedModel> getSelected();
+    void handleSetScope(ModelScope scope);
     void handleSave();
     void handleDelete();
 
+    // type shown in the list, or "" for all types (remembered between uses)
+    static inline std::string typeFilter;
+
     CirSim *sim;
-    QListWidget *subcircuitListBox;
-    std::vector<SubcircuitModelRef> subcircuits;
+    QComboBox *typeSelect;
+    QListWidget *modelListBox;
+    std::vector<TypedModel> models;
+    // (set while populateList() fills typeSelect, so its change signal is ignored)
+    bool populating = false;
 };

@@ -81,7 +81,7 @@ void Counter2Elm::setupPins() {
 
 std::optional<EditInfo> Counter2Elm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     if (n == 1)
         return EditInfo("Modulus", modulus, 1, 1).setDimensionless();
     return std::nullopt;

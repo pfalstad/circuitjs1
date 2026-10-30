@@ -24,19 +24,18 @@
 #include <vector>
 
 #include "EditInfo.h"
-#include "OrderedMap.h"
+#include "ModelRegistry.h"
 
 class CircuitXMLDeserializer;
 class SimApp;
 class XmlElement;
 
-// Models live for the whole session in modelMap, which owns them.
-class RelayModel : public Editable {
+// Models are never freed: elements may still use one that's been removed from the registry.
+class RelayModel : public Editable, public RegistryModel {
 public:
-    static OrderedMap<RelayModel *> &modelMap();
+    static ModelRegistry<RelayModel> &registry();
 
     int flags = 0;
-    std::string name;
     std::optional<std::string> description;
     double inductance = .2;
     double r_on = .05;
@@ -50,7 +49,6 @@ public:
     bool showBox = true;
     bool pulldown = true;
 
-    bool dumped = false;
     bool readOnly = false;
     bool builtIn = false;
     bool oldStyle = false;
@@ -67,7 +65,6 @@ public:
     static RelayModel *getModelWithParameters(double inductance, double r_on, double r_off, double onCurrent,
                                               double offCurrent, double coilR, double switchingTime, int coilStyle,
                                               bool showBox, bool pulldown, int poleCount);
-    static void clearDumpedFlags();
     static std::vector<RelayModel *> getModelList();
     std::string getDescription() const;
     void pickName();
@@ -75,6 +72,7 @@ public:
     static RelayModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string getEditTitle() override { return "Edit Relay Model"; }
+    bool isUserModel() const override { return !(builtIn || readOnly || oldStyle); }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
 

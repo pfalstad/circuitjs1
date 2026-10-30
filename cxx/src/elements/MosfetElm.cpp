@@ -666,7 +666,6 @@ void MosfetElm::setEditValue(int n, EditInfo &ei) {
             // the TS version names and registers the copy when its dialog is applied
             MosfetModel *newModel = new MosfetModel(*model);
             newModel->pickName();
-            MosfetModel::modelMap().set(newModel->name, newModel);
             newModelCreated(newModel);
             ei.newDialog = true;
             app->doEditModel(newModel);
@@ -731,4 +730,8 @@ void MosfetElm::addRoutingObstacle(WireRouter &wr) {
 void MosfetElm::dumpXmlModel(XmlElement *doc) {
     if (!(model->builtIn || model->dumped))
         model->dumpXml(doc);
+}
+
+RegistryModel *MosfetElm::getModel() {
+    return model;
 }

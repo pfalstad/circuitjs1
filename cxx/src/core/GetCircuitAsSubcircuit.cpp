@@ -39,12 +39,7 @@ SubcircuitModelRef SimulationManager::getCircuitAsComposite() {
     SimulationManager *sim = this;
     auto elmDoc = std::make_unique<XmlElement>("elms");
     XmlElement *elmRoot = elmDoc.get();
-    CustomLogicModel::clearDumpedFlags();
-    DiodeModel::clearDumpedFlags();
-    TransistorModel::clearDumpedFlags();
-    RelayModel::clearDumpedFlags();
-    SubcircuitModel::clearDumpedFlags();
-    MosfetModel::clearDumpedFlags();
+    ModelRegistryBase::clearAllDumpedFlags();
 
     std::vector<LabeledNodeElm *> sideLabels[4];
     std::vector<ExtListEntry> extList;

@@ -34,12 +34,15 @@ public:
     static constexpr int RC_NO_CENTER = 2;
     static constexpr int RC_SUBCIRCUITS = 4;
     static constexpr int RC_KEEP_TITLE = 8;
+    // restoring an earlier state of the same circuit (undo/redo, leaving a subcircuit editor),
+    // so keep its local models, including ones no element uses yet
+    static constexpr int RC_KEEP_MODELS = 16;
 
     CircuitLoader(SimApp *app, SimulationManager *sim) : app(app), sim(sim) {}
 
     void clearCircuit();
-    // subcircuit library files (saved from the Subcircuit Manager) don't replace the circuit
-    static bool isSubcircuitLibrary(const std::string &text);
+    // model library files (saved from the Model Manager) don't replace the circuit
+    static bool isModelLibrary(const std::string &text);
     // replace the circuit with the elements in doc (CircuitXMLDeserializer.readCircuitFromDoc())
     void readCircuitFromDoc(const XmlElement *doc);
     void readCircuit(const std::string &text, int flags = 0);
@@ -51,7 +54,7 @@ public:
 
 private:
     void finishReadCircuit(int flags);
-    void readSubcircuitLibrary(const std::string &text);
+    void readModelLibrary(const std::string &text);
     void readCircuitXml(const std::string &text, int flags);
     void readCircuitText(const std::string &text, int flags);
     void readOptions(StringTokenizer &st, int importFlags);

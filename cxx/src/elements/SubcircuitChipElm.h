@@ -26,6 +26,7 @@
 class SubcircuitChipElm : public ChipElm {
 public:
     ELM_CLASS(SubcircuitChipElm)
+    bool allowsPinLayout() override { return false; }
     std::optional<std::string> label;
     bool pinsAllocated = false;  // TS: pins != null
 

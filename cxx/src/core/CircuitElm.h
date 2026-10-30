@@ -42,6 +42,7 @@ class XmlElement;
 class CircuitXMLDeserializer;
 struct WireSegment;
 class WireRouter;
+class RegistryModel;
 
 // every concrete element class puts this in its body; it stands in for constructor.name
 #define ELM_CLASS(name) \
@@ -167,6 +168,8 @@ public:
     virtual void addRoutingObstacle(WireRouter &router);
     void addRoutingObstacleWithLeads(WireRouter &router, double width);
     virtual std::vector<CircuitElm *> *getChildElmList() { return nullptr; }
+    // the model this element uses, if any (TS: ce.model, found by duck typing)
+    virtual RegistryModel *getModel() { return nullptr; }
 
     // called before makeNodeList to allow elements to set up internal node counts, etc.
     virtual void preStamp() {}
@@ -440,6 +443,7 @@ public:
     virtual bool isSubcircuitElm() { return false; }
     virtual bool isTransistorElm() { return false; }
     virtual bool isMosfetElm() { return false; }
+    virtual bool isGateElm() { return false; }
     virtual bool isJfetElm() { return false; }
     virtual bool isOutputElm() { return false; }
     virtual bool isLogicOutputElm() { return false; }

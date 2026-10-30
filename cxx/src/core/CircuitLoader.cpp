@@ -23,6 +23,7 @@
 #include "Adjustable.h"
 #include "SubcircuitModel.h"
 #include "Locale.h"
+#include "ModelTypes.h"
 #include <regex>
 #include "WireRouter.h"
 #include "CustomLogicModel.h"
@@ -67,33 +68,35 @@ void CircuitLoader::clearCircuit() {
     if (app->scopeManager != nullptr)
         app->scopeManager->clearScopes();
     app->hintType = -1;
-    if (!app->isEditingContext())
-        SubcircuitModel::clearLocalModels();
 }
 
-// subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
-// containing only subcircuit models
-bool CircuitLoader::isSubcircuitLibrary(const std::string &text) {
-    static const std::regex lib("^<cir\\b[^>]*\\bsublib=\"1\"");
+// model library files (saved from the Model Manager) are XML circuit files containing
+// only models, marked with lib="1" (sublib="1" in older files, which held only subcircuits)
+bool CircuitLoader::isModelLibrary(const std::string &text) {
+    static const std::regex lib("^<cir\\b[^>]*\\b(sub)?lib=\"1\"");
     return std::regex_search(text, lib);
 }
 
-// load subcircuit models from a library file, making them global.  Leaves the current circuit alone.
-void CircuitLoader::readSubcircuitLibrary(const std::string &text) {
+// load models from a library file, making them global.  Leaves the current circuit alone.
+void CircuitLoader::readModelLibrary(const std::string &text) {
     std::unique_ptr<XmlElement> root = parseXml(text);
     CircuitXMLDeserializer xml(app);
-    std::vector<SubcircuitModelRef> models = SubcircuitModel::loadLibrary(xml, root.get());
+    std::vector<TypedModel> models = loadModelLibrary(xml, root.get());
     // make any existing instances pick up the new definitions
     app->updateModels();
     if (models.empty())
-        app->alert(Locale::LS("No subcircuits found in file"));
+        app->alert(Locale::LS("No models found in file"));
 }
 
 void CircuitLoader::readCircuit(const std::string &text, int flags) {
-    if (isSubcircuitLibrary(text)) {
-        readSubcircuitLibrary(text);
+    if (isModelLibrary(text)) {
+        readModelLibrary(text);
         return;
     }
+    // a different circuit, so drop the previous one's local models (but not when loading a
+    // subcircuit's contents to edit it)
+    if ((flags & (RC_RETAIN | RC_KEEP_MODELS)) == 0 && !app->isEditingContext())
+        ModelRegistryBase::clearAllLocal();
     if (!text.empty() && text[0] == '<') {
         if ((flags & RC_RETAIN) == 0)
             clearCircuit();
@@ -122,7 +125,7 @@ void CircuitLoader::readCircuitXml(const std::string &text, int readFlags) {
         app->setGrid();
     }
 
-    xml.readElements(root.get());
+    xml.readElements(root.get(), (readFlags & RC_SUBCIRCUITS) != 0);
     finishReadCircuit(readFlags);
 }
 

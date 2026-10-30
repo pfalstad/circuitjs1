@@ -78,6 +78,8 @@ void WheelPopup::close(bool keepChanges) {
     closed = true;
     if (!keepChanges)
         revert();
+    else
+        keep();
     QFrame::close();
     sim->repaint();
 }

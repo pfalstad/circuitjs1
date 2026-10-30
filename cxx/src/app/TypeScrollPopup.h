@@ -22,7 +22,12 @@
 #include "ScrollValuePopup.h"
 
 // popup for toggling MOSFET/JFET/transistor type on scroll wheel, similar to
-// ScrollValuePopup for R/C/L values (TypeScrollPopup.ts)
+// ScrollValuePopup for R/C/L values (TypeScrollPopup.ts).
+// Also cycles logic gates through AND/NAND/OR/NOR/XOR/XNOR. Gate type is the
+// element's class, not a field, so each step replaces the element with a new
+// one of the next class. Invert Inputs and DeMorgan are cleared on each step
+// (Invert Inputs changes the gate's function). A scope on the gate is removed,
+// same as deleting the gate.
 class TypeScrollPopup : public WheelPopup {
 public:
     TypeScrollPopup(QPoint globalPos, double dy, CircuitElm *elm, CirSim *sim);
@@ -31,15 +36,23 @@ public:
 
 protected:
     void revert() override;
+    void keep() override;
 
 private:
     std::string getHeaderText();
-    void toggle();
+    void stepGate(int dir);
+    // put newElm in myElm's place in the circuit
+    void replaceElm(CircuitElm *newElm);
+    void toggle(int dir);
     void updateLabel();
 
     CircuitElm *myElm;
-    int originalPnp;
-    int currentPnp;
+    // (out of the circuit while a gate of another type is in its place; freed if that's kept)
+    CircuitElm *originalElm;
+    int originalPnp = 0;
+    int currentPnp = 0;
+    int gateIndex = 0;
     QLabel *typeLabel;
     double deltaY = 0;
+    int stepsDone = 0;
 };

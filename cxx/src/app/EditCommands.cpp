@@ -150,12 +150,7 @@ void CirSim::readClipboardFromStorage() {
 std::string CirSim::copyOfSelectedElms() {
     XmlElement root("cir");
 
-    CustomLogicModel::clearDumpedFlags();
-    SubcircuitModel::clearDumpedFlags();
-    DiodeModel::clearDumpedFlags();
-    TransistorModel::clearDumpedFlags();
-    RelayModel::clearDumpedFlags();
-    MosfetModel::clearDumpedFlags();
+    ModelRegistryBase::clearAllDumpedFlags();
 
     for (int i = (int) elmList.size() - 1; i >= 0; i--) {
         CircuitElm *ce = elmList[i];

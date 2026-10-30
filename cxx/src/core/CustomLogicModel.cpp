@@ -30,38 +30,32 @@
 
 SimApp *CustomLogicModel::app = nullptr;
 
-std::map<std::string, CustomLogicModel *> &CustomLogicModel::modelMap() {
-    static std::map<std::string, CustomLogicModel *> m;
-    return m;
+ModelRegistry<CustomLogicModel> &CustomLogicModel::registry() {
+    static ModelRegistry<CustomLogicModel> r(nullptr, "customlogicmodel:",
+                                             [](CustomLogicModel *m, XmlElement *root) { m->dumpXml(root); });
+    return r;
 }
 
 CustomLogicModel *CustomLogicModel::getModelWithName(const std::string &name) {
-    auto it = modelMap().find(name);
-    if (it != modelMap().end())
-        return it->second;
+    if (CustomLogicModel *lm = registry().get(name))
+        return lm;
     CustomLogicModel *lm = new CustomLogicModel();
     lm->name = name;
     lm->infoText = (name == "default") ? "custom logic" : name;
-    modelMap()[name] = lm;
+    registry().setLocal(lm);
     return lm;
 }
 
 CustomLogicModel *CustomLogicModel::getModelWithNameOrCopy(const std::string &name, const CustomLogicModel *oldmodel) {
-    auto it = modelMap().find(name);
-    if (it != modelMap().end())
-        return it->second;
+    if (CustomLogicModel *lm = registry().get(name))
+        return lm;
     CustomLogicModel *copy = oldmodel ? new CustomLogicModel(*oldmodel) : new CustomLogicModel();
     copy->dumped = false;
     copy->triState = oldmodel ? oldmodel->triState : false;
     copy->name = name;
     copy->infoText = name;
-    modelMap()[name] = copy;
+    registry().setLocal(copy);
     return copy;
-}
-
-void CustomLogicModel::clearDumpedFlags() {
-    for (auto &kv : modelMap())
-        kv.second->dumped = false;
 }
 
 CustomLogicModel::CustomLogicModel() {
@@ -71,7 +65,7 @@ CustomLogicModel::CustomLogicModel() {
 
 void CustomLogicModel::undumpModel(StringTokenizer &st) {
     std::string name = unescape(st.nextToken());
-    CustomLogicModel *model = getModelWithName(name);
+    CustomLogicModel *model = getModelForLoad(name);
     model->undump(st);
 }
 
@@ -84,10 +78,20 @@ void CustomLogicModel::undump(StringTokenizer &st) {
     parseRules(nullptr);
 }
 
-void CustomLogicModel::undumpModelXml(CircuitXMLDeserializer &xml) {
+CustomLogicModel *CustomLogicModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::optional<std::string> name = xml.parseStringAttr("nm", std::nullopt);
-    CustomLogicModel *model = getModelWithName(name.value_or(""));
+    CustomLogicModel *model = getModelForLoad(name.value_or(""));
     model->undumpXml(xml);
+    return model;
+}
+
+// the model to load a definition into (see ModelRegistry.getForLoad)
+CustomLogicModel *CustomLogicModel::getModelForLoad(const std::string &name) {
+    return registry().getForLoad(name, [&name] {
+        CustomLogicModel *lm = new CustomLogicModel();
+        lm->infoText = (name == "default") ? "custom logic" : name;
+        return lm;
+    });
 }
 
 static std::string jsTrim(const std::string &s) {
@@ -171,6 +175,7 @@ void CustomLogicModel::setEditValue(int n, EditInfo &ei) {
         else
             flags &= ~FLAG_SCHMITT;
     }
+    registry().resave(this);
     if (app != nullptr)
         app->updateModels();
 }

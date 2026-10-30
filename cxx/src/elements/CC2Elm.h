@@ -25,6 +25,7 @@ class CC2Elm : public ChipElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(CC2Elm)
+    bool allowsPinLayout() override { return false; }
     double gain = 1;
 
     CHIP_CONSTRUCTORS(CC2Elm, ChipElm)

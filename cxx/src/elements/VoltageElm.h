@@ -65,6 +65,7 @@ public:
     void dragPlace(int xa, int ya, bool vertical) override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
+    static double positivePhase(double p);
     void reset() override;
     double triangleFunc(double x);
     void setVoltageSource(int n, VoltageSource *v) override;

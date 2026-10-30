@@ -67,6 +67,9 @@ VoltageElm::VoltageElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &s
         dutyCycle = parseFloatStrict(st.nextToken());
         // don't change this, we don't generate this format anymore, plus VarRailElm adds more stuff here
     } catch (...) {}
+
+    // old circuit files can have negative phase offsets
+    phaseShift = positivePhase(phaseShift);
     if ((flags & FLAG_COS) != 0) {
         flags &= ~FLAG_COS;
         phaseShift = pi / 2;
@@ -107,10 +110,16 @@ void VoltageElm::undumpXml(CircuitXMLDeserializer &xml) {
     frequency = xml.parseDoubleAttr("fr", frequency);
     maxVoltage = xml.parseDoubleAttr("maxv", maxVoltage);
     bias = xml.parseDoubleAttr("bias", bias);
-    phaseShift = xml.parseDoubleAttr("phaseShift", phaseShift);
+    phaseShift = positivePhase(xml.parseDoubleAttr("phaseShift", phaseShift));
     dutyCycle = xml.parseDoubleAttr("dutyCycle", dutyCycle);
     riseTime = xml.parseDoubleAttr("riseTime", riseTime);
     internalResistance = xml.parseDoubleAttr("ir", 0);
+}
+
+// a phase offset from 0 to 2 pi.  the waveforms take the phase mod 2 pi, which would be
+// negative early on with a negative offset
+double VoltageElm::positivePhase(double p) {
+    return std::fmod(std::fmod(p, 2 * pi) + 2 * pi, 2 * pi);
 }
 
 void VoltageElm::reset() {
@@ -614,8 +623,7 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
             }
         }
         if (n2 == 2) {
-            phaseShift = ei.value * pi / 180;
-            phaseShift = std::fmod(std::fmod(phaseShift, 2 * pi) + 2 * pi, 2 * pi);
+            phaseShift = positivePhase(ei.value * pi / 180);
         }
         if (n2 == 3) {
             if (timeSpec()) {
@@ -634,8 +642,7 @@ void VoltageElm::setEditValue(int n, EditInfo &ei) {
         if (n2 == 0 && waveform != WF_DC && ei.value != 0)
             setFrequency(ei.value, ei.continuous);
         if (n2 == 1) {
-            phaseShift = ei.value * pi / 180;
-            phaseShift = std::fmod(std::fmod(phaseShift, 2 * pi) + 2 * pi, 2 * pi);
+            phaseShift = positivePhase(ei.value * pi / 180);
         }
     }
 }

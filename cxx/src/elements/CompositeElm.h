@@ -70,6 +70,7 @@ public:
     void preStamp() override;
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
+    void undumpChildState(CircuitXMLDeserializer &xml, bool lenient);
     bool getConnection(int, int) override { return false; }
     bool hasGroundConnection(int) override { return false; }
     void reset() override;

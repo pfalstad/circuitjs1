@@ -25,6 +25,7 @@ class DecimalDisplayElm : public ChipElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DecimalDisplayElm)
+    bool allowsPinLayout() override { return false; }
     int bitCount = 0;
     int displayMode = 0;  // 0=decimal, 1=hex, 2=octal
 

@@ -107,11 +107,11 @@ std::optional<EditInfo> CounterElm::getChipEditInfo(int n) {
     if (n == 0)
         return EditInfo::createCheckbox("Invert reset pin", invertreset);
     if (n == 1)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     if (n == 2)
         return EditInfo("Modulus", modulus, 1, 1).setDimensionless();
     if (n == 3)
-        return EditInfo::createCheckbox("Up/Down Pin", hasUpDown());
+        return EditInfo::createCheckbox("Up/Down Pin", hasUpDown()).setStructural();
     if (n == 4)
         return EditInfo::createCheckbox("Negative Edge Triggered", negativeEdgeTriggered());
     return std::nullopt;

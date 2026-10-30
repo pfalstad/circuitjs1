@@ -70,9 +70,9 @@ void DFlipFlopElm::execute() {
 
 std::optional<EditInfo> DFlipFlopElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo::createCheckbox("Reset Pin", hasReset());
+        return EditInfo::createCheckbox("Reset Pin", hasReset()).setStructural();
     if (n == 1)
-        return EditInfo::createCheckbox("Set Pin", hasSet());
+        return EditInfo::createCheckbox("Set Pin", hasSet()).setStructural();
     if (n == 2)
         return EditInfo::createCheckbox("Invert Set/Reset", invertSetReset());
     return ChipElm::getChipEditInfo(n);

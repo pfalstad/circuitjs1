@@ -19,6 +19,8 @@
 
 #include "BusLogicInputElm.h"
 
+#include "../core/XmlDoc.h"
+
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -39,10 +41,17 @@ void BusLogicInputElm::dumpXml(XmlElement *doc, XmlElement *elem) {
         CircuitXMLSerializer::dumpAttr(elem, "lo", loV);
 }
 
+void BusLogicInputElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {
+    SwitchElm::dumpXmlState(doc, elem);
+    // (for top-level elements, dumpXml may have written it already)
+    if (!elem->hasAttribute("va"))
+        CircuitXMLSerializer::dumpAttr(elem, "va", value);
+}
+
 void BusLogicInputElm::undumpXml(CircuitXMLDeserializer &xml) {
     SwitchElm::undumpXml(xml);
     busWidth = xml.parseIntAttr("bw", busWidth);
-    value = xml.parseIntAttr("va", 0);
+    value = xml.parseIntAttr("va", value);
     hiV = xml.parseDoubleAttr("hi", hiV);
     loV = xml.parseDoubleAttr("lo", loV);
 }

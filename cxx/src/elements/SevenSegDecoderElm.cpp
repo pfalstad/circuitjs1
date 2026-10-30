@@ -189,10 +189,10 @@ std::optional<EditInfo> SevenSegDecoderElm::getChipEditInfo(int n) {
         ei.choice->add("14 Segment");
         ei.choice->add("16 Segment");
         ei.choice->select(segmentType);
-        return ei;
+        return ei.setStructural();
     }
     if (n == 1)
-        return EditInfo::createCheckbox("Blank Pin", hasBlank());
+        return EditInfo::createCheckbox("Blank Pin", hasBlank()).setStructural();
     if (n == 2)
         return EditInfo::createCheckbox("Blank on 1111", blankOnF());
     if (n == 3 && getSegmentCount() == 7)

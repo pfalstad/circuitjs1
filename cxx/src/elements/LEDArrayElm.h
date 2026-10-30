@@ -25,6 +25,7 @@
 class LEDArrayElm : public ChipElm {
 public:
     ELM_CLASS(LEDArrayElm)
+    bool allowsPinLayout() override { return false; }
     std::vector<Diode> diodes;
     std::vector<double> currents;
     std::vector<double> brightness;

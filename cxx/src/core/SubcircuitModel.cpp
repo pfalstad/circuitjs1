@@ -30,6 +30,7 @@
 #include "DiodeModel.h"
 #include "ElementFactory.h"
 #include "JsNumber.h"
+#include "ModelTypes.h"
 #include "MosfetModel.h"
 #include "RelayModel.h"
 #include "Storage.h"
@@ -38,88 +39,61 @@
 #include "../elements/GroundElm.h"
 #include "../elements/SubcircuitElm.h"
 
-OrderedMap<SubcircuitModelRef> SubcircuitModel::globalModelMap;
-OrderedMap<SubcircuitModelRef> SubcircuitModel::localModelMap;
-int SubcircuitModel::sequenceNumber = 0;
-
-static SubcircuitModelRef lookup(OrderedMap<SubcircuitModelRef> &map, const std::string &name) {
-    SubcircuitModelRef *m = map.get(name);
-    return m ? *m : nullptr;
+ModelRegistry<SubcircuitModel, SubcircuitModelRef> &SubcircuitModel::registry() {
+    static ModelRegistry<SubcircuitModel, SubcircuitModelRef> r([] { initModelMap(); }, "subcircuit:",
+                                                                [](SubcircuitModel *m, XmlElement *root) {
+                                                                    m->buildXmlElement(root->createChild("ccm"));
+                                                                });
+    return r;
 }
 
 void SubcircuitModel::setName(const std::string &n) {
-    SubcircuitModelRef self = shared_from_this();
-    if (localModelMap.erase(name)) {
-        name = n;
-        localModelMap.set(name, self);
-    } else {
-        globalModelMap.erase(name);
-        name = n;
-        globalModelMap.set(name, self);
-    }
-    sequenceNumber++;
+    registry().rename(shared_from_this(), n);
 }
 
 void SubcircuitModel::initModelMap() {
-    globalModelMap.clear();
-    localModelMap.clear();
-
     // create default stub model
     std::vector<ExtListEntry> extList;
     extList.emplace_back("gnd", 1);
     SubcircuitModelRef d = createModelFromOldFormat("default", "0 0", "GroundElm 1", extList);
     d->sizeX = d->sizeY = 1;
     d->builtin = true;
-    localModelMap.erase(d->name);
-    globalModelMap.set(d->name, d);
-    sequenceNumber = 1;
+    registry().makeGlobal(d);
 
     loadInternalModels();
 }
 
 void SubcircuitModel::loadModelsFromStorage() {
-    Storage *stor = Storage::localStorage;
-    if (stor == nullptr)
-        return;
-    // (the TS version gets here after the menus have set up the model maps)
-    if (globalModelMap.size() == 0 && localModelMap.size() == 0)
-        initModelMap();
-    for (const std::string &key : stor->keys()) {
-        if (key.rfind("subcircuit:", 0) != 0)
-            continue;
-        std::optional<std::string> data = stor->getItem(key);
-        if (!data || data->empty())
-            continue;
+    registry().loadFromStorage([](const std::string &data) {
         try {
-            if ((*data)[0] == '<') {
-                loadModelFromStorage(*data);
+            if (data[0] == '<') {
+                loadModelFromStorage(data);
             } else {
-                std::string firstLine = *data;
-                size_t lineLen = data->find('\n');
+                std::string firstLine = data;
+                size_t lineLen = data.find('\n');
                 if (lineLen != std::string::npos)
-                    firstLine = data->substr(0, lineLen);
+                    firstLine = data.substr(0, lineLen);
                 StringTokenizer st(firstLine, " ");
                 if (st.nextToken() == ".") {
                     SubcircuitModelRef model = undumpModel(st);
                     if (lineLen != std::string::npos)
-                        model->modelCircuit = data->substr(lineLen + 1);
+                        model->modelCircuit = data.substr(lineLen + 1);
                     // move from local to global since this is from storage
-                    localModelMap.erase(model->name);
-                    globalModelMap.set(model->name, model);
+                    registry().makeGlobal(model);
                 }
             }
         } catch (std::exception &e) {
             std::cerr << "Exception: " << e.what() << "\n";
         }
-    }
+    });
 }
 
 SubcircuitModelRef SubcircuitModel::getModelWithName(const std::string &name) {
-    if (globalModelMap.size() == 0 && localModelMap.size() == 0)
-        initModelMap();
-    if (SubcircuitModelRef lm = lookup(localModelMap, name))
-        return lm;
-    return lookup(globalModelMap, name);
+    return registry().get(name);
+}
+
+SubcircuitModelRef SubcircuitModel::getModelForLoad(const std::string &name) {
+    return registry().getForLoad(name, [] { return std::make_shared<SubcircuitModel>(); });
 }
 
 SubcircuitModelRef SubcircuitModel::createModelFromOldFormat(const std::string &name, const std::string &elmDump,
@@ -129,8 +103,7 @@ SubcircuitModelRef SubcircuitModel::createModelFromOldFormat(const std::string &
     lm->name = name;
     lm->extList = extList;
     lm->convertOldFormatToXml(nodeList, elmDump);
-    localModelMap.set(name, lm);
-    sequenceNumber++;
+    registry().setLocal(lm);
     return lm;
 }
 
@@ -140,50 +113,23 @@ SubcircuitModelRef SubcircuitModel::createModel(const std::string &name, std::un
     lm->name = name;
     lm->elmDoc = std::move(elmDoc);
     lm->extList = extList;
-    localModelMap.set(name, lm);
-    sequenceNumber++;
+    registry().setLocal(lm);
     return lm;
 }
 
-void SubcircuitModel::clearDumpedFlags() {
-    for (auto &kv : globalModelMap)
-        kv.second->dumped = false;
-    for (auto &kv : localModelMap)
-        kv.second->dumped = false;
-}
-
 std::vector<SubcircuitModelRef> SubcircuitModel::getModelList() {
-    // local entries win on name collision
-    OrderedMap<SubcircuitModelRef> merged;
-    for (auto &kv : globalModelMap)
-        merged.set(kv.first, kv.second);
-    for (auto &kv : localModelMap)
-        merged.set(kv.first, kv.second);
     std::vector<SubcircuitModelRef> result;
-    for (auto &kv : merged)
-        if (!kv.second->internal)
-            result.push_back(kv.second);
+    for (const SubcircuitModelRef &dm : registry().models())
+        if (!dm->internal)
+            result.push_back(dm);
     std::stable_sort(result.begin(), result.end(),
                      [](const SubcircuitModelRef &a, const SubcircuitModelRef &b) { return a->name < b->name; });
     return result;
 }
 
-// a fresh local model, shadowing any global one with the same name
-static SubcircuitModelRef findOrCreateLocal(const std::string &name) {
-    SubcircuitModelRef model = SubcircuitModel::getModelWithName(name);
-    if (model == nullptr || (SubcircuitModel::globalModelMap.has(name) && !SubcircuitModel::localModelMap.has(name))) {
-        // (for a global one, create a local shadow instead of modifying it)
-        model = std::make_shared<SubcircuitModel>();
-        model->name = name;
-        SubcircuitModel::localModelMap.set(name, model);
-        SubcircuitModel::sequenceNumber++;
-    }
-    return model;
-}
-
 SubcircuitModelRef SubcircuitModel::undumpModel(StringTokenizer &st) {
     std::string name = CustomLogicModel::unescape(st.nextToken());
-    SubcircuitModelRef model = findOrCreateLocal(name);
+    SubcircuitModelRef model = getModelForLoad(name);
     model->undump(st);
     return model;
 }
@@ -262,103 +208,16 @@ void SubcircuitModel::convertOldFormatToXml(const std::string &nodeList, const s
 }
 
 bool SubcircuitModel::isSaved() {
-    if (name.empty() || Storage::localStorage == nullptr)
-        return false;
-    return Storage::localStorage->getItem("subcircuit:" + name).has_value();
+    return registry().isSaved(name);
 }
 
 void SubcircuitModel::setSaved(bool sv) {
-    if (Storage::localStorage == nullptr)
-        return;
     if (sv) {
-        XmlElement root("ccm");
-        buildXmlElement(&root);
-        Storage::localStorage->setItem("subcircuit:" + name, CircuitXMLSerializer::prettyPrint(&root));
-        globalModelMap.set(name, shared_from_this());
+        registry().store(this);
+        registry().setGlobal(shared_from_this());
     } else {
-        Storage::localStorage->removeItem("subcircuit:" + name);
+        registry().unsave(name);
     }
-}
-
-std::string SubcircuitModel::getScope() {
-    SubcircuitModelRef *lm = localModelMap.get(name);
-    if (lm != nullptr && lm->get() == this)
-        return "local";
-    if (isSaved())
-        return "persistent";
-    return "global";
-}
-
-std::set<std::string> SubcircuitModel::getModelNamesInUse(const std::vector<CircuitElm *> &elmList) {
-    std::set<std::string> names;
-    std::function<void(const std::vector<CircuitElm *> &)> scan = [&](const std::vector<CircuitElm *> &list) {
-        for (CircuitElm *ce : list) {
-            if (!ce->isSubcircuitElm())
-                continue;
-            names.insert(static_cast<SubcircuitElm *>(ce)->modelName);
-            if (std::vector<CircuitElm *> *children = ce->getChildElmList())
-                scan(*children);
-        }
-    };
-    scan(elmList);
-    return names;
-}
-
-void SubcircuitModel::makeGlobal() {
-    SubcircuitModelRef self = shared_from_this();
-    localModelMap.erase(name);
-    globalModelMap.set(name, self);
-    // keep the persistent copy in sync if one exists under this name
-    if (isSaved())
-        setSaved(true);
-    sequenceNumber++;
-}
-
-void SubcircuitModel::makeLocal() {
-    SubcircuitModelRef self = shared_from_this();
-    if (isSaved())
-        setSaved(false);
-    SubcircuitModelRef *g = globalModelMap.get(name);
-    if (g != nullptr && g->get() == this)
-        globalModelMap.erase(name);
-    localModelMap.set(name, self);
-    sequenceNumber++;
-}
-
-void SubcircuitModel::makePersistent() {
-    makeGlobal();
-    setSaved(true);
-}
-
-std::string SubcircuitModel::dumpLibrary(const std::vector<SubcircuitModelRef> &models) {
-    XmlElement root("cir");
-    CircuitXMLSerializer::dumpAttr(&root, "sublib", 1);
-    for (const SubcircuitModelRef &m : models)
-        m->buildXmlElement(root.createChild("ccm"));
-    return CircuitXMLSerializer::prettyPrint(&root);
-}
-
-std::vector<SubcircuitModelRef> SubcircuitModel::loadLibrary(CircuitXMLDeserializer &xml, const XmlElement *root) {
-    // load into an empty local map so we can tell which models (including nested ones) came from the file
-    OrderedMap<SubcircuitModelRef> loaded;
-    std::swap(localModelMap, loaded);
-    try {
-        xml.currentXmlElement = root;
-        for (const XmlElement *child : xml.getChildElements()) {
-            if (child->tagName != "ccm")
-                continue;
-            xml.parseChildElement(child);
-            undumpModelXml(xml);
-        }
-    } catch (...) {
-    }
-    std::swap(localModelMap, loaded);
-    std::vector<SubcircuitModelRef> out;
-    for (auto &kv : loaded) {
-        kv.second->makeGlobal();
-        out.push_back(kv.second);
-    }
-    return out;
 }
 
 void SubcircuitModel::loadModelFromStorage(const std::string &data) {
@@ -369,8 +228,7 @@ void SubcircuitModel::loadModelFromStorage(const std::string &data) {
     SubcircuitModelRef model = std::make_shared<SubcircuitModel>();
     model->name = modelName;
     model->parseXmlElement(xml);
-    globalModelMap.set(modelName, model);
-    sequenceNumber++;
+    registry().setGlobal(model);
 }
 
 bool SubcircuitModel::busNodesConsecutive() {
@@ -419,7 +277,7 @@ void SubcircuitModel::dumpXml(XmlElement *root) {
 
 SubcircuitModelRef SubcircuitModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::string name = xml.parseStringAttr("nm", std::nullopt).value_or("");
-    SubcircuitModelRef model = findOrCreateLocal(name);
+    SubcircuitModelRef model = getModelForLoad(name);
     model->undumpXml(xml);
     return model;
 }
@@ -430,9 +288,21 @@ void SubcircuitModel::undumpEmbeddedModelXml(CircuitXMLDeserializer &xml) {
         return;
     SubcircuitModelRef model = std::make_shared<SubcircuitModel>();
     model->name = name;
-    localModelMap.set(name, model);
-    sequenceNumber++;
+    registry().setLocal(model);
+    registry().markEmbedded(model.get());
     model->undumpXml(xml);
+}
+
+bool SubcircuitModel::undumpEmbeddedElmModelXml(CircuitXMLDeserializer &xml, const XmlElement *elm) {
+    const ModelType *type = getElmModelType(elm->tagName);
+    if (type == nullptr)
+        return false;
+    const std::string *name = elm->getAttribute("nm");
+    if (name != nullptr && !type->registry->has(*name)) {
+        xml.parseChildElement(elm);
+        type->registry->anyMakeGlobal(type->undump(xml));
+    }
+    return true;
 }
 
 void SubcircuitModel::parseXmlElement(CircuitXMLDeserializer &xml) {
@@ -478,16 +348,14 @@ void SubcircuitModel::parseXmlElement(CircuitXMLDeserializer &xml) {
             // instantiated from elmDoc (e.g. in CompositeElm::loadCompositeXml())
             const std::string &tagName = child->tagName;
             xml.parseChildElement(child);
-            if (tagName == "dm")
-                DiodeModel::undumpModelXml(xml);
-            else if (tagName == "rlm")
-                RelayModel::undumpModelXml(xml);
-            else if (tagName == "tm")
-                TransistorModel::undumpModelXml(xml);
-            else if (tagName == "clm")
-                CustomLogicModel::undumpModelXml(xml);
-            else if (tagName == "mm")
-                MosfetModel::undumpModelXml(xml);
+            const ModelType *elmModelType = getElmModelType(tagName);
+            if (elmModelType != nullptr) {
+                const std::string *nm = child->getAttribute("nm");
+                bool isNew = !elmModelType->registry->hasLocal(nm ? *nm : "");
+                RegistryModel *m = elmModelType->undump(xml);
+                if (isNew)
+                    elmModelType->registry->anyMarkEmbedded(m);
+            }
             else if (tagName == "ccm")
                 undumpEmbeddedModelXml(xml);
         }
@@ -527,34 +395,14 @@ bool SubcircuitModel::canLoadModelCircuit() const {
 }
 
 void SubcircuitModel::remove() {
-    setSaved(false);
-    std::string n = name;
-    localModelMap.erase(n);
-    globalModelMap.erase(n);
-    sequenceNumber++;
+    registry().deleteModel(shared_from_this());
 }
 
 void SubcircuitModel::replaceModel(const SubcircuitModelRef &model) {
-    SubcircuitModelRef *g = globalModelMap.get(model->name);
-    if (g != nullptr && *g == model)
-        localModelMap.erase(model->name);
+    if (registry().isGlobal(model.get()))
+        registry().removeLocal(model->name);
     else
-        localModelMap.set(model->name, model);
-    sequenceNumber++;
-}
-
-void SubcircuitModel::dumpUnusedLocalModels(XmlElement *root) {
-    std::vector<SubcircuitModelRef> list;
-    for (auto &kv : localModelMap)
-        list.push_back(kv.second);
-    for (const SubcircuitModelRef &m : list)
-        if (!m->dumped && !m->builtin && !m->name.empty())
-            m->dumpXml(root);
-}
-
-void SubcircuitModel::clearLocalModels() {
-    localModelMap.clear();
-    sequenceNumber++;
+        registry().setLocal(model);
 }
 
 static const char *lm317 =
@@ -572,7 +420,6 @@ void SubcircuitModel::loadInternalModels() {
         SubcircuitModelRef model = undumpModel(st);
         model->internal = model->builtin = true;
         // move from local to global since these are builtins
-        localModelMap.erase(model->name);
-        globalModelMap.set(model->name, model);
+        registry().makeGlobal(model);
     }
 }

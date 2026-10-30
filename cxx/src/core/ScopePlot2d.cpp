@@ -25,10 +25,13 @@
 
 #include "CircuitElm.h"
 #include "Graphics.h"
+#include "JsMath.h"
 #include "Scope.h"
+#include "ScopeManager.h"
 #include "ScopeOverlays.h"
 #include "SimApp.h"
 #include "SimulationManager.h"
+#include "../elements/ScopeElm.h"
 
 using namespace ScopeConstants;
 
@@ -39,21 +42,58 @@ ScopePlot2d::~ScopePlot2d() = default;
 void ScopePlot2d::allocImage() {
     if (!enabled)
         return;
+    int ow = 0, oh = 0;
     if (!image)
         image = GraphicsImage::create();
+    else {
+        ow = image->width;
+        oh = image->height;
+    }
     if (!image)
         return;
-    image->resize((int) scope->rect.width, (int) scope->rect.height);
-    clearView();
+    int w = (int) scope->rect.width, h = (int) scope->rect.height;
+    // The pixel mapping is proportional to the scope size (the margins are a fraction of it),
+    // so on a resize the old trail stays correct if it is simply scaled to the new size.
+    bool keep = keepOnResize && haveDisp && ow > 1 && oh > 1 && (ow != w || oh != h);
+    if (keep) {
+        if (!tmpImage)
+            tmpImage = GraphicsImage::create();
+        tmpImage->resize(ow, oh);  // also clears it
+        tmpImage->graphics().drawImage(*image, 0, 0);
+    }
+    image->resize(w, h);
+    if (!keep) {
+        clearView();
+        return;
+    }
+    fillBackground();
+    double sx = (double) w / ow, sy = (double) h / oh;
+    Graphics &ig = image->graphics();
+    ig.saveState();
+    ig.scale(sx, sy);
+    ig.drawImage(*tmpImage, 0, 0);
+    ig.restoreState();
+    if (draw_ox != -1) {
+        draw_ox = std::trunc(draw_ox * sx);
+        draw_oy = std::trunc(draw_oy * sy);
+    }
 }
 
 void ScopePlot2d::clearView() {
+    fillBackground();
+    draw_ox = draw_oy = -1;
+}
+
+Color ScopePlot2d::backgroundColor() const {
+    return scope->app->isPrintable() ? Color(0xee, 0xee, 0xee) : Color(0x11, 0x11, 0x11);
+}
+
+void ScopePlot2d::fillBackground() {
     if (image) {
         Graphics &ig = image->graphics();
-        ig.setColor(scope->app->isPrintable() ? Color(0xee, 0xee, 0xee) : Color(0x11, 0x11, 0x11));
-        ig.fillRect(0, 0, scope->rect.width - 1, scope->rect.height - 1);
+        ig.setColor(backgroundColor());
+        ig.fillRect(0, 0, scope->rect.width, scope->rect.height);
     }
-    draw_ox = draw_oy = -1;
 }
 
 double ScopePlot2d::calcGridPx(double width, double height) const {
@@ -132,19 +172,9 @@ void ScopePlot2d::timeStep() {
     double yval = spy.lastValue;
     double x, y;
     if (!scope->isManualScale()) {
-        bool newscale = false;
-        while (v > scaleX || v < -scaleX) {
-            scaleX *= 2;
-            newscale = true;
-        }
-        while (yval > scaleY || yval < -scaleY) {
-            scaleY *= 2;
-            newscale = true;
-        }
-        if (newscale)
-            clearView();
-        x = std::trunc(rect.width * (1 + v / scaleX) * .499);
-        y = std::trunc(rect.height * (1 - yval / scaleY) * .499);
+        fitPoint(v, yval);
+        x = toPixel(0, v);
+        y = toPixel(1, yval);
     } else {
         double gridPx = calcGridPx(rect.width, rect.height);
         x = std::trunc(rect.width * .499 + (v / spx.manScale) * gridPx +
@@ -162,12 +192,231 @@ void ScopePlot2d::maxScale() {
     scope->scale[UNITS_OHMS] *= x;
     scope->scale[UNITS_W] *= x;
     scope->scale[UNITS_C] *= x;
-    scaleX *= x;
-    scaleY *= x;
+    // X/Y auto-fit just starts over
+    resetFit();
+    clearView();
     scaleBrightness *= x;
     scaleR *= x;
     scaleG *= x;
     scaleB *= x;
+}
+
+void ScopePlot2d::resetFit() {
+    haveCur = havePrev = haveWant = haveDisp = false;
+    windowStart = -1;
+    shrinkVotes = 0;
+}
+
+double ScopePlot2d::fitWindow() const {
+    return std::max(scope->rect.width, 1.0) * scope->speed * scope->sim->maxTimeStep;
+}
+
+void ScopePlot2d::fitPoint(double xv, double yv) {
+    double t = scope->sim->t;
+    if (windowStart < 0 || t < windowStart) {
+        resetFit();
+        windowStart = t;
+    }
+    bool rolled = false;
+    if (t - windowStart >= fitWindow()) {
+        for (int a = 0; a < 2; a++) {
+            prevLo[a] = curLo[a];
+            prevHi[a] = curHi[a];
+        }
+        havePrev = haveCur;
+        haveCur = false;
+        windowStart = t;
+        rolled = true;
+    }
+    if (!haveCur) {
+        curLo[0] = curHi[0] = xv;
+        curLo[1] = curHi[1] = yv;
+        haveCur = true;
+    } else {
+        curLo[0] = std::min(curLo[0], xv);
+        curHi[0] = std::max(curHi[0], xv);
+        curLo[1] = std::min(curLo[1], yv);
+        curHi[1] = std::max(curHi[1], yv);
+    }
+    bool refitNow = !haveDisp || outside(0, xv) || outside(1, yv);
+    if (rolled && !refitNow) {
+        // shrink only when two window checks in a row agree, so a trace slower than one
+        // window doesn't shrink and re-expand every window
+        calcWant();
+        bool small = false;
+        for (int a = 0; a < 2; a++)
+            if (wantHi[a] - wantLo[a] < SHRINK_RATIO * (dispHi[a] - dispLo[a]))
+                small = true;
+        shrinkVotes = small ? shrinkVotes + 1 : 0;
+        if (shrinkVotes >= 2)
+            refitNow = true;
+    }
+    if (refitNow) {
+        shrinkVotes = 0;
+        refit();
+    }
+}
+
+bool ScopePlot2d::outside(int a, double v) const {
+    double tol = EXPAND_TOL * (dispHi[a] - dispLo[a]);
+    return v < dispLo[a] - tol || v > dispHi[a] + tol;
+}
+
+void ScopePlot2d::calcWant() {
+    for (int a = 0; a < 2; a++) {
+        double lo = curLo[a], hi = curHi[a];
+        if (havePrev) {
+            lo = std::min(lo, prevLo[a]);
+            hi = std::max(hi, prevHi[a]);
+        }
+        if (includeOrigin) {
+            lo = std::min(lo, 0.0);
+            hi = std::max(hi, 0.0);
+        }
+        // a flat trace (e.g. a single Q-point) still needs some range to draw in
+        if (hi - lo <= 1e-6 * std::max(std::abs(lo), std::abs(hi))) {
+            double c = (hi + lo) / 2;
+            double h = (c != 0) ? std::abs(c) * .1 : 1e-3;
+            lo = c - h;
+            hi = c + h;
+        }
+        wantLo[a] = lo;
+        wantHi[a] = hi;
+    }
+    haveWant = true;
+}
+
+void ScopePlot2d::refit() {
+    calcWant();
+    double lo = wantLo[0], hi = wantHi[0];
+    // With "Align X" checked, X is shared with the other aligned scopes plotting the same kind
+    // of value (Vce with Vce...), so their curves line up.  Y always stays per scope.
+    std::vector<ScopePlot2d *> group = getXGroup();
+    for (ScopePlot2d *o : group)
+        if (o->haveWant) {
+            lo = std::min(lo, o->wantLo[0]);
+            hi = std::max(hi, o->wantHi[0]);
+        }
+    for (ScopePlot2d *o : group)
+        if (o->haveDisp)
+            o->setDisp(lo, hi, o->dispLo[1], o->dispHi[1]);
+    setDisp(lo, hi, wantLo[1], wantHi[1]);
+}
+
+void ScopePlot2d::setDisp(double xlo, double xhi, double ylo, double yhi) {
+    if (!haveDisp) {
+        dispLo[0] = xlo;
+        dispHi[0] = xhi;
+        dispLo[1] = ylo;
+        dispHi[1] = yhi;
+        haveDisp = true;
+        clearView();
+        return;
+    }
+    if (dispLo[0] == xlo && dispHi[0] == xhi && dispLo[1] == ylo && dispHi[1] == yhi)
+        return;
+    double oLo[2] = {dispLo[0], dispLo[1]}, oHi[2] = {dispHi[0], dispHi[1]};
+    dispLo[0] = xlo;
+    dispHi[0] = xhi;
+    dispLo[1] = ylo;
+    dispHi[1] = yhi;
+    remapImage(oLo, oHi);
+}
+
+void ScopePlot2d::remapImage(const double oLo[2], const double oHi[2]) {
+    if (!image)
+        return;
+    double ax = (oHi[0] - oLo[0]) / (dispHi[0] - dispLo[0]);
+    double ay = (oHi[1] - oLo[1]) / (dispHi[1] - dispLo[1]);
+    if (ax > 4 || ay > 4 || ax < .05 || ay < .05) {
+        clearView();
+        return;
+    }
+    // new pixel = a * old pixel + b, matched at the old range's low end
+    double bx = toPixelD(0, oLo[0]) - ax * pixelOf(0, oLo[0], oLo[0], oHi[0]);
+    double by = toPixelD(1, oLo[1]) - ay * pixelOf(1, oLo[1], oLo[1], oHi[1]);
+    int w = (int) scope->rect.width, h = (int) scope->rect.height;
+    if (!tmpImage)
+        tmpImage = GraphicsImage::create();
+    tmpImage->resize(w, h);  // also clears it
+    tmpImage->graphics().drawImage(*image, 0, 0);
+    fillBackground();
+    Graphics &ig = image->graphics();
+    ig.saveState();
+    ig.translate(bx, by);
+    ig.scale(ax, ay);
+    ig.drawImage(*tmpImage, 0, 0);
+    ig.restoreState();
+    if (draw_ox != -1) {
+        draw_ox = std::trunc(ax * draw_ox + bx);
+        draw_oy = std::trunc(ay * draw_oy + by);
+    }
+}
+
+std::string ScopePlot2d::xKey() const {
+    const ScopePlot &p = *scope->plots[validPlotIndex(plotX, 0)];
+    return std::string(p.elm != nullptr && p.elm->isTransistorElm() ? "t" : "e") + std::to_string(p.value) + "/" +
+           std::to_string(p.units);
+}
+
+bool ScopePlot2d::canShareX() const {
+    return alignX && enabled && !scope->isManualScale() && !scope->plots.empty();
+}
+
+std::vector<ScopePlot2d *> ScopePlot2d::getXGroup() {
+    std::vector<ScopePlot2d *> group;
+    if (!canShareX())
+        return group;
+    std::string key = xKey();
+    ScopeManager *sm = scope->app->scopeManager;
+    if (sm != nullptr)
+        for (int i = 0; i < sm->scopeCount; i++)
+            addToGroup(group, sm->scopes[i].get(), key);
+    for (CircuitElm *ce : scope->app->scopeElmArr)
+        addToGroup(group, static_cast<ScopeElm *>(ce)->elmScope.get(), key);
+    return group;
+}
+
+void ScopePlot2d::addToGroup(std::vector<ScopePlot2d *> &group, Scope *s, const std::string &key) {
+    if (s == nullptr || s == scope || !s->plot2d.canShareX() || key != s->plot2d.xKey())
+        return;
+    group.push_back(&s->plot2d);
+}
+
+double ScopePlot2d::pixelOf(int a, double v, double lo, double hi) const {
+    double f = (v - lo) / (hi - lo);
+    if (a == 0) {
+        double m = scope->rect.width * FIT_MARGIN;
+        return m + f * (scope->rect.width - 2 * m);
+    }
+    double m = scope->rect.height * FIT_MARGIN;
+    return scope->rect.height - m - f * (scope->rect.height - 2 * m);
+}
+
+double ScopePlot2d::toPixel(int a, double v) const {
+    return std::trunc(toPixelD(a, v));
+}
+
+double ScopePlot2d::fromPixel(int a, double px) const {
+    double f;
+    if (a == 0) {
+        double m = scope->rect.width * FIT_MARGIN;
+        f = (px - m) / (scope->rect.width - 2 * m);
+    } else {
+        double m = scope->rect.height * FIT_MARGIN;
+        f = (scope->rect.height - m - px) / (scope->rect.height - 2 * m);
+    }
+    return dispLo[a] + f * (dispHi[a] - dispLo[a]);
+}
+
+double ScopePlot2d::defaultTrailTime() const {
+    return simPerFrame * 3 / -jsmath::log(.99);
+}
+
+double ScopePlot2d::trailTime() const {
+    if (trailPersistence <= 0)
+        return defaultTrailTime();
+    return trailPersistence * scope->sim->maxTimeStep;
 }
 
 void ScopePlot2d::draw(Graphics &g) {
@@ -180,6 +429,12 @@ void ScopePlot2d::draw(Graphics &g) {
     g.translate(rect.x, rect.y);
     g.clipRect(0, 0, rect.width, rect.height);
 
+    double ft = sim->t;
+    if (lastFrameSimTime >= 0 && ft > lastFrameSimTime) {
+        double d = ft - lastFrameSimTime;
+        simPerFrame = (simPerFrame == 0) ? d : simPerFrame * .95 + d * .05;
+    }
+    lastFrameSimTime = ft;
     alphaCounter++;
     if (alphaCounter > 2) {
         alphaCounter = 0;
@@ -203,7 +458,7 @@ void ScopePlot2d::draw(Graphics &g) {
         if (fadeAlpha > 0) {
             Graphics &ig = image->graphics();
             ig.setGlobalAlpha(fadeAlpha);
-            ig.setColor(app->isPrintable() ? Color::white : Color::black);
+            ig.setColor(backgroundColor());
             ig.fillRect(0, 0, rect.width, rect.height);
             ig.setGlobalAlpha(1.0);
         }
@@ -213,10 +468,24 @@ void ScopePlot2d::draw(Graphics &g) {
     g.setColor(CircuitElm::whiteColor);
     g.fillOval(draw_ox - 2, draw_oy - 2, 5, 5);
     g.setColor(CircuitElm::positiveColor);
-    g.drawLine(0, rect.height / 2, rect.width - 1, rect.height / 2);
-    if (!plotXY)
-        g.setColor(Color::yellow);
-    g.drawLine(rect.width / 2, 0, rect.width / 2, rect.height - 1);
+    if (scope->isManualScale()) {
+        g.drawLine(0, rect.height / 2, rect.width - 1, rect.height / 2);
+        if (!plotXY)
+            g.setColor(Color::yellow);
+        g.drawLine(rect.width / 2, 0, rect.width / 2, rect.height - 1);
+    } else if (haveDisp) {
+        // auto-fit: draw each axis only where zero is actually in view
+        if (dispLo[1] <= 0 && dispHi[1] >= 0) {
+            double zy = toPixel(1, 0);
+            g.drawLine(0, zy, rect.width - 1, zy);
+        }
+        if (!plotXY)
+            g.setColor(Color::yellow);
+        if (dispLo[0] <= 0 && dispHi[0] >= 0) {
+            double zx = toPixel(0, 0);
+            g.drawLine(zx, 0, zx, rect.height - 1);
+        }
+    }
     if (scope->isManualScale()) {
         double gridPx = calcGridPx(rect.width, rect.height);
         g.setColor(Color(0x40, 0x40, 0x40));
@@ -243,7 +512,7 @@ void ScopePlot2d::draw(Graphics &g) {
     g.restoreState();
     scope->drawSettingsWheel(g);
     if (!app->modalDialogIsShowing() && rect.contains(app->mouseCursorX, app->mouseCursorY) &&
-            n >= 1 && px < n && py < n) {
+            n >= 1 && px < n && py < n && (scope->isManualScale() || haveDisp)) {
         double gridPx = calcGridPx(rect.width, rect.height);
         ScopePlot &spx = *scope->plots[px];
         ScopePlot &spy = *scope->plots[py];
@@ -254,8 +523,8 @@ void ScopePlot2d::draw(Graphics &g) {
             yValue = spy.manScale * ((-app->mouseCursorY + rect.y + rect.height / 2) / gridPx -
                                      scope->manDivisions * spy.manVPosition / (double) V_POSITION_STEPS);
         } else {
-            xValue = ((app->mouseCursorX - rect.x) / (0.499 * rect.width) - 1.0) * scaleX;
-            yValue = -((app->mouseCursorY - rect.y) / (0.499 * rect.height) - 1.0) * scaleY;
+            xValue = fromPixel(0, app->mouseCursorX - rect.x);
+            yValue = fromPixel(1, app->mouseCursorY - rect.y);
         }
         std::vector<std::string> info = { spx.getUnitText(xValue), spy.getUnitText(yValue) };
         scope->drawCursorInfo(g, &info, 2, app->mouseCursorX, true);

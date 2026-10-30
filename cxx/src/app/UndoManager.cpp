@@ -55,7 +55,7 @@ void UndoManager::doRedo() {
 }
 
 void UndoManager::loadUndoItem(const UndoItem &ui) {
-    sim->readCircuit(ui.dump, CircuitLoader::RC_NO_CENTER);
+    sim->readCircuit(ui.dump, CircuitLoader::RC_NO_CENTER | CircuitLoader::RC_KEEP_MODELS);
     sim->transform[0] = sim->transform[3] = ui.scale;
     sim->transform[4] = ui.transform4;
     sim->transform[5] = ui.transform5;

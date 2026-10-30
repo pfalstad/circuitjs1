@@ -33,9 +33,10 @@
 
 SimApp *TransistorModel::app = nullptr;
 
-OrderedMap<TransistorModel *> &TransistorModel::modelMap() {
-    static OrderedMap<TransistorModel *> m;
-    return m;
+ModelRegistry<TransistorModel> &TransistorModel::registry() {
+    static ModelRegistry<TransistorModel> r([] { createModelMap(); }, "transistormodel:",
+                                            [](TransistorModel *m, XmlElement *root) { m->dumpXml(root); });
+    return r;
 }
 
 TransistorModel::TransistorModel(const TransistorModel &copy) {
@@ -70,34 +71,29 @@ TransistorModel::TransistorModel(const std::string &d, double sc) {
 }
 
 TransistorModel *TransistorModel::getModelWithName(const std::string &name) {
-    createModelMap();
-    if (TransistorModel **lm = modelMap().get(name))
-        return *lm;
+    if (TransistorModel *lm = registry().get(name))
+        return lm;
     TransistorModel *lm = new TransistorModel();
     lm->name = name;
-    modelMap().set(name, lm);
+    registry().setGlobal(lm);
     return lm;
 }
 
 TransistorModel *TransistorModel::getModelWithNameOrCopy(const std::string &name, TransistorModel *oldmodel) {
-    createModelMap();
-    if (TransistorModel **lm = modelMap().get(name))
-        return *lm;
+    if (TransistorModel *lm = registry().get(name))
+        return lm;
     if (oldmodel == nullptr) {
         SimulationManager::console("model not found: " + name);
         return getDefaultModel();
     }
     TransistorModel *copy = new TransistorModel(*oldmodel);
     copy->name = name;
-    modelMap().set(name, copy);
+    registry().setLocal(copy);
     return copy;
 }
 
+// add the built-in models (called by the registry when first used)
 void TransistorModel::createModelMap() {
-    static bool created = false;
-    if (created)
-        return;
-    created = true;
     addDefaultModel("default", new TransistorModel("default", 1e-13));
     addDefaultModel("spice-default", new TransistorModel("spice-default", 1e-16));
     // for LM324v2 OpAmpRealElm
@@ -124,25 +120,21 @@ void TransistorModel::createModelMap() {
 }
 
 void TransistorModel::addDefaultModel(const std::string &name, TransistorModel *dm) {
-    modelMap().set(name, dm);
     dm->readOnly = dm->builtIn = true;
     dm->name = name;
-}
-
-void TransistorModel::clearDumpedFlags() {
-    for (auto &kv : modelMap())
-        kv.second->dumped = false;
+    registry().setGlobal(dm);
 }
 
 void TransistorModel::loadInternalModel(const std::string &s) {
     StringTokenizer st(s);
     TransistorModel *tm = undumpModel(st);
     tm->builtIn = tm->internal = true;
+    registry().makeGlobal(tm);
 }
 
 TransistorModel *TransistorModel::undumpModel(StringTokenizer &st) {
     std::string name = CustomLogicModel::unescape(st.nextToken());
-    TransistorModel *dm = getModelWithName(name);
+    TransistorModel *dm = registry().getForLoad(name, [] { return new TransistorModel(); });
     dm->undump(st);
     return dm;
 }
@@ -212,7 +204,7 @@ void TransistorModel::dumpXml(XmlElement *root) {
 
 TransistorModel *TransistorModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::string name = xml.parseStringAttr("nm", std::nullopt).value_or("");
-    TransistorModel *tm = getModelWithName(name);
+    TransistorModel *tm = registry().getForLoad(name, [] { return new TransistorModel(); });
     tm->undumpXml(xml);
     return tm;
 }
@@ -244,8 +236,7 @@ void TransistorModel::undumpXml(CircuitXMLDeserializer &xml) {
 
 std::vector<TransistorModel *> TransistorModel::getModelList() {
     std::vector<TransistorModel *> vector;
-    for (auto &kv : modelMap()) {
-        TransistorModel *dm = kv.second;
+    for (TransistorModel *dm : registry().models()) {
         if (dm->internal)
             continue;
         if (std::find(vector.begin(), vector.end(), dm) == vector.end())
@@ -292,9 +283,7 @@ std::optional<EditInfo> TransistorModel::getEditInfo(int n) {
 
 void TransistorModel::setEditValue(int n, EditInfo &ei) {
     if (n == 0) {
-        name = ei.textf->value;
-        if (!name.empty())
-            modelMap().set(name, this);
+        registry().rename(this, ei.textf->value);
     }
     if (n == 1) satCur = ei.value;
     if (n == 2) betaR = ei.value;
@@ -322,6 +311,7 @@ void TransistorModel::setEditValue(int n, EditInfo &ei) {
         if (ei.value >= 0) transitTimeR = ei.value;
         else ei.setError("must be >= 0");
     }
+    registry().resave(this);
     updateModel();
     if (app != nullptr)
         app->updateModels();
@@ -329,14 +319,6 @@ void TransistorModel::setEditValue(int n, EditInfo &ei) {
 
 void TransistorModel::pickName() {
     name = "transistormodel";
-    if (modelMap().has(name)) {
-        for (int num = 2;; num++) {
-            std::string n = name + "-" + std::to_string(num);
-            if (!modelMap().has(n)) {
-                name = n;
-                break;
-            }
-        }
-    }
-    modelMap().set(name, this);
+    name = registry().uniqueName(name);
+    registry().setLocal(this);
 }

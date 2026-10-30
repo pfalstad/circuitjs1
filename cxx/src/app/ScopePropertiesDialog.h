@@ -47,8 +47,10 @@ public:
     void refreshDraw();
     bool apply();
 
-    static int trailSliderToSteps(int v);
-    static int trailStepsToSlider(int steps);
+    static constexpr int TRAIL_MAX = 61;
+    // slider 1..TRAIL_MAX -> span * 10^((v-1)/20 - 2), stored as timesteps; 0 = default
+    int trailSliderToSteps(int v);
+    int trailTimeToSlider(double t);
 
 protected:
     void done(int r) override;
@@ -79,6 +81,10 @@ private:
     void scrollbarChanged();
     void setScopeSpeedLabel();
     void setTrailLabel();
+    // the default trail time is measured live from the sim speed (twice a second is plenty
+    // for a readout)
+    void refreshTrail();
+    double lastTrailRefresh = 0;
     void applyTriggerLevel();
     void onCheckboxChange(ScopeCheckBox *cb);
     void scaleDown();
@@ -116,7 +122,8 @@ private:
     // Trigger
     ExpandingSection triggerSection;
     QRadioButton *trigFreeRunButton, *trigNormalButton, *trigAutoButton;
-    QWidget *trigEdgeDiv, *trigLevelDiv;
+    QWidget *trigEdgeDiv, *trigLevelDiv, *trigSourceDiv;
+    QComboBox *trigSourceBox;
     QRadioButton *trigRisingButton, *trigFallingButton;
     QLineEdit *triggerLevelTextBox;
 
@@ -134,7 +141,7 @@ private:
 
     // XY plots
     ExpandingSection xyPlotsSection;
-    ScopeCheckBox *viBox, *xyBox;
+    ScopeCheckBox *viBox, *xyBox, *xyOriginBox, *xyAlignBox;
     QWidget *xySettingsDiv;
     QGridLayout *xySettingsGrid;
     QComboBox *xyPlotXBox, *xyPlotYBox, *xyBrightnessBox, *xyRedBox, *xyGreenBox, *xyBlueBox;

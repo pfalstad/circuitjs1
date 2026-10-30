@@ -37,6 +37,7 @@ class RelayElm : public CircuitElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(RelayElm)
+    RegistryModel *getModel() override;
     void dumpXmlModel(XmlElement *doc) override;
     static constexpr int FLAG_SWAP_COIL = 1;
     static constexpr int FLAG_SHOW_BOX = 2;

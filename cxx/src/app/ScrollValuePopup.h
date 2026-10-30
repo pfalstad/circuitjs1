@@ -47,6 +47,8 @@ public:
 
 protected:
     virtual void revert() = 0;
+    // called when the popup closes keeping the changes
+    virtual void keep() {}
     // put the popup at globalPos - (w*fx, h*fy), kept on-screen
     void place(QPoint globalPos, double fx, double fy);
     QLabel *addLabel(const QString &style);
@@ -71,12 +73,14 @@ public:
 
     void doDeltaY(double dy) override;
 
+    // wheel delta for one step (TypeScrollPopup uses it too)
+    static constexpr int scale = 6;
+
 protected:
     void revert() override { setElmValue(currentidx); }
 
 private:
     static constexpr int labMax = 5;
-    static constexpr int scale = 6;
 
     void setupValues();
     void setupLabels();

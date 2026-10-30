@@ -24,20 +24,19 @@
 #include <vector>
 
 #include "EditInfo.h"
-#include "OrderedMap.h"
+#include "ModelRegistry.h"
 
 class StringTokenizer;
 class CircuitXMLDeserializer;
 class SimApp;
 class XmlElement;
 
-// Models live for the whole session in modelMap, which owns them.
-class TransistorModel : public Editable {
+// Models are never freed: elements may still use one that's been removed from the registry.
+class TransistorModel : public Editable, public RegistryModel {
 public:
-    static OrderedMap<TransistorModel *> &modelMap();
+    static ModelRegistry<TransistorModel> &registry();
 
     int flags = 0;
-    std::string name;
     std::optional<std::string> description;
     double satCur = 0;
     double invRollOffF = 0;
@@ -63,7 +62,6 @@ public:
     // Transit time parameters (SPICE Gummel-Poon diffusion charge storage)
     double transitTimeF = 0;       // TF: forward transit time (s), 0=disabled
     double transitTimeR = 0;       // TR: reverse transit time (s), 0=disabled
-    bool dumped = false;
     bool readOnly = false;
     bool builtIn = false;
     bool internal = false;
@@ -77,7 +75,6 @@ public:
     static void createModelMap();
     static void addDefaultModel(const std::string &name, TransistorModel *dm);
     static TransistorModel *getDefaultModel() { return getModelWithName("default"); }
-    static void clearDumpedFlags();
     static std::vector<TransistorModel *> getModelList();
     std::string getDescription() const;
     static void loadInternalModel(const std::string &s);
@@ -88,6 +85,7 @@ public:
     static TransistorModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string getEditTitle() override { return "Edit Transistor Model"; }
+    bool isUserModel() const override { return !(builtIn || internal || readOnly); }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

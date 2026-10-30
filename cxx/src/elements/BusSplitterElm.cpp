@@ -57,7 +57,7 @@ void BusSplitterElm::setWireCurrent(int bit, double c) {
 
 std::optional<EditInfo> BusSplitterElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     return std::nullopt;
 }
 

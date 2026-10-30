@@ -26,6 +26,7 @@ class CustomLogicModel;
 class CustomLogicElm : public ChipElm {
 public:
     ELM_CLASS(CustomLogicElm)
+    RegistryModel *getModel() override;
     std::optional<std::string> modelName;
     int postCount = 0;
     int inputCount = 0;

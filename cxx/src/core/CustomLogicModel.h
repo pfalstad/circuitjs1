@@ -19,30 +19,30 @@
 
 #pragma once
 
-#include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "EditInfo.h"
+#include "ModelRegistry.h"
 
 class CircuitXMLDeserializer;
 class SimApp;
 class StringTokenizer;
 class XmlElement;
 
-class CustomLogicModel : public Editable {
+class CustomLogicModel : public Editable, public RegistryModel {
 public:
     static constexpr int FLAG_SCHMITT = 1;
+    // (models are never freed: elements may still use one that's been removed from the registry)
+    static ModelRegistry<CustomLogicModel> &registry();
     int flags = 0;
-    std::string name;
     std::vector<std::string> inputs;
     std::vector<std::string> outputs;
     std::string infoText;
     std::string rules;
     std::vector<std::string> rulesLeft;
     std::vector<std::string> rulesRight;
-    bool dumped = false;
     bool triState = false;
 
     CustomLogicModel();
@@ -50,10 +50,9 @@ public:
 
     static CustomLogicModel *getModelWithName(const std::string &name);
     static CustomLogicModel *getModelWithNameOrCopy(const std::string &name, const CustomLogicModel *oldmodel);
-    static void clearDumpedFlags();
     static void undumpModel(StringTokenizer &st);
     void undump(StringTokenizer &st);
-    static void undumpModelXml(CircuitXMLDeserializer &xml);
+    static CustomLogicModel *undumpModelXml(CircuitXMLDeserializer &xml);
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string arrayToList(const std::vector<std::string> &arr);
     std::vector<std::string> listToArray(const std::string &arr);
@@ -70,5 +69,5 @@ public:
     static SimApp *app;
 
 private:
-    static std::map<std::string, CustomLogicModel *> &modelMap();
+    static CustomLogicModel *getModelForLoad(const std::string &name);
 };

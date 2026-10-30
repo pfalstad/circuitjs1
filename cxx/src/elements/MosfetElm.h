@@ -31,6 +31,7 @@ public:
     void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     ELM_CLASS(MosfetElm)
+    RegistryModel *getModel() override;
     int pnp;
     static constexpr int FLAG_PNP = 1;
     static constexpr int FLAG_SHOWVT = 2;

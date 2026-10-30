@@ -51,7 +51,7 @@ void DACElm::doStep() {
 
 std::optional<EditInfo> DACElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     return std::nullopt;
 }
 

@@ -28,6 +28,7 @@ class DiodeElm : public CircuitElm {
 public:
     bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(DiodeElm)
+    RegistryModel *getModel() override;
     void dumpXmlModel(XmlElement *doc) override;
     void addRoutingObstacle(WireRouter &wr) override;
     Diode diode;

@@ -192,7 +192,7 @@ void DeMultiplexerElm::execute() {
 
 std::optional<EditInfo> DeMultiplexerElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Select Bits", selectBitCount).setDimensionless();
+        return EditInfo("# of Select Bits", selectBitCount).setDimensionless().setStructural();
     if (n == 1) {
         EditInfo ei("Output Mode", 0, -1, -1);
         ei.choice.emplace();
@@ -200,14 +200,14 @@ std::optional<EditInfo> DeMultiplexerElm::getChipEditInfo(int n) {
         ei.choice->add("Bus Output (Bit Distribute)");
         ei.choice->add("Bus Input/Output");
         ei.choice->select(outputMode);
-        return ei;
+        return ei.setStructural();
     }
     if (n == 2)
-        return EditInfo::createCheckbox("Bus Select", busSelect());
+        return EditInfo::createCheckbox("Bus Select", busSelect()).setStructural();
     if (n == 3)
         return EditInfo::createCheckbox("Keep Inactive Outputs High (74139)", invertOutputs());
     if (n == 4 && outputMode == OUTPUT_MODE_BUS_BUS)
-        return EditInfo("Data Bus Width", dataBusWidth, 2, 32).setDimensionless();
+        return EditInfo("Data Bus Width", dataBusWidth, 2, 32).setDimensionless().setStructural();
     return std::nullopt;
 }
 

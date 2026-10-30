@@ -36,7 +36,8 @@ public:
     explicit CircuitXMLDeserializer(SimApp *a) : app(a) {}
 
     // read the circuit's elements (not scopes, sliders, models yet) into app->elmList
-    void readElements(const XmlElement *root);
+    // subcircuitsOnly: read only the subcircuit model definitions
+    void readElements(const XmlElement *root, bool subcircuitsOnly = false);
 
     double parseDoubleAttr(const std::string &attr, double def);
     int parseIntAttr(const std::string &attr, int def);

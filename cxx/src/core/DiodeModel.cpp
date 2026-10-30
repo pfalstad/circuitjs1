@@ -37,9 +37,10 @@
 
 SimApp *DiodeModel::app = nullptr;
 
-OrderedMap<DiodeModel *> &DiodeModel::modelMap() {
-    static OrderedMap<DiodeModel *> m;
-    return m;
+ModelRegistry<DiodeModel> &DiodeModel::registry() {
+    static ModelRegistry<DiodeModel> r([] { createModelMap(); }, "diodemodel:",
+                                       [](DiodeModel *m, XmlElement *root) { m->dumpXml(root); });
+    return r;
 }
 
 DiodeModel::DiodeModel() {
@@ -70,34 +71,29 @@ DiodeModel::DiodeModel(double sc, double sr, double ec, double bv, std::optional
 }
 
 DiodeModel *DiodeModel::getModelWithName(const std::string &name) {
-    createModelMap();
-    if (DiodeModel **lm = modelMap().get(name))
-        return *lm;
+    if (DiodeModel *lm = registry().get(name))
+        return lm;
     DiodeModel *lm = new DiodeModel();
     lm->name = name;
-    modelMap().set(name, lm);
+    registry().setGlobal(lm);
     return lm;
 }
 
 DiodeModel *DiodeModel::getModelWithNameOrCopy(const std::string &name, DiodeModel *oldmodel) {
-    createModelMap();
-    if (DiodeModel **lm = modelMap().get(name))
-        return *lm;
+    if (DiodeModel *lm = registry().get(name))
+        return lm;
     if (oldmodel == nullptr) {
         SimulationManager::console("model not found: " + name);
         return getDefaultModel();
     }
     DiodeModel *copy = new DiodeModel(*oldmodel);
     copy->name = name;
-    modelMap().set(name, copy);
+    registry().setLocal(copy);
     return copy;
 }
 
+// add the built-in models (called by the registry when first used)
 void DiodeModel::createModelMap() {
-    static bool created = false;
-    if (created)
-        return;
-    created = true;
     addDefaultModel("spice-default", new DiodeModel(1e-14, 0, 1, 0, std::nullopt));
     addDefaultModel("default", new DiodeModel(1.7143528192808883e-7, 0, 2, 0, std::nullopt));
     addDefaultModel("default-zener", new DiodeModel(1.7143528192808883e-7, 0, 2, 5.6, std::nullopt));
@@ -134,19 +130,16 @@ void DiodeModel::createModelMap() {
 }
 
 void DiodeModel::addDefaultModel(const std::string &name, DiodeModel *dm) {
-    modelMap().set(name, dm);
     dm->readOnly = dm->builtIn = true;
     dm->name = name;
+    registry().setGlobal(dm);
 }
 
 DiodeModel *DiodeModel::getModelWithParameters(double fwdrop, double zvoltage) {
-    createModelMap();
-
     const double emcoef = 2;
 
     // look for existing model with same parameters
-    for (auto &kv : modelMap()) {
-        DiodeModel *dm = kv.second;
+    for (DiodeModel *dm : registry().models()) {
         if (std::abs(dm->fwdrop - fwdrop) < 1e-8 && dm->seriesResistance == 0 &&
             std::abs(dm->breakdownVoltage - zvoltage) < 1e-8 && dm->emissionCoefficient == emcoef)
             return dm;
@@ -172,16 +165,12 @@ void DiodeModel::loadInternalModel(const std::string &s) {
     StringTokenizer st(s);
     DiodeModel *dm = undumpModel(st);
     dm->builtIn = dm->internal = true;
-}
-
-void DiodeModel::clearDumpedFlags() {
-    for (auto &kv : modelMap())
-        kv.second->dumped = false;
+    registry().makeGlobal(dm);
 }
 
 DiodeModel *DiodeModel::undumpModel(StringTokenizer &st) {
     std::string name = CustomLogicModel::unescape(st.nextToken());
-    DiodeModel *dm = getModelWithName(name);
+    DiodeModel *dm = registry().getForLoad(name, [] { return new DiodeModel(); });
     dm->undump(st);
     return dm;
 }
@@ -200,7 +189,7 @@ void DiodeModel::undump(StringTokenizer &st) {
 
 DiodeModel *DiodeModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::string name = xml.parseStringAttr("nm", std::nullopt).value_or("");
-    DiodeModel *dm = getModelWithName(name);
+    DiodeModel *dm = registry().getForLoad(name, [] { return new DiodeModel(); });
     dm->undumpXml(xml);
     return dm;
 }
@@ -249,8 +238,7 @@ void DiodeModel::dumpXml(XmlElement *root) {
 
 std::vector<DiodeModel *> DiodeModel::getModelList(bool zener) {
     std::vector<DiodeModel *> vector;
-    for (auto &kv : modelMap()) {
-        DiodeModel *dm = kv.second;
+    for (DiodeModel *dm : registry().models()) {
         if (dm->internal)
             continue;
         if (zener && dm->breakdownVoltage == 0)
@@ -294,9 +282,7 @@ std::optional<EditInfo> DiodeModel::getEditInfo(int n) {
 
 void DiodeModel::setEditValue(int n, EditInfo &ei) {
     if (n == 0) {
-        name = ei.textf->value;
-        if (!name.empty())
-            modelMap().set(name, this);
+        registry().rename(this, ei.textf->value);
     }
     if (n == 1)
         saturationCurrent = ei.value;
@@ -314,6 +300,7 @@ void DiodeModel::setEditValue(int n, EditInfo &ei) {
     }
     if (n == 4)
         breakdownVoltage = std::abs(ei.value);
+    registry().resave(this);
     updateModel();
     if (app != nullptr)
         app->updateModels();
@@ -326,13 +313,6 @@ void DiodeModel::pickName() {
         name = "fwdrop=" + CircuitElm::showFormat.format(forwardVoltage);
     else
         name = "diodemodel";
-    if (modelMap().has(name)) {
-        for (int num = 2;; num++) {
-            std::string n = name + "-" + std::to_string(num);
-            if (!modelMap().has(n)) {
-                name = n;
-                break;
-            }
-        }
-    }
+    name = registry().uniqueName(name);
+    registry().setLocal(this);
 }

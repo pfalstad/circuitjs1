@@ -64,7 +64,7 @@ void FullAdderElm::execute() {
 
 std::optional<EditInfo> FullAdderElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setPositive();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setPositive().setStructural();
     return ChipElm::getChipEditInfo(n);
 }
 

@@ -106,10 +106,10 @@ std::optional<EditInfo> TimerElm::getChipEditInfo(int n) {
     if (n == 0) {
         EditInfo ei("", 0, 0, 0);
         ei.checkbox = Checkbox("Ground Pin", hasGroundPin());
-        return ei;
+        return ei.setStructural();
     }
     if (n == 1)
-        return EditInfo::createCheckbox("Show Pin Numbers", usePinNumbers());
+        return EditInfo::createCheckbox("Show Pin Numbers", usePinNumbers()).setStructural();
     return ChipElm::getChipEditInfo(n);
 }
 

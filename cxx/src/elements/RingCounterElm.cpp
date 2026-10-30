@@ -83,7 +83,7 @@ std::optional<EditInfo> RingCounterElm::getChipEditInfo(int n) {
     if (n == 0)
         return EditInfo::createCheckbox("Invert reset pin", hasInvertReset());
     if (n == 1)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     return std::nullopt;
 }
 

@@ -141,6 +141,9 @@ public:
     virtual ~GraphicsImage() = default;
     // resize to w x h and clear to transparent
     virtual void resize(int w, int h) = 0;
+    // size from the last resize()
+    int width = 0;
+    int height = 0;
     virtual Graphics &graphics() = 0;
 
     static inline std::unique_ptr<GraphicsImage> (*factory)() = nullptr;

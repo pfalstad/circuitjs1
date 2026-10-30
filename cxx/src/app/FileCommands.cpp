@@ -54,7 +54,7 @@
 #include "core/LZString.h"
 #include "core/Storage.h"
 
-static const char *versionString = "5.0.4cxx (alpha)";
+static const char *versionString = "5.0.5cxx (alpha)";
 
 static QString LSq(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
@@ -178,8 +178,8 @@ void CirSim::doImportFromText() {
 }
 
 void CirSim::importCircuitFromText(const std::string &text, bool subcircuitsOnly) {
-    // subcircuit library files don't replace the circuit
-    if (CircuitLoader::isSubcircuitLibrary(text))
+    // model library files don't replace the circuit
+    if (CircuitLoader::isModelLibrary(text))
         subcircuitsOnly = true;
     if (subcircuitsOnly) {
         pushUndo();

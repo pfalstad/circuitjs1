@@ -108,6 +108,26 @@ void Scope::showPlotValue(int val, bool b) {
     resetGraph();
 }
 
+void Scope::showTransistorValue(int val, bool state) {
+    if (!plot2d.enabled) {
+        showPlotValue(val, state);
+        return;
+    }
+    if (!state)
+        return;  // radio behavior: can't uncheck, the dialog re-syncs the box
+    for (size_t i = 0; i < plots.size(); i++) {
+        ScopePlot *p = plots[i].get();
+        if (p->elm != nullptr && p->elm->isTransistorElm() && p->value >= VAL_IB && p->value <= VAL_VCE &&
+            p->units == p->elm->getScopeUnits(val)) {
+            plots[i] = std::make_unique<ScopePlot>(p->elm, p->units, val, getManScaleFromMaxScale(p->units, false));
+            calcVisiblePlots();
+            resetGraph();
+            return;
+        }
+    }
+    showPlotValue(val, true);
+}
+
 void Scope::setManualScale(bool value, bool roundup) {
     if (value != manualScale)
         plot2d.clearView();
@@ -134,6 +154,8 @@ void Scope::resetGraphFull(bool full) {
     calcVisiblePlots();
     scopeTimeStep = sim->maxTimeStep;
     plot2d.allocImage();
+    if (!plot2d.keepOnResize)
+        plot2d.resetFit();
     trigger.reset(scopePointCount);
     plot2d.lastTrailSimTime = -1;
 }
@@ -169,7 +191,20 @@ std::string Scope::getScaleUnitsTextStatic(int units) {
 }
 
 void Scope::checkTrigger() {
-    trigger.check(visiblePlots, plot2d.enabled, sim, scopePointCount, (int) rect.width);
+    trigger.check(visiblePlots, triggerSourcePlot(), plot2d.enabled, sim, scopePointCount, (int) rect.width);
+}
+
+void Scope::drawTriggerIndicator(Graphics &g, bool forExport) {
+    bool highlight = !forExport && (draggingTriggerLevel || (draggingPlotYScope == nullptr && cursorNearTriggerLevel()));
+    trigger.drawIndicator(g, triggerSourcePlot(), rect, highlight);
+    if (!forExport)
+        trigger.snapshotDrawn = true;
+}
+
+bool Scope::cursorNearTriggerLevel() const {
+    double mx = app->mouseCursorX, my = app->mouseCursorY;
+    return rect.contains(mx, my) && !plot2d.enabled && !fftPlot.enabled &&
+           trigger.nearLevel(triggerSourcePlot(), rect, my - rect.y);
 }
 
 void Scope::setTriggerMode(int mode) {
@@ -231,8 +266,13 @@ void Scope::setRect(const Rectangle &r) {
     double w = rect.width;
     double h = rect.height;
     rect = r;
-    if (rect.width != w || (plot2d.enabled && rect.height != h))
+    if (rect.width != w || (plot2d.enabled && rect.height != h)) {
+        // a resize (window resize, or Export Image drawing the circuit at another scale)
+        // keeps the X/Y trail and fit; the trail image is just scaled to the new size
+        plot2d.keepOnResize = true;
         resetGraph();
+        plot2d.keepOnResize = false;
+    }
 }
 
 void Scope::setElm(CircuitElm *ce) {
@@ -623,7 +663,7 @@ void Scope::drawImpl(Graphics &g, bool forExport) {
     if (selectedPlot >= 0 && selectedPlot < n)
         drawPlot(g, *visiblePlots[selectedPlot], allPlotsSameUnits, true, sel);
 
-    drawTriggerIndicator(g);
+    drawTriggerIndicator(g, exporting);
     overlays->draw(g);
 
     g.restore();
@@ -761,7 +801,25 @@ void Scope::drawHVGridLines(Graphics &g, ScopePlot &plot, double gridMid, bool a
 
     // vertical (time) gridlines
     double ts = sim->maxTimeStep * speed;
-    double tRight = isTriggered() ? trigger.time + ts * rect.width / 2 : sim->t;
+    if (isTriggered()) {
+        // keep the graticule fixed, with the trigger point on a major line in the center,
+        // rather than aligned to absolute time, which makes the lines jump at every trigger
+        int cx = (int) std::trunc(rect.width / 2);
+        double step = gridStepX / ts;  // pixels per division
+        if (step <= 0)
+            return;
+        for (int ll = -(int) std::floor(cx / step);; ll++) {
+            double gx = cx + jsmath::round(ll * step);
+            if (gx >= rect.width)
+                break;
+            if (gx < 0)
+                continue;
+            g.setColor(ll % 10 == 0 ? majorDiv : minorDiv);
+            g.drawLine(gx, 0, gx, rect.height - 1);
+        }
+        return;
+    }
+    double tRight = sim->t;
     double tstart = tRight - ts * rect.width;
     double tx = tRight - std::fmod(tRight, gridStepX);
     for (int ll = 0;; ll++) {
@@ -813,6 +871,17 @@ void Scope::drawPlot(Graphics &g, ScopePlot &plot, bool allPlotsSameUnits, bool 
     int drawWidth = validDataCount(plot, ipa, (int) rect.width);
     int ox = -1, oy = -1;
     int i;
+    // exporting: build one connected path per trace. A column with a single
+    // sample (minvy == maxvy, the common case) contributes one point, same as
+    // the on-screen pixel. A column with genuine spread (noise or a fast
+    // transition, not just oversampling) keeps BOTH extremes as two vertices
+    // instead of collapsing to the midpoint, so real signal content survives
+    // the export instead of being smoothed away -- visiting whichever extreme
+    // is closer to the pen's current position first avoids an unnecessary
+    // zigzag reversal. The whole trace still ends up as one connected,
+    // selectable path -- mirrors the CSV export's one-series-per-trace shape.
+    bool exportPathStarted = false;
+    double exportLastY = 0;
     for (i = 0; i != drawWidth; i++) {
         int ip = (i + ipa) & (scopePointCount - 1);
         int minvy = (int) jsmath::round(plot.gridMult * (minV[ip] + plot.plotOffset));
@@ -823,6 +892,38 @@ void Scope::drawPlot(Graphics &g, ScopePlot &plot, bool allPlotsSameUnits, bool 
                 reduceRange[plot.units] = false;
                 curMinRangeLo = -1000;
                 minRangeHi = 1000;
+            }
+            if (exporting) {
+                if (minvy == maxvy) {
+                    double y = maxy - minvy;
+                    if (!exportPathStarted) {
+                        g.beginPath();
+                        g.moveTo(i, y);
+                        exportPathStarted = true;
+                    } else {
+                        g.lineTo(i, y);
+                    }
+                    exportLastY = y;
+                } else {
+                    double yLo = maxy - minvy;
+                    double yHi = maxy - maxvy;
+                    if (!exportPathStarted) {
+                        g.beginPath();
+                        g.moveTo(i, yLo);
+                        g.lineTo(i, yHi);
+                        exportPathStarted = true;
+                        exportLastY = yHi;
+                    } else if (std::abs(exportLastY - yLo) <= std::abs(exportLastY - yHi)) {
+                        g.lineTo(i, yLo);
+                        g.lineTo(i, yHi);
+                        exportLastY = yHi;
+                    } else {
+                        g.lineTo(i, yHi);
+                        g.lineTo(i, yLo);
+                        exportLastY = yLo;
+                    }
+                }
+                continue;
             }
             if (ox != -1) {
                 if (minvy == oy && maxvy == oy)
@@ -836,10 +937,19 @@ void Scope::drawPlot(Graphics &g, ScopePlot &plot, bool allPlotsSameUnits, bool 
                 continue;
             }
             g.drawLine(i, maxy - minvy, i, maxy - maxvy);
+        } else if (exportPathStarted) {
+            // out-of-range clamp hit mid-trace -- close off what we have and
+            // start a fresh subpath rather than bridging across the skip
+            g.stroke();
+            exportPathStarted = false;
         }
     }
-    if (ox != -1)
+    if (exporting) {
+        if (exportPathStarted)
+            g.stroke();
+    } else if (ox != -1) {
         g.drawLine(ox, maxy - oy, i - 1, maxy - oy);
+    }
 }
 
 double Scope::mouseXToTime(double mouseX) const {
@@ -1073,6 +1183,11 @@ void Scope::slowDown() {
 bool Scope::startDragPlotY(double mouseX, double mouseY) {
     if (!rect.contains(mouseX, mouseY))
         return false;
+    if (cursorNearTriggerLevel()) {
+        draggingPlotY = draggingTriggerLevel = true;
+        draggingPlotYScope = this;
+        return true;
+    }
     if (!isManualScale() || selectedPlot < 0 || selectedPlot >= (int) visiblePlots.size())
         return false;
     draggingPlotY = true;
@@ -1083,6 +1198,10 @@ bool Scope::startDragPlotY(double mouseX, double mouseY) {
 }
 
 void Scope::dragPlotY(double mouseY) {
+    if (draggingTriggerLevel) {
+        trigger.setLevelFromY(triggerSourcePlot(), rect, mouseY - rect.y);
+        return;
+    }
     if (selectedPlot < 0 || selectedPlot >= (int) visiblePlots.size())
         return;
     int maxy = std::max(1, (int) std::trunc((rect.height - 1) / 2));
@@ -1094,7 +1213,7 @@ void Scope::dragPlotY(double mouseY) {
 
 void Scope::endDragPlotY() {
     if (draggingPlotYScope != nullptr)
-        draggingPlotYScope->draggingPlotY = false;
+        draggingPlotYScope->draggingPlotY = draggingPlotYScope->draggingTriggerLevel = false;
     draggingPlotYScope = nullptr;
 }
 
@@ -1138,12 +1257,12 @@ void Scope::handleMenu(const std::string &mi, bool state) {
     if (mi == "showphaseangle") fftPlot.showPhaseAngle = state;
     if (mi == "showelminfo") showElmInfo = state;
     if (mi == "showpower") showPower(state);
-    if (mi == "showib") showPlotValue(VAL_IB, state);
-    if (mi == "showic") showPlotValue(VAL_IC, state);
-    if (mi == "showie") showPlotValue(VAL_IE, state);
-    if (mi == "showvbe") showPlotValue(VAL_VBE, state);
-    if (mi == "showvbc") showPlotValue(VAL_VBC, state);
-    if (mi == "showvce") showPlotValue(VAL_VCE, state);
+    if (mi == "showib") showTransistorValue(VAL_IB, state);
+    if (mi == "showic") showTransistorValue(VAL_IC, state);
+    if (mi == "showie") showTransistorValue(VAL_IE, state);
+    if (mi == "showvbe") showTransistorValue(VAL_VBE, state);
+    if (mi == "showvbc") showTransistorValue(VAL_VBC, state);
+    if (mi == "showvce") showTransistorValue(VAL_VCE, state);
     if (mi == "showvcevsic") {
         plot2d.enabled = true;
         plot2d.plotXY = false;
@@ -1156,6 +1275,16 @@ void Scope::handleMenu(const std::string &mi, bool state) {
         resetGraph();
     }
     if (mi == "manualscale") setManualScale(state, true);
+    if (mi == "xyorigin") {
+        plot2d.includeOrigin = state;
+        plot2d.resetFit();
+        plot2d.clearView();
+    }
+    if (mi == "xyalignx") {
+        plot2d.alignX = state;
+        plot2d.resetFit();
+        plot2d.clearView();
+    }
     if (mi == "plotxy") {
         plot2d.plotXY = plot2d.enabled = state;
         if (plot2d.enabled) {

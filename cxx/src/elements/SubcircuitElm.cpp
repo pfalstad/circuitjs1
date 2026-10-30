@@ -27,6 +27,7 @@
 #include "../core/ElementFactory.h"
 #include "../core/Locale.h"
 #include "../core/SimApp.h"
+#include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
 
 std::string SubcircuitElm::lastModelName = "default";
@@ -75,7 +76,7 @@ void SubcircuitElm::dumpXml(XmlElement *doc, XmlElement *elem) {
 
 void SubcircuitElm::undumpXml(CircuitXMLDeserializer &xml) {
     modelName = xml.parseStringAttr("mo", modelName).value_or(modelName);
-    highVoltage = xml.parseDoubleAttr("hv", 0);
+    highVoltage = xml.parseDoubleAttr("hv", highVoltage);
     updateModels();
     CompositeElm::undumpXml(xml);
 }
@@ -136,6 +137,27 @@ void SubcircuitElm::setPoints() {
         setPost(i, chip->getPost(i));
 }
 
+void SubcircuitElm::updateModels() {
+    // rebuilding from the same model (e.g. after it was edited): keep the inner
+    // elements' state (SRAM contents etc.), matched up by index
+    std::unique_ptr<XmlElement> state;
+    if (builtModelName == modelName && !compElmList.empty()) {
+        state = std::make_unique<XmlElement>("cir");
+        dumpXmlState(state.get(), state.get());
+    }
+    model = nullptr;
+    updateModelsFrom(nullptr);
+    if (state && model != nullptr) {
+        CircuitXMLDeserializer xml(app);
+        xml.parseChildElement(state.get());
+        try {
+            undumpChildState(xml, true);
+        } catch (const std::exception &e) {
+            SimulationManager::console(std::string("couldn't restore subcircuit state: ") + e.what());
+        }
+    }
+}
+
 void SubcircuitElm::updateModelsFrom(StringTokenizer *st) {
     if (model != nullptr && model->name == modelName)
         return;
@@ -147,6 +169,7 @@ void SubcircuitElm::updateModelsFrom(StringTokenizer *st) {
         // updateModels() call (if the model becomes available) can still resolve it
         postCount = 0;
         clearChildren();
+        builtModelName.reset();
         numPosts = numNodes = 0;
         posts.clear();
         allocNodes();
@@ -161,6 +184,7 @@ void SubcircuitElm::updateModelsFrom(StringTokenizer *st) {
         loadComposite(st, model->getNodeList(), externalNodes);
     else
         loadCompositeXml(model->getElmEntries(), externalNodes);
+    builtModelName = model->name;
     propagateHighVoltage();
     allocNodes();
     setPoints();

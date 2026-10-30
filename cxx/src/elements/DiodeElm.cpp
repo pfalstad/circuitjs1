@@ -214,7 +214,6 @@ void DiodeElm::setEditValue(int n, EditInfo &ei) {
         if (newModel->isSimple())
             newModel->setForwardVoltage();
         newModel->pickName();
-        DiodeModel::modelMap().set(newModel->name, newModel);
         newModelCreated(newModel);
         ei.newDialog = true;
         app->doEditModel(newModel);
@@ -240,4 +239,8 @@ void DiodeElm::addRoutingObstacle(WireRouter &wr) {
 void DiodeElm::dumpXmlModel(XmlElement *doc) {
     if (!(model->builtIn || model->dumped))
         model->dumpXml(doc);
+}
+
+RegistryModel *DiodeElm::getModel() {
+    return model;
 }

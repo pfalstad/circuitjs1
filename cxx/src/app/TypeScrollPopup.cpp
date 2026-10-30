@@ -18,26 +18,42 @@
 */
 
 // (before any Qt header: Qt #defines 'emit', which TransistorElm uses as a member name)
+#include "elements/GateElm.h"
 #include "elements/MosfetElm.h"
 #include "elements/TransistorElm.h"
 
 #include "TypeScrollPopup.h"
 
 #include <QLabel>
+#include <algorithm>
+#include <iterator>
 
 #include "CirSim.h"
+#include "core/ElementFactory.h"
+#include "core/JsMath.h"
 #include "core/Locale.h"
+#include "core/ScopeManager.h"
 
 using Locale::LS;
+
+// gate cycle order (wraps). the current gate is found by dump type; the next
+// one is created through ElementFactory by class name.
+static const int gateDumpTypes[] = {150, 151, 152, 153, 154, 431};
+static const char *const gateClasses[] = {"AndGateElm", "NandGateElm", "OrGateElm",
+                                          "NorGateElm", "XorGateElm", "XnorGateElm"};
 
 static int getPnp(CircuitElm *e) {
     return e->isMosfetElm() ? static_cast<MosfetElm *>(e)->pnp : static_cast<TransistorElm *>(e)->pnp;
 }
 
 TypeScrollPopup::TypeScrollPopup(QPoint globalPos, double dy, CircuitElm *elm, CirSim *sim)
-    : WheelPopup(sim), myElm(elm) {
+    : WheelPopup(sim), myElm(elm), originalElm(elm) {
     sim->pushUndo();
-    originalPnp = currentPnp = getPnp(elm);
+    if (elm->isGateElm()) {
+        const int *t = std::find(std::begin(gateDumpTypes), std::end(gateDumpTypes), elm->getDumpType());
+        gateIndex = t == std::end(gateDumpTypes) ? -1 : (int) (t - std::begin(gateDumpTypes));
+    } else
+        originalPnp = currentPnp = getPnp(elm);
 
     QLabel *header = addLabel("font-size: 10px; color: gray;");
     header->setText(QString::fromStdString(getHeaderText()));
@@ -55,24 +71,66 @@ std::string TypeScrollPopup::getHeaderText() {
         return LS("JFET Type");
     if (myElm->isMosfetElm())
         return LS("MOSFET Type");
+    if (myElm->isGateElm())
+        return LS("Gate Type");
     return LS("Transistor Type");
 }
 
 void TypeScrollPopup::doDeltaY(double dy) {
-    deltaY += dy;
-    // toggle on every 30 units of scroll (same sensitivity as ScrollValuePopup)
-    while (deltaY >= 30) {
-        deltaY -= 30;
-        toggle();
+    // same as ScrollValuePopup (#421): a single wheel event moves at most one step
+    // (times the sensitivity), so one notch is one step on any device; small
+    // trackpad deltas still accumulate
+    dy /= sim->devicePixelRatioF();
+    deltaY += std::max((double) -ScrollValuePopup::scale, std::min((double) ScrollValuePopup::scale, dy));
+    int steps = (int) jsmath::round(sim->mouse.wheelSensitivity * deltaY / ScrollValuePopup::scale);
+    while (stepsDone < steps) {
+        stepsDone++;
+        toggle(1);
     }
-    while (deltaY <= -30) {
-        deltaY += 30;
-        toggle();
+    while (stepsDone > steps) {
+        stepsDone--;
+        toggle(-1);
     }
 }
 
-void TypeScrollPopup::toggle() {
-    if (myElm->isMosfetElm()) {
+void TypeScrollPopup::stepGate(int dir) {
+    GateElm *old = static_cast<GateElm *>(myElm);
+    const int n = (int) std::size(gateClasses);
+    gateIndex = (gateIndex + dir + n) % n;
+    GateElm *g = static_cast<GateElm *>(ElementFactory::create(gateClasses[gateIndex], old->x, old->y));
+    g->x2 = old->x2;
+    g->y2 = old->y2;
+    g->flags = old->flags & ~(GateElm::FLAG_INVERT_INPUTS | GateElm::FLAG_DEMORGAN);
+    g->inputCount = old->inputCount;
+    g->highVoltage = old->highVoltage;
+    g->propagationDelay = old->propagationDelay;
+    g->setSize((g->flags & GateElm::FLAG_SMALL) != 0 ? 1 : 2);
+    g->allocNodes();
+    g->setupVolts();
+    g->setPoints();
+    replaceElm(g);
+}
+
+void TypeScrollPopup::replaceElm(CircuitElm *newElm) {
+    CircuitElm *old = myElm;
+    int i = sim->locateElm(old);
+    sim->elmList[i] = newElm;
+    newElm->setSelected(old->isSelected());
+    sim->mouse.setMouseElm(newElm);
+    myElm = newElm;
+    sim->scopeManager->deleteUnusedScopeElms();
+    // (a gate this popup made, not the original)
+    if (old != originalElm) {
+        old->deleteElm();
+        delete old;
+    }
+}
+
+void TypeScrollPopup::toggle(int dir) {
+    if (myElm->isGateElm()) {
+        if (gateIndex >= 0)
+            stepGate(dir);
+    } else if (myElm->isMosfetElm()) {
         MosfetElm *e = static_cast<MosfetElm *>(myElm);
         e->pnp = -e->pnp;
         e->flags ^= MosfetElm::FLAG_PNP;
@@ -91,7 +149,9 @@ void TypeScrollPopup::toggle() {
 
 void TypeScrollPopup::updateLabel() {
     std::string text;
-    if (myElm->isMosfetElm()) {
+    if (myElm->isGateElm()) {
+        text = LS(static_cast<GateElm *>(myElm)->getGateName());
+    } else if (myElm->isMosfetElm()) {
         text = myElm->isJfetElm()
             ? (currentPnp == -1 ? LS("P-Channel JFET") : LS("N-Channel JFET"))
             : (currentPnp == -1 ? LS("P-Channel") : LS("N-Channel"));
@@ -103,6 +163,20 @@ void TypeScrollPopup::updateLabel() {
 
 void TypeScrollPopup::revert() {
     // revert to original state
-    while (currentPnp != originalPnp)
-        toggle();
+    if (myElm != originalElm) {
+        // gate: put the original element back, flags and all
+        replaceElm(originalElm);
+        sim->needAnalyze();
+    } else {
+        while (currentPnp != originalPnp)
+            toggle(1);
+    }
+}
+
+void TypeScrollPopup::keep() {
+    if (myElm != originalElm) {
+        originalElm->deleteElm();
+        delete originalElm;
+        originalElm = myElm;
+    }
 }

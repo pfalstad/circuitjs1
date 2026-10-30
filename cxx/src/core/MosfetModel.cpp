@@ -34,9 +34,10 @@
 
 SimApp *MosfetModel::app = nullptr;
 
-OrderedMap<MosfetModel *> &MosfetModel::modelMap() {
-    static OrderedMap<MosfetModel *> m;
-    return m;
+ModelRegistry<MosfetModel> &MosfetModel::registry() {
+    static ModelRegistry<MosfetModel> r([] { createModelMap(); }, "mosfetmodel:",
+                                        [](MosfetModel *m, XmlElement *root) { m->dumpXml(root); });
+    return r;
 }
 
 MosfetModel::MosfetModel() {
@@ -69,34 +70,29 @@ MosfetModel::MosfetModel(const std::string &d, double vt, double b) {
 }
 
 MosfetModel *MosfetModel::getModelWithName(const std::string &name) {
-    createModelMap();
-    if (MosfetModel **lm = modelMap().get(name))
-        return *lm;
+    if (MosfetModel *lm = registry().get(name))
+        return lm;
     MosfetModel *lm = new MosfetModel();
     lm->name = name;
-    modelMap().set(name, lm);
+    registry().setGlobal(lm);
     return lm;
 }
 
 MosfetModel *MosfetModel::getModelWithNameOrCopy(const std::string &name, MosfetModel *oldmodel, bool jfet) {
-    createModelMap();
-    if (MosfetModel **lm = modelMap().get(name))
-        return *lm;
+    if (MosfetModel *lm = registry().get(name))
+        return lm;
     if (oldmodel == nullptr) {
         std::cerr << "model not found: " << name << "\n";
         return getDefaultModel(jfet);
     }
     MosfetModel *copy = new MosfetModel(*oldmodel);
     copy->name = name;
-    modelMap().set(name, copy);
+    registry().setLocal(copy);
     return copy;
 }
 
+// add the built-in models (called by the registry when first used)
 void MosfetModel::createModelMap() {
-    static bool created = false;
-    if (created)
-        return;
-    created = true;
 
     addDefaultModel("default", new MosfetModel("default", 1.5, .02));
 
@@ -121,9 +117,9 @@ void MosfetModel::createModelMap() {
 }
 
 void MosfetModel::addDefaultModel(const std::string &name, MosfetModel *dm) {
-    modelMap().set(name, dm);
     dm->readOnly = dm->builtIn = true;
     dm->name = name;
+    registry().setGlobal(dm);
 }
 
 MosfetModel *MosfetModel::getDefaultModel(bool jfet) {
@@ -132,9 +128,7 @@ MosfetModel *MosfetModel::getDefaultModel(bool jfet) {
 
 MosfetModel *MosfetModel::getModelWithParameters(double vt, double beta, bool jfet, bool showBulk, bool bodyDiode,
                                                  bool bodyTerminal, bool digitalSymbol, bool showBodyDiodeSymbol) {
-    createModelMap();
-    for (auto &kv : modelMap()) {
-        MosfetModel *mm = kv.second;
+    for (MosfetModel *mm : registry().models()) {
         if (mm->isJfet() == jfet && std::abs(mm->threshold - vt) < 1e-15 && std::abs(mm->beta - beta) < 1e-15 &&
             mm->lambda == 0 && mm->capGS == 0 && mm->capGD == 0 && mm->showBulk == showBulk &&
             mm->bodyDiode == bodyDiode && mm->bodyTerminal == bodyTerminal && mm->digitalSymbol == digitalSymbol &&
@@ -143,15 +137,7 @@ MosfetModel *MosfetModel::getModelWithParameters(double vt, double beta, bool jf
     }
     std::string baseName = std::string("old-") + (jfet ? "jfet" : "mosfet");
     std::string name = baseName;
-    if (modelMap().has(name)) {
-        for (int num = 2;; num++) {
-            std::string n = baseName + "-" + std::to_string(num);
-            if (!modelMap().has(n)) {
-                name = n;
-                break;
-            }
-        }
-    }
+    name = registry().uniqueName(name);
     MosfetModel *mm = getModelWithName(name);
     mm->threshold = vt;
     mm->beta = beta;
@@ -170,16 +156,9 @@ MosfetModel *MosfetModel::getModelWithParameters(double vt, double beta, bool jf
     return mm;
 }
 
-void MosfetModel::clearDumpedFlags() {
-    for (auto &kv : modelMap())
-        kv.second->dumped = false;
-}
-
 std::vector<MosfetModel *> MosfetModel::getModelList(bool jfet) {
-    createModelMap();
     std::vector<MosfetModel *> vector;
-    for (auto &kv : modelMap()) {
-        MosfetModel *mm = kv.second;
+    for (MosfetModel *mm : registry().models()) {
         if (mm->internal || mm->isJfet() != jfet)
             continue;
         if (std::find(vector.begin(), vector.end(), mm) == vector.end())
@@ -197,7 +176,7 @@ std::string MosfetModel::getDescription() const {
 
 MosfetModel *MosfetModel::undumpModel(StringTokenizer &st) {
     std::string name = CustomLogicModel::unescape(st.nextToken());
-    MosfetModel *dm = getModelWithName(name);
+    MosfetModel *dm = registry().getForLoad(name, [] { return new MosfetModel(); });
     dm->undump(st);
     return dm;
 }
@@ -246,7 +225,7 @@ void MosfetModel::dumpXml(XmlElement *root) {
 
 MosfetModel *MosfetModel::undumpModelXml(CircuitXMLDeserializer &xml) {
     std::optional<std::string> name = xml.parseStringAttr("nm", std::nullopt);
-    MosfetModel *dm = getModelWithName(name.value_or(""));
+    MosfetModel *dm = registry().getForLoad(name.value_or(""), [] { return new MosfetModel(); });
     dm->undumpXml(xml);
     return dm;
 }
@@ -298,9 +277,7 @@ std::optional<EditInfo> MosfetModel::getEditInfo(int n) {
 
 void MosfetModel::setEditValue(int n, EditInfo &ei) {
     if (n == 0) {
-        name = ei.textf->value;
-        if (!name.empty())
-            modelMap().set(name, this);
+        registry().rename(this, ei.textf->value);
     }
     if (n == 1) threshold = ei.value;
     if (n == 2 && ei.value > 0) beta = ei.value;
@@ -331,19 +308,13 @@ void MosfetModel::setEditValue(int n, EditInfo &ei) {
     if (n == idx) lambda = (ei.value >= 0) ? ei.value : lambda;
     else if (n == idx + 1) capGS = (ei.value >= 0) ? ei.value : capGS;
     else if (n == idx + 2) capGD = (ei.value >= 0) ? ei.value : capGD;
+    registry().resave(this);
     if (app != nullptr)
         app->updateModels();
 }
 
 void MosfetModel::pickName() {
     name = isJfet() ? "jfetmodel" : "mosfetmodel";
-    if (modelMap().has(name)) {
-        for (int num = 2;; num++) {
-            std::string n = name + "-" + std::to_string(num);
-            if (!modelMap().has(n)) {
-                name = n;
-                break;
-            }
-        }
-    }
+    name = registry().uniqueName(name);
+    registry().setLocal(this);
 }

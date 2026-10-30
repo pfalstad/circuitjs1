@@ -25,17 +25,14 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMouseEvent>
-#include <QPainter>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <algorithm>
-#include <climits>
 #include <cmath>
 #include <set>
 
+#include "ChipPinEditor.h"
 #include "CirSim.h"
-#include "QtGraphics.h"
 #include "core/CircuitElm.h"
 #include "core/Locale.h"
 #include "elements/SubcircuitElm.h"
@@ -47,30 +44,6 @@ static std::string toLower(std::string s) {
         c = (char) std::tolower((unsigned char) c);
     return s;
 }
-
-// the 400x400 drawing of the chip
-class PinLayoutCanvas : public QWidget {
-public:
-    explicit PinLayoutCanvas(EditSubcircuitModelDialog *d) : dlg(d) {
-        setFixedSize(400, 400);
-        setMouseTracking(true);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        dlg->drawChip(painter);
-    }
-    void mousePressEvent(QMouseEvent *e) override {
-        if (e->button() == Qt::LeftButton)
-            dlg->mouseDown((int) e->position().x(), (int) e->position().y(), e->modifiers() & Qt::ShiftModifier);
-    }
-    void mouseMoveEvent(QMouseEvent *e) override { dlg->mouseMoved((int) e->position().x(), (int) e->position().y()); }
-    void mouseReleaseEvent(QMouseEvent *) override { dlg->mouseUp(); }
-
-private:
-    EditSubcircuitModelDialog *dlg;
-};
 
 EditSubcircuitModelDialog::EditSubcircuitModelDialog(CirSim *a) : QDialog(a), app(a) {
     setAttribute(Qt::WA_DeleteOnClose);
@@ -131,46 +104,26 @@ void EditSubcircuitModelDialog::createDialog() {
     v->addWidget(title);
     v->addWidget(new QLabel(LS("Drag the pins to the desired position")));
 
-    canvas = new PinLayoutCanvas(this);
-    v->addWidget(canvas);
-
-    chip.reset(SubcircuitChipElm::create(50, 50));
-    chip->x2 = 200;
-    chip->y2 = 50;
-    selectedPin = -1;
-    createPinsFromModel();
+    ChipPinEditorOptions opts;
+    opts.getLabel = [this] { return labelName(); };
+    editor = new ChipPinEditor(app, model->extList, model->sizeX, model->sizeY, opts);
+    v->addWidget(editor);
 
     if (model->name.empty()) {
         v->addWidget(new QLabel(LS("Model Name")));
         modelNameInput = new QLineEdit();
-        connect(modelNameInput, &QLineEdit::textChanged, this, [this] { canvas->update(); });
+        connect(modelNameInput, &QLineEdit::textChanged, this, [this] { drawChip(); });
         v->addWidget(modelNameInput);
     }
 
-    // Width/Height controls
-    QHBoxLayout *hp = new QHBoxLayout();
-    auto addBtn = [&](const QString &label, int dx, int dy) {
-        QPushButton *b = new QPushButton(label);
-        b->setAutoDefault(false);
-        connect(b, &QPushButton::clicked, this, [this, dx, dy] { adjustChipSize(dx, dy); });
-        hp->addWidget(b);
-    };
-    hp->addWidget(new QLabel(LS("Width")));
-    addBtn("+", 1, 0);
-    addBtn("-", -1, 0);
-    hp->addSpacing(12);
-    hp->addWidget(new QLabel(LS("Height")));
-    addBtn("+", 0, 1);
-    addBtn("-", 0, -1);
-    hp->addStretch(1);
-    v->addLayout(hp);
+    v->addLayout(editor->createSizeControls());
 
     // Label checkbox
     labelCheck = new QCheckBox(LS("Show Label"));
     labelCheck->setChecked(model->showLabel());
     connect(labelCheck, &QCheckBox::toggled, this, [this](bool on) {
         model->setShowLabel(on);
-        canvas->update();
+        drawChip();
     });
     v->addWidget(labelCheck);
 
@@ -181,7 +134,7 @@ void EditSubcircuitModelDialog::createDialog() {
     scopeSelect->addItems({LS("This Circuit"), LS("This Session"), LS("Save Across Sessions")});
     if (model->isSaved())
         scopeSelect->setCurrentIndex(SCOPE_SAVE_ACROSS_SESSIONS);
-    else if (!model->name.empty() && SubcircuitModel::globalModelMap.has(model->name))
+    else if (!model->name.empty() && SubcircuitModel::registry().hasGlobal(model->name))
         scopeSelect->setCurrentIndex(SCOPE_THIS_SESSION);
     else
         scopeSelect->setCurrentIndex(SCOPE_THIS_CIRCUIT);
@@ -208,29 +161,6 @@ void EditSubcircuitModelDialog::createDialog() {
     activateWindow();
 }
 
-void EditSubcircuitModelDialog::createPinsFromModel() {
-    postCount = (int) model->extList.size();
-    chip->allocPins(postCount);
-    chip->sizeX = model->sizeX;
-    chip->sizeY = model->sizeY;
-    chip->allocNodes();
-    for (int i = 0; i < postCount; i++) {
-        const ExtListEntry &pin = model->extList[i];
-        chip->setPin(i, pin.pos, pin.side, pin.name);
-        chip->pins[i].busWidth = pin.busWidth;
-        chip->pins[i].busZ = pin.busZ;
-        if (isPinSelected(i))
-            chip->pins[i].selected = true;
-    }
-    chip->setPoints();
-
-    // (the TS version does this in drawChip(); the mouse handlers need it before the next paint)
-    const Rectangle &bb = chip->boundingBox;
-    double scalew = 400.0 / (bb.width + bb.x * 2);
-    double scaleh = 400.0 / (bb.height + bb.y * 2);
-    scale = 1 / std::min(scalew, scaleh);
-}
-
 void EditSubcircuitModelDialog::enterPressed() {
     if (modelNameInput) {
         std::string name = modelNameInput->text().toStdString();
@@ -242,13 +172,12 @@ void EditSubcircuitModelDialog::enterPressed() {
         model->setName(name);
     }
     int scope = scopeSelect->currentIndex();
-    SubcircuitModel::localModelMap.erase(model->name);
-    SubcircuitModel::globalModelMap.erase(model->name);
+    SubcircuitModel::registry().remove(model->name);
     model->setSaved(false);
     if (scope == SCOPE_THIS_CIRCUIT)
-        SubcircuitModel::localModelMap.set(model->name, model);
+        SubcircuitModel::registry().setLocal(model);
     else if (scope == SCOPE_THIS_SESSION)
-        SubcircuitModel::globalModelMap.set(model->name, model);
+        SubcircuitModel::registry().setGlobal(model);
     else
         model->setSaved(true);
     // (updating the models replaces the components we may be viewing)
@@ -286,356 +215,9 @@ std::optional<std::string> EditSubcircuitModelDialog::labelName() {
     return modelNameInput ? modelNameInput->text().toStdString() : model->name;
 }
 
-void EditSubcircuitModelDialog::drawChip(QPainter &painter) {
-    if (!chip)
-        return;
-    QtGraphics g(painter);
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.setColor(app->getBackgroundColor());
-    g.fillRect(0, 0, canvas->width(), canvas->height());
-    g.setTransform(1 / scale, 0, 0, 1 / scale, 0, 0);
-    g.setFont(CircuitElm::unitsFont);
-    g.setLineCap(Graphics::CAP_ROUND);
-    chip->setLabel(labelName());
-    chip->draw(g);
-
-    if (rubberBand) {
-        int x1 = std::min(rubberBandX1, rubberBandX2);
-        int y1 = std::min(rubberBandY1, rubberBandY2);
-        int w = std::abs(rubberBandX2 - rubberBandX1);
-        int h = std::abs(rubberBandY2 - rubberBandY1);
-        painter.setTransform(QTransform());
-        painter.fillRect(QRectF(x1, y1, w, h), QColor(68, 136, 255, 38));
-        painter.setPen(QPen(QColor(0x44, 0x88, 0xff), 1));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRect(QRectF(x1 + .5, y1 + .5, w, h));
-    }
-}
-
-void EditSubcircuitModelDialog::adjustChipSize(int dx, int dy) {
-    if (dx < 0) {
-        for (int i = 0; i < postCount; i++) {
-            const Pin &p = chip->pins[i];
-            if (p.busZ > 0)
-                continue;
-            if ((p.side == ChipElm::SIDE_N || p.side == ChipElm::SIDE_S) && p.pos >= chip->sizeX + dx)
-                return;
-        }
-    }
-    if (dy < 0) {
-        bool needShift = false;
-        for (int i = 0; i < postCount; i++) {
-            const Pin &p = chip->pins[i];
-            if (p.busZ > 0)
-                continue;
-            if ((p.side == ChipElm::SIDE_E || p.side == ChipElm::SIDE_W) && p.pos >= chip->sizeY + dy) {
-                needShift = true;
-                break;
-            }
-        }
-        if (needShift) {
-            for (int i = 0; i < postCount; i++) {
-                const Pin &p = chip->pins[i];
-                if (p.busZ > 0)
-                    continue;
-                if ((p.side == ChipElm::SIDE_E || p.side == ChipElm::SIDE_W) && p.pos == 0)
-                    return;
-            }
-            for (ExtListEntry &pe : model->extList)
-                if (pe.side == ChipElm::SIDE_E || pe.side == ChipElm::SIDE_W)
-                    pe.pos -= 1;
-        }
-    }
-    if (chip->sizeX + dx < 1 || chip->sizeY + dy < 1)
-        return;
-    model->sizeX += dx;
-    model->sizeY += dy;
-    createPinsFromModel();
-    canvas->update();
-}
-
-int EditSubcircuitModelDialog::findNearestPin(int x, int y) {
-    double bestDist = 20;
-    int best = -1;
-    for (int i = 0; i < postCount; i++) {
-        const Pin &p = chip->pins[i];
-        if (p.busZ > 0)
-            continue;
-        double dx = x * scale - p.textloc.x;
-        double dy = y * scale - p.textloc.y;
-        double dist = std::hypot(dx, dy);
-        if (dist < bestDist) {
-            bestDist = dist;
-            best = i;
-        }
-    }
-    return best;
-}
-
-void EditSubcircuitModelDialog::updatePinHighlight() {
-    for (int i = 0; i < postCount; i++)
-        chip->pins[i].selected = isPinSelected(i);
-}
-
-bool EditSubcircuitModelDialog::isPinSelected(int i) const {
-    return std::find(selectedPins.begin(), selectedPins.end(), i) != selectedPins.end();
-}
-
-void EditSubcircuitModelDialog::selectPin(int i) {
-    if (!isPinSelected(i))
-        selectedPins.push_back(i);
-}
-
-void EditSubcircuitModelDialog::deselectPin(int i) {
-    selectedPins.erase(std::remove(selectedPins.begin(), selectedPins.end(), i), selectedPins.end());
-}
-
-int EditSubcircuitModelDialog::firstSelectedSide() const {
-    return selectedPins.empty() ? -1 : model->extList[selectedPins[0]].side;
-}
-
-// is pin i's label inside the rubber band (in canvas coordinates)?
-bool EditSubcircuitModelDialog::inRubberBand(int i, int x1, int y1, int x2, int y2) const {
-    int px = (int) (chip->pins[i].textloc.x / scale);
-    int py = (int) (chip->pins[i].textloc.y / scale);
-    return px >= x1 && px <= x2 && py >= y1 && py <= y2;
-}
-
-void EditSubcircuitModelDialog::mouseUp() {
-    if (rubberBand) {
-        int x1 = std::min(rubberBandX1, rubberBandX2);
-        int x2 = std::max(rubberBandX1, rubberBandX2);
-        int y1 = std::min(rubberBandY1, rubberBandY2);
-        int y2 = std::max(rubberBandY1, rubberBandY2);
-        int selSide = firstSelectedSide();
-        for (int i = 0; i < postCount; i++) {
-            if (chip->pins[i].busZ > 0)
-                continue;
-            if (inRubberBand(i, x1, y1, x2, y2)) {
-                if (selSide == -1)
-                    selSide = model->extList[i].side;
-                if (model->extList[i].side == selSide)
-                    selectPin(i);
-            }
-        }
-        rubberBand = false;
-        updatePinHighlight();
-        canvas->update();
-    }
-    dragging = false;
-}
-
-void EditSubcircuitModelDialog::mouseMoved(int x, int y) {
-    if (rubberBand) {
-        rubberBandX2 = x;
-        rubberBandY2 = y;
-        int x1 = std::min(rubberBandX1, rubberBandX2);
-        int x2 = std::max(rubberBandX1, rubberBandX2);
-        int y1 = std::min(rubberBandY1, rubberBandY2);
-        int y2 = std::max(rubberBandY1, rubberBandY2);
-        int selSide2 = firstSelectedSide();
-        if (selSide2 == -1) {
-            for (int i = 0; i < postCount; i++) {
-                if (chip->pins[i].busZ > 0)
-                    continue;
-                if (inRubberBand(i, x1, y1, x2, y2)) {
-                    selSide2 = model->extList[i].side;
-                    break;
-                }
-            }
-        }
-        for (int i = 0; i < postCount; i++) {
-            chip->pins[i].selected = isPinSelected(i);
-            if (chip->pins[i].busZ > 0)
-                continue;
-            if (inRubberBand(i, x1, y1, x2, y2) && model->extList[i].side == selSide2)
-                chip->pins[i].selected = true;
-        }
-        canvas->update();
-        return;
-    }
-    if (dragging) {
-        if (selectedPin < 0)
-            return;
-        int pos[2] = {0, 0};
-        if (!chip->getPinPos((int) (x * scale), (int) (y * scale), dragCurrentSide, pos))
-            return;
-        dragCurrentSide = pos[1];
-
-        // Reset to drag-start snapshot so each call is idempotent
-        for (int i = 0; i < postCount; i++) {
-            model->extList[i].pos = dragStartPosArr[i];
-            model->extList[i].side = dragStartSideArr[i];
-        }
-        int newSide = pos[1];
-        int maxNewPos = (newSide == ChipElm::SIDE_N || newSide == ChipElm::SIDE_S) ? chip->sizeX - 1 : chip->sizeY - 1;
-        int minOff = INT_MAX, maxOff = INT_MIN;
-        int sameSideCount = 0;
-        for (int idx : selectedPins) {
-            if (dragStartSideArr[idx] != dragStartSide)
-                continue;
-            sameSideCount++;
-            int off = dragStartPosArr[idx] - dragStartPos;
-            minOff = std::min(minOff, off);
-            maxOff = std::max(maxOff, off);
-        }
-        int groupSize = maxOff - minOff + 1;
-        int effectiveSide = newSide;
-        int effectiveMaxPos = maxNewPos;
-        if (groupSize > maxNewPos + 1) {
-            effectiveSide = dragStartSide;
-            effectiveMaxPos = (effectiveSide == ChipElm::SIDE_N || effectiveSide == ChipElm::SIDE_S) ? chip->sizeX - 1
-                                                                                                   : chip->sizeY - 1;
-        }
-        int anchor = std::max(-minOff, std::min(effectiveMaxPos - maxOff, pos[0]));
-        int delta = anchor - dragStartPos;
-        bool sameSide = (effectiveSide == dragStartSide);
-        bool contiguous = (groupSize == sameSideCount);
-
-        // move a pin along with the rest of its bus
-        auto updateBusGroup = [this](ExtListEntry &pj, int newPos, std::optional<int> newSideVal) {
-            pj.pos = newPos;
-            if (newSideVal)
-                pj.side = *newSideVal;
-            for (ExtListEntry &pjj : model->extList) {
-                if (pjj.name == pj.name && pjj.busWidth == pj.busWidth) {
-                    pjj.pos = newPos;
-                    if (newSideVal)
-                        pjj.side = *newSideVal;
-                }
-            }
-        };
-
-        if (sameSide && contiguous) {
-            for (int i = 0; i < postCount; i++) {
-                if (isPinSelected(i) || chip->pins[i].busZ > 0)
-                    continue;
-                if (dragStartSideArr[i] != dragStartSide)
-                    continue;
-                int origPos = dragStartPosArr[i];
-                int newPos;
-                if (delta >= 0)
-                    newPos = (origPos >= dragStartPos + maxOff + 1 && origPos <= anchor + maxOff) ? origPos - groupSize : origPos;
-                else
-                    newPos = (origPos >= anchor + minOff && origPos <= dragStartPos + minOff - 1) ? origPos + groupSize : origPos;
-                if (newPos != origPos)
-                    updateBusGroup(model->extList[i], newPos, std::nullopt);
-            }
-        } else {
-            std::set<int> groupPos;
-            for (int idx : selectedPins) {
-                if (dragStartSideArr[idx] != dragStartSide)
-                    continue;
-                groupPos.insert(anchor + dragStartPosArr[idx] - dragStartPos);
-            }
-            std::vector<int> displaced;
-            for (int i = 0; i < postCount; i++) {
-                if (isPinSelected(i) || chip->pins[i].busZ > 0)
-                    continue;
-                if (dragStartSideArr[i] != effectiveSide)
-                    continue;
-                if (groupPos.count(dragStartPosArr[i]))
-                    displaced.push_back(i);
-            }
-            std::set<int> taken;
-            for (int i = 0; i < postCount; i++) {
-                if (isPinSelected(i) || chip->pins[i].busZ > 0)
-                    continue;
-                if (dragStartSideArr[i] == effectiveSide && !groupPos.count(dragStartPosArr[i]))
-                    taken.insert(dragStartPosArr[i]);
-            }
-            std::vector<int> available;
-            for (int slot = 0; slot <= effectiveMaxPos; slot++)
-                if (!groupPos.count(slot) && !taken.count(slot))
-                    available.push_back(slot);
-            std::stable_sort(displaced.begin(), displaced.end(),
-                             [this](int a, int b) { return dragStartPosArr[a] < dragStartPosArr[b]; });
-            std::vector<int> freeSlots;
-            int na = (int) available.size();
-            if (delta >= 0) {
-                for (int k = na - 1; k >= 0 && freeSlots.size() < displaced.size(); k--)
-                    if (available[k] < anchor)
-                        freeSlots.push_back(available[k]);
-                for (int k = 0; k < na && freeSlots.size() < displaced.size(); k++)
-                    if (available[k] > anchor + maxOff)
-                        freeSlots.push_back(available[k]);
-            } else {
-                for (int k = 0; k < na && freeSlots.size() < displaced.size(); k++)
-                    if (available[k] > anchor + maxOff)
-                        freeSlots.push_back(available[k]);
-                for (int k = na - 1; k >= 0 && freeSlots.size() < displaced.size(); k--)
-                    if (available[k] < anchor)
-                        freeSlots.push_back(available[k]);
-            }
-            std::sort(freeSlots.begin(), freeSlots.end());
-            for (size_t k = 0; k < displaced.size() && k < freeSlots.size(); k++)
-                updateBusGroup(model->extList[displaced[k]], freeSlots[k], std::nullopt);
-        }
-        // Move selected pins to their new positions
-        for (int idx : selectedPins) {
-            if (dragStartSideArr[idx] != dragStartSide)
-                continue;
-            int newPos = anchor + dragStartPosArr[idx] - dragStartPos;
-            updateBusGroup(model->extList[idx], newPos, effectiveSide);
-        }
-        createPinsFromModel();
-        canvas->update();
-    } else {
-        // hover: highlight nearest pin without disturbing selectedPins
-        int hoveredPin = findNearestPin(x, y);
-        for (int i = 0; i < postCount; i++)
-            chip->pins[i].selected = isPinSelected(i) || i == hoveredPin;
-        canvas->update();
-    }
-}
-
-void EditSubcircuitModelDialog::mouseDown(int x, int y, bool shift) {
-    int hoveredPin = findNearestPin(x, y);
-
-    if (hoveredPin < 0) {
-        if (!shift)
-            selectedPins.clear();
-        rubberBand = true;
-        rubberBandX1 = rubberBandX2 = x;
-        rubberBandY1 = rubberBandY2 = y;
-        updatePinHighlight();
-        canvas->update();
-        return;
-    }
-
-    rubberBand = false;
-    if (shift) {
-        if (isPinSelected(hoveredPin)) {
-            deselectPin(hoveredPin);
-        } else {
-            int hSide = model->extList[hoveredPin].side;
-            bool ok = selectedPins.empty();
-            if (!ok)
-                ok = (firstSelectedSide() == hSide);
-            if (ok)
-                selectPin(hoveredPin);
-        }
-    } else {
-        if (!isPinSelected(hoveredPin)) {
-            selectedPins.clear();
-            selectPin(hoveredPin);
-        }
-    }
-    selectedPin = hoveredPin;
-
-    dragStartPosArr.assign(postCount, 0);
-    dragStartSideArr.assign(postCount, 0);
-    for (int i = 0; i < postCount; i++) {
-        dragStartPosArr[i] = model->extList[i].pos;
-        dragStartSideArr[i] = model->extList[i].side;
-    }
-    const ExtListEntry &sp = model->extList[selectedPin];
-    dragStartPos = sp.pos;
-    dragStartSide = dragCurrentSide = sp.side;
-
-    updatePinHighlight();
-    dragging = true;
-    canvas->update();
+void EditSubcircuitModelDialog::drawChip() {
+    if (editor)
+        editor->draw();
 }
 
 void EditSubcircuitModelDialog::preservePinLayout(SubcircuitModel &newModel, const SubcircuitModel &existingModel) {

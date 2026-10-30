@@ -34,15 +34,18 @@
 #include "SimulationManager.h"
 #include "CustomLogicModel.h"
 #include "MosfetModel.h"
+#include "PinLayoutModel.h"
 #include "RelayModel.h"
 #include "JsNumber.h"
 #include "SimApp.h"
 #include "StringTokenizer.h"
 #include "XmlDoc.h"
 
-void CircuitXMLDeserializer::readElements(const XmlElement *root) {
+void CircuitXMLDeserializer::readElements(const XmlElement *root, bool subcircuitsOnly) {
     for (auto &child : root->children) {
         const XmlElement *elem = child.get();
+        if (subcircuitsOnly && elem->tagName != "ccm")
+            continue;
         currentXmlElement = elem;
         if (elem->tagName == "dm") {
             DiodeModel::undumpModelXml(*this);
@@ -62,6 +65,10 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root) {
         }
         if (elem->tagName == "clm") {
             CustomLogicModel::undumpModelXml(*this);
+            continue;
+        }
+        if (elem->tagName == "plm") {
+            PinLayoutModel::undumpModelXml(*this);
             continue;
         }
         if (elem->tagName == "o") {

@@ -77,18 +77,31 @@ void CirSim::doPopupMenu(const QPoint &globalPos) {
         QMenu *add = menu.addMenu(LS("Add to Existing Scope"));
         int scopeElmCount = sm->countScopeElms();
         for (int i = 0; i < sm->scopeCount + scopeElmCount; i++) {
-            Scope *s = (i < sm->scopeCount) ? sm->scopes[i].get() : sm->getNthScopeElm(i - sm->scopeCount)->elmScope.get();
+            bool docked = i < sm->scopeCount;
+            Scope *s = docked ? sm->scopes[i].get() : sm->getNthScopeElm(i - sm->scopeCount)->elmScope.get();
             if (s == nullptr)
                 continue;
-            QString label = QString::fromStdString(s->getScopeLabelOrText());
-            if (label.isEmpty())
-                label = LS("Scope") + " " + QString::number(i + 1);
-            add->addAction(label, this, [s, menuElm] { s->addElm(menuElm); });
+            QString label = (docked ? LS("Scope") + " " + QString::number(i + 1)
+                                    : LS("Undocked Scope") + " " + QString::number(i - sm->scopeCount + 1));
+            std::string text = s->getScopeLabelOrText();
+            if (!text.empty())
+                label += " (" + QString::fromStdString(text) + ")";
+            QAction *a = add->addAction(label, this, [s, menuElm] { s->addElm(menuElm); });
+            // when mousing over scope menu item, select associated scope
+            connect(a, &QAction::hovered, this, [this, sm, i] {
+                sm->scopeMenuSelected = i;
+                repaint();
+            });
         }
+        // when mousing out of the scope menu, deselect any scope
+        connect(add, &QMenu::aboutToHide, this, [this, sm] {
+            sm->scopeMenuSelected = -1;
+            repaint();
+        });
         add->setEnabled(menuElm->canViewInScope() && sm->scopeCount + scopeElmCount > 0);
         menu.addAction(LS("Cut"), this, [this, menuElm] { doCut(menuElm); });
         menu.addAction(LS("Copy"), this, [this, menuElm] { doCopy(menuElm); });
-        menu.addAction(LS("Delete"), this, [this] { pushUndo(); doDelete(); });
+        menu.addAction(LS("Delete"), this, [this, menuElm] { pushUndo(); doDelete(menuElm); });
         menu.addAction(LS("Duplicate"), this, [this, menuElm] { doDuplicate(menuElm); });
         menu.addAction(LS("Swap Terminals"), this, [this, menuElm] {
             menuElm->flipPosts();

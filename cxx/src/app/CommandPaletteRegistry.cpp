@@ -162,7 +162,8 @@ void CommandPaletteRegistry::buildStatic(CirSim *app) {
     add(app, "scopes:separateAll", "Separate All", "Scopes", "separate scopes split");
 
     add(app, "tools:convertWires", "Convert Wires to Routed Wires", "Tools", "convert wires routed");
-    add(app, "tools:subcircuits", "Subcircuit Manager", "Tools", "subcircuit manager");
+    // (the TS version calls this "Model Manager"; here the label must match the menu's)
+    add(app, "tools:modelmanager", "Subcircuit/Model Manager", "Tools", "model manager subcircuit diode transistor");
     add(app, "tools:console", "Console", "Tools", "console log debug messages");
 
     // the TS version has one Run/Stop command; here the Simulation menu's Run is a check item

@@ -66,7 +66,7 @@ void JKFlipFlopElm::execute() {
 
 std::optional<EditInfo> JKFlipFlopElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo::createCheckbox("Reset Pin", hasReset());
+        return EditInfo::createCheckbox("Reset Pin", hasReset()).setStructural();
     if (n == 1)
         return EditInfo::createCheckbox("Positive Edge Triggered", positiveEdgeTriggered());
     if (n == 2)

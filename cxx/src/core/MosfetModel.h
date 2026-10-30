@@ -24,22 +24,21 @@
 #include <vector>
 
 #include "EditInfo.h"
-#include "OrderedMap.h"
+#include "ModelRegistry.h"
 
 class StringTokenizer;
 class CircuitXMLDeserializer;
 class SimApp;
 class XmlElement;
 
-// Models live for the whole session in modelMap, which owns them.
-class MosfetModel : public Editable {
+// Models are never freed: elements may still use one that's been removed from the registry.
+class MosfetModel : public Editable, public RegistryModel {
 public:
-    static OrderedMap<MosfetModel *> &modelMap();
+    static ModelRegistry<MosfetModel> &registry();
 
     static constexpr int FLAG_JFET = 1;
 
     int flags = 0;
-    std::string name;
     std::optional<std::string> description;
     double threshold = 0;  // Vt: threshold voltage (V)
     double beta = 0;       // transconductance parameter (A/V^2)
@@ -57,7 +56,6 @@ public:
     bool bodyTerminal = false;         // expose the body as a 4th terminal (only if bodyDiode)
     bool showBodyDiodeSymbol = false;  // draw the body diode symbol (only if bodyDiode)
 
-    bool dumped = false;
     bool readOnly = false;
     bool builtIn = false;
     bool internal = false;
@@ -85,7 +83,6 @@ public:
     // element instead of by model name.
     static MosfetModel *getModelWithParameters(double vt, double beta, bool jfet, bool showBulk, bool bodyDiode,
                                                bool bodyTerminal, bool digitalSymbol, bool showBodyDiodeSymbol);
-    static void clearDumpedFlags();
     // jfet selects whether to return models meant for JfetElm or for MosfetElm
     static std::vector<MosfetModel *> getModelList(bool jfet);
     std::string getDescription() const;
@@ -96,6 +93,7 @@ public:
     void undumpXml(CircuitXMLDeserializer &xml);
     std::string getDialogTitle() { return std::string("Edit ") + (isJfet() ? "JFET" : "MOSFET") + " Model"; }
     std::string getEditTitle() override { return "Edit MOSFET Model"; }
+    bool isUserModel() const override { return !(builtIn || internal || readOnly || oldStyle); }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

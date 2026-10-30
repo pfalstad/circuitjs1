@@ -19,6 +19,8 @@
 
 #include "SwitchElm.h"
 
+#include "../core/XmlDoc.h"
+
 #include "../core/CircuitXMLDeserializer.h"
 #include "../core/CircuitXMLSerializer.h"
 #include "../core/JsNumber.h"
@@ -66,13 +68,23 @@ void SwitchElm::dumpXml(XmlElement *doc, XmlElement *elem) {
         CircuitXMLSerializer::dumpAttr(elem, "r", resistance);
 }
 
+// the position is also state, so it's saved per instance inside a subcircuit (the
+// dumpXml copy is the default, e.g. in a subcircuit model).  always written, so a switch
+// moved to position 0 doesn't get the model's position back on reload.  (for top-level
+// elements, state goes in the same XML element, which may already have it)
+void SwitchElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {
+    CircuitElm::dumpXmlState(doc, elem);
+    if (!elem->hasAttribute("p"))
+        CircuitXMLSerializer::dumpAttr(elem, "p", position);
+}
+
 void SwitchElm::undumpXml(CircuitXMLDeserializer &xml) {
     CircuitElm::undumpXml(xml);
     position = xml.parseIntAttr("p", position);
     momentary = xml.parseBooleanAttr("mm", momentary);
     label = xml.parseStringAttr("lab", label);
     keyShortcut = xml.parseStringAttr("key", keyShortcut);
-    resistance = xml.parseDoubleAttr("r", 0);
+    resistance = xml.parseDoubleAttr("r", resistance);
 }
 
 void SwitchElm::setPoints() {

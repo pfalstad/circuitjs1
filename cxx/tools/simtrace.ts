@@ -19,6 +19,8 @@ import { TransistorModel } from "../../ts/TransistorModel";
 import { MosfetModel } from "../../ts/MosfetModel";
 import { RelayModel } from "../../ts/RelayModel";
 import { CustomLogicModel } from "../../ts/CustomLogicModel";
+import { PinLayoutModel } from "../../ts/PinLayoutModel";
+import { ModelRegistry } from "../../ts/ModelRegistry";
 import { Color } from "../../ts/Color";
 import { CircuitLoader } from "../../ts/CircuitLoader";
 import { HookRegistry } from "../../ts/HookRegistry";
@@ -92,6 +94,8 @@ function makeApp(): any {
 // ---- load ----
 
 function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes: boolean): void {
+    // as CircuitLoader.readCircuit() does (the elements made at startup may have added some)
+    ModelRegistry.clearAllLocal();
     if (!text.startsWith("<")) {
         // old text format: the real loader works with the stub app
         if (!loadScopes)
@@ -130,6 +134,7 @@ function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes:
         if (elem.tagName === "mm") { MosfetModel.undumpModelXml(xml); continue; }
         if (elem.tagName === "rlm") { RelayModel.undumpModelXml(xml); continue; }
         if (elem.tagName === "clm") { CustomLogicModel.undumpModelXml(xml); continue; }
+        if (elem.tagName === "plm") { PinLayoutModel.undumpModelXml(xml); continue; }
         if (elem.tagName === "ccm") { HookRegistry.undumpSubcircuitModel?.(xml); continue; }
         if (elem.tagName === "o") {
             if (loadScopes) {
@@ -214,9 +219,7 @@ loadCircuit(app, sim, fs.readFileSync(file, "utf8"), dump);
 
 if (dump) {
     // the same as CirSim.dumpCircuit()
-    for (const M of [CustomLogicModel, DiodeModel, TransistorModel, RelayModel, MosfetModel])
-        (M as any).clearDumpedFlags();
-    HookRegistry.clearSubcircuitModelDumpedFlags?.();
+    ModelRegistry.clearAllDumpedFlags();
     process.stdout.write(new CircuitXMLSerializer(app).dumpCircuit());
     process.exit(0);
 }

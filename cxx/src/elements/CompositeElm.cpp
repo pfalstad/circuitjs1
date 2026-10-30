@@ -110,6 +110,8 @@ void CompositeElm::loadCompositeXml(const std::vector<const XmlElement *> &elmEn
             SubcircuitModel::undumpEmbeddedModelXml(xml);
             continue;
         }
+        if (SubcircuitModel::undumpEmbeddedElmModelXml(xml, childElem))
+            continue;
         const std::string *cn = ElementFactory::xmlClassName(tagName);
         if (cn == nullptr)
             continue;
@@ -246,6 +248,13 @@ void CompositeElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {
 
 void CompositeElm::undumpXml(CircuitXMLDeserializer &xml) {
     CircuitElm::undumpXml(xml);
+    undumpChildState(xml, false);
+}
+
+// restore inner elements' state from the children of the current XML element, as written
+// by dumpXmlState().  if lenient, children whose type doesn't match the element now at
+// that index (the model changed) are skipped instead of failing.
+void CompositeElm::undumpChildState(CircuitXMLDeserializer &xml, bool lenient) {
     const XmlElement *state = xml.currentXmlElement;
 
     for (const XmlElement *elem : xml.getChildElements()) {
@@ -256,8 +265,11 @@ void CompositeElm::undumpXml(CircuitXMLDeserializer &xml) {
             continue;
         }
         CircuitElm *ce = compElmList[ix];
-        if (elem->tagName != ce->getXmlDumpType())
+        if (elem->tagName != ce->getXmlDumpType()) {
+            if (lenient)
+                continue;
             throw std::runtime_error("dump type mismatch for composite child: " + std::to_string(ix));
+        }
         ce->undumpXml(xml);
     }
 

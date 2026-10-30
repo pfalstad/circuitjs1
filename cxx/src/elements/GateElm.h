@@ -57,6 +57,7 @@ public:
     int getDragLength() override { return 96; }
     virtual bool isInverting() { return false; }
     virtual bool isXorGateElm() { return false; }
+    bool isGateElm() override { return true; }
     void setSize(int s);
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;

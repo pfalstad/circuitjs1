@@ -140,7 +140,7 @@ void AnalogMuxElm::getInfo(std::vector<std::string> &arr) {
 }
 
 std::optional<EditInfo> AnalogMuxElm::getChipEditInfo(int n) {
-    if (n == 0) return EditInfo("# of Select Bits", selectBitCount, 1, 8).setDimensionless();
+    if (n == 0) return EditInfo("# of Select Bits", selectBitCount, 1, 8).setDimensionless().setStructural();
     if (n == 1) return EditInfo("On Resistance (ohms)", r_on, 0, 0).setPositive();
     if (n == 2) return EditInfo("Off Resistance (ohms)", r_off, 0, 0).setPositive();
     if (n == 3) return EditInfo("Threshold Voltage", threshold, 0, 0);

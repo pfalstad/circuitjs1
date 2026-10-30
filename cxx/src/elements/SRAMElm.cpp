@@ -78,6 +78,10 @@ void SRAMElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {
     ChipElm::dumpXmlState(doc, elem);
     if (!map.empty())
         elem->text += contentsToString();
+    else
+        // mark empty contents so the state isn't skipped (CompositeElm.dumpXmlState skips
+        // children with no state), which would bring back the model's contents on reload
+        CircuitXMLSerializer::dumpAttr(elem, "em", 1);
 }
 
 void SRAMElm::undumpXml(CircuitXMLDeserializer &xml) {
@@ -89,6 +93,8 @@ void SRAMElm::undumpXml(CircuitXMLDeserializer &xml) {
         std::optional<std::string> s = xml.parseContents();
         if (s && !s->empty()) parseContentsString(*s);
     } catch (...) {}
+    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+        initialMap = map;
     setupPins();
 }
 
@@ -119,11 +125,12 @@ void SRAMElm::setupPins() {
 
 std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Address Bits", addressBits, 1, 1).setDimensionless();
+        return EditInfo("# of Address Bits", addressBits, 1, 1).setDimensionless().setStructural();
     if (n == 1)
-        return EditInfo("# of Data Bits", dataBits, 1, 1).setDimensionless();
+        return EditInfo("# of Data Bits", dataBits, 1, 1).setDimensionless().setStructural();
     if (n == 2) {
         EditInfo ei("Contents", 0);
+        ei.setIsState();
         ei.textArea = TextArea{contentsOverride ? *contentsOverride : contentsToString()};
         contentsOverride.reset();
         if (fileNameOverride)
@@ -132,10 +139,11 @@ std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
         return ei;
     }
     if (n == 3)
-        return EditInfo::createCheckbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY));
+        return EditInfo::createCheckbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY)).setIsState();
     if (n == 4) {
         // (TS: a file input)
         EditInfo ei(loadedFileName ? "Loaded: " + *loadedFileName : "", 0, -1, -1);
+        ei.setIsState();
         ei.button = EditButton{Locale::LS("Load Contents From File") + "..."};
         return ei;
     }

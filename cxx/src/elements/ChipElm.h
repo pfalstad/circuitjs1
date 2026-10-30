@@ -25,6 +25,7 @@
 #include "../core/CircuitElm.h"
 
 class ChipElm;
+class PinLayoutModel;
 
 // the two constructors every chip class has; the real work is in postConstruct()
 #define CHIP_CONSTRUCTORS(Name, Base) \
@@ -88,6 +89,10 @@ public:
     bool justLoaded = false;
     int labelX = 0;
     int labelY = 0;
+    // pin layout model giving the chip's size and pin positions, or null for the default layout
+    PinLayoutModel *pinLayout = nullptr;
+    // name of the pin layout model, kept even if it isn't found so it isn't lost on save
+    std::optional<std::string> pinLayoutName;
 
     static constexpr int FLAG_SMALL = 1;
     static constexpr int FLAG_FLIP_X = 1 << 10;
@@ -127,6 +132,16 @@ public:
     void drawChip(Graphics &g);
     virtual void drawLabel(Graphics &g, int x, int y) {}
     void drag(int xx, int yy) override;
+    // false for chips whose drawing depends on the default pin positions
+    virtual bool allowsPinLayout() { return true; }
+    // whether a pin layout model fits this chip's current pins
+    bool pinLayoutFits(const PinLayoutModel *pl);
+    // move the pins to where the pin layout model puts them, if there is one and it fits.
+    // setupPins() puts them back in their default positions.
+    void applyPinLayout();
+    // attach a pin layout model, or go back to the default layout if null
+    void setPinLayout(PinLayoutModel *pl);
+    void updateModels() override;
     void setPoints() override;
     void initBoundingBox() override;
     // find the pin position (pos[0]) and side (pos[1]) nearest to (xp, yp), preferring
@@ -169,6 +184,8 @@ public:
     void setEditValue(int n, EditInfo &ei) override;
     virtual std::optional<EditInfo> getChipEditInfo(int) { return std::nullopt; }
     virtual void setChipEditValue(int, EditInfo &) {}
+    std::optional<EditInfo> getPinLayoutEditInfo(int n);
+    void setPinLayoutEditValue(int n, EditInfo &ei);
 
     void makeBitPins(int count, int pos, int side, int offset, const std::string &name, bool output, bool state,
                      bool reversed);
@@ -177,4 +194,14 @@ public:
     static void readBits(StringTokenizer &st, std::vector<bool> &output);
     static std::string writeBitsToString(const std::vector<bool> &data);
     static void readBitsFromString(const std::string &s, std::vector<bool> &output);
+
+private:
+    // index (after the digital/bus fields) of the first pin layout field in the edit dialog,
+    // found by getEditInfo(); -1 if not known yet
+    int pinLayoutEditBase = -1;
+    std::vector<PinLayoutModel *> pinLayoutChoices;
+    // a field that would change the pins can't be changed while a pin layout is attached
+    EditInfo lockIfStructural(EditInfo ei);
+    // after an edit: if it changed the pins, the pin layout no longer fits, so drop it
+    void checkPinLayoutFits(EditInfo &ei);
 };

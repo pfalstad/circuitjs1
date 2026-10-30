@@ -68,6 +68,7 @@ void CustomLogicElm::updateModels() {
     model = CustomLogicModel::getModelWithNameOrCopy(*modelName, model);
     setupPins();
     allocNodes();
+    ChipElm::updateModels();
     setPoints();
 }
 
@@ -207,7 +208,7 @@ std::optional<EditInfo> CustomLogicElm::getChipEditInfo(int n) {
         EditInfo ei("Model Name", 0, -1, -1);
         ei.text = *modelName;
         ei.disallowSliders();
-        return ei;
+        return ei.setStructural();
     }
     if (n == 1) {
         EditInfo ei("", 0, -1, -1);
@@ -238,4 +239,8 @@ void CustomLogicElm::setChipEditValue(int n, EditInfo &ei) {
 void CustomLogicElm::getInfo(std::vector<std::string> &arr) {
     ChipElm::getInfo(arr);
     arr[0] = model->infoText;
+}
+
+RegistryModel *CustomLogicElm::getModel() {
+    return model;
 }

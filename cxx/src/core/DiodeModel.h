@@ -24,20 +24,19 @@
 #include <vector>
 
 #include "EditInfo.h"
-#include "OrderedMap.h"
+#include "ModelRegistry.h"
 
 class StringTokenizer;
 class CircuitXMLDeserializer;
 class SimApp;
 class XmlElement;
 
-// Models live for the whole session in modelMap, which owns them.
-class DiodeModel : public Editable {
+// Models are never freed: elements may still use one that's been removed from the registry.
+class DiodeModel : public Editable, public RegistryModel {
 public:
-    static OrderedMap<DiodeModel *> &modelMap();
+    static ModelRegistry<DiodeModel> &registry();
 
     int flags = 0;
-    std::string name;
     std::optional<std::string> description;
     double saturationCurrent;
     double seriesResistance;
@@ -48,7 +47,6 @@ public:
     double forwardVoltage = 0;
     double forwardCurrent = 0;
 
-    bool dumped = false;
     bool readOnly = false;
     bool builtIn = false;
     bool oldStyle = false;
@@ -77,7 +75,6 @@ public:
     static DiodeModel *getModelWithParameters(double fwdrop, double zvoltage);
     static DiodeModel *getDefaultModel() { return getModelWithName("default"); }
     static void loadInternalModel(const std::string &s);
-    static void clearDumpedFlags();
     static std::vector<DiodeModel *> getModelList(bool zener);
     std::string getDescription() const;
     static DiodeModel *undumpModel(StringTokenizer &st);
@@ -91,6 +88,7 @@ public:
     bool isSimple() const { return (flags & FLAGS_SIMPLE) != 0; }
     void setSimple(bool s) { flags = s ? FLAGS_SIMPLE : 0; }
     std::string getEditTitle() override { return "Edit Diode Model"; }
+    bool isUserModel() const override { return !(builtIn || internal || readOnly || oldStyle); }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
     void pickName();

@@ -177,6 +177,10 @@ void ScopeSerializer::dumpXml(XmlElement *root) {
         xmlElm->setAttribute("x", *scope->text);
     if (scope->plot2d.trailPersistence != ScopePlot2d::DEFAULT_TRAIL_PERSISTENCE)
         CircuitXMLSerializer::dumpAttr(xmlElm, "tp", scope->plot2d.trailPersistence);
+    if (!scope->plot2d.includeOrigin)
+        CircuitXMLSerializer::dumpAttr(xmlElm, "xyo", 0);
+    if (scope->plot2d.alignX)
+        CircuitXMLSerializer::dumpAttr(xmlElm, "xya", 1);
 }
 
 void ScopeSerializer::undumpXml(CircuitXMLDeserializer &xml) {
@@ -196,6 +200,8 @@ void ScopeSerializer::undumpXml(CircuitXMLDeserializer &xml) {
     scope->manDivisions = xml.parseIntAttr("md", 8);
     scope->text = xml.parseStringAttr("x", std::nullopt);
     scope->plot2d.trailPersistence = xml.parseIntAttr("tp", ScopePlot2d::DEFAULT_TRAIL_PERSISTENCE);
+    scope->plot2d.includeOrigin = xml.parseIntAttr("xyo", 1) != 0;
+    scope->plot2d.alignX = xml.parseIntAttr("xya", 0) != 0;
     // All of these must be read before parseChildElement() changes the XML context
     // to a child <p> element.
     scope->trigger.undumpXml(xml);

@@ -63,6 +63,8 @@ void CirSim::popSubcircuit() {
 void CirSim::resetSubcircuitView() {
     if (subcircuitStack.empty())
         return;
+    // (the editor may be showing an inner element of an instance that's about to be replaced)
+    closeEditDialog();
     mouse.clearMouseElm();
     subcircuitStack.clear();
     subcircuitElmList.clear();
@@ -110,7 +112,7 @@ std::vector<SubcircuitModelRef> CirSim::popContextAndGetChangedModels() {
         return {};
     CircuitContext ctx = std::move(contextStack.back());
     contextStack.pop_back();
-    readCircuit(ctx.circuitDump, CircuitLoader::RC_NO_CENTER);
+    readCircuit(ctx.circuitDump, CircuitLoader::RC_NO_CENTER | CircuitLoader::RC_KEEP_MODELS);
     std::copy(ctx.transform.begin(), ctx.transform.end(), transform);
     undoManager->undoStack = std::move(ctx.undoStack);
     undoManager->redoStack = std::move(ctx.redoStack);
@@ -157,7 +159,7 @@ void CirSim::doCreateSubcircuit() {
 
 // the Draw menu's Subcircuits submenu, rebuilt when the model list changes
 void CirSim::composeSubcircuitMenu() {
-    if (subcircuitMenu == nullptr || lastSubcircuitMenuUpdate == SubcircuitModel::sequenceNumber)
+    if (subcircuitMenu == nullptr || lastSubcircuitMenuUpdate == SubcircuitModel::sequenceNumber())
         return;
     for (QAction *a : subcircuitMenu->actions())
         modeActions->removeAction(a);
@@ -168,5 +170,5 @@ void CirSim::composeSubcircuitMenu() {
         if (a->data().toString() == mouseModeStr)
             a->setChecked(true);
     }
-    lastSubcircuitMenuUpdate = SubcircuitModel::sequenceNumber;
+    lastSubcircuitMenuUpdate = SubcircuitModel::sequenceNumber();
 }

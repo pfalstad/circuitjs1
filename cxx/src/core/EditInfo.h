@@ -72,6 +72,14 @@ public:
     bool noSliders = false;
     bool isColor = false;
     bool newColumn = false;
+    // field edits per-instance state (saved by dumpXmlState), so it can be edited even on
+    // elements inside a subcircuit instance, where other fields are read-only
+    bool isState = false;
+    // field changes the element's set of pins (bit count, pin options, ...), so it can't be
+    // changed while a pin layout model is attached (see ChipElm.pinLayout)
+    bool structural = false;
+    // shown but can't be changed
+    bool disabled = false;
     bool positive = false;
     bool nonNegative = false;
     bool integer = false;
@@ -113,6 +121,8 @@ public:
     EditInfo &setUnitStep() { unitStep = true; return *this; }
     EditInfo &disallowSliders() { noSliders = true; return *this; }
     EditInfo &setIsColor() { isColor = true; return *this; }
+    EditInfo &setIsState() { isState = true; return *this; }
+    EditInfo &setStructural() { structural = true; return *this; }
     EditInfo &newColumnMethod() { newColumn = true; return *this; }
     int changeFlag(int flags, int bit) const { return checkbox->getState() ? (flags | bit) : (flags & ~bit); }
     int changeFlagInverted(int flags, int bit) const { return !checkbox->getState() ? (flags | bit) : (flags & ~bit); }

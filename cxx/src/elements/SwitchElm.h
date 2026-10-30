@@ -46,6 +46,7 @@ public:
 
     int getDumpType() override { return 's'; }
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
+    void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void setPoints() override;
     bool isSwitchElm() override { return true; }

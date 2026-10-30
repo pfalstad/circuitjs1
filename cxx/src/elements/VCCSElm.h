@@ -26,6 +26,7 @@
 class VCCSElm : public ChipElm, public ExprStampTarget {
 public:
     ELM_CLASS(VCCSElm)
+    bool allowsPinLayout() override { return false; }
     double gain = 0;
     int inputCount = 0;
     bool broken = false;

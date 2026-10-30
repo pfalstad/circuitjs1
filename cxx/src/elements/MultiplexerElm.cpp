@@ -253,11 +253,11 @@ void MultiplexerElm::execute() {
 
 std::optional<EditInfo> MultiplexerElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Select Bits", selectBitCount, 1, 8).setDimensionless();
+        return EditInfo("# of Select Bits", selectBitCount, 1, 8).setDimensionless().setStructural();
     if (n == 1)
-        return EditInfo::createCheckbox("Inverted Output", hasFlag(FLAG_INVERTED_OUTPUT));
+        return EditInfo::createCheckbox("Inverted Output", hasFlag(FLAG_INVERTED_OUTPUT)).setStructural();
     if (n == 2)
-        return EditInfo::createCheckbox("Strobe Pin", hasFlag(FLAG_STROBE));
+        return EditInfo::createCheckbox("Strobe Pin", hasFlag(FLAG_STROBE)).setStructural();
     if (n == 3) {
         EditInfo ei("Input Mode", 0, -1, -1);
         ei.choice.emplace();
@@ -265,12 +265,12 @@ std::optional<EditInfo> MultiplexerElm::getChipEditInfo(int n) {
         ei.choice->add("Bus Input (Bit Select)");
         ei.choice->add("Bus Input/Output");
         ei.choice->select(inputMode);
-        return ei;
+        return ei.setStructural();
     }
     if (n == 4)
-        return EditInfo::createCheckbox("Bus Select", busSelect());
+        return EditInfo::createCheckbox("Bus Select", busSelect()).setStructural();
     if (n == 5 && inputMode == INPUT_MODE_BUS_BUS)
-        return EditInfo("Data Bus Width", dataBusWidth, 2, 32).setDimensionless();
+        return EditInfo("Data Bus Width", dataBusWidth, 2, 32).setDimensionless().setStructural();
     return std::nullopt;
 }
 

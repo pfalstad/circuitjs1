@@ -28,6 +28,8 @@
 #include "../core/Graphics.h"
 #include "../core/JsMath.h"
 #include "../core/JsNumber.h"
+#include "../core/Locale.h"
+#include "../core/PinLayoutModel.h"
 #include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
@@ -252,7 +254,62 @@ void ChipElm::drag(int xx, int yy) {
     setPoints();
 }
 
+bool ChipElm::pinLayoutFits(const PinLayoutModel *pl) {
+    int n = getPostCount();
+    if (pins.empty() || pl->elmType != getXmlDumpType() || (int) pl->pins.size() != n || pl->sizeX < 1 ||
+        pl->sizeY < 1)
+        return false;
+    for (int i = 0; i != n; i++) {
+        const PinLayoutPin &lp = pl->pins[i];
+        if (lp.name != pins[i].text)
+            return false;
+        int max = (lp.side == SIDE_N || lp.side == SIDE_S) ? pl->sizeX : pl->sizeY;
+        if (lp.side < 0 || lp.side > 3 || lp.pos < 0 || lp.pos >= max)
+            return false;
+    }
+    return true;
+}
+
+void ChipElm::applyPinLayout() {
+    PinLayoutModel *pl = pinLayout;
+    if (pl == nullptr || !allowsPinLayout() || !pinLayoutFits(pl))
+        return;
+    sizeX = pl->sizeX;
+    sizeY = pl->sizeY;
+    for (size_t i = 0; i != pl->pins.size(); i++) {
+        pins[i].side0 = pl->pins[i].side;
+        pins[i].pos = pl->pins[i].pos;
+    }
+}
+
+void ChipElm::setPinLayout(PinLayoutModel *pl) {
+    PinLayoutModel *old = pinLayout;
+    pinLayout = pl;
+    pinLayoutName = pl == nullptr ? std::nullopt : std::optional<std::string>(pl->name);
+    if (old != nullptr) {
+        // put the pins back in their default positions, keeping the pin values
+        std::vector<bool> values;
+        for (const Pin &p : pins)
+            values.push_back(p.value);
+        setupPins();
+        for (size_t i = 0; i < pins.size() && i < values.size(); i++)
+            pins[i].value = values[i];
+    }
+    setPoints();
+}
+
+void ChipElm::updateModels() {
+    if (pinLayout != nullptr)
+        pinLayoutName = pinLayout->name;
+    else if (pinLayoutName)
+        pinLayout = PinLayoutModel::registry().get(*pinLayoutName);
+    // the model may have been edited
+    if (pinLayout != nullptr)
+        setPoints();
+}
+
 void ChipElm::setPoints() {
+    applyPinLayout();
     if (x2 - x > sizeX * cspc2 && isCreating())
         setSize(2);
     int x0 = x + cspc2;
@@ -421,6 +478,12 @@ void ChipElm::dumpXml(XmlElement *doc, XmlElement *elem) {
         CircuitXMLSerializer::dumpAttr(elem, "hv", highVoltage);
     if (bitOrder != 0)
         CircuitXMLSerializer::dumpAttr(elem, "bo", bitOrder);
+    if (pinLayout != nullptr) {
+        if (!pinLayout->dumped)
+            pinLayout->dumpXml(doc);
+        CircuitXMLSerializer::dumpAttr(elem, "pl", pinLayout->name);
+    } else if (pinLayoutName)
+        CircuitXMLSerializer::dumpAttr(elem, "pl", *pinLayoutName);
 }
 
 void ChipElm::dumpXmlState(XmlElement *, XmlElement *elem) {
@@ -443,7 +506,10 @@ void ChipElm::undumpXml(CircuitXMLDeserializer &xml) {
     highVoltage = xml.parseDoubleAttr("hv", highVoltage);
     bitOrder = xml.parseIntAttr("bo", bitOrder);
     if (!stateRestore) {
+        pinLayoutName = xml.parseStringAttr("pl", std::nullopt);
+        pinLayout = pinLayoutName ? PinLayoutModel::registry().get(*pinLayoutName) : nullptr;
         setupPins();
+        applyPinLayout();
         allocNodes();
         setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
     }
@@ -564,11 +630,86 @@ std::optional<EditInfo> ChipElm::getEditInfo(int n) {
             ei.choice->add("LSB First");
             ei.choice->add("Bus");
             ei.choice->select(bitOrder);
-            return ei;
+            return lockIfStructural(ei.setStructural());
         }
         n--;
     }
-    return getChipEditInfo(n);
+    std::optional<EditInfo> ei = getChipEditInfo(n);
+    if (ei) {
+        if (n >= pinLayoutEditBase)
+            pinLayoutEditBase = -1;
+        return lockIfStructural(*ei);
+    }
+    // pin layout fields go after the chip's own fields
+    if (!allowsPinLayout())
+        return std::nullopt;
+    if (pinLayoutEditBase < 0)
+        pinLayoutEditBase = n;
+    return getPinLayoutEditInfo(n - pinLayoutEditBase);
+}
+
+EditInfo ChipElm::lockIfStructural(EditInfo ei) {
+    if (ei.structural && pinLayout != nullptr)
+        ei.disabled = true;
+    return ei;
+}
+
+std::optional<EditInfo> ChipElm::getPinLayoutEditInfo(int n) {
+    if (n == 0) {
+        EditInfo ei("Pin Layout", 0, -1, -1);
+        std::vector<PinLayoutModel *> fitting;
+        for (PinLayoutModel *m : PinLayoutModel::registry().models())
+            if (pinLayoutFits(m))
+                fitting.push_back(m);
+        std::stable_sort(fitting.begin(), fitting.end(),
+                         [](PinLayoutModel *a, PinLayoutModel *b) { return a->name < b->name; });
+        if (pinLayout != nullptr && std::find(fitting.begin(), fitting.end(), pinLayout) == fitting.end())
+            fitting.push_back(pinLayout);
+        pinLayoutChoices = {nullptr};
+        pinLayoutChoices.insert(pinLayoutChoices.end(), fitting.begin(), fitting.end());
+        ei.choice.emplace();
+        ei.choice->add(Locale::LS("Default"));
+        for (PinLayoutModel *m : fitting)
+            ei.choice->add(m->name);
+        ei.choice->select((int) (std::find(pinLayoutChoices.begin(), pinLayoutChoices.end(), pinLayout) -
+                                 pinLayoutChoices.begin()));
+        return ei;
+    }
+    if (n == 1) {
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Create Pin Layout")};
+        return ei;
+    }
+    // (the editor starts from the current pin positions, so they must be the model's)
+    if (n == 2 && pinLayout != nullptr && pinLayoutFits(pinLayout)) {
+        EditInfo ei("", 0, -1, -1);
+        ei.button = EditButton{Locale::LS("Edit Pin Layout")};
+        return ei;
+    }
+    return std::nullopt;
+}
+
+void ChipElm::setPinLayoutEditValue(int n, EditInfo &ei) {
+    if (n == 0) {
+        int sel = ei.choice->getSelectedIndex();
+        PinLayoutModel *pl = sel >= 0 && sel < (int) pinLayoutChoices.size() ? pinLayoutChoices[sel] : nullptr;
+        if (pl != pinLayout)
+            setPinLayout(pl);
+        // structural fields are locked or unlocked
+        ei.newDialog = true;
+        return;
+    }
+    if (n == 1)
+        app->editPinLayout(this, nullptr);
+    if (n == 2 && pinLayout != nullptr && pinLayoutFits(pinLayout))
+        app->editPinLayout(this, pinLayout);
+}
+
+void ChipElm::checkPinLayoutFits(EditInfo &ei) {
+    if (pinLayout != nullptr && !pinLayoutFits(pinLayout)) {
+        setPinLayout(nullptr);
+        ei.newDialog = true;
+    }
 }
 
 void ChipElm::setEditValue(int n, EditInfo &ei) {
@@ -584,11 +725,17 @@ void ChipElm::setEditValue(int n, EditInfo &ei) {
             bitOrder = ei.choice->getSelectedIndex();
             setupPins();
             setPoints();
+            checkPinLayoutFits(ei);
             return;
         }
         n--;
     }
+    if (pinLayoutEditBase >= 0 && n >= pinLayoutEditBase) {
+        setPinLayoutEditValue(n - pinLayoutEditBase, ei);
+        return;
+    }
     setChipEditValue(n, ei);
+    checkPinLayoutFits(ei);
 }
 
 void ChipElm::makeBitPins(int count, int pos, int side, int offset, const std::string &name, bool output,

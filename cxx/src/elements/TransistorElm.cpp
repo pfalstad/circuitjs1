@@ -653,3 +653,7 @@ void TransistorElm::dumpXmlModel(XmlElement *doc) {
     if (!(model->builtIn || model->dumped))
         model->dumpXml(doc);
 }
+
+RegistryModel *TransistorElm::getModel() {
+    return model;
+}

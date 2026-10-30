@@ -217,13 +217,13 @@ int LatchElm::getPostCount() {
 
 std::optional<EditInfo> LatchElm::getChipEditInfo(int n) {
     if (n == 0)
-        return EditInfo("# of Bits", bits, 1, 1).setDimensionless();
+        return EditInfo("# of Bits", bits, 1, 1).setDimensionless().setStructural();
     if (n == 1)
         return EditInfo::createCheckbox("Edge Triggered", isEdgeTriggered());
     if (n == 2)
-        return EditInfo::createCheckbox("Reset Pin", hasReset());
+        return EditInfo::createCheckbox("Reset Pin", hasReset()).setStructural();
     if (n == 3)
-        return EditInfo::createCheckbox("Set Pin", hasSet());
+        return EditInfo::createCheckbox("Set Pin", hasSet()).setStructural();
     if (n == 4) {
         EditInfo ei("Enable Pins", 0);
         ei.choice.emplace();
@@ -231,7 +231,7 @@ std::optional<EditInfo> LatchElm::getChipEditInfo(int n) {
         ei.choice->add("1 Input/Output Enable");
         ei.choice->add("2 Input/Output Enables");
         ei.choice->select(enableMode());
-        return ei;
+        return ei.setStructural();
     }
     if (n == 5 && hasReset())
         return EditInfo::createCheckbox("Invert Reset", resetActiveLow());

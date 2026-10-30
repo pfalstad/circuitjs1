@@ -24,6 +24,7 @@
 class TimeDelayRelayElm : public ChipElm {
 public:
     ELM_CLASS(TimeDelayRelayElm)
+    bool allowsPinLayout() override { return false; }
     double lastTransition = 0;
     bool poweredState = false;
     bool onState = false;

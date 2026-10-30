@@ -36,6 +36,7 @@ public:
     BusLogicInputElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) : SwitchElm(xa, ya, xb, yb, f, st) {}
 
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
+    void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     int getDumpType() override { return 0; }
     int getPostCount() override { return busWidth; }
