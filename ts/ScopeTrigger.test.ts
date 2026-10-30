@@ -59,13 +59,28 @@ describe("ScopeTrigger", () => {
         columns(0, 100);
         column(5);
         column(5);
-        // second sweep still capturing: first one stays on screen
+        // second sweep still capturing, and the first one hasn't been drawn: it stays on screen
         expect(trigger.state).toBe(ScopeTrigger.TRIG_STATE_TRIGGERED);
         expect(screen()).toEqual([0, 0, 0, 5, 0, 0]);
         expect(trigger.time).toBe(21);
         columns(0, 100);
         expect(screen()).toEqual([0, 0, 0, 5, 5, 0]);
         expect(trigger.time).toBe(122);
+    });
+
+    it("shows the next sweep live as soon as it triggers once the last one has been drawn", () => {
+        const { column, columns, screen, trigger } = setup();
+        columns(0, 20);
+        column(5);
+        columns(0, 100);
+        trigger.snapshotDrawn = true;
+        column(5);
+        column(5);
+        // second sweep shown right away, filling in
+        expect(trigger.time).toBe(122);
+        expect(screen()).toEqual([0, 0, 0, 5, 5]);
+        columns(0, 100);
+        expect(screen()).toEqual([0, 0, 0, 5, 5, 0]);
     });
 
     it("free-runs in auto mode once nothing has triggered for a while", () => {

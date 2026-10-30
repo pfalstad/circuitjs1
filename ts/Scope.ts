@@ -302,6 +302,8 @@ export class Scope {
     drawTriggerIndicator(g: Graphics, forExport: boolean): void {
         const highlight = !forExport && (this.draggingTriggerLevel || (Scope.draggingPlotYScope === null && this.cursorNearTriggerLevel()));
         this.trigger.drawIndicator(g, this.triggerSourcePlot(), this.rect, highlight);
+        if (!forExport)
+            this.trigger.snapshotDrawn = true;
     }
 
     cursorNearTriggerLevel(): boolean {

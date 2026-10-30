@@ -52,8 +52,8 @@ export class ScopeTrigger {
 
     // State machine
     state: number = ScopeTrigger.TRIG_STATE_ARMED;
-    // Trigger column and time of the sweep being DISPLAYED. That stays the previous (frozen)
-    // sweep until the one being captured (capPtr/capTime) is complete - see check().
+    // Trigger column and time of the sweep being DISPLAYED. That can stay the previous (frozen)
+    // sweep until the one being captured (capPtr/capTime) is complete - see startCapture().
     ptr: number = 0;
     capPtr: number = 0;
     capTime: number = 0;
@@ -70,6 +70,10 @@ export class ScopeTrigger {
     lastCheckPtr: number = -1;
     // wall-clock time (ms) the display last switched to a new sweep, to flash the status text
     lastSweepShown: number = -Infinity;
+    // Whether the frozen snapshot has been drawn yet.  If it hasn't when the next trigger comes,
+    // sweeps are completing faster than the display updates, so keep it rather than replace it
+    // with a partial sweep.
+    snapshotDrawn: boolean = false;
 
     // How long (ms) the status text flashes when a new sweep is shown
     static readonly FLASH_TIME = 150;
@@ -161,7 +165,7 @@ export class ScopeTrigger {
         switch (this.state) {
         case ScopeTrigger.TRIG_STATE_ARMED:
             if (edgeCrossing) {
-                this.startCapture(currentPtr, sim.t);
+                this.startCapture(visiblePlots, currentPtr, sim.t);
                 this.waiting = false;
             } else {
                 this.waiting = true;
@@ -178,15 +182,18 @@ export class ScopeTrigger {
 
         case ScopeTrigger.TRIG_STATE_TRIGGERED:
             this.holdoff++;
-            // Sweep fully captured: replace the displayed snapshot with it, so it stays on screen
-            // until the next one is complete.
+            // Sweep fully captured: snapshot it, so it stays on screen until the next trigger
+            // (or, for fast sweeps, until the next one is complete).
             if (this.holdoff >= Math.floor(rectWidth / 2) && !this.captured) {
+                // if it was being shown live, the display isn't changing, so no flash
+                if (this.frozen)
+                    this.lastSweepShown = performance.now();
                 for (const p of visiblePlots)
                     p.freeze();
                 this.frozen = this.captured = true;
                 this.ptr = this.capPtr;
                 this.time = this.capTime;
-                this.lastSweepShown = performance.now();
+                this.snapshotDrawn = false;
             }
             if (this.holdoff >= rectWidth) {
                 this.state = ScopeTrigger.TRIG_STATE_ARMED;
@@ -196,21 +203,23 @@ export class ScopeTrigger {
 
         case ScopeTrigger.TRIG_STATE_AUTO_RUN:
             if (edgeCrossing)
-                this.startCapture(currentPtr, sim.t);
+                this.startCapture(visiblePlots, currentPtr, sim.t);
             break;
         }
 
         this.prevValue = val;
     }
 
-    private startCapture(ptr: number, time: number): void {
+    private startCapture(plots: ScopePlot[], ptr: number, time: number): void {
         this.state = ScopeTrigger.TRIG_STATE_TRIGGERED;
         this.capPtr = ptr;
         this.capTime = time;
         this.captured = false;
         this.holdoff = 0;
-        // With nothing frozen (first sweep, or coming out of auto free-run), show this one live
-        // as it fills in; otherwise keep showing the last complete sweep until this one is done.
+        // Show the new sweep right away, filling in live, unless the last complete one hasn't
+        // even been drawn yet; then keep it until this one is done.
+        if (this.frozen && this.snapshotDrawn)
+            this.thaw(plots);
         if (!this.frozen) {
             this.ptr = ptr;
             this.time = time;
