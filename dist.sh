@@ -37,17 +37,32 @@ cp -r "$DIR/ts/dist/." site
     fi
   done
 
-  # Generate service-worker.js: list every file in the versioned directory
-  # for offline caching, and give this version its own cache name (old
+  # Generate service-worker.js, giving this version its own cache name (old
   # caches are cleaned up in the 'activate' handler) so updates take effect
-  # instead of serving a stale cached copy.
-  # Skip dotfiles (.DS_Store) and stray scripts the web server won't serve.
+  # instead of serving a stale cached copy.  It gets two file lists:
+  #
+  # - the app shell, precached on install: the JS/CSS that circuitjs.html
+  #   loads directly (script, modulepreload and stylesheet links), the icon
+  #   font, and setuplist.txt.  The font is listed with the exact URL
+  #   fontello.css requests, query string and all, so the cache key matches.
+  # - every file in the versioned directory, downloaded in the background
+  #   for installed apps.  Skip dotfiles (.DS_Store) and stray scripts the
+  #   web server won't serve.
+  { grep -o "\(src\|href\)=\"\(\./\)\{0,1\}circuitjs$num/[^\"]*\"" circuitjs.html |
+      sed -e 's/^[a-z]*="//' -e 's#^\./##' -e 's/"$//'
+    grep -o "fontello\.woff2[^')]*" "circuitjs$num/font/fontello.css" | head -1 |
+      sed "s#^#circuitjs$num/font/#"
+    echo "circuitjs$num/setuplist.txt"
+  } | sed "s/.*/  '&',/" > shelllist.$$
   find "circuitjs$num" -type f ! -name '.*' ! -name '*.py' -print | sed "s/.*/  '&',/" > filelist.$$
-  sed "/^FILE_LIST_GOES_HERE$/{
+  sed -e "/^SHELL_FILES_GO_HERE$/{
+    r shelllist.$$
+    d
+}" -e "/^FILE_LIST_GOES_HERE$/{
     r filelist.$$
     d
 }" "$DIR/ts/service-worker.template.js" | sed "s/VERSION_PLACEHOLDER/$num/" > service-worker.js
-  rm -f filelist.$$
+  rm -f shelllist.$$ filelist.$$
 
   # circuitjs.html is the versioned entry point too, so it gets the same
   # per-version name as its assets directory. Fix up

@@ -47,6 +47,23 @@ await Locale.load();
 // and the worker's fetch() can't load file: URLs, so once it takes control
 // every uncached request (about.html, circuits) fails.  Unregister any worker
 // that an earlier build left behind.
+//
+// The worker precaches only the app shell, and caches everything else as
+// it's used.  An installed app gets everything, so it works fully offline:
+// on every launch we ask the worker to download whatever isn't cached yet.
+// That's nearly free once it's done, and finishes any interrupted download.
+function isInstalledApp(): boolean {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+        (navigator as any).standalone === true;  // iOS Safari
+}
+
+function makeAvailableOffline() {
+    // Make the browser less likely to evict the cache under storage pressure.
+    navigator.storage?.persist?.();
+    navigator.serviceWorker.ready.then(registration =>
+        registration.active?.postMessage({ type: 'cacheAll' }));
+}
+
 if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol === 'file:') {
     navigator.serviceWorker.getRegistrations().then(regs => {
         for (const reg of regs)
@@ -59,7 +76,10 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol ==
         }).catch(error => {
             console.error('Service Worker registration failed:', error);
         });
+        if (isInstalledApp())
+            makeAvailableOffline();
     };
+    window.addEventListener('appinstalled', makeAvailableOffline);
     // The top-level await above can outlast the page's load event, in which
     // case a 'load' listener added now would never fire.
     if (document.readyState === 'complete')
