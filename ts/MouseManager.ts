@@ -974,7 +974,7 @@ export class MouseManager {
 		    this.sim.menus.elmAddScopeMenuItem.setEnabled(
 			this.mouseElm.canViewInScope() && (this.sim.scopeManager.scopeCount + this.sim.scopeManager.countScopeElms()) > 0);
 		} else {
-		    this.sim.scopeManager.composeSelectScopeMenu(this.sim.scopeManager.selectScopeMenuBar);
+		    this.sim.scopeManager.composeSelectScopeMenu(this.sim.scopeManager.selectScopeMenuBar!);
 		    this.sim.menus.elmAddScopeMenuItem.setCommand(null);
 		    this.sim.menus.elmAddScopeMenuItem.setSubMenu(this.sim.scopeManager.selectScopeMenuBar);
 		    this.sim.menus.elmAddScopeMenuItem.setEnabled(this.mouseElm.canViewInScope());

@@ -74,7 +74,34 @@ export class MenuItem {
 
     // GWT compatibility aliases used by scope popup menus
     setCommand(cmd: { execute(): void } | null): void { this._command = cmd ? () => cmd.execute() : null; }
-    setSubMenu(_sub: any): void { /* scope submenu — not used in plain HTML menus */ }
+    // Attach a submenu (or remove it with null).  While a submenu is attached, clicking
+    // the item itself does nothing; the submenu opens on hover/tap instead.
+    setSubMenu(sub: Menu | null): void {
+        const li = this._li;
+        if (!li) return;
+        li.querySelector(':scope > .menuDropdown')?.remove();
+        li.querySelector(':scope > .submenuArrow')?.remove();
+        li.classList.remove('open');
+        li.classList.toggle('hasSubmenu', sub != null);
+        if (!sub) return;
+        const arrow = document.createElement('span');
+        arrow.className = 'submenuArrow';
+        arrow.innerHTML = '&#9658;';
+        li.appendChild(arrow);
+        li.appendChild(sub.ul);
+        if (!li.dataset.submenuHandlers) {
+            li.dataset.submenuHandlers = '1';
+            li.addEventListener('mouseover', () => {
+                if (li.classList.contains('hasSubmenu') && !li.classList.contains('menuItemDisabled'))
+                    li.classList.add('open');
+            });
+            li.addEventListener('mouseleave', () => li.classList.remove('open'));
+            li.addEventListener('touchstart', () => {
+                if (li.classList.contains('hasSubmenu') && !li.classList.contains('menuItemDisabled'))
+                    li.classList.add('open');
+            }, { passive: true });
+        }
+    }
 
     execute(): void { if (this._enabled && this._command) this._command(); }
 }
@@ -102,7 +129,7 @@ function shortcutHtml(icon: string, text: string, shortcut: string): string {
 }
 
 // A vertical dropdown menu (equivalent to GWT MenuBar(true)).
-class Menu {
+export class Menu {
     ul: HTMLUListElement;
     private app: CirSim;
 
@@ -124,6 +151,8 @@ class Menu {
         li.addEventListener('click', e => {
             if (li.classList.contains('menuItemDisabled')) return;
             e.stopPropagation();
+            // item has a submenu attached via MenuItem.setSubMenu(); clicks go to its items
+            if (li.classList.contains('hasSubmenu')) return;
             closeAllMenus();
             this.app.commands.menuPerformed(menuName, cmdName);
         });
