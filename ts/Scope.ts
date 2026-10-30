@@ -196,6 +196,29 @@ export class Scope {
         this.resetGraph();
     }
 
+    // Transistor values (Ib/Ic/Ie, Vbe/Vbc/Vce).  In an X/Y or V-vs-I plot they act as two
+    // radio groups, one current and one voltage: picking one replaces the other in the same
+    // plot slot, so the X/Y axis assignment is kept.  Time plots can still show any mix.
+    showTransistorValue(val: number, state: boolean): void {
+        if (!this.plot2d.enabled) {
+            this.showPlotValue(val, state);
+            return;
+        }
+        if (!state)
+            return;  // radio behavior: can't uncheck, the dialog re-syncs the box
+        for (let i = 0; i < this.plots.length; i++) {
+            const p = this.plots[i];
+            if (p.elm !== null && p.elm.isTransistorElm() && p.value >= VAL_IB && p.value <= VAL_VCE &&
+                    p.units === p.elm.getScopeUnits(val)) {
+                this.plots[i] = new ScopePlot(p.elm, p.units, val, this.getManScaleFromMaxScale(p.units, false));
+                this.calcVisiblePlots();
+                this.resetGraph();
+                return;
+            }
+        }
+        this.showPlotValue(val, true);
+    }
+
     showCharge(b: boolean): void { this.showPlotValue(VAL_CHARGE, b); }
     showPower(b: boolean): void  { this.showPlotValue(VAL_POWER, b); }
 
@@ -236,6 +259,8 @@ export class Scope {
         this.calcVisiblePlots();
         this.scopeTimeStep = this.sim.maxTimeStep;
         this.plot2d.allocImage();
+        if (!this.plot2d.keepOnResize)
+            this.plot2d.resetFit();
         this.trigger.reset(this.scopePointCount);
         this.plot2d.lastTrailSimTime = -1;
     }
@@ -354,8 +379,13 @@ export class Scope {
         const w = this.rect.width;
         const h = this.rect.height;
         this.rect = r;
-        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h))
+        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h)) {
+            // a resize (window resize, or Export Image drawing the circuit at another scale)
+            // keeps the X/Y trail and fit; the trail image is just scaled to the new size
+            this.plot2d.keepOnResize = true;
             this.resetGraph();
+            this.plot2d.keepOnResize = false;
+        }
     }
 
     getWidth(): number { return this.rect.width; }
@@ -647,6 +677,8 @@ export class Scope {
 
         if (this.plot2d.enabled) {
             this.plot2d.draw(g);
+            if (this.properties !== null && this.properties.isShowing())
+                this.properties.refreshTrail();
             return;
         }
 
@@ -923,6 +955,17 @@ export class Scope {
         const drawWidth = this.validDataCount(plot, ipa, this.rect.width);
         let ox = -1, oy = -1;
         let i;
+        // exporting: build one connected path per trace. A column with a single
+        // sample (minvy === maxvy, the common case) contributes one point, same as
+        // the on-screen pixel. A column with genuine spread (noise or a fast
+        // transition, not just oversampling) keeps BOTH extremes as two vertices
+        // instead of collapsing to the midpoint, so real signal content survives
+        // the export instead of being smoothed away -- visiting whichever extreme
+        // is closer to the pen's current position first avoids an unnecessary
+        // zigzag reversal. The whole trace still ends up as one connected,
+        // selectable path -- mirrors the CSV export's one-series-per-trace shape.
+        let exportPathStarted = false;
+        let exportLastY = 0;
         for (i = 0; i !== drawWidth; i++) {
             const ip = (i + ipa) & (this.scopePointCount - 1);
             const minvy = Math.round(plot.gridMult * (minV[ip] + plot.plotOffset));
@@ -933,6 +976,38 @@ export class Scope {
                     this.reduceRange[plot.units] = false;
                     curMinRangeLo = -1000;
                     minRangeHi = 1000;
+                }
+                if (this.exporting) {
+                    if (minvy === maxvy) {
+                        const y = maxy - minvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, y);
+                            exportPathStarted = true;
+                        } else {
+                            g.context.lineTo(i, y);
+                        }
+                        exportLastY = y;
+                    } else {
+                        const yLo = maxy - minvy;
+                        const yHi = maxy - maxvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportPathStarted = true;
+                            exportLastY = yHi;
+                        } else if (Math.abs(exportLastY - yLo) <= Math.abs(exportLastY - yHi)) {
+                            g.context.lineTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportLastY = yHi;
+                        } else {
+                            g.context.lineTo(i, yHi);
+                            g.context.lineTo(i, yLo);
+                            exportLastY = yLo;
+                        }
+                    }
+                    continue;
                 }
                 if (ox !== -1) {
                     if (minvy === oy && maxvy === oy)
@@ -946,10 +1021,19 @@ export class Scope {
                     continue;
                 }
                 g.drawLine(i, maxy - minvy, i, maxy - maxvy);
+            } else if (exportPathStarted) {
+                // out-of-range clamp hit mid-trace -- close off what we have and
+                // start a fresh subpath rather than bridging across the skip
+                g.context.stroke();
+                exportPathStarted = false;
             }
         }
-        if (ox !== -1)
+        if (this.exporting) {
+            if (exportPathStarted)
+                g.context.stroke();
+        } else if (ox !== -1) {
             g.drawLine(ox, maxy - oy, i - 1, maxy - oy);
+        }
     }
 
     static clearCursorInfo(): void {
@@ -1418,17 +1502,17 @@ export class Scope {
         if (mi === "showpower")
             this.showPower(state);
         if (mi === "showib")
-            this.showPlotValue(VAL_IB, state);
+            this.showTransistorValue(VAL_IB, state);
         if (mi === "showic")
-            this.showPlotValue(VAL_IC, state);
+            this.showTransistorValue(VAL_IC, state);
         if (mi === "showie")
-            this.showPlotValue(VAL_IE, state);
+            this.showTransistorValue(VAL_IE, state);
         if (mi === "showvbe")
-            this.showPlotValue(VAL_VBE, state);
+            this.showTransistorValue(VAL_VBE, state);
         if (mi === "showvbc")
-            this.showPlotValue(VAL_VBC, state);
+            this.showTransistorValue(VAL_VBC, state);
         if (mi === "showvce")
-            this.showPlotValue(VAL_VCE, state);
+            this.showTransistorValue(VAL_VCE, state);
         if (mi === "showvcevsic") {
             this.plot2d.enabled = true;
             this.plot2d.plotXY = false;
@@ -1443,6 +1527,16 @@ export class Scope {
         }
         if (mi === "manualscale")
             this.setManualScale(state, true);
+        if (mi === "xyorigin") {
+            this.plot2d.includeOrigin = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
+        if (mi === "xyalignx") {
+            this.plot2d.alignX = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
         if (mi === "plotxy") {
             this.plot2d.plotXY = this.plot2d.enabled = state;
             if (this.plot2d.enabled) {

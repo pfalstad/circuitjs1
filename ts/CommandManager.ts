@@ -40,6 +40,7 @@ import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
+import { CircuitElm } from "./CircuitElm";
 import { ScopeElm } from "./ScopeElm";
 import { parseIntStrict } from "./NumberParse";
 
@@ -330,6 +331,11 @@ export class CommandManager {
             this.app.undoManager?.pushUndo();
             const sp = item.indexOf(' ', 6);
             this.app.menus.readSetupFile(item.substring(6, sp), item.substring(sp + 1));
+        }
+        if (menu.startsWith("extra:") && item.indexOf("setup ") == 0) {
+            this.app.undoManager?.pushUndo();
+            const sp = item.indexOf(' ', 6);
+            this.app.menus.readSetupExtraFile(menu.substring(6), item.substring(6, sp), item.substring(sp + 1));
         }
         if (item == "newblankcircuit") {
             this.app.undoManager?.pushUndo();
@@ -678,6 +684,7 @@ export class CommandManager {
             for (let i = oldsz; i != this.app.elmList.length; i++)
                 this.app.elmList[i].move(dx, dy);
         }
+        CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
         this.app.needAnalyze();
         this.app.undoManager?.writeRecoveryToStorage();
     }

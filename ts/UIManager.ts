@@ -335,7 +335,19 @@ class CheckboxMenuItem {
         }
     }
     getShortcut(): string { return this._shortcut; }
-    setShortcut(s: string): void { this._shortcut = s; }
+    // also redraws the shortcut shown in the menu (the label is built once, before saved
+    // shortcuts are loaded), as a readable name like "F3" rather than the stored char
+    setShortcut(s: string): void {
+        this._shortcut = s;
+        if (!this._li) return;
+        let hint = this._li.querySelector('.shortcutHint') as HTMLElement | null;
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'shortcutHint';
+            this._li.appendChild(hint);
+        }
+        hint.textContent = KeyNames.displayText(s) ?? s;
+    }
     setScheduledCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     setCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     execute(): void { if (this._command) this._command(); }
@@ -751,6 +763,10 @@ export class UIManager {
             b.addEventListener('mousedown', (e) => e.preventDefault());
         }
 
+        // buttons for switches in this circuit (filled in by updateSwitchButtons)
+        this.switchButtonPanel = document.createElement('div');
+        this.verticalPanel.appendChild(this.switchButtonPanel);
+
         /*
         dumpMatrixButton = new Button("Dump Matrix");
         dumpMatrixButton.addClickHandler(new ClickHandler() {
@@ -1158,6 +1174,9 @@ export class UIManager {
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_POST ||
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SELECTED) {
             for (const ce of this.elmList) {
+                // boxes and lines only show their dots while they're the ones being moved
+                if (ce.isShapeElm() && ce !== this.mouse.getMouseElm() && !ce.isSelected())
+                    continue;
                 if (ce !== this.mouse.getMouseElm() || this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);
@@ -1512,6 +1531,7 @@ export class UIManager {
     }
 
     setMouseMode(mode: number): void {
+        this.mouse.cancelLineChain();
         this.mouse.mouseMode = mode;
         if (mode === MouseManager.MODE_ADD_ELM)
             this.setCursorStyle("cursorCross");
@@ -1576,6 +1596,7 @@ export class UIManager {
 
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
+        this.lastKeyDownCode = code;
 
         // Handle a press-and-drag gesture started on a toolbar icon, which may end up
         // anywhere on the page (not just over the canvas), so it needs to be tracked here.
@@ -1670,7 +1691,11 @@ export class UIManager {
                 e.preventDefault();
             }
         }
-        if (code === KEY_ESCAPE) {
+        // first Esc ends a chain of lines (staying in line mode), the next returns to Select
+        if (code === KEY_ESCAPE && this.mouse.lineChain) {
+            this.mouse.cancelLineChain();
+            e.preventDefault();
+        } else if (code === KEY_ESCAPE) {
             this.setMouseMode(MouseManager.MODE_SELECT);
             this.mouseModeStr = "Select";
             this.updateToolbar();
@@ -1706,8 +1731,13 @@ export class UIManager {
         let customShortcutHandled = false;
         const placeholder = KeyNames.keyCodeToPlaceholder(code, e.shiftKey, e.ctrlKey, e.altKey, e.metaKey);
         if (placeholder >= 0 && !e.repeat) {
+            // switch keys in this circuit take precedence over simulator shortcuts
             const c = this.app.shortcuts.get(placeholder);
-            if (c != null) {
+            if (this.toggleSwitchesForKey(String.fromCharCode(placeholder), code)) {
+                e.preventDefault();
+                this.app.repaint();
+                customShortcutHandled = true;
+            } else if (c != null) {
                 if (c.startsWith("cmd:")) {
                     const parts = c.split(":");
                     this.app.commands.menuPerformed(parts[1], parts[2]);
@@ -1766,15 +1796,17 @@ export class UIManager {
         if (this.isReadOnly())
             return;
 
-        // handle momentary switches with keyboard shortcuts
-        const keyStr = String.fromCharCode(code).toLowerCase();
+        // handle momentary switches with keyboard shortcuts. Matched by the keyCode that
+        // pressed the switch, so it works for any key (punctuation, F-keys, Ctrl-<key>)
+        // and even if the modifier is let go first.
         let released = false;
         for (let i = 0; i !== this.elmList.length; i++) {
             const ce = this.elmList[i];
             if (ce instanceof SwitchElm) {
                 const se = ce as SwitchElm;
-                if (se.momentary && se.keyShortcut != null && se.keyShortcut === keyStr) {
+                if (se.momentary && se.heldKeyCode !== 0 && se.heldKeyCode === code) {
                     se.mouseUp();
+                    se.heldKeyCode = 0;
                     released = true;
                 }
             }
@@ -1816,22 +1848,9 @@ export class UIManager {
         // (cc==32 for spacebar is included so it can be assigned as a shortcut too;
         // it falls back to the hardcoded temporary-select-mode behavior below if unassigned)
         if (cc >= 32 && cc < 127) {
-            const keyStr = String.fromCharCode(cc).toLowerCase();
             let toggled = false;
-            if (!e.repeat) {
-                for (let i = 0; i !== this.elmList.length; i++) {
-                    const ce = this.elmList[i];
-                    if (ce instanceof SwitchElm) {
-                        const se = ce as SwitchElm;
-                        if (se.keyShortcut != null && se.keyShortcut === keyStr) {
-                            se.toggle();
-                            if (!se.isLogicInputElm())
-                                this.app.needAnalyze();
-                            toggled = true;
-                        }
-                    }
-                }
-            }
+            if (!e.repeat)
+                toggled = this.toggleSwitchesForKey(String.fromCharCode(cc), this.lastKeyDownCode);
             if (toggled) {
                 e.preventDefault();
                 this.app.repaint();
@@ -1845,6 +1864,106 @@ export class UIManager {
                 e.preventDefault();
             }
         }
+    }
+
+    // ---- Sidebar switch buttons ----
+    // One button per switch keyboard shortcut whose switch has "Sidebar Button" ticked, for
+    // users without a keyboard (mobile). They belong to the circuit: rebuilt whenever it changes,
+    // so leaving the circuit removes them. Ordered by when each button was added
+    // (SwitchElm.buttonOrder). A button does what its key does; a momentary switch stays
+    // pressed while the button is held.
+    switchButtonPanel: HTMLElement | null = null;
+    switchButtonKeys = "";	// keys currently shown, to skip rebuilding when unchanged
+    static readonly BUTTON_HELD = -1;	// SwitchElm.heldKeyCode for a switch pressed by a button
+
+    updateSwitchButtons(): void {
+        if (this.switchButtonPanel === null)
+            return;
+        // each key once, at the lowest order of the switches that use it
+        const buttons: { key: string, order: number }[] = [];
+        for (const ce of this.elmList) {
+            if (!(ce instanceof SwitchElm))
+                continue;
+            const key = ce.keyShortcut;
+            if (key === null || ce.buttonOrder <= 0)
+                continue;
+            const b = buttons.find(x => x.key === key);
+            if (b)
+                b.order = Math.min(b.order, ce.buttonOrder);
+            else
+                buttons.push({ key: key, order: ce.buttonOrder });
+        }
+        buttons.sort((a, b) => a.order - b.order);
+        const sig = buttons.map(b => b.key).join("\n");
+        if (sig === this.switchButtonKeys)
+            return;
+        this.switchButtonKeys = sig;
+        this.switchButtonPanel.replaceChildren(...buttons.map(b => this.makeSwitchButton(b.key)));
+    }
+
+    makeSwitchButton(key: string): HTMLButtonElement {
+        const b = document.createElement('button');
+        b.textContent = KeyNames.displayText(key);
+        b.className = 'topButton';
+        b.tabIndex = -1;	// like Reset and Run/Stop: don't take keyboard focus
+        b.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (e.button === 0)
+                this.pressSwitchButton(key);
+        });
+        b.addEventListener('mouseup', () => this.releaseSwitchButton(key));
+        b.addEventListener('mouseleave', () => this.releaseSwitchButton(key));
+        // touch: preventDefault so the browser doesn't also send mouse events afterwards
+        b.addEventListener('touchstart', (e) => { e.preventDefault(); this.pressSwitchButton(key); }, { passive: false });
+        b.addEventListener('touchend', (e) => { e.preventDefault(); this.releaseSwitchButton(key); });
+        b.addEventListener('touchcancel', () => this.releaseSwitchButton(key));
+        return b;
+    }
+
+    pressSwitchButton(key: string): void {
+        if (this.toggleSwitchesForKey(key, UIManager.BUTTON_HELD))
+            this.app.repaint();
+    }
+
+    // let go of momentary switches this button is holding down
+    releaseSwitchButton(key: string): void {
+        let released = false;
+        for (const ce of this.elmList) {
+            if (ce instanceof SwitchElm && ce.momentary && ce.heldKeyCode === UIManager.BUTTON_HELD &&
+                    ce.keyShortcut === key) {
+                ce.mouseUp();
+                ce.heldKeyCode = 0;
+                released = true;
+            }
+        }
+        if (released) {
+            this.app.needAnalyze();
+            this.app.repaint();
+        }
+    }
+
+    // keyCode of the most recent keydown; keypress doesn't give a usable one, and momentary
+    // switches need it to know which key-up releases them
+    lastKeyDownCode = 0;
+
+    // toggle every switch whose key matches (a stored shortcut char, see KeyNames).
+    // Returns true if any did.
+    toggleSwitchesForKey(key: string, keyCode: number): boolean {
+        let toggled = false;
+        for (let i = 0; i !== this.elmList.length; i++) {
+            const ce = this.elmList[i];
+            if (ce instanceof SwitchElm) {
+                const se = ce as SwitchElm;
+                if (se.keyShortcut != null && se.keyShortcut === key) {
+                    se.toggle();
+                    se.heldKeyCode = keyCode;
+                    if (!se.isLogicInputElm())
+                        this.app.needAnalyze();
+                    toggled = true;
+                }
+            }
+        }
+        return toggled;
     }
 
     // select the tool (or run the command) assigned to the key with char code cc.
@@ -2106,9 +2225,11 @@ export class UIManager {
 
             this.app.shortcuts.clear();
 
+            // the element menu is built twice (right-click menu and Draw menu), so there are
+            // two items per class; clear all of them, skipping fixed labels like "(Alt-drag)"
             for (let i = 0; i !== this.mainMenuItems.length; i++) {
                 const item = this.mainMenuItems[i];
-                if (item.getShortcut().length > 1) break;
+                if (item.getShortcut().length > 1) continue;
                 item.setShortcut("");
             }
 
@@ -2125,7 +2246,6 @@ export class UIManager {
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
                     if (this.mainMenuItemNames[j] === className) {
                         this.mainMenuItems[j].setShortcut(String.fromCharCode(c));
-                        break;
                     }
                 }
             }

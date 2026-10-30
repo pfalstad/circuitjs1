@@ -26,6 +26,7 @@ import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { Locale } from "./Locale";
 import { parseFloatStrict } from "./NumberParse";
+import { KeyNames } from "./KeyNames";
 
 const ROOT2 = 1.41421356237309504880;
 
@@ -241,7 +242,11 @@ export class EditDialog extends Dialog {
                     inp.value = ei.text;
                     if (ei.isColor)
                         inp.type = "color";
+                    if (ei.keyCapture)
+                        EditDialog.addKeyCapture(inp, ei);
                     this.activeCol.appendChild(inp);
+                    if (ei.keyButton !== null)
+                        this.activeCol.appendChild(EditDialog.makeKeyButton(ei, inp));
                 } else {
                     inp.value = this.unitString(ei);
                     this.activeCol.appendChild(this.makeValueStepperRow(ei));
@@ -249,6 +254,63 @@ export class EditDialog extends Dialog {
             }
         }
         this.einfocount = i;
+    }
+
+    // Make a text field capture a key press the same way Edit Shortcuts does: plain keys
+    // come from keypress (so the typed character is used), F-keys/Home/etc and anything
+    // with Ctrl/Alt/Meta come from keydown as a placeholder. Backspace/Delete clears it.
+    // The field holds the readable name (KeyNames.displayText); parse it back with
+    // KeyNames.parseName.
+    static addKeyCapture(inp: HTMLInputElement, ei: EditInfo | null = null): void {
+        inp.readOnly = true;
+        inp.addEventListener("keydown", (ev: KeyboardEvent) => {
+            const keyCode = ev.keyCode;
+            const placeholder = KeyNames.keyCodeToPlaceholder(keyCode, ev.shiftKey,
+                ev.ctrlKey, ev.altKey, ev.metaKey);
+            if (placeholder >= 0) {
+                ev.preventDefault();
+                inp.value = KeyNames.displayText(String.fromCharCode(placeholder)) ?? "";
+                EditDialog.keyChanged(inp, ei);
+            } else if (keyCode === 8 /* backspace */ || keyCode === 46 /* delete */) {
+                ev.preventDefault();
+                inp.value = "";
+                EditDialog.keyChanged(inp, ei);
+            }
+        });
+        inp.addEventListener("keypress", (ev: KeyboardEvent) => {
+            ev.preventDefault();
+            const cc = ev.charCode ?? ev.which;
+            if (cc >= 32 && cc < 127) {
+                inp.value = KeyNames.displayText(String.fromCharCode(cc)) ?? "";
+                EditDialog.keyChanged(inp, ei);
+            }
+        });
+    }
+
+    // the checkbox that goes with a key-capture field; only usable while a key is set
+    static makeKeyButton(ei: EditInfo, inp: HTMLInputElement): HTMLElement {
+        const kb = ei.keyButton!;
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = kb.state;
+        cb.disabled = inp.value.length === 0;
+        kb.element = cb;
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:4px;";
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(kb.name));
+        return label;
+    }
+
+    // clearing the key unticks and disables its checkbox; setting one enables it
+    static keyChanged(inp: HTMLInputElement, ei: EditInfo | null): void {
+        const cb = ei?.keyButton?.element;
+        if (!cb)
+            return;
+        const hasKey = inp.value.length > 0;
+        cb.disabled = !hasKey;
+        if (!hasKey)
+            ei!.keyButton!.setState(false);
     }
 
     // preferred-value series used by stepE12(), repeating every decade (reused from the E12

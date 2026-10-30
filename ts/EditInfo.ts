@@ -31,6 +31,11 @@ export class EditInfo {
     noSliders: boolean = false;
     isColor: boolean = false;
     newColumn: boolean = false;
+    // text field captures a key press (like Edit Shortcuts) instead of taking typed text
+    keyCapture: boolean = false;
+    // with keyCapture: optional checkbox under the key field, only usable while a key is set
+    // (switch "Sidebar Button")
+    keyButton: Checkbox | null = null;
     positive: boolean = false;
     nonNegative: boolean = false;
     integer: boolean = false;
@@ -78,6 +83,7 @@ export class EditInfo {
     setUnitStep(): EditInfo { this.unitStep = true; return this; }
     disallowSliders(): EditInfo { this.noSliders = true; return this; }
     setIsColor(): EditInfo { this.isColor = true; return this; }
+    setKeyCapture(): EditInfo { this.keyCapture = true; return this; }
     newColumnMethod(): EditInfo { this.newColumn = true; return this; }
     changeFlag(flags: number, bit: number): number {
         if (this.checkbox.getState())

@@ -253,6 +253,10 @@ export class CircuitLoader {
                 if (!this.app.adjustables[i].createSlider(this.app))
                     this.app.adjustables.splice(i--, 1);
             }
+            // boxes behind everything, for files saved with them after their contents.
+            // (not on paste, RC_RETAIN, which selects the new items by position; and only
+            // now, once scopes, sliders and hints have looked up their elements by position)
+            CircuitElm.sortBoxes(this.app.elmList);
         }
 
         this.app.needAnalyze();
@@ -304,9 +308,13 @@ export class CircuitLoader {
         this.app.autoDCOnReset = (flags & 128) != 0;
     }
 
-    async loadFileFromURL(url: string): Promise<void> {
+    // fallbackUrl, if given, is tried if url can't be loaded (e.g. a circuits/
+    // lookup falling back to applied/)
+    async loadFileFromURL(url: string, fallbackUrl?: string): Promise<void> {
 	try {
 	    const response = await fetch(url);
+	    if (!response.ok && fallbackUrl)
+		return this.loadFileFromURL(fallbackUrl);
 	    if (response.ok) {
 		const text = await response.text();
 		this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
@@ -318,6 +326,8 @@ export class CircuitLoader {
 		console.log("Bad file server response:" + response.statusText);
 	    }
 	} catch (e) {
+	    if (fallbackUrl)
+		return this.loadFileFromURL(fallbackUrl);
 	    console.log("failed file reading", e);
 	}
     }

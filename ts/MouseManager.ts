@@ -68,6 +68,13 @@ export class MouseManager {
     dragging: boolean = false;
     wheelSensitivity: number = 1;
     dragElm: CircuitElm | null = null;
+    // daisy-chained lines (LineElm.daisyChain): after a line is finished the next one starts
+    // at its end and follows the mouse (button up); each click fixes a segment, Esc drops
+    // the pending one
+    lineChain: boolean = false;
+    // mouse offset from the grabbed box/line's first point, so a moved shape can snap by itself
+    grabDX: number = 0;
+    grabDY: number = 0;
     menuElm: CircuitElm | null = null;
     private mouseElm: CircuitElm | null = null;
     didSwitch: boolean = false;
@@ -252,6 +259,7 @@ export class MouseManager {
     beginToolbarDrag(className: string, clientX: number, clientY: number): void {
 	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
+	this.cancelLineChain();
 	this.toolbarDragClass = className;
 	this.toolbarDragStartX = clientX;
 	this.toolbarDragStartY = clientY;
@@ -324,6 +332,7 @@ export class MouseManager {
 		this.splitAt(this.dragElm.x2, this.dragElm.y2);
 		this.ui.elmList.push(this.dragElm);
 		this.dragElm.draggingDone();
+		CircuitElm.sortBoxes(this.ui.elmList);
 		this.sim.undoManager?.writeRecoveryToStorage();
 		this.sim.unsavedChanges = true;
 		this.sim.needAnalyze();
@@ -399,6 +408,8 @@ export class MouseManager {
 	}
 	let changed = false;
 	if (this.dragElm != null) {
+	    if (this.dragElm.isShapeElm())
+		(this.dragElm as any).shiftLock = e.shiftKey;
 	    this.dragElm.drag(gx, gy);
 	    // now that we're actually dragging out a new element, don't leave whatever
 	    // was hovered before still looking highlighted underneath it
@@ -419,7 +430,10 @@ export class MouseManager {
 	    break;
 	case MouseManager.MODE_DRAG_POST:
 	    if (this.mouseElm != null) {
-		this.dragPost(this.snapGrid(gx), this.snapGrid(gy), e.shiftKey);
+		if (this.mouseElm.isShapeElm() && !e.shiftKey)
+		    this.dragPost(gx, gy, false);	// the box/line snaps itself
+		else
+		    this.dragPost(this.snapGrid(gx), this.snapGrid(gy), e.shiftKey);
 		changed = true;
 	    }
 	    break;
@@ -525,8 +539,15 @@ export class MouseManager {
 	    y = this.snapGrid(y);
 	}
 
-	const dx = x - this.dragGridX;
-	const dy = y - this.dragGridY;
+	let dx = x - this.dragGridX;
+	let dy = y - this.dragGridY;
+	// a grabbed box/line snaps its own first point per its snap setting;
+	// anything else selected along with it moves by the same amount
+	if (this.mouseElm != null && this.mouseElm.isShapeElm() && this.onlyGraphicsElmsSelected()) {
+	    const se = this.mouseElm as any;
+	    dx = se.snapCoord(x - this.grabDX) - se.x;
+	    dy = se.snapCoord(y - this.grabDY) - se.y;
+	}
 	if (dx === 0 && dy === 0) {
 	    // don't leave mouseElm selected if we selected it above
 	    if (me) this.mouseElm!.setSelected(false);
@@ -574,6 +595,10 @@ export class MouseManager {
 	    this.draggingPost =
 		(Graphics.distanceSq(this.mouseElm!.x, this.mouseElm!.y, x, y) >
 		 Graphics.distanceSq(this.mouseElm!.x2, this.mouseElm!.y2, x, y)) ? 1 : 0;
+	}
+	if (!all && this.mouseElm!.isShapeElm()) {
+	    (this.mouseElm as any).movePostTo(this.draggingPost, x, y);
+	    return;
 	}
 	const dx = x - this.dragGridX;
 	const dy = y - this.dragGridY;
@@ -786,6 +811,14 @@ export class MouseManager {
 	this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
 	if (this.mouseDragging) {
 	    this.mouseDragged(e);
+	    return;
+	}
+	if (this.lineChain && this.dragElm != null) {
+	    if (this.sim.circuitArea.contains(this.mouseCursorX, this.mouseCursorY)) {
+		(this.dragElm as any).shiftLock = e.shiftKey;
+		this.dragElm.drag(this.inverseTransformX(this.mouseCursorX), this.inverseTransformY(this.mouseCursorY));
+		this.sim.repaint();
+	    }
 	    return;
 	}
 	this.mouseSelect(e);
@@ -1115,8 +1148,8 @@ export class MouseManager {
 		this.tempMouseMode = MouseManager.MODE_DRAG_COLUMN;
 	    else if (e.altKey && e.shiftKey)
 		this.tempMouseMode = MouseManager.MODE_DRAG_ROW;
-	    else if (e.shiftKey)
-		this.tempMouseMode = MouseManager.MODE_SELECT;
+	    else if (e.shiftKey && !this.lineChain)
+		this.tempMouseMode = MouseManager.MODE_SELECT;	// (but while chaining, Shift is the angle lock)
 	    else if (e.altKey)
 		this.tempMouseMode = MouseManager.MODE_DRAG_ALL;
 	    else if (e.ctrlKey || e.metaKey)
@@ -1127,6 +1160,9 @@ export class MouseManager {
 
 	if (this.ui.isReadOnly() && this.tempMouseMode !== MouseManager.MODE_DRAG_ALL)
 	    this.tempMouseMode = MouseManager.MODE_SELECT;
+
+	if (this.lineChain && this.tempMouseMode !== MouseManager.MODE_ADD_ELM)
+	    this.cancelLineChain();
 
 	if (!this.sim.modalDialogIsShowing() && (
 	    (this.sim.scopeManager.scopeSelected !== -1 && this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].cursorInSettingsWheel()) ||
@@ -1179,6 +1215,10 @@ export class MouseManager {
 	this.sim.undoManager?.pushUndo();
 	this.initDragGridX = gx;
 	this.initDragGridY = gy;
+	if (this.mouseElm != null) {
+	    this.grabDX = gx - this.mouseElm.x;
+	    this.grabDY = gy - this.mouseElm.y;
+	}
 	this.dragging = true;
 	this.dragMovedElms.clear();
 
@@ -1207,11 +1247,19 @@ export class MouseManager {
 	if (!this.sim.circuitArea.contains(ex, ey))
 	    return;
 
+	// chained line already following the mouse: this click just fixes its end
+	if (this.lineChain && this.dragElm != null) {
+	    (this.dragElm as any).shiftLock = e.shiftKey;
+	    this.dragElm.drag(gx, gy);
+	    return;
+	}
 	try {
 	    this.dragElm = this.sim.constructElement(this.ui.mouseModeStr, x0, y0);
 	} catch (ex) {
 	    CirSim.debugger();
 	}
+	if (this.dragElm != null && this.dragElm.isShapeElm())
+	    (this.dragElm as any).placeStart(gx, gy);	// boxes/lines snap (or not) themselves
 
 	this.sim.updateToolbar();
     }
@@ -1274,7 +1322,22 @@ export class MouseManager {
 	    }
 	}
 
+	// a daisy-chained line that's about to be added keeps the chain going from its end
+	let chainFrom: CircuitElm | null = null;
+	if (this.dragElm != null && this.dragElm.isLineElm() && (this.dragElm as any).daisyChains() &&
+	    this.tempMouseMode === MouseManager.MODE_ADD_ELM && e.button === 0 && !this.dragElm.creationFailed())
+	    chainFrom = this.dragElm;
+	this.lineChain = false;
+
 	const createdElm = this.endDrag();
+
+	if (chainFrom != null) {
+	    this.dragElm = this.sim.constructElement("LineElm", chainFrom.x2, chainFrom.y2);
+	    this.dragElm!.x = this.dragElm!.x2 = chainFrom.x2;	// already snapped; start exactly on it
+	    this.dragElm!.y = this.dragElm!.y2 = chainFrom.y2;
+	    this.tempMouseMode = MouseManager.MODE_ADD_ELM;
+	    this.lineChain = true;
+	}
 
 	if (createdElm != null) {
 	    this.editCreatedElm(createdElm);
@@ -1293,6 +1356,18 @@ export class MouseManager {
 	}
     }
 
+    // drop the pending daisy-chained line (Esc, or a change of mode)
+    cancelLineChain(): void {
+	if (!this.lineChain)
+	    return;
+	this.lineChain = false;
+	if (this.dragElm != null)
+	    this.dragElm.delete();
+	this.dragElm = null;
+	this.tempMouseMode = this.mouseMode;
+	this.sim.repaint();
+    }
+
     // common cleanup for ending a drag, whether via mouseup or the mouse leaving the canvas.
     // returns the element that was just created (added to elmList), if any.
     private endDrag(): CircuitElm | null {
@@ -1300,6 +1375,7 @@ export class MouseManager {
 	Scope.dragStartTime = -1;
 	Scope.endDragPlotY();
 
+	const moved = (this.tempMouseMode === MouseManager.MODE_DRAG_POST || this.tempMouseMode === MouseManager.MODE_DRAG_SELECTED);
 	this.tempMouseMode = this.mouseMode;
 	this.selectedArea = null;
 	this.dragging = false;
@@ -1356,6 +1432,9 @@ export class MouseManager {
 		this.sim.updateToolbar();
 	    }
 	}
+	// boxes go behind everything, largest first
+	if (circuitChanged || moved)
+	    CircuitElm.sortBoxes(this.ui.elmList);
 	if (circuitChanged) {
 	    this.sim.needAnalyze();
 	    this.sim.undoManager?.pushUndo();

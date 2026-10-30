@@ -914,6 +914,7 @@ export class SimulationManager {
     // Most of this has been moved to preStampCircuit() so it can be avoided if the simulation is stopped.
     analyzeCircuit(): void {
 	this.app.setStopElm(null, null);
+	this.app.ui.updateSwitchButtons();	// switch keys/buttons may have changed
 	this.elmList = this.app.elmList;
 	if (this.elmList.length === 0) {
 	    this.app.postDrawList = [];
