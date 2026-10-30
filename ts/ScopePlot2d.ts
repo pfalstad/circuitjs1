@@ -130,10 +130,16 @@ export class ScopePlot2d {
         this.draw_ox = this.draw_oy = -1;
     }
 
+    // The trail fades toward this same color, so the background stays uniform.  (If they differed,
+    // a rescaled trail's faded background would show up as rectangles against fresh background.)
+    backgroundColor(): string {
+        return this.scope.app.isPrintable() ? "#eee" : "#111";
+    }
+
     fillBackground(): void {
         if (this.imageContext !== null) {
-            this.imageContext.fillStyle = this.scope.app.isPrintable() ? "#eee" : "#111";
-            this.imageContext.fillRect(0, 0, this.scope.rect.width - 1, this.scope.rect.height - 1);
+            this.imageContext.fillStyle = this.backgroundColor();
+            this.imageContext.fillRect(0, 0, this.scope.rect.width, this.scope.rect.height);
         }
     }
 
@@ -510,7 +516,7 @@ export class ScopePlot2d {
             }
             if (fadeAlpha > 0) {
                 this.imageContext.globalAlpha = fadeAlpha;
-                this.imageContext.fillStyle = this.scope.app.isPrintable() ? "#ffffff" : "#000000";
+                this.imageContext.fillStyle = this.backgroundColor();
                 this.imageContext.fillRect(0, 0, this.scope.rect.width, this.scope.rect.height);
                 this.imageContext.globalAlpha = 1.0;
             }
