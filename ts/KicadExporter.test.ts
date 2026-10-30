@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { ElementFactory } from "./ElementFactory";
 import { CircuitElm } from "./CircuitElm";
 import { ResistorElm } from "./ResistorElm";
 import { GroundElm } from "./GroundElm";
@@ -71,6 +72,18 @@ describe("KiCad export", () => {
         // the elements only read menu checkboxes while being built
         (CircuitElm as any).app = (CircuitElm as any).app ?? { menus: new Proxy({}, { get: () => off }) };
         (CircuitElm as any).app.snapGrid ??= (x: number) => x;
+        // the exporters only find element classes that are registered (see Loaded)
+        for (const c of [
+            CircuitElm, ResistorElm, GroundElm, WireElm, BusLogicInputElm, BusSplitterElm,
+            Counter2Elm, ChipElm, RailElm, ACRailElm, VarRailElm, SweepElm,
+            VoltageElm, DCVoltageElm, DiodeElm, NandGateElm, XorGateElm, LogicInputElm,
+            AndGateElm, SevenSegElm, RelayElm, TextElm, AnalogSwitchElm, AnalogSwitch2Elm,
+            NDarlingtonElm, CounterElm, LatchElm, VCVSElm, DFlipFlopElm, LabeledNodeElm,
+            NoiseElm, OpAmpElm, RelayCoilElm, RelayContactElm, TriodeElm, TransistorElm,
+            MosfetElm, SwitchElm, CapacitorElm, InductorElm, TransformerElm, TappedTransformerElm,
+            ControlledVoltageElm, ControlledCurrentElm, AmmeterElm, ProbeElm,
+        ] as any[])
+            ElementFactory.registerClass(c.name, c);
     });
 
     it("formats component values", () => {

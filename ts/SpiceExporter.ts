@@ -26,104 +26,105 @@
 // out and listed in the warnings.
 
 import { CircuitElm } from "./CircuitElm";
+import { Loaded } from "./ElementFactory";
 import { ResistorElm } from "./ResistorElm";
 import { CapacitorElm } from "./CapacitorElm";
 import { PolarCapacitorElm } from "./PolarCapacitorElm";
 import { InductorElm } from "./InductorElm";
 import { DiodeElm } from "./DiodeElm";
-import { LEDElm } from "./LEDElm";
-import { ZenerElm } from "./ZenerElm";
+import type { LEDElm } from "./LEDElm";
+import type { ZenerElm } from "./ZenerElm";
 import { TransistorElm } from "./TransistorElm";
 import { MosfetElm } from "./MosfetElm";
-import { JfetElm } from "./JfetElm";
+import type { JfetElm } from "./JfetElm";
 import { OpAmpElm } from "./OpAmpElm";
-import { PotElm } from "./PotElm";
+import type { PotElm } from "./PotElm";
 import { SwitchElm } from "./SwitchElm";
 import { Switch2Elm } from "./Switch2Elm";
-import { AnalogSwitchElm } from "./AnalogSwitchElm";
-import { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
+import type { AnalogSwitchElm } from "./AnalogSwitchElm";
+import type { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
 import { VoltageElm } from "./VoltageElm";
 import { RailElm } from "./RailElm";
-import { CurrentElm } from "./CurrentElm";
+import type { CurrentElm } from "./CurrentElm";
 import { GroundElm } from "./GroundElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { WireElm } from "./WireElm";
 import { RoutedWireElm } from "./RoutedWireElm";
-import { AmmeterElm } from "./AmmeterElm";
+import type { AmmeterElm } from "./AmmeterElm";
 import { TextElm } from "./TextElm";
 import { ScopeElm } from "./ScopeElm";
 import { ProbeElm } from "./ProbeElm";
 import { OutputElm } from "./OutputElm";
 import { LogicOutputElm } from "./LogicOutputElm";
-import { DataRecorderElm } from "./DataRecorderElm";
-import { TestPointElm } from "./TestPointElm";
-import { StopTriggerElm } from "./StopTriggerElm";
-import { AudioOutputElm } from "./AudioOutputElm";
-import { OhmMeterElm } from "./OhmMeterElm";
-import { TransformerElm } from "./TransformerElm";
+import type { DataRecorderElm } from "./DataRecorderElm";
+import type { TestPointElm } from "./TestPointElm";
+import type { StopTriggerElm } from "./StopTriggerElm";
+import type { AudioOutputElm } from "./AudioOutputElm";
+import type { OhmMeterElm } from "./OhmMeterElm";
+import type { TransformerElm } from "./TransformerElm";
 import { SubcircuitElm } from "./SubcircuitElm";
 import { GateElm, AndGateElm, NandGateElm, OrGateElm, NorGateElm, XorGateElm, XnorGateElm } from "./GateElm";
 import { InverterElm } from "./InverterElm";
-import { SchmittElm } from "./SchmittElm";
-import { RelayElm } from "./RelayElm";
-import { TimerElm } from "./TimerElm";
-import { RelayCoilElm } from "./RelayCoilElm";
-import { RelayContactElm } from "./RelayContactElm";
-import { LampElm } from "./LampElm";
-import { TriodeElm } from "./TriodeElm";
-import { SCRElm } from "./SCRElm";
-import { TriacElm } from "./TriacElm";
-import { DiacElm } from "./DiacElm";
-import { SparkGapElm } from "./SparkGapElm";
-import { InvertingSchmittElm } from "./InvertingSchmittElm";
+import type { SchmittElm } from "./SchmittElm";
+import type { RelayElm } from "./RelayElm";
+import type { TimerElm } from "./TimerElm";
+import type { RelayCoilElm } from "./RelayCoilElm";
+import type { RelayContactElm } from "./RelayContactElm";
+import type { LampElm } from "./LampElm";
+import type { TriodeElm } from "./TriodeElm";
+import type { SCRElm } from "./SCRElm";
+import type { TriacElm } from "./TriacElm";
+import type { DiacElm } from "./DiacElm";
+import type { SparkGapElm } from "./SparkGapElm";
+import type { InvertingSchmittElm } from "./InvertingSchmittElm";
 import { LogicInputElm } from "./LogicInputElm";
-import { BusLogicInputElm } from "./BusLogicInputElm";
-import { BusSplitterElm } from "./BusSplitterElm";
-import { DFlipFlopElm } from "./DFlipFlopElm";
-import { JKFlipFlopElm } from "./JKFlipFlopElm";
-import { TFlipFlopElm } from "./TFlipFlopElm";
-import { CounterElm } from "./CounterElm";
-import { Counter2Elm } from "./Counter2Elm";
-import { RingCounterElm } from "./RingCounterElm";
-import { SipoShiftElm } from "./SipoShiftElm";
-import { LatchElm } from "./LatchElm";
-import { MultiplexerElm } from "./MultiplexerElm";
-import { DeMultiplexerElm } from "./DeMultiplexerElm";
-import { HalfAdderElm } from "./HalfAdderElm";
-import { FullAdderElm } from "./FullAdderElm";
-import { SevenSegDecoderElm } from "./SevenSegDecoderElm";
-import { AnalogMuxElm } from "./AnalogMuxElm";
-import { DACElm } from "./DACElm";
-import { ADCElm } from "./ADCElm";
-import { CustomLogicElm } from "./CustomLogicElm";
-import { LEDArrayElm } from "./LEDArrayElm";
-import { DPDTSwitchElm } from "./DPDTSwitchElm";
-import { CrossSwitchElm } from "./CrossSwitchElm";
-import { MBBSwitchElm } from "./MBBSwitchElm";
-import { WattmeterElm } from "./WattmeterElm";
-import { WattmeterTrueElm } from "./WattmeterTrueElm";
-import { DecimalDisplayElm } from "./DecimalDisplayElm";
+import type { BusLogicInputElm } from "./BusLogicInputElm";
+import type { BusSplitterElm } from "./BusSplitterElm";
+import type { DFlipFlopElm } from "./DFlipFlopElm";
+import type { JKFlipFlopElm } from "./JKFlipFlopElm";
+import type { TFlipFlopElm } from "./TFlipFlopElm";
+import type { CounterElm } from "./CounterElm";
+import type { Counter2Elm } from "./Counter2Elm";
+import type { RingCounterElm } from "./RingCounterElm";
+import type { SipoShiftElm } from "./SipoShiftElm";
+import type { LatchElm } from "./LatchElm";
+import type { MultiplexerElm } from "./MultiplexerElm";
+import type { DeMultiplexerElm } from "./DeMultiplexerElm";
+import type { HalfAdderElm } from "./HalfAdderElm";
+import type { FullAdderElm } from "./FullAdderElm";
+import type { SevenSegDecoderElm } from "./SevenSegDecoderElm";
+import type { AnalogMuxElm } from "./AnalogMuxElm";
+import type { DACElm } from "./DACElm";
+import type { ADCElm } from "./ADCElm";
+import type { CustomLogicElm } from "./CustomLogicElm";
+import type { LEDArrayElm } from "./LEDArrayElm";
+import type { DPDTSwitchElm } from "./DPDTSwitchElm";
+import type { CrossSwitchElm } from "./CrossSwitchElm";
+import type { MBBSwitchElm } from "./MBBSwitchElm";
+import type { WattmeterElm } from "./WattmeterElm";
+import type { WattmeterTrueElm } from "./WattmeterTrueElm";
+import type { DecimalDisplayElm } from "./DecimalDisplayElm";
 import { VAL_CURRENT, VAL_VOLTAGE } from "./ScopeConstants";
-import { InstructionDisplayElm } from "./InstructionDisplayElm";
-import { VCCSElm } from "./VCCSElm";
-import { VCVSElm } from "./VCVSElm";
-import { CCCSElm } from "./CCCSElm";
-import { CCVSElm } from "./CCVSElm";
-import { ControlledVoltageElm } from "./ControlledVoltageElm";
-import { ControlledCurrentElm } from "./ControlledCurrentElm";
+import type { InstructionDisplayElm } from "./InstructionDisplayElm";
+import type { VCCSElm } from "./VCCSElm";
+import type { VCVSElm } from "./VCVSElm";
+import type { CCCSElm } from "./CCCSElm";
+import type { CCVSElm } from "./CCVSElm";
+import type { ControlledVoltageElm } from "./ControlledVoltageElm";
+import type { ControlledCurrentElm } from "./ControlledCurrentElm";
 import { Expr } from "./Expr";
 import { CompositeElm } from "./CompositeElm";
-import { TriStateElm } from "./TriStateElm";
-import { SevenSegElm } from "./SevenSegElm";
-import { TappedTransformerElm } from "./TappedTransformerElm";
-import { CustomTransformerElm } from "./CustomTransformerElm";
-import { TransLineElm } from "./TransLineElm";
-import { VaractorElm } from "./VaractorElm";
-import { TunnelDiodeElm } from "./TunnelDiodeElm";
-import { AMElm } from "./AMElm";
-import { FMElm } from "./FMElm";
-import { SweepElm } from "./SweepElm";
-import { VarRailElm } from "./VarRailElm";
+import type { TriStateElm } from "./TriStateElm";
+import type { SevenSegElm } from "./SevenSegElm";
+import type { TappedTransformerElm } from "./TappedTransformerElm";
+import type { CustomTransformerElm } from "./CustomTransformerElm";
+import type { TransLineElm } from "./TransLineElm";
+import type { VaractorElm } from "./VaractorElm";
+import type { TunnelDiodeElm } from "./TunnelDiodeElm";
+import type { AMElm } from "./AMElm";
+import type { FMElm } from "./FMElm";
+import type { SweepElm } from "./SweepElm";
+import type { VarRailElm } from "./VarRailElm";
 import { DiodeModel } from "./DiodeModel";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
@@ -476,7 +477,7 @@ function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
     const dmodel = `.model DT D (${diodeParams(DiodeModel.getDefaultModel())})`;
     // turns on once on is, and off once hold isn't
     const latch = (on: string, hold: string) => heldState("s", `${on}+(1-${on})*${hold}*V(s)`, timeStep, "{ic_s}");
-    if (C === SCRElm) {
+    if (C === Loaded.SCRElm) {
         const ig = `(V(g)-V(c))/${spiceValue(e.gresistance)}`, ia = "I(Vsense)";
         return { want: "SCR", size: 1, pins: ["a", "c", "g"], params: [["ic_s", e.aresistance < 1 ? 1 : 0]],
                  desc: `SCR, trigger ${spiceValue(e.triggerI)}A, holding ${spiceValue(e.holdingI)}A`,
@@ -488,7 +489,7 @@ function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
                                      timeStep, "{ic_s}"),
                         sw(0.0105, 1e6), dmodel] };
     }
-    if (C === TriacElm) {
+    if (C === Loaded.TriacElm) {
         const ig = `abs(V(g)-V(mt1))/${spiceValue(e.cresistance)}`;
         return { want: "TRIAC", size: 1, pins: ["mt2", "mt1", "g"], params: [["ic_s", e.state ? 1 : 0]],
                  desc: `triac, trigger ${spiceValue(e.triggerI)}A, holding ${spiceValue(e.holdingI)}A`,
@@ -506,7 +507,7 @@ function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
     const desc = `breakdown ${spiceValue(e.breakdown)}V, holding ${spiceValue(e.holdcurrent)}A, ` +
                  `${spiceValue(e.onresistance)} ohms on, ${spiceValue(e.offresistance)} off`;
     const params: StateParams = [["ic_s", e.state ? 1 : 0]];
-    if (C === DiacElm)
+    if (C === Loaded.DiacElm)
         return { want: "DIAC", size: 1, pins: ["a", "b"], params, desc: "diac, " + desc,
                  body: [`Vsense a a1 0`,
                         `Sfwd a1 f s 0 TSW`,
@@ -531,7 +532,7 @@ function thyristorPart(ce: CircuitElm, timeStep: number): ChipPart {
 // 1 over it, and is cleared quickly when the coil changes back
 function relayCoilPart(e: any, timeStep: number): ChipPart {
     const T = e.switchingTime;
-    const ton = e.type === RelayCoilElm.TYPE_OFF_DELAY ? 0 : T, toff = e.type === RelayCoilElm.TYPE_ON_DELAY ? 0 : T;
+    const ton = e.type === Loaded.RelayCoilElm.TYPE_OFF_DELAY ? 0 : T, toff = e.type === Loaded.RelayCoilElm.TYPE_ON_DELAY ? 0 : T;
     const on: number = e.onCurrent, off: number = e.offCurrent;
     const params: StateParams = [["ic_i", e.coilCurrent], ["ic_avg", e.avgCurrent],
                                  ["ic_e", e.state === 1 || e.state === 2 ? 1 : 0], ["ic_a", e.state >= 2 ? 1 : 0]];
@@ -696,7 +697,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     const named = (chip: string) => hi === 5 ? chip : undefined;
 
     // posts: D, Q, ~Q, clock, then reset and set
-    if (C === DFlipFlopElm) {
+    if (C === Loaded.DFlipFlopElm) {
         const inv = e.invertSetReset();
         const sr = (i: number) => e.getPostCount() > i ? (inv ? activeLow(i) : input(i)) : null;
         const set = sr(5), reset = sr(4);
@@ -710,7 +711,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
                  desc: `D flip-flop, ${logic}` + (reset ? `, ${set ? "set and reset" : "reset"}${inv ? " active low" : ""}` : "") };
     }
     // posts: J, clock, K, Q, ~Q, then reset
-    if (C === JKFlipFlopElm) {
+    if (C === Loaded.JKFlipFlopElm) {
         const falling = !e.positiveEdgeTriggered();
         const reset = e.hasReset() ? (e.invertReset() ? activeLow(5) : input(5)) : null;
         const next = `(${input(0)}*${not("V(st)")}+${not(input(2))}*V(st))`;
@@ -723,7 +724,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
                        (reset ? `, reset${e.invertReset() ? " active low" : ""}` : "") };
     }
     // posts: T, Q, ~Q, clock, then reset and set.  the reset wins
-    if (C === TFlipFlopElm) {
+    if (C === Loaded.TFlipFlopElm) {
         const set = e.hasSet() ? input(5) : null, reset = e.hasReset() ? input(4) : null;
         const force = (x: string) => setReset(null, reset)(setReset(set, null)(x));
         body.push(...clockedBit("st", xor(input(0), "V(st)"), clock(3, false), timeStep, ic("ic_st", now(1)), force));
@@ -733,7 +734,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
                  desc: `T flip-flop, ${logic}` + (reset ? `, ${set ? "set and reset" : "reset"}` : "") };
     }
     // posts: clock, reset, the outputs, most significant first, then up/down (high to count down)
-    if (C === CounterElm) {
+    if (C === Loaded.CounterElm) {
         const falling = e.negativeEdgeTriggered(), mod = Math.max(e.modulus, 0);
         const reset = e.invertreset ? activeLow(1) : input(1);
         const q = bitNames("V(st").map(x => x + ")");
@@ -754,7 +755,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     // posts: the outputs and the inputs, most significant first, then clock, clear, count enable
     // P, ripple carry, load and count enable T.  clear is active low and asynchronous; load is
     // active low and synchronous, and wins over counting
-    if (C === Counter2Elm) {
+    if (C === Loaded.Counter2Elm) {
         const size = 2 ** bits, mod = e.modulus > 0 ? e.modulus : size;
         const q = bitNames("V(st").map(x => x + ")");
         const { clk, clr, enp, rco, load, ent } = e;
@@ -771,7 +772,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     }
     // posts: clock, reset, the outputs, then clock inhibit.  one output is high, starting with the
     // first, and each clock moves it to the next
-    if (C === RingCounterElm) {
+    if (C === Loaded.RingCounterElm) {
         const reset = e.hasInvertReset() ? activeLow(1) : input(1);
         const inhibit = e.hasClockInhibit() ? input(e.clockInhibit) : null;
         const q = bitNames("V(st").map(x => x + ")");
@@ -790,7 +791,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
                        (inhibit ? ", clock inhibit" : "") };
     }
     // posts: data, clock, then the outputs.  each clock shifts the data in at Q0
-    if (C === SipoShiftElm) {
+    if (C === Loaded.SipoShiftElm) {
         const clk = clock(1, false);
         for (let i = 0; i !== bits; i++)
             body.push(...clockedBit("st" + i, i === 0 ? input(0) : `V(st${i - 1})`, clk, timeStep, ic("ic_st" + i, now(2 + i))));
@@ -801,7 +802,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     // posts: the inputs, the outputs, load (or clock), then reset, set, the input enables and
     // the output enables.  a register loads on the rising edge of the clock; a latch follows
     // its inputs while load is high.  the inputs are enabled while the input enables are low
-    if (C === LatchElm) {
+    if (C === Loaded.LatchElm) {
         if (e.hasOutputEnable())
             return null;
         const ld = input(e.loadPin);
@@ -825,10 +826,10 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     }
     // posts: the data inputs (each a bus of width lines, for a bus multiplexer), the selects, the
     // output, then the inverted output and the strobe, which holds the output low
-    if (C === MultiplexerElm) {
+    if (C === Loaded.MultiplexerElm) {
         const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
-        const width = e.inputMode === MultiplexerElm.INPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
-        const inverted = e.hasFlag(MultiplexerElm.FLAG_INVERTED_OUTPUT);
+        const width = e.inputMode === Loaded.MultiplexerElm.INPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
+        const inverted = e.hasFlag(Loaded.MultiplexerElm.FLAG_INVERTED_OUTPUT);
         for (let i = 0; i !== width; i++) {
             let f = Array.from({ length: count }, (_, k) => `${matches(sel, k)}*${input(k * width + i)}`).join("+");
             if (e.strobe >= 0)
@@ -845,9 +846,9 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     // posts: the outputs, the selects, then the input (or the input, the selects, then the outputs,
     // for a bus demultiplexer, whose input and outputs can be buses of width lines).  the other
     // outputs are low (high, inverted)
-    if (C === DeMultiplexerElm) {
+    if (C === Loaded.DeMultiplexerElm) {
         const count: number = e.outputCount, sel = Array.from({ length: e.selectBitCount }, (_, i) => input(e.selectPin + i));
-        const width = e.outputMode === DeMultiplexerElm.OUTPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
+        const width = e.outputMode === Loaded.DeMultiplexerElm.OUTPUT_MODE_BUS_BUS ? e.dataBusWidth : 1;
         const idle = e.invertOutputs() ? "1" : "0";
         for (let k = 0; k !== count; k++)
             for (let i = 0; i !== width; i++)
@@ -857,14 +858,14 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
                        (e.invertOutputs() ? ", unselected outputs high" : "") };
     }
     // posts: sum, carry, A, B
-    if (C === HalfAdderElm) {
+    if (C === Loaded.HalfAdderElm) {
         output(0, xor(input(2), input(3)));
         output(1, `${input(2)}*${input(3)}`);
         return { want: "HALFADDER", size: 1, pins, body, desc: `half adder, ${logic}` };
     }
     // posts: A, B, the sums, least significant first, then carry in and carry out.  each carry
     // is on its own node, or each would have the last one in it twice
-    if (C === FullAdderElm) {
+    if (C === Loaded.FullAdderElm) {
         let c = input(e.carryIn);
         for (let i = 0; i !== bits; i++) {
             const a = input(i), b = input(bits + i), ab = xor(a, b);
@@ -878,7 +879,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     }
     // posts: the segments, the inputs, most significant first, then blank (active low).  the
     // segments for each input come from the decoder itself
-    if (C === SevenSegDecoderElm) {
+    if (C === Loaded.SevenSegDecoderElm) {
         const segs: number = e.getSegmentCount();
         const ins = [3, 2, 1, 0].map(i => input(segs + i));
         const saved = e.pins.map((p: any) => p.value);
@@ -906,7 +907,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     // posts: the inputs, the selects, then the output.  each input has a switch to the output,
     // closed while it's selected.  with the pulldown, an unselected input is pulled to ground
     // instead of connected through the off resistance
-    if (C === AnalogMuxElm) {
+    if (C === Loaded.AnalogMuxElm) {
         const count: number = e.inputCount, th: number = e.threshold;
         const sel = Array.from({ length: e.selectBitCount }, (_, i) => level(`V(${pins[count + i]})`, num(th), steepness(2 * th)));
         const out = pins[e.outputPin], pulldown = e.needsPulldown();
@@ -926,7 +927,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     }
     // posts: the inputs, least significant first, the output, then the reference.  the output is
     // the reference times the input's fraction of full scale
-    if (C === DACElm) {
+    if (C === Loaded.DACElm) {
         const max = 2 ** bits - 1;
         const f = Array.from({ length: bits }, (_, i) => `${num(2 ** i / max)}*${input(i)}`).join("+");
         body.push(...logicOutput(pins[bits], `V(${pins[bits + 1]})*(${f})`, timeStep / 4, "_" + pins[bits],
@@ -936,7 +937,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     // posts: the outputs, least significant first, the input, then the reference.  the output is
     // the input's fraction of the reference, rounded down: code j starts at j/max of it (a little
     // below, so the full reference gives the top code), and bit i changes at each multiple of 2^i
-    if (C === ADCElm) {
+    if (C === Loaded.ADCElm) {
         if (bits > 10)
             return null;
         const max = 2 ** bits - 1, vin = `V(${pins[bits]})`, ref = `V(${pins[bits + 1]})`;
@@ -953,7 +954,7 @@ function chipPartBody(ce: CircuitElm, timeStep: number, params: StateParams): Om
     }
     // posts: the inputs, then the outputs.  the first rule whose left side matches the pins
     // sets the outputs, and with none matching they hold their values
-    if (C === CustomLogicElm)
+    if (C === Loaded.CustomLogicElm)
         return customLogic(e, pins, body, input, ic, timeStep);
     return null;
 }
@@ -1049,10 +1050,11 @@ function customLogic(e: any, pins: string[], body: string[], input: (i: number) 
              desc: `custom logic "${model.infoText.replace(/\s+/g, " ")}", ${num(hi)}V logic` };
 }
 
-const LOGIC_CHIPS = new Set<any>([DFlipFlopElm, JKFlipFlopElm, TFlipFlopElm, CounterElm, Counter2Elm,
-                                  RingCounterElm, SipoShiftElm, LatchElm, MultiplexerElm, DeMultiplexerElm,
-                                  HalfAdderElm, FullAdderElm, SevenSegDecoderElm, AnalogMuxElm, DACElm, ADCElm,
-                                  CustomLogicElm]);
+// these sets hold class names, since a class that isn't loaded is undefined (see Loaded)
+const LOGIC_CHIPS = new Set<string>(["DFlipFlopElm", "JKFlipFlopElm", "TFlipFlopElm", "CounterElm", "Counter2Elm",
+                                  "RingCounterElm", "SipoShiftElm", "LatchElm", "MultiplexerElm", "DeMultiplexerElm",
+                                  "HalfAdderElm", "FullAdderElm", "SevenSegDecoderElm", "AnalogMuxElm", "DACElm", "ADCElm",
+                                  "CustomLogicElm"]);
 
 // a CircuitJS expression as a SPICE behavioral source's, or null if it uses something SPICE
 // doesn't have (the last output, the last values of the inputs, bit operations).  input(k)
@@ -1165,7 +1167,7 @@ export function spiceExpression(e: Expr, input: (k: number) => string | null, re
 // sweeps so far, plus the integral of the frequency over this one
 function sweepPhase(e: any): string {
     const T: number = e.sweepTime, f0: number = e.minF, f1: number = e.maxF;
-    const log = (e.flags & SweepElm.FLAG_LOG) !== 0, bidir = (e.flags & SweepElm.FLAG_BIDIR) !== 0;
+    const log = (e.flags & Loaded.SweepElm.FLAG_LOG) !== 0, bidir = (e.flags & Loaded.SweepElm.FLAG_BIDIR) !== 0;
     const r = Math.log(f1 / f0);
     // the integral over a sweep up, and over the part of one to time x into it
     const whole = log ? T * (f1 - f0) / r : T * (f0 + f1) / 2;
@@ -1190,8 +1192,8 @@ function switchConnections(ce: CircuitElm): [number, number][] {
     return pairs;
 }
 
-const SWITCHES = new Set<any>([DPDTSwitchElm, CrossSwitchElm, MBBSwitchElm]);
-const CONTROLLED = new Set<any>([VCVSElm, VCCSElm, CCVSElm, CCCSElm, ControlledVoltageElm, ControlledCurrentElm]);
+const SWITCHES = new Set<string>(["DPDTSwitchElm", "CrossSwitchElm", "MBBSwitchElm"]);
+const CONTROLLED = new Set<string>(["VCVSElm", "VCCSElm", "CCVSElm", "CCCSElm", "ControlledVoltageElm", "ControlledCurrentElm"]);
 
 class NetlistWriter {
     lines: string[] = [];
@@ -1287,7 +1289,7 @@ class NetlistWriter {
             const k = keys[i];
             // a bus wire's posts are each line at one end, then each at the other, and a bus
             // splitter's are each line of the bus, then the line's own pin
-            if (C === WireElm || C === RoutedWireElm || C === BusSplitterElm) {
+            if (C === WireElm || C === RoutedWireElm || C === Loaded.BusSplitterElm) {
                 const w = k.length / 2;
                 for (let j = 0; j !== w; j++)
                     this.uf.union(k[j], k[j + w]);
@@ -1305,7 +1307,7 @@ class NetlistWriter {
                 this.uf.union(k[0], k[1]);
             else if (C === Switch2Elm && !(e.position === 2 && e.hasCenterOff()) && !(e.resistance > 0))
                 this.uf.union(k[0], k[e.position + 1]);
-            else if (SWITCHES.has(C) && !(e.resistance > 0))
+            else if (SWITCHES.has(C.name) && !(e.resistance > 0))
                 for (const [a, b] of switchConnections(ce))
                     this.uf.union(k[a], k[b]);
             else
@@ -1330,7 +1332,7 @@ class NetlistWriter {
             this.nameNet(key, name);
         const written: { ce: CircuitElm; nets: string[] }[] = [];
         // a controlled source can refer to another element's source, so it goes after them
-        parts.sort((a, b) => +CONTROLLED.has(a.ce.getDumpClass()) - +CONTROLLED.has(b.ce.getDumpClass()));
+        parts.sort((a, b) => +CONTROLLED.has(a.ce.getDumpClass().name) - +CONTROLLED.has(b.ce.getDumpClass().name));
         for (const p of parts)
             this.elmNets.set(p.ce, p.keys.map(k => this.net(k)));
         this.relayGroups(parts.map(p => p.ce));
@@ -1356,7 +1358,7 @@ class NetlistWriter {
 
     private relayGroups(elms: CircuitElm[]): void {
         for (const ce of elms) {
-            if (ce.getDumpClass() !== RelayCoilElm)
+            if (ce.getDumpClass() !== Loaded.RelayCoilElm)
                 continue;
             const label: string = (ce as any).label;
             let g = this.relays.get(label);
@@ -1368,8 +1370,8 @@ class NetlistWriter {
         }
         for (const g of this.relays.values()) {
             const types = g.coils.map(c => (c as any).type as number);
-            g.mode = types.some(t => t === RelayCoilElm.TYPE_LATCHING_ON || t === RelayCoilElm.TYPE_LATCHING_OFF) ? "setReset" :
-                     types[0] === RelayCoilElm.TYPE_LATCHING ? "toggle" : "follow";
+            g.mode = types.some(t => t === Loaded.RelayCoilElm.TYPE_LATCHING_ON || t === Loaded.RelayCoilElm.TYPE_LATCHING_OFF) ? "setReset" :
+                     types[0] === Loaded.RelayCoilElm.TYPE_LATCHING ? "toggle" : "follow";
             g.coils.forEach((c, i) => g.outputs.set(c, g.mode === "follow" && i === 0 ? g.position
                                                                                   : this.internalNet(`${g.position}_a${i}`)));
         }
@@ -1385,7 +1387,7 @@ class NetlistWriter {
                 this.lines.push(...clockedBit(q, `(1-V(${q}))`, a(g.coils[0]), this.exp.timeStep, init));
             else if (g.mode === "setReset") {
                 const of = (t: number) => g.coils.filter(c => (c as any).type === t).map(a);
-                const set = of(RelayCoilElm.TYPE_LATCHING_ON), reset = of(RelayCoilElm.TYPE_LATCHING_OFF);
+                const set = of(Loaded.RelayCoilElm.TYPE_LATCHING_ON), reset = of(Loaded.RelayCoilElm.TYPE_LATCHING_OFF);
                 const any = (xs: string[]) => xs.length === 0 ? "0" : `(1-${and(xs.map(not))})`;
                 this.lines.push(...heldState(q, `${any(set)}+(1-${any(set)})*(1-${any(reset)})*V(${q})`, this.exp.timeStep, init));
             }
@@ -1427,10 +1429,10 @@ class NetlistWriter {
         const C = ce.getDumpClass();
         const e = ce as any;
         const inputs: string[] = [];
-        if (C === VCVSElm || C === VCCSElm)
+        if (C === Loaded.VCVSElm || C === Loaded.VCCSElm)
             for (let i = 0; i !== e.inputCount; i++)
                 inputs.push(`V(${n[i]})`);
-        const sensed = C === CCVSElm || C === CCCSElm;
+        const sensed = C === Loaded.CCVSElm || C === Loaded.CCCSElm;
         const ref = this.ref("B"), senses: string[] = [];
         if (sensed)
             for (let i = 0; i + 1 < e.inputCount; i += 2) {
@@ -1472,9 +1474,9 @@ class NetlistWriter {
         // the outputs: + then - for a voltage, and for a current, the end it flows into the
         // source from first, as SPICE has it.  a VCCS or CCCS's current flows out of its + pin
         const no = ce.getPostCount();
-        const [p, m] = C === ControlledVoltageElm ? [n[1], n[0]] : C === ControlledCurrentElm ? [n[0], n[1]] :
-                       C === CCCSElm || C === VCCSElm ? [n[no - 1], n[no - 2]] : [n[no - 2], n[no - 1]];
-        const voltage = C === VCVSElm || C === CCVSElm || C === ControlledVoltageElm;
+        const [p, m] = C === Loaded.ControlledVoltageElm ? [n[1], n[0]] : C === Loaded.ControlledCurrentElm ? [n[0], n[1]] :
+                       C === Loaded.CCCSElm || C === Loaded.VCCSElm ? [n[no - 1], n[no - 2]] : [n[no - 2], n[no - 1]];
+        const voltage = C === Loaded.VCVSElm || C === Loaded.CCVSElm || C === Loaded.ControlledVoltageElm;
         this.lines.push(...senses, `${ref} ${p} ${m} ${voltage ? "V" : "I"}=${f}`);
     }
 
@@ -1483,8 +1485,8 @@ class NetlistWriter {
         const e = ce as any;
         const L = (...words: (string | number)[]) => this.lines.push(words.join(" "));
         if (ce.getPostCount() === 0 || C === TextElm || C === ScopeElm || C === ProbeElm || C === OutputElm ||
-            C === LogicOutputElm || C === DataRecorderElm || C === TestPointElm || C === StopTriggerElm ||
-            C === AudioOutputElm || C === OhmMeterElm || C === DecimalDisplayElm || C === InstructionDisplayElm)
+            C === LogicOutputElm || C === Loaded.DataRecorderElm || C === Loaded.TestPointElm || C === Loaded.StopTriggerElm ||
+            C === Loaded.AudioOutputElm || C === Loaded.OhmMeterElm || C === Loaded.DecimalDisplayElm || C === Loaded.InstructionDisplayElm)
             return;
 
         if (C === ResistorElm) {
@@ -1518,20 +1520,20 @@ class NetlistWriter {
             return;
         }
         // posts: end 1, end 2, wiper
-        if (C === PotElm) {
+        if (C === Loaded.PotElm) {
             const ref = this.ref("R");
             L(ref + "a", n[0], n[2], spiceValue(Math.max(e.maxResistance * e.position, 1e-6)));
             L(ref + "b", n[1], n[2], spiceValue(Math.max(e.maxResistance * (1 - e.position), 1e-6)));
             return;
         }
         // posts: anode, cathode
-        if (C === DiodeElm || C === LEDElm || C === ZenerElm) {
+        if (C === DiodeElm || C === Loaded.LEDElm || C === Loaded.ZenerElm) {
             L(this.ref("D"), n[0], n[1], this.diodeModel(e.model));
             return;
         }
         // a diode with SPICE's junction capacitance, which goes as 1/sqrt(1-v/vf) reverse biased.
         // (CircuitJS holds it at the zero bias value forward biased, where SPICE's keeps rising)
-        if (C === VaractorElm) {
+        if (C === Loaded.VaractorElm) {
             L(this.ref("D"), n[0], n[1], this.diodeModel(e.model, ` CJO=${num(e.baseCapacitance)} VJ=${num(e.model.fwdrop)} M=0.5`));
             return;
         }
@@ -1539,8 +1541,8 @@ class NetlistWriter {
         // voltage steps of, as it doesn't a behavioral source's, and the tunnel and excess
         // currents are a behavioral current.  a little junction capacitance lets SPICE follow
         // the jump across the negative resistance in a relaxation oscillator
-        if (C === TunnelDiodeElm) {
-            const { pvp, pip, pvv, pvt, pvpp, piv } = TunnelDiodeElm, v = `V(${n[0]},${n[1]})`;
+        if (C === Loaded.TunnelDiodeElm) {
+            const { pvp, pip, pvv, pvt, pvpp, piv } = Loaded.TunnelDiodeElm, v = `V(${n[0]},${n[1]})`;
             // (N for SPICE's thermal voltage at 27C)
             const params = `IS=${num(pip * Math.exp(-pvpp / pvt))} N=${num(pvt / 0.0258520)} CJO=1p`;
             L(this.ref("D"), n[0], n[1], this.exp.model("D", "tunnel", { kind: "D", params }));
@@ -1548,7 +1550,7 @@ class NetlistWriter {
             return;
         }
         // posts: the columns, then the rows.  each LED goes from its row to its column
-        if (C === LEDArrayElm) {
+        if (C === Loaded.LEDArrayElm) {
             const cols: number = e.sizeX, rows: number = e.sizeY;
             const model = this.diodeModel(DiodeModel.getModelWithName("default-led"));
             const pins = [...Array.from({ length: cols }, (_, i) => "c" + i), ...Array.from({ length: rows }, (_, i) => "r" + i)];
@@ -1568,7 +1570,7 @@ class NetlistWriter {
         }
         // posts: gate, source, drain (n) or gate, drain, source (p).  SPICE: drain, gate, source.
         // CircuitJS's square law with beta is SPICE's JFET with BETA = beta/2
-        if (C === JfetElm) {
+        if (C === Loaded.JfetElm) {
             const [d, s] = e.pnp === 1 ? [n[2], n[1]] : [n[1], n[2]];
             L(this.ref("J"), d, n[0], s, this.exp.model("J", e.model.name,
               { kind: e.pnp === 1 ? "NJF" : "PJF", params: `VTO=${num(e.vt)} BETA=${num(e.beta / 2)}` }));
@@ -1607,23 +1609,23 @@ class NetlistWriter {
         }
         // posts: discharge, trigger, threshold, Vcc, control, output, then reset and ground if
         // it has them.  without a ground pin it's on ground, and without a reset it's on Vcc
-        if (C === TimerElm) {
+        if (C === Loaded.TimerElm) {
             const part = timerPart(e, this.exp.timeStep);
-            const N = TimerElm;
+            const N = Loaded.TimerElm;
             const gnd = e.hasGroundPin() ? n[N.N_GND] : "0", rst = e.hasReset() ? n[N.N_RST] : n[N.N_VCC];
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, 1), gnd, n[N.N_TRIG], n[N.N_OUT], rst, n[N.N_CTL], n[N.N_THRES], n[N.N_DIS], n[N.N_VCC],
               name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
-        if (C === SCRElm || C === TriacElm || C === DiacElm || C === SparkGapElm) {
+        if (C === Loaded.SCRElm || C === Loaded.TriacElm || C === Loaded.DiacElm || C === Loaded.SparkGapElm) {
             const part = thyristorPart(ce, this.exp.timeStep);
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
         // posts: the coil's ends
-        if (C === RelayCoilElm) {
+        if (C === Loaded.RelayCoilElm) {
             this.exp.gear = true;
             const g = this.relays.get(e.label)!;
             const part = relayCoilPart(e, this.exp.timeStep);
@@ -1632,7 +1634,7 @@ class NetlistWriter {
             return;
         }
         // posts: the contact's ends.  without a coil it stays where it is
-        if (C === RelayContactElm) {
+        if (C === Loaded.RelayContactElm) {
             const g = this.relays.get(e.label), nc = e.isNormallyClosed();
             if (!g) {
                 L(this.ref("R"), n[0], n[1], spiceValue(e.i_position === 0 ? e.r_on : e.r_off));
@@ -1643,13 +1645,13 @@ class NetlistWriter {
             L(this.ref("S"), n[0], n[1], ...(nc ? ["0", g.position] : [g.position, "0"]), sw);
             return;
         }
-        if (C === LampElm || C === TriodeElm) {
-            const part = C === LampElm ? lampPart(e) : triodePart(e);
+        if (C === Loaded.LampElm || C === Loaded.TriodeElm) {
+            const part = C === Loaded.LampElm ? lampPart(e) : triodePart(e);
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
             L(this.packRef(name, 1), ...n, name, ...SpiceExporter.instanceParams(part.params));
             return;
         }
-        if (C === RelayElm) {
+        if (C === Loaded.RelayElm) {
             this.exp.gear = true;
             const part = relayPart(e, this.exp.timeStep);
             const name = this.exp.logicPart(part.want, part.desc, part.pins, part.body, part.params);
@@ -1660,25 +1662,25 @@ class NetlistWriter {
         // switch closes when its control is above VT; one that closes when the control is low
         // sees it negated.  with the pulldown, the simulator leaves an open switch out
         // entirely and pulls its ends to ground instead
-        if (C === AnalogSwitchElm || C === AnalogSwitch2Elm) {
+        if (C === Loaded.AnalogSwitchElm || C === Loaded.AnalogSwitch2Elm) {
             const pulldown = e.needsPulldown(), inv = e.hasFlag(e.FLAG_INVERT);
             const roff = pulldown ? 1e12 : e.r_off;
             const sw = (ctlHigh: boolean) => this.exp.model("S", "analog", { kind: "SW",
                 params: `VT=${num(ctlHigh ? e.threshold : -e.threshold)} VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(roff)}` });
             const ctl = (ctlHigh: boolean) => ctlHigh ? [n[n.length - 1], "0"] : ["0", n[n.length - 1]];
-            const ends = C === AnalogSwitchElm ? [n[1]] : [n[1], n[2]];
+            const ends = C === Loaded.AnalogSwitchElm ? [n[1]] : [n[1], n[2]];
             ends.forEach((end, i) => {
                 // the SPDT's NC throw is closed when the NO one is open
                 const high = (i === 0) !== inv;
                 L(this.ref("S"), n[0], end, ...ctl(high), sw(high));
             });
             if (pulldown)
-                for (const p of C === AnalogSwitchElm ? [n[0], n[1]] : ends)
+                for (const p of C === Loaded.AnalogSwitchElm ? [n[0], n[1]] : ends)
                     L(this.ref("R"), p, "0", spiceValue(e.r_off));
             return;
         }
         // CircuitJS sources are (-, +); SPICE's are (+, -)
-        if ((C === VoltageElm && ce.getPostCount() === 2) || C === RailElm || C === VarRailElm) {
+        if ((C === VoltageElm && ce.getPostCount() === 2) || C === RailElm || C === Loaded.VarRailElm) {
             const spec = sourceSpec(e, this.exp.timeStep);
             if (spec === null) {
                 this.leftOut(ce, n);
@@ -1697,14 +1699,14 @@ class NetlistWriter {
             return;
         }
         // CircuitJS current flows from post 0 through the source to post 1, as SPICE does from + to -
-        if (C === CurrentElm) {
+        if (C === Loaded.CurrentElm) {
             if (e.isVoltageLimited())
                 this.warnings.push("current source voltage limit");
             L(this.ref("I"), n[0], n[1], "DC", num(e.currentValue));
             return;
         }
         // a zero volt source, which SPICE can measure current through
-        if (C === AmmeterElm) {
+        if (C === Loaded.AmmeterElm) {
             const ref = this.ref("V");
             this.vsources.set(ce, `I(${ref})`);
             L(ref, n[0], n[1], "DC 0");
@@ -1712,27 +1714,27 @@ class NetlistWriter {
         }
         // posts: the current path (both pairs, for the wattmeter that also measures current
         // through its voltage side), as zero volt sources, and a voltmeter's 100 megohms
-        if (C === WattmeterElm) {
+        if (C === Loaded.WattmeterElm) {
             L(this.ref("V"), n[0], n[1], "DC 0");
             L(this.ref("V"), n[2], n[3], "DC 0");
             return;
         }
-        if (C === WattmeterTrueElm) {
+        if (C === Loaded.WattmeterTrueElm) {
             L(this.ref("R"), n[0], n[1], "100meg");
             L(this.ref("V"), n[2], n[3], "DC 0");
             return;
         }
-        if (SWITCHES.has(C)) {
+        if (SWITCHES.has(C.name)) {
             for (const [a, b] of switchConnections(ce))
                 L(this.ref("R"), n[a], n[b], spiceValue(e.resistance));
             return;
         }
-        if (CONTROLLED.has(C)) {
+        if (CONTROLLED.has(C.name)) {
             this.controlledSource(ce, n);
             return;
         }
         // the first winding goes from post 0 to 2, the second from 1 to 3, with the dots on posts 0 and 1
-        if (C === TransformerElm) {
+        if (C === Loaded.TransformerElm) {
             const ref = this.ref("L");
             L(ref + "a", n[0], n[2], spiceValue(e.inductance));
             L(ref + "b", n[1], n[3], spiceValue(e.inductance * e.ratio * e.ratio));
@@ -1743,7 +1745,7 @@ class NetlistWriter {
         }
         // posts: primary, then the secondary's ends and its center tap.  each half of the
         // secondary has a quarter of the inductance of the whole
-        if (C === TappedTransformerElm) {
+        if (C === Loaded.TappedTransformerElm) {
             const ref = this.ref("L"), l2 = e.inductance * e.ratio * e.ratio / 4, k = num(Math.min(e.couplingCoef, 1));
             L(ref + "a", n[0], n[1], spiceValue(e.inductance));
             L(ref + "b", n[2], n[3], spiceValue(l2));
@@ -1756,7 +1758,7 @@ class NetlistWriter {
         }
         // each coil goes from its node to the next, the other way round for reverse polarity,
         // and every pair is coupled
-        if (C === CustomTransformerElm) {
+        if (C === Loaded.CustomTransformerElm) {
             const ref = this.ref("L"), k = num(Math.min(e.couplingCoef, 1)), r = ref.substring(1);
             const coils = Array.from({ length: e.coilCount }, (_, i) => ref + "_" + i);
             coils.forEach((c, i) => {
@@ -1769,13 +1771,13 @@ class NetlistWriter {
             return;
         }
         // posts: the two ends' returns, then their signals
-        if (C === TransLineElm) {
+        if (C === Loaded.TransLineElm) {
             L(this.ref("T"), n[2], n[0], n[3], n[1], `Z0=${num(e.imped)}`, `TD=${num(e.delay)}`);
             return;
         }
         // a tri-state buffer drives its output through a switch, which opens while its enable is
         // low, with a resistor to ground if it has one.  posts: inputs, outputs, enable
-        if (C === TriStateElm) {
+        if (C === Loaded.TriStateElm) {
             const w: number = e.busWidth, hi: number = e.highVoltage, k = steepness(hi);
             const ins = Array.from({ length: w }, (_, i) => "a" + i), outs = ins.map((_, i) => "y" + i);
             const body = [`.model TRI SW (VT=${num(hi / 2)} VH=0 RON=${spiceValue(e.r_on)} ROFF=${spiceValue(e.r_off)})`];
@@ -1793,7 +1795,7 @@ class NetlistWriter {
             return;
         }
         // an LED from each segment to the common pin (or the other way, common anode)
-        if (C === SevenSegElm) {
+        if (C === Loaded.SevenSegElm) {
             if (e.diodeDirection === 0)
                 return;
             const model = this.diodeModel(DiodeModel.getModelWithName("default-led"));
@@ -1806,19 +1808,19 @@ class NetlistWriter {
             return;
         }
         // sources made of sines of the time
-        if (C === AMElm) {
+        if (C === Loaded.AMElm) {
             const w = (f: number) => `${num(2 * Math.PI * f)}*time`;
             L(this.ref("B"), n[0], "0", `V=${num(e.maxVoltage)}*(sin(${w(e.signalfreq)})+1)/2*sin(${w(e.carrierfreq)})`);
             return;
         }
         // the phase is the integral of the carrier frequency plus the signal times the deviation
-        if (C === FMElm) {
+        if (C === Loaded.FMElm) {
             const ws = num(2 * Math.PI * e.signalfreq);
             L(this.ref("B"), n[0], "0", `V=${num(e.maxVoltage)}*sin(${num(2 * Math.PI * e.carrierfreq)}*time+` +
               `${num(e.deviation / e.signalfreq)}*(1-cos(${ws}*time)))`);
             return;
         }
-        if (C === SweepElm) {
+        if (C === Loaded.SweepElm) {
             L(this.ref("B"), n[0], "0", `V=${num(e.maxV)}*sin(${sweepPhase(e)})`);
             return;
         }
@@ -1829,7 +1831,7 @@ class NetlistWriter {
             return;
         }
         // a source for each line, at the high or low level for its bit
-        if (C === BusLogicInputElm) {
+        if (C === Loaded.BusLogicInputElm) {
             for (let i = 0; i !== n.length; i++)
                 L(this.ref("V"), n[i], "0", "DC", num((e.value >> i) & 1 ? e.hiV : e.loV));
             return;
@@ -1885,8 +1887,8 @@ class NetlistWriter {
             return;
         }
         // the output is on once the input rises past the upper trigger, until it falls past the lower
-        if (C === SchmittElm || C === InvertingSchmittElm) {
-            const on = e.logicOnLevel, off = e.logicOffLevel, invert = C === InvertingSchmittElm;
+        if (C === Loaded.SchmittElm || C === Loaded.InvertingSchmittElm) {
+            const on = e.logicOnLevel, off = e.logicOffLevel, invert = C === Loaded.InvertingSchmittElm;
             // the simulator's state is whether the input was last low
             const params: StateParams = [["ic_st", e.state ? 0 : 1], ["ic_y", ce.getPostVoltage(1)]];
             const st = schmittInput("a", e.lowerTrigger, e.upperTrigger, steepness(e.upperTrigger - e.lowerTrigger), this.exp.timeStep, "{ic_st}");
@@ -1901,7 +1903,7 @@ class NetlistWriter {
             L(this.packRef(name, usual ? 6 : 1), n[0], n[1], name, ...SpiceExporter.instanceParams(params));
             return;
         }
-        if (LOGIC_CHIPS.has(C)) {
+        if (LOGIC_CHIPS.has(C.name)) {
             const part = chipPart(ce, this.exp.timeStep);
             if (part === null) {
                 this.leftOut(ce, n);
@@ -2080,7 +2082,7 @@ export class SpiceExporter {
             const C = ce.getDumpClass(), nets = postNets.get(ce)!;
             if (C === LogicOutputElm || C === OutputElm || C === ProbeElm)
                 volt(nets, 0, ce.getPostCount() > 1 ? 1 : -1);
-            else if (C === DecimalDisplayElm)
+            else if (C === Loaded.DecimalDisplayElm)
                 nets.forEach((_, j) => volt(nets, j, -1));
         }
         for (const { elm, value } of this.scopes) {

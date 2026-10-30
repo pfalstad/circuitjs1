@@ -28,59 +28,60 @@
 
 import { KICAD_SYMBOLS, type KicadSymbol } from "./KicadSymbols";
 import { CircuitElm } from "./CircuitElm";
+import { Loaded } from "./ElementFactory";
 import { Point } from "./Point";
 import { ResistorElm } from "./ResistorElm";
 import { CapacitorElm } from "./CapacitorElm";
 import { PolarCapacitorElm } from "./PolarCapacitorElm";
 import { InductorElm } from "./InductorElm";
 import { DiodeElm } from "./DiodeElm";
-import { LEDElm } from "./LEDElm";
-import { ZenerElm } from "./ZenerElm";
+import type { LEDElm } from "./LEDElm";
+import type { ZenerElm } from "./ZenerElm";
 import { TransistorElm } from "./TransistorElm";
 import { MosfetElm } from "./MosfetElm";
-import { JfetElm } from "./JfetElm";
+import type { JfetElm } from "./JfetElm";
 import { OpAmpElm } from "./OpAmpElm";
-import { PotElm } from "./PotElm";
+import type { PotElm } from "./PotElm";
 import { SwitchElm } from "./SwitchElm";
 import { Switch2Elm } from "./Switch2Elm";
 import { VoltageElm } from "./VoltageElm";
 import { RailElm } from "./RailElm";
-import { VarRailElm } from "./VarRailElm";
-import { AnalogSwitchElm } from "./AnalogSwitchElm";
-import { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
-import { DarlingtonElm } from "./DarlingtonElm";
+import type { VarRailElm } from "./VarRailElm";
+import type { AnalogSwitchElm } from "./AnalogSwitchElm";
+import type { AnalogSwitch2Elm } from "./AnalogSwitch2Elm";
+import type { DarlingtonElm } from "./DarlingtonElm";
 import { ChipElm } from "./ChipElm";
-import { CounterElm } from "./CounterElm";
-import { LatchElm } from "./LatchElm";
-import { VCCSElm } from "./VCCSElm";
-import { VCVSElm } from "./VCVSElm";
-import { ControlledVoltageElm } from "./ControlledVoltageElm";
-import { ControlledCurrentElm } from "./ControlledCurrentElm";
+import type { CounterElm } from "./CounterElm";
+import type { LatchElm } from "./LatchElm";
+import type { VCCSElm } from "./VCCSElm";
+import type { VCVSElm } from "./VCVSElm";
+import type { ControlledVoltageElm } from "./ControlledVoltageElm";
+import type { ControlledCurrentElm } from "./ControlledCurrentElm";
 import { spiceExpression, spiceValue, diodeParams, bjtParams, mosfetParams, elementsSpice } from "./SpiceExporter";
-import { CC2Elm } from "./CC2Elm";
-import { CC2NegElm } from "./CC2NegElm";
-import { DecimalDisplayElm } from "./DecimalDisplayElm";
-import { SweepElm } from "./SweepElm";
-import { CurrentElm } from "./CurrentElm";
-import { BatteryElm } from "./BatteryElm";
-import { LampElm } from "./LampElm";
-import { FuseElm } from "./FuseElm";
-import { CrystalElm } from "./CrystalElm";
+import type { CC2Elm } from "./CC2Elm";
+import type { CC2NegElm } from "./CC2NegElm";
+import type { DecimalDisplayElm } from "./DecimalDisplayElm";
+import type { SweepElm } from "./SweepElm";
+import type { CurrentElm } from "./CurrentElm";
+import type { BatteryElm } from "./BatteryElm";
+import type { LampElm } from "./LampElm";
+import type { FuseElm } from "./FuseElm";
+import type { CrystalElm } from "./CrystalElm";
 import { GroundElm } from "./GroundElm";
 import { LabeledNodeElm } from "./LabeledNodeElm";
 import { WireElm } from "./WireElm";
 import { RoutedWireElm } from "./RoutedWireElm";
-import { AmmeterElm } from "./AmmeterElm";
+import type { AmmeterElm } from "./AmmeterElm";
 import { TextElm } from "./TextElm";
 import { ScopeElm } from "./ScopeElm";
 import { ProbeElm } from "./ProbeElm";
 import { OutputElm } from "./OutputElm";
 import { LogicOutputElm } from "./LogicOutputElm";
-import { DataRecorderElm } from "./DataRecorderElm";
-import { TestPointElm } from "./TestPointElm";
-import { StopTriggerElm } from "./StopTriggerElm";
-import { AudioOutputElm } from "./AudioOutputElm";
-import { OhmMeterElm } from "./OhmMeterElm";
+import type { DataRecorderElm } from "./DataRecorderElm";
+import type { TestPointElm } from "./TestPointElm";
+import type { StopTriggerElm } from "./StopTriggerElm";
+import type { AudioOutputElm } from "./AudioOutputElm";
+import type { OhmMeterElm } from "./OhmMeterElm";
 import { LogicInputElm } from "./LogicInputElm";
 import { AndGateElm } from "./AndGateElm";
 import { NandGateElm } from "./NandGateElm";
@@ -89,30 +90,30 @@ import { NorGateElm } from "./NorGateElm";
 import { XorGateElm } from "./XorGateElm";
 import { XnorGateElm } from "./XnorGateElm";
 import { InverterElm } from "./InverterElm";
-import { InvertingSchmittElm } from "./InvertingSchmittElm";
-import { SchmittElm } from "./SchmittElm";
-import { DFlipFlopElm } from "./DFlipFlopElm";
-import { JKFlipFlopElm } from "./JKFlipFlopElm";
-import { TimerElm } from "./TimerElm";
-import { SCRElm } from "./SCRElm";
-import { TriacElm } from "./TriacElm";
-import { DiacElm } from "./DiacElm";
-import { VaractorElm } from "./VaractorElm";
-import { TunnelDiodeElm } from "./TunnelDiodeElm";
-import { MemristorElm } from "./MemristorElm";
-import { ThermistorNTCElm } from "./ThermistorNTCElm";
-import { LDRElm } from "./LDRElm";
-import { TransformerElm } from "./TransformerElm";
-import { TappedTransformerElm } from "./TappedTransformerElm";
-import { RelayElm } from "./RelayElm";
-import { BusSplitterElm } from "./BusSplitterElm";
-import { BusLogicInputElm } from "./BusLogicInputElm";
-import { InstructionDisplayElm } from "./InstructionDisplayElm";
+import type { InvertingSchmittElm } from "./InvertingSchmittElm";
+import type { SchmittElm } from "./SchmittElm";
+import type { DFlipFlopElm } from "./DFlipFlopElm";
+import type { JKFlipFlopElm } from "./JKFlipFlopElm";
+import type { TimerElm } from "./TimerElm";
+import type { SCRElm } from "./SCRElm";
+import type { TriacElm } from "./TriacElm";
+import type { DiacElm } from "./DiacElm";
+import type { VaractorElm } from "./VaractorElm";
+import type { TunnelDiodeElm } from "./TunnelDiodeElm";
+import type { MemristorElm } from "./MemristorElm";
+import type { ThermistorNTCElm } from "./ThermistorNTCElm";
+import type { LDRElm } from "./LDRElm";
+import type { TransformerElm } from "./TransformerElm";
+import type { TappedTransformerElm } from "./TappedTransformerElm";
+import type { RelayElm } from "./RelayElm";
+import type { BusSplitterElm } from "./BusSplitterElm";
+import type { BusLogicInputElm } from "./BusLogicInputElm";
+import type { InstructionDisplayElm } from "./InstructionDisplayElm";
 import { SimulationManager } from "./SimulationManager";
-import { RelayCoilElm } from "./RelayCoilElm";
-import { RelayContactElm } from "./RelayContactElm";
-import { TriodeElm } from "./TriodeElm";
-import { SevenSegElm } from "./SevenSegElm";
+import type { RelayCoilElm } from "./RelayCoilElm";
+import type { RelayContactElm } from "./RelayContactElm";
+import type { TriodeElm } from "./TriodeElm";
+import type { SevenSegElm } from "./SevenSegElm";
 import { SubcircuitElm } from "./SubcircuitElm";
 import { CirSim } from "./CirSim";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
@@ -301,7 +302,7 @@ export function describe(ce: CircuitElm, timeStep: number = 1e-6): Desc | null {
     if (d !== null || !(ce instanceof ChipElm))
         return d;
     const C = ce.getDumpClass();
-    return C === CC2Elm || C === CC2NegElm || C === DecimalDisplayElm ? null : chipBox(ce);
+    return C === Loaded.CC2Elm || C === Loaded.CC2NegElm || C === Loaded.DecimalDisplayElm ? null : chipBox(ce);
 }
 
 function describePart(ce: CircuitElm, timeStep: number): Desc | null {
@@ -314,13 +315,13 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
             e.routePoints : [e.point1, e.point2];
         return e.busWidth > 1 ? { kind: "bus", pts, width: e.busWidth } : { kind: "wire", pts };
     }
-    if (C === BusSplitterElm)
+    if (C === Loaded.BusSplitterElm)
         return { kind: "splitter", width: e.bits };
     // a bus logic input is a box putting out each line
-    if (C === BusLogicInputElm)
+    if (C === Loaded.BusLogicInputElm)
         return { kind: "part", sym: "", symbol: lineBox("Bus Logic Input", e.busWidth), value: "Bus Logic Input",
                  pins: Array.from({ length: e.busWidth }, (_, i) => String(i + 1)) };
-    if (C === AmmeterElm)
+    if (C === Loaded.AmmeterElm)
         return { kind: "wire", pts: [ce.getPost(0)!, ce.getPost(1)!] };
     if (C === GroundElm)
         return { kind: "power", name: "GND", dir: dirOf(ce) };
@@ -328,7 +329,7 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return e.busWidth > 1 ? { kind: "buslabel", name: e.text, dir: dirOf(ce), width: e.busWidth } :
                                 { kind: "label", name: e.text, dir: dirOf(ce) };
     // a DC rail is a supply; anything else is a source to ground
-    if (C === RailElm || C === VarRailElm) {
+    if (C === RailElm || C === Loaded.VarRailElm) {
         if (e.waveform === VoltageElm.WF_DC)
             return { kind: "power", name: railName(e.maxVoltage + e.bias), dir: dirOf(ce) };
         const spec = sourceSpec(e, timeStep);
@@ -336,7 +337,7 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     }
     // KiCad has no swept source, so a sweep is a sine at its starting frequency (simulated
     // as the SPICE export has it)
-    if (C === SweepElm)
+    if (C === Loaded.SweepElm)
         return { kind: "part", sym: "VSIN", pins: ["1"], ties: [{ pin: "2", power: "GND" }], dir: dirOf(ce), spice: true,
                  value: kicadValue(e.maxV, "V") + " " + kicadValue(e.minF, "Hz") + "-" + kicadValue(e.maxF, "Hz"),
                  props: { "Sim.Params": `dc=0 ampl=${simNum(e.maxV)} f=${simNum(e.minF)}` } };
@@ -353,9 +354,9 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return { kind: "text", text: e.text.replace(/\\n/g, "\n") };
     if (C === SubcircuitElm)
         return e.model?.extList.every((x: any) => x.busWidth === 1) ? { kind: "sheet", model: e.model } : null;
-    if (ce.getPostCount() === 0 || C === ScopeElm || C === ProbeElm || C === OutputElm || C === InstructionDisplayElm ||
-        C === LogicOutputElm || C === DataRecorderElm || C === TestPointElm ||
-        C === StopTriggerElm || C === AudioOutputElm || C === OhmMeterElm)
+    if (ce.getPostCount() === 0 || C === ScopeElm || C === ProbeElm || C === OutputElm || C === Loaded.InstructionDisplayElm ||
+        C === LogicOutputElm || C === Loaded.DataRecorderElm || C === Loaded.TestPointElm ||
+        C === Loaded.StopTriggerElm || C === Loaded.AudioOutputElm || C === Loaded.OhmMeterElm)
         return { kind: "ignore" };
 
     if (C === ResistorElm)
@@ -369,8 +370,8 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return { kind: "part", sym: "L", pins: ["1", "2"], value: kicadValue(e.inductance),
                  ...reactance("L", e.inductance, e.initialCurrent, e.seriesResistance) };
     // CircuitJS diodes are anode first; KiCad pin 1 is the cathode
-    if (C === DiodeElm || C === LEDElm || C === ZenerElm) {
-        const sym = C === LEDElm ? "LED" : C === ZenerElm ? "DZ" : "D";
+    if (C === DiodeElm || C === Loaded.LEDElm || C === Loaded.ZenerElm) {
+        const sym = C === Loaded.LEDElm ? "LED" : C === Loaded.ZenerElm ? "DZ" : "D";
         const model = e.modelName && !e.modelName.startsWith("default") ? e.modelName : null;
         return { kind: "part", sym, pins: ["2", "1"], value: model ?? KICAD_SYMBOLS[sym].libId.split(":")[1],
                  props: { "Sim.Device": "D", "Sim.Pins": "1=K 2=A", "Sim.Params": simParams(diodeParams(e.model)) } };
@@ -393,12 +394,12 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
                           "Sim.Params": simParams(mosfetParams(e)).replace(/^level=1 /, "") + caps } };
     }
     // same post order as mosfets.  Q_*JFET_DGS pins: 1=D 2=G 3=S
-    if (C === JfetElm)
+    if (C === Loaded.JfetElm)
         return { kind: "part", sym: e.pnp === 1 ? "NJFET" : "PJFET",
                  pins: e.pnp === 1 ? ["2", "3", "1"] : ["2", "1", "3"],
                  value: e.pnp === 1 ? "NJFET" : "PJFET" };
     // posts: base, collector, emitter.  TIP120/TIP125 pins: 1=B 2=C 3=E
-    if (C === DarlingtonElm)
+    if (C === Loaded.DarlingtonElm)
         return { kind: "part", sym: e.pnp === 1 ? "DARL_NPN" : "DARL_PNP", pins: ["1", "2", "3"],
                  value: e.pnp === 1 ? "TIP120" : "TIP125" };
     // posts: -, +, out.  OPAMP pins: 1=+ 2=- 5=out, 3=vcc 4=vee.  the output limits are the
@@ -407,7 +408,7 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return { kind: "part", sym: "OPAMP", pins: ["2", "1", "5"], value: "OpAmp", spice: true,
                  ties: [{ pin: "3", power: railName(e.maxOut) }, { pin: "4", power: e.minOut === 0 ? "GND" : railName(e.minOut) }] };
     // posts: end 1, end 2, wiper.  pot pins: 1, 3 ends, 2 wiper
-    if (C === PotElm)
+    if (C === Loaded.PotElm)
         return { kind: "part", sym: "POT", pins: ["1", "3", "2"], value: kicadValue(e.maxResistance) };
     // position 0 is closed
     if (C === SwitchElm)
@@ -422,14 +423,14 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     // posts: the switch's ends, then the control.  the switches have 5V logic; the 4053
     // connects X to X0 when A is low, so a normally closed switch is one side of it.
     // 4053 pins: 14=X 12=X0 13=X1 11=A, 6=Inh 10=B 9=C
-    if (C === AnalogSwitchElm) {
+    if (C === Loaded.AnalogSwitchElm) {
         if (!e.hasFlag(e.FLAG_INVERT))
             return logic("ASW", ["@pas", "@pas", "@in"], 5, { swap: [0, 1] });
         return logic("ASW2", ["14", "12", "11"], 5,
                      { ties: [{ pin: "6", power: "GND" }, { pin: "10", power: "GND" }, { pin: "9", power: "GND" }] });
     }
     // posts: common, the contact made above the threshold, the one made below, control
-    if (C === AnalogSwitch2Elm) {
+    if (C === Loaded.AnalogSwitch2Elm) {
         const swap = e.hasFlag(e.FLAG_INVERT);
         return logic("ASW2", ["14", swap ? "12" : "13", swap ? "13" : "12", "11"], 5,
                      { ties: [{ pin: "6", power: "GND" }, { pin: "10", power: "GND" }, { pin: "9", power: "GND" }] });
@@ -440,39 +441,39 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return spec ? { kind: "part", ...spec, pins: ["2", "1"] } : null;
     }
     // CircuitJS current flows from post 0 through the source to post 1, as SPICE does from + to -
-    if (C === CurrentElm)
+    if (C === Loaded.CurrentElm)
         return { kind: "part", sym: "IDC", pins: ["1", "2"], value: kicadValue(e.currentValue, "A"),
                  props: { "Sim.Params": "dc=" + simNum(e.currentValue) } };
-    if (C === BatteryElm)
+    if (C === Loaded.BatteryElm)
         return { kind: "part", sym: "BAT", pins: ["2", "1"], value: "Battery" };
-    if (C === LampElm)
+    if (C === Loaded.LampElm)
         return { kind: "part", sym: "LAMP", pins: ["1", "2"], value: "Lamp" };
-    if (C === FuseElm)
+    if (C === Loaded.FuseElm)
         return { kind: "part", sym: "FUSE", pins: ["1", "2"], value: "Fuse" };
-    if (C === CrystalElm)
+    if (C === Loaded.CrystalElm)
         return { kind: "part", sym: "XTAL", pins: ["1", "2"], value: "Crystal" };
-    if (C === SCRElm)
+    if (C === Loaded.SCRElm)
         return { kind: "part", sym: "SCR", pins: ["A", "K", "G"], value: "SCR" };
     // posts: MT2, MT1 (on the gate's side), gate
-    if (C === TriacElm)
+    if (C === Loaded.TriacElm)
         return { kind: "part", sym: "TRIAC", pins: ["A2", "A1", "G"], value: "Triac" };
-    if (C === DiacElm)
+    if (C === Loaded.DiacElm)
         return { kind: "part", sym: "DIAC", pins: ["1", "2"], value: "DIAC" };
-    if (C === VaractorElm)
+    if (C === Loaded.VaractorElm)
         return { kind: "part", sym: "VARACTOR", pins: ["A", "K"], value: "Varactor" };
-    if (C === TunnelDiodeElm)
+    if (C === Loaded.TunnelDiodeElm)
         return { kind: "part", sym: "TUNNEL", pins: ["A", "K"], value: "D_Tunnel" };
-    if (C === MemristorElm)
+    if (C === Loaded.MemristorElm)
         return { kind: "part", sym: "MEMRISTOR", pins: ["1", "2"], value: "Memristor" };
-    if (C === ThermistorNTCElm)
+    if (C === Loaded.ThermistorNTCElm)
         return { kind: "part", sym: "NTC", pins: ["1", "2"], value: "NTC" };
-    if (C === LDRElm)
+    if (C === Loaded.LDRElm)
         return { kind: "part", sym: "LDR", pins: ["1", "2"], value: "LDR" };
     // posts: primary ends, then the secondary ends beside them
     // the first winding goes from post 0 to 2, the second from 1 to 3, with posts 0 and 1 in
     // phase.  they go on the pins on the same side, unless the secondary is drawn reversed
     // (KiCad's transformers have no dots, so the ends on top are in phase)
-    if (C === TransformerElm) {
+    if (C === Loaded.TransformerElm) {
         const k = simNum(Math.min(e.couplingCoef, 1));
         return { kind: "part", sym: "XFMR", pins: e.polarity === 1 ? ["1", "4", "2", "3"] : ["1", "3", "2", "4"],
                  value: "Transformer", model: { name: "XFMR", pins: ["p1", "s1", "p2", "s2"], body: [
@@ -481,7 +482,7 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     }
     // posts: the primary's ends, then the secondary's, with its center tap.  each half of the
     // secondary has a quarter of the inductance of the whole
-    if (C === TappedTransformerElm) {
+    if (C === Loaded.TappedTransformerElm) {
         const k = simNum(Math.min(e.couplingCoef, 1)), l2 = spiceValue(e.inductance * e.ratio * e.ratio / 4);
         return { kind: "part", sym: "XFMR_CT", pins: ["1", "2", "5", "4", "3"], value: "Transformer",
                  model: { name: "XFMR_CT", pins: ["p1", "p2", "s1", "ct", "s2"], body: [
@@ -490,7 +491,7 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     }
     // posts: each pole's common, normally closed and normally open contacts, then the coil.
     // relay pins: x1 common, x2 NC, x4 NO for pole x; A1, A2 coil, which may be swapped
-    if (C === RelayElm) {
+    if (C === Loaded.RelayElm) {
         const poles = e.poleCount();
         if (poles > 2)
             return null;
@@ -501,11 +502,11 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
                  value: poles === 1 ? "Relay_SPDT" : "Relay_DPDT" };
     }
     // posts: plate, grid, cathode.  two to an ECC83, whose heater is wired for 6.3V
-    if (C === TriodeElm)
+    if (C === Loaded.TriodeElm)
         return { kind: "part", sym: "TRIODE", pins: ["A", "G", "K"], value: "ECC83",
                  supply: "+6.3V", supplyPins: { F1: "+6.3V", F2: "GND" } };
     // a 555 without reset or ground posts has reset tied to Vcc and is grounded internally
-    if (C === TimerElm) {
+    if (C === Loaded.TimerElm) {
         const n = ce.getPostCount();
         const ties: PinTie[] = [];
         if (n < 7)
@@ -531,13 +532,13 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return logic(sym, [...pins, out ?? "@out"], e.highVoltage, { swap: pins.map((_, i) => i), ties });
     }
     // a display in logic mode lights segments on a high input, like a common cathode one
-    if (C === SevenSegElm) {
-        if (e.useBus() || e.baseSegmentCount !== 7 || e.extraSegment === SevenSegElm.ES_COLON)
+    if (C === Loaded.SevenSegElm) {
+        if (e.useBus() || e.baseSegmentCount !== 7 || e.extraSegment === Loaded.SevenSegElm.ES_COLON)
             return null;
         const anode = e.diodeDirection === -1;
         const common = anode ? "CA" : "CC";
         const pins = ["A", "B", "C", "D", "E", "F", "G"];
-        if (e.extraSegment === SevenSegElm.ES_DP)
+        if (e.extraSegment === Loaded.SevenSegElm.ES_DP)
             pins.push("DP");
         // the display has two common pins
         const ties: PinTie[] = e.diodeDirection === 0 ?
@@ -549,10 +550,10 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
     }
     if (C === InverterElm)
         return logic("INV", ["@in", "@out"], e.highVoltage);
-    if (C === InvertingSchmittElm || C === SchmittElm)
-        return logic(C === SchmittElm ? "SCHMITT" : "SCHMITTINV", ["@in", "@out"], e.logicOnLevel);
+    if (C === Loaded.InvertingSchmittElm || C === Loaded.SchmittElm)
+        return logic(C === Loaded.SchmittElm ? "SCHMITT" : "SCHMITTINV", ["@in", "@out"], e.logicOnLevel);
     // posts: D, Q, ~Q, clock, then reset and set
-    if (C === DFlipFlopElm) {
+    if (C === Loaded.DFlipFlopElm) {
         const pins = ["D", "Q", "~{Q}", "C", "~{R}", "~{S}"].slice(0, ce.getPostCount());
         // the 4013 has active-high set and reset
         if (e.hasReset() && !e.invertSetReset()) {
@@ -568,24 +569,24 @@ function describePart(ce: CircuitElm, timeStep: number): Desc | null {
         return logic("DFF", pins, e.highVoltage, { ties });
     }
     // posts: J, clock, K, Q, ~Q, then reset.  the 74107 triggers on the falling edge
-    if (C === JKFlipFlopElm) {
+    if (C === Loaded.JKFlipFlopElm) {
         if (e.positiveEdgeTriggered() || (e.hasReset() && !e.invertReset()))
             return null;
         const ties: PinTie[] = e.hasReset() ? [] : [{ pin: "~{R}", power: railName(e.highVoltage) }];
         return logic("JKFF", ["J", "C", "K", "Q", "~{Q}", "~{R}"].slice(0, ce.getPostCount()), e.highVoltage, { ties });
     }
-    if (C === CounterElm)
+    if (C === Loaded.CounterElm)
         return counter(e);
-    if (C === LatchElm)
+    if (C === Loaded.LatchElm)
         return latch(e);
-    if (C === VCVSElm || C === VCCSElm)
-        return behavioralSource(e, C === VCVSElm);
+    if (C === Loaded.VCVSElm || C === Loaded.VCCSElm)
+        return behavioralSource(e, C === Loaded.VCVSElm);
     // a controlled source is a behavioral source too.  pin 1 is the voltage's +, and where
     // the current comes in
-    if (C === ControlledVoltageElm || C === ControlledCurrentElm)
-        return { kind: "part", sym: "BSOURCE", pins: C === ControlledVoltageElm ? ["2", "1"] : ["1", "2"],
+    if (C === Loaded.ControlledVoltageElm || C === Loaded.ControlledCurrentElm)
+        return { kind: "part", sym: "BSOURCE", pins: C === Loaded.ControlledVoltageElm ? ["2", "1"] : ["1", "2"],
                  value: e.exprString, props: {},
-                 controlled: C === ControlledVoltageElm ? "v" : "i" };
+                 controlled: C === Loaded.ControlledVoltageElm ? "v" : "i" };
     return null;
 }
 
@@ -791,18 +792,18 @@ function relayGroups(elms: CircuitElm[], descs: (Desc | null)[]): void {
     const groups = new Map<string, number[]>();
     elms.forEach((ce, i) => {
         const C = ce.getDumpClass();
-        if (C === RelayCoilElm || C === RelayContactElm) {
+        if (C === Loaded.RelayCoilElm || C === Loaded.RelayContactElm) {
             const label = (ce as any).label;
             groups.set(label, [...(groups.get(label) ?? []), i]);
         }
     });
     for (const [label, idx] of groups) {
-        const coils = idx.filter(i => elms[i].getDumpClass() === RelayCoilElm);
-        const contacts = idx.filter(i => elms[i].getDumpClass() === RelayContactElm);
+        const coils = idx.filter(i => elms[i].getDumpClass() === Loaded.RelayCoilElm);
+        const contacts = idx.filter(i => elms[i].getDumpClass() === Loaded.RelayContactElm);
         const kinds = [...coils.map(() => "coil" as const),
                        ...contacts.map(i => (elms[i] as any).isNormallyClosed() ? "NC" as const : "NO" as const)];
         const sym = relaySymbol(kinds);
-        const value = coils.some(i => RelayCoilElm.isLatchingType((elms[i] as any).type)) ? "Latching relay" : "Relay";
+        const value = coils.some(i => Loaded.RelayCoilElm.isLatchingType((elms[i] as any).type)) ? "Latching relay" : "Relay";
         [...coils, ...contacts].forEach((i, k) => {
             const unit = k + 1;
             descs[i] = { kind: "part", sym: "", symbol: sym, pins: unitPins(sym, unit), swap: [0, 1],
@@ -1308,7 +1309,7 @@ export class KicadExporter {
                 return;
             for (const r of (ce as any).engine.refs) {
                 const m = r.current ? this.refElm(r.name) : undefined;
-                if (m?.getDumpClass() === AmmeterElm)
+                if (m?.getDumpClass() === Loaded.AmmeterElm)
                     descs[this.elms.indexOf(m)] = { kind: "part", sym: "VDC", pins: ["1", "2"], value: "0V",
                                                     props: { "Sim.Params": "dc=0" } };
             }
@@ -1567,7 +1568,7 @@ export class KicadExporter {
             if (elm === undefined)
                 return null;
             if (r.current)
-                return () => elm.getDumpClass() === AmmeterElm ? `I(${this.refs.get(elm)})` : null;
+                return () => elm.getDumpClass() === Loaded.AmmeterElm ? `I(${this.refs.get(elm)})` : null;
             const ps = [0, 1].map(j => this.toUnits(elm.getPost(j)!));
             const nets = ps.map((p, j) => {
                 const net = this.net(p), q = ps[1 - j];
@@ -1657,7 +1658,7 @@ export class KicadExporter {
             for (let i = 0; i !== n.length; i++) {
                 // a 555's output is driven, though the simulator doesn't say so
                 if (ce.hasGroundConnection(i) || ce.getDumpClass() === SubcircuitElm ||
-                        ce.getDumpClass() === TimerElm && i === TimerElm.N_OUT)
+                        ce.getDumpClass() === Loaded.TimerElm && i === Loaded.TimerElm.N_OUT)
                     uf.union(n[i], ground);
                 for (let j = i + 1; j < n.length; j++)
                     if (ce.getConnection(i, j))

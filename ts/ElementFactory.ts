@@ -114,4 +114,25 @@ export class ElementFactory {
     static hasClass(name: string): boolean {
         return ElementFactory.classMap.has(name);
     }
+
+    // a loaded class, or a base class of one, by name
+    static getLoadedClass(name: string): Function | undefined {
+        const ctor = ElementFactory.classMap.get(name);
+        if (ctor != null)
+            return ctor;
+        for (const c of ElementFactory.classMap.values())
+            for (let p = Object.getPrototypeOf(c); p != null && p !== Function.prototype; p = Object.getPrototypeOf(p))
+                if (p.name === name)
+                    return p;
+        return undefined;
+    }
 }
+
+// The element classes that are loaded, by name (Loaded.ResistorElm); one that isn't is
+// undefined.  For code that only deals with elements that exist, like the exporters: they
+// can compare an element's class against classes it might be without importing them all,
+// which would load every one.  Includes the base classes of loaded ones, like DarlingtonElm
+// (the dump class of NDarlingtonElm), which aren't always registered themselves.
+export const Loaded: Record<string, any> = new Proxy({}, {
+    get: (_t, name) => typeof name === "string" ? ElementFactory.getLoadedClass(name) : undefined,
+});

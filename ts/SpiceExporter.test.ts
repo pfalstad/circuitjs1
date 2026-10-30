@@ -67,6 +67,18 @@ describe("SPICE export", () => {
         (CircuitElm as any).app = (CircuitElm as any).app ??
             { menus: new Proxy({}, { get: () => off }), snapGrid: (z: number) => Math.round(z / 8) * 8, mouse: {},
               deleteSliders: () => {} };
+        // the exporters only find element classes that are registered (see Loaded)
+        for (const c of [
+            CircuitElm, ResistorElm, GroundElm, WireElm, RailElm, ACRailElm,
+            DiodeElm, DCVoltageElm, LogicOutputElm, ProbeElm, SCRElm, RelayCoilElm,
+            RelayContactElm, LampElm, LabeledNodeElm, NTransistorElm, SwitchElm, AnalogSwitchElm,
+            AnalogSwitch2Elm, NandGateElm, AndGateElm, CapacitorElm, TimerElm, MonostableElm,
+            SchmittElm, LogicInputElm, DFlipFlopElm, CounterElm, FullAdderElm, SevenSegDecoderElm,
+            DACElm, ChipElm, BusLogicInputElm, BusSplitterElm, CustomLogicElm, SubcircuitElm,
+            DPDTSwitchElm, MBBSwitchElm, TriStateElm, VCCSElm, CrystalElm, InductorElm,
+            RelayElm,
+        ] as any[])
+            ElementFactory.registerClass(c.name, c);
     });
 
     it("formats values with SPICE suffixes", () => {
