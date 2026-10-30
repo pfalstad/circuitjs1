@@ -955,11 +955,17 @@ export class Scope {
         const drawWidth = this.validDataCount(plot, ipa, this.rect.width);
         let ox = -1, oy = -1;
         let i;
-        // exporting: build one connected path per trace (one point per column, at
-        // that column's min/max midpoint) instead of per-column ticks, so the whole
-        // waveform comes out as a single selectable object in a vector editor (SVG) --
-        // mirrors the CSV export's one-sequential-series-per-trace shape
+        // exporting: build one connected path per trace. A column with a single
+        // sample (minvy === maxvy, the common case) contributes one point, same as
+        // the on-screen pixel. A column with genuine spread (noise or a fast
+        // transition, not just oversampling) keeps BOTH extremes as two vertices
+        // instead of collapsing to the midpoint, so real signal content survives
+        // the export instead of being smoothed away -- visiting whichever extreme
+        // is closer to the pen's current position first avoids an unnecessary
+        // zigzag reversal. The whole trace still ends up as one connected,
+        // selectable path -- mirrors the CSV export's one-series-per-trace shape.
         let exportPathStarted = false;
+        let exportLastY = 0;
         for (i = 0; i !== drawWidth; i++) {
             const ip = (i + ipa) & (this.scopePointCount - 1);
             const minvy = Math.round(plot.gridMult * (minV[ip] + plot.plotOffset));
@@ -972,13 +978,34 @@ export class Scope {
                     minRangeHi = 1000;
                 }
                 if (this.exporting) {
-                    const y = maxy - (minvy + maxvy) / 2;
-                    if (!exportPathStarted) {
-                        g.context.beginPath();
-                        g.context.moveTo(i, y);
-                        exportPathStarted = true;
+                    if (minvy === maxvy) {
+                        const y = maxy - minvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, y);
+                            exportPathStarted = true;
+                        } else {
+                            g.context.lineTo(i, y);
+                        }
+                        exportLastY = y;
                     } else {
-                        g.context.lineTo(i, y);
+                        const yLo = maxy - minvy;
+                        const yHi = maxy - maxvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportPathStarted = true;
+                            exportLastY = yHi;
+                        } else if (Math.abs(exportLastY - yLo) <= Math.abs(exportLastY - yHi)) {
+                            g.context.lineTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportLastY = yHi;
+                        } else {
+                            g.context.lineTo(i, yHi);
+                            g.context.lineTo(i, yLo);
+                            exportLastY = yLo;
+                        }
                     }
                     continue;
                 }
