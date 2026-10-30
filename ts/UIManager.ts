@@ -1691,7 +1691,6 @@ export class UIManager {
                 this.app.scopeManager.scopeSelected = -1;
             } else {
                 this.mouse.menuElm = null;
-                this.app.undoManager.pushUndo();
                 this.app.commands.doDelete(true);
                 e.preventDefault();
             }

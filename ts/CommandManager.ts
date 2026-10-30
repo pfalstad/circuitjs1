@@ -213,7 +213,6 @@ export class CommandManager {
         if (item == "delete") {
             if (menu != "elm")
                 this.app.mouse.menuElm = null;
-            this.app.undoManager?.pushUndo();
             this.doDelete(true);
         }
         if (item == "sliders")
@@ -566,7 +565,6 @@ export class CommandManager {
     }
 
     doCut(): void {
-        this.app.undoManager?.pushUndo();
         this.setMenuSelection();
         this.clipboard = this.copyOfSelectedElms();
         this.writeClipboardToStorage();
@@ -605,7 +603,8 @@ export class CommandManager {
     }
 
     willDelete(ce: any): boolean {
-        return ce.isSelected() || ce.isMouseElm();
+        // include menuElm: mouseElm is cleared once the mouse leaves the canvas to reach the context menu
+        return ce.isSelected() || ce.isMouseElm() || ce == this.app.mouse.menuElm;
     }
 
     copyOfSelectedElms(): string {
