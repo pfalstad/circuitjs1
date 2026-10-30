@@ -91,7 +91,10 @@ void CirSim::createFileMenu() {
 }
 
 void CirSim::newWindow() {
-    QProcess::startDetached(QCoreApplication::applicationFilePath(), {});
+    // offset the new window from this one so they don't all stack in the same place
+    QPoint p = geometry().topLeft() + QPoint(30, 30);
+    QProcess::startDetached(QCoreApplication::applicationFilePath(),
+                            {"--pos", QString("%1,%2").arg(p.x()).arg(p.y())});
 }
 
 void CirSim::toggleFullScreen() {

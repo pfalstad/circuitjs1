@@ -110,6 +110,10 @@ public:
     static QString menuTitle(const char *s, const QString &withMnemonic);
     // the --lang command-line option, which overrides the saved language (?lang= in the web version)
     static inline QString langOverride;
+    // the --pos x,y command-line option: top-left of the window, so New Window can
+    // cascade from the window that opened it instead of stacking in the center
+    static inline QPoint posOverride;
+    static inline bool hasPosOverride = false;
     // load one of the example circuits, by file name within circuits/
     void readSetupFile(const QString &file, const QString &title);
     // load the startup circuit from the setup list (the entry marked with '>')

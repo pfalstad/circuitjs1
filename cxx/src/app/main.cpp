@@ -41,6 +41,16 @@ int main(int argc, char **argv) {
         CirSim::langOverride = args[li + 1];
         args.remove(li, 2);
     }
+    // --pos x,y: top-left of the window (used by New Window to cascade)
+    int pi = args.indexOf("--pos");
+    if (pi >= 0 && pi + 1 < args.size()) {
+        QStringList xy = args[pi + 1].split(',');
+        if (xy.size() == 2) {
+            CirSim::posOverride = QPoint(xy[0].toInt(), xy[1].toInt());
+            CirSim::hasPosOverride = true;
+        }
+        args.remove(pi, 2);
+    }
 
     QtGraphicsImage::install();
     // before CirSim, so it captures loading messages and outlives it

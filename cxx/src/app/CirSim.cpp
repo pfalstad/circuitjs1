@@ -182,12 +182,19 @@ CirSim::CirSim() {
     updateToolbar();
     undoManager->enableUndoRedo();
     // center on the screen under the mouse, shrinking to fit small screens
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    QScreen *screen = QGuiApplication::screenAt(hasPosOverride ? posOverride : QCursor::pos());
     if (!screen)
         screen = QGuiApplication::primaryScreen();
     QRect avail = screen->availableGeometry();
     QSize size(std::min(1400, avail.width()), std::min(860, avail.height()));
-    setGeometry(QStyle::alignedRect(Qt::LeftToRight, Qt::AlignCenter, size, avail));
+    QRect geom = QStyle::alignedRect(Qt::LeftToRight, Qt::AlignCenter, size, avail);
+    if (hasPosOverride) {
+        // cascaded from another window; wrap to the top-left if it would go off screen
+        geom.moveTopLeft(posOverride);
+        if (!avail.contains(geom))
+            geom.moveTopLeft(avail.topLeft());
+    }
+    setGeometry(geom);
 
     try {
         loadModelsFromStorage();
