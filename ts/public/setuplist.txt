@@ -258,11 +258,14 @@ rtlnand.txt RTL NAND
 +DTL
 dtlinverter.txt DTL Inverter
 dtlnand.txt DTL NAND
+mdtlnand.txt DTL NAND (Modified, Fairchild 930 series)
 dtlnor.txt DTL NOR
 -
 +TTL
 ttlinverter.txt TTL Inverter
 ttlnand.txt TTL NAND
+ttlnandtotem.txt TTL NAND w/ Totem Pole Output
+ttlnandthree.txt TTL NAND w/ 3-state Output
 ttlnor.txt TTL NOR
 fanout.txt Fan-Out
 -
