@@ -203,7 +203,7 @@ void ChipElm::drawChip(Graphics &g) {
             drawThickCircle(g, p.bubbleX, p.bubbleY, 3);
         }
         if (!p.clockPointsX.empty()) {
-            g.setColor(lightGrayColor);
+            g.setColor(p.selected ? selectColor : lightGrayColor);
             g.drawPolyline(p.clockPointsX, p.clockPointsY, 3);
         }
         g.setColor(p.selected ? selectColor : whiteColor);
