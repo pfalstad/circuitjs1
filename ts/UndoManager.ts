@@ -86,15 +86,16 @@ export class UndoManager {
     }
 
     loadUndoItem(ui: UndoItem): void {
-        this.sim.loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER | CircuitLoader.RC_KEEP_MODELS);
+        // everything in an undo state was loaded when it was saved
+        this.sim.loader.readCircuitNow(ui.dump, CircuitLoader.RC_NO_CENTER | CircuitLoader.RC_KEEP_MODELS);
         this.sim.transform[0] = this.sim.transform[3] = ui.scale;
         this.sim.transform[4] = ui.transform4;
         this.sim.transform[5] = ui.transform5;
     }
 
-    doRecover(): void {
+    async doRecover(): Promise<void> {
         this.pushUndo();
-        this.sim.loader.readCircuit(this.sim.recovery!);
+        await this.sim.loader.readCircuit(this.sim.recovery!);
         this.sim.allowSave(false);
         this.sim.menus.recoverItem.setEnabled(false);
         this.sim.unsavedChanges = false;

@@ -41,9 +41,9 @@ export class ImportFromDropbox {
         }
     }
 
-    static doLoadCallback(s: string): void {
+    static async doLoadCallback(s: string): Promise<void> {
         ImportFromDropbox.sim.undoManager?.pushUndo();
-        ImportFromDropbox.sim.readCircuit(s);
+        await ImportFromDropbox.sim.readCircuit(s);
         ImportFromDropbox.sim.unsavedChanges = false;
         ImportFromDropbox.sim.savedFlag = true;
     }

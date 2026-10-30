@@ -25,7 +25,7 @@
 import { ModelRegistry } from "./ModelRegistry";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
-import { ElementFactory } from "./ElementFactory";
+import { ElementFactory, type LazyElementClass } from "./ElementFactory";
 import { StringTokenizer } from "./StringTokenizer";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
@@ -68,6 +68,19 @@ class CirSimTimer {
             this.intervalId = null;
         }
     }
+}
+
+// What init() needs that CirSim can't import itself: they import modules that import
+// CirSim, so importing them here would evaluate some of those before CirSim and
+// CircuitElm are ready.  main.ts, which imports everything, passes them in.
+export interface StartupModules {
+    SimulationManager: typeof import("./SimulationManager").SimulationManager;
+    UIManager: typeof import("./UIManager").UIManager;
+    ImageExporter: typeof import("./ImageExporter").ImageExporter;
+    CommandManager: typeof import("./CommandManager").CommandManager;
+    CircuitLoader: typeof import("./CircuitLoader").CircuitLoader;
+    registerElements: () => void;
+    registerLastElements: () => void;
 }
 
 export class CirSim {
@@ -191,7 +204,10 @@ export class CirSim {
         this.mouse = new MouseManager(this, null);
     }
 
-    async init(): Promise<void> {
+    async init(m: StartupModules): Promise<void> {
+        const { SimulationManager, UIManager, ImageExporter, CommandManager, CircuitLoader,
+                registerElements, registerLastElements } = m;
+
         // set viewport meta for CSS media queries
         const meta = document.createElement('meta');
         meta.name = 'viewport';
@@ -200,30 +216,15 @@ export class CirSim {
 
         let running = true;
 
-        const { SimulationManager } = await import('./SimulationManager');
         this.sim = new SimulationManager(this);
 
         CircuitElm.initClass(this, this.sim);
 
-        const { UIManager } = await import('./UIManager');
         this.ui = new UIManager(this);
         this.undoManager = new UndoManager(this);
         this.undoManager.readRecovery();
-        const { ImageExporter } = await import('./ImageExporter');
         this.imageExporter = new ImageExporter(this);
-        const { CommandManager } = await import('./CommandManager');
         this.commands = new CommandManager(this);
-
-        await import('./Adjustable');
-        await import('./AboutBox');
-        await import('./SliderDialog');
-        await import('./ScopePropertiesDialog');
-        await import('./ShortcutsDialog');
-        await import('./ModelManagerDialog');
-        await import('./ExportAsUrlDialog');
-        await import('./ExportAsImageDialog');
-        await import('./ScopeExportImageDialog');
-        await import('./ImportFromDropboxDialog');
 
         const qp = new QueryParameters();
         let positiveColor: string | null = null;
@@ -258,8 +259,10 @@ export class CirSim {
         this.shortcuts = new Map();
         this.elmList = [];
 
-        const { registerElements } = await import('./registerElements');
         registerElements();
+        // the built-in subcircuit models are built as soon as anything asks for a model
+        await HookRegistry.loadModelClasses?.();
+        registerLastElements();
 
         this.ui.init();
 
@@ -274,7 +277,6 @@ export class CirSim {
             CirSim.console("Exception: " + e);
         }
 
-        const { CircuitLoader } = await import('./CircuitLoader');
         this.loader = new CircuitLoader(this, this.sim, this.scopeManager, this.menus);
         (window as any).TestManager?.init(this);
 
@@ -282,7 +284,7 @@ export class CirSim {
             this.startCircuitText = this.startCircuit = null;
         } else if (this.startCircuitText != null) {
             this.menus.getSetupList(false);
-            this.loader.readCircuit(this.startCircuitText);
+            await this.loader.readCircuit(this.startCircuitText);
             const electronFileName = CirSim.getElectronStartCircuitFileName();
             if (electronFileName != null)
                 this.setCircuitTitle(electronFileName);
@@ -449,7 +451,7 @@ export class CirSim {
 
     allowSave(b: boolean): void { this.ui.allowSave(b); }
 
-    importCircuitFromText(circuitText: string | null, subcircuitsOnly: boolean): void {
+    async importCircuitFromText(circuitText: string | null, subcircuitsOnly: boolean): Promise<void> {
         const { RC_SUBCIRCUITS, RC_RETAIN } = this.loader.constructor;
         // model library files don't replace the circuit
         if (circuitText != null && this.loader.constructor.isModelLibrary(circuitText))
@@ -458,7 +460,7 @@ export class CirSim {
         if (!subcircuitsOnly)
             this.resetEditingContext();
         if (circuitText != null) {
-            this.loader.readCircuit(circuitText, flags);
+            await this.loader.readCircuit(circuitText, flags);
             ExportAsLocalFileDialog.setLastFileName(null);
             this.allowSave(false);
             if (!subcircuitsOnly) {
@@ -506,7 +508,7 @@ export class CirSim {
     setCircuitTitle(s: string | null): void { this.ui.setCircuitTitle(s); }
 
     clearCircuit(): void { this.loader.clearCircuit(); }
-    readCircuit(s: string): void { this.loader.readCircuit(s); }
+    readCircuit(s: string): Promise<void> { return this.loader.readCircuit(s); }
 
     pushContext(modelName: string): void {
         const ctx = new CircuitContext();
@@ -532,7 +534,8 @@ export class CirSim {
             return [];
         const ctx = this.contextStack.splice(this.contextStack.length - 1, 1)[0];
         const { RC_NO_CENTER, RC_KEEP_MODELS } = this.loader.constructor;
-        this.loader.readCircuit(ctx.circuitDump, RC_NO_CENTER | RC_KEEP_MODELS);
+        // everything in it was loaded when the context was pushed
+        this.loader.readCircuitNow(ctx.circuitDump, RC_NO_CENTER | RC_KEEP_MODELS);
         this.transform = ctx.transform;
         this.undoManager.undoStack = ctx.undoStack;
         this.undoManager.redoStack = ctx.redoStack;
@@ -608,13 +611,8 @@ export class CirSim {
 
     register(origClassName: string, elm: any): void {
         let className = origClassName;
-        if (CirSim.dumpTypeMap == null) {
-            CirSim.dumpTypeMap = new Map<number, string>();
-            CirSim.xmlDumpTypeMap = new Map<string, string>();
-        }
         if (elm == null)
             return;
-        const t: number = elm.getDumpType();
         // use the class name from getDumpClass if available
         if (elm.getDumpClass) {
             const cs = elm.getDumpClass();
@@ -623,6 +621,21 @@ export class CirSim {
                 const dot = className.lastIndexOf('.');
                 if (dot >= 0) className = className.substring(dot + 1);
             }
+        }
+        const xt: string = elm.getXmlDumpType ? elm.getXmlDumpType() : className;
+        this.registerDumpTypes(className, elm.getDumpType(), xt);
+    }
+
+    // register a class that isn't loaded yet, from what registerElements.ts recorded about it
+    registerLazy(lazy: LazyElementClass): void {
+        ElementFactory.registerLazyClass(lazy);
+        this.registerDumpTypes(lazy.dumpClass, lazy.dumpType, lazy.xmlDumpType);
+    }
+
+    private registerDumpTypes(className: string, t: number, xt: string): void {
+        if (CirSim.dumpTypeMap == null) {
+            CirSim.dumpTypeMap = new Map<number, string>();
+            CirSim.xmlDumpTypeMap = new Map<string, string>();
         }
         if (t > 0) {
             const s = CirSim.dumpTypeMap.get(t);
@@ -634,7 +647,6 @@ export class CirSim {
             }
         }
 
-        const xt: string = elm.getXmlDumpType ? elm.getXmlDumpType() : className;
         const s2 = CirSim.xmlDumpTypeMap.get(xt);
         if (s2 != null) {
             if (s2 !== className)
@@ -643,6 +655,86 @@ export class CirSim {
             CirSim.xmlDumpTypeMap.set(xt, className);
         }
     }
+
+    // the element classes a circuit, model or clipboard text might need, to load them with
+    // ElementFactory.ensureLoaded() before reading it.  It doesn't have to be exact, just
+    // never miss one: the dump type at the start of each line of the text format, every XML
+    // tag, and any class name mentioned anywhere (old-format subcircuit models list their
+    // elements by class name, escaped into one token).  Also those of any subcircuit model
+    // it uses by name, like a built-in one, which isn't saved with the circuit.
+    static classesUsedBy(text: string): Set<string> {
+        const models = HookRegistry.referencedModelText?.(text);
+        return CirSim.classesMentionedIn(models ? text + "\n" + models : text);
+    }
+
+    private static classesMentionedIn(text: string): Set<string> {
+        const names = new Set<string>();
+        const add = (name: string | undefined) => {
+            if (name == null)
+                return;
+            names.add(name);
+            // constructElement() only uses an alias when there's no class by that name
+            const alias = CirSim.classAliases[name];
+            if (alias != null && !ElementFactory.hasClass(name) && ElementFactory.getLazyClass(name) == null)
+                names.add(alias);
+        };
+        for (const m of text.matchAll(/^\s*(\S+)/gm)) {
+            const type = m[1];
+            add(CirSim.dumpTypeMap.get(/^\d+$/.test(type) ? parseInt(type) : type.charCodeAt(0)));
+        }
+        for (const m of text.matchAll(/<([A-Za-z_][\w.-]*)/g))
+            add(CirSim.xmlDumpTypeMap.get(m[1]));
+        for (const name of ElementFactory.lazyClassNames())
+            if (text.includes(name))
+                add(name);
+        for (const name in CirSim.classAliases)
+            if (text.includes(name))
+                add(name);
+        if (/^\s*n\s/m.test(text))
+            add("NoiseElm");
+        return names;
+    }
+
+    // load the element classes a text needs (see classesUsedBy())
+    static async loadClassesFor(text: string): Promise<void> {
+        await ElementFactory.ensureLoaded(CirSim.classesUsedBy(text));
+    }
+
+    // start loading what constructElement(name) needs (the class, or a subcircuit model's
+    // elements), so it's ready by the time the user places one
+    static preloadClass(name: string): void {
+        ElementFactory.ensureLoaded(CirSim.classesForName(name))
+            .catch(e => CirSim.console("can't load " + name + ": " + e));
+    }
+
+    // whether constructElement(name) has everything it needs loaded
+    static isClassLoaded(name: string): boolean {
+        return ElementFactory.missing(CirSim.classesForName(name)).length === 0;
+    }
+
+    // the classes constructElement(name) needs
+    private static classesForName(name: string): string[] {
+        if (name.startsWith("SubcircuitElm:"))
+            return [...CirSim.classesUsedBy(name.substring(name.indexOf(':') + 1))];
+        const alias = CirSim.classAliases[name];
+        return alias != null && !ElementFactory.hasClass(name) && ElementFactory.getLazyClass(name) == null
+            ? [alias] : [name];
+    }
+
+    // names constructElement() accepts that aren't the name of the class it makes, when
+    // there's no class by that name
+    static readonly classAliases: Record<string, string> = {
+        VoltageElm: "DCVoltageElm",
+        TransistorElm: "NTransistorElm",
+        MosfetElm: "NMosfetElm",
+        JfetElm: "NJfetElm",
+        DarlingtonElm: "NDarlingtonElm",
+        // if you take out RingCounterElm, it will break subcircuits
+        // if you take out DecadeElm, it will break the menus and people's saved shortcuts
+        DecadeElm: "RingCounterElm",
+        // if you take out UserDefinedLogicElm, it will break people's saved shortcuts
+        UserDefinedLogicElm: "CustomLogicElm",
+    };
 
     static createCe(tint: number, x1: number, y1: number, x2: number, y2: number, f: number, st: StringTokenizer): any {
         // for old files
@@ -660,25 +752,9 @@ export class CirSim {
         if (elm != null)
             return elm;
 
-        if (n == "VoltageElm")
-            return ElementFactory.create("DCVoltageElm", x1, y1 ?? 0);
-        if (n == "TransistorElm")
-            return ElementFactory.create("NTransistorElm", x1, y1 ?? 0);
-        if (n == "MosfetElm")
-            return ElementFactory.create("NMosfetElm", x1, y1 ?? 0);
-        if (n == "JfetElm")
-            return ElementFactory.create("NJfetElm", x1, y1 ?? 0);
-        if (n == "DarlingtonElm")
-            return ElementFactory.create("NDarlingtonElm", x1, y1 ?? 0);
-
-        // if you take out RingCounterElm, it will break subcircuits
-        // if you take out DecadeElm, it will break the menus and people's saved shortcuts
-        if (n == "DecadeElm" || n == "RingCounterElm")
-            return ElementFactory.create("RingCounterElm", x1, y1 ?? 0);
-
-        // if you take out UserDefinedLogicElm, it will break people's saved shortcuts
-        if (n == "UserDefinedLogicElm" || n == "CustomLogicElm")
-            return ElementFactory.create("CustomLogicElm", x1, y1 ?? 0);
+        const alias = CirSim.classAliases[n];
+        if (alias != null)
+            return ElementFactory.create(alias, x1, y1 ?? 0);
 
         if (n.startsWith("SubcircuitElm:")) {
             const ix = n.indexOf(':') + 1;

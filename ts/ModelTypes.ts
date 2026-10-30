@@ -158,4 +158,11 @@ export function loadModelsFromStorage(): void {
     SubcircuitModel.loadModelsFromStorage();
 }
 
+// load the element classes that the stored subcircuit models are made of, since ones
+// saved in the old text format build their elements when they're loaded
+export async function loadModelClasses(): Promise<void> {
+    await CirSim.loadClassesFor(SubcircuitModel.registry.storedData().join("\n"));
+}
+
 HookRegistry.loadModelsFromStorage = () => loadModelsFromStorage();
+HookRegistry.loadModelClasses = () => loadModelClasses();

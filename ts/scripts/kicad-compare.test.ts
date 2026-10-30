@@ -41,9 +41,9 @@ function spiceName(net: string): string {
     return net === "GND" ? "0" : net.replace(/[()\s]/g, "_");
 }
 
-it.skipIf(!FILE)("matches the simulator", () => {
+it.skipIf(!FILE)("matches the simulator", async () => {
+    const app = await makeApp();
     vi.useFakeTimers();
-    const app = makeApp();
     const timeStep = loadCircuit(readFileSync(FILE, "utf8"), app);
     const STOP = process.env.STOP ? parseFloat(process.env.STOP) : 4000 * timeStep;
     startSimulator(app, timeStep);

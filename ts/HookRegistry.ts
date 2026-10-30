@@ -23,6 +23,8 @@
 export const HookRegistry = {
     undumpSubcircuitModel:        null as ((xml: any) => void) | null,
     loadModelsFromStorage:       null as (() => void) | null,
+    loadModelClasses:            null as (() => Promise<void>) | null,
+    referencedModelText:         null as ((text: string) => string) | null,
     createScopePropertiesDialog: null as ((app: any, scope: any) => any) | null,
     scopeNextHighestScale:       null as ((d: number) => number) | null,
     getCircuitAsComposite:       null as ((sim: any) => any) | null,

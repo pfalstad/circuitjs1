@@ -345,8 +345,10 @@ export class CommandManager {
             }
             this.app.setMouseMode(MouseManager.MODE_ADD_ELM);
             const s = item;
-            if (s.length > 0)
+            if (s.length > 0) {
                 this.app.ui.mouseModeStr = s;
+                CirSim.preloadClass(s);
+            }
             if (s == "DragAll")
                 this.app.setMouseMode(MouseManager.MODE_DRAG_ALL);
             else if (s == "DragRow")
@@ -649,7 +651,7 @@ export class CommandManager {
         this.doPaste(s);
     }
 
-    doPaste(dump: string | null): void {
+    async doPaste(dump: string | null): Promise<void> {
         this.app.undoManager?.pushUndo();
         this.app.mouse.clearSelection();
         let oldbb: Rectangle | null = null;
@@ -673,10 +675,10 @@ export class CommandManager {
             flags |= CircuitLoader.RC_NO_CENTER;
 
         if (dump != null)
-            this.app.loader.readCircuit(dump, flags);
+            await this.app.loader.readCircuit(dump, flags);
         else {
             this.readClipboardFromStorage();
-            this.app.loader.readCircuit(this.clipboard, flags);
+            await this.app.loader.readCircuit(this.clipboard, flags);
         }
 
         // select new items and get their bounding box

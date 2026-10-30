@@ -345,11 +345,17 @@ export class ModelRegistry<T extends RegistryModel> {
 
     // call load(data) for each model saved in local storage
     loadFromStorage(load: (data: string) => void): void {
+        for (const data of this.storedData())
+            load(data);
+    }
+
+    // what's saved in storage for each stored model
+    storedData(): string[] {
         if (!this.canSave())
-            return;
+            return [];
         const stor = window.localStorage;
         if (stor === null)
-            return;
+            return [];
         // collect keys first, since loading may change storage
         const keys: string[] = [];
         for (let i = 0; i < stor.length; i++) {
@@ -357,10 +363,12 @@ export class ModelRegistry<T extends RegistryModel> {
             if (key && key.startsWith(this.storagePrefix!))
                 keys.push(key);
         }
+        const data: string[] = [];
         for (const key of keys) {
-            const data = stor.getItem(key);
-            if (data)
-                load(data);
+            const d = stor.getItem(key);
+            if (d)
+                data.push(d);
         }
+        return data;
     }
 }

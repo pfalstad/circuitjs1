@@ -253,6 +253,7 @@ export class MouseManager {
 	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
 	this.toolbarDragClass = className;
+	CirSim.preloadClass(className);
 	this.toolbarDragStartX = clientX;
 	this.toolbarDragStartY = clientY;
 	this.toolbarDragActive = false;
@@ -291,6 +292,9 @@ export class MouseManager {
 	this.toolbarDragAnchorX = this.snapGrid(this.inverseTransformX(cx));
 	this.toolbarDragAnchorY = this.snapGrid(this.inverseTransformY(cy));
 	this.toolbarDragVertical = vertical;
+	// still loading (see CirSim.preloadClass())
+	if (this.dragElm == null && !CirSim.isClassLoaded(this.toolbarDragClass))
+	    return;
 	if (this.dragElm == null) {
 	    try {
 		this.dragElm = this.sim.constructElement(this.toolbarDragClass, this.toolbarDragAnchorX, this.toolbarDragAnchorY);
@@ -1205,6 +1209,9 @@ export class MouseManager {
 	const x0 = this.snapGrid(gx);
 	const y0 = this.snapGrid(gy);
 	if (!this.sim.circuitArea.contains(ex, ey))
+	    return;
+	// still loading (see CirSim.preloadClass())
+	if (!CirSim.isClassLoaded(this.ui.mouseModeStr))
 	    return;
 
 	try {

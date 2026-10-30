@@ -18,6 +18,7 @@
 */
 
 import { CirSim } from "./CirSim";
+import { ElementFactory } from "./ElementFactory";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ScopeManager } from "./ScopeManager";
@@ -299,15 +300,16 @@ export class LoadFile {
         reader.readAsText(file);
     }
 
-    static doLoadCallback(app: CirSim, text: string, name: string): void {
+    static async doLoadCallback(app: CirSim, text: string, name: string): Promise<void> {
         if (CircuitLoader.isModelLibrary(text)) {
             // library files just add global models; keep the current circuit and its title
-            app.loader.readModelLibrary(text);
+            // (readCircuit() loads their element classes, then reads them as a library)
+            await app.loader.readCircuit(text);
             return;
         }
         app.undoManager?.pushUndo();
         app.resetEditingContext();
-        app.loader.readCircuit(text);
+        await app.loader.readCircuit(text);
         app.setCircuitTitle(name);
         ExportAsLocalFileDialog.setLastFileName(name);
         app.unsavedChanges = false;
@@ -1739,6 +1741,7 @@ export class UIManager {
                 } else {
                     this.setMouseMode(MouseManager.MODE_ADD_ELM);
                     this.mouseModeStr = c;
+                    CirSim.preloadClass(c);
                     this.updateToolbar();
                     this.mouse.tempMouseMode = this.mouse.mouseMode;
                 }
@@ -1885,6 +1888,7 @@ export class UIManager {
         }
         this.setMouseMode(MouseManager.MODE_ADD_ELM);
         this.mouseModeStr = c;
+        CirSim.preloadClass(c);
         this.updateToolbar();
         this.mouse.tempMouseMode = this.mouse.mouseMode;
         return true;
@@ -1997,25 +2001,27 @@ export class UIManager {
 
         let shortcut = "";
         let elm: any = null;
-        try {
-            elm = this.app.constructElement(t, 0, 0);
-        } catch (e) {
-            this.app.console("exception: " + e);
-        }
-
-        this.app.register(t, elm);
-        if (elm == null && t.indexOf("Elm") >= 0)
-            this.app.console("can't create class: " + t);
-        if (elm != null) {
-            if (elm.needsShortcut()) {
-                shortcut += String.fromCharCode(elm.getShortcut());
-                if (this.app.shortcuts.get(elm.getShortcut()) != null &&
-                        this.app.shortcuts.get(elm.getShortcut()) !== t)
-                    this.app.console("already have shortcut for " + String.fromCharCode(elm.getShortcut()) + " " + elm);
-                this.app.shortcuts.set(elm.getShortcut(), t);
+        // a class that isn't loaded yet was registered by registerElements(), which also
+        // recorded its shortcut.  (A subcircuit whose elements aren't loaded has none.)
+        const lazy = ElementFactory.getLazyClass(CirSim.classAliases[t] ?? t);
+        if (CirSim.isClassLoaded(t)) {
+            try {
+                elm = this.app.constructElement(t, 0, 0);
+            } catch (e) {
+                this.app.console("exception: " + e);
             }
-            elm.delete();
+            this.app.register(t, elm);
+            if (elm == null && t.indexOf("Elm") >= 0)
+                this.app.console("can't create class: " + t);
         }
+        const key = elm != null ? (elm.needsShortcut() ? elm.getShortcut() : 0) : (lazy?.shortcut ?? 0);
+        if (key > 0) {
+            shortcut += String.fromCharCode(key);
+            if (this.app.shortcuts.get(key) != null && this.app.shortcuts.get(key) !== t)
+                this.app.console("already have shortcut for " + String.fromCharCode(key) + " " + t);
+            this.app.shortcuts.set(key, t);
+        }
+        elm?.delete();
 
         const mi = (shortcut === "")
             ? new CheckboxMenuItem(s)

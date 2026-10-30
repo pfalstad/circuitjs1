@@ -3,9 +3,7 @@
 // headlessly, as the app would, and running the simulator on it
 
 import { vi } from "vitest";
-import { CircuitElm } from "../CircuitElm";
 import { CirSim } from "../CirSim";
-import { SimulationManager } from "../SimulationManager";
 import { StringTokenizer } from "../StringTokenizer";
 import { CustomLogicModel } from "../CustomLogicModel";
 import { DiodeModel } from "../DiodeModel";
@@ -14,46 +12,18 @@ import { SubcircuitModel } from "../SubcircuitModel";
 import { MosfetModel } from "../MosfetModel";
 import { RelayModel } from "../RelayModel";
 import { CircuitXMLDeserializer } from "../CircuitXMLDeserializer";
-import { installMiniDom, miniImplementation } from "./minidom";
-import { registerElements } from "../registerElements";
+import { makeHeadlessApp } from "./headlessApp";
+import { registerElements, registerLastElements } from "../registerElements";
 import { ElementFactory } from "../ElementFactory";
 
-// stands in for anything (the DOM, UI widgets) the elements touch while being built
-const stub: any = new Proxy(function () {}, {
-    get: (_t, k) => k === Symbol.toPrimitive ? () => "" : k === "then" ? undefined : stub,
-    apply: () => stub, construct: () => stub, set: () => true,
-});
-
-// just enough of the app for the simulator to run
-export function makeApp(): any {
-    const off = { getState: () => false };
-    const elmList: any[] = [];
-    const app: any = {
-        elmList, postDrawList: [], badConnectionList: [], adjustables: [],
-        showResistanceInVoltageSources: true, dumpMatrix: false, stopMessage: null,
-        dcAnalysisFlag: false, simRunning: true, minFrameRate: 10,
-        menus: new Proxy({}, { get: () => off }),
-        ui: { elmList, steps: 0, lastFrameTime: 0 },
-        scopeManager: { canDelayWireProcessing: () => false },
-        setStopElm: () => {}, getIterCount: () => 1e4, isPrintable: () => false,
-        onTimeStep: () => {}, register: (CirSim.prototype as any).register,
-        gridSize: 8, snapGrid: (z: number) => Math.round(z / 8) * 8,
-        stop: (s: string) => { app.stopMessage = s; },
-        addWidgetToVerticalPanel: () => {}, removeWidgetFromVerticalPanel: () => {}, mouse: {},
-        deleteSliders: () => {}, getrand: (x: number) => Math.floor(Math.random() * x),
-        random: { nextDouble: () => Math.random() }, setSimRunning: () => {},
-    };
-    // the stub, but with the XML documents that models and XML circuits need
-    installMiniDom();
-    (globalThis as any).document = new Proxy(stub, {
-        get: (t, k) => k === "implementation" ? miniImplementation : t[k],
-    });
-    (CircuitElm as any).app = app;
-    (CirSim as any).theApp = app;
-    app.sim = (CircuitElm as any).sim = new SimulationManager(app);
+// just enough of the app for the simulator to run, with every element class loaded
+export async function makeApp(): Promise<any> {
+    const app = makeHeadlessApp();
     // registerElements() registers every class, then builds one of each for its dump type,
     // which some can't do without a browser.  so build them here, leaving out those that fail
     try { registerElements(); } catch {}
+    await ElementFactory.ensureLoaded(ElementFactory.lazyClassNames());
+    try { registerLastElements(); } catch {}
     for (const [name, ctor] of (ElementFactory as any).classMap as Map<string, any>)
         try { app.register(name, new ctor(0, 0)); } catch {}
     return app;

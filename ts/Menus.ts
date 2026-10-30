@@ -601,10 +601,6 @@ export class Menus {
         ]);
         menu.addSubmenu(subheadHtml + Locale.LS("Outputs and Labels"), outputMenu);
 
-        // need these registered before unijunction element setup
-        this.app.register("CCVSElm", this.app.constructElement("CCVSElm", 0, 0));
-        this.app.register("VCCSElm", this.app.constructElement("VCCSElm", 0, 0));
-
         const activeMenu = new Menu(this.app);
         this.makeClassCheckItems(activeMenu, [
             "Add Diode",                          "DiodeElm",

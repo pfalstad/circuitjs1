@@ -26,7 +26,6 @@ import { Polygon } from "./Polygon";
 import { Diode } from "./Diode";
 import { MosfetModel } from "./MosfetModel";
 import { CirSim } from "./CirSim";
-import { EditMosfetModelDialog } from "./EditMosfetModelDialog";
 import { StringTokenizer } from "./StringTokenizer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
@@ -819,18 +818,23 @@ export class MosfetElm extends CircuitElm {
                     (this.flags & ~this.FLAG_FLIP);
             } else if (n === idx) {
                 const newModel = new MosfetModel(this.model);
-                const editDialog = new EditMosfetModelDialog(newModel, CirSim.theApp, this);
-                CirSim.mosfetModelEditDialog = editDialog;
-                editDialog.show();
+                // the dialog is loaded when it's first needed
+                import("./EditMosfetModelDialog").then(({ EditMosfetModelDialog }) => {
+                    const editDialog = new EditMosfetModelDialog(newModel, CirSim.theApp, this);
+                    CirSim.mosfetModelEditDialog = editDialog;
+                    editDialog.show();
+                });
                 return;
             } else if (n === idx + 1) {
                 if (this.model.readOnly) {
                     window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
                     return;
                 }
-                const editDialog = new EditMosfetModelDialog(this.model, CirSim.theApp, null);
-                CirSim.mosfetModelEditDialog = editDialog;
-                editDialog.show();
+                import("./EditMosfetModelDialog").then(({ EditMosfetModelDialog }) => {
+                    const editDialog = new EditMosfetModelDialog(this.model, CirSim.theApp, null);
+                    CirSim.mosfetModelEditDialog = editDialog;
+                    editDialog.show();
+                });
                 return;
             }
         }

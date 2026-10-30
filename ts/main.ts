@@ -12,6 +12,20 @@ import { HookRegistry } from "./HookRegistry";
 import { Locale } from "./Locale";
 import * as LZString from "lz-string";
 import "./canvas2svg.js";
+import { ImageExporter } from "./ImageExporter";
+import { CommandManager } from "./CommandManager";
+import { registerElements, registerLastElements } from "./registerElements";
+// these only install themselves into window or HookRegistry
+import "./Adjustable";
+import "./AboutBox";
+import "./SliderDialog";
+import "./ScopePropertiesDialog";
+import "./ShortcutsDialog";
+import "./ModelManagerDialog";
+import "./ExportAsUrlDialog";
+import "./ExportAsImageDialog";
+import "./ScopeExportImageDialog";
+import "./ImportFromDropboxDialog";
 
 // used via the global (window.LZString) by CirSim.decompress() and ExportAsUrlDialog
 (window as any).LZString = LZString;
@@ -55,7 +69,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol ==
 }
 
 const app = new CirSim();
-await app.init();
+await app.init({ SimulationManager, UIManager, ImageExporter, CommandManager, CircuitLoader,
+                 registerElements, registerLastElements });
 
 // load circuit
 

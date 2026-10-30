@@ -52,7 +52,7 @@ export class JSInterface {
     simIsRunning(): boolean { return this.app.simIsRunning(); }
     doExportAsSVGFromAPI(): void { this.app.imageExporter.doExportAsSVGFromAPI(); }
     dumpCircuit(): string { return this.app.dumpCircuit(); }
-    importCircuitFromText(t: string, s: boolean): void { this.app.importCircuitFromText(t, s); }
+    importCircuitFromText(t: string, s: boolean): Promise<void> { return this.app.importCircuitFromText(t, s); }
     getTime(): number { return this.app.sim.t; }
     getTimeStep(): number { return this.app.sim.timeStep; }
     setTimeStep(ts: number): void { this.app.sim.timeStep = ts; }

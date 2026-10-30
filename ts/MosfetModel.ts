@@ -150,6 +150,12 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         const jfetDefault = new MosfetModel("default-jfet", -4, .00125).setJfet();
         jfetDefault.showBulk = jfetDefault.bodyDiode = false;
         MosfetModel.addDefaultModel("default-jfet", jfetDefault);
+
+        // for LM317 (what loading its old-format definition used to generate as "old-jfet")
+        const lm317Jfet = new MosfetModel("~lm317-jfet", -7, .0001).setJfet();
+        lm317Jfet.showBulk = lm317Jfet.bodyDiode = false;
+        lm317Jfet.internal = true;
+        MosfetModel.addDefaultModel("~lm317-jfet", lm317Jfet);
     }
 
     static addDefaultModel(name: string, dm: MosfetModel): void {

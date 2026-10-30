@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { CodeSplittingNameFunction } from 'rolldown'
 
 const mimeTypes: Record<string, string> = {
   '.html': 'text/html',
@@ -80,6 +81,33 @@ function copyPublicAssets(): Plugin {
   }
 }
 
+// Puts everything the startup code imports statically (following imports
+// from main.ts) into one chunk. Otherwise rolldown gives each startup module
+// that a lazy chunk also imports its own chunk, so startup loads dozens of
+// files. main.ts itself stays in the entry chunk: it awaits CirSim.init() at
+// top level, which loads element chunks that import from the startup chunk,
+// and they'd wait forever for a chunk still waiting on them.
+function startupChunk(): CodeSplittingNameFunction {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  let startup: Set<string> | null = null
+  return (id, ctx) => {
+    if (startup == null) {
+      const found = new Set<string>()
+      const visit = (m: string) => {
+        if (found.has(m))
+          return
+        found.add(m)
+        ctx.getModuleInfo(m)?.importedIds.forEach(visit)
+      }
+      const main = path.join(tsRoot, 'main.ts')
+      visit(main)
+      found.delete(main)
+      startup = found
+    }
+    return startup.has(id) ? 'circuitjs' : null
+  }
+}
+
 export default defineConfig({
   base: './',
   plugins: [serveWarDir(), copyPublicAssets()],
@@ -93,16 +121,18 @@ export default defineConfig({
     copyPublicDir: false,
     rolldownOptions: {
       // circuitjs.html is the only page with app code. The other static
-      // pages are copied by copyPublicAssets(), since codeSplitting: false
-      // doesn't allow multiple inputs.
+      // pages are copied by copyPublicAssets().
       input: {
         circuitjs: 'circuitjs.html',
       },
       output: {
-        // Emit the app as a single JS file. CirSim.init() awaits all its
-        // dynamic imports at startup anyway, so splitting only added a
-        // waterfall of sequential requests.
-        codeSplitting: false,
+        // Startup code is all imported statically, so it lands in the main
+        // chunk. Only what's loaded on demand with import() is split off:
+        // the KiCad and SPICE exporters, ZipWriter, and the element classes
+        // registerElements.ts loads lazily.
+        codeSplitting: {
+          groups: [{ name: startupChunk() }],
+        },
         // Several element classes look up their own class name at runtime
         // (CircuitElm.getClassName() uses this.constructor.name) to resolve
         // types via ElementFactory. Minifying away class names breaks that.

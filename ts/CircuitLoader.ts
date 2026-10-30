@@ -20,6 +20,7 @@
 import { loadModelLibrary } from "./ModelTypes";
 import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
+import { ElementFactory } from "./ElementFactory";
 import { SimulationManager } from "./SimulationManager";
 import { ScopeManager } from "./ScopeManager";
 import { Menus } from "./Menus";
@@ -120,7 +121,42 @@ export class CircuitLoader {
             this.app.ui.showToast(Locale.LS("Loaded models: ") + models.map(tm => tm.model.name).join(", "));
     }
 
-    readCircuit(text: string, flags: number = 0): void {
+    // reads happen in the order they were asked for, even when an earlier one is still
+    // waiting for its classes
+    private pendingRead: Promise<void> | null = null;
+
+    // read a circuit (or a model library, or a clipboard being pasted), once the element
+    // classes it uses are loaded.  If they already are, it's read before this returns.
+    async readCircuit(text: string, flags: number = 0): Promise<void> {
+        const missing = ElementFactory.missing(CirSim.classesUsedBy(text));
+        if (missing.length === 0 && this.pendingRead == null) {
+            this.readCircuitNow(text, flags);
+            return;
+        }
+        const loading = ElementFactory.ensureLoaded(missing);
+        const prev = this.pendingRead;
+        const read = (async () => {
+            await prev?.catch(() => {});
+            try {
+                await loading;
+            } catch (e) {
+                // read what we can; the elements that couldn't be loaded are reported and left out
+                CirSim.console("can't load element classes: " + e);
+            }
+            this.readCircuitNow(text, flags);
+        })();
+        this.pendingRead = read;
+        try {
+            await read;
+        } finally {
+            if (this.pendingRead === read)
+                this.pendingRead = null;
+        }
+    }
+
+    // read a circuit whose element classes are all loaded: one that came from this session,
+    // like an undo state
+    readCircuitNow(text: string, flags: number = 0): void {
         if (CircuitLoader.isModelLibrary(text)) {
             this.readModelLibrary(text);
             return;
@@ -148,7 +184,7 @@ export class CircuitLoader {
             const response = await fetch(url);
             if (response.ok) {
                 const text = await response.text();
-                this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
+                await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
                 this.app.allowSave(false);
                 this.app.unsavedChanges = false;
                 this.app.savedFlag = true;
@@ -319,7 +355,7 @@ export class CircuitLoader {
 	    const response = await fetch(url);
 	    if (response.ok) {
 		const text = await response.text();
-		this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
+		await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
 		this.app.allowSave(false);
 		this.app.unsavedChanges = false;
 		this.app.savedFlag = true;

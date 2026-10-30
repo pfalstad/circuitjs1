@@ -75,8 +75,11 @@ export class TypeScrollPopup {
 
         this.originalPnp = this.myElm.pnp;
         this.currentPnp = this.originalPnp;
-        if (this.myElm.isGateElm())
+        if (this.myElm.isGateElm()) {
             this.gateIndex = TypeScrollPopup.gateDumpTypes.indexOf(this.myElm.getDumpType());
+            ElementFactory.ensureLoaded(TypeScrollPopup.gateClasses)
+                .catch(e => CirSim.console("can't load gates: " + e));
+        }
 
         this.panel = document.createElement("div");
         this.panel.className = "scrollValuePopup";
@@ -140,8 +143,12 @@ export class TypeScrollPopup {
     private stepGate(dir: number): void {
         const old = this.myElm;
         const n = TypeScrollPopup.gateClasses.length;
-        this.gateIndex = (this.gateIndex + dir + n) % n;
-        const g = ElementFactory.create(TypeScrollPopup.gateClasses[this.gateIndex], old.x, old.y);
+        const index = (this.gateIndex + dir + n) % n;
+        // nothing to do until the gate classes have loaded
+        if (!ElementFactory.hasClass(TypeScrollPopup.gateClasses[index]))
+            return;
+        this.gateIndex = index;
+        const g = ElementFactory.create(TypeScrollPopup.gateClasses[index], old.x, old.y);
         g.x2 = old.x2;
         g.y2 = old.y2;
         g.flags = old.flags & ~(TypeScrollPopup.GATE_FLAG_INVERT_INPUTS | TypeScrollPopup.GATE_FLAG_DEMORGAN);
