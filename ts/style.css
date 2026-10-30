@@ -181,6 +181,11 @@ td.gwt-MenuItem.open > .menuDropdown {
     background: #c8d8f8;
 }
 
+/* disabled items (e.g. "Add to Existing Scope") never open their submenu */
+.hasSubmenu.menuItemDisabled > .menuDropdown {
+    display: none !important;
+}
+
 @media (hover: hover) {
     .hasSubmenu:hover > .menuDropdown {
         display: block;

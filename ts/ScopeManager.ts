@@ -24,6 +24,8 @@ import { CircuitElm } from "./CircuitElm";
 import { CirSim } from "./CirSim";
 import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
+import { Locale } from "./Locale";
+import { Menu } from "./Menus";
 
 export class ScopeManager {
 
@@ -40,8 +42,8 @@ export class ScopeManager {
     oldScopeCount: number = -1;
     scopePopupMenu: ScopePopupMenu | null = null;
 
-    // GWT MenuBar/MenuItem skipped; init() and composeSelectScopeMenu() are stubs.
-    selectScopeMenuBar: any = null;
+    // submenu of "Add to Existing Scope" listing each scope
+    selectScopeMenuBar: Menu | null = null;
 
     constructor(sim?: CirSim) {
         this.sim = sim as CirSim;
@@ -52,12 +54,27 @@ export class ScopeManager {
     }
 
     init(): void {
-        // GWT MenuBar/DOM browser event handling skipped
+        this.selectScopeMenuBar = new Menu(this.sim);
+        // when mousing out of the scope menu, deselect any scope
+        this.selectScopeMenuBar.ul.addEventListener('mouseleave', () => { this.scopeMenuSelected = -1; });
         this.scopePopupMenu = new ScopePopupMenu(this.sim);
     }
 
-    composeSelectScopeMenu(sb: any): void {
-        // GWT MenuBar/MenuItem/SafeHtml skipped — no-op
+    composeSelectScopeMenu(sb: Menu): void {
+        sb.clearItems();
+        const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const add = (s: string, label: string, n: number) => {
+            if (label !== "")
+                s += " (" + esc(label) + ")";
+            const li = sb.addCommand(s, "elm", "addToScope" + n);
+            // when mousing over scope menu item, select associated scope
+            li.addEventListener('mouseenter', () => { this.scopeMenuSelected = n; });
+        };
+        for (let i = 0; i < this.scopeCount; i++)
+            add(Locale.LS("Scope") + " " + (i + 1), this.scopes[i].getScopeLabelOrText(), i);
+        const c = this.countScopeElms();
+        for (let j = 0; j < c; j++)
+            add(Locale.LS("Undocked Scope") + " " + (j + 1), this.getNthScopeElm(j)!.elmScope.getScopeLabelOrText(), this.scopeCount + j);
     }
 
     scopeMenuIsSelected(s: Scope): boolean {
