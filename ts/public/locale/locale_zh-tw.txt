@@ -1579,7 +1579,7 @@
 "Ćuk Converter"="Ćuk轉換器"
 "Add "="新增 "
 "Add Adder"="新增加法器"
-"Add Counter w/ Load"="新增帶載入功能的計數器"
+"Add Counter w/ Load (9316)"="新增帶載入功能的計數器 (9316)"
 "Add Delay Buffer"="新增延遲緩衝器"
 "Add Line"="新增線條"
 "Adder"="加法器"

@@ -1111,7 +1111,7 @@
 "Add 3-Phase Motor"="Legg til 3-fase motor"
 "Add Adder"="Legg til adder"
 "Add Analog Multiplexer"="Legg til analog multiplexer"
-"Add Counter w/ Load"="Legg til teller med last"
+"Add Counter w/ Load (9316)"="Legg til teller med last (9316)"
 "Add Cross Switch"="Legg til kryss-bryter"
 "Add DC Motor"="Legg til DC-motor"
 "Add DPDT Switch"="Legg til DPDT-bryter"

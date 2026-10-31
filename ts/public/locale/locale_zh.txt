@@ -1102,7 +1102,7 @@
 "Add "="添加 "
 "Add Line"="添加线条"
 "Add Adder"="添加加法器"
-"Add Counter w/ Load"="添加计数器 w/ 加载"
+"Add Counter w/ Load (9316)"="添加计数器 w/ 加载 (9316)"
 "Add Delay Buffer"="添加延迟缓冲器"
 "Adder"="加法器"
 "Add Decimal Display"="添加小数显示"

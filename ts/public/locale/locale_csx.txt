@@ -1405,7 +1405,7 @@
 "Ćuk Converter"="Ćuk měnič"
 "<strong>RUN</strong>&nbsp;/&nbsp;Stop"="<strong>SPOUSTIT</strong>&nbsp;/&nbsp;ZASTAVIT"
 "Add Adder"="Přidat sčítač"
-"Add Counter w/ Load"="Přidat čítač s načtením"
+"Add Counter w/ Load (9316)"="Přidat čítač s načtením (9316)"
 "Add Decimal Display"="Přidat desetinný displej"
 "Add Delay Buffer"="Přidat zpožďovací buffer"
 "Add Line"="Přidat čáru"

@@ -1099,7 +1099,7 @@
 "Add 3-Phase Motor"="Ajouter moteur triphasé"
 "Add Adder"="Ajouter additionneur"
 "Add Analog Multiplexer"="Ajouter multiplexeur analogique"
-"Add Counter w/ Load"="Ajouter compteur avec chargement"
+"Add Counter w/ Load (9316)"="Ajouter compteur avec chargement (9316)"
 "Add Cross Switch"="Ajouter commutateur croisé"
 "Add Crystal"="Ajouter quartz"
 "Add DC Motor"="Ajouter moteur CC"

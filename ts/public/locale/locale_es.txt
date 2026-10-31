@@ -104,7 +104,7 @@
 "Add Capacitor"="Condensador"
 "Add Clock"="Señal de reloj"
 "Add Comparator (Hi-Z/GND output)"="Comparador (salida Hi-Z/GND)"
-"Add Counter w/ Load"="Añadir contador con carga"
+"Add Counter w/ Load (9316)"="Añadir contador con carga (9316)"
 "Add Counter"="Contador"
 "Add Crystal"="Cristal"
 "Add Current Source"="Fuente de corriente"

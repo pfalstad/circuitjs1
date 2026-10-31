@@ -1010,7 +1010,7 @@
 "Add 3-Phase Motor"="Dodaj silnik trójfazowy"
 "Add Adder"="Dodaj sumator"
 "Add Analog Multiplexer"="Dodaj multiplekser analogowy"
-"Add Counter w/ Load"="Dodaj licznik z załadowaniem"
+"Add Counter w/ Load (9316)"="Dodaj licznik z załadowaniem (9316)"
 "Add Cross Switch"="Dodaj przełącznik krzyżowy"
 "Add DC Motor"="Dodaj silnik DC"
 "Add DPDT Switch"="Dodaj przełącznik DPDT"

@@ -81,7 +81,7 @@
 "Add Capacitor (polarized)"="Lisää elektrolyyttikondensaattori"
 "Add Clock"="Lisää kellopulssi (CLK)"
 "Add Counter"="Lisää 4 bitin laskuri"
-"Add Counter w/ Load"="Lisää esiladattava laskuri"
+"Add Counter w/ Load (9316)"="Lisää esiladattava laskuri (9316)"
 "Add Cross Switch"="Lisää 7-kytkin (ristikytkin)"
 "Add Crystal"="Lisää kide (Crystal)"
 "Add Current Source"="Lisää vakiovirtalähde"

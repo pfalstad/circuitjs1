@@ -1299,7 +1299,7 @@
 "A xor B"="A xor B"
 "Add "="追加 "
 "Add Adder"="加算器を追加"
-"Add Counter w/ Load"="負荷付きカウンタを追加"
+"Add Counter w/ Load (9316)"="負荷付きカウンタを追加 (9316)"
 "Add Data Input"="データファイル入力を追加"
 "Add Delay Buffer"="遅延バッファを追加"
 "Add LM317"="LM317を追加"

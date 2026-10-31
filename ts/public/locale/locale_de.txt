@@ -818,7 +818,7 @@
 "Add Adder"="Addierer hinzufügen"
 "Add Analog Multiplexer"="Analoger Multiplexer hinzufügen"
 "Add Audio Input"="Audio-Eingang hinzufügen"
-"Add Counter w/ Load"="Zähler mit Lade-Funktion hinzufügen"
+"Add Counter w/ Load (9316)"="Zähler mit Lade-Funktion hinzufügen (9316)"
 "Add Cross Switch"="Cross-Switch hinzufügen"
 "Add Crystal"="Quarz hinzufügen"
 "Add Custom Transformer"="Benutzerdefinierten Transformator hinzufügen"

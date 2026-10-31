@@ -1268,7 +1268,7 @@
 "<Strong>RUN</Strong>&nbsp;/&nbsp;Stop"="<Strong>EXECUTAR</Strong>&nbsp;/&nbsp;Parar"
 "Add "="Inserir"
 "Add Adder"="Inserir Somador"
-"Add Counter w/ Load"="Inserir Contador c/ Carga"
+"Add Counter w/ Load (9316)"="Inserir Contador c/ Carga (9316)"
 "Add Data Input"="Inserir Entrada de Dados"
 "Add Delay Buffer"="Inseri Buffer de Atraso"
 "Add LM317"="Inserir LM317"
