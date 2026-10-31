@@ -557,6 +557,7 @@ export class SimulationManager {
 	let i: number;
 	let gotGround = false;
 	let gotRail = false;
+	let gotTwoTerminalSource = false;
 	let volt: any = null;  // CircuitElm
 	let battery: any = null;  // CircuitElm
 
@@ -581,11 +582,18 @@ export class SimulationManager {
 	    }
 	    if (ce.isRailElm())
     		gotRail = true;
+	    else if (ce.isVoltageElm() || ce.isBatteryElm())
+		gotTwoTerminalSource = true;
 	    if (volt == null && ce.isVoltageElm())
     		volt = ce;
 	    if (battery == null && ce.isBatteryElm())
     		battery = ce;
 	}
+
+	// warn if there are both one-terminal (rail) and two-terminal voltage sources but
+	// no ground, since the two-terminal sources will float relative to the rails
+	if (!subcircuit)
+	    this.app.railsWithoutGround = !gotGround && gotRail && gotTwoTerminalSource;
 
 	// if no ground, and no rails, then the voltage elm's first terminal is ground;
 	// if there's no plain voltage elm, fall back to a battery's negative terminal
@@ -918,6 +926,7 @@ export class SimulationManager {
 	if (this.elmList.length === 0) {
 	    this.app.postDrawList = [];
 	    this.app.badConnectionList = [];
+	    this.app.railsWithoutGround = false;
 	    return;
 	}
 	this.detectBusWidths();

@@ -98,6 +98,7 @@ export class CirSim {
     elmList: any[] = [];  // CircuitElm[]
     postDrawList: any[] = [];  // Point[]
     badConnectionList: any[] = [];  // Point[]
+    railsWithoutGround = false;
     adjustables: any[] = [];  // Adjustable[]
 
     // saved context stack for editing subcircuit models

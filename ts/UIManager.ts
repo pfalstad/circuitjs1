@@ -1396,6 +1396,8 @@ export class UIManager {
             if (badnodes > 0)
                 info[i++] = badnodes + (badnodes === 1 ?
                     Locale.LS(" bad connection") : Locale.LS(" bad connections"));
+            if (this.app.railsWithoutGround)
+                info[i++] = Locale.LS("no ground node!");
             if (this.app.savedFlag)
                 info[i++] = "(saved)";
 
