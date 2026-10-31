@@ -128,8 +128,12 @@ export function registerElements(): void {
         dumpType: 0, xmlDumpType: "ci", dumpClass: "ControlledCurrentElm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "ControlledVoltageElm", load: async () => (await import("./ControlledVoltageElm")).ControlledVoltageElm as any, deps: [],
         dumpType: 0, xmlDumpType: "cv", dumpClass: "ControlledVoltageElm", shortcut: 0 });
+    CirSim.theApp.registerLazy({ name: "Counter193Elm", load: async () => (await import("./Counter193Elm")).Counter193Elm as any, deps: [],
+        dumpType: 439, xmlDumpType: "ctr193", dumpClass: "Counter193Elm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "Counter2Elm", load: async () => (await import("./Counter2Elm")).Counter2Elm as any, deps: [],
         dumpType: 421, xmlDumpType: "ctr2", dumpClass: "Counter2Elm", shortcut: 0 });
+    CirSim.theApp.registerLazy({ name: "Counter74177Elm", load: async () => (await import("./Counter74177Elm")).Counter74177Elm as any, deps: [],
+        dumpType: 438, xmlDumpType: "ctr177", dumpClass: "Counter74177Elm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "CounterElm", load: async () => (await import("./CounterElm")).CounterElm as any, deps: [],
         dumpType: 164, xmlDumpType: "ctr", dumpClass: "CounterElm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "CrossSwitchElm", load: async () => (await import("./CrossSwitchElm")).CrossSwitchElm as any, deps: [],
@@ -174,6 +178,8 @@ export function registerElements(): void {
         dumpType: 196, xmlDumpType: "FullAdder", dumpClass: "FullAdderElm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "FuseElm", load: async () => (await import("./FuseElm")).FuseElm as any, deps: [],
         dumpType: 404, xmlDumpType: "Fuse", dumpClass: "FuseElm", shortcut: 0 });
+    CirSim.theApp.registerLazy({ name: "GangedMultiplexerElm", load: async () => (await import("./GangedMultiplexerElm")).GangedMultiplexerElm as any, deps: [],
+        dumpType: 437, xmlDumpType: "gmux", dumpClass: "GangedMultiplexerElm", shortcut: 0 });
     CirSim.theApp.register("GroundElm", new GroundElm(0, 0));
     CirSim.theApp.registerLazy({ name: "GyratorElm", load: async () => (await import("./GyratorElm")).GyratorElm as any, deps: [],
         dumpType: 0, xmlDumpType: "Gyrator", dumpClass: "GyratorElm", shortcut: 0 });
