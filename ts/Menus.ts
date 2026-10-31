@@ -720,6 +720,7 @@ export class Menus {
         mi = this.getClassCheckItem(Locale.LS("Drag Column"), "DragColumn"); mi.setShortcut(this.isMac ? Locale.LS("(A-Cmd-drag)") : Locale.LS("(A-M-drag)")); otherMenu.addCheckboxItem(mi);
         mi = this.getClassCheckItem(Locale.LS("Drag Selected"), "DragSelected"); otherMenu.addCheckboxItem(mi);
         mi = this.getClassCheckItem(Locale.LS("Drag Post"),   "DragPost");   mi.setShortcut("(" + this.ctrlMetaKey + "drag)"); otherMenu.addCheckboxItem(mi);
+        mi = this.getClassCheckItem(Locale.LS("Select/Drag Posts"), "SelectPosts"); otherMenu.addCheckboxItem(mi);
         menu.addSubmenu(subheadHtml + Locale.LS("Drag"), otherMenu);
 
         mi = this.getClassCheckItem(Locale.LS("Select/Drag Sel"), "Select");

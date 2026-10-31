@@ -157,6 +157,8 @@ export class CircuitLoader {
     // read a circuit whose element classes are all loaded: one that came from this session,
     // like an undo state
     readCircuitNow(text: string, flags: number = 0): void {
+        // a post selection (Select/Drag Posts mode) refers to the old elements
+        this.app.mouse?.clearPostSelection();
         if (CircuitLoader.isModelLibrary(text)) {
             this.readModelLibrary(text);
             return;

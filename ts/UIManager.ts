@@ -1183,6 +1183,30 @@ export class UIManager {
             }
         }
 
+        if (this.mouse.mouseMode === MouseManager.MODE_SELECT_POSTS) {
+            // show every post, and highlight the selected ones
+            g.setColor(Color.gray);
+            for (const ce of this.elmList) {
+                for (let i = 0; i < ce.getPostCount(); i++) {
+                    const p = ce.getPost(i);
+                    if (p != null)
+                        g.fillOval(p.x - 3, p.y - 3, 7, 7);
+                }
+            }
+            g.setColor(CircuitElm.selectColor);
+            for (const k of this.mouse.postSelLocs) {
+                const [px, py] = k.split(",").map(Number);
+                g.fillOval(px - 4, py - 4, 9, 9);
+            }
+            // outline moving elements that have no posts to show (text, boxes, ...)
+            for (const ce of this.mouse.postSelRigid) {
+                if (ce.getPostCount() === 0) {
+                    const bb = ce.boundingBox;
+                    g.drawRect(bb.x, bb.y, bb.width, bb.height);
+                }
+            }
+        }
+
         if (this.mouse.tempMouseMode === MouseManager.MODE_SELECT && this.mouse.getMouseElm() != null) {
             this.mouse.getMouseElm().drawHandles(g, CircuitElm.selectColor);
             if (this.mouse.getMouseElm()!.isRoutedWireElm() && this.mouse.mouseCursorX >= 0) {
@@ -1543,6 +1567,8 @@ export class UIManager {
 
     setMouseMode(mode: number): void {
         this.mouse.mouseMode = mode;
+        if (mode !== MouseManager.MODE_SELECT_POSTS)
+            this.mouse.clearPostSelection();
         if (mode === MouseManager.MODE_ADD_ELM)
             this.setCursorStyle("cursorCross");
         else

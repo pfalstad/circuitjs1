@@ -39,6 +39,7 @@ export class MouseManager {
     static readonly MODE_SELECT        = 6;
     static readonly MODE_DRAG_SPLITTER = 7;
     static readonly MODE_DRAG_REROUTE  = 8;
+    static readonly MODE_SELECT_POSTS  = 9;
 
     static readonly POSTGRABSQ     = 25;
     static readonly MINPOSTGRABSIZE = 256;
@@ -87,6 +88,26 @@ export class MouseManager {
     dragRowColPosts: number[] = [];
     // elements moved by dragSelected during the current drag
     dragMovedElms: Set<CircuitElm> = new Set();
+
+    // ---- Select/Drag Posts mode ----
+    // The user boxes a set of posts, then drags them; elements with one end selected
+    // stretch, so this can be used to open up (or close up) space in a circuit.
+    // Locations ("x,y") of the posts that are selected (for drawing and hit testing).
+    postSelLocs: Set<string> = new Set();
+    // rigid elements (chips, transistors, text...) that move as a whole
+    postSelRigid: Set<CircuitElm> = new Set();
+    // what to do to each element when the selection is dragged:
+    // -1 = move the whole element, 0/1 = move that end only (stretch)
+    private postSelPlan: Map<CircuitElm, number> = new Map();
+    // selection seeds from the rubber band(s); shift-drag adds to these
+    private postSeedLocs: Set<string> = new Set();
+    private postSeedRigid: Set<CircuitElm> = new Set();
+    private postSeedBaseLocs: Set<string> = new Set();
+    private postSeedBaseRigid: Set<CircuitElm> = new Set();
+    // true if the current mouse drag is moving the selected posts (vs. rubber-banding)
+    private postDragActive: boolean = false;
+    // cached handleFollowers() results, keyed by element, valid while its position is the same
+    private followersCache: Map<CircuitElm, { geom: string, f: number[] | null }> = new Map();
 
     // ---- Toolbar drag-and-drop ----
     // A press-and-drag on a toolbar icon drops a new element where the mouse is released,
@@ -448,6 +469,12 @@ export class MouseManager {
 	case MouseManager.MODE_DRAG_SELECTED:
 	    changed = success = this.dragSelected(gx, gy);
 	    break;
+	case MouseManager.MODE_SELECT_POSTS:
+	    if (this.postDragActive)
+		changed = success = this.dragPostSelection(this.snapGrid(gx), this.snapGrid(gy));
+	    else
+		this.selectPostsArea(gx, gy);
+	    break;
 	case MouseManager.MODE_DRAG_REROUTE:
 	    if (this.mouseElm != null && this.mouseElm.isRoutedWireElm()) {
 		(this.mouseElm as any).rerouteVia(this.snapGrid(gx), this.snapGrid(gy));
@@ -690,6 +717,249 @@ export class MouseManager {
 	    ce.selectRect(this.selectedArea, add);
 	}
 	this.enableDisableMenuItems();
+    }
+
+    private static locKey(x: number, y: number): string { return x + "," + y; }
+
+    // rigid elements can't be stretched; they move as a whole or not at all.  An element
+    // can stretch only if it has exactly two posts, which are its two handles.
+    // Wires always stretch: all their posts (several, for a bus) are at their two ends.
+    private static isRigid(ce: CircuitElm): boolean {
+	if (ce.isWireElm())
+	    return false;
+	if (ce.noDiagonal || ce.getPostCount() !== 2 || ce.getNumHandles() !== 2)
+	    return true;
+	const p0 = ce.getPost(0);
+	const p1 = ce.getPost(1);
+	return p0 == null || p1 == null || p0.x !== ce.x || p0.y !== ce.y || p1.x !== ce.x2 || p1.y !== ce.y2;
+    }
+
+    private selectPostsArea(x: number, y: number): void {
+	const x1 = Math.min(x, this.initDragGridX);
+	const x2 = Math.max(x, this.initDragGridX);
+	const y1 = Math.min(y, this.initDragGridY);
+	const y2 = Math.max(y, this.initDragGridY);
+	this.selectedArea = new Rectangle(x1, y1, x2 - x1, y2 - y1);
+	const r = this.selectedArea;
+	const inside = (px: number, py: number) => px >= x1 && px <= x2 && py >= y1 && py <= y2;
+	this.postSeedLocs = new Set(this.postSeedBaseLocs);
+	this.postSeedRigid = new Set(this.postSeedBaseRigid);
+	for (const ce of this.ui.elmList as CircuitElm[]) {
+	    // an element with no posts (text, box...) moves if its center is in the box;
+	    // anything else is decided by which of its posts are in the box
+	    if (ce.getPostCount() === 0) {
+		const bb = ce.boundingBox;
+		if (inside(bb.x + bb.width / 2, bb.y + bb.height / 2))
+		    this.postSeedRigid.add(ce);
+	    }
+	    for (let i = 0; i < ce.getPostCount(); i++) {
+		const p = ce.getPost(i);
+		if (p != null && inside(p.x, p.y))
+		    this.postSeedLocs.add(MouseManager.locKey(p.x, p.y));
+	    }
+	}
+	this.computePostSelection();
+    }
+
+    private static postKeys(ce: CircuitElm): string[] {
+	const keys: string[] = [];
+	for (let i = 0; i < ce.getPostCount(); i++) {
+	    const p = ce.getPost(i);
+	    keys.push(p == null ? "" : MouseManager.locKey(p.x, p.y));
+	}
+	return keys;
+    }
+
+    // For a rigid element with two handles, find out which posts move with which handle,
+    // by nudging each handle along the element's axis and seeing which posts follow.
+    // Returns, for each post, the handle (0 or 1) it follows, or null if the element
+    // can't be stretched (a post follows neither or both handles, or nothing is attached
+    // to one of the ends, e.g. a ground).
+    private handleFollowers(ce: CircuitElm): number[] | null {
+	if (ce.getNumHandles() < 2 || ce.getPostCount() < 2)
+	    return null;
+	let ax = Math.sign(ce.x2 - ce.x);
+	let ay = Math.sign(ce.y2 - ce.y);
+	if (ce.noDiagonal) {
+	    if (ce.x === ce.x2) ax = 0; else ay = 0;
+	}
+	if (ax === 0 && ay === 0)
+	    return null;
+	const n = ce.getPostCount();
+	const follows: number[] = new Array(n).fill(-1);
+	const g = this.sim.gridSize;
+	const ox = ce.x, oy = ce.y, ox2 = ce.x2, oy2 = ce.y2;
+	for (let h = 0; h < 2; h++) {
+	    // move the handle outward, so the element gets longer (never zero length)
+	    const dx = (h === 0 ? -ax : ax) * g;
+	    const dy = (h === 0 ? -ay : ay) * g;
+	    const before = MouseManager.postKeys(ce);
+	    ce.movePoint(h, dx, dy);
+	    const after = MouseManager.postKeys(ce);
+	    ce.movePoint(h, -dx, -dy);
+	    if (ce.x !== ox || ce.y !== oy || ce.x2 !== ox2 || ce.y2 !== oy2) {
+		// couldn't put it back exactly (shouldn't happen); restore and give up
+		ce.x = ox; ce.y = oy; ce.x2 = ox2; ce.y2 = oy2;
+		ce.setPoints();
+		return null;
+	    }
+	    for (let i = 0; i < n; i++) {
+		if (after[i] === before[i])
+		    continue;
+		const [bx, by] = before[i].split(",").map(Number);
+		if (follows[i] !== -1 || after[i] !== MouseManager.locKey(bx + dx, by + dy))
+		    return null; // follows both handles, or moved some other way
+		follows[i] = h;
+	    }
+	}
+	if (follows.includes(-1) || !follows.includes(0) || !follows.includes(1))
+	    return null;
+	return follows;
+    }
+
+    // handleFollowers() moves the element's handles back and forth, which can be slow,
+    // so only do it once per element (as long as it stays put)
+    private cachedHandleFollowers(ce: CircuitElm): number[] | null {
+	const geom = ce.x + "," + ce.y + "," + ce.x2 + "," + ce.y2;
+	const c = this.followersCache.get(ce);
+	if (c != null && c.geom === geom)
+	    return c.f;
+	const f = this.handleFollowers(ce);
+	this.followersCache.set(ce, { geom, f });
+	return f;
+    }
+
+    // Expand the seeds into the full selection, keeping everything connected.
+    // Each rigid element with any selected posts either stretches (if the selected posts
+    // all follow one of its handles, then all the posts that follow that handle get
+    // selected) or moves as a whole (and all its posts get selected).  Selecting posts
+    // can bring other elements along, so repeat until nothing changes.
+    private computePostSelection(): void {
+	const elms = this.ui.elmList as CircuitElm[];
+	const locs = new Set(this.postSeedLocs);
+	// rigid elements: -1 = moves whole, 0/1 = stretches by moving that handle
+	const rigidMode = new Map<CircuitElm, number>();
+	for (const ce of this.postSeedRigid)
+	    if (elms.includes(ce)) rigidMode.set(ce, -1);
+	const followers = new Map<CircuitElm, number[] | null>();
+	let changed = true;
+	while (changed) {
+	    changed = false;
+	    for (const ce of elms) {
+		if (!MouseManager.isRigid(ce) || rigidMode.get(ce) === -1)
+		    continue;
+		const keys = MouseManager.postKeys(ce);
+		const sel: number[] = [];
+		keys.forEach((k, i) => { if (locs.has(k)) sel.push(i); });
+		if (sel.length === 0)
+		    continue;
+		if (!followers.has(ce))
+		    followers.set(ce, this.cachedHandleFollowers(ce));
+		const f = followers.get(ce)!;
+		let mode = -1;
+		if (f != null && sel.every(i => f[sel[0]] === f[i]))
+		    mode = f[sel[0]];
+		const old = rigidMode.get(ce);
+		if (old !== undefined && old !== mode)
+		    mode = -1; // selected posts at both ends now
+		if (old === mode)
+		    continue;
+		rigidMode.set(ce, mode);
+		changed = true;
+	    }
+	    for (const [ce, mode] of rigidMode) {
+		const keys = MouseManager.postKeys(ce);
+		const f = followers.get(ce);
+		keys.forEach((k, i) => {
+		    if (k === "" || locs.has(k)) return;
+		    if (mode === -1 || (f != null && f[i] === mode)) {
+			locs.add(k);
+			changed = true;
+		    }
+		});
+	    }
+	}
+	const plan = new Map<CircuitElm, number>();
+	for (const ce of elms) {
+	    const mode = rigidMode.get(ce);
+	    if (mode !== undefined) {
+		plan.set(ce, mode);
+	    } else if (!MouseManager.isRigid(ce)) {
+		const a = locs.has(MouseManager.locKey(ce.x, ce.y));
+		const b = locs.has(MouseManager.locKey(ce.x2, ce.y2));
+		if (a && b) plan.set(ce, -1);
+		else if (a) plan.set(ce, 0);
+		else if (b) plan.set(ce, 1);
+	    }
+	}
+	this.postSelLocs = locs;
+	this.postSelRigid = new Set(rigidMode.keys());
+	this.postSelPlan = plan;
+    }
+
+    clearPostSelection(): void {
+	this.postSelLocs = new Set();
+	this.postSelRigid = new Set();
+	this.postSelPlan = new Map();
+	this.postSeedLocs = new Set();
+	this.postSeedRigid = new Set();
+	this.followersCache = new Map();
+    }
+
+    // is (x, y) on a selected post, or on a rigid element that's part of the selection?
+    private postSelectionHit(x: number, y: number): boolean {
+	for (const k of this.postSelLocs) {
+	    const [px, py] = k.split(",").map(Number);
+	    if (Graphics.distanceSq(px, py, x, y) <= MouseManager.POSTGRABSQ)
+		return true;
+	}
+	for (const ce of this.postSelRigid)
+	    if (ce.boundingBox.contains(x, y))
+		return true;
+	return false;
+    }
+
+    private dragPostSelection(x: number, y: number): boolean {
+	let dx = x - this.dragGridX;
+	let dy = y - this.dragGridY;
+	// a stretched element that can't go diagonal (op-amp, transistor...) can only be
+	// stretched along its axis, or its posts would come off their wires
+	for (const [ce, n] of this.postSelPlan) {
+	    if (n < 0 || !ce.noDiagonal) continue;
+	    if (ce.x === ce.x2) dx = 0; else dy = 0;
+	}
+	if (dx === 0 && dy === 0)
+	    return false;
+	const elms = this.ui.elmList as CircuitElm[];
+	// don't allow a move that would shrink a stretched element to zero length, since
+	// movePoint() would refuse to move it and it would come disconnected
+	for (const [ce, n] of this.postSelPlan) {
+	    if (n < 0) continue;
+	    const nx = ce.x + (n === 0 ? dx : 0), ny = ce.y + (n === 0 ? dy : 0);
+	    const nx2 = ce.x2 + (n === 1 ? dx : 0), ny2 = ce.y2 + (n === 1 ? dy : 0);
+	    if (nx === nx2 && ny === ny2)
+		return false;
+	}
+	for (const [ce, n] of this.postSelPlan) {
+	    if (!elms.includes(ce)) continue;
+	    if (n < 0)
+		ce.move(dx, dy);
+	    else
+		ce.movePoint(n, dx, dy);
+	}
+	// keep the selection on the posts that moved
+	const shift = (set: Set<string>) => {
+	    const out = new Set<string>();
+	    for (const k of set) {
+		const [px, py] = k.split(",").map(Number);
+		out.add(MouseManager.locKey(px + dx, py + dy));
+	    }
+	    return out;
+	};
+	this.postSelLocs = shift(this.postSelLocs);
+	this.postSeedLocs = shift(this.postSeedLocs);
+	this.sim.needAnalyze();
+	return true;
     }
 
     enableDisableMenuItems(): void {
@@ -1119,7 +1389,7 @@ export class MouseManager {
 		this.tempMouseMode = MouseManager.MODE_DRAG_COLUMN;
 	    else if (e.altKey && e.shiftKey)
 		this.tempMouseMode = MouseManager.MODE_DRAG_ROW;
-	    else if (e.shiftKey)
+	    else if (e.shiftKey && this.mouseMode !== MouseManager.MODE_SELECT_POSTS)
 		this.tempMouseMode = MouseManager.MODE_SELECT;
 	    else if (e.altKey)
 		this.tempMouseMode = MouseManager.MODE_DRAG_ALL;
@@ -1186,6 +1456,18 @@ export class MouseManager {
 	this.dragging = true;
 	this.dragMovedElms.clear();
 
+	if (this.tempMouseMode === MouseManager.MODE_SELECT_POSTS) {
+	    // the circuit may have changed (undo, delete, etc.) since the selection was made
+	    if (this.postSelLocs.size > 0)
+		this.computePostSelection();
+	    this.postDragActive = !this.ui.isReadOnly() && this.postSelectionHit(gx, gy);
+	    if (!this.postDragActive) {
+		// start a new rubber band; shift adds to the existing selection
+		this.postSeedBaseLocs = e.shiftKey ? new Set(this.postSeedLocs) : new Set();
+		this.postSeedBaseRigid = e.shiftKey ? new Set(this.postSeedRigid) : new Set();
+	    }
+	}
+
 	// capture elements for DragRow/DragColumn at mouse-down so we don't
 	// pick up new elements as we sweep over them
 	if (this.tempMouseMode === MouseManager.MODE_DRAG_ROW || this.tempMouseMode === MouseManager.MODE_DRAG_COLUMN) {
@@ -1251,6 +1533,11 @@ export class MouseManager {
 	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null && e.button === 0)
 	    this.clearSelection();
 
+	// click on empty space (not on the selection) clears the post selection
+	if (this.tempMouseMode === MouseManager.MODE_SELECT_POSTS && !this.postDragActive &&
+	    this.selectedArea == null && e.button === 0 && !e.shiftKey)
+	    this.clearPostSelection();
+
 	// cmd-click = split wire
 	if (this.tempMouseMode === MouseManager.MODE_DRAG_POST && this.draggingPost === -1)
 	    this.doSplit(this.mouseElm);
@@ -1261,6 +1548,7 @@ export class MouseManager {
 	// clicking an element brings up its editor, clicking empty space closes it, and
 	// creating a new element (checked after endDrag(), below) brings up its editor too.
 	const wasPlainClick = e.button === 0 && !this.didSwitch &&
+	    this.tempMouseMode !== MouseManager.MODE_SELECT_POSTS &&
 	    !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
 	let clickedElm: CircuitElm | null = null;
 	let clickedEmpty = false;
@@ -1310,6 +1598,7 @@ export class MouseManager {
 	this.tempMouseMode = this.mouseMode;
 	this.selectedArea = null;
 	this.dragging = false;
+	this.postDragActive = false;
 	let circuitChanged = false;
 	// auto-split wires when a post is dragged onto a wire's interior
 	if (this.draggingPost >= 0 && this.mouseElm != null) {

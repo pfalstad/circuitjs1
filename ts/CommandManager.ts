@@ -359,6 +359,8 @@ export class CommandManager {
                 this.app.setMouseMode(MouseManager.MODE_DRAG_SELECTED);
             else if (s == "DragPost")
                 this.app.setMouseMode(MouseManager.MODE_DRAG_POST);
+            else if (s == "SelectPosts")
+                this.app.setMouseMode(MouseManager.MODE_SELECT_POSTS);
             else if (s == "Select")
                 this.app.setMouseMode(MouseManager.MODE_SELECT);
 
