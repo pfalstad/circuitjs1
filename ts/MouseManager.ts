@@ -61,6 +61,9 @@ export class MouseManager {
     initDragGridY: number = 0;
     mouseDownTime: number = 0;
     mouseDownScreenX: number = 0;
+    // has the mouse moved more than a few pixels from mouseDownScreenX/Y at any point
+    // during this press?  (a drag that returns to its start point is still not a click)
+    private movedSinceMouseDown = false;
     mouseDownScreenY: number = 0;
     zoomTime: number = 0;
     mouseCursorX: number = -1;
@@ -1065,6 +1068,10 @@ export class MouseManager {
 	this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
 	this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
 	if (this.mouseDragging) {
+	    const mdx = this.mouseCursorX - this.mouseDownScreenX;
+	    const mdy = this.mouseCursorY - this.mouseDownScreenY;
+	    if (mdx * mdx + mdy * mdy >= 16)
+		this.movedSinceMouseDown = true;
 	    this.mouseDragged(e);
 	    return;
 	}
@@ -1370,6 +1377,7 @@ export class MouseManager {
 	this.mouseDownTime = Date.now();
 	this.mouseDownScreenX = ex;
 	this.mouseDownScreenY = ey;
+	this.movedSinceMouseDown = false;
 
 	// maybe someone did copy in another window?  should really do this when
 	// window receives focus
@@ -1559,15 +1567,12 @@ export class MouseManager {
 	let clickedElm: CircuitElm | null = null;
 	let clickedEmpty = false;
 	if (wasPlainClick) {
-	    // use the last tracked cursor position rather than this event's coordinates: on
-	    // touch devices the synthetic "mouseup" dispatched from touchend carries no
-	    // clientX/clientY, which would otherwise always read as a big (spurious) drag
-	    const dx = this.mouseCursorX - this.mouseDownScreenX;
-	    const dy = this.mouseCursorY - this.mouseDownScreenY;
-	    // (clicking a scope at the bottom is ignored here; it shouldn't bring up the
-	    // editor for the scope's element, or close the editor)
-	    if (dx * dx + dy * dy < 16 && this.sim.scopeManager.scopeSelected === -1) {
-		// didn't move (much) since mousedown, so it's a click, not a drag
+	    // (movement is tracked in onMouseMove rather than by checking this event's
+	    // coordinates: on touch devices the synthetic "mouseup" dispatched from touchend
+	    // carries no clientX/clientY.  clicking a scope at the bottom is ignored here; it
+	    // shouldn't bring up the editor for the scope's element, or close the editor)
+	    if (!this.movedSinceMouseDown && this.sim.scopeManager.scopeSelected === -1) {
+		// never moved (much) since mousedown, so it's a click, not a drag
 		if (this.mouseElm != null && !this.mouseElm.isSwitchElm())
 		    clickedElm = this.mouseElm;
 		else if (this.mouseElm == null)
