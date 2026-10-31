@@ -1240,6 +1240,9 @@ export class SimulationManager {
 				this.routedWireMap.set(other, list);
 			    }
 			    list.push(new RoutedWireConnection(rw, rp, op));
+			    // a bus pin has busWidth posts at the same location; record only one
+			    // connection per routed-wire post, or dragging moves it busWidth times
+			    break;
 			}
 		    }
 		}

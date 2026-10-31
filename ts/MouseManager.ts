@@ -624,13 +624,19 @@ export class MouseManager {
 		e.movePoint(p, dx, dy);
 	    }
 	} else {
-	    this.mouseElm!.movePoint(this.draggingPost, dx, dy);
+	    const me = this.mouseElm!;
+	    // remember where the dragged handle was.  conn.elmPost is a post index, not a
+	    // handle index (a bus wire has busWidth posts at each end), so match by location.
+	    const hx = (this.draggingPost === 0) ? me.x : me.x2;
+	    const hy = (this.draggingPost === 0) ? me.y : me.y2;
+	    me.movePoint(this.draggingPost, dx, dy);
 	    // move connected routed wires' shared posts
 	    if (this.sim.sim.routedWireMap != null) {
-		const conns = this.sim.sim.routedWireMap.get(this.mouseElm);
+		const conns = this.sim.sim.routedWireMap.get(me);
 		if (conns != null) {
 		    for (const conn of conns) {
-			if (conn.elmPost === this.draggingPost && conn.wire.getPost(conn.wirePost).z === 0)
+			const wp = conn.wire.getPost(conn.wirePost);
+			if (wp.z === 0 && wp.x === hx && wp.y === hy)
 			    conn.wire.movePoint(conn.wirePost, dx, dy);
 		    }
 		}
