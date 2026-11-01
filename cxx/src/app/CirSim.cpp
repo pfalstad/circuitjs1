@@ -1267,6 +1267,7 @@ void CirSim::handleKey(QKeyEvent *e) {
     Qt::KeyboardModifiers mods = e->modifiers() & ~Qt::KeypadModifier;
     if (key == Qt::Key_Shift) {
         if (!e->isAutoRepeat()) {
+            mouse.shiftChanged(true);
             qint64 now = QDateTime::currentMSecsSinceEpoch();
             // Second Shift within 400 ms, with no other key in between, opens the palette.
             if (lastShiftKeyUpMs > 0 && now - lastShiftKeyUpMs < 400 && !keyPressedSinceShiftUp) {
@@ -1356,6 +1357,7 @@ void CirSim::handleKey(QKeyEvent *e) {
 
 void CirSim::handleKeyRelease(QKeyEvent *e) {
     if (e->key() == Qt::Key_Shift && !e->isAutoRepeat()) {
+        mouse.shiftChanged(false);
         lastShiftKeyUpMs = QDateTime::currentMSecsSinceEpoch();
         keyPressedSinceShiftUp = false;
     }

@@ -311,6 +311,12 @@ void MouseManager::onMouseMove(QMouseEvent *e) {
     mouseSelect(mouseCursorX, mouseCursorY, e->modifiers() & Qt::ShiftModifier);
 }
 
+void MouseManager::shiftChanged(bool shift) {
+    if (mouseDragging || mouseCursorX < 0 || mouseCursorY < 0)
+        return;
+    mouseSelect(mouseCursorX, mouseCursorY, shift);
+}
+
 void MouseManager::mouseDragged(QMouseEvent *e) {
     double ex = e->position().x(), ey = e->position().y();
     if (tempMouseMode == SimApp::MODE_DRAG_SPLITTER) {

@@ -45,6 +45,8 @@ public:
     void onMouseMove(QMouseEvent *e);
     void onMouseUp(QMouseEvent *e);
     void onMouseOut();
+    // re-evaluate hover (e.g. Shift net highlight) when Shift is pressed/released
+    void shiftChanged(bool shift);
     void onMouseWheel(QWheelEvent *e);
     void onDoubleClick(QMouseEvent *e);
 
