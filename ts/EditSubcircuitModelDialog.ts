@@ -190,6 +190,15 @@ export class EditSubcircuitModelDialog extends Dialog {
         if (this.popContext) {
             const app = CirSim.theApp;
             const savedModel = this.model;
+            // Popping reloads the outer circuit from the dump taken when the context was pushed,
+            // which has the old definitions of these models.  Loading a definition reuses the
+            // local model of that name (getForLoad), so take the changed models out of the local
+            // tier first; otherwise the old definition would be loaded into them, undoing the
+            // edit.  replaceModel() puts them back below.
+            const ctx = app.contextStack[app.contextStack.length - 1];
+            for (const m of [...ctx.changedModels, savedModel])
+                if (SubcircuitModel.registry.isLocal(m))
+                    SubcircuitModel.registry.removeLocal(m.name);
             const changedModels: SubcircuitModel[] = app.popContextAndGetChangedModels();
             changedModels.push(savedModel);
             for (const m of changedModels) {
