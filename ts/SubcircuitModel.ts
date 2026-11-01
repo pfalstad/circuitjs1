@@ -307,7 +307,6 @@ export class SubcircuitModel {
         const model = new SubcircuitModel();
         model.name = name;
         SubcircuitModel.registry.setLocal(model);
-        SubcircuitModel.registry.markEmbedded(model);
         model.undumpXml(xml);
     }
 
@@ -372,12 +371,8 @@ export class SubcircuitModel {
                 const tagName = child.tagName;
                 xml.parseChildElement(child);
                 const elmModelType = getElmModelType(tagName);
-                if (elmModelType) {
-                    const isNew = !elmModelType.registry.hasLocal(child.getAttribute("nm") ?? "");
-                    const m = elmModelType.undump(xml);
-                    if (isNew)
-                        elmModelType.registry.markEmbedded(m);
-                }
+                if (elmModelType)
+                    elmModelType.undump(xml);
                 else if (tagName === "ccm")
                     SubcircuitModel.undumpEmbeddedModelXml(xml);
             }

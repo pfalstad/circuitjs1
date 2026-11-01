@@ -289,7 +289,6 @@ void SubcircuitModel::undumpEmbeddedModelXml(CircuitXMLDeserializer &xml) {
     SubcircuitModelRef model = std::make_shared<SubcircuitModel>();
     model->name = name;
     registry().setLocal(model);
-    registry().markEmbedded(model.get());
     model->undumpXml(xml);
 }
 
@@ -349,13 +348,8 @@ void SubcircuitModel::parseXmlElement(CircuitXMLDeserializer &xml) {
             const std::string &tagName = child->tagName;
             xml.parseChildElement(child);
             const ModelType *elmModelType = getElmModelType(tagName);
-            if (elmModelType != nullptr) {
-                const std::string *nm = child->getAttribute("nm");
-                bool isNew = !elmModelType->registry->hasLocal(nm ? *nm : "");
-                RegistryModel *m = elmModelType->undump(xml);
-                if (isNew)
-                    elmModelType->registry->anyMarkEmbedded(m);
-            }
+            if (elmModelType != nullptr)
+                elmModelType->undump(xml);
             else if (tagName == "ccm")
                 undumpEmbeddedModelXml(xml);
         }

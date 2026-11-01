@@ -22,7 +22,6 @@
 #include <functional>
 #include <optional>
 #include <memory>
-#include <set>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -72,16 +71,8 @@ public:
             reg->clearDumpedFlags();
     }
 
-    // write the local models of every type that haven't been written yet (because no element
-    // uses them), since local models belong to the circuit
-    static void dumpAllUnusedLocal(XmlElement *root) {
-        for (ModelRegistryBase *reg : all())
-            reg->dumpUnusedLocal(root);
-    }
-
     virtual void clearLocal() = 0;
     virtual void clearDumpedFlags() = 0;
-    virtual void dumpUnusedLocal(XmlElement *root) = 0;
     virtual bool has(const std::string &name) = 0;
     virtual bool hasLocal(const std::string &name) = 0;
     virtual void loadFromStorage(const std::function<void(const std::string &)> &load) = 0;
@@ -90,7 +81,6 @@ public:
     virtual void anySetScope(RegistryModel *m, ModelScope sc) = 0;
     virtual void anyMakeGlobal(RegistryModel *m) = 0;
     virtual void anyDelete(RegistryModel *m) = 0;
-    virtual void anyMarkEmbedded(RegistryModel *m) = 0;
     virtual void anyDumpXml(RegistryModel *m, XmlElement *root) = 0;
     virtual std::vector<RegistryModel *> anyCollectLocal(const std::function<void()> &fn) = 0;
 
@@ -234,10 +224,8 @@ public:
     // otherwise a new local model.  A global model of the same name is shadowed, not modified.
     P getForLoad(const std::string &name, const std::function<P()> &create) {
         ensureInit();
-        if (P *lm = localMap.get(name)) {
-            embedded.erase(raw(*lm));
+        if (P *lm = localMap.get(name))
             return *lm;
-        }
         P m = create();
         m->name = name;
         setLocal(m);
@@ -257,24 +245,6 @@ public:
         if (isGlobal(raw(keep)))
             removeGlobal(keep->name);
         setLocal(keep);
-    }
-
-    // mark a local model as registered only because a subcircuit model's definition includes
-    // it, so it isn't written with the circuit unless an element uses it; the subcircuit
-    // model's definition already has it.  Loading it from the circuit itself clears the mark.
-    void markEmbedded(const T *m) { embedded.insert(m); }
-
-    // write local models not already written, except embedded ones
-    void dumpUnusedLocal(XmlElement *root) override {
-        if (!dumpModelXml)
-            return;
-        for (auto &kv : localMap) {
-            T *m = raw(kv.second);
-            if (m->dumped || m->name.empty() || embedded.count(m))
-                continue;
-            dumpModelXml(m, root);
-            m->dumped = true;
-        }
     }
 
     ModelScope scope(const T *m) {
@@ -302,7 +272,6 @@ public:
         P keep = m;
         unsave(keep->name);
         remove(keep->name);
-        embedded.erase(raw(keep));
     }
 
     // run fn with an empty local tier and return the models it added there; the previous
@@ -428,7 +397,6 @@ public:
     void anySetScope(RegistryModel *m, ModelScope sc) override { setScope(fromAny(m), sc); }
     void anyMakeGlobal(RegistryModel *m) override { makeGlobal(fromAny(m)); }
     void anyDelete(RegistryModel *m) override { deleteModel(fromAny(m)); }
-    void anyMarkEmbedded(RegistryModel *m) override { markEmbedded(static_cast<T *>(m)); }
     void anyDumpXml(RegistryModel *m, XmlElement *root) override { dumpXml(static_cast<T *>(m), root); }
     std::vector<RegistryModel *> anyCollectLocal(const std::function<void()> &fn) override {
         std::vector<RegistryModel *> result;
@@ -440,9 +408,6 @@ public:
 private:
     std::function<void()> init;
     DumpModelXml dumpModelXml;
-    // local models registered only because a subcircuit model's definition includes them
-    // (see markEmbedded())
-    std::set<const T *> embedded;
     bool initialized = false;
 
     static T *raw(const P &p) { return &*p; }

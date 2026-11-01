@@ -143,7 +143,6 @@ std::string CircuitXMLSerializer::dumpCircuit() {
             ce->dumpXmlState(&root, elem.get());
         root.appendChild(std::move(elem));
     }
-    ModelRegistryBase::dumpAllUnusedLocal(&root);
     if (app->scopeManager != nullptr && saveState) {
         ScopeManager *sm = app->scopeManager;
         for (int i = 0; i != sm->scopeCount; i++)

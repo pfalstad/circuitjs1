@@ -75,27 +75,6 @@ describe("ModelRegistry", () => {
         expect(reg.hasGlobal("a")).toBe(false);
     });
 
-    it("writes unused local models, except embedded ones", () => {
-        const written: string[] = [];
-        const reg = new ModelRegistry<M>(null, null, (m) => { written.push(m.name); });
-        const used = new M("used"), unused = new M("unused"), emb = new M("emb");
-        reg.setGlobal(new M("global"));
-        reg.setLocal(used);
-        reg.setLocal(unused);
-        reg.setLocal(emb);
-        reg.markEmbedded(emb);
-        used.dumped = true;
-        reg.dumpUnusedLocal({} as Document);
-        expect(written).toEqual(["unused"]);
-        expect(unused.dumped).toBe(true);
-        // loading the embedded model from the circuit itself makes it the circuit's
-        reg.clearDumpedFlags();
-        written.length = 0;
-        reg.getForLoad("emb", () => new M(""));
-        reg.dumpUnusedLocal({} as Document);
-        expect(written).toEqual(["used", "unused", "emb"]);
-    });
-
     it("picks unique names", () => {
         const reg = new ModelRegistry<M>();
         expect(reg.uniqueName("x")).toBe("x");

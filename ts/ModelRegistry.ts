@@ -49,9 +49,6 @@ export class ModelRegistry<T extends RegistryModel> {
 
     readonly globalMap = new Map<string, T>();
     localMap = new Map<string, T>();
-    // local models registered only because a subcircuit model's definition includes them
-    // (see markEmbedded())
-    private readonly embedded = new WeakSet<T>();
     // bumped on every change to the set of models, so menus listing them know to rebuild
     sequenceNumber: number = 0;
     private initialized = false;
@@ -72,13 +69,6 @@ export class ModelRegistry<T extends RegistryModel> {
     static clearAllDumpedFlags(): void {
         for (const reg of ModelRegistry.all)
             reg.clearDumpedFlags();
-    }
-
-    // write the local models of every type that haven't been written yet (because no element
-    // uses them), since local models belong to the circuit
-    static dumpAllUnusedLocal(doc: Document): void {
-        for (const reg of ModelRegistry.all)
-            reg.dumpUnusedLocal(doc);
     }
 
     private ensureInit(): void {
@@ -182,10 +172,8 @@ export class ModelRegistry<T extends RegistryModel> {
     getForLoad(name: string, create: () => T): T {
         this.ensureInit();
         const lm = this.localMap.get(name);
-        if (lm) {
-            this.embedded.delete(lm);
+        if (lm)
             return lm;
-        }
         const m = create();
         m.name = name;
         this.setLocal(m);
@@ -203,25 +191,6 @@ export class ModelRegistry<T extends RegistryModel> {
         if (this.isGlobal(m))
             this.removeGlobal(m.name);
         this.setLocal(m);
-    }
-
-    // mark a local model as registered only because a subcircuit model's definition includes
-    // it, so it isn't written with the circuit unless an element uses it; the subcircuit
-    // model's definition already has it.  Loading it from the circuit itself clears the mark.
-    markEmbedded(m: T): void {
-        this.embedded.add(m);
-    }
-
-    // write local models not already written, except embedded ones
-    dumpUnusedLocal(doc: Document): void {
-        if (!this.dumpModelXml)
-            return;
-        for (const m of this.localMap.values()) {
-            if (m.dumped || !m.name || this.embedded.has(m))
-                continue;
-            this.dumpModelXml(m, doc);
-            m.dumped = true;
-        }
     }
 
     scope(m: T): ModelScope {
