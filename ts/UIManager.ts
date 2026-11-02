@@ -1139,6 +1139,12 @@ export class UIManager {
             this.app.transform[4] * scale,
             this.app.transform[5] * scale);
 
+        // Find the scope cursor before drawing anything, since scope elements are drawn along with
+        // the circuit.  If it were left from the last frame, its time could be relative to an
+        // older trigger sweep, so a triggered scope element under the mouse would lose it on
+        // every new sweep and flicker.
+        this.selectScopeCursor();
+
         perfmon.startContext("elm.draw()");
         try {
             for (const ce of this.elmList) {
@@ -1322,6 +1328,21 @@ export class UIManager {
         g.drawString("exception, see console!", x, this.canvasHeight - 10);
     }
 
+    // Set the scope cursor (time and selected plot) from the mouse position over a scope, if any
+    selectScopeCursor(): void {
+        Scope.clearCursorInfo();
+        // while dragging the splitter, the mouse sits on the top edge of the scopes;
+        // don't treat that as hovering over a plot
+        if (this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SPLITTER)
+            return;
+        const ct = this.app.stopMessage != null ? 0 : this.app.scopeManager.scopeCount;
+        for (let i = 0; i !== ct; i++)
+            this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+        if (this.app.scopeElmArr != null)
+            for (let i = 0; i !== this.app.scopeElmArr.length; i++)
+                this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+    }
+
     drawBottomArea(g: Graphics): void {
         let leftX = 0;
         let h = 0;
@@ -1341,16 +1362,6 @@ export class UIManager {
         let ct = this.app.scopeManager.scopeCount;
         if (this.app.stopMessage != null)
             ct = 0;
-        Scope.clearCursorInfo();
-        // while dragging the splitter, the mouse sits on the top edge of the scopes;
-        // don't treat that as hovering over a plot
-        if (this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_SPLITTER) {
-            for (let i = 0; i !== ct; i++)
-                this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
-            if (this.app.scopeElmArr != null)
-                for (let i = 0; i !== this.app.scopeElmArr.length; i++)
-                    this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
-        }
         for (let i = 0; i !== ct; i++)
             this.app.scopeManager.scopes[i].draw(g);
         if (this.mouse.mouseWasOverSplitter) {
