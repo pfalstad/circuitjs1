@@ -469,8 +469,10 @@ export class EditDialog extends Dialog {
                 ei.setError("must be >= 0");
             if (ei.integer && !Number.isInteger(ei.value))
                 ei.setError("must be an integer");
-            // choices and buttons are handled via itemStateChanged, not apply
-            if (ei.button !== null || ei.choice !== null)
+            // choices, checkboxes and buttons are handled via itemStateChanged, not apply.
+            // (Re-running their setEditValue here is redundant and can have side effects,
+            // e.g. GateElm's checkboxes rebuild the dialog, which discarded later fields.)
+            if (ei.button !== null || ei.choice !== null || ei.checkbox !== null)
                 continue;
             if (ei.error === null)
                 this.elm.setEditValue(i, ei);
@@ -500,8 +502,9 @@ export class EditDialog extends Dialog {
         let changed = false;
         let applied = false;
 
-        // for buttons and choices, apply pending text-field changes first
-        if ((ei.button !== null || ei.choice !== null) && !ei.newDialog) {
+        // for buttons, choices and checkboxes, apply pending text-field changes first
+        // (in case setEditValue rebuilds the dialog, which would discard them)
+        if ((ei.button !== null || ei.choice !== null || ei.checkbox !== null) && !ei.newDialog) {
             this.apply();
             applied = true;
         }
