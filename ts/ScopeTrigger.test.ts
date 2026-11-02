@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { ScopePlot } from "./ScopePlot";
 import { ScopeTrigger } from "./ScopeTrigger";
 import { UNITS_V } from "./ScopeConstants";
@@ -34,7 +34,13 @@ function setup(mode = ScopeTrigger.TRIGGER_NORMAL) {
     return { column, columns, screen, trigger, plot };
 }
 
+// fake wall clock, advanced by hand, so tests can make sweeps quick or slow
+let clock = 0;
+vi.spyOn(performance, "now").mockImplementation(() => clock);
+
 describe("ScopeTrigger", () => {
+    afterEach(() => { clock = 0; });
+
     it("keeps showing a rare pulse after the buffer has wrapped many times", () => {
         const { column, columns, screen, trigger } = setup();
         columns(0, 20);
@@ -52,14 +58,14 @@ describe("ScopeTrigger", () => {
         expect(screen()).toEqual([0, 0, 0, 5]);
     });
 
-    it("keeps the previous sweep up until the next one is complete", () => {
+    it("keeps the previous sweep up until the next one is complete when sweeps are quick", () => {
         const { column, columns, screen, trigger } = setup();
         columns(0, 20);
         column(5);
         columns(0, 100);
         column(5);
         column(5);
-        // second sweep still capturing, and the first one hasn't been drawn: it stays on screen
+        // second sweep still capturing: the first one stays on screen
         expect(trigger.state).toBe(ScopeTrigger.TRIG_STATE_TRIGGERED);
         expect(screen()).toEqual([0, 0, 0, 5, 0, 0]);
         expect(trigger.time).toBe(21);
@@ -68,12 +74,12 @@ describe("ScopeTrigger", () => {
         expect(trigger.time).toBe(122);
     });
 
-    it("shows the next sweep live as soon as it triggers once the last one has been drawn", () => {
+    it("shows the next sweep live as soon as it triggers when sweeps are slow", () => {
         const { column, columns, screen, trigger } = setup();
         columns(0, 20);
         column(5);
+        clock += 1000;
         columns(0, 100);
-        trigger.snapshotDrawn = true;
         column(5);
         column(5);
         // second sweep shown right away, filling in
@@ -81,6 +87,21 @@ describe("ScopeTrigger", () => {
         expect(screen()).toEqual([0, 0, 0, 5, 5]);
         columns(0, 100);
         expect(screen()).toEqual([0, 0, 0, 5, 5, 0]);
+    });
+
+    it("switches to the sweep being captured if it turns out to be slow", () => {
+        const { column, columns, screen, trigger } = setup();
+        columns(0, 20);
+        column(5);
+        columns(0, 100);
+        column(5);
+        // last sweep was quick, so the first one is still shown...
+        expect(trigger.time).toBe(21);
+        // ...until this one takes too long
+        clock += 1000;
+        column(5);
+        expect(trigger.time).toBe(122);
+        expect(screen()).toEqual([0, 0, 0, 5, 5]);
     });
 
     it("free-runs in auto mode once nothing has triggered for a while", () => {

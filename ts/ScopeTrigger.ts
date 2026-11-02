@@ -70,13 +70,16 @@ export class ScopeTrigger {
     lastCheckPtr: number = -1;
     // wall-clock time (ms) the display last switched to a new sweep, to flash the status text
     lastSweepShown: number = -Infinity;
-    // Whether the frozen snapshot has been drawn yet.  If it hasn't when the next trigger comes,
-    // sweeps are completing faster than the display updates, so keep it rather than replace it
-    // with a partial sweep.
-    snapshotDrawn: boolean = false;
+    // wall-clock time (ms) the current capture started, and how long the last complete capture
+    // took.  Quick captures are shown only once complete; slow ones are shown live as they fill in.
+    capStartWall: number = 0;
+    lastCaptureMs: number = 0;
 
     // How long (ms) the status text flashes when a new sweep is shown
     static readonly FLASH_TIME = 150;
+    // A capture taking longer than this (ms) of wall-clock time is shown live instead of keeping
+    // the previous sweep up until it's complete
+    static readonly LIVE_CAPTURE_TIME = 500;
 
     // The plot the trigger watches, or null if nothing is visible
     sourcePlot(plots: ScopePlot[], visiblePlots: ScopePlot[]): ScopePlot | null {
@@ -182,18 +185,24 @@ export class ScopeTrigger {
 
         case ScopeTrigger.TRIG_STATE_TRIGGERED:
             this.holdoff++;
+            // Still capturing the new sweep but it's taking a while (the sim slowed down)? Show it
+            // live rather than leave the old one up indefinitely.
+            if (!this.captured && this.frozen &&
+                    performance.now() - this.capStartWall > ScopeTrigger.LIVE_CAPTURE_TIME)
+                this.showCapture(visiblePlots);
             // Sweep fully captured: snapshot it, so it stays on screen until the next trigger
-            // (or, for fast sweeps, until the next one is complete).
+            // (or, for quick sweeps, until the next one is complete).
             if (this.holdoff >= Math.floor(rectWidth / 2) && !this.captured) {
+                const now = performance.now();
+                this.lastCaptureMs = now - this.capStartWall;
                 // if it was being shown live, the display isn't changing, so no flash
                 if (this.frozen)
-                    this.lastSweepShown = performance.now();
+                    this.lastSweepShown = now;
                 for (const p of visiblePlots)
                     p.freeze();
                 this.frozen = this.captured = true;
                 this.ptr = this.capPtr;
                 this.time = this.capTime;
-                this.snapshotDrawn = false;
             }
             if (this.holdoff >= rectWidth) {
                 this.state = ScopeTrigger.TRIG_STATE_ARMED;
@@ -216,16 +225,23 @@ export class ScopeTrigger {
         this.capTime = time;
         this.captured = false;
         this.holdoff = 0;
-        // Show the new sweep right away, filling in live, unless the last complete one hasn't
-        // even been drawn yet; then keep it until this one is done.
-        if (this.frozen && this.snapshotDrawn)
-            this.thaw(plots);
-        if (!this.frozen) {
-            this.ptr = ptr;
-            this.time = time;
-            this.lastSweepShown = performance.now();
-        }
+        this.capStartWall = performance.now();
         this.fired = true;
+        // Keep showing the last complete sweep until this one is done if that won't take long, so
+        // quick sweeps don't flicker through partial traces.  Otherwise (or with nothing frozen:
+        // first sweep, or coming out of auto free-run) show this one right away, filling in live.
+        if (this.frozen && this.lastCaptureMs <= ScopeTrigger.LIVE_CAPTURE_TIME)
+            return;
+        this.showCapture(plots);
+    }
+
+    // Switch the display to the sweep being captured, shown live as it fills in
+    private showCapture(plots: ScopePlot[]): void {
+        if (this.frozen)
+            this.thaw(plots);
+        this.ptr = this.capPtr;
+        this.time = this.capTime;
+        this.lastSweepShown = performance.now();
     }
 
     private thaw(plots: ScopePlot[]): void {
