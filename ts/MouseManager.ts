@@ -1679,7 +1679,8 @@ export class MouseManager {
 
 	// once we start zooming, don't allow other uses of mouse wheel for a while
 	// so we don't accidentally edit a resistor value while zooming
-	let zoomOnly = Date.now() < this.zoomTime + 1000;
+	const zooming = Date.now() < this.zoomTime + 1000;
+	let zoomOnly = zooming;
 
 	if (this.ui.isReadOnly() || !this.sim.menus.mouseWheelEditCheckItem.getState())
 	    zoomOnly = true;
@@ -1691,6 +1692,9 @@ export class MouseManager {
 	    (this.mouseElm as any).onMouseWheel(e);
 	else if (this.sim.scopeManager.scopeSelected !== -1)
 	    this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].onMouseWheel(e);
+	else if (this.mouseElm != null && this.mouseElm.isScopeElm() && !zooming)
+	    // undocked scope: adjust its time scale, like a docked scope
+	    (this.mouseElm as any).elmScope.onMouseWheel(e);
 	else if (!this.sim.modalDialogIsShowing()) {
 	    const canvas = this.ui.cv as HTMLCanvasElement;
 	    this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
