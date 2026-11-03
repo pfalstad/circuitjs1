@@ -103,6 +103,7 @@ export class Scope {
     scale: number[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
     reduceRange: boolean[];
     wheelDeltaY: number = 0;
+    wheelDeltaScale: number = 0;
     selectedPlot: number = -1;
     properties: ScopePropertiesDialog | null = null;
     curColor: string = "";
@@ -1654,11 +1655,15 @@ export class Scope {
         const d = e.deltaY !== 0 ? e.deltaY : e.deltaX;
         if (d === 0)
             return;
-        // scale continuously rather than in 1-2-5 steps (about 10% per mouse wheel notch)
+        this.wheelDeltaScale += (Math.round(d * 0.12) || 0) * this.app.mouse.wheelSensitivity;
+        if (Math.abs(this.wheelDeltaScale) <= 5)
+            return;
+        // step through the 1-2-5 sequence, like the time scale
         const plotId = (this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length) ? this.selectedPlot : 0;
         const cur = this.visiblePlots[plotId].manScale;
-        const factor = Math.exp(d * 0.001 * this.app.mouse.wheelSensitivity);
-        this.setManualScaleValue(plotId, Math.max(cur * factor, MIN_MAN_SCALE));
+        const next = this.wheelDeltaScale > 0 ? Scope.nextHigherManScale(cur) : Scope.nextLowerManScale(cur);
+        this.wheelDeltaScale = 0;
+        this.setManualScaleValue(plotId, Math.max(next, MIN_MAN_SCALE));
     }
 
     // step through the 1-2-5 sequence of manual scale values
