@@ -1631,6 +1631,10 @@ export class Scope {
     }
 
     onMouseWheel(e: WheelEvent): void {
+        if (e.shiftKey) {
+            this.onShiftMouseWheel(e);
+            return;
+        }
         this.wheelDeltaY += ScrollValuePopup.normalizeWheelDelta(e) * this.app.mouse.wheelSensitivity;
         if (this.wheelDeltaY > 5) {
             this.slowDown();
@@ -1640,6 +1644,36 @@ export class Scope {
             this.speedUp();
             this.wheelDeltaY = 0;
         }
+    }
+
+    // shift+wheel adjusts the vertical scale of the selected plot (manual scale mode only)
+    private onShiftMouseWheel(e: WheelEvent): void {
+        if (!this.manualScale || this.plot2d.enabled || this.visiblePlots.length === 0)
+            return;
+        // browsers often turn shift+wheel into horizontal scrolling, so look at deltaX too
+        const d = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+        if (d === 0)
+            return;
+        // scale continuously rather than in 1-2-5 steps (about 10% per mouse wheel notch)
+        const plotId = (this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length) ? this.selectedPlot : 0;
+        const cur = this.visiblePlots[plotId].manScale;
+        const factor = Math.exp(d * 0.001 * this.app.mouse.wheelSensitivity);
+        this.setManualScaleValue(plotId, Math.max(cur * factor, MIN_MAN_SCALE));
+    }
+
+    // step through the 1-2-5 sequence of manual scale values
+    static nextHigherManScale(d: number): number {
+        d = d * 1.001;
+        let s = MIN_MAN_SCALE;
+        for (let a = 0; s < d; a++) s *= multa[a % 3];
+        return s;
+    }
+
+    static nextLowerManScale(d: number): number {
+        const target = d * 0.999;
+        let s = MIN_MAN_SCALE, lasts = s;
+        for (let a = 0; s < target; a++) { lasts = s; s *= multa[a % 3]; }
+        return lasts;
     }
 
     getElm(): CircuitElm | null {

@@ -269,10 +269,7 @@ export class ScopePropertiesDialog extends Dialog {
             if (!scope.isManualScale() || this.plotSelection >= scope.visiblePlots.length) return;
             const d = this.getManualScaleValue();
             if (d === 0) return;
-            let s = Scope.MIN_MAN_SCALE, lasts = s;
-            const target = d * 0.999;
-            for (let a = 0; s < target; a++) { lasts = s; s *= Scope.multa[a % 3]; }
-            scope.setManualScaleValue(this.plotSelection, lasts);
+            scope.setManualScaleValue(this.plotSelection, Scope.nextLowerManScale(d));
             this.updateUi();
         });
         this.vScaleRow2.appendChild(this.scaleDownButton);
@@ -864,10 +861,7 @@ export class ScopePropertiesDialog extends Dialog {
     }
 
     static nextHighestScale(d: number): number {
-        d = d * 1.001;
-        let s = Scope.MIN_MAN_SCALE;
-        for (let a = 0; s < d; a++) s *= Scope.multa[a % 3];
-        return s;
+        return Scope.nextHigherManScale(d);
     }
 
     static readonly TRAIL_MAX = 61;
