@@ -40,6 +40,7 @@ import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
 import { parseIntStrict } from "./NumberParse";
+import { finishPastedModels, resolvePastedModels } from "./ModelTypes";
 
 export class CommandManager {
 
@@ -676,12 +677,14 @@ export class CommandManager {
         if (oldsz > 0)
             flags |= CircuitLoader.RC_NO_CENTER;
 
-        if (dump != null)
-            await this.app.loader.readCircuit(dump, flags);
-        else {
+        if (dump == null) {
             this.readClipboardFromStorage();
-            await this.app.loader.readCircuit(this.clipboard, flags);
+            dump = this.clipboard;
         }
+        // pasted models with the names of existing ones: ask whether to replace them
+        const pasted = resolvePastedModels(dump!);
+        await this.app.loader.readCircuit(pasted.text, flags);
+        finishPastedModels(pasted.replaced);
 
         // select new items and get their bounding box
         let newbb: Rectangle | null = null;

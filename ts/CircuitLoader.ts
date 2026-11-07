@@ -111,7 +111,9 @@ export class CircuitLoader {
         const doc = new DOMParser().parseFromString(text, "text/xml");
         const xml = new CircuitXMLDeserializer(this.app);
         const models = loadModelLibrary(xml, doc.documentElement);
-        // make any existing subcircuit instances pick up the new definitions
+        // make any existing elements and subcircuit instances pick up the new definitions
+        if (models.length > 0)
+            this.app.updateModels();
         for (const tm of models)
             if (tm.type.tag === "ccm")
                 this.app.refreshModels(tm.model.name);

@@ -181,32 +181,143 @@ export function dumpModelLibrary(models: TypedModel[]): string {
     return CircuitXMLSerializer.prettyPrint(doc);
 }
 
-// load the models in a model library file and make them global
+// the type of the model defined by an XML element with this tag, if it's a model definition
+function modelTypeForTag(tag: string): ModelType | undefined {
+    return tag === "ccm" ? subcircuitModelType() : getElmModelType(tag);
+}
+
+// run fn with empty local tiers for every model type and return the models it added there (so
+// loading definitions doesn't change any existing model).  The previous local models are put back.
+function collectAllLocal(fn: () => void): TypedModel[] {
+    const types = allModelTypes();
+    const result: TypedModel[] = [];
+    const run = (i: number): void => {
+        if (i === types.length) {
+            fn();
+            return;
+        }
+        for (const m of types[i].registry.collectLocal(() => run(i + 1)))
+            result.push({ type: types[i], model: m });
+    };
+    run(0);
+    return result;
+}
+
+// the model of the same type and name as tm that's in use here, if tm (a model loaded but not
+// registered) has a different definition; tm's name is free if it's undefined
+function differentModelNamed(tm: TypedModel): RegistryModel | undefined {
+    const reg = tm.type.registry;
+    const old = reg.get(tm.model.name);
+    if (!old || reg.serialize(old) === reg.serialize(tm.model))
+        return undefined;
+    return old;
+}
+
+// load the models in a model library file and make them global.  Models identical to existing
+// ones are skipped, and if some would replace different models with the same names, the user
+// is asked whether to replace those.
 export function loadModelLibrary(xml: CircuitXMLDeserializer, root: Element): TypedModel[] {
-    const loaded: TypedModel[] = [];
-    // load subcircuits into an empty local map so we can tell which ones (including nested
-    // ones) came from the file
-    const subType = subcircuitModelType();
-    const subs = subType.registry.collectLocal(() => {
+    // load into empty local tiers so we can tell which models (including nested ones) came
+    // from the file, and nothing existing changes before we know what would be replaced
+    const fromFile = collectAllLocal(() => {
         xml.currentXmlElement = root;
         for (const child of xml.getChildElements()) {
-            xml.parseChildElement(child);
-            if (child.tagName === "ccm") {
-                subType.undump(xml);
-                continue;
-            }
-            const type = getElmModelType(child.tagName);
+            const type = modelTypeForTag(child.tagName);
             if (!type) continue;
-            const m = type.undump(xml);
-            type.registry.setScope(m, "global");
-            loaded.push({ type, model: m });
+            xml.parseChildElement(child);
+            type.undump(xml);
         }
     });
-    for (const m of subs) {
-        subType.registry.setScope(m, "global");
-        loaded.push({ type: subType, model: m });
+    const loaded: TypedModel[] = [];
+    const replacing: TypedModel[] = [];
+    for (const tm of fromFile) {
+        if (!tm.type.registry.has(tm.model.name))
+            loaded.push(tm);
+        else if (differentModelNamed(tm))
+            replacing.push(tm);
     }
+    if (replacing.length > 0 &&
+            window.confirm(Locale.LS("The library has different versions of models that already exist: ") +
+                [...new Set(replacing.map(tm => tm.model.name))].join(", ") + ". " + Locale.LS("Replace them?")))
+        loaded.push(...replacing);
+    for (const tm of loaded)
+        tm.type.registry.setScope(tm.model, "global");
     return loaded;
+}
+
+// a model replaced by pasting (see resolvePastedModels), and the scope the old one had
+export interface PastedModelReplacement {
+    type: ModelType;
+    name: string;
+    scope: ModelScope;
+}
+
+// Before pasting text (a clipboard), deal with its model definitions whose names are already
+// used here: definitions identical to the existing models are dropped (so pasting doesn't add
+// copies), and if some are different, the user is asked whether to replace the existing models.
+// If not, those definitions are dropped too, so the pasted elements use the existing models.
+// Returns the text to paste and the models being replaced (see finishPastedModels).
+export function resolvePastedModels(text: string): { text: string, replaced: PastedModelReplacement[] } {
+    if (!text.startsWith("<"))
+        return { text, replaced: [] };
+    const doc = new DOMParser().parseFromString(text, "text/xml");
+    const root = doc.documentElement;
+    const xml = new CircuitXMLDeserializer(CirSim.theApp);
+    const drop: Element[] = [];
+    const conflicts: { node: Element, type: ModelType, name: string, old: RegistryModel }[] = [];
+    for (const node of Array.from(root.children)) {
+        const type = modelTypeForTag(node.tagName);
+        const name = node.getAttribute("nm");
+        if (!type || name === null || !type.registry.has(name))
+            continue;
+        const loaded = collectAllLocal(() => {
+            xml.currentXmlElement = root;
+            xml.parseChildElement(node);
+            type.undump(xml);
+        }).find(tm => tm.type.registry === type.registry && tm.model.name === name);
+        if (!loaded)
+            continue;
+        const old = differentModelNamed(loaded);
+        if (old)
+            conflicts.push({ node, type, name, old });
+        else
+            drop.push(node);
+    }
+    const replaced: PastedModelReplacement[] = [];
+    if (conflicts.length > 0) {
+        const replace = window.confirm(
+            Locale.LS("The pasted elements use models that are different from the ones here with the same names: ") +
+            [...new Set(conflicts.map(c => c.name))].join(", ") + ".\n" +
+            Locale.LS("Replace the existing models? (Otherwise the pasted elements will use the existing ones.)"));
+        for (const c of conflicts) {
+            if (replace)
+                replaced.push({ type: c.type, name: c.name, scope: c.type.registry.scope(c.old) });
+            else
+                drop.push(c.node);
+        }
+    }
+    if (drop.length === 0)
+        return { text, replaced };
+    for (const node of drop)
+        node.remove();
+    return { text: new XMLSerializer().serializeToString(doc), replaced };
+}
+
+// after pasting, put the models that replaced existing ones (see resolvePastedModels) in the
+// replaced models' scopes, since a pasted definition loads as a local model (and would otherwise
+// shadow a global one), and make the elements that used the old models use the new ones
+export function finishPastedModels(replaced: PastedModelReplacement[]): void {
+    for (const r of replaced) {
+        const m = r.type.registry.get(r.name);
+        if (m && r.scope !== "local")
+            r.type.registry.setScope(m, r.scope);
+    }
+    if (replaced.length === 0)
+        return;
+    CirSim.theApp.updateModels();
+    for (const r of replaced)
+        if (r.type.tag === "ccm")
+            CirSim.theApp.refreshModels(r.name);
 }
 
 // load the persistent models of all types
