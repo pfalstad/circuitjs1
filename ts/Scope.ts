@@ -348,7 +348,10 @@ export class Scope {
         this.showV = this.showI = false;
         this.showScale = this.showFreq = this.manualScale = this.showMin = this.showP2P = this.showElmInfo = false;
         this.fftPlot.enabled = false;
-        if (!this.serializer.loadDefaults()) {
+        if (this.serializer.loadDefaults()) {
+            // trigger mode affects the buffer size
+            this.resetGraph();
+        } else {
             // set showV and showI appropriately depending on what plots are present
             let i;
             for (i = 0; i !== this.plots.length; i++) {
