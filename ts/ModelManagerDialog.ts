@@ -158,7 +158,9 @@ export class ModelManagerDialog extends Dialog {
     private handleSave(): void {
         const sel = this.getSelected();
         if (sel.length === 0) return;
-        const data = dumpModelLibrary(sel);
+        // include the models they use (e.g. the subcircuits inside a subcircuit), so the library
+        // works on its own
+        const data = dumpModelLibrary(withDependencies(sel));
         const base = (sel.length === 1) ? sel[0].model.name.replace(/[\\/:*?"<>|]/g, "_") : "models";
         new ExportAsLocalFileDialog(data, base + ".txt", "Save Models").show();
     }

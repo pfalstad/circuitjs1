@@ -165,14 +165,28 @@ export class EditSubcircuitModelDialog extends Dialog {
     }
 
     enterPressed(): void {
+        let name = this.model.name;
         if (this.modelNameInput) {
-            const name = this.modelNameInput.value;
+            name = this.modelNameInput.value;
             if (name.length === 0) {
                 window.alert(Locale.LS("Please enter a model name."));
                 return;
             }
+        }
+        // the model replaces any other model with this name (in either tier, so it doesn't
+        // shadow a global one or get shadowed by a local one), so ask first.  Saving a model
+        // that's being edited in place replaces the old version without asking, since that's
+        // the point.
+        const reg = SubcircuitModel.registry;
+        const editing = this.popContext && name === CirSim.theApp.getEditingModelName();
+        const others = [reg.localMap.get(name), reg.globalMap.get(name)].filter(m => m && m !== this.model);
+        if (others.length > 0 && !editing &&
+                !window.confirm(Locale.LS("This will replace another model with the same name: ") + name + ". " +
+                                Locale.LS("Continue?")))
+            return;
+        if (this.modelNameInput) {
             SubcircuitElm.lastModelName = name;
-        this.model.setName(name);
+            this.model.setName(name);
         }
         const scope = this.scopeSelect!.selectedIndex;
         SubcircuitModel.registry.remove(this.model.name);

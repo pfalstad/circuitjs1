@@ -139,8 +139,8 @@ export function modelDependencies(tm: TypedModel): TypedModel[] {
 // models, plus the models they depend on (directly or indirectly) that have to move with them
 // to scope, so that a global model doesn't refer to local models (which are dropped when another
 // circuit is loaded) and a persistent one doesn't refer to models that won't be there in the
-// next session
-export function withDependencies(models: TypedModel[], scope: ModelScope): TypedModel[] {
+// next session.  With no scope, all the models they depend on (e.g. to export them together).
+export function withDependencies(models: TypedModel[], scope?: ModelScope): TypedModel[] {
     const result = [...models];
     if (scope === "local")
         return result;
@@ -151,7 +151,7 @@ export function withDependencies(models: TypedModel[], scope: ModelScope): Typed
                 continue;
             seen.add(dep.model);
             const s = dep.type.registry.scope(dep.model);
-            if (s === "local" || (scope === "persistent" && s === "global"))
+            if (!scope || s === "local" || (scope === "persistent" && s === "global"))
                 result.push(dep);
             visit(dep);
         }
