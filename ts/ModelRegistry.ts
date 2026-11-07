@@ -199,6 +199,15 @@ export class ModelRegistry<T extends RegistryModel> {
         return this.isSaved(m.name) ? "persistent" : "global";
     }
 
+    // whether setScope(m, scope) would replace a different model with the same name: the local
+    // one when moving to the local tier, and either one when moving to the global tier (since
+    // makeGlobal also drops the local one)
+    wouldReplace(m: T, scope: ModelScope): boolean {
+        if (this.hasLocal(m.name) && !this.isLocal(m))
+            return true;
+        return scope !== "local" && this.hasGlobal(m.name) && !this.isGlobal(m);
+    }
+
     // move a model to the given scope.  Making a persistent model global leaves it persistent,
     // but updates the saved copy.
     setScope(m: T, scope: ModelScope): void {
@@ -212,10 +221,20 @@ export class ModelRegistry<T extends RegistryModel> {
             this.store(m);
     }
 
-    // remove a model, including any saved copy
+    // remove a model, including its saved copy if it's global.  Only this model is removed, not
+    // a model of the same name in the other tier (a local model may shadow a global one).
     delete(m: T): void {
-        this.unsave(m.name);
-        this.remove(m.name);
+        if (this.isLocal(m)) {
+            this.removeLocal(m.name);
+        } else if (this.isGlobal(m)) {
+            this.unsave(m.name);
+            this.removeGlobal(m.name);
+        }
+    }
+
+    // whether m is a global model hidden by a local model with the same name
+    isShadowed(m: T): boolean {
+        return this.isGlobal(m) && this.localMap.has(m.name);
     }
 
     // run fn with an empty local tier and return the models it added there; the previous
@@ -245,6 +264,12 @@ export class ModelRegistry<T extends RegistryModel> {
         for (const [k, v] of this.localMap)
             merged.set(k, v);
         return [...merged.values()];
+    }
+
+    // all models, including global ones shadowed by a local model of the same name
+    allModels(): T[] {
+        this.ensureInit();
+        return [...this.globalMap.values(), ...this.localMap.values()];
     }
 
     clearDumpedFlags(): void {

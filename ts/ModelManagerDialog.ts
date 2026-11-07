@@ -88,12 +88,17 @@ export class ModelManagerDialog extends Dialog {
     // fill type selector and list box, selecting the models in selected
     private populateList(selected: Set<unknown>): void {
         const all: TypedModel[] = [];
+        // include global models shadowed by a local one of the same name (e.g. a newer version
+        // saved in storage, hidden by an older copy loaded from the circuit file), so they can be
+        // seen and managed
         for (const type of allModelTypes())
-            for (const model of type.registry.models())
+            for (const model of type.registry.allModels())
                 if (isUserModel(model))
                     all.push({ type, model });
         const typeName = (tm: TypedModel) => tm.type.typeName(tm.model);
-        all.sort((a, b) => typeName(a).localeCompare(typeName(b)) || a.model.name.localeCompare(b.model.name));
+        const shadowed = (tm: TypedModel) => tm.type.registry.isShadowed(tm.model) ? 1 : 0;
+        all.sort((a, b) => typeName(a).localeCompare(typeName(b)) || a.model.name.localeCompare(b.model.name) ||
+            shadowed(a) - shadowed(b));
 
         // offer the types that have models, plus the current filter
         const typeNames = [...new Set(all.map(typeName))];
@@ -115,7 +120,10 @@ export class ModelManagerDialog extends Dialog {
             let text = tm.model.name + " (";
             if (!filter)
                 text += Locale.LS(typeName(tm)) + ", ";
-            opt.textContent = text + Locale.LS(tm.type.registry.scope(tm.model)) + ")";
+            text += Locale.LS(tm.type.registry.scope(tm.model));
+            if (tm.type.registry.isShadowed(tm.model))
+                text += ", " + Locale.LS("hidden by local");
+            opt.textContent = text + ")";
             opt.selected = selected.has(tm.model);
             this.modelListBox.appendChild(opt);
         }
@@ -133,6 +141,14 @@ export class ModelManagerDialog extends Dialog {
 
     private handleSetScope(scope: ModelScope): void {
         const sel = this.getSelected();
+        if (sel.length === 0) return;
+        // a model with the same name in the other tier (e.g. a global one shadowed by a local
+        // one) would be replaced, so ask first
+        const replacing = sel.filter(tm => tm.type.registry.wouldReplace(tm.model, scope));
+        if (replacing.length > 0 &&
+            !window.confirm(Locale.LS("This will replace another model with the same name: ") +
+                [...new Set(replacing.map(tm => tm.model.name))].join(", ") + ". " + Locale.LS("Continue?")))
+            return;
         for (const tm of sel)
             tm.type.registry.setScope(tm.model, scope);
         this.populateList(new Set(sel.map(tm => tm.model)));
@@ -151,9 +167,11 @@ export class ModelManagerDialog extends Dialog {
         const sel = this.getSelected();
         if (sel.length === 0) return;
         const inUse = getModelsInUse();
-        // (an element may hold a different model object with the same name, e.g. after the model was replaced)
+        // (an element may hold a different model object with the same name, e.g. after the model
+        // was replaced.  That can't be a shadowed model, which elements can't get by name.)
         const used = sel.filter(tm => [...inUse].some(u => u === tm.model ||
-            (u.constructor === tm.model.constructor && u.name === tm.model.name)));
+            (u.constructor === tm.model.constructor && u.name === tm.model.name &&
+             !tm.type.registry.isShadowed(tm.model))));
         if (used.length > 0) {
             window.alert(Locale.LS("Can't delete models in use in the current circuit: ") +
                 used.map(tm => tm.model.name).join(", "));

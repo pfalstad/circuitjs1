@@ -104,4 +104,44 @@ describe("ModelRegistry", () => {
         reg.clearDumpedFlags();
         expect(a.dumped || b.dumped).toBe(false);
     });
+
+    it("deletes only the given model, not a same-named one in the other tier", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        reg.delete(l);
+        expect(reg.get("a")).toBe(g);
+        reg.setLocal(l);
+        reg.delete(g);
+        expect(reg.get("a")).toBe(l);
+        expect(reg.hasGlobal("a")).toBe(false);
+    });
+
+    it("lists global models shadowed by local ones", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a"), h = new M("b");
+        reg.setGlobal(g);
+        reg.setGlobal(h);
+        reg.setLocal(l);
+        expect(reg.allModels()).toEqual([g, h, l]);
+        expect(reg.isShadowed(g)).toBe(true);
+        expect(reg.isShadowed(h)).toBe(false);
+        expect(reg.isShadowed(l)).toBe(false);
+    });
+
+    it("tells whether a scope change would replace a same-named model", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a"), only = new M("b");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        reg.setLocal(only);
+        expect(reg.wouldReplace(l, "global")).toBe(true);    // replaces g
+        expect(reg.wouldReplace(l, "local")).toBe(false);    // already local
+        expect(reg.wouldReplace(g, "local")).toBe(true);     // replaces l
+        expect(reg.wouldReplace(g, "global")).toBe(true);    // drops l
+        expect(reg.wouldReplace(only, "persistent")).toBe(false);
+        reg.removeLocal("a");
+        expect(reg.wouldReplace(g, "local")).toBe(false);
+    });
 });
