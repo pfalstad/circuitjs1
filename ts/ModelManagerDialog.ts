@@ -22,7 +22,8 @@ import { CirSim } from "./CirSim";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { Locale } from "./Locale";
 import type { ModelScope } from "./ModelRegistry";
-import { allModelTypes, dumpModelLibrary, getModelsInUse, isUserModel, type TypedModel } from "./ModelTypes";
+import { allModelTypes, confirmReplace, dumpModelLibrary, getModelsInUse, isUserModel, withDependencies,
+         type TypedModel } from "./ModelTypes";
 
 // lists the user's models of all types (subcircuits, diodes, transistors, ...) and lets them
 // change where the models live (see ModelRegistry), save them to a library file, or delete them
@@ -142,14 +143,13 @@ export class ModelManagerDialog extends Dialog {
     private handleSetScope(scope: ModelScope): void {
         const sel = this.getSelected();
         if (sel.length === 0) return;
+        // models the selected ones use go along, e.g. the subcircuits inside a subcircuit
+        const moving = withDependencies(sel, scope);
         // a model with the same name in the other tier (e.g. a global one shadowed by a local
         // one) would be replaced, so ask first
-        const replacing = sel.filter(tm => tm.type.registry.wouldReplace(tm.model, scope));
-        if (replacing.length > 0 &&
-            !window.confirm(Locale.LS("This will replace another model with the same name: ") +
-                [...new Set(replacing.map(tm => tm.model.name))].join(", ") + ". " + Locale.LS("Continue?")))
+        if (!confirmReplace(moving, scope))
             return;
-        for (const tm of sel)
+        for (const tm of moving)
             tm.type.registry.setScope(tm.model, scope);
         this.populateList(new Set(sel.map(tm => tm.model)));
     }

@@ -25,6 +25,8 @@ import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { SubcircuitElm } from "./SubcircuitElm";
+import type { ModelScope } from "./ModelRegistry";
+import { confirmReplace, subcircuitModelType, withDependencies, type TypedModel } from "./ModelTypes";
 
 export class EditSubcircuitModelDialog extends Dialog {
     model: SubcircuitModel = null!;
@@ -182,6 +184,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         } else {
             this.model.setSaved(true);
         }
+        if (scope !== EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT)
+            this.moveDependencies(scope === EditSubcircuitModelDialog.SCOPE_THIS_SESSION ? "global" : "persistent");
         CirSim.theApp.updateModels();
         CirSim.theApp.needAnalyze();
         if (!this.popContext && CirSim.theApp.contextStack.length > 0) {
@@ -209,6 +213,18 @@ export class EditSubcircuitModelDialog extends Dialog {
                 app.contextStack[app.contextStack.length - 1].changedModels.push(...changedModels);
         }
         this.closeDialog();
+    }
+
+    // make the models this one uses (e.g. the subcircuits inside it) at least as global as it is,
+    // so it still works after another circuit is loaded or in the next session.  If that would
+    // replace other models with the same names and the user declines, those are left alone.
+    private moveDependencies(scope: ModelScope): void {
+        const self: TypedModel = { type: subcircuitModelType(), model: this.model };
+        let deps = withDependencies([self], scope).slice(1);
+        if (!confirmReplace(deps, scope))
+            deps = deps.filter(tm => !tm.type.registry.wouldReplace(tm.model, scope));
+        for (const tm of deps)
+            tm.type.registry.setScope(tm.model, scope);
     }
 
     closeDialog(): void {

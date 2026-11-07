@@ -31,7 +31,8 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
 import { HookRegistry } from "./HookRegistry";
-import { ModelRegistry, type RegistryModel } from "./ModelRegistry";
+import { Locale } from "./Locale";
+import { ModelRegistry, type ModelScope, type RegistryModel } from "./ModelRegistry";
 
 export interface ModelType {
     // XML tag of the model's definition
@@ -99,6 +100,74 @@ export function getModelsInUse(): Set<RegistryModel> {
     };
     scan(CirSim.theApp.elmList);
     return used;
+}
+
+// the user models that a model's elements refer to by name: for a subcircuit, the subcircuits
+// and element models (diode, transistor, pin layout, ...) used inside it.  (Not the models
+// those refer to; see withDependencies.)
+export function modelDependencies(tm: TypedModel): TypedModel[] {
+    const doc = (tm.model as SubcircuitModel).elmDoc;
+    if (tm.type.tag !== "ccm" || !doc)
+        return [];
+    const deps = new Map<RegistryModel, TypedModel>();
+    const add = (type: ModelType, name: string | null) => {
+        const m = name ? type.registry.get(name) : undefined;
+        if (m && m !== tm.model && isUserModel(m))
+            deps.set(m, { type, model: m });
+    };
+    const subType = subcircuitModelType();
+    const elmTypes = elmModelTypes();
+    const pinLayoutType = elmTypes.find(t => t.tag === "plm")!;
+    // (elements are flat, but walk all descendants to include those of embedded definitions)
+    for (const el of Array.from(doc.documentElement.getElementsByTagName("*"))) {
+        add(pinLayoutType, el.getAttribute("pl"));
+        const mo = el.getAttribute("mo");
+        if (mo === null)
+            continue;
+        if (el.tagName === "cc")
+            add(subType, mo);
+        else
+            // "mo" is the model name for elements that have models (and something else, like a
+            // counter's modulus, for a few that don't, which won't match a model)
+            for (const t of elmTypes)
+                if (t !== pinLayoutType)
+                    add(t, mo);
+    }
+    return [...deps.values()];
+}
+
+// models, plus the models they depend on (directly or indirectly) that have to move with them
+// to scope, so that a global model doesn't refer to local models (which are dropped when another
+// circuit is loaded) and a persistent one doesn't refer to models that won't be there in the
+// next session
+export function withDependencies(models: TypedModel[], scope: ModelScope): TypedModel[] {
+    const result = [...models];
+    if (scope === "local")
+        return result;
+    const seen = new Set<RegistryModel>(models.map(tm => tm.model));
+    const visit = (tm: TypedModel) => {
+        for (const dep of modelDependencies(tm)) {
+            if (seen.has(dep.model))
+                continue;
+            seen.add(dep.model);
+            const s = dep.type.registry.scope(dep.model);
+            if (s === "local" || (scope === "persistent" && s === "global"))
+                result.push(dep);
+            visit(dep);
+        }
+    };
+    models.forEach(visit);
+    return result;
+}
+
+// if moving any of models to scope would replace a different model with the same name (e.g. a
+// global one shadowed by a local one), ask the user.  Returns false if they decline.
+export function confirmReplace(models: TypedModel[], scope: ModelScope): boolean {
+    const replacing = models.filter(tm => tm.type.registry.wouldReplace(tm.model, scope));
+    if (replacing.length === 0)
+        return true;
+    return window.confirm(Locale.LS("This will replace another model with the same name: ") +
+        [...new Set(replacing.map(tm => tm.model.name))].join(", ") + ". " + Locale.LS("Continue?"));
 }
 
 // models (of all types) as a model library file, which can be loaded like a circuit.
