@@ -218,8 +218,7 @@ export class ModelRegistry<T extends RegistryModel> {
         return scope !== "local" && this.hasGlobal(m.name) && !this.isGlobal(m);
     }
 
-    // move a model to the given scope.  Making a persistent model global leaves it persistent,
-    // but updates the saved copy.
+    // move a model to the given scope (so making a persistent model global drops its saved copy)
     setScope(m: T, scope: ModelScope): void {
         if (scope === "local") {
             this.unsave(m.name);
@@ -227,8 +226,10 @@ export class ModelRegistry<T extends RegistryModel> {
             return;
         }
         this.makeGlobal(m);
-        if (scope === "persistent" || this.isSaved(m.name))
+        if (scope === "persistent")
             this.store(m);
+        else
+            this.unsave(m.name);
     }
 
     // remove a model, including its saved copy if it's global.  Only this model is removed, not

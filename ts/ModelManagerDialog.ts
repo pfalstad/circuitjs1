@@ -22,8 +22,8 @@ import { CirSim } from "./CirSim";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { Locale } from "./Locale";
 import type { ModelScope } from "./ModelRegistry";
-import { allModelTypes, confirmReplace, dumpModelLibrary, getModelsInUse, isUserModel, withDependencies,
-         type TypedModel } from "./ModelTypes";
+import { allModelTypes, confirmMoveUsers, confirmReplace, dumpModelLibrary, getModelsInUse, isUserModel,
+         modelUsers, usersToMove, withDependencies, type TypedModel } from "./ModelTypes";
 
 // lists the user's models of all types (subcircuits, diodes, transistors, ...) and lets them
 // change where the models live (see ModelRegistry), save them to a library file, or delete them
@@ -124,6 +124,9 @@ export class ModelManagerDialog extends Dialog {
             text += Locale.LS(tm.type.registry.scope(tm.model));
             if (tm.type.registry.isShadowed(tm.model))
                 text += ", " + Locale.LS("hidden by local");
+            const users = modelUsers(tm.model);
+            if (users.length > 0)
+                text += ", " + Locale.LS("used by") + " " + users.map(u => u.model.name).join(", ");
             opt.textContent = text + ")";
             opt.selected = selected.has(tm.model);
             this.modelListBox.appendChild(opt);
@@ -143,8 +146,14 @@ export class ModelManagerDialog extends Dialog {
     private handleSetScope(scope: ModelScope): void {
         const sel = this.getSelected();
         if (sel.length === 0) return;
+        // models that use the selected ones and are more global than scope go along, so they
+        // don't end up using models that won't be there (e.g. a persistent subcircuit using one
+        // that's made local), but ask first
+        const users = usersToMove(sel, scope);
+        if (!confirmMoveUsers(users, scope))
+            return;
         // models the selected ones use go along, e.g. the subcircuits inside a subcircuit
-        const moving = withDependencies(sel, scope);
+        const moving = withDependencies([...sel, ...users], scope);
         // a model with the same name in the other tier (e.g. a global one shadowed by a local
         // one) would be replaced, so ask first
         if (!confirmReplace(moving, scope))
@@ -177,6 +186,24 @@ export class ModelManagerDialog extends Dialog {
         if (used.length > 0) {
             window.alert(Locale.LS("Can't delete models in use in the current circuit: ") +
                 used.map(tm => tm.model.name).join(", "));
+            return;
+        }
+        // other models using one would break, unless the name will still find a model (a
+        // global one this local one shadows)
+        const deleting = new Set(sel.map(tm => tm.model));
+        const usedBy: string[] = [];
+        for (const tm of sel) {
+            const reg = tm.type.registry;
+            const global = reg.globalMap.get(tm.model.name);
+            if (reg.isLocal(tm.model) && global && !deleting.has(global))
+                continue;
+            const users = modelUsers(tm.model).filter(u => !deleting.has(u.model));
+            if (users.length > 0)
+                usedBy.push(tm.model.name + " (" + Locale.LS("used by") + " " +
+                    users.map(u => u.model.name).join(", ") + ")");
+        }
+        if (usedBy.length > 0) {
+            window.alert(Locale.LS("Can't delete models used by other models: ") + usedBy.join(", "));
             return;
         }
         const names = sel.map(tm => tm.model.name).join(", ");

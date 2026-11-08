@@ -85,7 +85,7 @@ export class EditPinLayoutDialog extends Dialog {
         scopeRow.style.margin = "8px 0";
         scopeRow.appendChild(Object.assign(document.createElement("span"), { textContent: Locale.LS("Scope:") + " " }));
         this.scopeSelect = document.createElement("select");
-        for (const s of ["This Circuit", "This Session", "Save Across Sessions"])
+        for (const s of ["This Circuit (Local)", "This Session (Global)", "Save Across Sessions (Persistent)"])
             this.scopeSelect.appendChild(Object.assign(document.createElement("option"), { textContent: Locale.LS(s) }));
         this.scopeSelect.selectedIndex = model === null ? 0 : EditPinLayoutDialog.SCOPES.indexOf(reg.scope(model));
         scopeRow.appendChild(this.scopeSelect);

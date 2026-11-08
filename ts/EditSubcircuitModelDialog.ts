@@ -26,7 +26,8 @@ import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { SubcircuitElm } from "./SubcircuitElm";
 import type { ModelScope } from "./ModelRegistry";
-import { confirmReplace, subcircuitModelType, usesSubcircuit, withDependencies, type TypedModel } from "./ModelTypes";
+import { confirmMoveUsers, confirmReplace, subcircuitModelType, usersToMove, usesSubcircuit, withDependencies,
+         type TypedModel } from "./ModelTypes";
 
 export class EditSubcircuitModelDialog extends Dialog {
     model: SubcircuitModel = null!;
@@ -136,7 +137,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         scopeRow.style.margin = "8px 0";
         scopeRow.appendChild(Object.assign(document.createElement("span"), { textContent: Locale.LS("Scope:") + " " }));
         this.scopeSelect = document.createElement("select");
-        const scopes = [Locale.LS("This Circuit"), Locale.LS("This Session"), Locale.LS("Save Across Sessions")];
+        const scopes = [Locale.LS("This Circuit (Local)"), Locale.LS("This Session (Global)"),
+                        Locale.LS("Save Across Sessions (Persistent)")];
         scopes.forEach(s => this.scopeSelect!.appendChild(Object.assign(document.createElement("option"), { textContent: s })));
         if (this.model.isSaved())
             this.scopeSelect.value = scopes[EditSubcircuitModelDialog.SCOPE_SAVE_ACROSS_SESSIONS];
@@ -188,11 +190,18 @@ export class EditSubcircuitModelDialog extends Dialog {
                 !window.confirm(Locale.LS("This will replace another model with the same name: ") + name + ". " +
                                 Locale.LS("Continue?")))
             return;
+        // other models using the one with this name (by name, so they'll use this one) that are
+        // more global than the new scope have to move too, or they'd break (see usersToMove)
+        const scope = this.scopeSelect!.selectedIndex;
+        const scopeName = (["local", "global", "persistent"] as ModelScope[])[scope];
+        const old = reg.get(name);
+        const users = old ? usersToMove([{ type: subcircuitModelType(), model: old }], scopeName) : [];
+        if (!confirmMoveUsers(users, scopeName))
+            return;
         if (this.modelNameInput) {
             SubcircuitElm.lastModelName = name;
             this.model.setName(name);
         }
-        const scope = this.scopeSelect!.selectedIndex;
         SubcircuitModel.registry.remove(this.model.name);
         this.model.setSaved(false);
         if (scope === EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT) {
@@ -202,6 +211,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         } else {
             this.model.setSaved(true);
         }
+        for (const tm of users)
+            tm.type.registry.setScope(tm.model, scopeName);
         if (scope !== EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT)
             this.moveDependencies(scope === EditSubcircuitModelDialog.SCOPE_THIS_SESSION ? "global" : "persistent");
         CirSim.theApp.updateModels();

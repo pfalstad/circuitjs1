@@ -181,6 +181,46 @@ export function withDependencies(models: TypedModel[], scope?: ModelScope): Type
     return result;
 }
 
+// the subcircuit models whose elements use model (directly).  (Not shadowed ones, which
+// elements can't get by name.)
+export function modelUsers(model: RegistryModel): TypedModel[] {
+    const type = subcircuitModelType();
+    return type.registry.allModels()
+        .filter(m => isUserModel(m) && !type.registry.isShadowed(m))
+        .map(m => ({ type, model: m }))
+        .filter(tm => modelDependencies(tm).some(d => d.model === model));
+}
+
+const scopeRank: Record<ModelScope, number> = { local: 0, global: 1, persistent: 2 };
+
+// the models that use models (directly or indirectly) and would have to move with them to scope
+// because they're more global than that (the reverse of withDependencies), e.g. a persistent
+// subcircuit using one that's being made local, which would be missing in the next session
+export function usersToMove(models: TypedModel[], scope: ModelScope): TypedModel[] {
+    const result: TypedModel[] = [];
+    const seen = new Set<RegistryModel>(models.map(tm => tm.model));
+    const visit = (model: RegistryModel) => {
+        for (const u of modelUsers(model)) {
+            if (seen.has(u.model) || scopeRank[u.type.registry.scope(u.model)] <= scopeRank[scope])
+                continue;
+            seen.add(u.model);
+            result.push(u);
+            visit(u.model);
+        }
+    };
+    models.forEach(tm => visit(tm.model));
+    return result;
+}
+
+// ask whether the models that use the ones being moved (see usersToMove) may move to scope too.
+// Returns false if they decline.
+export function confirmMoveUsers(users: TypedModel[], scope: ModelScope): boolean {
+    if (users.length === 0)
+        return true;
+    return window.confirm(Locale.LS("Models that use this will also be made ") + Locale.LS(scope) + ": " +
+        users.map(tm => tm.model.name).join(", ") + ". " + Locale.LS("Continue?"));
+}
+
 // if moving any of models to scope would replace a different model with the same name (e.g. a
 // global one shadowed by a local one), ask the user.  Returns false if they decline.
 export function confirmReplace(models: TypedModel[], scope: ModelScope): boolean {
@@ -261,8 +301,9 @@ export function loadModelLibrary(xml: CircuitXMLDeserializer, root: Element): Ty
             window.confirm(Locale.LS("The library has different versions of models that already exist: ") +
                 [...new Set(replacing.map(tm => tm.model.name))].join(", ") + ". " + Locale.LS("Replace them?")))
         loaded.push(...replacing);
+    // (a model replacing a persistent one stays persistent, updating the saved copy)
     for (const tm of loaded)
-        tm.type.registry.setScope(tm.model, "global");
+        tm.type.registry.setScope(tm.model, tm.type.registry.isSaved(tm.model.name) ? "persistent" : "global");
     return loaded;
 }
 
