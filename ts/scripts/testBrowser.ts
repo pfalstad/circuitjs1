@@ -2,9 +2,10 @@
 // What run-tests.ts and create-tests.ts share: serving the app and ../auto-tests, and
 // running a list of tests in it in Chrome
 
+import { execFileSync } from "child_process";
 import { chromium, type Browser, type Page } from "playwright";
 import { createServer, preview } from "vite";
-import { dirname, resolve } from "path";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
 export const tsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,4 +60,18 @@ export async function runTestList(page: Page, base: string, list: string, steps:
     await page.exposeFunction("__onTestResult", onResult);
     await page.goto(appUrl(base, { testlist: list, teststeps: steps }));
     await page.waitForFunction(() => (window as any).__testsDone === true, null, { timeout: 0, polling: 500 });
+}
+
+// the circuits marked good in the comparator, whose links look like
+// http://host:5001/circuits/x.txt or http://host:5001/tests/x.txt
+export function goodCircuits(): string[] {
+    const db = resolve(tsRoot, "../test-interface/test_results.db");
+    const out = execFileSync("sqlite3", ["-list", "-noheader", db, "select link from results where verdict = 'good' order by link"],
+                             { encoding: "utf8" });
+    return out.split("\n").filter(l => l).map(link => {
+        const m = link.match(/\/(circuits|tests)\/([^/]+)$/);
+        if (!m)
+            throw new Error("unexpected link " + link);
+        return m[1] === "circuits" ? join(tsRoot, "public/circuits", m[2]) : resolve(tsRoot, "../tests", m[2]);
+    });
 }

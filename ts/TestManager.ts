@@ -68,6 +68,9 @@ export class TestManager {
     // createTest(): when to give up recording (Date.now()), and what to call when done
     recordDeadline = 0;
     onRecordDone: (() => void) | null = null;
+    // roundTrip(): every element's post voltages, every sampleEvery time steps, while recording
+    samples: number[][] | null = null;
+    sampleEvery = 1;
     headless = false;
     base = import.meta.env.DEV ? new URL("auto-tests/", window.location.href).href
                                : "http://127.0.0.1:5001/auto-tests/";
@@ -304,6 +307,8 @@ export class TestManager {
         if (!this.testRunning)
             return false;
         if (this.recording) {
+            if (this.samples != null && this.app.sim.stepsSinceReset % this.sampleEvery === 0)
+                this.samples.push(this.sampleVoltages());
             // createTest() stops at the length it chose, or when it's taking too long
             const done = this.testLen >= 0 && this.app.sim.t >= this.testLen - this.eps;
             if (done || (this.recordDeadline > 0 && Date.now() > this.recordDeadline)) {
@@ -466,26 +471,137 @@ export class TestManager {
         await this.app.loader.readCircuit(this.savedCircuitDump);
         this.seedRandom();
         this.app.resetAction();
-        this.testLen = Math.min(fill, maxSteps) * this.app.sim.maxTimeStep;
+        const stopped = await this.recordRun(Math.min(fill, maxSteps) * this.app.sim.maxTimeStep, spf, maxSeconds);
+        if (stopped != null)
+            return { skip: "simulation stopped: " + stopped, errors: errors() };
+        const dump = this.testDump();
+        this.testLen = -1;
+        return { dump, errors: errors(), len: this.app.sim.t };
+    }
+
+    // runs the loaded circuit for len seconds (or maxSeconds of real time) in recording mode,
+    // spf time steps per frame.  Returns why the simulator stopped, if it stopped on its own
+    private async recordRun(len: number, spf: number, maxSeconds: number): Promise<string | null> {
+        const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+        this.testLen = len;
         this.testSpf = spf;
         this.recordDeadline = Date.now() + maxSeconds * 1000;
         const done = new Promise<void>(r => this.onRecordDone = r);
         this.app.setSimRunning(true);
         this.testRunning = this.recording = true;
-        // the simulator can stop on its own (singular matrix, say)
-        while (this.recording) {
-            if (this.app.stopMessage != null || !this.app.simRunning) {
-                this.testRunning = this.recording = false;
-                this.onRecordDone = null;
-                return { skip: "simulation stopped: " + (this.app.stopMessage ?? "?"), errors: errors() };
+        try {
+            // the simulator can stop on its own (singular matrix, say)
+            while (this.recording) {
+                if (this.app.stopMessage != null || !this.app.simRunning) {
+                    this.testRunning = this.recording = false;
+                    this.onRecordDone = null;
+                    return this.app.stopMessage ?? "?";
+                }
+                await Promise.race([done, frame()]);
             }
-            await Promise.race([done, frame()]);
+            await done;
+            return null;
+        } finally {
+            this.recordDeadline = 0;
         }
-        await done;
-        this.recordDeadline = 0;
-        const dump = this.testDump();
-        this.testLen = -1;
-        return { dump, errors: errors(), len: this.app.sim.t };
+    }
+
+    // every element's post voltages (NaN for posts without a node)
+    private sampleVoltages(): number[] {
+        const v: number[] = [this.app.sim.t];
+        for (const ce of this.app.elmList as any[])
+            for (let i = 0; i !== ce.getPostCount(); i++)
+                v.push(ce.nodes?.[i]?.v ?? NaN);
+        return v;
+    }
+
+    // Checks that a circuit (the text of its file) runs the same when saved and loaded again:
+    // that it saves as the same XML both times, and that from where each was loaded, with no
+    // reset, every post's voltage is the same over steps time steps (or maxSeconds).  Returns
+    // the differences found.
+    async roundTrip(text: string, steps: number, maxSeconds: number, spf: number):
+            Promise<{ skip?: string, diffs: string[], errors: string[] }> {
+        this.currentErrors = [];
+        const errors = () => this.currentErrors.map(e => "error: " + e);
+        const run = async (text: string) => {
+            this.testRunning = this.recording = false;
+            this.app.setSimRunning(false);
+            this.testLen = -1;
+            await this.app.loader.readCircuit(text);
+            this.app.setSimRunning(false);
+            if (this.app.elmList.length === 0)
+                throw new Error("no elements");
+            const dump = this.app.dumpCircuit();
+            if (this.app.sim.t !== 0)
+                throw new Error("ran before it was saved");
+            this.seedRandom();
+            this.samples = [];
+            this.sampleEvery = Math.max(1, Math.floor(steps / 100));
+            try {
+                const stopped = await this.recordRun(steps * this.app.sim.maxTimeStep, spf, maxSeconds);
+                return { dump, samples: this.samples, stopped, layout: this.layout() };
+            } finally {
+                this.samples = null;
+                this.testLen = -1;
+            }
+        };
+        let a, b;
+        try {
+            a = await run(text);
+            b = await run(a.dump);
+        } catch (e) {
+            return { skip: "exception: " + e, diffs: [], errors: errors() };
+        }
+        const diffs: string[] = [];
+        if (a.dump !== b.dump) {
+            const la = a.dump.split("\n"), lb = b.dump.split("\n");
+            let i = 0;
+            while (i < la.length && la[i] === lb[i])
+                i++;
+            diffs.push(`saves differently when loaded again, first at line ${i + 1}:\n      ${la[i]}\n      ${lb[i]}`);
+        }
+        if (a.stopped !== b.stopped)
+            diffs.push(`simulation stopped: ${a.stopped ?? "no"} vs ${b.stopped ?? "no"}`);
+        if (a.layout.join() !== b.layout.join())
+            diffs.push("different elements when loaded again");
+        else {
+            // the first sample where each element's posts differ
+            const firstDiff = new Map<number, string>();
+            const n = Math.min(a.samples.length, b.samples.length);
+            for (let s = 0; s < n; s++) {
+                const va = a.samples[s], vb = b.samples[s];
+                for (let j = 1; j < va.length; j++) {
+                    const x = va[j], y = vb[j];
+                    if (Number.isNaN(x) && Number.isNaN(y))
+                        continue;
+                    const tol = Math.max(TestManager.TOLERANCE * Math.max(Math.abs(x), Math.abs(y)), 1e-6);
+                    if (!(Math.abs(x - y) <= tol)) {
+                        const e = a.layout[j - 1];
+                        if (!firstDiff.has(e))
+                            firstDiff.set(e, `t=${va[0].toPrecision(4)} post voltage ${x} vs ${y}`);
+                    }
+                }
+            }
+            const elms = this.app.elmList as any[];
+            const list = [...firstDiff.entries()].sort((p, q) => p[0] - q[0]);
+            for (const [e, d] of list.slice(0, 5))
+                diffs.push(`element ${e} (${elms[e]?.getClassName?.() ?? "?"}): first differs at ${d}`);
+            if (list.length > 5)
+                diffs.push(`... and ${list.length - 5} more elements`);
+            if (a.samples.length !== b.samples.length)
+                diffs.push(`ran for ${a.samples.length} vs ${b.samples.length} samples`);
+        }
+        return { diffs, errors: errors() };
+    }
+
+    // which element each sampled post voltage belongs to
+    private layout(): number[] {
+        const l: number[] = [];
+        (this.app.elmList as any[]).forEach((ce, i) => {
+            for (let p = 0; p !== ce.getPostCount(); p++)
+                l.push(i);
+        });
+        return l;
     }
 
     createUI(vp: HTMLElement): void {

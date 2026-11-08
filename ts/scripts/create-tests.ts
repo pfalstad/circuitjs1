@@ -22,10 +22,9 @@
 //   --spf=N          time steps per frame (200)
 //   --headed         show the browser window
 
-import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { basename, join, relative, resolve } from "path";
-import { appUrl, autoTestsDir, launchBrowser, newPage, runTestList, startServer, tsRoot } from "./testBrowser";
+import { appUrl, autoTestsDir, goodCircuits, launchBrowser, newPage, runTestList, startServer, tsRoot } from "./testBrowser";
 
 const args = process.argv.slice(2);
 const opt = (name: string) => args.find(a => a.startsWith(`--${name}=`))?.split("=")[1];
@@ -34,20 +33,6 @@ const maxSteps = parseInt(opt("max-steps") ?? "20000");
 const maxSeconds = parseFloat(opt("max-seconds") ?? "20");
 const spf = parseInt(opt("spf") ?? "200");
 const genDir = join(autoTestsDir, "gen");
-
-// the circuits marked good in the comparator, whose links look like
-// http://host:5001/circuits/x.txt or http://host:5001/tests/x.txt
-function goodCircuits(): string[] {
-    const db = resolve(tsRoot, "../test-interface/test_results.db");
-    const out = execFileSync("sqlite3", ["-list", "-noheader", db, "select link from results where verdict = 'good' order by link"],
-                             { encoding: "utf8" });
-    return out.split("\n").filter(l => l).map(link => {
-        const m = link.match(/\/(circuits|tests)\/([^/]+)$/);
-        if (!m)
-            throw new Error("unexpected link " + link);
-        return m[1] === "circuits" ? join(tsRoot, "public/circuits", m[2]) : resolve(tsRoot, "../tests", m[2]);
-    });
-}
 
 // where a circuit's test goes, relative to gen/
 function testName(file: string): string {
