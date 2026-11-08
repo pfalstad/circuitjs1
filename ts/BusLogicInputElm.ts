@@ -136,6 +136,7 @@ export class BusLogicInputElm extends SwitchElm {
     }
 
     toggle(): void {
+        CircuitElm.recordToggle(this);
         this.value++;
         if (this.value >= (1 << this.busWidth))
             this.value = 0;

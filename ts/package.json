@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:app": "tsx scripts/run-tests.ts"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,7 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "playwright": "^1.65.0",
     "ts-morph": "^28.0.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",

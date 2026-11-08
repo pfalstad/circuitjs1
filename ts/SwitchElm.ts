@@ -218,6 +218,7 @@ export class SwitchElm extends CircuitElm {
     }
 
     toggle(): void {
+        CircuitElm.recordToggle(this);
         this.simpleToggle();
         if (this.label !== null) {
             for (let i = 0; i !== CircuitElm.sim.elmList.length; i++) {

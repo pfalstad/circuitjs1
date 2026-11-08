@@ -62,6 +62,16 @@ export class SimulationManager {
 
     app: CirSim;
     static theSim: SimulationManager | null = null;
+    // set by TestManager (only loaded for tests)
+    static testHooks: {
+        fixedStepsPerFrame(): number;
+        clampTimeStep(t: number, timeStep: number): number;
+        checkTime(): boolean;
+        recordSwitchToggle(ce: any): void;
+    } | null = null;
+    // time steps since reset, so that with a fixed number of steps per frame the frames
+    // always end at the same steps
+    stepsSinceReset: number = 0;
 
     // this is different than the main elmList; it has CompositeElm child elms in it
     elmList: any[] = [];  // CircuitElm[]
@@ -125,6 +135,7 @@ export class SimulationManager {
     resetTime(): void {
     	this.t = this.timeStepAccum = 0;
     	this.timeStepCount = 0;
+    	this.stepsSinceReset = 0;
     }
 
     // zero all node voltages; nodes are shared between elements so this must be done
@@ -1416,9 +1427,14 @@ export class SimulationManager {
 	    return;
 	}
 
+	// while testing, run a fixed number of steps each frame, so the results don't depend on
+	// the clock
+	const testHooks = SimulationManager.testHooks;
+	const fixedSteps = testHooks?.fixedStepsPerFrame() ?? 0;
+
 	// Check if we don't need to run simulation (for very slow simulation speeds).
 	// If the circuit changed, do at least one iteration to make sure everything is consistent.
-	if (1000 >= steprate * (tm - this.lastIterTime) && !didAnalyze)
+	if (fixedSteps === 0 && 1000 >= steprate * (tm - this.lastIterTime) && !didAnalyze)
 	    return;
 
 	const delayWireProcessing = this.app.scopeManager.canDelayWireProcessing();
@@ -1441,7 +1457,14 @@ export class SimulationManager {
 		this.stampCircuit();
 		goodIterations = 0;
 	    }
-	    // TODO: TestManager integration
+	    if (testHooks) {
+		// land exactly on the next switch event or the end of the test
+		const ts = testHooks.clampTimeStep(this.t, this.timeStep);
+		if (ts !== this.timeStep) {
+		    this.timeStep = ts;
+		    this.stampCircuit();
+		}
+	    }
 
 	    let i: number, j: number, subiter: number;
 	    for (i = 0; i !== this.elmArr.length; i++)
@@ -1553,7 +1576,8 @@ export class SimulationManager {
 	    if (!delayWireProcessing)
 		this.calcWireCurrents();
 	    this.app.onTimeStep();
-	    // TODO: TestManager.theManager.checkTime()
+	    this.stepsSinceReset++;
+	    const testBreak = testHooks != null && testHooks.checkTime();
 	    // save last node voltages so we can restart the next iteration if necessary
 	    for (let mi = 0; mi !== this.matrices!.length; mi++) {
 		const m = this.matrices![mi];
@@ -1567,7 +1591,12 @@ export class SimulationManager {
 
 	    // Check whether enough time has elapsed to perform an *additional* iteration after
 	    // those we have already completed.  But limit total computation time to 50ms (20fps) by default
-	    if ((this.timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - this.lastIterTime) || (tm - this.app.ui.lastFrameTime > frameTimeLimit))
+	    if (testBreak)
+		break;
+	    if (fixedSteps > 0) {
+		if (this.stepsSinceReset % fixedSteps === 0)
+		    break;
+	    } else if ((this.timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - this.lastIterTime) || (tm - this.app.ui.lastFrameTime > frameTimeLimit))
 		break;
 	    if (!this.app.simRunning)
 		break;

@@ -88,6 +88,15 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol ==
         window.addEventListener('load', registerServiceWorker);
 }
 
+// regression tests (see TestManager.ts): loaded only when asked for
+{
+    const qp = new URLSearchParams(window.location.search);
+    if (["test", "testlist", "testui"].some(k => qp.has(k))) {
+        const { TestManager } = await import("./TestManager");
+        TestManager.enabled = qp.has("testui");
+    }
+}
+
 const app = new CirSim();
 await app.init({ SimulationManager, UIManager, ImageExporter, CommandManager, CircuitLoader,
                  registerElements, registerLastElements });

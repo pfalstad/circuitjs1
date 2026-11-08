@@ -46,6 +46,36 @@ function serveWarDir(): Plugin {
   }
 }
 
+// Serves the regression test circuits (../auto-tests, and ../tests that they're made
+// from) at /auto-tests/ and /tests/, in the dev server and `vite preview`, for TestManager
+function serveTestDirs(): Plugin {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  const dirs: Record<string, string> = {
+    '/auto-tests/': path.resolve(tsRoot, '../auto-tests'),
+    '/tests/': path.resolve(tsRoot, '../tests'),
+  }
+  const middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!req.url || req.method !== 'GET') return next()
+    const urlPath = decodeURIComponent(req.url.split('?')[0]!)
+    const prefix = Object.keys(dirs).find(p => urlPath.startsWith(p))
+    if (!prefix) return next()
+    const dir = dirs[prefix]!
+    const filePath = path.join(dir, urlPath.slice(prefix.length))
+    if (!filePath.startsWith(dir + path.sep)) return next()
+    fs.stat(filePath, (err: NodeJS.ErrnoException | null, stat: fs.Stats) => {
+      if (err || !stat.isFile()) return next()
+      res.setHeader('Content-Type', 'text/plain')
+      res.setHeader('Cache-Control', 'no-store')
+      fs.createReadStream(filePath).pipe(res)
+    })
+  }
+  return {
+    name: 'serve-test-dirs',
+    configureServer(server) { server.middlewares.use(middleware) },
+    configurePreviewServer(server) { server.middlewares.use(middleware) },
+  }
+}
+
 // Assets directory name, relative to build.outDir. The compiled JS/CSS bundle
 // and the circuits/, locale/, and images/ resources all land here together
 // (mirroring GWT's per-module output directory, e.g. war/circuitjs1/) so that
@@ -110,7 +140,7 @@ function startupChunk(): CodeSplittingNameFunction {
 
 export default defineConfig({
   base: './',
-  plugins: [serveWarDir(), copyPublicAssets()],
+  plugins: [serveWarDir(), serveTestDirs(), copyPublicAssets()],
   server: {
     port: 5173,
     host: true,

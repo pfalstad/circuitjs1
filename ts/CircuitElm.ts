@@ -1435,6 +1435,11 @@ export abstract class CircuitElm implements Editable {
     clearElmScope(): void {}
     isGraphicElm(): boolean { return false; }
     isRoutedWireElm(): boolean { return false; }
+    // a switch was toggled, by the user or a test (for recording tests)
+    static recordToggle(ce: CircuitElm): void {
+        SimulationManager.testHooks?.recordSwitchToggle(ce);
+    }
+
     isSwitchElm(): boolean { return false; }
     // whether to automatically bring up the property editor when this element is created
     // (overridden to false for elements whose settings are rarely changed on creation)
