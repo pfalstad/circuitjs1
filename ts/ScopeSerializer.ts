@@ -109,7 +109,9 @@ export class ScopeSerializer {
             return;
         const xmlElm = doc.createElement("o");
         CircuitXMLSerializer.dumpAttr(xmlElm, "en", eno);
-        CircuitXMLSerializer.dumpAttr(xmlElm, "sp", vPlot.scopePlotSpeed);
+        // the scope's speed: the plots only get it when the scopes are next set up, so until
+        // then (saving a circuit straight after loading it) theirs is still 0
+        CircuitXMLSerializer.dumpAttr(xmlElm, "sp", this.scope.speed);
         // strip flags that belong to old text format or are superseded by explicit XML attributes
         const f = flags & ~(ScopeSerializer.FLAG_PERPLOTFLAGS | ScopeSerializer.FLAG_PERPLOT_MAN_SCALE | ScopeSerializer.FLAG_PLOTS | ScopeSerializer.FLAG_TRIGGER);
         CircuitXMLSerializer.dumpAttr(xmlElm, "f", ScopeSerializer.exportAsDecOrHex(f, 0));
