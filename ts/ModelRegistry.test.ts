@@ -62,6 +62,29 @@ describe("ModelRegistry", () => {
         expect(reg.get("a")).toBe(l);
     });
 
+    it("leaves global models alone when loading an undo state", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a");
+        reg.setGlobal(g);
+        const l = new M("b");
+        reg.setLocal(l);
+        ModelRegistry.loadingUndoState = true;
+        try {
+            // a global model isn't shadowed; its definition goes into a discarded model
+            const ga = reg.getForLoad("a", () => new M(""));
+            expect(ga).not.toBe(g);
+            expect(reg.hasLocal("a")).toBe(false);
+            expect(reg.get("a")).toBe(g);
+            // a local model is still loaded into (reverting edits to it)
+            expect(reg.getForLoad("b", () => new M(""))).toBe(l);
+            // a model that no longer exists is restored as a local model
+            const c = reg.getForLoad("c", () => new M(""));
+            expect(reg.isLocal(c)).toBe(true);
+        } finally {
+            ModelRegistry.loadingUndoState = false;
+        }
+    });
+
     it("moves models between tiers", () => {
         const reg = new ModelRegistry<M>();
         const g = new M("a"), l = new M("a");

@@ -169,6 +169,8 @@ export class ModelRegistry<T extends RegistryModel> {
 
     // the model to load a definition of the given name into: the local one if there is one,
     // otherwise a new local model.  A global model of the same name is shadowed, not modified.
+    // While loadingUndoState is set, a global model is left in effect instead: the definition is
+    // loaded into an unregistered model and discarded.
     getForLoad(name: string, create: () => T): T {
         this.ensureInit();
         const lm = this.localMap.get(name);
@@ -176,9 +178,17 @@ export class ModelRegistry<T extends RegistryModel> {
             return lm;
         const m = create();
         m.name = name;
+        if (ModelRegistry.loadingUndoState && this.globalMap.has(name))
+            return m;
         this.setLocal(m);
         return m;
     }
+
+    // set while loading an undo state.  Undo restores the circuit, including the definitions of
+    // its local models, but doesn't change models' scopes or modify global (or persistent) models,
+    // which belong to the session.  The undo state has definitions of the global models the
+    // circuit uses, which would otherwise be loaded as local models shadowing them.
+    static loadingUndoState = false;
 
     // move a model to the global tier, replacing any model with the same name in either tier
     makeGlobal(m: T): void {
