@@ -252,6 +252,12 @@ export abstract class GateElm extends CircuitElm {
         this.justLoaded = true;
     }
 
+    reset(): void {
+        super.reset();
+        // compute the output from the inputs, not from the output that was loaded
+        this.justLoaded = false;
+    }
+
     getLeadAdjustment(ix: number): number { return 0; }
 
     // Back-control fraction for the OR gate's concave back curve (the
