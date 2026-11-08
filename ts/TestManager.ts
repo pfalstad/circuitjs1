@@ -52,6 +52,7 @@ export class TestManager {
     static theManager: TestManager | null = null;
 
     static readonly TOLERANCE = 1e-3;
+    static readonly SCALE_TOLERANCE = 1e-4;
 
     app: CirSim;
     testRunning = false;
@@ -395,13 +396,16 @@ export class TestManager {
             const spc = plot.scopePointCount;
             const n = ref.values.length;
             let mismatch = 0, maxDiff = 0, first = "";
+            // within TOLERANCE of the value, but near zero (where a waveform crosses it) that's
+            // too fine, so at least a small fraction of the plot's peak
+            const floor = Math.max(1e-9, TestManager.SCALE_TOLERANCE * Math.max(...ref.values.map(Math.abs)));
             // skip k = 0 (see plotSampleCount()), and samples older than this scope holds
             for (let k = Math.max(1, n - spc + 1); k < n; k++) {
                 const age = n - k;
                 const actual = plot.liveMax[(plot.ptr - age) & (spc - 1)];
                 const expected = ref.values[k];
                 const diff = Math.abs(actual - expected);
-                const tol = Math.max(TestManager.TOLERANCE * Math.abs(expected), 1e-9);
+                const tol = Math.max(TestManager.TOLERANCE * Math.abs(expected), floor);
                 if (!(diff <= tol)) {
                     if (mismatch === 0)
                         first = `, first at sample ${k} (t=${(this.app.sim.t - age * ref.ts).toPrecision(4)}): ` +
