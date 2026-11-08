@@ -80,6 +80,7 @@ public:
     double scale[ScopeConstants::UNITS_COUNT] = {};
     bool reduceRange[ScopeConstants::UNITS_COUNT] = {};
     double wheelDeltaY = 0;
+    double wheelDeltaScale = 0;
     int selectedPlot = -1;
     std::string curColor;
     std::string voltColor;
@@ -224,8 +225,13 @@ public:
     void undump(StringTokenizer &st);
     void handleMenu(const std::string &mi, bool state);
     void selectY();
-    // wheel delta normalized like ScrollValuePopup.normalizeWheelDelta()
-    void onMouseWheel(double normalizedDelta, double wheelSensitivity);
+    // wheel delta normalized like ScrollValuePopup.normalizeWheelDelta().  With shift, it
+    // adjusts the vertical scale instead of the time scale (and the caller should pass the
+    // horizontal delta if the vertical one is 0, since shift+wheel often scrolls horizontally)
+    void onMouseWheel(double normalizedDelta, double wheelSensitivity, bool shift = false);
+    // step through the 1-2-5 sequence of manual scale values
+    static double nextHigherManScale(double d);
+    static double nextLowerManScale(double d);
     CircuitElm *getElm() const;
     bool showingElm(const CircuitElm *e) const;
     bool viewingWire() const;
@@ -244,6 +250,8 @@ public:
     static double nextHighestScale(double d);
 
 private:
+    // shift+wheel adjusts the vertical scale of the selected plot (manual scale mode only)
+    void onShiftMouseWheel(double normalizedDelta, double wheelSensitivity);
     void drawImpl(Graphics &g, bool forExport);
     // keep the plots in newOrder (taking ownership from wherever they are) and drop the rest
     void setPlotsTo(const std::vector<ScopePlot *> &newOrder, std::vector<std::unique_ptr<ScopePlot>> *other);

@@ -29,6 +29,7 @@
 #include "core/CircuitXMLSerializer.h"
 #include "core/CustomLogicModel.h"
 #include "core/DiodeModel.h"
+#include "core/ModelTypes.h"
 #include "core/MosfetModel.h"
 #include "core/RelayModel.h"
 #include "core/Storage.h"
@@ -154,8 +155,9 @@ std::string CirSim::copyOfSelectedElms() {
 
     for (int i = (int) elmList.size() - 1; i >= 0; i--) {
         CircuitElm *ce = elmList[i];
-        ce->dumpXmlModel(&root);
         if (ce->isSelected() && !ce->isScopeElm()) {
+            // only the models the copied elements use
+            ce->dumpXmlModel(&root);
             // dumpXml() may add a model to the root first, so append the element afterwards
             auto elem = std::make_unique<XmlElement>(ce->getXmlDumpType());
             ce->dumpXml(&root, elem.get());
@@ -209,12 +211,15 @@ void CirSim::doPaste(const std::string *dump) {
     if (oldsz > 0)
         flags |= CircuitLoader::RC_NO_CENTER;
 
-    if (dump != nullptr)
-        loader->readCircuit(*dump, flags);
-    else {
+    if (dump == nullptr) {
         readClipboardFromStorage();
-        loader->readCircuit(clipboard, flags);
+        dump = &clipboard;
     }
+    // pasted models with the names of existing ones: ask whether to replace them
+    ResolvedPaste pasted = resolvePastedModels(this, *dump);
+    loader->readCircuit(pasted.text, flags);
+    for (const std::string &name : finishPastedModels(this, pasted.replaced))
+        refreshModels(name);
     if ((flags & CircuitLoader::RC_NO_CENTER) == 0)
         needCenter = true;
 

@@ -186,6 +186,7 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     mouseDownTime = sim->currentTimeMillis();
     mouseDownScreenX = ex;
     mouseDownScreenY = ey;
+    movedSinceMouseDown = false;
     // maybe someone did copy in another window?
     sim->enablePaste();
     // not left or middle (right-click brings up the context menu instead)
@@ -212,7 +213,7 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
             tempMouseMode = SimApp::MODE_DRAG_COLUMN;
         else if (alt && shift)
             tempMouseMode = SimApp::MODE_DRAG_ROW;
-        else if (shift)
+        else if (shift && sim->mouseMode != SimApp::MODE_SELECT_POSTS)
             tempMouseMode = SimApp::MODE_SELECT;
         else if (alt)
             tempMouseMode = SimApp::MODE_DRAG_ALL;
@@ -275,6 +276,18 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     dragMovedSet.clear();
     dragMovedElms.clear();
 
+    if (tempMouseMode == SimApp::MODE_SELECT_POSTS) {
+        // the circuit may have changed (undo, delete, etc.) since the selection was made
+        if (!postSelLocs.empty())
+            computePostSelection();
+        postDragActive = !sim->isReadOnly() && postSelectionHit(gx, gy);
+        if (!postDragActive) {
+            // start a new rubber band; shift adds to the existing selection
+            postSeedBaseLocs = shift ? postSeedLocs : std::set<Loc>();
+            postSeedBaseRigid = shift ? postSeedRigid : std::unordered_set<CircuitElm *>();
+        }
+    }
+
     // capture elements for DragRow/DragColumn at mouse-down so we don't
     // pick up new elements as we sweep over them
     if (tempMouseMode == SimApp::MODE_DRAG_ROW || tempMouseMode == SimApp::MODE_DRAG_COLUMN) {
@@ -305,6 +318,10 @@ void MouseManager::onMouseMove(QMouseEvent *e) {
     mouseCursorX = sim->mouseCursorX = e->position().x();
     mouseCursorY = sim->mouseCursorY = e->position().y();
     if (mouseDragging) {
+        double mdx = mouseCursorX - mouseDownScreenX;
+        double mdy = mouseCursorY - mouseDownScreenY;
+        if (mdx * mdx + mdy * mdy >= 16)
+            movedSinceMouseDown = true;
         mouseDragged(e);
         return;
     }
@@ -381,6 +398,12 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
         break;
     case SimApp::MODE_DRAG_SELECTED:
         changed = success = dragSelected(gx, gy);
+        break;
+    case SimApp::MODE_SELECT_POSTS:
+        if (postDragActive)
+            changed = success = dragPostSelection(snapGrid(gx), snapGrid(gy));
+        else
+            selectPostsArea(gx, gy);
         break;
     case SimApp::MODE_DRAG_REROUTE:
         if (mouseElm != nullptr && mouseElm->isRoutedWireElm()) {
@@ -522,13 +545,20 @@ void MouseManager::dragPost(int x, int y, bool all) {
             e->movePoint(p, ddx, ddy);
         }
     } else {
-        mouseElm->movePoint(draggingPost, ddx, ddy);
+        CircuitElm *me = mouseElm;
+        // remember where the dragged handle was.  conn.elmPost is a post index, not a
+        // handle index (a bus wire has busWidth posts at each end), so match by location.
+        int hx = (draggingPost == 0) ? me->x : me->x2;
+        int hy = (draggingPost == 0) ? me->y : me->y2;
+        me->movePoint(draggingPost, ddx, ddy);
         // move connected routed wires' shared posts
-        auto it = sim->sim->routedWireMap.find(mouseElm);
+        auto it = sim->sim->routedWireMap.find(me);
         if (it != sim->sim->routedWireMap.end())
-            for (const RoutedWireConnection &conn : it->second)
-                if (conn.elmPost == draggingPost && conn.wire->getPost(conn.wirePost).z == 0)
+            for (const RoutedWireConnection &conn : it->second) {
+                Point wp = conn.wire->getPost(conn.wirePost);
+                if (wp.z == 0 && wp.x == hx && wp.y == hy)
                     conn.wire->movePoint(conn.wirePost, ddx, ddy);
+            }
     }
     sim->needAnalyze();
 }
@@ -542,6 +572,258 @@ void MouseManager::selectArea(int x, int y, bool add) {
     for (CircuitElm *ce : *sim->uiElmList)
         ce->selectRect(*selectedArea, add);
     sim->enableDisableMenuItems();
+}
+
+// rigid elements can't be stretched; they move as a whole or not at all.  An element
+// can stretch only if it has exactly two posts, which are its two handles.
+// Wires always stretch: all their posts (several, for a bus) are at their two ends.
+bool MouseManager::isRigid(CircuitElm *ce) {
+    if (ce->isWireElm())
+        return false;
+    if (ce->noDiagonal || ce->getPostCount() != 2 || ce->getNumHandles() != 2)
+        return true;
+    Point p0 = ce->getPost(0);
+    Point p1 = ce->getPost(1);
+    return p0.x != ce->x || p0.y != ce->y || p1.x != ce->x2 || p1.y != ce->y2;
+}
+
+void MouseManager::selectPostsArea(int x, int y) {
+    int x1 = std::min(x, initDragGridX);
+    int x2 = std::max(x, initDragGridX);
+    int y1 = std::min(y, initDragGridY);
+    int y2 = std::max(y, initDragGridY);
+    selectedArea = Rectangle(x1, y1, x2 - x1, y2 - y1);
+    auto inside = [&](double px, double py) { return px >= x1 && px <= x2 && py >= y1 && py <= y2; };
+    postSeedLocs = postSeedBaseLocs;
+    postSeedRigid = postSeedBaseRigid;
+    for (CircuitElm *ce : *sim->uiElmList) {
+        // an element with no posts (text, box...) moves if its center is in the box;
+        // anything else is decided by which of its posts are in the box
+        int n = ce->getPostCount();
+        if (n == 0) {
+            const Rectangle &bb = ce->boundingBox;
+            if (inside(bb.x + bb.width / 2.0, bb.y + bb.height / 2.0))
+                postSeedRigid.insert(ce);
+        }
+        for (int i = 0; i < n; i++) {
+            Point p = ce->getPost(i);
+            if (inside(p.x, p.y))
+                postSeedLocs.insert({p.x, p.y});
+        }
+    }
+    computePostSelection();
+}
+
+std::vector<std::optional<MouseManager::Loc>> MouseManager::postKeys(CircuitElm *ce) {
+    std::vector<std::optional<Loc>> keys;
+    int n = ce->getPostCount();
+    for (int i = 0; i < n; i++) {
+        Point p = ce->getPost(i);
+        keys.push_back(Loc(p.x, p.y));
+    }
+    return keys;
+}
+
+// For a rigid element with two handles, find out which posts move with which handle,
+// by nudging each handle along the element's axis and seeing which posts follow.
+// Returns, for each post, the handle (0 or 1) it follows, or nullopt if the element
+// can't be stretched (a post follows neither or both handles, or nothing is attached
+// to one of the ends, e.g. a ground).
+std::optional<std::vector<int>> MouseManager::handleFollowers(CircuitElm *ce) {
+    if (ce->getNumHandles() < 2 || ce->getPostCount() < 2)
+        return std::nullopt;
+    auto sgn = [](int v) { return (v > 0) - (v < 0); };
+    int ax = sgn(ce->x2 - ce->x);
+    int ay = sgn(ce->y2 - ce->y);
+    if (ce->noDiagonal) {
+        if (ce->x == ce->x2) ax = 0; else ay = 0;
+    }
+    if (ax == 0 && ay == 0)
+        return std::nullopt;
+    int n = ce->getPostCount();
+    std::vector<int> follows(n, -1);
+    int g = sim->gridSize;
+    int ox = ce->x, oy = ce->y, ox2 = ce->x2, oy2 = ce->y2;
+    for (int h = 0; h < 2; h++) {
+        // move the handle outward, so the element gets longer (never zero length)
+        int dx = (h == 0 ? -ax : ax) * g;
+        int dy = (h == 0 ? -ay : ay) * g;
+        auto before = postKeys(ce);
+        ce->movePoint(h, dx, dy);
+        auto after = postKeys(ce);
+        ce->movePoint(h, -dx, -dy);
+        if (ce->x != ox || ce->y != oy || ce->x2 != ox2 || ce->y2 != oy2) {
+            // couldn't put it back exactly (shouldn't happen); restore and give up
+            ce->x = ox; ce->y = oy; ce->x2 = ox2; ce->y2 = oy2;
+            ce->setPoints();
+            return std::nullopt;
+        }
+        for (int i = 0; i < n; i++) {
+            if (after[i] == before[i])
+                continue;
+            if (follows[i] != -1 || !before[i] || !after[i] ||
+                *after[i] != Loc(before[i]->first + dx, before[i]->second + dy))
+                return std::nullopt;  // follows both handles, or moved some other way
+            follows[i] = h;
+        }
+    }
+    auto has = [&](int v) { return std::find(follows.begin(), follows.end(), v) != follows.end(); };
+    if (has(-1) || !has(0) || !has(1))
+        return std::nullopt;
+    return follows;
+}
+
+// handleFollowers() moves the element's handles back and forth, which can be slow,
+// so only do it once per element (as long as it stays put)
+std::optional<std::vector<int>> MouseManager::cachedHandleFollowers(CircuitElm *ce) {
+    std::array<int, 4> geom{ce->x, ce->y, ce->x2, ce->y2};
+    auto it = followersCache.find(ce);
+    if (it != followersCache.end() && it->second.geom == geom)
+        return it->second.f;
+    auto f = handleFollowers(ce);
+    followersCache[ce] = {geom, f};
+    return f;
+}
+
+// Expand the seeds into the full selection, keeping everything connected.
+// Each rigid element with any selected posts either stretches (if the selected posts
+// all follow one of its handles, then all the posts that follow that handle get
+// selected) or moves as a whole (and all its posts get selected).  Selecting posts
+// can bring other elements along, so repeat until nothing changes.
+void MouseManager::computePostSelection() {
+    const std::vector<CircuitElm *> &elms = *sim->uiElmList;
+    std::unordered_set<CircuitElm *> elmSet(elms.begin(), elms.end());
+    std::set<Loc> locs = postSeedLocs;
+    // rigid elements: -1 = moves whole, 0/1 = stretches by moving that handle
+    std::map<CircuitElm *, int> rigidMode;
+    for (CircuitElm *ce : postSeedRigid)
+        if (elmSet.count(ce)) rigidMode[ce] = -1;
+    std::map<CircuitElm *, std::optional<std::vector<int>>> followers;
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (CircuitElm *ce : elms) {
+            auto rm = rigidMode.find(ce);
+            if (!isRigid(ce) || (rm != rigidMode.end() && rm->second == -1))
+                continue;
+            auto keys = postKeys(ce);
+            std::vector<int> sel;
+            for (size_t i = 0; i < keys.size(); i++)
+                if (keys[i] && locs.count(*keys[i])) sel.push_back((int) i);
+            if (sel.empty())
+                continue;
+            if (!followers.count(ce))
+                followers[ce] = cachedHandleFollowers(ce);
+            const auto &f = followers[ce];
+            int mode = -1;
+            if (f) {
+                bool same = true;
+                for (int i : sel)
+                    if ((*f)[i] != (*f)[sel[0]]) same = false;
+                if (same) mode = (*f)[sel[0]];
+            }
+            if (rm != rigidMode.end() && rm->second != mode)
+                mode = -1;  // selected posts at both ends now
+            if (rm != rigidMode.end() && rm->second == mode)
+                continue;
+            rigidMode[ce] = mode;
+            changed = true;
+        }
+        for (auto &[ce, mode] : rigidMode) {
+            auto keys = postKeys(ce);
+            auto fi = followers.find(ce);
+            const std::optional<std::vector<int>> *f = fi == followers.end() ? nullptr : &fi->second;
+            for (size_t i = 0; i < keys.size(); i++) {
+                if (!keys[i] || locs.count(*keys[i])) continue;
+                if (mode == -1 || (f && f->has_value() && (**f)[i] == mode)) {
+                    locs.insert(*keys[i]);
+                    changed = true;
+                }
+            }
+        }
+    }
+    std::map<CircuitElm *, int> plan;
+    for (CircuitElm *ce : elms) {
+        auto rm = rigidMode.find(ce);
+        if (rm != rigidMode.end()) {
+            plan[ce] = rm->second;
+        } else if (!isRigid(ce)) {
+            bool a = locs.count({ce->x, ce->y});
+            bool b = locs.count({ce->x2, ce->y2});
+            if (a && b) plan[ce] = -1;
+            else if (a) plan[ce] = 0;
+            else if (b) plan[ce] = 1;
+        }
+    }
+    postSelLocs = std::move(locs);
+    postSelRigid.clear();
+    for (auto &[ce, mode] : rigidMode)
+        postSelRigid.insert(ce);
+    postSelPlan = std::move(plan);
+}
+
+void MouseManager::clearPostSelection() {
+    postSelLocs.clear();
+    postSelRigid.clear();
+    postSelPlan.clear();
+    postSeedLocs.clear();
+    postSeedRigid.clear();
+    followersCache.clear();
+}
+
+// is (x, y) on a selected post, or on a rigid element that's part of the selection?
+bool MouseManager::postSelectionHit(int x, int y) {
+    for (const Loc &k : postSelLocs)
+        if (Graphics::distanceSq(k.first, k.second, x, y) <= POSTGRABSQ)
+            return true;
+    for (CircuitElm *ce : postSelRigid)
+        if (ce->boundingBox.contains(x, y))
+            return true;
+    return false;
+}
+
+bool MouseManager::dragPostSelection(int x, int y) {
+    int dx = x - dragGridX;
+    int dy = y - dragGridY;
+    // a stretched element that can't go diagonal (op-amp, transistor...) can only be
+    // stretched along its axis, or its posts would come off their wires
+    for (auto &[ce, n] : postSelPlan) {
+        if (n < 0 || !ce->noDiagonal) continue;
+        if (ce->x == ce->x2) dx = 0; else dy = 0;
+    }
+    if (dx == 0 && dy == 0)
+        return false;
+    const std::vector<CircuitElm *> &elms = *sim->uiElmList;
+    std::unordered_set<CircuitElm *> elmSet(elms.begin(), elms.end());
+    // don't allow a move that would shrink a stretched element to zero length, since
+    // movePoint() would refuse to move it and it would come disconnected
+    for (auto &[ce, n] : postSelPlan) {
+        if (n < 0) continue;
+        int nx = ce->x + (n == 0 ? dx : 0), ny = ce->y + (n == 0 ? dy : 0);
+        int nx2 = ce->x2 + (n == 1 ? dx : 0), ny2 = ce->y2 + (n == 1 ? dy : 0);
+        if (nx == nx2 && ny == ny2)
+            return false;
+    }
+    // (move in circuit order, as the TS version does)
+    for (CircuitElm *ce : elms) {
+        auto it = postSelPlan.find(ce);
+        if (it == postSelPlan.end()) continue;
+        if (it->second < 0)
+            ce->move(dx, dy);
+        else
+            ce->movePoint(it->second, dx, dy);
+    }
+    // keep the selection on the posts that moved
+    auto shiftSet = [&](const std::set<Loc> &s) {
+        std::set<Loc> out;
+        for (const Loc &k : s)
+            out.insert({k.first + dx, k.second + dy});
+        return out;
+    };
+    postSelLocs = shiftSet(postSelLocs);
+    postSeedLocs = shiftSet(postSeedLocs);
+    sim->needAnalyze();
+    return true;
 }
 
 bool MouseManager::anySelectedButMouse() {
@@ -589,6 +871,10 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     // click to clear selection (but not on a right-click)
     if (tempMouseMode == SimApp::MODE_SELECT && !selectedArea && e->button() == Qt::LeftButton)
         clearSelection();
+    // click on empty space (not on the selection) clears the post selection
+    if (tempMouseMode == SimApp::MODE_SELECT_POSTS && !postDragActive && !selectedArea &&
+        e->button() == Qt::LeftButton && !(e->modifiers() & Qt::ShiftModifier))
+        clearPostSelection();
     // cmd-click = split wire
     if (tempMouseMode == SimApp::MODE_DRAG_POST && draggingPost == -1)
         doSplit(mouseElm);
@@ -600,17 +886,15 @@ void MouseManager::onMouseUp(QMouseEvent *e) {
     // creating a new element (checked after endDrag(), below) brings up its editor too.
     Qt::KeyboardModifiers mods = e->modifiers();
     bool wasPlainClick = e->button() == Qt::LeftButton && !didSwitch &&
-        tempMouseMode != SimApp::MODE_DRAG_SPLITTER &&
+        tempMouseMode != SimApp::MODE_DRAG_SPLITTER && tempMouseMode != SimApp::MODE_SELECT_POSTS &&
         !(mods & (Qt::ShiftModifier | Qt::AltModifier | Qt::ControlModifier | Qt::MetaModifier));
     CircuitElm *clickedElm = nullptr;
     bool clickedEmpty = false;
     if (wasPlainClick) {
-        double ddx = mouseCursorX - mouseDownScreenX;
-        double ddy = mouseCursorY - mouseDownScreenY;
         // (clicking a scope at the bottom is ignored here; it shouldn't bring up the
         // editor for the scope's element, or close the editor)
-        if (ddx * ddx + ddy * ddy < 16 && sim->scopeManager->scopeSelected == -1) {
-            // didn't move (much) since mousedown, so it's a click, not a drag
+        if (!movedSinceMouseDown && sim->scopeManager->scopeSelected == -1) {
+            // never moved (much) since mousedown, so it's a click, not a drag
             if (mouseElm != nullptr && !mouseElm->isSwitchElm())
                 clickedElm = mouseElm;
             else if (mouseElm == nullptr)
@@ -652,6 +936,7 @@ CircuitElm *MouseManager::endDrag() {
     tempMouseMode = sim->mouseMode;
     selectedArea.reset();
     dragging = false;
+    postDragActive = false;
     bool circuitChanged = false;
     CircuitElm *createdElm = nullptr;
     // auto-split wires when a post is dragged onto a wire's interior
@@ -741,12 +1026,23 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
 
     // once we start zooming, don't allow other uses of mouse wheel for a while
     // so we don't accidentally edit a resistor value while zooming
-    bool zoomOnly = sim->currentTimeMillis() < zoomTime + 1000;
+    bool zooming = sim->currentTimeMillis() < zoomTime + 1000;
+    bool zoomOnly = zooming;
     if (sim->isReadOnly() || !sim->options.mouseWheelEdit)
         zoomOnly = true;
 
     ScopeManager *sm = sim->scopeManager;
     QPoint globalPos = e->globalPosition().toPoint();
+    // shift+wheel adjusts a scope's vertical scale.  shift+wheel often turns into horizontal
+    // scrolling (always, on macOS), so use the horizontal delta if there's no vertical one.
+    bool shift = e->modifiers() & Qt::ShiftModifier;
+    double shiftNorm = norm;
+    if (shift) {
+        QPoint pd = e->pixelDelta(), ad = e->angleDelta();
+        double d = !pd.isNull() ? -(pd.y() != 0 ? pd.y() : pd.x())
+                                : -(ad.y() != 0 ? ad.y() : ad.x()) * 100.0 / 120.0;
+        shiftNorm = jsmath::round(d * 0.12);
+    }
     if (!zoomOnly && mouseElm != nullptr && !sim->modalDialogIsShowing() && sm->scopeSelected == -1 &&
         (mouseElm->isResistorElm() || mouseElm->isCapacitorElm() || mouseElm->isInductorElm())) {
         wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
@@ -757,7 +1053,10 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
     } else if (!zoomOnly && mouseElm != nullptr && mouseElm->onMouseWheel(norm)) {
         // (the element's slider moved)
     } else if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
-        sm->scopes[sm->scopeSelected]->onMouseWheel(norm, wheelSensitivity);
+        sm->scopes[sm->scopeSelected]->onMouseWheel(shift ? shiftNorm : norm, wheelSensitivity, shift);
+    } else if (mouseElm != nullptr && mouseElm->isScopeElm() && !zooming) {
+        // undocked scope: adjust its time scale, like a docked scope
+        static_cast<ScopeElm *>(mouseElm)->elmScope->onMouseWheel(shift ? shiftNorm : norm, wheelSensitivity, shift);
     } else {
         mouseCursorX = sim->mouseCursorX = e->position().x();
         mouseCursorY = sim->mouseCursorY = e->position().y();

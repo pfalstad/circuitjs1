@@ -94,7 +94,7 @@ EditPinLayoutDialog::EditPinLayoutDialog(CirSim *a, ChipElm *c, PinLayoutModel *
     QHBoxLayout *scopeRow = new QHBoxLayout();
     scopeRow->addWidget(new QLabel(LS("Scope:")));
     scopeSelect = new QComboBox();
-    for (const char *s : {"This Circuit", "This Session", "Save Across Sessions"})
+    for (const char *s : {"This Circuit (Local)", "This Session (Global)", "Save Across Sessions (Persistent)"})
         scopeSelect->addItem(LS(s));
     int scopeIndex = 0;
     if (model != nullptr)

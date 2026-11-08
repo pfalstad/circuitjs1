@@ -990,6 +990,12 @@ void CirSim::updateCircuit(QPainter &painter) {
 
     g.setTransform(transform[0], 0, 0, transform[3], transform[4], transform[5]);
 
+    // Find the scope cursor before drawing anything, since scope elements are drawn along with
+    // the circuit.  If it were left from the last frame, its time could be relative to an
+    // older trigger sweep, so a triggered scope element under the mouse would lose it on
+    // every new sweep and flicker.
+    selectScopeCursor();
+
     perfmon.startContext("elm.draw()");
     for (CircuitElm *ce : *uiElmList) {
         if (options.power)
@@ -1020,6 +1026,28 @@ void CirSim::updateCircuit(QPainter &painter) {
                 g.fillOval(ce->x2 - 3, ce->y2 - 3, 7, 7);
             } else {
                 ce->drawHandles(g, CircuitElm::selectColor);
+            }
+        }
+    }
+
+    if (mouseMode == MODE_SELECT_POSTS) {
+        // show every post, and highlight the selected ones
+        g.setColor(Color::gray);
+        for (CircuitElm *ce : *uiElmList) {
+            int n = ce->getPostCount();
+            for (int i = 0; i < n; i++) {
+                Point p = ce->getPost(i);
+                g.fillOval(p.x - 3, p.y - 3, 7, 7);
+            }
+        }
+        g.setColor(CircuitElm::selectColor);
+        for (const auto &k : mouse.postSelLocs)
+            g.fillOval(k.first - 4, k.second - 4, 9, 9);
+        // outline moving elements that have no posts to show (text, boxes, ...)
+        for (CircuitElm *ce : mouse.postSelRigid) {
+            if (ce->getPostCount() == 0) {
+                const Rectangle &bb = ce->boundingBox;
+                g.drawRect(bb.x, bb.y, bb.width, bb.height);
             }
         }
     }
@@ -1133,6 +1161,20 @@ void CirSim::scheduleScreenshot(const QString &path, int frameCount) {
     screenshotFrames = frameCount;
 }
 
+// Set the scope cursor (time and selected plot) from the mouse position over a scope, if any
+void CirSim::selectScopeCursor() {
+    Scope::clearCursorInfo();
+    // while dragging the splitter, the mouse sits on the top edge of the scopes;
+    // don't treat that as hovering over a plot
+    if (mouse.tempMouseMode == SimApp::MODE_DRAG_SPLITTER)
+        return;
+    int ct = stopMessage ? 0 : scopeManager->scopeCount;
+    for (int i = 0; i != ct; i++)
+        scopeManager->scopes[i]->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
+    for (CircuitElm *ce : scopeElmArr)
+        static_cast<ScopeElm *>(ce)->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
+}
+
 void CirSim::drawBottomArea(Graphics &g) {
     double leftX = 0;
     double h = 0;
@@ -1149,15 +1191,6 @@ void CirSim::drawBottomArea(Graphics &g) {
     int ct = scopeManager->scopeCount;
     if (stopMessage)
         ct = 0;
-    Scope::clearCursorInfo();
-    // while dragging the splitter, the mouse sits on the top edge of the scopes;
-    // don't treat that as hovering over a plot
-    if (mouse.tempMouseMode != SimApp::MODE_DRAG_SPLITTER) {
-        for (int i = 0; i != ct; i++)
-            scopeManager->scopes[i]->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
-        for (CircuitElm *ce : scopeElmArr)
-            static_cast<ScopeElm *>(ce)->selectScope(mouse.mouseCursorX, mouse.mouseCursorY);
-    }
     for (int i = 0; i != ct; i++)
         scopeManager->scopes[i]->draw(g);
     if (mouse.mouseWasOverSplitter) {
@@ -1225,6 +1258,8 @@ void CirSim::drawBottomArea(Graphics &g) {
     int badnodes = (int) badConnectionList.size();
     if (badnodes > 0 && i < (int) info.size())
         info[i++] = std::to_string(badnodes) + (badnodes == 1 ? Locale::LS(" bad connection") : Locale::LS(" bad connections"));
+    if (railsWithoutGround && i < (int) info.size())
+        info[i++] = Locale::LS("no ground node!");
 
     double ybase = circuitArea.height - h;
     for (i = 0; i < (int) info.size() && !info[i].empty(); i++)

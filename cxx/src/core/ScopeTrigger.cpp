@@ -128,18 +128,23 @@ void ScopeTrigger::check(const std::vector<ScopePlot *> &visiblePlots, const Sco
 
     case TRIG_STATE_TRIGGERED:
         holdoff++;
+        // Still capturing the new sweep but it's taking a while (the sim slowed down)? Show it
+        // live rather than leave the old one up indefinitely.
+        if (!captured && frozen && now() - capStartWall > LIVE_CAPTURE_TIME)
+            showCapture(visiblePlots);
         // Sweep fully captured: snapshot it, so it stays on screen until the next trigger
-        // (or, for fast sweeps, until the next one is complete).
+        // (or, for quick sweeps, until the next one is complete).
         if (holdoff >= rectWidth / 2 && !captured) {
+            double t = now();
+            lastCaptureMs = t - capStartWall;
             // if it was being shown live, the display isn't changing, so no flash
             if (frozen)
-                lastSweepShown = now();
+                lastSweepShown = t;
             for (ScopePlot *p : visiblePlots)
                 p->freeze();
             frozen = captured = true;
             ptr = capPtr;
             time = capTime;
-            snapshotDrawn = false;
         }
         if (holdoff >= rectWidth) {
             state = TRIG_STATE_ARMED;
@@ -162,16 +167,22 @@ void ScopeTrigger::startCapture(const std::vector<ScopePlot *> &plots, int ptr_,
     capTime = time_;
     captured = false;
     holdoff = 0;
-    // Show the new sweep right away, filling in live, unless the last complete one hasn't
-    // even been drawn yet; then keep it until this one is done.
-    if (frozen && snapshotDrawn)
-        thaw(plots);
-    if (!frozen) {
-        ptr = ptr_;
-        time = time_;
-        lastSweepShown = now();
-    }
+    capStartWall = now();
     fired = true;
+    // Keep showing the last complete sweep until this one is done if that won't take long, so
+    // quick sweeps don't flicker through partial traces.  Otherwise (or with nothing frozen:
+    // first sweep, or coming out of auto free-run) show this one right away, filling in live.
+    if (frozen && lastCaptureMs <= LIVE_CAPTURE_TIME)
+        return;
+    showCapture(plots);
+}
+
+void ScopeTrigger::showCapture(const std::vector<ScopePlot *> &plots) {
+    if (frozen)
+        thaw(plots);
+    ptr = capPtr;
+    time = capTime;
+    lastSweepShown = now();
 }
 
 void ScopeTrigger::thaw(const std::vector<ScopePlot *> &plots) {

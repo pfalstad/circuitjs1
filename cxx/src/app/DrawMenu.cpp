@@ -188,10 +188,13 @@ static const MenuItemDef chipItems[] = {
     {"Add 7 Segment Decoder", "SevenSegDecoderElm"},
     {"Add Multiplexer", "MultiplexerElm"},
     {"Add Demultiplexer", "DeMultiplexerElm"},
+    {"Add Ganged Multiplexer (74157/74158)", "GangedMultiplexerElm"},
     {"Add SIPO shift register", "SipoShiftElm"},
     {"Add PISO shift register", "PisoShiftElm"},
     {"Add Counter", "CounterElm"},
-    {"Add Counter w/ Load", "Counter2Elm"},
+    {"Add Counter w/ Load (9316)", "Counter2Elm"},
+    {"Add Counter w/ Load (74177)", "Counter74177Elm"},
+    {"Add Up/Down Counter w/ Load (74193/74192)", "Counter193Elm"},
     {"Add Ring Counter", "DecadeElm"},
     {"Add Latch/Register", "LatchElm"},
     {"Add Sequence generator", "SeqGenElm"},
@@ -285,6 +288,7 @@ void CirSim::createDrawMenu() {
     getClassCheckItem(dragMenu, LS("Drag Column"), "DragColumn", LS("(A-Cmd-drag)"));
     getClassCheckItem(dragMenu, LS("Drag Selected"), "DragSelected");
     getClassCheckItem(dragMenu, LS("Drag Post"), "DragPost", LS("(Cmd-drag)"));
+    getClassCheckItem(dragMenu, LS("Select/Drag Posts"), "SelectPosts");
 
     QAction *sel = getClassCheckItem(menu, LS("Select/Drag Sel"), "Select", LS("(space or Shift-drag)"));
     sel->setChecked(true);
@@ -395,10 +399,14 @@ void CirSim::setMouseMode(const QString &s) {
         mouseMode = MODE_DRAG_SELECTED;
     else if (s == "DragPost")
         mouseMode = MODE_DRAG_POST;
+    else if (s == "SelectPosts")
+        mouseMode = MODE_SELECT_POSTS;
     else if (s == "Select")
         mouseMode = MODE_SELECT;
     else
         mouseMode = MODE_ADD_ELM;
+    if (mouseMode != MODE_SELECT_POSTS)
+        mouse.clearPostSelection();
     mouse.tempMouseMode = mouseMode;
     updateToolbar();
     repaint();

@@ -78,13 +78,16 @@ public:
     int lastCheckPtr = -1;
     // wall-clock time (ms) the display last switched to a new sweep, to flash the status text
     double lastSweepShown = -std::numeric_limits<double>::infinity();
-    // Whether the frozen snapshot has been drawn yet.  If it hasn't when the next trigger comes,
-    // sweeps are completing faster than the display updates, so keep it rather than replace it
-    // with a partial sweep.
-    bool snapshotDrawn = false;
+    // wall-clock time (ms) the current capture started, and how long the last complete capture
+    // took.  Quick captures are shown only once complete; slow ones are shown live as they fill in.
+    double capStartWall = 0;
+    double lastCaptureMs = 0;
 
     // How long (ms) the status text flashes when a new sweep is shown
     static constexpr double FLASH_TIME = 150;
+    // A capture taking longer than this (ms) of wall-clock time is shown live instead of keeping
+    // the previous sweep up until it's complete
+    static constexpr double LIVE_CAPTURE_TIME = 500;
 
     // The plot the trigger watches, or null if nothing is visible
     ScopePlot *sourcePlot(const std::vector<std::unique_ptr<ScopePlot>> &plots,
@@ -124,4 +127,6 @@ public:
 private:
     void startCapture(const std::vector<ScopePlot *> &plots, int ptr, double time);
     void thaw(const std::vector<ScopePlot *> &plots);
+    // Switch the display to the sweep being captured, shown live as it fills in
+    void showCapture(const std::vector<ScopePlot *> &plots);
 };

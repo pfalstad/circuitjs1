@@ -632,13 +632,7 @@ void ScopePropertiesDialog::scaleDown() {
     double d = getManualScaleValue();
     if (d == 0)
         return;
-    double s = MIN_MAN_SCALE, lasts = s;
-    double target = d * 0.999;
-    for (int a = 0; s < target; a++) {
-        lasts = s;
-        s *= multa[a % 3];
-    }
-    scope->setManualScaleValue(plotSelection, lasts);
+    scope->setManualScaleValue(plotSelection, Scope::nextLowerManScale(d));
     changed();
 }
 

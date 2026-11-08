@@ -162,6 +162,12 @@ void SubcircuitElm::updateModelsFrom(StringTokenizer *st) {
     if (model != nullptr && model->name == modelName)
         return;
     model = SubcircuitModel::getModelWithName(modelName);
+    if (model != nullptr && building().count(model.get())) {
+        // the model contains itself (directly or through other subcircuits), which would
+        // expand forever; leave this copy empty, drawn as a placeholder
+        SimulationManager::console("subcircuit " + modelName + " contains itself");
+        model = nullptr;
+    }
     if (model == nullptr) {
         // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
         // fall back to an empty/placeholder state instead of leaving fields uninitialized,
@@ -180,10 +186,18 @@ void SubcircuitElm::updateModelsFrom(StringTokenizer *st) {
     std::vector<int> externalNodes(postCount);
     for (int i = 0; i < postCount; i++)
         externalNodes[i] = model->extList[i].node;
-    if (st != nullptr)
-        loadComposite(st, model->getNodeList(), externalNodes);
-    else
-        loadCompositeXml(model->getElmEntries(), externalNodes);
+    SubcircuitModel *building1 = model.get();
+    building().insert(building1);
+    try {
+        if (st != nullptr)
+            loadComposite(st, model->getNodeList(), externalNodes);
+        else
+            loadCompositeXml(model->getElmEntries(), externalNodes);
+    } catch (...) {
+        building().erase(building1);
+        throw;
+    }
+    building().erase(building1);
     builtModelName = model->name;
     propagateHighVoltage();
     allocNodes();

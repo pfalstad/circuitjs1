@@ -101,6 +101,9 @@
 #include "../elements/LatchElm.h"
 #include "../elements/RingCounterElm.h"
 #include "../elements/Counter2Elm.h"
+#include "../elements/Counter193Elm.h"
+#include "../elements/Counter74177Elm.h"
+#include "../elements/GangedMultiplexerElm.h"
 #include "../elements/CounterElm.h"
 #include "../elements/FullAdderElm.h"
 #include "../elements/HalfAdderElm.h"
@@ -246,6 +249,9 @@ void registerElements() {
     reg<LatchElm>("LatchElm");
     reg<RingCounterElm>("RingCounterElm");
     reg<Counter2Elm>("Counter2Elm");
+    reg<Counter74177Elm>("Counter74177Elm");
+    reg<Counter193Elm>("Counter193Elm");
+    reg<GangedMultiplexerElm>("GangedMultiplexerElm");
     reg<CounterElm>("CounterElm");
     reg<FullAdderElm>("FullAdderElm");
     reg<HalfAdderElm>("HalfAdderElm");

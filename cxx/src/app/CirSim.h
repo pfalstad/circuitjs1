@@ -120,6 +120,7 @@ public:
     void loadDefaultCircuit();
     void readCircuit(const std::string &text, int flags = 0) override;
     void readCircuitFromDoc(const XmlElement *doc) override;
+    void clearPostSelection() override { mouse.clearPostSelection(); }
 
     // saving and undo
     std::unique_ptr<UndoManager> undoManager;
@@ -329,6 +330,7 @@ private:
     QAction *getClassCheckItem(QMenu *menu, const QString &label, const QString &cls, const QString &hint = QString());
     void setCircuitArea() override;
     void drawBottomArea(Graphics &g);
+    void selectScopeCursor();
     struct FlipInfo {
         int cx, cy, count;
     };

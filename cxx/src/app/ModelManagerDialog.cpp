@@ -83,14 +83,22 @@ ModelManagerDialog::ModelManagerDialog(CirSim *s) : QDialog(s), sim(s) {
 
 void ModelManagerDialog::populateList(const std::set<RegistryModel *> &selected) {
     std::vector<TypedModel> all;
+    // include global models shadowed by a local one of the same name (e.g. a newer version
+    // saved in storage, hidden by an older copy loaded from the circuit file), so they can be
+    // seen and managed
     for (const ModelType *type : allModelTypes())
-        for (RegistryModel *model : type->registry->anyModels())
+        for (RegistryModel *model : type->registry->anyAllModels())
             if (isUserModel(model))
                 all.push_back({type, model});
     auto typeName = [](const TypedModel &tm) { return tm.type->typeName(tm.model); };
+    auto shadowed = [](const TypedModel &tm) { return tm.type->registry->anyIsShadowed(tm.model) ? 1 : 0; };
     std::stable_sort(all.begin(), all.end(), [&](const TypedModel &a, const TypedModel &b) {
         int c = typeName(a).compare(typeName(b));
-        return c != 0 ? c < 0 : a.model->name < b.model->name;
+        if (c != 0)
+            return c < 0;
+        if (a.model->name != b.model->name)
+            return a.model->name < b.model->name;
+        return shadowed(a) < shadowed(b);
     });
 
     // offer the types that have models, plus the current filter
@@ -118,7 +126,16 @@ void ModelManagerDialog::populateList(const std::set<RegistryModel *> &selected)
         std::string text = tm.model->name + " (";
         if (filter.empty())
             text += Locale::LS(typeName(tm)) + ", ";
-        text += Locale::LS(modelScopeName(tm.type->registry->anyScope(tm.model))) + ")";
+        text += Locale::LS(modelScopeName(tm.type->registry->anyScope(tm.model)));
+        if (tm.type->registry->anyIsShadowed(tm.model))
+            text += ", " + Locale::LS("hidden by local");
+        std::vector<TypedModel> users = modelUsers(tm.model);
+        if (!users.empty()) {
+            text += ", " + Locale::LS("used by") + " ";
+            for (size_t i = 0; i < users.size(); i++)
+                text += (i ? ", " : "") + users[i].model->name;
+        }
+        text += ")";
         QListWidgetItem *item = new QListWidgetItem(QString::fromStdString(text), modelListBox);
         item->setSelected(selected.count(tm.model) > 0);
     }
@@ -136,11 +153,27 @@ std::vector<TypedModel> ModelManagerDialog::getSelected() {
 
 void ModelManagerDialog::handleSetScope(ModelScope scope) {
     std::vector<TypedModel> sel = getSelected();
-    std::set<RegistryModel *> selSet;
-    for (const TypedModel &tm : sel) {
+    if (sel.empty())
+        return;
+    // models that use the selected ones and are more global than scope go along, so they
+    // don't end up using models that won't be there (e.g. a persistent subcircuit using one
+    // that's made local), but ask first
+    std::vector<TypedModel> users = usersToMove(sel, scope);
+    if (!confirmMoveUsers(sim, users, scope))
+        return;
+    // models the selected ones use go along, e.g. the subcircuits inside a subcircuit
+    std::vector<TypedModel> both = sel;
+    both.insert(both.end(), users.begin(), users.end());
+    std::vector<TypedModel> moving = withDependencies(both, scope);
+    // a model with the same name in the other tier (e.g. a global one shadowed by a local
+    // one) would be replaced, so ask first
+    if (!confirmReplace(sim, moving, scope))
+        return;
+    for (const TypedModel &tm : moving)
         tm.type->registry->anySetScope(tm.model, scope);
+    std::set<RegistryModel *> selSet;
+    for (const TypedModel &tm : sel)
         selSet.insert(tm.model);
-    }
     populateList(selSet);
 }
 
@@ -149,7 +182,9 @@ void ModelManagerDialog::handleSave() {
     std::vector<TypedModel> sel = getSelected();
     if (sel.empty())
         return;
-    std::string data = dumpModelLibrary(sel);
+    // include the models they use (e.g. the subcircuits inside a subcircuit), so the library
+    // works on its own
+    std::string data = dumpModelLibrary(withDependencies(sel));
     std::string base = "models";
     if (sel.size() == 1) {
         base = sel[0].model->name;
@@ -165,17 +200,41 @@ void ModelManagerDialog::handleDelete() {
     if (sel.empty())
         return;
     std::set<RegistryModel *> inUse = getModelsInUse(sim);
-    // (an element may hold a different model object with the same name, e.g. after the model was replaced)
+    // (an element may hold a different model object with the same name, e.g. after the model
+    // was replaced.  That can't be a shadowed model, which elements can't get by name.)
     std::string used;
     for (const TypedModel &tm : sel) {
         bool isUsed = std::any_of(inUse.begin(), inUse.end(), [&](RegistryModel *u) {
-            return u == tm.model || (typeid(*u) == typeid(*tm.model) && u->name == tm.model->name);
+            return u == tm.model || (typeid(*u) == typeid(*tm.model) && u->name == tm.model->name &&
+                                     !tm.type->registry->anyIsShadowed(tm.model));
         });
         if (isUsed)
             used += (used.empty() ? "" : ", ") + tm.model->name;
     }
     if (!used.empty()) {
         sim->alert(Locale::LS("Can't delete models in use in the current circuit: ") + used);
+        return;
+    }
+    // other models using one would break, unless the name will still find a model (a
+    // global one this local one shadows)
+    std::set<RegistryModel *> deleting;
+    for (const TypedModel &tm : sel)
+        deleting.insert(tm.model);
+    std::string usedBy;
+    for (const TypedModel &tm : sel) {
+        ModelRegistryBase *reg = tm.type->registry;
+        RegistryModel *global = reg->anyGetGlobal(tm.model->name);
+        if (reg->anyIsLocal(tm.model) && global != nullptr && !deleting.count(global))
+            continue;
+        std::string users;
+        for (const TypedModel &u : modelUsers(tm.model))
+            if (!deleting.count(u.model))
+                users += (users.empty() ? "" : ", ") + u.model->name;
+        if (!users.empty())
+            usedBy += (usedBy.empty() ? "" : ", ") + tm.model->name + " (" + Locale::LS("used by") + " " + users + ")";
+    }
+    if (!usedBy.empty()) {
+        sim->alert(Locale::LS("Can't delete models used by other models: ") + usedBy);
         return;
     }
     std::string names;

@@ -20,6 +20,12 @@
 #include "ScopeSerializer.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstring>
+#include <map>
+#include <optional>
+#include <stdexcept>
 #include <cstdio>
 
 #include "CircuitElm.h"
@@ -41,16 +47,240 @@ static std::string toHex(int v) {
     return buf;
 }
 
+namespace {
+
+// just enough JSON for the scope defaults (same format as the TS version's)
+struct JsonValue {
+    enum Type { NUL, BOOL, NUMBER, STRING, ARRAY, OBJECT } type = NUL;
+    bool b = false;
+    double n = 0;
+    std::string s;
+    std::vector<JsonValue> arr;
+    std::map<std::string, JsonValue> obj;
+
+    const JsonValue *get(const std::string &key) const {
+        if (type != OBJECT)
+            return nullptr;
+        auto it = obj.find(key);
+        return it == obj.end() ? nullptr : &it->second;
+    }
+    bool isNumber() const { return type == NUMBER; }
+    // JS truthiness, for "!!x"
+    bool truthy() const {
+        switch (type) {
+        case BOOL: return b;
+        case NUMBER: return n != 0 && n == n;
+        case STRING: return !s.empty();
+        case ARRAY: case OBJECT: return true;
+        default: return false;
+        }
+    }
+    // JS "x | 0"
+    int toInt32() const {
+        double v = type == NUMBER ? n : type == BOOL ? (b ? 1 : 0) : 0;
+        if (!(v == v) || std::isinf(v))
+            return 0;
+        return (int) (int64_t) std::trunc(v);
+    }
+};
+
+class JsonParser {
+public:
+    explicit JsonParser(const std::string &str) : str(str) {}
+    JsonValue parse() {
+        JsonValue v = value();
+        ws();
+        if (pos != str.size())
+            fail();
+        return v;
+    }
+
+private:
+    const std::string &str;
+    size_t pos = 0;
+
+    [[noreturn]] void fail() { throw std::runtime_error("bad JSON"); }
+    void ws() {
+        while (pos < str.size() && (str[pos] == ' ' || str[pos] == '\t' || str[pos] == '\n' || str[pos] == '\r'))
+            pos++;
+    }
+    bool match(const char *lit) {
+        size_t len = std::strlen(lit);
+        if (str.compare(pos, len, lit) != 0)
+            return false;
+        pos += len;
+        return true;
+    }
+    std::string string() {
+        if (str[pos] != '"')
+            fail();
+        pos++;
+        std::string out;
+        while (pos < str.size() && str[pos] != '"') {
+            char c = str[pos++];
+            if (c == '\\') {
+                if (pos >= str.size())
+                    fail();
+                char e = str[pos++];
+                switch (e) {
+                case 'n': out += '\n'; break;
+                case 't': out += '\t'; break;
+                case 'r': out += '\r'; break;
+                case 'b': out += '\b'; break;
+                case 'f': out += '\f'; break;
+                case 'u': pos += 4; out += '?'; break;  // (not needed here)
+                default: out += e;
+                }
+            } else
+                out += c;
+        }
+        if (pos >= str.size())
+            fail();
+        pos++;
+        return out;
+    }
+    JsonValue value() {
+        ws();
+        if (pos >= str.size())
+            fail();
+        JsonValue v;
+        char c = str[pos];
+        if (c == '{') {
+            v.type = JsonValue::OBJECT;
+            pos++;
+            ws();
+            if (pos < str.size() && str[pos] == '}') {
+                pos++;
+                return v;
+            }
+            for (;;) {
+                ws();
+                std::string key = string();
+                ws();
+                if (pos >= str.size() || str[pos++] != ':')
+                    fail();
+                v.obj[key] = value();
+                ws();
+                if (pos >= str.size())
+                    fail();
+                if (str[pos] == ',') { pos++; continue; }
+                if (str[pos] == '}') { pos++; break; }
+                fail();
+            }
+        } else if (c == '[') {
+            v.type = JsonValue::ARRAY;
+            pos++;
+            ws();
+            if (pos < str.size() && str[pos] == ']') {
+                pos++;
+                return v;
+            }
+            for (;;) {
+                v.arr.push_back(value());
+                ws();
+                if (pos >= str.size())
+                    fail();
+                if (str[pos] == ',') { pos++; continue; }
+                if (str[pos] == ']') { pos++; break; }
+                fail();
+            }
+        } else if (c == '"') {
+            v.type = JsonValue::STRING;
+            v.s = string();
+        } else if (match("true")) {
+            v.type = JsonValue::BOOL;
+            v.b = true;
+        } else if (match("false")) {
+            v.type = JsonValue::BOOL;
+        } else if (match("null")) {
+        } else {
+            size_t start = pos;
+            while (pos < str.size() && (std::isdigit((unsigned char) str[pos]) || std::strchr("+-.eE", str[pos])))
+                pos++;
+            if (start == pos)
+                fail();
+            v.type = JsonValue::NUMBER;
+            v.n = parseFloatStrict(str.substr(start, pos - start));
+        }
+        return v;
+    }
+};
+
+}  // namespace
+
 void ScopeSerializer::saveAsDefault() {
     Storage *stor = Storage::localStorage;
     if (stor == nullptr)
         return;
-    ScopePlot &vPlot = *scope->plots[0];
-    int flags = getFlags();
-    std::string s = "1 " + std::to_string(flags) + " " + std::to_string(vPlot.scopePlotSpeed);
-    if ((flags & FLAG_TRIGGER) != 0)
-        s += " " + jsNumberToString(scope->trigger.level);
+    ScopeTrigger &trig = scope->trigger;
+    // JSON, the same as the TS version
+    std::string s = "{\"v\":2,\"flags\":" + std::to_string(getFlags());
+    s += ",\"speed\":" + std::to_string(!scope->plots.empty() ? scope->plots[0]->scopePlotSpeed : scope->speed);
+    s += ",\"md\":" + std::to_string(scope->manDivisions);
+    s += ",\"plots\":[";
+    for (size_t i = 0; i < scope->plots.size(); i++) {
+        const ScopePlot &p = *scope->plots[i];
+        if (i > 0)
+            s += ",";
+        s += "{\"u\":" + std::to_string(p.units) + ",\"ms\":" + jsNumberToString(p.manScale) +
+             ",\"mp\":" + std::to_string(p.manVPosition) + ",\"ac\":" + (p.acCoupled ? "true" : "false") + "}";
+    }
+    s += "],\"trig\":{\"mode\":" + std::to_string(trig.mode) + ",\"edge\":" + std::to_string(trig.edge) +
+         ",\"level\":" + jsNumberToString(trig.level) + ",\"source\":" + std::to_string(trig.source) + "}}";
     stor->setItem("scopeDefaults", s);
+}
+
+void ScopeSerializer::loadDefaultsJson(const std::string &str) {
+    JsonValue d = JsonParser(str).parse();
+    const JsonValue *jv;
+    int flags = (jv = d.get("flags")) ? jv->toInt32() : 0;
+    setFlags(flags);
+    if ((jv = d.get("speed")) && jv->isNumber() && jv->n > 0)
+        scope->speed = (int) jv->n;
+    if ((jv = d.get("md")) && jv->isNumber() && jv->n > 0)
+        scope->manDivisions = (int) jv->n;
+    std::vector<const JsonValue *> saved;
+    if ((jv = d.get("plots")) && jv->type == JsonValue::ARRAY)
+        for (const JsonValue &x : jv->arr)
+            saved.push_back(&x);
+    bool manual = (flags & FLAG_MAN_SCALE) != 0;
+    auto unitsOf = [](const JsonValue *x) -> std::optional<double> {
+        const JsonValue *u = x ? x->get("u") : nullptr;
+        if (u && u->isNumber())
+            return u->n;
+        return std::nullopt;
+    };
+    for (size_t i = 0; i < scope->plots.size(); i++) {
+        ScopePlot &p = *scope->plots[i];
+        // prefer the saved plot in the same slot; otherwise any saved plot with the same units
+        const JsonValue *sp = i < saved.size() ? saved[i] : nullptr;
+        if (!sp || unitsOf(sp) != std::optional<double>(p.units)) {
+            sp = nullptr;
+            for (const JsonValue *x : saved)
+                if (unitsOf(x) == std::optional<double>(p.units)) {
+                    sp = x;
+                    break;
+                }
+        }
+        if (!sp)
+            continue;
+        const JsonValue *ac = sp->get("ac");
+        p.acCoupled = ac && ac->truthy();
+        const JsonValue *ms = sp->get("ms");
+        if (manual && ms && ms->isNumber() && ms->n > 0) {
+            p.manScale = ms->n;
+            const JsonValue *mp = sp->get("mp");
+            p.manVPosition = mp ? mp->toInt32() : 0;
+            p.manScaleSet = true;
+        }
+    }
+    if (const JsonValue *t = d.get("trig")) {
+        ScopeTrigger &trig = scope->trigger;
+        if ((jv = t->get("mode")) && jv->isNumber()) trig.mode = (int) jv->n;
+        if ((jv = t->get("edge")) && jv->isNumber()) trig.edge = (int) jv->n;
+        if ((jv = t->get("level")) && jv->isNumber()) trig.level = jv->n;
+        if ((jv = t->get("source")) && jv->isNumber()) trig.source = (int) jv->n;
+    }
 }
 
 bool ScopeSerializer::loadDefaults() {
@@ -60,18 +290,23 @@ bool ScopeSerializer::loadDefaults() {
     std::optional<std::string> str = stor->getItem("scopeDefaults");
     if (!str)
         return false;
-    std::vector<std::string> arr;
-    StringTokenizer st(*str, " ");
-    while (st.hasMoreTokens())
-        arr.push_back(st.nextToken());
-    if (arr.size() < 3)
-        return false;
     try {
-        int flags = parseIntStrict(arr[1]);
-        setFlags(flags);
-        scope->speed = parseIntStrict(arr[2]);
-        if (arr.size() > 3 && (flags & FLAG_TRIGGER) != 0)
-            scope->trigger.level = parseFloatStrict(arr[3]);
+        if (!str->empty() && (*str)[0] == '{')
+            loadDefaultsJson(*str);
+        else {
+            // old format: "1 flags speed [triggerLevel]"
+            std::vector<std::string> arr;
+            StringTokenizer st(*str, " ");
+            while (st.hasMoreTokens())
+                arr.push_back(st.nextToken());
+            if (arr.size() < 3)
+                return false;
+            int flags = parseIntStrict(arr[1]);
+            setFlags(flags);
+            scope->speed = parseIntStrict(arr[2]);
+            if (arr.size() > 3 && (flags & FLAG_TRIGGER) != 0)
+                scope->trigger.level = parseFloatStrict(arr[3]);
+        }
     } catch (std::exception &) {
         return false;
     }
@@ -254,6 +489,11 @@ void ScopeSerializer::undumpXml(CircuitXMLDeserializer &xml) {
 
 void ScopeSerializer::undump(StringTokenizer &st) {
     scope->initialize();
+    // the text format has no trigger settings, so don't inherit them from the saved defaults
+    scope->trigger.mode = ScopeTrigger::TRIGGER_FREERUN;
+    scope->trigger.edge = ScopeTrigger::TRIGGER_EDGE_RISING;
+    scope->trigger.level = 0;
+    scope->trigger.source = 0;
     int e = parseIntStrict(st.nextToken());
     if (e == -1)
         return;

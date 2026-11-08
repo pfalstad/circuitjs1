@@ -19,6 +19,7 @@
 
 #include "UndoManager.h"
 #include "CirSim.h"
+#include "core/ModelRegistry.h"
 
 UndoItem::UndoItem(CirSim *sim, std::string d)
     : dump(std::move(d)), scale(sim->transform[0]), transform4(sim->transform[4]), transform5(sim->transform[5]) {}
@@ -35,27 +36,41 @@ void UndoManager::pushUndo() {
 }
 
 void UndoManager::doUndo() {
-    if (undoStack.empty())
-        return;
-    redoStack.emplace_back(sim, sim->dumpCircuit());
-    UndoItem ui = std::move(undoStack.back());
-    undoStack.pop_back();
-    loadUndoItem(ui);
-    enableUndoRedo();
+    undoOrRedo(undoStack, redoStack);
 }
 
 void UndoManager::doRedo() {
-    if (redoStack.empty())
-        return;
-    undoStack.emplace_back(sim, sim->dumpCircuit());
-    UndoItem ui = std::move(redoStack.back());
-    redoStack.pop_back();
-    loadUndoItem(ui);
+    undoOrRedo(redoStack, undoStack);
+}
+
+// load the top state of the from stack, pushing the current state onto the other stack
+void UndoManager::undoOrRedo(std::vector<UndoItem> &from, std::vector<UndoItem> &to) {
+    std::string dump = sim->dumpCircuit();
+    // skip states identical to the current one (edits push the state after the change too),
+    // so undo doesn't appear to do nothing
+    std::string cur = CirSim::withoutSliders(dump);
+    while (!from.empty() && CirSim::withoutSliders(from.back().dump) == cur)
+        from.pop_back();
+    if (!from.empty()) {
+        to.emplace_back(sim, std::move(dump));
+        UndoItem ui = std::move(from.back());
+        from.pop_back();
+        loadUndoItem(ui);
+    }
     enableUndoRedo();
 }
 
 void UndoManager::loadUndoItem(const UndoItem &ui) {
-    sim->readCircuit(ui.dump, CircuitLoader::RC_NO_CENTER | CircuitLoader::RC_KEEP_MODELS);
+    // undo restores local models' definitions but leaves global models alone (see
+    // ModelRegistryBase::loadingUndoState())
+    ModelRegistryBase::loadingUndoState() = true;
+    try {
+        sim->readCircuit(ui.dump, CircuitLoader::RC_NO_CENTER | CircuitLoader::RC_KEEP_MODELS);
+    } catch (...) {
+        ModelRegistryBase::loadingUndoState() = false;
+        throw;
+    }
+    ModelRegistryBase::loadingUndoState() = false;
     sim->transform[0] = sim->transform[3] = ui.scale;
     sim->transform[4] = ui.transform4;
     sim->transform[5] = ui.transform5;

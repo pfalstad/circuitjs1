@@ -257,8 +257,11 @@ void CirSim::doAbout() {
 
 // the recovery file: the circuit as of the last change, kept across sessions (UndoManager.ts)
 void CirSim::writeRecoveryToStorage() {
-    if (Storage::localStorage)
-        Storage::localStorage->setItem("circuitRecovery", dumpCircuit());
+    if (!Storage::localStorage)
+        return;
+    // while a subcircuit is being edited in place, the circuit on screen is just its
+    // contents; keep the whole circuit (as it was when editing started) instead
+    Storage::localStorage->setItem("circuitRecovery", !contextStack.empty() ? contextStack.front().circuitDump : dumpCircuit());
 }
 
 void CirSim::readRecovery() {

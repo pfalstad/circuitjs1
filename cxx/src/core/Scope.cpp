@@ -197,8 +197,6 @@ void Scope::checkTrigger() {
 void Scope::drawTriggerIndicator(Graphics &g, bool forExport) {
     bool highlight = !forExport && (draggingTriggerLevel || (draggingPlotYScope == nullptr && cursorNearTriggerLevel()));
     trigger.drawIndicator(g, triggerSourcePlot(), rect, highlight);
-    if (!forExport)
-        trigger.snapshotDrawn = true;
 }
 
 bool Scope::cursorNearTriggerLevel() const {
@@ -224,7 +222,10 @@ void Scope::initialize() {
     showV = showI = false;
     showScale = showFreq = manualScale = showMin = showP2P = showElmInfo = false;
     fftPlot.enabled = false;
-    if (!serializer->loadDefaults()) {
+    if (serializer->loadDefaults()) {
+        // trigger mode affects the buffer size
+        resetGraph();
+    } else {
         // set showV and showI appropriately depending on what plots are present
         for (auto &plot : plots) {
             if (plot->units == UNITS_V)
@@ -1324,7 +1325,11 @@ void Scope::selectY() {
     }
 }
 
-void Scope::onMouseWheel(double normalizedDelta, double wheelSensitivity) {
+void Scope::onMouseWheel(double normalizedDelta, double wheelSensitivity, bool shift) {
+    if (shift) {
+        onShiftMouseWheel(normalizedDelta, wheelSensitivity);
+        return;
+    }
     wheelDeltaY += normalizedDelta * wheelSensitivity;
     if (wheelDeltaY > 5) {
         slowDown();
@@ -1334,6 +1339,40 @@ void Scope::onMouseWheel(double normalizedDelta, double wheelSensitivity) {
         speedUp();
         wheelDeltaY = 0;
     }
+}
+
+void Scope::onShiftMouseWheel(double normalizedDelta, double wheelSensitivity) {
+    if (!manualScale || plot2d.enabled || visiblePlots.empty())
+        return;
+    if (normalizedDelta == 0)
+        return;
+    wheelDeltaScale += normalizedDelta * wheelSensitivity;
+    if (std::abs(wheelDeltaScale) <= 5)
+        return;
+    // step through the 1-2-5 sequence, like the time scale
+    int plotId = (selectedPlot >= 0 && selectedPlot < (int) visiblePlots.size()) ? selectedPlot : 0;
+    double cur = visiblePlots[plotId]->manScale;
+    double next = wheelDeltaScale > 0 ? nextHigherManScale(cur) : nextLowerManScale(cur);
+    wheelDeltaScale = 0;
+    setManualScaleValue(plotId, std::max(next, MIN_MAN_SCALE));
+}
+
+double Scope::nextHigherManScale(double d) {
+    d = d * 1.001;
+    double s = MIN_MAN_SCALE;
+    for (int a = 0; s < d; a++)
+        s *= multa[a % 3];
+    return s;
+}
+
+double Scope::nextLowerManScale(double d) {
+    double target = d * 0.999;
+    double s = MIN_MAN_SCALE, lasts = s;
+    for (int a = 0; s < target; a++) {
+        lasts = s;
+        s *= multa[a % 3];
+    }
+    return lasts;
 }
 
 CircuitElm *Scope::getElm() const {

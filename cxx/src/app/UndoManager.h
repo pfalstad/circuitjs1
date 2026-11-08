@@ -40,6 +40,7 @@ public:
     void doUndo();
     void doRedo();
     void loadUndoItem(const UndoItem &ui);
+    void undoOrRedo(std::vector<UndoItem> &from, std::vector<UndoItem> &to);
     void enableUndoRedo();
     // (recovery is in CirSim: writeRecoveryToStorage(), doRecover())
 

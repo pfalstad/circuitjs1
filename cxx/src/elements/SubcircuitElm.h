@@ -20,6 +20,7 @@
 #pragma once
 
 #include <memory>
+#include <set>
 
 #include "../core/SubcircuitModel.h"
 #include "CompositeElm.h"
@@ -39,6 +40,11 @@ public:
     std::optional<std::string> builtModelName;
     double highVoltage = 0;
     static std::string lastModelName;
+    // models whose elements are being built, to catch a subcircuit that contains itself
+    static std::set<SubcircuitModel *> &building() {
+        static std::set<SubcircuitModel *> s;
+        return s;
+    }
     static constexpr int FLAG_SMALL = 2;
 
     SubcircuitElm(int xx, int yy);

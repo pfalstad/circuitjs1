@@ -20,10 +20,13 @@
 #pragma once
 
 #include <QMouseEvent>
+#include <array>
 #include <QPointer>
 #include <QString>
 #include <QWheelEvent>
+#include <map>
 #include <optional>
+#include <set>
 #include <unordered_set>
 #include <vector>
 
@@ -54,6 +57,7 @@ public:
     void setMouseElm(CircuitElm *ce);
     void clearMouseElm() { setMouseElm(nullptr); }
     void clearSelection();
+    void clearPostSelection();
     // split the wire under the context menu / cmd-click position
     void doSplit(CircuitElm *ce);
     // where the mouse was last pressed (the context menu's position)
@@ -71,6 +75,15 @@ public:
     int mousePost = -1;
     double mouseCursorX = -1, mouseCursorY = -1;
     std::optional<Rectangle> selectedArea;
+
+    // ---- Select/Drag Posts mode ----
+    // The user boxes a set of posts, then drags them; elements with one end selected
+    // stretch, so this can be used to open up (or close up) space in a circuit.
+    using Loc = std::pair<int, int>;
+    // locations of the posts that are selected (for drawing and hit testing)
+    std::set<Loc> postSelLocs;
+    // rigid elements (chips, transistors, text...) that move as a whole
+    std::unordered_set<CircuitElm *> postSelRigid;
     // mouse is over the splitter between the circuit and the scope area
     bool mouseWasOverSplitter = false;
     double wheelSensitivity = 1;
@@ -116,6 +129,14 @@ private:
     bool dragSelected(int x, int y);
     void dragPost(int x, int y, bool all);
     void selectArea(int x, int y, bool add);
+    static bool isRigid(CircuitElm *ce);
+    static std::vector<std::optional<Loc>> postKeys(CircuitElm *ce);
+    void selectPostsArea(int x, int y);
+    std::optional<std::vector<int>> handleFollowers(CircuitElm *ce);
+    std::optional<std::vector<int>> cachedHandleFollowers(CircuitElm *ce);
+    void computePostSelection();
+    bool postSelectionHit(int x, int y);
+    bool dragPostSelection(int x, int y);
     bool anySelectedButMouse();
     void removeZeroLengthElements();
     // returns the element that was just created, if any
@@ -133,6 +154,9 @@ private:
     double dragScreenX = 0, dragScreenY = 0;
     int initDragGridX = 0, initDragGridY = 0;
     double mouseDownScreenX = 0, mouseDownScreenY = 0;
+    // has the mouse moved more than a few pixels from mouseDownScreenX/Y at any point
+    // during this press?  (a drag that returns to its start point is still not a click)
+    bool movedSinceMouseDown = false;
     double mouseDownTime = 0;
     double zoomTime = 0;
     // value/type popup opened by the wheel (ScrollValuePopup, TypeScrollPopup)
@@ -143,6 +167,21 @@ private:
     // vector in the order they were first moved)
     std::unordered_set<CircuitElm *> dragMovedSet;
     std::vector<CircuitElm *> dragMovedElms;
+
+    // Select/Drag Posts: what to do to each element when the selection is dragged:
+    // -1 = move the whole element, 0/1 = move that end only (stretch)
+    std::map<CircuitElm *, int> postSelPlan;
+    // selection seeds from the rubber band(s); shift-drag adds to these
+    std::set<Loc> postSeedLocs, postSeedBaseLocs;
+    std::unordered_set<CircuitElm *> postSeedRigid, postSeedBaseRigid;
+    // true if the current mouse drag is moving the selected posts (vs. rubber-banding)
+    bool postDragActive = false;
+    // cached handleFollowers() results, keyed by element, valid while its position is the same
+    struct FollowersEntry {
+        std::array<int, 4> geom;
+        std::optional<std::vector<int>> f;
+    };
+    std::map<CircuitElm *, FollowersEntry> followersCache;
 
     static constexpr int TOOLBAR_DRAG_THRESHOLD = 6;
     QString toolbarDragClass;

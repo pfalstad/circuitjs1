@@ -51,6 +51,7 @@ public:
     bool createModel();
     void createDialog();
     void enterPressed();
+    void moveDependencies(ModelScope scope);
     void closeDialog() { close(); }
     void drawChip();
 

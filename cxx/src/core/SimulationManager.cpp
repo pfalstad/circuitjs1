@@ -444,6 +444,7 @@ bool SimulationManager::calcWireInfo() {
 void SimulationManager::setGroundNode(bool subcircuit) {
     bool gotGround = false;
     bool gotRail = false;
+    bool gotTwoTerminalSource = false;
     CircuitElm *volt = nullptr;
     CircuitElm *battery = nullptr;
 
@@ -467,11 +468,18 @@ void SimulationManager::setGroundNode(bool subcircuit) {
         }
         if (ce->isRailElm())
             gotRail = true;
+        else if (ce->isVoltageElm() || ce->isBatteryElm())
+            gotTwoTerminalSource = true;
         if (volt == nullptr && ce->isVoltageElm())
             volt = ce;
         if (battery == nullptr && ce->isBatteryElm())
             battery = ce;
     }
+
+    // warn if there are both one-terminal (rail) and two-terminal voltage sources but
+    // no ground, since the two-terminal sources will float relative to the rails
+    if (!subcircuit)
+        app->railsWithoutGround = !gotGround && gotRail && gotTwoTerminalSource;
 
     // if no ground, and no rails, then the voltage elm's first terminal is ground;
     // if there's no plain voltage elm, fall back to a battery's negative terminal
@@ -763,6 +771,7 @@ void SimulationManager::analyzeCircuit() {
     if (elmList.empty()) {
         app->postDrawList.clear();
         app->badConnectionList.clear();
+        app->railsWithoutGround = false;
         return;
     }
     detectBusWidths();
@@ -1054,8 +1063,12 @@ void SimulationManager::makePostDrawList() {
                 int otherPosts = other->getPostCount();
                 for (int op = 0; op < otherPosts; op++) {
                     Point op2 = other->getPost(op);
-                    if (op2.x == rwPt.x && op2.y == rwPt.y)
+                    if (op2.x == rwPt.x && op2.y == rwPt.y) {
                         routedWireMap[other].push_back({rw, rp, op});
+                        // a bus pin has busWidth posts at the same location; record only one
+                        // connection per routed-wire post, or dragging moves it busWidth times
+                        break;
+                    }
                 }
             }
         }

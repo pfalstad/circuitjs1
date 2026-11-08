@@ -89,6 +89,8 @@ void CircuitLoader::readModelLibrary(const std::string &text) {
 }
 
 void CircuitLoader::readCircuit(const std::string &text, int flags) {
+    // a post selection (Select/Drag Posts mode) refers to the old elements
+    app->clearPostSelection();
     if (isModelLibrary(text)) {
         readModelLibrary(text);
         return;

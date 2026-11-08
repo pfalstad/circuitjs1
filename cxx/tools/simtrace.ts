@@ -24,7 +24,7 @@ import { ModelRegistry } from "../../ts/ModelRegistry";
 import { Color } from "../../ts/Color";
 import { CircuitLoader } from "../../ts/CircuitLoader";
 import { HookRegistry } from "../../ts/HookRegistry";
-import { registerElements } from "../../ts/registerElements";
+import { registerElements, registerLastElements } from "../../ts/registerElements";
 import { DOMParser, XMLSerializer, DOMImplementation } from "@xmldom/xmldom";
 
 // ---- DOM: real XML parsing via xmldom, inert stubs for UI widgets ----
@@ -87,6 +87,8 @@ function makeApp(): any {
         setGrid() { app.gridSize = app.menus.smallGridCheckItem.getState() ? 8 : 16; },
         snapGrid: (x: number) => (x + app.gridSize / 2 - 1) & ~(app.gridSize - 1),
         register: CirSim.prototype.register,
+        registerLazy: CirSim.prototype.registerLazy,
+        registerDumpTypes: (CirSim.prototype as any).registerDumpTypes,
     };
     return withStubs(app);
 }
@@ -100,7 +102,7 @@ function loadCircuit(app: any, sim: SimulationManager, text: string, loadScopes:
         // old text format: the real loader works with the stub app
         if (!loadScopes)
             app.scopeManager.addScope = () => {};
-        new CircuitLoader(app, sim, app.scopeManager, app.menus).readCircuit(text, CircuitLoader.RC_NO_CENTER);
+        new CircuitLoader(app, sim, app.scopeManager, app.menus).readCircuitNow(text, CircuitLoader.RC_NO_CENTER);
         return;
     }
     const root = new DOMParser().parseFromString(text, "text/xml").documentElement as any;
@@ -214,6 +216,9 @@ CircuitElm.initClass(app, sim);
 CirSim.theApp = app;
 CircuitElm.positiveColor ??= Color.green;
 registerElements();
+// most element classes load on demand; load them all
+await ElementFactory.ensureLoaded(ElementFactory.lazyClassNames());
+registerLastElements();
 
 loadCircuit(app, sim, fs.readFileSync(file, "utf8"), dump);
 

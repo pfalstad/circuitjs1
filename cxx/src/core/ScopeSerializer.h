@@ -50,6 +50,7 @@ public:
     bool loadDefaults();
 
 private:
+    void loadDefaultsJson(const std::string &str);
     static std::string exportAsDecOrHex(int v, int thresh);
     static int importDecOrHex(const std::string &s);
 

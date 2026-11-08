@@ -114,6 +114,12 @@ void MosfetModel::createModelMap() {
     MosfetModel *jfetDefault = (new MosfetModel("default-jfet", -4, .00125))->setJfet();
     jfetDefault->showBulk = jfetDefault->bodyDiode = false;
     addDefaultModel("default-jfet", jfetDefault);
+
+    // for LM317 (what loading its old-format definition used to generate as "old-jfet")
+    MosfetModel *lm317Jfet = (new MosfetModel("~lm317-jfet", -7, .0001))->setJfet();
+    lm317Jfet->showBulk = lm317Jfet->bodyDiode = false;
+    lm317Jfet->internal = true;
+    addDefaultModel("~lm317-jfet", lm317Jfet);
 }
 
 void MosfetModel::addDefaultModel(const std::string &name, MosfetModel *dm) {

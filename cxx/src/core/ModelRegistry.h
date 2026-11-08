@@ -65,6 +65,15 @@ public:
             reg->clearLocal();
     }
 
+    // set while loading an undo state.  Undo restores the circuit, including the definitions of
+    // its local models, but doesn't change models' scopes or modify global (or persistent) models,
+    // which belong to the session.  The undo state has definitions of the global models the
+    // circuit uses, which would otherwise be loaded as local models shadowing them.
+    static bool &loadingUndoState() {
+        static bool v = false;
+        return v;
+    }
+
     // clear the dumped flags of every type, before dumping
     static void clearAllDumpedFlags() {
         for (ModelRegistryBase *reg : all())
@@ -77,12 +86,26 @@ public:
     virtual bool hasLocal(const std::string &name) = 0;
     virtual void loadFromStorage(const std::function<void(const std::string &)> &load) = 0;
     virtual std::vector<RegistryModel *> anyModels() = 0;
+    // including global ones shadowed by a local model of the same name
+    virtual std::vector<RegistryModel *> anyAllModels() = 0;
+    virtual bool anyIsShadowed(RegistryModel *m) = 0;
+    virtual bool anyIsLocal(RegistryModel *m) = 0;
+    virtual bool anyIsGlobal(RegistryModel *m) = 0;
+    virtual bool anyWouldReplace(RegistryModel *m, ModelScope sc) = 0;
+    virtual bool anyHasGlobal(const std::string &name) = 0;
+    virtual std::vector<std::string> storedData() = 0;
     virtual ModelScope anyScope(RegistryModel *m) = 0;
     virtual void anySetScope(RegistryModel *m, ModelScope sc) = 0;
     virtual void anyMakeGlobal(RegistryModel *m) = 0;
     virtual void anyDelete(RegistryModel *m) = 0;
     virtual void anyDumpXml(RegistryModel *m, XmlElement *root) = 0;
-    virtual std::vector<RegistryModel *> anyCollectLocal(const std::function<void()> &fn) = 0;
+    // (the models are returned as shared_ptrs, since subcircuit models are owned by the registry
+    // and these are no longer in it.  Element models are never freed, so theirs don't own them.)
+    virtual std::vector<std::shared_ptr<RegistryModel>> anyCollectLocal(const std::function<void()> &fn) = 0;
+    virtual RegistryModel *anyGet(const std::string &name) = 0;
+    virtual RegistryModel *anyGetGlobal(const std::string &name) = 0;
+    virtual std::string anySerialize(RegistryModel *m) = 0;
+    virtual bool anyIsSaved(const std::string &name) = 0;
 
 protected:
     // every registry, so they can be cleared together
@@ -222,12 +245,16 @@ public:
 
     // the model to load a definition of the given name into: the local one if there is one,
     // otherwise a new local model.  A global model of the same name is shadowed, not modified.
+    // While loadingUndoState is set, a global model is left in effect instead: the definition is
+    // loaded into an unregistered model and discarded.
     P getForLoad(const std::string &name, const std::function<P()> &create) {
         ensureInit();
         if (P *lm = localMap.get(name))
             return *lm;
         P m = create();
         m->name = name;
+        if (loadingUndoState() && globalMap.has(name))
+            return m;
         setLocal(m);
         return m;
     }
@@ -253,8 +280,16 @@ public:
         return isSaved(m->name) ? ModelScope::Persistent : ModelScope::Global;
     }
 
-    // move a model to the given scope.  Making a persistent model global leaves it persistent,
-    // but updates the saved copy.
+    // whether setScope(m, sc) would replace a different model with the same name: the local
+    // one when moving to the local tier, and either one when moving to the global tier (since
+    // makeGlobal also drops the local one)
+    bool wouldReplace(const T *m, ModelScope sc) {
+        if (hasLocal(m->name) && !isLocal(m))
+            return true;
+        return sc != ModelScope::Local && hasGlobal(m->name) && !isGlobal(m);
+    }
+
+    // move a model to the given scope (so making a persistent model global drops its saved copy)
     void setScope(const P &m, ModelScope sc) {
         P keep = m;
         if (sc == ModelScope::Local) {
@@ -263,15 +298,27 @@ public:
             return;
         }
         makeGlobal(keep);
-        if (sc == ModelScope::Persistent || isSaved(keep->name))
+        if (sc == ModelScope::Persistent)
             store(raw(keep));
+        else
+            unsave(keep->name);
     }
 
-    // remove a model, including any saved copy
+    // remove a model, including its saved copy if it's global.  Only this model is removed, not
+    // a model of the same name in the other tier (a local model may shadow a global one).
     void deleteModel(const P &m) {
         P keep = m;
-        unsave(keep->name);
-        remove(keep->name);
+        if (isLocal(raw(keep))) {
+            removeLocal(keep->name);
+        } else if (isGlobal(raw(keep))) {
+            unsave(keep->name);
+            removeGlobal(keep->name);
+        }
+    }
+
+    // whether m is a global model hidden by a local model with the same name
+    bool isShadowed(const T *m) {
+        return isGlobal(m) && localMap.has(m->name);
     }
 
     // run fn with an empty local tier and return the models it added there; the previous
@@ -308,6 +355,17 @@ public:
             merged.set(kv.first, kv.second);
         std::vector<P> result;
         for (auto &kv : merged)
+            result.push_back(kv.second);
+        return result;
+    }
+
+    // all models, including global ones shadowed by a local model of the same name
+    std::vector<P> allModels() {
+        ensureInit();
+        std::vector<P> result;
+        for (auto &kv : globalMap)
+            result.push_back(kv.second);
+        for (auto &kv : localMap)
             result.push_back(kv.second);
         return result;
     }
@@ -373,8 +431,15 @@ public:
 
     // call load(data) for each model saved in local storage
     void loadFromStorage(const std::function<void(const std::string &)> &load) override {
+        for (const std::string &data : storedData())
+            load(data);
+    }
+
+    // what's saved in storage for each stored model
+    std::vector<std::string> storedData() override {
+        std::vector<std::string> result;
         if (!canSave())
-            return;
+            return result;
         // collect keys first, since loading may change storage
         std::vector<std::string> keys;
         for (const std::string &key : Storage::localStorage->keys())
@@ -383,8 +448,9 @@ public:
         for (const std::string &key : keys) {
             std::optional<std::string> data = Storage::localStorage->getItem(key);
             if (data && !data->empty())
-                load(*data);
+                result.push_back(*data);
         }
+        return result;
     }
 
     std::vector<RegistryModel *> anyModels() override {
@@ -393,17 +459,43 @@ public:
             result.push_back(raw(m));
         return result;
     }
+    std::vector<RegistryModel *> anyAllModels() override {
+        std::vector<RegistryModel *> result;
+        for (const P &m : allModels())
+            result.push_back(raw(m));
+        return result;
+    }
+    bool anyIsShadowed(RegistryModel *m) override { return isShadowed(static_cast<T *>(m)); }
+    bool anyIsLocal(RegistryModel *m) override { return isLocal(static_cast<T *>(m)); }
+    bool anyIsGlobal(RegistryModel *m) override { return isGlobal(static_cast<T *>(m)); }
+    bool anyWouldReplace(RegistryModel *m, ModelScope sc) override { return wouldReplace(static_cast<T *>(m), sc); }
+    bool anyHasGlobal(const std::string &name) override { return hasGlobal(name); }
     ModelScope anyScope(RegistryModel *m) override { return scope(static_cast<T *>(m)); }
     void anySetScope(RegistryModel *m, ModelScope sc) override { setScope(fromAny(m), sc); }
     void anyMakeGlobal(RegistryModel *m) override { makeGlobal(fromAny(m)); }
     void anyDelete(RegistryModel *m) override { deleteModel(fromAny(m)); }
     void anyDumpXml(RegistryModel *m, XmlElement *root) override { dumpXml(static_cast<T *>(m), root); }
-    std::vector<RegistryModel *> anyCollectLocal(const std::function<void()> &fn) override {
-        std::vector<RegistryModel *> result;
-        for (const P &m : collectLocal(fn))
-            result.push_back(raw(m));
+    std::vector<std::shared_ptr<RegistryModel>> anyCollectLocal(const std::function<void()> &fn) override {
+        std::vector<std::shared_ptr<RegistryModel>> result;
+        for (const P &m : collectLocal(fn)) {
+            if constexpr (std::is_pointer_v<P>)
+                result.push_back(std::shared_ptr<RegistryModel>(m, [](RegistryModel *) {}));
+            else
+                result.push_back(m);
+        }
         return result;
     }
+    RegistryModel *anyGet(const std::string &name) override {
+        P m = get(name);
+        return m ? raw(m) : nullptr;
+    }
+    RegistryModel *anyGetGlobal(const std::string &name) override {
+        ensureInit();
+        P *gm = globalMap.get(name);
+        return gm ? raw(*gm) : nullptr;
+    }
+    std::string anySerialize(RegistryModel *m) override { return serialize(static_cast<T *>(m)); }
+    bool anyIsSaved(const std::string &name) override { return isSaved(name); }
 
 private:
     std::function<void()> init;

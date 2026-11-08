@@ -35,6 +35,7 @@
 #include "CirSim.h"
 #include "core/CircuitElm.h"
 #include "core/Locale.h"
+#include "core/ModelTypes.h"
 #include "elements/SubcircuitElm.h"
 
 static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s)); }
@@ -131,7 +132,7 @@ void EditSubcircuitModelDialog::createDialog() {
     QHBoxLayout *scopeRow = new QHBoxLayout();
     scopeRow->addWidget(new QLabel(LS("Scope:")));
     scopeSelect = new QComboBox();
-    scopeSelect->addItems({LS("This Circuit"), LS("This Session"), LS("Save Across Sessions")});
+    scopeSelect->addItems({LS("This Circuit (Local)"), LS("This Session (Global)"), LS("Save Across Sessions (Persistent)")});
     if (model->isSaved())
         scopeSelect->setCurrentIndex(SCOPE_SAVE_ACROSS_SESSIONS);
     else if (!model->name.empty() && SubcircuitModel::registry().hasGlobal(model->name))
@@ -162,16 +163,47 @@ void EditSubcircuitModelDialog::createDialog() {
 }
 
 void EditSubcircuitModelDialog::enterPressed() {
+    std::string name = model->name;
     if (modelNameInput) {
-        std::string name = modelNameInput->text().toStdString();
+        name = modelNameInput->text().toStdString();
         if (name.empty()) {
             app->alert(Locale::LS("Please enter a model name."));
             return;
         }
+    }
+    if (usesSubcircuit(model.get(), name)) {
+        app->alert(Locale::LS("A subcircuit can't contain itself: ") + name);
+        return;
+    }
+    // the model replaces any other model with this name (in either tier, so it doesn't
+    // shadow a global one or get shadowed by a local one), so ask first.  Saving a model
+    // that's being edited in place replaces the old version without asking, since that's
+    // the point.
+    auto &reg = SubcircuitModel::registry();
+    std::optional<std::string> editingName = app->getEditingModelName();
+    bool editing = popContext && editingName && name == *editingName;
+    bool others = false;
+    for (SubcircuitModelRef *m : {reg.localMap.get(name), reg.globalMap.get(name)})
+        if (m != nullptr && *m != model)
+            others = true;
+    if (others && !editing &&
+        !app->confirm(Locale::LS("This will replace another model with the same name: ") + name + ". " +
+                      Locale::LS("Continue?")))
+        return;
+    // other models using the one with this name (by name, so they'll use this one) that are
+    // more global than the new scope have to move too, or they'd break (see usersToMove)
+    int scope = scopeSelect->currentIndex();
+    ModelScope scopeName = scope == SCOPE_THIS_CIRCUIT ? ModelScope::Local
+                         : scope == SCOPE_THIS_SESSION ? ModelScope::Global : ModelScope::Persistent;
+    std::vector<TypedModel> users;
+    if (SubcircuitModelRef old = reg.get(name))
+        users = usersToMove({{&subcircuitModelType(), old.get()}}, scopeName);
+    if (!confirmMoveUsers(app, users, scopeName))
+        return;
+    if (modelNameInput) {
         SubcircuitElm::lastModelName = name;
         model->setName(name);
     }
-    int scope = scopeSelect->currentIndex();
     SubcircuitModel::registry().remove(model->name);
     model->setSaved(false);
     if (scope == SCOPE_THIS_CIRCUIT)
@@ -180,6 +212,10 @@ void EditSubcircuitModelDialog::enterPressed() {
         SubcircuitModel::registry().setGlobal(model);
     else
         model->setSaved(true);
+    for (const TypedModel &tm : users)
+        tm.type->registry->anySetScope(tm.model, scopeName);
+    if (scope != SCOPE_THIS_CIRCUIT)
+        moveDependencies(scopeName);
     // (updating the models replaces the components we may be viewing)
     app->resetSubcircuitView();
     app->updateModels();
@@ -188,6 +224,18 @@ void EditSubcircuitModelDialog::enterPressed() {
         app->contextStack.back().changedModels.push_back(model);
     if (popContext) {
         SubcircuitModelRef savedModel = model;
+        // Popping reloads the outer circuit from the dump taken when the context was pushed,
+        // which has the old definitions of these models.  Loading a definition reuses the
+        // local model of that name (getForLoad), so take the changed models out of the local
+        // tier first; otherwise the old definition would be loaded into them, undoing the
+        // edit.  replaceModel() puts them back below.
+        {
+            std::vector<SubcircuitModelRef> toRemove = app->contextStack.back().changedModels;
+            toRemove.push_back(savedModel);
+            for (const SubcircuitModelRef &m : toRemove)
+                if (SubcircuitModel::registry().isLocal(m.get()))
+                    SubcircuitModel::registry().removeLocal(m->name);
+        }
         std::vector<SubcircuitModelRef> changedModels = app->popContextAndGetChangedModels();
         changedModels.push_back(savedModel);
         for (const SubcircuitModelRef &m : changedModels) {
@@ -197,9 +245,25 @@ void EditSubcircuitModelDialog::enterPressed() {
         if (!app->contextStack.empty()) {
             std::vector<SubcircuitModelRef> &cm = app->contextStack.back().changedModels;
             cm.insert(cm.end(), changedModels.begin(), changedModels.end());
-        }
+        } else
+            app->writeRecoveryToStorage();
     }
     closeDialog();
+}
+
+// make the models this one uses (e.g. the subcircuits inside it) at least as global as it is,
+// so it still works after another circuit is loaded or in the next session.  If that would
+// replace other models with the same names and the user declines, those are left alone.
+void EditSubcircuitModelDialog::moveDependencies(ModelScope scope) {
+    TypedModel self{&subcircuitModelType(), model.get()};
+    std::vector<TypedModel> deps = withDependencies({self}, scope);
+    deps.erase(deps.begin());
+    if (!confirmReplace(app, deps, scope))
+        deps.erase(std::remove_if(deps.begin(), deps.end(),
+                                  [&](const TypedModel &tm) { return tm.type->registry->anyWouldReplace(tm.model, scope); }),
+                   deps.end());
+    for (const TypedModel &tm : deps)
+        tm.type->registry->anySetScope(tm.model, scope);
 }
 
 void EditSubcircuitModelDialog::closeEvent(QCloseEvent *e) {

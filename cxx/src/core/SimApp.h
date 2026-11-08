@@ -54,6 +54,8 @@ public:
 
     std::vector<Point> postDrawList;
     std::vector<Point> badConnectionList;
+    // the circuit has rails and two-terminal voltage sources but no ground
+    bool railsWithoutGround = false;
     std::vector<CircuitElm *> scopeElmArr;
 
     bool showResistanceInVoltageSources = true;
@@ -136,6 +138,7 @@ public:
     static constexpr int MODE_SELECT = 6;
     static constexpr int MODE_DRAG_SPLITTER = 7;
     static constexpr int MODE_DRAG_REROUTE = 8;
+    static constexpr int MODE_SELECT_POSTS = 9;
     int mouseMode = MODE_SELECT;
     CircuitElm *dragElm = nullptr;
     CircuitNode *highlightedNode = nullptr;
@@ -253,6 +256,8 @@ public:
     // are we editing a model's circuit?
     virtual bool isEditingContext() { return false; }
     virtual void readCircuit(const std::string &text, int flags = 0) {}
+    // the circuit is about to be replaced (a post selection refers to the old elements)
+    virtual void clearPostSelection() {}
     // replace the circuit with the elements in doc (CircuitXMLDeserializer.readCircuitFromDoc())
     virtual void readCircuitFromDoc(const class XmlElement *doc) {}
 
