@@ -115,8 +115,11 @@ export abstract class GateElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        if (this.nodes[this.inputCount].v !== 0)
-            CircuitXMLSerializer.dumpAttr(elem, "o", this.nodes[this.inputCount].v);
+        // until the first step after a load, the output is the one that was loaded (the node's
+        // voltage is still 0)
+        const v = this.justLoaded ? (this.lastOutput ? this.highVoltage : 0) : this.nodes[this.inputCount].v;
+        if (v !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "o", v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {

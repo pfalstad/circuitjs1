@@ -593,9 +593,15 @@ export abstract class ChipElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        for (let i = 0; i !== this.getPostCount(); i++)
-            if (this.pins[i].state && this.nodes[i].v > 0)
-                CircuitXMLSerializer.dumpAttr(elem, "v" + i, this.nodes[i].v);
+        for (let i = 0; i !== this.getPostCount(); i++) {
+            if (!this.pins[i].state)
+                continue;
+            // until the first step after a load, the state is the pin values that were loaded
+            // (the nodes' voltages are still 0)
+            const v = this.justLoaded ? (this.pins[i].value ? this.highVoltage : 0) : this.nodes[i].v;
+            if (v > 0)
+                CircuitXMLSerializer.dumpAttr(elem, "v" + i, v);
+        }
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {

@@ -127,8 +127,10 @@ export class TransistorElm extends CircuitElm {
     dumpXmlState(doc: Document, elem: Element): void {
         // "vBE"/"vBC" (mixed case) are correctly-named, not cross-wired like Java's
         // lowercase "vbe"/"vbc" (see undumpXml, which still accepts the old names)
-        CircuitXMLSerializer.dumpAttr(elem, "vBE", this.nodes[0].v - this.nodes[2].v);
-        CircuitXMLSerializer.dumpAttr(elem, "vBC", this.nodes[0].v - this.nodes[1].v);
+        // until the first step after a load, they're the ones that were loaded (the nodes'
+        // voltages are still 0)
+        CircuitXMLSerializer.dumpAttr(elem, "vBE", this.justLoaded ? this.lastvbe : this.nodes[0].v - this.nodes[2].v);
+        CircuitXMLSerializer.dumpAttr(elem, "vBC", this.justLoaded ? this.lastvbc : this.nodes[0].v - this.nodes[1].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
