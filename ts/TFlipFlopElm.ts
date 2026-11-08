@@ -19,6 +19,7 @@
 
 import { ChipElm, Pin } from "./ChipElm";
 import { StringTokenizer } from "./StringTokenizer";
+import type { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 
@@ -37,6 +38,12 @@ export class TFlipFlopElm extends ChipElm {
             this.pins[2].value = !this.pins[1].value;
         }
     }
+    // Q-bar isn't saved, so set it from Q, as the constructor does for the text format
+    undumpXml(xml: CircuitXMLDeserializer): void {
+        super.undumpXml(xml);
+        this.pins[2].value = !this.pins[1].value;
+    }
+
     getChipName(): string { return "T flip-flop"; }
     setupPins(): void {
         this.sizeX = 2;
