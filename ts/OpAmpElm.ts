@@ -95,14 +95,40 @@ export class OpAmpElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "ga", this.gain);
     }
 
+    // the input voltage difference, which the first time step uses (as the text format's
+    // saved input voltages do), so a running circuit picks up where it was saved.  Until
+    // that step, it's the one that was loaded
+    dumpXmlState(doc: Document, elem: Element): void {
+        const vd = this.justLoaded ? this.savedVd : this.nodes[1].v - this.nodes[0].v;
+        if (vd !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "vd", vd);
+    }
+
     undumpXml(xml: CircuitXMLDeserializer): void {
-        this.flags = 0; // size might have changed
+        // "ix" is present when a subcircuit restores the state of an op-amp inside it, which
+        // already has its flags (the state element has no "f", so zeroing them would lose
+        // them); see GateElm
+        const stateRestore = xml.parseStringAttr("ix", null) != null;
+        if (!stateRestore)
+            this.flags = 0; // size might have changed
         super.undumpXml(xml);
         this.maxOut = xml.parseDoubleAttr("ma", this.maxOut);
         this.minOut = xml.parseDoubleAttr("mi", this.minOut);
         //this.gbw = xml.parseDoubleAttr("gb", this.gbw);
         this.gain = xml.parseDoubleAttr("ga", this.gain);
+        if (xml.parseStringAttr("vd", null) != null) {
+            this.savedVd = xml.parseDoubleAttr("vd", 0);
+            this.justLoaded = true;
+        }
         this.setSize((this.flags & this.FLAG_SMALL) !== 0 ? 1 : 2);
+    }
+
+    reset(): void {
+        super.reset();
+        // start from zero, not from the voltage difference that was loaded.  lastvd is kept,
+        // as in the Java version: which way the op-amp was saturated gets an oscillator
+        // going again after a reset
+        this.justLoaded = false;
     }
 
     nonLinear(): boolean { return true; }

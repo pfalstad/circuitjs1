@@ -109,6 +109,8 @@ export class TransistorElm extends CircuitElm {
         this.geqBE = this.geqBC = this.ceqBE = this.ceqBC = 0;
         this.badIters = 0;
         this.localSubIters = 0;
+        // start from zero, not from the voltages that were loaded
+        this.justLoaded = false;
     }
 
     getDumpType(): number { return 't'.charCodeAt(0); }
