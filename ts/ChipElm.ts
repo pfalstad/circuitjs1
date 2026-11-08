@@ -573,6 +573,7 @@ export abstract class ChipElm extends CircuitElm {
             this.pins[i].curcount = 0;
         }
         this.lastClock = false;
+        this.justLoaded = false;
     }
 
     dumpXml(doc: Document, elem: Element): void {
