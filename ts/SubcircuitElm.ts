@@ -46,6 +46,8 @@ export class SubcircuitElm extends CompositeElm {
     builtModelName: string | null = null;
     highVoltage: number = 0;
     static lastModelName: string = "default";
+    // models whose elements are being built, to catch a subcircuit that contains itself
+    private static building = new Set<SubcircuitModel>();
     static readonly FLAG_SMALL = 2;
 
     constructor(xx: number, yy: number);
@@ -181,6 +183,12 @@ export class SubcircuitElm extends CompositeElm {
     private _updateModels(st: StringTokenizer | null): void {
         if (this.model !== null && this.model.name === this.modelName) return;
         this.model = SubcircuitModel.getModelWithName(this.modelName)!;
+        if (this.model && SubcircuitElm.building.has(this.model)) {
+            // the model contains itself (directly or through other subcircuits), which would
+            // expand forever; leave this copy empty, drawn as a placeholder
+            CirSim.console("subcircuit " + this.modelName + " contains itself");
+            this.model = null!;
+        }
         if (!this.model) {
             // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
             // fall back to an empty/placeholder state instead of leaving fields uninitialized,
@@ -199,10 +207,15 @@ export class SubcircuitElm extends CompositeElm {
         const externalNodes = new Array(this.postCount);
         for (let i = 0; i < this.postCount; i++)
             externalNodes[i] = this.model.extList[i].node;
-        if (st !== null) {
-            this.loadComposite(st, this.model.getNodeList(), externalNodes);
-        } else {
-            this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
+        SubcircuitElm.building.add(this.model);
+        try {
+            if (st !== null) {
+                this.loadComposite(st, this.model.getNodeList(), externalNodes);
+            } else {
+                this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
+            }
+        } finally {
+            SubcircuitElm.building.delete(this.model);
         }
         this.builtModelName = this.model.name;
         this.propagateHighVoltage();

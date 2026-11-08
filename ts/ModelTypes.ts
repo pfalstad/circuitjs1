@@ -102,6 +102,27 @@ export function getModelsInUse(): Set<RegistryModel> {
     return used;
 }
 
+// whether a subcircuit model's elements use a subcircuit named name, directly or inside the
+// subcircuits they use (looked up by name, as the elements would)
+export function usesSubcircuit(model: SubcircuitModel, name: string): boolean {
+    const seen = new Set<SubcircuitModel>();
+    const visit = (m: SubcircuitModel): boolean => {
+        if (seen.has(m) || !m.elmDoc)
+            return false;
+        seen.add(m);
+        for (const el of Array.from(m.elmDoc.documentElement.getElementsByTagName("cc"))) {
+            const mo = el.getAttribute("mo");
+            if (mo === name)
+                return true;
+            const inner = mo ? SubcircuitModel.registry.get(mo) : undefined;
+            if (inner && visit(inner))
+                return true;
+        }
+        return false;
+    };
+    return visit(model);
+}
+
 // the user models that a model's elements refer to by name: for a subcircuit, the subcircuits
 // and element models (diode, transistor, pin layout, ...) used inside it.  (Not the models
 // those refer to; see withDependencies.)

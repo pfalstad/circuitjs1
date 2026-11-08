@@ -122,7 +122,10 @@ export class UndoManager {
         const stor = window.localStorage;
         if (stor == null)
             return;
-        const s = this.sim.dumpCircuit();
+        // while a subcircuit is being edited in place, the circuit on screen is just its
+        // contents; keep the whole circuit (as it was when editing started) instead
+        const ctx = this.sim.contextStack;
+        const s = ctx.length > 0 ? ctx[0].circuitDump : this.sim.dumpCircuit();
         stor.setItem("circuitRecovery", s);
     }
 

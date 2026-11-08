@@ -621,8 +621,9 @@ export class CommandManager {
 
         for (let i = this.app.elmList.length - 1; i >= 0; i--) {
             const ce = this.app.elmList[i];
-            ce.dumpXmlModel?.(doc);
             if (ce.isSelected() && !ce.isScopeElm?.()) {
+                // only the models the copied elements use
+                ce.dumpXmlModel?.(doc);
                 const elem = doc.createElement(ce.getXmlDumpType());
                 ce.dumpXml?.(doc, elem);
                 ce.dumpXmlState?.(doc, elem);

@@ -26,7 +26,7 @@ import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { SubcircuitElm } from "./SubcircuitElm";
 import type { ModelScope } from "./ModelRegistry";
-import { confirmReplace, subcircuitModelType, withDependencies, type TypedModel } from "./ModelTypes";
+import { confirmReplace, subcircuitModelType, usesSubcircuit, withDependencies, type TypedModel } from "./ModelTypes";
 
 export class EditSubcircuitModelDialog extends Dialog {
     model: SubcircuitModel = null!;
@@ -173,6 +173,10 @@ export class EditSubcircuitModelDialog extends Dialog {
                 return;
             }
         }
+        if (usesSubcircuit(this.model, name)) {
+            window.alert(Locale.LS("A subcircuit can't contain itself: ") + name);
+            return;
+        }
         // the model replaces any other model with this name (in either tier, so it doesn't
         // shadow a global one or get shadowed by a local one), so ask first.  Saving a model
         // that's being edited in place replaces the old version without asking, since that's
@@ -225,6 +229,8 @@ export class EditSubcircuitModelDialog extends Dialog {
             }
             if (app.contextStack.length > 0)
                 app.contextStack[app.contextStack.length - 1].changedModels.push(...changedModels);
+            else
+                app.undoManager.writeRecoveryToStorage();
         }
         this.closeDialog();
     }
