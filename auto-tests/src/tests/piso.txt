@@ -12,28 +12,56 @@
   <L x="448 176 464 128" f="0" p="1"/>
   <L x="480 176 480 128" f="0" p="0"/>
   <O x="544 240 560 240" f="0" sc="0"/>
-  <o en="12" sp="32" f="x2" p="0">
+  <o en="12" sp="8" f="x2" p="0">
     <p v="0" sc="5"/>
   </o>
-  <switchevent t="0.007447" en="3"/>
-  <switchevent t="0.01489" en="2"/>
-  <switchevent t="0.02234" en="2"/>
-  <switchevent t="0.02979" en="3"/>
-  <switchevent t="0.03724" en="2"/>
-  <switchevent t="0.04468" en="2"/>
-  <switchevent t="0.05213" en="2"/>
-  <switchevent t="0.05958" en="2"/>
-  <switchevent t="0.06703" en="2"/>
-  <switchevent t="0.07447" en="2"/>
-  <switchevent t="0.08192" en="1"/>
-  <switchevent t="0.08937" en="2"/>
-  <switchevent t="0.09681" en="2"/>
-  <switchevent t="0.1043" en="2"/>
-  <switchevent t="0.1117" en="2"/>
-  <switchevent t="0.1192" en="2"/>
-  <switchevent t="0.1266" en="2"/>
-  <switchevent t="0.1341" en="2"/>
-  <switchevent t="0.1415" en="2"/>
-  <switchevent t="0.1489" en="2"/>
-  <switchevent t="0.1564" en="2"/>
+  <o en="1" sp="8" f="x3" p="1">
+    <p v="0" sc="5"/>
+    <p v="3" sc="0.1"/>
+  </o>
+  <o en="3" sp="8" f="x3" p="2">
+    <p v="0" sc="5"/>
+    <p v="3" sc="0.1"/>
+  </o>
+  <!-- max-steps=4096 -->
+  <switchevent t="0.001" en="2"/>
+  <switchevent t="0.002" en="2"/>
+  <switchevent t="0.00275" en="3"/>
+  <switchevent t="0.003" en="1"/>
+  <switchevent t="0.0035" en="1"/>
+  <switchevent t="0.004" en="1"/>
+  <switchevent t="0.0045" en="1"/>
+  <switchevent t="0.00475" en="3"/>
+  <switchevent t="0.005" en="1"/>
+  <switchevent t="0.0055" en="1"/>
+  <switchevent t="0.00575" en="3"/>
+  <switchevent t="0.006" en="1"/>
+  <switchevent t="0.0065" en="1"/>
+  <switchevent t="0.00675" en="3"/>
+  <switchevent t="0.007" en="1"/>
+  <switchevent t="0.0075" en="1"/>
+  <switchevent t="0.008" en="1"/>
+  <switchevent t="0.0085" en="1"/>
+  <switchevent t="0.00875" en="3"/>
+  <switchevent t="0.009" en="1"/>
+  <switchevent t="0.0095" en="1"/>
+  <switchevent t="0.00975" en="3"/>
+  <switchevent t="0.01" en="1"/>
+  <switchevent t="0.0105" en="1"/>
+  <switchevent t="0.011" en="1"/>
+  <switchevent t="0.0115" en="1"/>
+  <switchevent t="0.012" en="1"/>
+  <switchevent t="0.0125" en="1"/>
+  <switchevent t="0.013" en="1"/>
+  <switchevent t="0.0135" en="1"/>
+  <switchevent t="0.014" en="1"/>
+  <switchevent t="0.0145" en="1"/>
+  <switchevent t="0.015" en="1"/>
+  <switchevent t="0.0155" en="1"/>
+  <switchevent t="0.016" en="1"/>
+  <switchevent t="0.0165" en="1"/>
+  <switchevent t="0.017" en="1"/>
+  <switchevent t="0.0175" en="1"/>
+  <switchevent t="0.018" en="1"/>
+  <switchevent t="0.0185" en="1"/>
 </cir>
