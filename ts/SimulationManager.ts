@@ -65,12 +65,13 @@ export class SimulationManager {
     // set by TestManager (only loaded for tests)
     static testHooks: {
         fixedStepsPerFrame(): number;
+        batchesPerFrame(): number;
         clampTimeStep(t: number, timeStep: number): number;
         checkTime(): boolean;
         recordSwitchToggle(ce: any): void;
     } | null = null;
-    // time steps since reset, so that with a fixed number of steps per frame the frames
-    // always end at the same steps
+    // time steps since reset, so that with a fixed number of steps per batch while testing,
+    // the batches always end at the same steps
     stepsSinceReset: number = 0;
 
     // this is different than the main elmList; it has CompositeElm child elms in it
@@ -1427,7 +1428,7 @@ export class SimulationManager {
 	    return;
 	}
 
-	// while testing, run a fixed number of steps each frame, so the results don't depend on
+	// while testing, run a fixed number of steps (a batch), so the results don't depend on
 	// the clock
 	const testHooks = SimulationManager.testHooks;
 	const fixedSteps = testHooks?.fixedStepsPerFrame() ?? 0;

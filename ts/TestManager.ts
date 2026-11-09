@@ -15,10 +15,13 @@
 // window.__testsDone when the run is finished, and calls window.__onTestResult(result), if
 // it's there, after each test (for scripts/run-tests.ts).
 //
-// While a test is running or being recorded, each frame runs a fixed number of time steps
-// instead of however many the clock allows, so the results don't depend on how fast the
-// machine is (with an adaptive time step, where the frames end changes the waveform).  A
-// test records how many (<test spf="...">); otherwise it's ?teststeps=, 20 by default.
+// While a test is running or being recorded, the simulation runs in batches of a fixed
+// number of time steps instead of however many the clock allows each frame, so the results
+// don't depend on how fast the machine is (with an adaptive time step, where a batch ends
+// changes the waveform, and switch events take effect between batches).  A test records
+// how many steps (<test spf="...">); otherwise it's ?teststeps=, 20 by default.  Each
+// frame runs one batch, or ?testbatches=N of them, so tests run faster than the display's
+// frame rate allows, with the same results.
 // A test runs from reset, unless it says not to (<test noreset="1">): then it runs from the state
 // the file was loaded in, to check that elements load the state they were saved with.
 // The random numbers (noise sources, and op-amps and gates settling) come from a generator
@@ -68,6 +71,8 @@ export class TestManager {
     // while recording, so they get recorded as if clicked
     scriptedEvents: SwitchEvent[] = [];
     stepsPerFrame = 20;
+    // batches of stepsPerFrame time steps to run each frame while a test runs (?testbatches=)
+    batchesPerFrameWhileTesting = 1;
     // the test's own steps per frame (<test spf=>), 0 if it doesn't say
     testSpf = 0;
     // the test runs from the state the file was loaded in, not from reset (<test noreset="1">)
@@ -99,6 +104,9 @@ export class TestManager {
         const steps = parseInt(qp.get("teststeps") ?? "");
         if (steps > 0)
             this.stepsPerFrame = steps;
+        const batches = parseInt(qp.get("testbatches") ?? "");
+        if (batches > 0)
+            this.batchesPerFrameWhileTesting = batches;
         const base = qp.get("testbase");
         if (base)
             this.base = base.endsWith("/") ? base : base + "/";
@@ -295,6 +303,11 @@ export class TestManager {
     // time steps per frame while testing or recording, 0 otherwise
     fixedStepsPerFrame(): number {
         return this.testRunning ? (this.testSpf || this.stepsPerFrame) : 0;
+    }
+
+    // batches of time steps to run each frame (see UIManager.updateCircuit())
+    batchesPerFrame(): number {
+        return this.testRunning ? this.batchesPerFrameWhileTesting : 1;
     }
 
     // how close to an event's time counts as having reached it

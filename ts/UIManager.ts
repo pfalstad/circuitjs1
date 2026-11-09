@@ -18,6 +18,7 @@
 */
 
 import { CirSim } from "./CirSim";
+import { SimulationManager } from "./SimulationManager";
 import { ElementFactory } from "./ElementFactory";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
@@ -1038,23 +1039,49 @@ export class UIManager {
 
         this.checkCanvasSize();
 
-        let didAnalyze = this.app.analyzeFlag;
-        if (this.app.analyzeFlag || this.app.dcAnalysisFlag) {
-            perfmon.startContext("analyzeCircuit()");
-            this.app.sim.analyzeCircuit();
-            this.app.analyzeFlag = false;
-            perfmon.stopContext();
-        }
-
-        if (this.app.sim.needsStamp && this.app.simRunning) {
-            perfmon.startContext("stampCircuit()");
-            try {
-                this.app.sim.preStampAndStampCircuit();
-            } catch (e) {
-                this.app.sim.stop("Exception in stampCircuit()", null);
-                CirSim.console("Exception in stampCircuit: " + e);
+        // analyze and run a batch of time steps; while a test runs, maybe several batches
+        // before drawing, each as it would be in a frame of its own (switch events and the
+        // end of the test take effect at the next batch's analyze), so tests run faster
+        // than the display's frame rate allows
+        const batches = SimulationManager.testHooks?.batchesPerFrame() ?? 1;
+        for (let b = 0; b < batches; b++) {
+            let didAnalyze = this.app.analyzeFlag;
+            if (this.app.analyzeFlag || this.app.dcAnalysisFlag) {
+                perfmon.startContext("analyzeCircuit()");
+                this.app.sim.analyzeCircuit();
+                this.app.analyzeFlag = false;
+                perfmon.stopContext();
             }
-            perfmon.stopContext();
+
+            if (this.app.sim.needsStamp && this.app.simRunning) {
+                perfmon.startContext("stampCircuit()");
+                try {
+                    this.app.sim.preStampAndStampCircuit();
+                } catch (e) {
+                    this.app.sim.stop("Exception in stampCircuit()", null);
+                    CirSim.console("Exception in stampCircuit: " + e);
+                }
+                perfmon.stopContext();
+            }
+
+            this.app.scopeManager.setupScopes();
+
+            if (this.app.simRunning) {
+                if (this.app.sim.needsStamp)
+                    CirSim.console("needsStamp while simRunning?");
+
+                perfmon.startContext("runCircuit()");
+                try {
+                    this.app.sim.runCircuit(didAnalyze);
+                } catch (e) {
+                    CirSim.debugger();
+                    CirSim.console("exception in runCircuit " + e);
+                    this.app.consoleExceptionOccurred = true;
+                }
+                perfmon.stopContext();
+            }
+            if (!this.app.simRunning)
+                break;
         }
 
         // app.stopElm may be buried inside a subcircuit, so find the top-level element to highlight
@@ -1062,8 +1089,6 @@ export class UIManager {
 
         if (stopHighlightElm != null && stopHighlightElm !== this.mouse.getMouseElm())
             stopHighlightElm.setMouseElm(true);
-
-        this.app.scopeManager.setupScopes();
 
         const g = new Graphics(this.cvcontext);
 
@@ -1080,21 +1105,6 @@ export class UIManager {
         }
 
         g.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
-
-        if (this.app.simRunning) {
-            if (this.app.sim.needsStamp)
-                CirSim.console("needsStamp while simRunning?");
-
-            perfmon.startContext("runCircuit()");
-            try {
-                this.app.sim.runCircuit(didAnalyze);
-            } catch (e) {
-                CirSim.debugger();
-                CirSim.console("exception in runCircuit " + e);
-                this.app.consoleExceptionOccurred = true;
-            }
-            perfmon.stopContext();
-        }
 
         const sysTime = Date.now();
         if (this.app.simRunning) {

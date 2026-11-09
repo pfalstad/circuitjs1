@@ -48,6 +48,8 @@ export function appUrl(base: string, params: Record<string, string>): string {
     const url = new URL("circuitjs.html", base);
     url.searchParams.set("testbase", new URL("auto-tests/", base).href);
     url.searchParams.set("headless", "1");
+    // run this many batches of time steps each frame, so tests aren't held to the frame rate
+    url.searchParams.set("testbatches", process.env.TESTBATCHES ?? "10");
     for (const [k, v] of Object.entries(params))
         url.searchParams.set(k, v);
     return url.href;
