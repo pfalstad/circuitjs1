@@ -184,6 +184,9 @@ export class TestManager {
             this.addResult({ name, pass: false, failures: ["exception loading: " + e], errors: [] });
             return;
         }
+        // under "Current Circuit:" (after loading, which clears it)
+        const count = this.testList?.length ?? 0;
+        this.app.setCircuitTitle(count > 1 ? `${name} (${this.testListIdx}/${count})` : name);
         if (this.testLen < 0) {
             this.addResult({ name, pass: false, failures: ["no <test> tag"], errors: [] });
             return;
