@@ -76,6 +76,8 @@ export class LogicInputElm extends SwitchElm {
         super.undumpXml(xml);
         this.hiV = xml.parseDoubleAttr("hi", this.hiV);
         this.loV = xml.parseDoubleAttr("lo", this.loV);
+        if (this.isTernary())
+            this.posCount = 3;
     }
 
     getPostCount(): number { return 1; }
