@@ -1,0 +1,39 @@
+<cir f="1" ts="0.000005" ic="10.20027730826997" cb="50" pb="50" vr="5" mts="5e-11">
+  <PisoShift x="192 208 208 208" f="2" bi="8" dt="0"/>
+  <L x="192 272 144 272" f="0" p="0"/>
+  <L x="192 240 144 240" f="0" p="0"/>
+  <L x="192 208 144 208" f="0" p="0"/>
+  <L x="256 176 256 128" f="0" p="0"/>
+  <L x="288 176 288 128" f="0" p="1"/>
+  <L x="320 176 320 128" f="0" p="0"/>
+  <L x="352 176 352 128" f="0" p="1"/>
+  <L x="384 176 384 128" f="0" p="1"/>
+  <L x="416 176 416 128" f="0" p="0"/>
+  <L x="448 176 464 128" f="0" p="1"/>
+  <L x="480 176 480 128" f="0" p="0"/>
+  <O x="544 240 560 240" f="0" sc="0"/>
+  <o en="12" sp="32" f="x2" p="0">
+    <p v="0" sc="5"/>
+  </o>
+  <switchevent t="0.007447" en="3"/>
+  <switchevent t="0.01489" en="2"/>
+  <switchevent t="0.02234" en="2"/>
+  <switchevent t="0.02979" en="3"/>
+  <switchevent t="0.03724" en="2"/>
+  <switchevent t="0.04468" en="2"/>
+  <switchevent t="0.05213" en="2"/>
+  <switchevent t="0.05958" en="2"/>
+  <switchevent t="0.06703" en="2"/>
+  <switchevent t="0.07447" en="2"/>
+  <switchevent t="0.08192" en="1"/>
+  <switchevent t="0.08937" en="2"/>
+  <switchevent t="0.09681" en="2"/>
+  <switchevent t="0.1043" en="2"/>
+  <switchevent t="0.1117" en="2"/>
+  <switchevent t="0.1192" en="2"/>
+  <switchevent t="0.1266" en="2"/>
+  <switchevent t="0.1341" en="2"/>
+  <switchevent t="0.1415" en="2"/>
+  <switchevent t="0.1489" en="2"/>
+  <switchevent t="0.1564" en="2"/>
+</cir>

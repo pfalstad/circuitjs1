@@ -12,6 +12,12 @@
 //
 //   npx tsx scripts/run-tests.ts --list=gen/tests.txt
 //
+// A circuit with no scopes gets no test, nor does one that does nothing without switches
+// being clicked.  For those, put a copy in ../auto-tests/src/circuits/ or src/tests/ (by the
+// test's name) with scopes added, and any switch clicks to make as <switchevent t="..."
+// en="..."/> tags (XML format only; en is the element's number); that copy is used instead.
+// The clicks are recorded into the test as if made by hand.
+//
 // gen/report.txt says which circuits got no test, and why.  Circuits listed in
 // gen/exclude.txt (by test name, like circuits/sawtooth.txt, with a # comment saying why)
 // never get one.  Options:
@@ -33,10 +39,14 @@ const maxSteps = parseInt(opt("max-steps") ?? "20000");
 const maxSeconds = parseFloat(opt("max-seconds") ?? "20");
 const spf = parseInt(opt("spf") ?? "200");
 const genDir = join(autoTestsDir, "gen");
+// the circuits with scopes (and switch clicks) added, by test name
+const srcDir = join(autoTestsDir, "src");
 
 // where a circuit's test goes, relative to gen/
 function testName(file: string): string {
     const abs = resolve(file);
+    if (abs.startsWith(srcDir + "/"))
+        return relative(srcDir, abs);
     if (abs.startsWith(join(tsRoot, "public/circuits") + "/"))
         return "circuits/" + basename(abs);
     if (abs.startsWith(resolve(tsRoot, "../tests") + "/"))
@@ -54,7 +64,10 @@ function listTests(dir: string, prefix = ""): string[] {
 
 async function main(): Promise<number> {
     const files = args.filter(a => !a.startsWith("--"));
-    const circuits = files.length > 0 ? files : goodCircuits();
+    // the copies in src/ stand in for the circuits they're of
+    const srcFor = (f: string) => { const s = join(srcDir, testName(f)); return existsSync(s) ? s : f; };
+    const circuits = [...new Set((files.length > 0 ? files : [...goodCircuits(), ...listTests(srcDir).map(n => join(srcDir, n))])
+        .map(srcFor))];
     const server = await startServer(false);
     const browser = await launchBrowser(flag("headed"));
     const page = await newPage(browser);

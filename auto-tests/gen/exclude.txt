@@ -1,1 +1,8 @@
 # circuits create-tests.ts doesn't make tests of, and why (test name, like circuits/x.txt)
+circuits/blank.txt  # empty
+tests/data-input-data.txt  # data for a data input, not a circuit
+tests/lm324-sub.txt  # only a subcircuit model, nothing using it
+tests/LaggyCircuit1.circuitjs.txt  # one subcircuit with nothing connected
+tests/14seg1.txt  # inputs straight to a display: nothing a scope can show
+tests/16seg1.txt  # inputs straight to a display: nothing a scope can show
+tests/7segdp.txt  # inputs straight to a display: nothing a scope can show

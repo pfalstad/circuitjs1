@@ -1,0 +1,38 @@
+<cir f="1" ts="0.000005" ic="10.20027730826997" cb="50" pb="50" vr="5" mts="5e-11">
+  <SipoShift x="464 336 608 336" f="0" bi="8" dt="51"/>
+  <L x="464 368 432 368" f="0" p="1"/>
+  <L x="464 400 432 400" f="0" p="0"/>
+  <O x="528 304 544 304" f="0" sc="0"/>
+  <O x="560 304 576 304" f="0" sc="0"/>
+  <O x="592 304 608 304" f="0" sc="0"/>
+  <O x="624 304 640 304" f="0" sc="0"/>
+  <o en="3" sp="32" f="x2" p="0">
+    <p v="0" sc="5"/>
+  </o>
+  <o en="4" sp="32" f="x2" p="1">
+    <p v="0" sc="5"/>
+  </o>
+  <o en="5" sp="32" f="x2" p="2">
+    <p v="0" sc="5"/>
+  </o>
+  <o en="6" sp="32" f="x2" p="3">
+    <p v="0" sc="5"/>
+  </o>
+  <switchevent t="0.004551" en="2"/>
+  <switchevent t="0.009102" en="2"/>
+  <switchevent t="0.01365" en="1"/>
+  <switchevent t="0.0182" en="2"/>
+  <switchevent t="0.02276" en="2"/>
+  <switchevent t="0.02731" en="2"/>
+  <switchevent t="0.03186" en="2"/>
+  <switchevent t="0.03641" en="1"/>
+  <switchevent t="0.04096" en="2"/>
+  <switchevent t="0.04551" en="2"/>
+  <switchevent t="0.05006" en="2"/>
+  <switchevent t="0.05461" en="2"/>
+  <switchevent t="0.05916" en="2"/>
+  <switchevent t="0.06372" en="2"/>
+  <switchevent t="0.06827" en="1"/>
+  <switchevent t="0.07282" en="2"/>
+  <switchevent t="0.07737" en="2"/>
+</cir>

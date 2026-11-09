@@ -1,0 +1,21 @@
+<cir f="1" ts="0.000005" ic="10.20027730826997" cb="50" pb="50" vr="5" mts="5e-11">
+  <clm nm="tribuf" f="0" in="A,En" o="X" if="tri-state buffer">A1=A
+?0=_</clm>
+  <cl x="192 96 256 96" f="0" mo="tribuf"/>
+  <cl x="192 224 256 224" f="0" mo="tribuf"/>
+  <L x="192 96 128 96" f="0" p="1"/>
+  <L x="192 128 128 128" f="0" p="1"/>
+  <L x="192 224 128 224" f="0" p="0"/>
+  <L x="192 256 128 256" f="0" p="0"/>
+  <w x="288 96 288 224" f="0"/>
+  <M x="288 96 352 96" f="0"/>
+  <o en="7" sp="32" f="x2" p="0">
+    <p v="0" sc="5"/>
+  </o>
+  <switchevent t="0.02341" en="2"/>
+  <switchevent t="0.04681" en="3"/>
+  <switchevent t="0.07022" en="2"/>
+  <switchevent t="0.09362" en="4"/>
+  <switchevent t="0.117" en="5"/>
+  <switchevent t="0.1404" en="4"/>
+</cir>

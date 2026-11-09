@@ -62,6 +62,9 @@ export class TestManager {
     refData: ScopeDataRef[] = [];
     switchEvents: SwitchEvent[] = [];
     nextEventIdx = 0;
+    // createTest(): switch toggles the circuit file asked for (its <switchevent> tags), to make
+    // while recording, so they get recorded as if clicked
+    scriptedEvents: SwitchEvent[] = [];
     stepsPerFrame = 20;
     // the test's own steps per frame (<test spf=>), 0 if it doesn't say
     testSpf = 0;
@@ -292,8 +295,9 @@ export class TestManager {
         if (!this.testRunning)
             return timeStep;
         const eps = this.eps;
-        if (!this.recording && this.nextEventIdx < this.switchEvents.length) {
-            const evTime = this.switchEvents[this.nextEventIdx].t;
+        const events = this.recording ? this.scriptedEvents : this.switchEvents;
+        if (this.nextEventIdx < events.length) {
+            const evTime = events[this.nextEventIdx].t;
             if (evTime > t + eps && evTime < t + timeStep - eps)
                 return evTime - t;
         }
@@ -306,6 +310,9 @@ export class TestManager {
     checkTime(): boolean {
         if (!this.testRunning)
             return false;
+        if (this.recording && this.nextEventIdx < this.scriptedEvents.length &&
+                this.fireSwitchEvents(this.scriptedEvents))
+            return true;
         if (this.recording) {
             if (this.samples != null && this.app.sim.stepsSinceReset % this.sampleEvery === 0)
                 this.samples.push(this.sampleVoltages());
@@ -322,11 +329,25 @@ export class TestManager {
             }
             return false;
         }
-        const t = this.app.sim.t + this.eps;
+        if (this.fireSwitchEvents(this.switchEvents))
+            return true;
 
+        if (this.testLen >= 0 && this.app.sim.t >= this.testLen - this.eps) {
+            this.testRunning = false;
+            this.app.setSimRunning(false);
+            // let the frame finish drawing before moving on, so errors drawing it are counted
+            setTimeout(() => this.compareAndReport(), 0);
+            return true;
+        }
+        return false;
+    }
+
+    // toggles the switches whose events are due; returns true if it toggled any
+    private fireSwitchEvents(events: SwitchEvent[]): boolean {
+        const t = this.app.sim.t + this.eps;
         let fired = false, analyze = false;
-        while (this.nextEventIdx < this.switchEvents.length) {
-            const ev = this.switchEvents[this.nextEventIdx];
+        while (this.nextEventIdx < events.length) {
+            const ev = events[this.nextEventIdx];
             if (ev.t > t)
                 break;
             const ce = this.app.getElm(ev.elmNo);
@@ -340,20 +361,9 @@ export class TestManager {
                 this.currentErrors.push(`switch event at t=${ev.t}: element ${ev.elmNo} is not a switch`);
             this.nextEventIdx++;
         }
-        if (fired) {
-            if (analyze)
-                this.app.needAnalyze();
-            return true;
-        }
-
-        if (this.testLen >= 0 && this.app.sim.t >= this.testLen - this.eps) {
-            this.testRunning = false;
-            this.app.setSimRunning(false);
-            // let the frame finish drawing before moving on, so errors drawing it are counted
-            setTimeout(() => this.compareAndReport(), 0);
-            return true;
-        }
-        return false;
+        if (fired && analyze)
+            this.app.needAnalyze();
+        return fired;
     }
 
     // the sample times, oldest first, that dumpScopeData() writes for a plot.  This keeps the
@@ -440,6 +450,8 @@ export class TestManager {
         this.testRunning = this.recording = false;
         this.currentErrors = [];
         this.testLen = -1;
+        // (the circuit's own <switchevent>s are added to these)
+        this.switchEvents = [];
         const errors = () => this.currentErrors.map(e => "error: " + e);
         try {
             await this.app.loader.readCircuit(text);
@@ -448,6 +460,7 @@ export class TestManager {
         }
         if (this.testLen >= 0)
             return { skip: "already a test", errors: [] };
+        const scripted = this.switchEvents.slice().sort((a, b) => a.t - b.t);
         this.switchEvents = [];
         this.refData = [];
         // a couple of frames, so the scopes get set up
@@ -469,9 +482,16 @@ export class TestManager {
         // don't save it the same way
         this.savedCircuitDump = this.app.dumpCircuit();
         await this.app.loader.readCircuit(this.savedCircuitDump);
+        this.switchEvents = [];
+        this.scriptedEvents = scripted;
+        this.nextEventIdx = 0;
         this.seedRandom();
         this.app.resetAction();
-        const stopped = await this.recordRun(Math.min(fill, maxSteps) * this.app.sim.maxTimeStep, spf, maxSeconds);
+        // long enough to see what the last switch click does
+        let len = Math.min(fill, maxSteps) * this.app.sim.maxTimeStep;
+        if (scripted.length > 0)
+            len = Math.max(len, scripted[scripted.length - 1].t * 1.1);
+        const stopped = await this.recordRun(len, spf, maxSeconds).finally(() => this.scriptedEvents = []);
         if (stopped != null)
             return { skip: "simulation stopped: " + stopped, errors: errors() };
         const dump = this.testDump();

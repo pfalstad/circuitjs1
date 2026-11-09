@@ -1,0 +1,69 @@
+<cir f="1" ts="0.000005" ic="10.20027730826997" cb="50" pb="50" vr="5" mts="5e-11">
+  <ccm nm="Sw1" f="0" sx="3" sy="2" bcs="1">
+    <ext nm="in" nd="3" ps="0" sd="2"/>
+    <ext nm="out 1" nd="2" ps="0" sd="3"/>
+    <ext nm="out 2" nd="6" ps="1" sd="3"/>
+    <ext nm="Sel" nd="5" ps="1" sd="0"/>
+    <r nn="1 2"/>
+    <as2 nn="3 1 4 5"/>
+    <r nn="4 6"/>
+  </ccm>
+  <ccm nm="a7b" f="0" sx="4" sy="4" bcs="1">
+    <ext nm="in" nd="1" ps="0" sd="2"/>
+    <ext nm="out1" nd="7" ps="0" sd="3"/>
+    <ext nm="out2" nd="8" ps="1" sd="3"/>
+    <ext nm="out3" nd="12" ps="2" sd="3"/>
+    <ext nm="out4" nd="13" ps="3" sd="3"/>
+    <ext nm="S1" nd="4" ps="1" sd="0"/>
+    <ext nm="S2" nd="9" ps="2" sd="0"/>
+    <ccm nm="Sw1" f="0" sx="3" sy="2">
+      <ext nm="in" nd="3" ps="0" sd="2"/>
+      <ext nm="out 1" nd="2" ps="0" sd="3"/>
+      <ext nm="out 2" nd="6" ps="1" sd="3"/>
+      <ext nm="Sel" nd="5" ps="1" sd="0"/>
+      <r nn="1 2"/>
+      <as2 nn="3 1 4 5"/>
+      <r nn="4 6"/>
+    </ccm>
+    <cc nn="1 2 3 4" f="1" mo="Sw1"/>
+    <cc nn="2 7 8 9" f="1" mo="Sw1"/>
+    <cc nn="3 12 13 9" f="1" mo="Sw1"/>
+    <r nn="5 2" r="1000"/>
+    <as2 nn="1 5 6 4" f="2" ron="20" roff="10000000000" th="2.5"/>
+    <r nn="6 3" r="1000"/>
+    <r nn="10 7" r="1000"/>
+    <as2 nn="2 10 11 9" f="2" ron="20" roff="10000000000" th="2.5"/>
+    <r nn="11 8" r="1000"/>
+    <r nn="14 12" r="1000"/>
+    <as2 nn="3 14 15 9" f="2" ron="20" roff="10000000000" th="2.5"/>
+    <r nn="15 13" r="1000"/>
+  </ccm>
+  <cc x="272 240 384 352" f="1" mo="a7b"/>
+  <cc x="192 496 304 592" f="1" mo="a7b"/>
+  <L x="272 240 224 224" f="0" p="1"/>
+  <L x="336 208 336 176" f="0" p="0"/>
+  <L x="368 208 368 128" f="0" p="0"/>
+  <L x="256 464 256 416" f="0" p="1"/>
+  <L x="288 464 336 416" f="0" p="1"/>
+  <L x="192 496 128 480" f="0" p="1"/>
+  <M x="432 272 480 272" f="0"/>
+  <M x="432 240 496 256" f="0"/>
+  <o en="8" sp="32" f="x2" p="0">
+    <p v="0" sc="5"/>
+  </o>
+  <o en="9" sp="32" f="x2" p="1">
+    <p v="0" sc="5"/>
+  </o>
+  <switchevent t="0.006302" en="2"/>
+  <switchevent t="0.0126" en="2"/>
+  <switchevent t="0.0189" en="3"/>
+  <switchevent t="0.02521" en="3"/>
+  <switchevent t="0.03151" en="4"/>
+  <switchevent t="0.03781" en="4"/>
+  <switchevent t="0.04411" en="5"/>
+  <switchevent t="0.05041" en="5"/>
+  <switchevent t="0.05671" en="6"/>
+  <switchevent t="0.06302" en="6"/>
+  <switchevent t="0.06932" en="7"/>
+  <switchevent t="0.07562" en="7"/>
+</cir>
