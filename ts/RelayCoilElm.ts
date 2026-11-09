@@ -194,6 +194,9 @@ export class RelayCoilElm extends CircuitElm {
         this.adjustBbox(this.coilPosts[0], this.coilPosts[1]);
     }
 
+    // what a scope shows (the info box uses coilCurrent itself)
+    getCurrent(): number { return this.coilCurrent; }
+
     getCurrentIntoNode(n: number): number {
         return n === 0 ? -this.coilCurrent : this.coilCurrent;
     }

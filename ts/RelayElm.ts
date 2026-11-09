@@ -302,6 +302,9 @@ export class RelayElm extends CircuitElm {
         this.adjustBbox(this.swposts[0][0], this.swposts[0][1]);
     }
 
+    // what a scope shows: the coil's current (the info box shows each switch's too)
+    getCurrent(): number { return this.coilCurrent; }
+
     getCurrentIntoNode(n: number): number {
         if (n < 3 * this.poleCount()) {
             const p = Math.trunc(n / 3);

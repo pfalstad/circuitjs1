@@ -135,6 +135,9 @@ export class RelayContactElm extends CircuitElm {
         this.setBbox(this.point1, this.point2, this.openhs);
     }
 
+    // what a scope shows (the info box uses switchCurrent itself)
+    getCurrent(): number { return this.switchCurrent; }
+
     getCurrentIntoNode(n: number): number {
         if (n === 0) return -this.switchCurrent;
         if (n === 1 + this.i_position) return this.switchCurrent;
