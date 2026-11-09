@@ -204,7 +204,8 @@ circuits/edgedff.txt  steps=fill  clicks=30,30,30,30
 circuits/jkff.txt  steps=fill  clicks=48,37,48,37,48,37,48,37
 circuits/masterslaveff.txt  steps=fill  clicks=38,38,38,38
 circuits/mux.txt  steps=fill  clicks=15,15,15,15
-circuits/piso-sr.txt  steps=fill  clicks=26,21,19,26,26,22,26,26
+# load 1101 (load/shift low for one clock), shift it out, then load 0110 and shift that out
+circuits/piso-sr.txt  scopes=26,10  speed=64  steps=fill  clicks=26@0.0025,26@0.0125,19@0.0525,21@0.053,22@0.0535,26@0.0625,26@0.0725
 circuits/samplenhold.txt  steps=fill  clicks=5,5,5,5
 circuits/switchfilter.txt  steps=fill  clicks=17,17,17,17
 tests/greyctr.txt  steps=fill  clicks=178,178,178,178
