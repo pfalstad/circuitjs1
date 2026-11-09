@@ -8,4 +8,9 @@
   <o en="5" sp="32" f="x2" p="0">
     <p v="0" sc="5"/>
   </o>
+  <!-- max-steps=32768 -->
+  <switchevent t="0.03277" en="4"/>
+  <switchevent t="0.06554" en="4"/>
+  <switchevent t="0.0983" en="4"/>
+  <switchevent t="0.1311" en="4"/>
 </cir>

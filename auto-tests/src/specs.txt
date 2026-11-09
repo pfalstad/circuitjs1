@@ -5,12 +5,12 @@
 # input on and off for more.
 
 circuits/nandff.txt  scopes=10,11  speed=4  clicks=9@2e-4,9@4e-4,8@6e-4,8@8e-4,9@1e-3,9@1.2e-3
-circuits/3-cgand.txt  scopes=43  speed=32  clicks=44,45,44
-circuits/3-cgor.txt  scopes=25  speed=32  clicks=29,30,29
-circuits/3-f211.txt  scopes=7  speed=32  clicks=8
-circuits/3-f220.txt  scopes=7  speed=32  clicks=8
-circuits/3-f221.txt  scopes=7  speed=32  clicks=8
-circuits/3-invert.txt  scopes=15  speed=32  clicks=18
+circuits/3-cgand.txt  scopes=43  speed=32  steps=fill  clicks=45,45,45,44,45,45,45,44,45,45,45,44
+circuits/3-cgor.txt  scopes=25  speed=32  steps=fill  clicks=30,30,30,29,30,30,30,29,30,30,30,29
+circuits/3-f211.txt  scopes=7  speed=32  steps=fill  clicks=8,8,8
+circuits/3-f220.txt  scopes=7  speed=32  steps=fill  clicks=8,8,8
+circuits/3-f221.txt  scopes=7  speed=32  steps=fill  clicks=8,8,8
+circuits/3-invert.txt  scopes=15  speed=32  steps=fill  clicks=18,18,18
 circuits/adder4-sc.txt  scopes=84,85,86,87  speed=32  clicks=0,0,19,19,20,20,21,21,22,22,23,23,24,24,25,25
 circuits/alu74181.txt  scopes=325,330,335,351,416,417,418,419  speed=32  clicks=113,113,114,114,115,115,116,116,125,125,126,126,127,127,128,128
 circuits/brentkung.txt  probes=275.0,275.1,275.2,275.3,275.4,275.5,275.6,275.7,275.8  scopes=p0+p1+p2,p3+p4+p5,p6+p7+p8  speed=32  clicks=6,8,7,9,38,39,205,207,214,217,220,221,222,225,228,229
@@ -155,11 +155,58 @@ tests/labeled-nodes-text.txt  scopes=3:i,8:i  speed=32
 tests/labeled-nodes-bus.txt  probes=0.0,0.3,7.0,7.3  speed=32
 tests/routedwire-random.txt  scopes=23,24  speed=32  clicks=22,22
 tests/tsbug-analogmux-text.txt  probes=0.6  speed=32
-tests/tsbug-counter2-text.txt  scopes=9,10,11,12,13  speed=32
+tests/tsbug-counter2-text.txt  scopes=9,10,11,12,13  speed=32  steps=fill  clicks=1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8
 tests/tsbug-customlogic-tristate.txt  scopes=7  speed=32  clicks=2,3,2,4,5,4
 tests/tsbug-latch-reset.txt  scopes=8,9,10,11  speed=32  clicks=7,7
 tests/tsbug-latch-text.txt  scopes=7,8,9,10  speed=32  clicks=4,3,5,5,6,6
 tests/tsbug-opamp-gain-text.txt  scopes=1:i,2:i,3:i  speed=32
 tests/tsbug-relaycontact-xml.txt  scopes=0:i,4:i  speed=4  clicks=1,1,1,1
-tests/tsbug-seqgen-edit.txt  scopes=5  speed=32
-tests/tsbug-seqgen-text.txt  scopes=2  speed=32
+tests/tsbug-seqgen-edit.txt  scopes=5  speed=32  steps=fill  clicks=4,4,4,4
+tests/tsbug-seqgen-text.txt  scopes=2  speed=32  steps=fill  clicks=1,1,1,1
+circuits/howland.txt  steps=fill  clicks=13,13
+# switches the generated tests never clicked: each clicked twice (on and off, or a push
+# switch pressed and let go), and run until the scopes are full
+circuits/3phasewye.txt  steps=fill  clicks=13,13
+circuits/cap.txt  steps=fill  clicks=1,1
+circuits/ccitov.txt  steps=fill  clicks=0,0,1,1
+circuits/currentsrcelm.txt  steps=fill  clicks=3,3,4,4,13,13,16,16
+circuits/currentsrcramp.txt  steps=fill  clicks=12,12
+circuits/induct.txt  steps=fill  clicks=1,1
+circuits/inductkick-snub.txt  steps=fill  clicks=3,3
+circuits/inductkick.txt  steps=fill  clicks=3,3
+circuits/jfetcurrentsrc.txt  steps=fill  clicks=5,5
+circuits/lightbulb.txt  steps=fill  clicks=3,3
+circuits/lrc-critical.txt  steps=fill  clicks=1,1
+circuits/lrc.txt  steps=fill  clicks=1,1
+circuits/moscurrentramp.txt  steps=fill  clicks=11,11
+circuits/mr-crossbar.txt  steps=fill  clicks=22,22
+circuits/multivib-mono.txt  steps=fill  clicks=15,15
+circuits/ota-gain.txt  steps=fill  clicks=18,18
+circuits/ota-vcf-single.txt  steps=fill  clicks=27,27
+circuits/peak-detect.txt  steps=fill  clicks=17,17
+circuits/tllight.txt  steps=fill  clicks=11,11
+tests/bigcircuit.txt  steps=fill  clicks=1,1
+tests/curr-switch.txt  steps=fill  clicks=3,3,4,4,13,13,16,16
+tests/multitrans.txt  steps=fill  clicks=7,7,8,8,11,11
+tests/subc-lrc-3level.txt  steps=fill  clicks=3,3
+tests/subc-lrc2.txt  steps=fill  clicks=3,3
+# logic inputs the generated tests never clicked
+circuits/555missing.txt  steps=fill  clicks=18,18,18,18
+circuits/555monostable.txt  steps=fill  clicks=14,14,14,14
+circuits/555sequencer.txt  steps=fill  clicks=11,11,11,11
+circuits/clockedsrff.txt  steps=fill  clicks=15,15,16,16,15,16,15,16
+circuits/cmosinvertercap.txt  steps=fill  clicks=10,10,10,10
+circuits/cmosinverterslow.txt  steps=fill  clicks=13,13,13,13
+circuits/cmostransgate.txt  steps=fill  clicks=7,7,7,7
+circuits/delayrc.txt  steps=fill  clicks=6,6,6,6
+circuits/edgedff.txt  steps=fill  clicks=30,30,30,30
+circuits/jkff.txt  steps=fill  clicks=48,37,48,37,48,37,48,37
+circuits/masterslaveff.txt  steps=fill  clicks=38,38,38,38
+circuits/mux.txt  steps=fill  clicks=15,15,15,15
+circuits/piso-sr.txt  steps=fill  clicks=26,21,19,26,26,22,26,26
+circuits/samplenhold.txt  steps=fill  clicks=5,5,5,5
+circuits/switchfilter.txt  steps=fill  clicks=17,17,17,17
+tests/greyctr.txt  steps=fill  clicks=178,178,178,178
+tests/jfet1.txt  steps=fill  clicks=18,19,18,20,18,19,18
+tests/monostable-sc.txt  steps=fill  clicks=4,4,4,4
+tests/monostable-sc-fixedstate.txt  steps=fill  clicks=4,4,4,4

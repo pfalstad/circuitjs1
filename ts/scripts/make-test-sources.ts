@@ -11,11 +11,12 @@
 // the scopes' speed (time steps per pixel).  clicks=en@t,... toggles switch en at time t;
 // with no times (clicks=en,en,...) they're spread evenly over the run.  steps=N lets the
 // test run for up to N time steps, instead of create-tests.ts's --max-steps (it's written
-// into the copy as <!-- max-steps=N -->).  noreset makes the test run from the state the
-// circuit was saved with instead of from reset (<!-- noreset -->), to check it's loaded back.
-// probes=en.post,... (en.out for its last post, a gate's output) adds an output element on each of those posts (a chip's pin, say),
-// after the circuit's own elements; scopes= names them p0, p1, ..., and with no scopes=,
-// each gets a scope of its own.
+// into the copy as <!-- max-steps=N -->); steps=fill, for as long as the scopes show.
+// noreset makes the test run from the state the circuit was saved with instead of from
+// reset (<!-- noreset -->), to check it's loaded back.  probes=en.post,... (en.out for its
+// last post, a gate's output) adds an output element on each of those posts (a chip's pin,
+// say), after the circuit's own elements; scopes= names them p0, p1, ..., and with no
+// scopes=, each gets a scope of its own.
 //
 //   npx tsx scripts/make-test-sources.ts [names...]        make the copies (all, or these)
 //   npx tsx scripts/make-test-sources.ts --list files...   list the elements of circuits
@@ -33,7 +34,7 @@ function circuitFile(name: string): string {
     return dir === "circuits" ? join(tsRoot, "public/circuits", file) : resolve(tsRoot, "../tests", file);
 }
 
-interface Spec { name: string; scopes: string[][]; speed?: number; steps?: number; noReset?: boolean; clicks: { en: number, t?: number }[]; probes: string[]; }
+interface Spec { name: string; scopes: string[][]; speed?: number; steps?: number; fill?: boolean; noReset?: boolean; clicks: { en: number, t?: number }[]; probes: string[]; }
 
 function readSpecs(): Spec[] {
     return readFileSync(join(srcDir, "specs.txt"), "utf8").split("\n")
@@ -48,6 +49,8 @@ function readSpecs(): Spec[] {
                     spec.scopes = v.split(",").map(s => s.split("+"));
                 else if (k === "probes")
                     spec.probes = v.split(",");
+                else if (k === "steps" && v === "fill")
+                    spec.fill = true;
                 else if (k === "steps")
                     spec.steps = parseInt(v);
                 else if (k === "speed")
@@ -158,14 +161,15 @@ async function main(): Promise<number> {
                 if (!isFinite(len))
                     return { error: "no scopes" };
                 const times = spec.clicks.map((c, i) => c.t ?? Number(((i + 1) * len / (spec.clicks.length + 1)).toPrecision(4)));
-                return { dump: app.dumpCircuit() as string, times };
+                return { dump: app.dumpCircuit() as string, times, fillSteps: Math.ceil(len / app.sim.maxTimeStep) };
             }, spec);
             if (r.error) {
                 console.log(`${spec.name}: ${r.error}`);
                 continue;
             }
             let dump = r.dump!;
-            const tags = (spec.steps ? `  <!-- max-steps=${spec.steps} -->\n` : "") + (spec.noReset ? "  <!-- noreset -->\n" : "") + spec.clicks.map((c, i) => `  <switchevent t="${r.times![i]}" en="${c.en}"/>\n`).join("");
+            const steps = spec.fill ? r.fillSteps : spec.steps;
+            const tags = (steps ? `  <!-- max-steps=${steps} -->\n` : "") + (spec.noReset ? "  <!-- noreset -->\n" : "") + spec.clicks.map((c, i) => `  <switchevent t="${r.times![i]}" en="${c.en}"/>\n`).join("");
             const idx = dump.lastIndexOf("</cir>");
             dump = dump.substring(0, idx) + tags + dump.substring(idx);
             const out = join(srcDir, spec.name);

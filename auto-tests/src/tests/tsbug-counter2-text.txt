@@ -29,4 +29,21 @@
   <o en="13" sp="32" f="x2" p="4">
     <p v="0" sc="5"/>
   </o>
+  <!-- max-steps=8192 -->
+  <switchevent t="0.002409" en="1"/>
+  <switchevent t="0.004819" en="1"/>
+  <switchevent t="0.007228" en="2"/>
+  <switchevent t="0.009638" en="2"/>
+  <switchevent t="0.01205" en="3"/>
+  <switchevent t="0.01446" en="3"/>
+  <switchevent t="0.01687" en="4"/>
+  <switchevent t="0.01928" en="4"/>
+  <switchevent t="0.02168" en="5"/>
+  <switchevent t="0.02409" en="5"/>
+  <switchevent t="0.0265" en="6"/>
+  <switchevent t="0.02891" en="6"/>
+  <switchevent t="0.03132" en="7"/>
+  <switchevent t="0.03373" en="7"/>
+  <switchevent t="0.03614" en="8"/>
+  <switchevent t="0.03855" en="8"/>
 </cir>

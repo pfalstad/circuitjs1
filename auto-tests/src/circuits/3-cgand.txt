@@ -50,7 +50,17 @@
   <o en="43" sp="32" f="x2" p="0">
     <p v="0" sc="5"/>
   </o>
-  <switchevent t="0.04096" en="44"/>
-  <switchevent t="0.08192" en="45"/>
-  <switchevent t="0.1229" en="44"/>
+  <!-- max-steps=32768 -->
+  <switchevent t="0.0126" en="45"/>
+  <switchevent t="0.02521" en="45"/>
+  <switchevent t="0.03781" en="45"/>
+  <switchevent t="0.05041" en="44"/>
+  <switchevent t="0.06302" en="45"/>
+  <switchevent t="0.07562" en="45"/>
+  <switchevent t="0.08822" en="45"/>
+  <switchevent t="0.1008" en="44"/>
+  <switchevent t="0.1134" en="45"/>
+  <switchevent t="0.126" en="45"/>
+  <switchevent t="0.1386" en="45"/>
+  <switchevent t="0.1512" en="44"/>
 </cir>
