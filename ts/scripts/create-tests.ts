@@ -90,9 +90,13 @@ async function main(): Promise<number> {
             continue;
         }
         const start = Date.now();
-        const r = await page.evaluate(([text, maxSteps, maxSeconds, spf]) =>
-            (window as any).TestManager.theManager.createTest(text, maxSteps, maxSeconds, spf),
-            [readFileSync(file, "utf8"), maxSteps, maxSeconds, spf] as const);
+        const text = readFileSync(file, "utf8");
+        // a copy in src/ can ask for a longer run (make-test-sources.ts's steps=), with time to match
+        const steps = Math.max(maxSteps, parseInt(text.match(/<!-- max-steps=(\d+) -->/)?.[1] ?? "0"));
+        const seconds = maxSeconds * steps / maxSteps;
+        const r = await page.evaluate(([text, steps, seconds, spf]) =>
+            (window as any).TestManager.theManager.createTest(text, steps, seconds, spf),
+            [text, steps, seconds, spf] as const);
         const secs = ((Date.now() - start) / 1000).toFixed(1);
         if (r.skip || r.errors.length > 0) {
             const why = [r.skip, ...r.errors].filter(s => s).join("; ");

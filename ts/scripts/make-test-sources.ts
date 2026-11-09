@@ -9,7 +9,9 @@
 // comma-separated list of scopes, each a +-separated list of the element numbers to plot in
 // it (an element's voltage, or V(ce) for a transistor; en:i for its current).  speed= is
 // the scopes' speed (time steps per pixel).  clicks=en@t,... toggles switch en at time t;
-// with no times (clicks=en,en,...) they're spread evenly over the run.
+// with no times (clicks=en,en,...) they're spread evenly over the run.  steps=N lets the
+// test run for up to N time steps, instead of create-tests.ts's --max-steps (it's written
+// into the copy as <!-- max-steps=N -->).
 // probes=en.post,... (en.out for its last post, a gate's output) adds an output element on each of those posts (a chip's pin, say),
 // after the circuit's own elements; scopes= names them p0, p1, ..., and with no scopes=,
 // each gets a scope of its own.
@@ -30,7 +32,7 @@ function circuitFile(name: string): string {
     return dir === "circuits" ? join(tsRoot, "public/circuits", file) : resolve(tsRoot, "../tests", file);
 }
 
-interface Spec { name: string; scopes: string[][]; speed?: number; clicks: { en: number, t?: number }[]; probes: string[]; }
+interface Spec { name: string; scopes: string[][]; speed?: number; steps?: number; clicks: { en: number, t?: number }[]; probes: string[]; }
 
 function readSpecs(): Spec[] {
     return readFileSync(join(srcDir, "specs.txt"), "utf8").split("\n")
@@ -43,6 +45,8 @@ function readSpecs(): Spec[] {
                     spec.scopes = v.split(",").map(s => s.split("+"));
                 else if (k === "probes")
                     spec.probes = v.split(",");
+                else if (k === "steps")
+                    spec.steps = parseInt(v);
                 else if (k === "speed")
                     spec.speed = parseInt(v);
                 else if (k === "clicks")
@@ -120,6 +124,9 @@ async function main(): Promise<number> {
                         const ce = app.getElm(en.startsWith("p") ? probes[parseInt(en.substring(1))] : parseInt(en));
                         if (ce == null)
                             return { error: `no element ${en}` };
+                        // as the UI allows (a chip's pins can be probed instead)
+                        if (!ce.canViewInScope())
+                            return { error: `element ${en} (${ce.getClassName()}) can't be viewed in a scope` };
                         // VAL_CURRENT, or VAL_IC for a transistor
                         if (what === "i")
                             sc.addValue(ce.isTransistorElm() ? 2 : 3, ce);
@@ -155,7 +162,7 @@ async function main(): Promise<number> {
                 continue;
             }
             let dump = r.dump!;
-            const tags = spec.clicks.map((c, i) => `  <switchevent t="${r.times![i]}" en="${c.en}"/>\n`).join("");
+            const tags = (spec.steps ? `  <!-- max-steps=${spec.steps} -->\n` : "") + spec.clicks.map((c, i) => `  <switchevent t="${r.times![i]}" en="${c.en}"/>\n`).join("");
             const idx = dump.lastIndexOf("</cir>");
             dump = dump.substring(0, idx) + tags + dump.substring(idx);
             const out = join(srcDir, spec.name);
