@@ -6,3 +6,6 @@ tests/LaggyCircuit1.circuitjs.txt  # one subcircuit with nothing connected
 tests/14seg1.txt  # inputs straight to a display: nothing a scope can show
 tests/16seg1.txt  # inputs straight to a display: nothing a scope can show
 tests/7segdp.txt  # inputs straight to a display: nothing a scope can show
+tests/fullrect.txt  # does nothing by itself (no source)
+tests/swsub.txt  # needs a switch clicked inside its subcircuit, which a test can't record
+tests/datainput.txt  # needs data loaded into its data input, which isn't saved in the file

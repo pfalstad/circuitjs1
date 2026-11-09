@@ -394,9 +394,7 @@ tests/curr-switch.txt
 tests/current-adder.txt
 tests/currlimit.txt
 tests/custom.txt
-tests/datainput.txt
 tests/fullrect-ex.txt
-tests/fullrect.txt
 tests/greyctr.txt
 tests/invert-324-sc.txt
 tests/jfet1.txt
@@ -430,7 +428,6 @@ tests/subc-lrc-3level.txt
 tests/subc-lrc2.txt
 tests/switches.txt
 tests/switchingxform.txt
-tests/swsub.txt
 tests/tappedxform.txt
 tests/tflipflop.txt
 tests/tl431.txt

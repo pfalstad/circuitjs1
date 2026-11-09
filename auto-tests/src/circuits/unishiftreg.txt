@@ -215,32 +215,23 @@
   <x x="-26 341 -16 344" f="4" si="15" te="H"/>
   <x x="-3 275 15 278" f="4" si="15" te="S0"/>
   <x x="-27 275 -9 278" f="4" si="15" te="S1"/>
-  <o en="185" sp="32" f="x2" p="0">
+  <o en="185" sp="88" f="x2" p="0">
     <p v="0" sc="5"/>
+    <p e="186" v="0" sc="5"/>
+    <p e="187" v="0" sc="5"/>
+    <p e="188" v="0" sc="5"/>
   </o>
-  <o en="186" sp="32" f="x2" p="1">
-    <p v="0" sc="5"/>
-  </o>
-  <o en="187" sp="32" f="x2" p="2">
-    <p v="0" sc="5"/>
-  </o>
-  <o en="188" sp="32" f="x2" p="3">
-    <p v="0" sc="5"/>
-  </o>
-  <switchevent t="0.004819" en="170"/>
-  <switchevent t="0.009638" en="170"/>
-  <switchevent t="0.01446" en="171"/>
-  <switchevent t="0.01928" en="171"/>
-  <switchevent t="0.02409" en="172"/>
-  <switchevent t="0.02891" en="172"/>
-  <switchevent t="0.03373" en="173"/>
-  <switchevent t="0.03855" en="173"/>
-  <switchevent t="0.04337" en="178"/>
-  <switchevent t="0.04819" en="178"/>
-  <switchevent t="0.05301" en="179"/>
-  <switchevent t="0.05783" en="179"/>
-  <switchevent t="0.06264" en="180"/>
-  <switchevent t="0.06746" en="180"/>
-  <switchevent t="0.07228" en="181"/>
-  <switchevent t="0.0771" en="181"/>
+  <!-- max-steps=35000 -->
+  <switchevent t="0.0025" en="173"/>
+  <switchevent t="0.0026" en="179"/>
+  <switchevent t="0.0027" en="170"/>
+  <switchevent t="0.0028" en="171"/>
+  <switchevent t="0.0225" en="171"/>
+  <switchevent t="0.0425" en="172"/>
+  <switchevent t="0.0525" en="181"/>
+  <switchevent t="0.0725" en="170"/>
+  <switchevent t="0.0825" en="171"/>
+  <switchevent t="0.1225" en="172"/>
+  <switchevent t="0.1325" en="181"/>
+  <switchevent t="0.1525" en="171"/>
 </cir>
