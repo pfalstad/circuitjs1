@@ -211,3 +211,4 @@ tests/jfet1.txt  steps=fill  clicks=18,19,18,20,18,19,18
 tests/monostable-sc.txt  steps=fill  clicks=4,4,4,4
 tests/monostable-sc-fixedstate.txt  steps=fill  clicks=4,4,4,4
 circuits/deltasigma.txt  speed=256  steps=fill
+circuits/tesla.txt  speed=512  steps=fill
