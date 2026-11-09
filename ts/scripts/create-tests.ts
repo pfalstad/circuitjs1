@@ -94,9 +94,11 @@ async function main(): Promise<number> {
         // a copy in src/ can ask for a longer run (make-test-sources.ts's steps=), with time to match
         const steps = Math.max(maxSteps, parseInt(text.match(/<!-- max-steps=(\d+) -->/)?.[1] ?? "0"));
         const seconds = maxSeconds * steps / maxSteps;
-        const r = await page.evaluate(([text, steps, seconds, spf]) =>
-            (window as any).TestManager.theManager.createTest(text, steps, seconds, spf),
-            [text, steps, seconds, spf] as const);
+        // and can run from the state it's loaded in rather than from reset (noreset)
+        const noReset = text.includes("<!-- noreset -->");
+        const r = await page.evaluate(([text, steps, seconds, spf, noReset]) =>
+            (window as any).TestManager.theManager.createTest(text, steps, seconds, spf, noReset),
+            [text, steps, seconds, spf, noReset] as const);
         const secs = ((Date.now() - start) / 1000).toFixed(1);
         if (r.skip || r.errors.length > 0) {
             const why = [r.skip, ...r.errors].filter(s => s).join("; ");

@@ -144,7 +144,7 @@ export class CircuitXMLDeserializer {
                 const tm = (window as any).TestManager?.theManager;
                 if (tm != null) {
                     this.currentXmlElement = elem;
-                    tm.saveTestTag(this.parseDoubleAttr("len", -1), this.parseIntAttr("spf", 0));
+                    tm.saveTestTag(this.parseDoubleAttr("len", -1), this.parseIntAttr("spf", 0), this.parseIntAttr("noreset", 0) !== 0);
                 }
                 continue;
             }

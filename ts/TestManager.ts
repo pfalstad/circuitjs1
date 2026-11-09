@@ -19,6 +19,8 @@
 // instead of however many the clock allows, so the results don't depend on how fast the
 // machine is (with an adaptive time step, where the frames end changes the waveform).  A
 // test records how many (<test spf="...">); otherwise it's ?teststeps=, 20 by default.
+// A test runs from reset, unless it says not to (<test noreset="1">): then it runs from the state
+// the file was loaded in, to check that elements load the state they were saved with.
 // The random numbers (noise sources, and op-amps and gates settling) come from a generator
 // seeded the same way each time, for the same reason.
 //
@@ -68,6 +70,8 @@ export class TestManager {
     stepsPerFrame = 20;
     // the test's own steps per frame (<test spf=>), 0 if it doesn't say
     testSpf = 0;
+    // the test runs from the state the file was loaded in, not from reset (<test noreset="1">)
+    testNoReset = false;
     // createTest(): when to give up recording (Date.now()), and what to call when done
     recordDeadline = 0;
     onRecordDone: (() => void) | null = null;
@@ -170,6 +174,7 @@ export class TestManager {
         }
         this.testLen = -1;
         this.testSpf = 0;
+        this.testNoReset = false;
         this.refData = [];
         this.switchEvents = [];
         this.currentErrors = [];
@@ -214,7 +219,8 @@ export class TestManager {
         this.recording = false;
         this.nextEventIdx = 0;
         this.seedRandom();
-        this.app.resetAction();
+        if (!this.testNoReset)
+            this.app.resetAction();
         this.app.setSimRunning(true);
         this.testRunning = true;
     }
@@ -264,9 +270,10 @@ export class TestManager {
     }
 
     // called from CircuitXMLDeserializer for <test>, <switchevent> and <scopedata>
-    saveTestTag(len: number, spf: number = 0): void {
+    saveTestTag(len: number, spf: number = 0, noReset: boolean = false): void {
         this.testLen = len;
         this.testSpf = spf;
+        this.testNoReset = noReset;
         this.refData = [];
         this.switchEvents = [];
     }
@@ -443,8 +450,10 @@ export class TestManager {
 
     // Makes a test of a circuit (the text of its file), running it from reset with no
     // interaction until its scopes are full, or for maxSteps time steps or maxSeconds,
-    // whichever is first.  Returns the test file, or why there isn't one.
-    async createTest(text: string, maxSteps: number, maxSeconds: number, spf: number):
+    // whichever is first.  With noReset, it runs from the state it was loaded in instead of
+    // from reset (having been saved and loaded again first, as it always is), and so will
+    // the test.  Returns the test file, or why there isn't one.
+    async createTest(text: string, maxSteps: number, maxSeconds: number, spf: number, noReset = false):
             Promise<{ dump?: string, skip?: string, errors: string[], len?: number }> {
         const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
         this.testRunning = this.recording = false;
@@ -486,7 +495,9 @@ export class TestManager {
         this.scriptedEvents = scripted;
         this.nextEventIdx = 0;
         this.seedRandom();
-        this.app.resetAction();
+        this.testNoReset = noReset;
+        if (!noReset)
+            this.app.resetAction();
         // long enough to see what the last switch click does
         let len = Math.min(fill, maxSteps) * this.app.sim.maxTimeStep;
         if (scripted.length > 0)
@@ -496,6 +507,7 @@ export class TestManager {
             return { skip: "simulation stopped: " + stopped, errors: errors() };
         const dump = this.testDump();
         this.testLen = -1;
+        this.testNoReset = false;
         return { dump, errors: errors(), len: this.app.sim.t };
     }
 
@@ -663,7 +675,7 @@ export class TestManager {
     testDump(): string {
         const len = this.app.sim.t;
         let dump = this.savedCircuitDump ?? this.app.dumpCircuit();
-        const insert = `  <test len="${len}" spf="${this.testSpf || this.stepsPerFrame}"/>\n` + this.dumpSwitchEvents() + this.dumpScopeData();
+        const insert = `  <test len="${len}" spf="${this.testSpf || this.stepsPerFrame}"${this.testNoReset ? ' noreset="1"' : ""}/>\n` + this.dumpSwitchEvents() + this.dumpScopeData();
         const idx = dump.lastIndexOf("</cir>");
         dump = idx >= 0 ? dump.substring(0, idx) + insert + dump.substring(idx) : dump + insert;
         return dump;
