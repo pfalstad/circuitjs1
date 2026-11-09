@@ -8,7 +8,8 @@
 // The name is the test's: circuits/ for public/circuits, tests/ for ../tests.  scopes= is a
 // comma-separated list of scopes, each a +-separated list of the element numbers to plot in
 // it (an element's voltage, or V(ce) for a transistor; en:i for its current).  speed= is
-// the scopes' speed (time steps per pixel).  clicks=en@t,... toggles switch en at time t;
+// the scopes' speed (time steps per pixel; the circuit's own, if it adds none).
+// clicks=en@t,... toggles switch en at time t;
 // with no times (clicks=en,en,...) they're spread evenly over the run.  steps=N lets the
 // test run for up to N time steps, instead of create-tests.ts's --max-steps (it's written
 // into the copy as <!-- max-steps=N -->); steps=fill, for as long as the scopes show.
@@ -145,6 +146,10 @@ async function main(): Promise<number> {
                     else if (i > 0)
                         sc.speed = sm.scopes[i - 1].speed;
                 }
+                // with no scopes of its own, speed= is the circuit's scopes'
+                if (scopes.length === 0 && spec.speed)
+                    for (let i = 0; i < sm.scopeCount; i++)
+                        sm.scopes[i].speed = spec.speed;
                 for (const c of spec.clicks)
                     if (!(app.getElm(c.en)?.toggle))
                         return { error: `element ${c.en} is not a switch` };
