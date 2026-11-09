@@ -81,7 +81,8 @@ tests/ccvs.txt  scopes=7  speed=32
 tests/ccvs2.txt  scopes=5  speed=32
 tests/mux.txt  scopes=5  speed=32  clicks=1,1,2,2,3,3,4,4,9,9
 tests/prova8.txt  probes=89.0,89.1,89.2,89.3,140.0,140.1,140.2,140.3,151.0,151.1,151.2,151.3  scopes=p0+p1+p2+p3,p4+p5+p6+p7,p8+p9+p10+p11  speed=32  clicks=2,2,15,15,16,16,17,17,18,18,45,45,46,46,47,47
-tests/sram.txt  scopes=7,8,9,10  speed=32  clicks=1,1,2,2,3,3,4,4,5,5,6,6
+# read all 16 addresses (Gray code from 9), OE off and on, write address 1 (with the data lines undriven: 0), read 0 and 1
+tests/sram.txt  scopes=7,8,9,10  speed=32  steps=fill  clicks=5,4,5,3,5,4,5,1,5,4,5,3,5,4,5,6,6,2,2,5,5
 tests/tflipflop.txt  scopes=3,11,12  speed=32  clicks=2,8,2,9,2,8,2,10,2,8,2,9,2,8,2
 
 # no logic outputs: the currents and voltages that show what they do

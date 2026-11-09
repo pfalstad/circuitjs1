@@ -23,16 +23,26 @@
   <o en="10" sp="32" f="x2" p="3">
     <p v="0" sc="5"/>
   </o>
-  <switchevent t="0.006302" en="1"/>
-  <switchevent t="0.0126" en="1"/>
-  <switchevent t="0.0189" en="2"/>
-  <switchevent t="0.02521" en="2"/>
-  <switchevent t="0.03151" en="3"/>
-  <switchevent t="0.03781" en="3"/>
-  <switchevent t="0.04411" en="4"/>
-  <switchevent t="0.05041" en="4"/>
-  <switchevent t="0.05671" en="5"/>
-  <switchevent t="0.06302" en="5"/>
-  <switchevent t="0.06932" en="6"/>
-  <switchevent t="0.07562" en="6"/>
+  <!-- max-steps=16384 -->
+  <switchevent t="0.003724" en="5"/>
+  <switchevent t="0.007447" en="4"/>
+  <switchevent t="0.01117" en="5"/>
+  <switchevent t="0.01489" en="3"/>
+  <switchevent t="0.01862" en="5"/>
+  <switchevent t="0.02234" en="4"/>
+  <switchevent t="0.02607" en="5"/>
+  <switchevent t="0.02979" en="1"/>
+  <switchevent t="0.03351" en="5"/>
+  <switchevent t="0.03724" en="4"/>
+  <switchevent t="0.04096" en="5"/>
+  <switchevent t="0.04468" en="3"/>
+  <switchevent t="0.04841" en="5"/>
+  <switchevent t="0.05213" en="4"/>
+  <switchevent t="0.05585" en="5"/>
+  <switchevent t="0.05958" en="6"/>
+  <switchevent t="0.0633" en="6"/>
+  <switchevent t="0.06703" en="2"/>
+  <switchevent t="0.07075" en="2"/>
+  <switchevent t="0.07447" en="5"/>
+  <switchevent t="0.0782" en="5"/>
 </cir>
