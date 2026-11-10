@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vitest/config'
+import { configDefaults, defineConfig, type Plugin } from 'vitest/config'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -178,6 +178,8 @@ export default defineConfig({
     // Several digital-optimization regression tests run real circuits out
     // to millions of ticks (comparing against an always-correct baseline)
     // and legitimately take longer than vitest's 5000ms default.
-    testTimeout: 60000
+    testTimeout: 60000,
+    // the UI tests are run by Playwright (npm run test:ui), not vitest
+    exclude: [...configDefaults.exclude, 'ui-tests/**'],
   }
 })

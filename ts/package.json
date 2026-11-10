@@ -8,13 +8,15 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:app": "tsx scripts/run-tests.ts"
+    "test:app": "tsx scripts/run-tests.ts",
+    "test:ui": "playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@playwright/test": "1.65",
     "@types/node": "^26.6.2",
     "playwright": "^1.65.0",
     "ts-morph": "^28.0.0",

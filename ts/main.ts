@@ -101,6 +101,10 @@ const app = new CirSim();
 await app.init({ SimulationManager, UIManager, ImageExporter, CommandManager, CircuitLoader,
                  registerElements, registerLastElements });
 
+// the UI tests (ui-tests/) reach into the app through this
+if (new URLSearchParams(window.location.search).has("uitest"))
+    (window as any).__app = app;
+
 // load circuit
 
 /*
