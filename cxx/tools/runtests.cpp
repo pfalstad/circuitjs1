@@ -185,6 +185,7 @@ int main(int argc, char **argv) {
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
     // free the circuit while the scopes and simulator it refers to are still here
     app.deleteAllElms();
+    app.processFreeList();
     app.scopeManager = nullptr;
     return failed > 0 || tm.results.empty() ? 1 : 0;
 }

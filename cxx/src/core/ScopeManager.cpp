@@ -150,9 +150,8 @@ void ScopeManager::deleteUnusedScopeElms() {
         CircuitElm *ce = sim->elmList[i];
         if (ce->isScopeElm() && static_cast<ScopeElm *>(ce)->elmScope != nullptr &&
                 static_cast<ScopeElm *>(ce)->elmScope->needToRemove()) {
-            ce->deleteElm();
             sim->elmList.erase(sim->elmList.begin() + i);
-            delete ce;
+            sim->addToFreeList(ce);
 
             // need to rebuild scopeElmArr
             sim->analyzeFlag = true;

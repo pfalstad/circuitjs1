@@ -27,18 +27,26 @@
 #include "../core/CustomLogicModel.h"
 #include "../core/ElementFactory.h"
 #include "../core/JsNumber.h"
+#include "../core/SimApp.h"
 #include "../core/StringTokenizer.h"
 #include "../core/SubcircuitModel.h"
 #include "../core/XmlDoc.h"
 #include "GroundElm.h"
 
 CompositeElm::~CompositeElm() {
-    clearChildren();
+    // (the children were on the free list along with this element, so they can go too)
+    for (CircuitElm *ce : compElmList)
+        delete ce;
 }
 
 void CompositeElm::clearChildren() {
-    for (CircuitElm *ce : compElmList)
-        delete ce;
+    // the simulator's lists still have the old children until the next stamp
+    for (CircuitElm *ce : compElmList) {
+        if (app != nullptr)
+            app->addToFreeListQuietly(ce);
+        else
+            delete ce;
+    }
     compElmList.clear();
 }
 

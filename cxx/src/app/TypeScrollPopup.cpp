@@ -120,10 +120,8 @@ void TypeScrollPopup::replaceElm(CircuitElm *newElm) {
     myElm = newElm;
     sim->scopeManager->deleteUnusedScopeElms();
     // (a gate this popup made, not the original)
-    if (old != originalElm) {
-        old->deleteElm();
-        delete old;
-    }
+    if (old != originalElm)
+        sim->addToFreeList(old);
 }
 
 void TypeScrollPopup::toggle(int dir) {
@@ -175,8 +173,7 @@ void TypeScrollPopup::revert() {
 
 void TypeScrollPopup::keep() {
     if (myElm != originalElm) {
-        originalElm->deleteElm();
-        delete originalElm;
+        sim->addToFreeList(originalElm);
         originalElm = myElm;
     }
 }

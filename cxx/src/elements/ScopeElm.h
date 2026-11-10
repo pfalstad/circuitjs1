@@ -41,6 +41,9 @@ public:
     void setElmScope(std::unique_ptr<Scope> s);
     void stepScope();
     void reset() override;
+    // frees the scope: the element stays in scopeElmArr until it's freed, and mustn't act
+    // like a scope there (see SimApp::addToFreeList())
+    void deleteElm() override;
     // (TS: clearElmScope(); here the caller takes ownership of the scope)
     std::unique_ptr<Scope> takeElmScope();
     bool canViewInScope() override { return false; }

@@ -50,6 +50,20 @@ public:
     // the circuit; elements are owned by this list
     std::vector<CircuitElm *> elmList;
 
+    // Removed elements aren't freed right away: the simulator's lists (sim->elmList,
+    // sim->elmArr, scopeElmArr, node links) and other caches keep pointing at them until
+    // the circuit is stamped again, which doesn't happen while the simulator is stopped.
+    // So take an element out of elmList, then addToFreeList() it, and
+    // SimulationManager::stampCircuit() frees it once those lists have been rebuilt.
+    // (In the garbage-collected TS version, removed elements live on the same way.)
+    std::vector<CircuitElm *> freeList;
+    // remove an element that was in the circuit: deleteElm() it now, free it later
+    void addToFreeList(CircuitElm *ce);
+    // free an element later, without calling deleteElm() (a composite's old children)
+    void addToFreeListQuietly(CircuitElm *ce) { freeList.push_back(ce); }
+    // free the elements on the free list; only safe when nothing refers to them any more
+    void processFreeList();
+
     // the list being displayed/edited (differs from elmList when viewing subcircuit internals)
     std::vector<CircuitElm *> *uiElmList = &elmList;
 
@@ -236,7 +250,7 @@ public:
     // the extent of the circuit being displayed (TS: UIManager.getCircuitBounds())
     std::optional<Rectangle> getCircuitBounds();
 
-    // free all elements
+    // remove all elements (adding them to the free list; see addToFreeList())
     void deleteAllElms();
     // tell every element to re-fetch its model (after a model is edited)
     void updateModels();

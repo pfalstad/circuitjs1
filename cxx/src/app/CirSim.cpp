@@ -217,6 +217,7 @@ CirSim::~CirSim() {
     cutItem = nullptr;  // stop enableDisableMenuItems() looking at deleted elements
     resetSubcircuitView();
     deleteAllElms();
+    processFreeList();
     Storage::localStorage = nullptr;
 }
 
@@ -1517,9 +1518,8 @@ void CirSim::doDelete(CircuitElm *menuElm) {
                 mouse.setMouseElm(nullptr);
             if (stopElm == ce)
                 stopElm = nullptr;
-            ce->deleteElm();
             elmList.erase(elmList.begin() + i);
-            delete ce;
+            addToFreeList(ce);
             hasDeleted = true;
         }
     }

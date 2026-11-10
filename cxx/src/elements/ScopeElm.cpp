@@ -120,5 +120,11 @@ void ScopeElm::draw(Graphics &g) {
 }
 
 void ScopeElm::selectScope(double mx, double my) {
-    elmScope->selectScope(mx, my);
+    if (elmScope)
+        elmScope->selectScope(mx, my);
+}
+
+void ScopeElm::deleteElm() {
+    elmScope.reset();
+    CircuitElm::deleteElm();
 }

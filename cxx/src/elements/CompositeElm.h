@@ -87,6 +87,6 @@ public:
     double getCurrentIntoNode(int n) override;
 
 protected:
-    // delete the current children (the TS version just drops them)
+    // drop the current children (adding them to the free list; see SimApp::addToFreeList())
     void clearChildren();
 };

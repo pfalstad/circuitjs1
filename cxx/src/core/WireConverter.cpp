@@ -132,8 +132,7 @@ void removeElm(std::vector<CircuitElm *> &elmList, CircuitElm *ce) {
     if (it == elmList.end())
         return;
     elmList.erase(it);
-    ce->deleteElm();
-    delete ce;
+    CircuitElm::app->addToFreeList(ce);
 }
 
 }  // namespace

@@ -159,9 +159,8 @@ void CirSim::addScopePopupItems(QMenu &menu, Scope *s, ScopeElm *se) {
             if (it != elmList.end()) {
                 if (mouse.getMouseElm() == se)
                     mouse.setMouseElm(nullptr);
-                se->deleteElm();
                 elmList.erase(it);
-                delete se;
+                addToFreeList(se);
             }
         }));
     } else {

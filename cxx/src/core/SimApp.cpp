@@ -31,6 +31,7 @@
 
 SimApp::~SimApp() {
     deleteAllElms();
+    processFreeList();
     for (Adjustable *adj : adjustables)
         delete adj;
     for (Adjustable *adj : retiredAdjustables)
@@ -74,9 +75,22 @@ void SimApp::deleteAllElms() {
     // elmList (e.g. ScopeManager::elementDeleted), which must not see freed elements
     std::vector<CircuitElm *> list;
     list.swap(elmList);
-    for (CircuitElm *ce : list) {
-        ce->deleteElm();
-        delete ce;
+    for (CircuitElm *ce : list)
+        addToFreeList(ce);
+}
+
+void SimApp::addToFreeList(CircuitElm *ce) {
+    ce->deleteElm();
+    freeList.push_back(ce);
+}
+
+void SimApp::processFreeList() {
+    // freeing a composite can add more elements to the list, so repeat until none are left
+    while (!freeList.empty()) {
+        std::vector<CircuitElm *> list;
+        list.swap(freeList);
+        for (CircuitElm *ce : list)
+            delete ce;
     }
 }
 

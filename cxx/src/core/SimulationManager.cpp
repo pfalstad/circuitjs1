@@ -979,6 +979,9 @@ void SimulationManager::stampCircuit() {
         if (ce->isScopeElm())
             app->scopeElmArr.push_back(ce);
 
+    // the lists that referred to removed elements have been rebuilt, so they can be freed
+    app->processFreeList();
+
     needsStamp = false;
 }
 

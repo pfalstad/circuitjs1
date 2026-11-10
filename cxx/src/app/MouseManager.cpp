@@ -246,7 +246,8 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     for (int i = 0; i < sm->scopeCount; i++)
         sm->scopes[i]->mousePressed(ex, ey);
     for (CircuitElm *ce : sim->scopeElmArr)
-        static_cast<ScopeElm *>(ce)->elmScope->mousePressed(ex, ey);
+        if (Scope *s = static_cast<ScopeElm *>(ce)->elmScope.get())  // (null if removed)
+            s->mousePressed(ex, ey);
 
     // alt-drag or middle-mouse-drag a scope's selected plot up/down while in manual scale mode
     if (Scope::cursorScope != nullptr && (e->button() == Qt::MiddleButton || (e->button() == Qt::LeftButton && alt)) &&
@@ -841,8 +842,7 @@ void MouseManager::removeZeroLengthElements() {
             list.erase(list.begin() + i);
             if (ce == mouseElm)
                 mouseElm = nullptr;
-            ce->deleteElm();
-            delete ce;
+            sim->addToFreeList(ce);
         }
     }
     sim->needAnalyze();
