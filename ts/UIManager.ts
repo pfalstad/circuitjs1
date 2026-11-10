@@ -516,8 +516,12 @@ export class UIManager {
     lastResizeTime: number = 0;
 
     // For tracking shift double-tap to open the command palette (see onKeyDown/onKeyUp).
-    private lastShiftKeyUpMs = 0;
-    private keyPressedSinceShiftUp = false;
+    // A Shift press only counts as a tap if Shift was pressed and released on its own, not
+    // used with another key (Shift-W) or the mouse (shift-drag); and the two taps only count
+    // as a double tap if nothing else was pressed in between.
+    private lastShiftKeyUpMs = 0;           // when the last tap ended, or 0 if it wasn't one
+    private shiftUsedWithOther = false;     // something else pressed while Shift is held
+    private keyPressedSinceShiftUp = false; // something else pressed since Shift was released
 
     constructor(app: CirSim) {
         this.app = app;
@@ -1649,6 +1653,14 @@ export class UIManager {
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup',   (e) => this.onKeyUp(e));
         document.addEventListener('keypress', (e) => this.onKeyPress(e));
+        // (a mouse button pressed during or between Shift taps means they're not a double tap)
+        document.addEventListener('mousedown', () => this.otherPressedForShiftTap(), true);
+        document.addEventListener('touchstart', () => this.otherPressedForShiftTap(), { capture: true, passive: true });
+    }
+
+    private otherPressedForShiftTap(): void {
+        this.shiftUsedWithOther = true;
+        this.keyPressedSinceShiftUp = true;
     }
 
     private onKeyDown(e: KeyboardEvent): void {
@@ -1668,16 +1680,18 @@ export class UIManager {
                 this.mouse.toolbarDragOrientationChanged(true);
 
                 const now = Date.now();
-                // Second Shift within 400 ms, with no other key in between, opens the palette.
+                // Second Shift tap within 400 ms of the first, with nothing else pressed in
+                // between, opens the palette.
                 if (this.lastShiftKeyUpMs > 0 && now - this.lastShiftKeyUpMs < 400 &&
                         !this.keyPressedSinceShiftUp && !this.dialogIsShowing()) {
                     this.app.commands.menuPerformed("key", "commandpalette");
                     e.preventDefault();
                     this.lastShiftKeyUpMs = 0;
                 }
+                this.shiftUsedWithOther = false;
             }
         } else if (!e.repeat) {
-            this.keyPressedSinceShiftUp = true;
+            this.otherPressedForShiftTap();
         }
 
         // a key pressed right after the property editor pops up may be meant for the circuit
@@ -1839,7 +1853,8 @@ export class UIManager {
             this.app.repaint();
             this.mouse.toolbarDragOrientationChanged(false);
 
-            this.lastShiftKeyUpMs = Date.now();
+            // (if Shift was used with something else, this wasn't a tap)
+            this.lastShiftKeyUpMs = this.shiftUsedWithOther ? 0 : Date.now();
             this.keyPressedSinceShiftUp = false;
         }
 
