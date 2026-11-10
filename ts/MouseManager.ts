@@ -1236,6 +1236,9 @@ export class MouseManager {
     private doPopupMenu(): void {
 	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
+	// bringing up the context menu means the user is done with the property editor
+	if (CirSim.editDialog != null)
+	    CirSim.editDialog.closeDialog();
 	this.menuElm = this.mouseElm;
 	this.sim.scopeManager.menuScope = -1;
 	this.sim.scopeManager.menuPlot  = -1;

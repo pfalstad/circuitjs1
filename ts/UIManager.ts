@@ -1680,6 +1680,12 @@ export class UIManager {
             this.keyPressedSinceShiftUp = true;
         }
 
+        // a key pressed right after the property editor pops up may be meant for the circuit
+        // instead; if so, close the editor and handle the key below as if it weren't there
+        const ed = CirSim.editDialog;
+        if (ed != null && ed.isShowing() && !this.modalDialogIsShowing() && ed.shouldPassKeyThrough(e))
+            ed.closeDialog();
+
         if (this.dialogIsShowing()) {
             if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing()) {
                 if (code === KEY_ESCAPE || code === KEY_SPACE)

@@ -55,6 +55,7 @@ export class EditDialog extends Dialog {
     private activeColCount: number = 0;
     private firstInput: HTMLInputElement | HTMLTextAreaElement | null = null;
     private firstInputNumeric: boolean = false;
+    private untouched = true;    // no key pressed or mouse clicked in it yet
     protected applyButton: HTMLButtonElement;
 
     constructor(ce: Editable, f: CirSim) {
@@ -128,32 +129,43 @@ export class EditDialog extends Dialog {
             requestAnimationFrame(() => { inp.focus(); inp.select(); });
         }
 
-        if (this.firstInputNumeric && ce instanceof CircuitElm)
-            this.passShortcutsThrough();
+        this.dialogEl.addEventListener("mousedown", () => { this.untouched = false; });
     }
 
-    // The editor pops up with its first field focused whenever an element is created, so you
-    // can place a resistor, type 10k and press Enter. But a letter can't start a numeric value,
-    // so if one is typed into that field before it's been touched and it's a tool shortcut,
-    // the user is moving on to the next element: close the editor and act on the shortcut.
-    private passShortcutsThrough(): void {
-        const inp = this.firstInput as HTMLInputElement;
-        let untouched = true;
-        this.dialogEl.addEventListener("mousedown", () => { untouched = false; });
-        inp.addEventListener("keydown", (e: KeyboardEvent) => {
-            const wasUntouched = untouched;
-            untouched = false;
-            if (!wasUntouched || e.ctrlKey || e.metaKey || e.altKey || !/^[a-zA-Z]$/.test(e.key))
-                return;
-            const cc = e.key.charCodeAt(0);
-            if (this.cframe.shortcuts.get(cc) == null)
-                return;
-            e.preventDefault();
-            e.stopPropagation();
-            this.closeDialog();
-            this.cframe.ui.doToolShortcut(cc);
-        });
+    // The editor pops up whenever an element is created or clicked, with its first text field
+    // (if any) focused, so you can place a resistor, type 10k and press Enter.  If the first key
+    // pressed before the editor has been touched can't start a number, the user is moving on:
+    // UIManager.onKeyDown() asks this, closes the editor, and then handles the key as usual
+    // (tool shortcuts, Delete, Ctrl-C and so on).
+    shouldPassKeyThrough(e: KeyboardEvent): boolean {
+        if (!this.untouched || !(this.elm instanceof CircuitElm))
+            return false;
+        // (a modifier pressed on its own, e.g. Shift on the way to a shortcut, doesn't count)
+        if (["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key))
+            return false;
+        this.untouched = false;
+        // (Space toggles a checkbox or opens a dropdown)
+        if (e.key === "Enter" || e.key === "Escape" || e.key === " ")
+            return false;
+        const focus = document.activeElement;
+        if (focus == null || !this.dialogEl.contains(focus))
+            return true;
+        if (EditDialog.NAV_KEYS.has(e.key))
+            return false;
+        if (focus instanceof HTMLTextAreaElement ||
+            (focus instanceof HTMLInputElement && focus.type === "text")) {
+            // a text field (a label, say) takes any key; a numeric one only what starts a number
+            if (focus !== this.firstInput || !this.firstInputNumeric)
+                return false;
+            return !(!e.ctrlKey && !e.metaKey && !e.altKey && /^[0-9.\-]$/.test(e.key));
+        }
+        return true;
     }
+
+    // keys that move around within the focused field or the editor
+    private static readonly NAV_KEYS = new Set([
+        "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End",
+    ]);
 
     private addColumn(): HTMLDivElement {
         const col = document.createElement("div");
