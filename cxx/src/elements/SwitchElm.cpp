@@ -126,6 +126,7 @@ void SwitchElm::simpleToggle() {
 }
 
 void SwitchElm::toggle() {
+    CircuitElm::recordToggle(this);
     simpleToggle();
     if (label) {
         for (CircuitElm *o : sim->elmList) {

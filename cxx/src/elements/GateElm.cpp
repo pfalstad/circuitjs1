@@ -80,8 +80,17 @@ void GateElm::dumpXml(XmlElement *doc, XmlElement *elem) {
 }
 
 void GateElm::dumpXmlState(XmlElement *, XmlElement *elem) {
-    if (nodes[inputCount]->v != 0)
-        CircuitXMLSerializer::dumpAttr(elem, "o", nodes[inputCount]->v);
+    // until the first step after a load, the output is the one that was loaded (the node's
+    // voltage is still 0)
+    double v = justLoaded ? (lastOutput ? highVoltage : 0) : nodes[inputCount]->v;
+    if (v != 0)
+        CircuitXMLSerializer::dumpAttr(elem, "o", v);
+}
+
+void GateElm::reset() {
+    CircuitElm::reset();
+    // compute the output from the inputs, not from the output that was loaded
+    justLoaded = false;
 }
 
 void GateElm::undumpXml(CircuitXMLDeserializer &xml) {

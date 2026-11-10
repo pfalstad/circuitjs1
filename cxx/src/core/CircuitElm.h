@@ -429,6 +429,8 @@ public:
     virtual bool isScopeElm() { return false; }
     virtual bool isGraphicElm() { return false; }
     virtual bool isRoutedWireElm() { return false; }
+    // a switch was toggled, by the user or a test (for recording tests)
+    static void recordToggle(CircuitElm *ce);
     virtual bool isSwitchElm() { return false; }
     // whether to automatically bring up the property editor when this element is created
     // (overridden to false for elements whose settings are rarely changed on creation)

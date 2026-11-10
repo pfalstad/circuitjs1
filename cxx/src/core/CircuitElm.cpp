@@ -40,6 +40,11 @@ CircuitElm *CircuitElm::mouseElmRef = nullptr;
 
 static int imin(int a, int b) { return a < b ? a : b; }
 
+void CircuitElm::recordToggle(CircuitElm *ce) {
+    if (SimulationManager::testHooks)
+        SimulationManager::testHooks->recordSwitchToggle(ce);
+}
+
 CircuitElm::CircuitElm(int xx, int yy) {
     x = x2 = xx;
     y = y2 = yy;

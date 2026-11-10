@@ -18,12 +18,16 @@
 */
 
 #include <QApplication>
+#include <QTimer>
 
 #include <clocale>
+#include <cstdio>
+#include <optional>
 
 #include "CirSim.h"
 #include "ConsoleDialog.h"
 #include "QtGraphics.h"
+#include "core/TestManager.h"
 
 int main(int argc, char **argv) {
     QApplication qapp(argc, argv);
@@ -72,7 +76,66 @@ int main(int argc, char **argv) {
         app.scheduleScreenshot(args[shot + 1], frames);
         args.remove(shot, 2);
     }
-    if (!args.isEmpty())
+    // regression tests (core/TestManager.h): --test file or --testlist file runs them,
+    // --testui adds the Start/Stop/Cancel Test buttons for recording one.  --teststeps n
+    // sets the time steps per batch for tests that don't say.  --headless prints the results instead of showing them, and quits when
+    // done, with exit status 1 if any test failed (add -platform offscreen for no window).
+    auto takeOption = [&](const QString &name) -> std::optional<QString> {
+        int i = args.indexOf(name);
+        if (i < 0 || i + 1 >= args.size())
+            return std::nullopt;
+        QString v = args[i + 1];
+        args.remove(i, 2);
+        return v;
+    };
+    auto takeFlag = [&](const QString &name) {
+        int i = args.indexOf(name);
+        if (i >= 0)
+            args.remove(i);
+        return i >= 0;
+    };
+    std::optional<QString> testFile = takeOption("--test");
+    std::optional<QString> testList = takeOption("--testlist");
+    std::optional<QString> testSteps = takeOption("--teststeps");
+    bool testUi = takeFlag("--testui");
+    bool headless = takeFlag("--headless");
+    if (testFile || testList || testUi) {
+        TestManager *tm = app.getTestManager();
+        tm->headless = headless;
+        if (testSteps && testSteps->toInt() > 0)
+            tm->stepsPerFrame = testSteps->toInt();
+        if (testUi)
+            app.addTestButtons();
+        if (headless) {
+            tm->onResult = [](const TestResult &r) {
+                std::string s = (r.pass ? "PASS " : "FAIL ") + r.name;
+                for (auto *v : {&r.failures, &r.errors})
+                    for (auto &m : *v)
+                        s += "\n    " + m;
+                std::printf("%s\n", s.c_str());
+                std::fflush(stdout);
+            };
+            tm->onFinish = [tm] {
+                size_t failed = 0;
+                for (auto &r : tm->results)
+                    failed += !r.pass;
+                std::printf("\n%zu tests, %zu passed, %zu failed\n", tm->results.size(), tm->results.size() - failed,
+                            failed);
+                std::fflush(stdout);
+                int code = failed > 0 || tm->results.empty() ? 1 : 0;
+                QTimer::singleShot(0, [code] { QApplication::exit(code); });
+            };
+        }
+    }
+    if (testFile || testList) {
+        // after the window is up, as the web version runs them after init()
+        QTimer::singleShot(0, &app, [&app, testFile, testList] {
+            if (testFile)
+                app.getTestManager()->runTest(testFile->toStdString());
+            else
+                app.getTestManager()->runTestList(testList->toStdString());
+        });
+    } else if (!args.isEmpty())
         app.loadFile(args[0]);
     else
         app.loadDefaultCircuit();

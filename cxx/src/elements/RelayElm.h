@@ -102,6 +102,8 @@ public:
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void draw(Graphics &g) override;
+    // what a scope shows: the coil's current (the info box shows each switch's too)
+    double getCurrent() override { return coilCurrent; }
     double getCurrentIntoNode(int n) override;
     void setPoints() override;
     Point getPost(int n) override;

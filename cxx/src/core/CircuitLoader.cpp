@@ -49,6 +49,11 @@ void CircuitLoader::clearCircuit() {
     // (before the elements go away, since the subcircuit view shows some of them)
     app->resetSubcircuitView();
     app->deleteAllElms();
+    // the simulator's lists (with subcircuits' elements) still have the deleted elements
+    // until the next analyze, and new elements look at them while loading (an audio
+    // output picks its label number)
+    sim->elmList.clear();
+    sim->elmArr.clear();
     sim->resetTime();
     sim->solverType = SimulationManager::SOLVER_AUTO;
     sim->maxTimeStep = 5e-6;

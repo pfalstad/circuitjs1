@@ -51,6 +51,8 @@ public:
     void setGain();
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
+    void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
+    void reset() override;
     bool nonLinear() override { return true; }
     double getPower() override { return nodes[2]->v * current; }
     void setSize(int s);

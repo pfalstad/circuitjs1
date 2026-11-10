@@ -225,7 +225,8 @@ loadCircuit(app, sim, fs.readFileSync(file, "utf8"), dump);
 if (dump) {
     // the same as CirSim.dumpCircuit()
     ModelRegistry.clearAllDumpedFlags();
-    process.stdout.write(new CircuitXMLSerializer(app).dumpCircuit());
+    // exit once it's written: a pipe takes only 64K at a time
+    await new Promise(r => process.stdout.write(new CircuitXMLSerializer(app).dumpCircuit(), r));
     process.exit(0);
 }
 
@@ -236,6 +237,32 @@ sim.lastIterTime = 1;
 // SOLVER=n overrides the circuit's matrix solver (0=auto, 1=dense, 2=sparse)
 if (process.env.SOLVER)
     sim.solverType = parseInt(process.env.SOLVER);
+
+// as a regression test runs it (TestManager): SEED=1 gives it the seeded random numbers,
+// RESET=1 resets it after loading, BATCH=n runs n time steps per runCircuit() call
+if (process.env.SEED) {
+    let a = 12345;
+    const next = () => {
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    app.random = { nextInt: () => Math.floor(next() * 2147483647), nextDouble: next };
+    app.getrand = (x: number) => { let q = app.random.nextInt(); if (q < 0) q = -q; return q % x; };
+}
+if (process.env.RESET) {
+    sim.resetTime();
+    for (const ce of app.elmList)
+        ce.reset();
+    sim.resetNodes();
+}
+if (process.env.BATCH) {
+    const n = parseInt(process.env.BATCH);
+    SimulationManager.testHooks = { fixedStepsPerFrame: () => n, batchesPerFrame: () => 1,
+                                    clampTimeStep: (_t: number, ts: number) => ts, checkTime: () => false,
+                                    recordSwitchToggle: () => {} };
+}
 
 sim.analyzeCircuit();
 sim.preStampAndStampCircuit();

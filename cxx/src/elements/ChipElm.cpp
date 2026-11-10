@@ -468,6 +468,7 @@ void ChipElm::reset() {
         pins[i].curcount = 0;
     }
     lastClock = false;
+    justLoaded = false;
 }
 
 void ChipElm::dumpXml(XmlElement *doc, XmlElement *elem) {
@@ -487,9 +488,15 @@ void ChipElm::dumpXml(XmlElement *doc, XmlElement *elem) {
 }
 
 void ChipElm::dumpXmlState(XmlElement *, XmlElement *elem) {
-    for (int i = 0; i != getPostCount(); i++)
-        if (pins[i].state && nodes[i]->v > 0)
-            CircuitXMLSerializer::dumpAttr(elem, "v" + std::to_string(i), nodes[i]->v);
+    for (int i = 0; i != getPostCount(); i++) {
+        if (!pins[i].state)
+            continue;
+        // until the first step after a load, the state is the pin values that were loaded
+        // (the nodes' voltages are still 0)
+        double v = justLoaded ? (pins[i].value ? highVoltage : 0) : nodes[i]->v;
+        if (v > 0)
+            CircuitXMLSerializer::dumpAttr(elem, "v" + std::to_string(i), v);
+    }
 }
 
 void ChipElm::undumpXml(CircuitXMLDeserializer &xml) {

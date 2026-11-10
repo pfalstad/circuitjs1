@@ -20,6 +20,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <cmath>
 #include <optional>
@@ -204,7 +205,11 @@ public:
         return (double) duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
     }
 
-    virtual double randomDouble() { return dist(rng); }
+    // set by TestManager, so tests get the same random numbers each time
+    std::function<double()> randomSource;
+    virtual double randomDouble() { return randomSource ? randomSource() : dist(rng); }
+    // for drawing (Math.random() in the TS version), which mustn't use up a test's numbers
+    double drawRandom() { return dist(rng); }
     virtual int randomInt() { return (int) (randomDouble() * 2147483647); }
 
     bool isPrintable() const { return options.printable; }
@@ -256,6 +261,14 @@ public:
     // are we editing a model's circuit?
     virtual bool isEditingContext() { return false; }
     virtual void readCircuit(const std::string &text, int flags = 0) {}
+    // the Reset button
+    virtual void resetAction();
+    // analyze the circuit before the next time step
+    virtual void needAnalyze() { analyzeFlag = true; }
+    // the circuit as saved XML (false: without state or scopes; see CircuitXMLSerializer)
+    virtual std::string dumpCircuit(bool saveState = true);
+    // shown under "Current Circuit:"
+    virtual void setCircuitTitle(const std::string &) {}
     // the circuit is about to be replaced (a post selection refers to the old elements)
     virtual void clearPostSelection() {}
     // replace the circuit with the elements in doc (CircuitXMLDeserializer.readCircuitFromDoc())

@@ -40,6 +40,7 @@
 #include "UndoManager.h"
 
 class CirSim;
+class TestManager;
 class QAction;
 struct PanelButton;
 class QActionGroup;
@@ -126,7 +127,7 @@ public:
     std::unique_ptr<UndoManager> undoManager;
     bool unsavedChanges = false;
     QString filePath;  // where Save writes; empty for new circuits and the examples
-    std::string dumpCircuit(bool saveState = true);  // false: without state or scopes (see CircuitXMLSerializer)
+    std::string dumpCircuit(bool saveState = true) override;  // false: without state or scopes (see CircuitXMLSerializer)
     // the dump without the sidebar slider settings (simulation speed, current speed, power
     // brightness), so moving a slider doesn't count as a change to the circuit
     static std::string withoutSliders(const std::string &dump);
@@ -140,7 +141,7 @@ public:
     void newBlankCircuit();
     void closeEvent(QCloseEvent *e) override;
     void resizeEvent(QResizeEvent *e) override;
-    void needAnalyze();
+    void needAnalyze() override;
     void repaint() override;
     bool sliderItemEnabled(CircuitElm *elm);
     void doSliders(CircuitElm *ce);
@@ -162,6 +163,11 @@ public:
 
     // one frame: analyze if needed, run the simulation, draw everything
     void updateCircuit(QPainter &painter);
+    // analyze if needed and run a batch of time steps
+    void runBatch(class PerfMonitor *perfmon, bool run);
+    // a test is running (not being recorded): the timer runs the simulation, not the frames
+    bool runningTest() const;
+    void runTestBatches();
 
     QWidget *canvasWidget() const { return (QWidget *) canvas; }
 
@@ -170,8 +176,17 @@ public:
 
     void centerCircuit();
     void openFile();
-    void resetAction();
     void setCircuitTitle(const QString &title);
+    void setCircuitTitle(const std::string &title) override { setCircuitTitle(QString::fromStdString(title)); }
+
+    // regression tests (core/TestManager.h): created by --test, --testlist or --testui
+    std::unique_ptr<TestManager> testManager;
+    TestManager *getTestManager();
+    // the Start/Stop/Cancel Test buttons (--testui)
+    void addTestButtons();
+    void startTestRecording();
+    void stopTestRecording();
+    void cancelTestRecording();
     void setPowerBarEnable();
 
     // current mouse mode as a class name ("ResistorElm") or mode ("Select", "DragAll", ...)

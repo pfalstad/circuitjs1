@@ -51,6 +51,7 @@
 #include "core/ElementFactory.h"
 #include "core/SimApp.h"
 #include "core/SimulationManager.h"
+#include "core/TestManager.h"
 #include "core/JsNumber.h"
 #include "elements/ChipElm.h"
 #include "elements/AudioOutputElm.h"
@@ -63,8 +64,8 @@ class TraceApp : public SimApp {
 public:
     double getIterCount() override { return 1; }
     double currentTimeMillis() override { return 1e12; }
-    double randomDouble() override { return 0.5; }
-    int randomInt() override { return 0; }
+    double randomDouble() override { return randomSource ? randomSource() : 0.5; }
+    int randomInt() override { return randomSource ? SimApp::randomInt() : 0; }
 };
 
 // an old-format text line for an element at its defaults (type, position and flags only)
@@ -260,6 +261,30 @@ int main(int argc, char **argv) {
     // SOLVER=n overrides the circuit's matrix solver (0=auto, 1=dense, 2=sparse)
     if (const char *so = std::getenv("SOLVER"))
         sim.solverType = std::atoi(so);
+
+    // as a regression test runs it (TestManager): SEED=1 gives it the seeded random numbers,
+    // RESET=1 resets it after loading, BATCH=n runs n time steps per runCircuit() call
+    TestManager tm(&app, &sim);
+    SimulationManager::testHooks = nullptr;
+    if (std::getenv("SEED"))
+        tm.seedRandom();
+    if (std::getenv("RESET")) {
+        sim.resetTime();
+        for (CircuitElm *ce : app.elmList)
+            ce->reset();
+        sim.resetNodes();
+    }
+    struct BatchHooks : TestHooks {
+        int n = 0;
+        int fixedStepsPerFrame() override { return n; }
+        double clampTimeStep(double, double ts) override { return ts; }
+        bool checkTime() override { return false; }
+        void recordSwitchToggle(CircuitElm *) override {}
+    } batchHooks;
+    if (const char *b = std::getenv("BATCH")) {
+        batchHooks.n = std::atoi(b);
+        SimulationManager::testHooks = &batchHooks;
+    }
 
     sim.analyzeCircuit();
     sim.preStampAndStampCircuit();

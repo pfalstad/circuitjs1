@@ -59,6 +59,42 @@ after the run.
 `--dump` loads a circuit and prints it as saved XML. Circuits with unported
 elements are skipped.
 
+`SEED=1`, `RESET=1` and `BATCH=n` make both tools run a circuit the way a regression test
+does: with the seeded random numbers, reset after loading, and n time steps per batch.
+
+### Regression tests
+
+The tests in `../auto-tests` (see `src/core/TestManager.h`, a port of `TestManager.ts`)
+replay recorded switch clicks and compare the scopes with what was recorded.
+`runtests` runs them headless, without Qt or drawing:
+
+    build-mac/runtests                                  # ../auto-tests/tests.txt
+    build-mac/runtests --list=../auto-tests/gen/tests.txt
+    build-mac/runtests ../auto-tests/lrc.txt            # files relative to the current directory
+
+`--steps=N` sets the time steps per batch for tests that don't say (200, as
+`ts/scripts/run-tests.ts` uses), `-v` prints the simulator's console messages, and
+`TRACE=1` prints the node voltages after each batch.  It exits with status 1 if any test fails.
+
+The app runs them too, drawing included, as `?test=`/`?testlist=` do on the web page:
+
+    CircuitJS1 --test file | --testlist file [--teststeps 200] [--headless]
+
+While a test runs, the app runs batches of time steps back to back and draws about 60
+times a second, so tests run as fast as the machine allows (`?testbatches=` isn't needed),
+even when the window is hidden.
+
+`--headless` prints the results instead of showing them and quits when done, with exit
+status 1 if any test failed; add Qt's `-platform offscreen` for no window.  `--testui`
+adds Start/Stop/Cancel Test buttons to the side panel for recording a test: Start resets
+the circuit and records switch clicks, Stop saves the circuit with the test added.
+
+Six generated tests fail here but pass in Chrome: `multivib-a`, `tdrelax`, `ujtosc`,
+`vilnius`, `cir-relax-741` and `circuit-324`.  Recent Chrome (156) computes `Math.exp`,
+`Math.pow`, `Math.sin` and others differently in the last bit from Node's fdlibm, which
+the C++ core reproduces, and these relaxation oscillators magnify that past the tests'
+tolerance (the C++ results match Node's step for step).
+
 ## Porting conventions
 
 - Each TS class keeps its name, file name, method names and comments.

@@ -36,6 +36,10 @@ target_include_directories(circuitcore PUBLIC src)
 # headless trace tool, compared against tools/simtrace.ts by tools/compare.py
 add_executable(simtrace tools/simtrace.cpp)
 target_link_libraries(simtrace circuitcore)
+# headless regression test runner (core/TestManager.h)
+add_executable(runtests tools/runtests.cpp)
+target_link_libraries(runtests circuitcore)
+target_compile_definitions(runtests PRIVATE AUTO_TESTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../auto-tests/")
 add_executable(exprtest tools/exprtest.cpp)
 target_link_libraries(exprtest circuitcore)
 
@@ -49,6 +53,12 @@ endif()
 if(NOT CMAKE_PREFIX_PATH AND MSVC AND EXISTS "$ENV{USERPROFILE}/Qt/6.8.3/msvc2022_64")
     file(TO_CMAKE_PATH "$ENV{USERPROFILE}/Qt/6.8.3/msvc2022_64" QT_WIN_DIR)
     list(APPEND CMAKE_PREFIX_PATH "${QT_WIN_DIR}")
+endif()
+# Qt 6.8's FindWrapOpenGL links AGL, which recent macOS SDKs no longer have; link OpenGL
+# (which it links anyway) in its place
+# (or the AGL an older SDK had, which a build directory configured with it still names)
+if(APPLE AND NOT (WrapOpenGL_AGL MATCHES "^/" AND EXISTS "${WrapOpenGL_AGL}"))
+    set(WrapOpenGL_AGL "-framework OpenGL" CACHE STRING "stands in for AGL, gone from recent macOS SDKs" FORCE)
 endif()
 find_package(Qt6 COMPONENTS Widgets Svg PrintSupport)
 if(Qt6_FOUND)

@@ -22,6 +22,7 @@
 #include <QRegularExpression>
 
 #include <QApplication>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -59,6 +60,24 @@ static QSlider *makeSlider(int value, int min, int max) {
     s->setValue(value);
     s->setPageStep((max - min) / 10);
     return s;
+}
+
+void Sidebar::addTestButtons() {
+    // Start and Stop side by side, Cancel under them
+    QGridLayout *grid = new QGridLayout();
+    grid->setSpacing(4);
+    auto add = [&](const char *text, void (CirSim::*f)(), int row, int col, int colSpan) {
+        QPushButton *b = new QPushButton(LS(text));
+        b->setFocusPolicy(Qt::NoFocus);
+        fitButton(b, colSpan == 2 ? WIDTH - 12 : (WIDTH - 12 - 4) / 2);
+        grid->addWidget(b, row, col, 1, colSpan);
+        connect(b, &QPushButton::clicked, this, [this, f] { (app->*f)(); });
+    };
+    add("Start Test", &CirSim::startTestRecording, 0, 0, 1);
+    add("Stop Test", &CirSim::stopTestRecording, 0, 1, 1);
+    add("Cancel Test", &CirSim::cancelTestRecording, 1, 0, 2);
+    // under Reset and Run/Stop
+    layout->insertLayout(1, grid);
 }
 
 Sidebar::Sidebar(CirSim *a) : QWidget(a), app(a) {

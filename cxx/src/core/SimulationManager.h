@@ -62,10 +62,29 @@ struct NodeMapEntry {
     explicit NodeMapEntry(NodeRef n) : node(std::move(n)) {}
 };
 
+// what the simulator asks the test runner (TestManager) while a test runs or is recorded
+class TestHooks {
+public:
+    virtual ~TestHooks() = default;
+    // time steps per batch while testing or recording, 0 otherwise
+    virtual int fixedStepsPerFrame() = 0;
+    // shorten the time step to land exactly on the next switch event or the end of the test
+    virtual double clampTimeStep(double t, double timeStep) = 0;
+    // called after each time step; returns true to end the batch
+    virtual bool checkTime() = 0;
+    // a switch was toggled, by the user or a test
+    virtual void recordSwitchToggle(CircuitElm *ce) = 0;
+};
+
 class SimulationManager {
 public:
     SimApp *app;
     static SimulationManager *theSim;
+    // set by TestManager
+    static TestHooks *testHooks;
+    // time steps since reset, so that with a fixed number of steps per batch while testing,
+    // the batches always end at the same steps
+    long stepsSinceReset = 0;
 
     // this is different than the main elmList; it has CompositeElm child elms in it
     std::vector<CircuitElm *> elmList;
@@ -122,7 +141,7 @@ public:
 
     static void console(const std::string &text);
 
-    void resetTime() { t = timeStepAccum = 0; timeStepCount = 0; }
+    void resetTime() { t = timeStepAccum = 0; timeStepCount = 0; stepsSinceReset = 0; }
     void resetNodes();
     CircuitNode *getCircuitNode(int n);
     CircuitElm *getElm(int n);

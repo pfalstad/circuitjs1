@@ -43,6 +43,8 @@ public:
     void setSimRunning(bool running);
     void setPowerBarEnable(bool enabled);
     void setCircuitTitle(const QString &title);
+    // the Start/Stop/Cancel Test buttons (--testui)
+    void addTestButtons();
     QString circuitTitle() const;
 
     // the circuit's sliders (Adjustable, VarRailElm, etc.), added at the bottom like the

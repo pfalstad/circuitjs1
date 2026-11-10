@@ -101,6 +101,7 @@ void BusLogicInputElm::draw(Graphics &g) {
 }
 
 void BusLogicInputElm::toggle() {
+    CircuitElm::recordToggle(this);
     value++;
     if (value >= (int32_t) (1u << (busWidth & 31)))
         value = 0;

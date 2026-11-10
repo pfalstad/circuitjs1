@@ -79,13 +79,39 @@ void OpAmpElm::dumpXml(XmlElement *doc, XmlElement *elem) {
     CircuitXMLSerializer::dumpAttr(elem, "ga", gain);
 }
 
+// the input voltage difference, which the first time step uses (as the text format's
+// saved input voltages do), so a running circuit picks up where it was saved.  Until
+// that step, it's the one that was loaded
+void OpAmpElm::dumpXmlState(XmlElement *, XmlElement *elem) {
+    double vd = justLoaded ? savedVd : nodes[1]->v - nodes[0]->v;
+    if (vd != 0)
+        CircuitXMLSerializer::dumpAttr(elem, "vd", vd);
+}
+
 void OpAmpElm::undumpXml(CircuitXMLDeserializer &xml) {
-    flags = 0;  // size might have changed
+    // "ix" is present when a subcircuit restores the state of an op-amp inside it, which
+    // already has its flags (the state element has no "f", so zeroing them would lose
+    // them); see GateElm
+    bool stateRestore = xml.parseStringAttr("ix", std::nullopt).has_value();
+    if (!stateRestore)
+        flags = 0;  // size might have changed
     CircuitElm::undumpXml(xml);
     maxOut = xml.parseDoubleAttr("ma", maxOut);
     minOut = xml.parseDoubleAttr("mi", minOut);
     gain = xml.parseDoubleAttr("ga", gain);
+    if (xml.parseStringAttr("vd", std::nullopt).has_value()) {
+        savedVd = xml.parseDoubleAttr("vd", 0);
+        justLoaded = true;
+    }
     setSize((flags & FLAG_SMALL) != 0 ? 1 : 2);
+}
+
+void OpAmpElm::reset() {
+    CircuitElm::reset();
+    // start from zero, not from the voltage difference that was loaded.  lastvd is kept,
+    // as in the Java version: which way the op-amp was saturated gets an oscillator
+    // going again after a reset
+    justLoaded = false;
 }
 
 void OpAmpElm::setSize(int s) {

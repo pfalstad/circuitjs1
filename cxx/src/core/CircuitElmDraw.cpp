@@ -161,7 +161,7 @@ void CircuitElm::drawDots(Graphics &g, const Point &pa, const Point &pb, double 
         g.lineTo(pb.x, pb.y);
         g.stroke();
         g.restore();
-        pos = app->randomDouble() * ds;
+        pos = app->drawRandom() * ds;
     }
     pos = std::fmod(pos, ds);
     if (pos < 0)

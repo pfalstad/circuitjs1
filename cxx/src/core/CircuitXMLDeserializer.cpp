@@ -39,6 +39,7 @@
 #include "JsNumber.h"
 #include "SimApp.h"
 #include "StringTokenizer.h"
+#include "TestManager.h"
 #include "XmlDoc.h"
 
 void CircuitXMLDeserializer::readElements(const XmlElement *root, bool subcircuitsOnly) {
@@ -94,6 +95,23 @@ void CircuitXMLDeserializer::readElements(const XmlElement *root, bool subcircui
         if (elem->tagName == "ccm") {
             currentXmlElement = elem;
             SubcircuitModel::undumpModelXml(*this);
+            continue;
+        }
+        if (elem->tagName == "test") {
+            if (TestManager *tm = TestManager::theManager)
+                tm->saveTestTag(parseDoubleAttr("len", -1), parseIntAttr("spf", 0), parseIntAttr("noreset", 0) != 0);
+            continue;
+        }
+        if (elem->tagName == "switchevent") {
+            if (TestManager *tm = TestManager::theManager)
+                tm->saveSwitchEvent(parseDoubleAttr("t", 0), parseIntAttr("en", -1));
+            continue;
+        }
+        if (elem->tagName == "scopedata") {
+            if (TestManager *tm = TestManager::theManager)
+                tm->saveScopeDataTag(parseIntAttr("si", -1), parseIntAttr("pi", -1), parseIntAttr("en", -1),
+                                     parseIntAttr("v", 0), parseIntAttr("u", 0), parseIntAttr("sp", 1),
+                                     parseDoubleAttr("ts", 0), parseDoubleArray(parseContents()));
             continue;
         }
         if (elem->getAttribute("x") == nullptr)

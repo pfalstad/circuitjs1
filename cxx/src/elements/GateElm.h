@@ -61,6 +61,7 @@ public:
     void setSize(int s);
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
+    void reset() override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     std::string getXmlDumpType() override;
     void setPoints() override;

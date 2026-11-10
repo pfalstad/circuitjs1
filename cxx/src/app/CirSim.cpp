@@ -67,6 +67,7 @@
 #include "core/Locale.h"
 #include "core/Scope.h"
 #include "core/CircuitXMLSerializer.h"
+#include "core/TestManager.h"
 #include "core/CustomLogicModel.h"
 #include "core/ModelTypes.h"
 #include "core/MosfetModel.h"
@@ -203,7 +204,11 @@ CirSim::CirSim() {
     }
 
     // the TS version redraws on a 16ms timer while the simulation runs
-    connect(&timer, &QTimer::timeout, canvas, [this] { canvas->update(); });
+    connect(&timer, &QTimer::timeout, canvas, [this] {
+        if (runningTest())
+            runTestBatches();
+        canvas->update();
+    });
     timer.start(16);
 }
 
@@ -743,18 +748,34 @@ void CirSim::setSimRunning(bool s) {
         sidebar->setSimRunning(simRunning);
 }
 
-void CirSim::resetAction() {
-    analyzeFlag = true;
-    if (autoDCOnReset)
-        dcAnalysisFlag = true;
-    if (sim->t == 0)
-        setSimRunning(true);
-    sim->resetTime();
-    for (CircuitElm *ce : elmList)
-        ce->reset();
-    sim->resetNodes();
-    scopeManager->resetGraphs();
-    canvas->update();
+TestManager *CirSim::getTestManager() {
+    if (!testManager)
+        testManager = std::make_unique<TestManager>(this, sim.get());
+    return testManager.get();
+}
+
+void CirSim::addTestButtons() {
+    sidebar->addTestButtons();
+}
+
+void CirSim::startTestRecording() {
+    getTestManager()->startRecording();
+}
+
+void CirSim::stopTestRecording() {
+    if (!testManager)
+        return;
+    std::optional<std::string> dump = testManager->stopRecording();
+    if (!dump)
+        return;
+    QString name = filePath.isEmpty() ? "circuitjs-" + QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss") + ".txt"
+                                      : QFileInfo(filePath).fileName();
+    saveFile(std::vector<unsigned char>(dump->begin(), dump->end()), name.toStdString());
+}
+
+void CirSim::cancelTestRecording() {
+    if (testManager)
+        testManager->cancelRecording();
 }
 
 void CirSim::setColors() {
@@ -884,40 +905,89 @@ void CirSim::centerCircuit() {
     }
 }
 
+bool CirSim::runningTest() const {
+    return testManager && testManager->testRunning && !testManager->recording;
+}
+
+// analyze the circuit if it changed and run a batch of time steps (if run): what each frame
+// does before drawing
+void CirSim::runBatch(PerfMonitor *perfmon, bool run) {
+    auto start = [&](const char *name) { if (perfmon) perfmon->startContext(name); };
+    auto stop = [&] { if (perfmon) perfmon->stopContext(); };
+    bool didAnalyze = analyzeFlag;
+    if (analyzeFlag || dcAnalysisFlag) {
+        start("analyzeCircuit()");
+        sim->analyzeCircuit();
+        analyzeFlag = false;
+        stop();
+    }
+
+    if (sim->needsStamp && simRunning) {
+        start("stampCircuit()");
+        try {
+            sim->preStampAndStampCircuit();
+        } catch (std::exception &e) {
+            sim->stop("Exception in stampCircuit()", nullptr);
+            SimulationManager::console(std::string("Exception in stampCircuit: ") + e.what());
+            if (testManager)
+                testManager->addError(std::string("exception in stampCircuit: ") + e.what());
+        }
+        stop();
+    }
+
+    scopeManager->setupScopes();
+
+    if (simRunning && run) {
+        start("runCircuit()");
+        try {
+            sim->runCircuit(didAnalyze);
+        } catch (std::exception &e) {
+            SimulationManager::console(std::string("exception in runCircuit ") + e.what());
+            if (testManager)
+                testManager->addError(std::string("exception in runCircuit: ") + e.what());
+        }
+        stop();
+    }
+}
+
+// While a test runs, each timer tick runs batches of time steps, each as it would be in a
+// frame of its own (switch events and the end of the test take effect at the next batch's
+// analyze), for most of a frame's time, and then draws.  So the results are the same as
+// with one batch a frame, but tests run as fast as the machine allows, and keep running
+// when the window isn't drawn (macOS doesn't paint a hidden or covered window).
+void CirSim::runTestBatches() {
+    auto start = std::chrono::steady_clock::now();
+    setCircuitArea();
+    while (runningTest() && simRunning) {
+        runBatch(nullptr, true);
+        if (std::chrono::steady_clock::now() - start > std::chrono::milliseconds(14))
+            break;
+    }
+    if (testManager->headless)
+        testManager->checkStalled();
+    // the end of a test
+    if (testManager->hasPending())
+        QTimer::singleShot(0, this, [this] { testManager->runPending(); });
+}
+
 void CirSim::updateCircuit(QPainter &painter) {
     PerfMonitor perfmon;
     perfmon.startContext("updateCircuit()");
 
     setCircuitArea();
-    bool didAnalyze = analyzeFlag;
-    if (analyzeFlag || dcAnalysisFlag) {
-        perfmon.startContext("analyzeCircuit()");
-        sim->analyzeCircuit();
-        analyzeFlag = false;
-        perfmon.stopContext();
-    }
     if (needCenter) {
         // needs bounding boxes, which elements compute when drawn; the first frame's
         // centering uses the x/y extents, and we redo it after one draw
         centerCircuit();
     }
 
-    if (sim->needsStamp && simRunning) {
-        perfmon.startContext("stampCircuit()");
-        try {
-            sim->preStampAndStampCircuit();
-        } catch (std::exception &e) {
-            sim->stop("Exception in stampCircuit()", nullptr);
-            SimulationManager::console(std::string("Exception in stampCircuit: ") + e.what());
-        }
-        perfmon.stopContext();
-    }
+    // analyze and run a batch of time steps.  While a test runs, the timer runs them instead
+    // (see runTestBatches()), but a circuit loaded since must still be analyzed to draw it
+    runBatch(&perfmon, !runningTest());
 
     CircuitElm *stopHighlightElm = stopElm;
     if (stopHighlightElm != nullptr && stopHighlightElm != CircuitElm::mouseElmRef)
         stopHighlightElm->setMouseElm(true);
-
-    scopeManager->setupScopes();
 
     QtGraphics g(painter);
 
@@ -945,16 +1015,6 @@ void CirSim::updateCircuit(QPainter &painter) {
         g.lineTo(45, 30);
         g.stroke();
         g.restore();
-    }
-
-    if (simRunning) {
-        perfmon.startContext("runCircuit()");
-        try {
-            sim->runCircuit(didAnalyze);
-        } catch (std::exception &e) {
-            SimulationManager::console(std::string("exception in runCircuit ") + e.what());
-        }
-        perfmon.stopContext();
     }
 
     double sysTime = currentTimeMillis();

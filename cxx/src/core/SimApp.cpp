@@ -24,7 +24,10 @@
 #include "Adjustable.h"
 
 #include "CircuitElm.h"
+#include "CircuitXMLSerializer.h"
+#include "ModelRegistry.h"
 #include "ScopeManager.h"
+#include "SimulationManager.h"
 
 SimApp::~SimApp() {
     deleteAllElms();
@@ -75,6 +78,29 @@ void SimApp::deleteAllElms() {
         ce->deleteElm();
         delete ce;
     }
+}
+
+void SimApp::resetAction() {
+    SimulationManager *sim = SimulationManager::theSim;
+    analyzeFlag = true;
+    if (autoDCOnReset)
+        dcAnalysisFlag = true;
+    if (sim->t == 0)
+        setSimRunning(true);
+    sim->resetTime();
+    for (CircuitElm *ce : elmList)
+        ce->reset();
+    sim->resetNodes();
+    if (scopeManager != nullptr)
+        scopeManager->resetGraphs();
+    repaint();
+}
+
+std::string SimApp::dumpCircuit(bool saveState) {
+    ModelRegistryBase::clearAllDumpedFlags();
+    CircuitXMLSerializer xml(this, SimulationManager::theSim);
+    xml.saveState = saveState;
+    return xml.dumpCircuit();
 }
 
 void SimApp::onTimeStep() {

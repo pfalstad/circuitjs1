@@ -80,6 +80,8 @@ void TransistorElm::reset() {
     geqBE = geqBC = ceqBE = ceqBC = 0;
     badIters = 0;
     localSubIters = 0;
+    // start from zero, not from the voltages that were loaded
+    justLoaded = false;
 }
 
 void TransistorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
@@ -94,8 +96,10 @@ void TransistorElm::dumpXml(XmlElement *doc, XmlElement *elem) {
 void TransistorElm::dumpXmlState(XmlElement *, XmlElement *elem) {
     // "vBE"/"vBC" (mixed case) are correctly-named, not cross-wired like Java's
     // lowercase "vbe"/"vbc" (see undumpXml, which still accepts the old names)
-    CircuitXMLSerializer::dumpAttr(elem, "vBE", nodes[0]->v - nodes[2]->v);
-    CircuitXMLSerializer::dumpAttr(elem, "vBC", nodes[0]->v - nodes[1]->v);
+    // until the first step after a load, they're the ones that were loaded (the nodes'
+    // voltages are still 0)
+    CircuitXMLSerializer::dumpAttr(elem, "vBE", justLoaded ? lastvbe : nodes[0]->v - nodes[2]->v);
+    CircuitXMLSerializer::dumpAttr(elem, "vBC", justLoaded ? lastvbc : nodes[0]->v - nodes[1]->v);
 }
 
 void TransistorElm::undumpXml(CircuitXMLDeserializer &xml) {

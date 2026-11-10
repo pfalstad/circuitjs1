@@ -35,6 +35,7 @@
 
 NodeRef CircuitNode::ground = std::make_shared<CircuitNode>();
 SimulationManager *SimulationManager::theSim = nullptr;
+TestHooks *SimulationManager::testHooks = nullptr;
 
 void VoltageSource::assignMatrix() {
     if (n1 && n1 != CircuitNode::ground && n1->matrix != nullptr)
@@ -1216,9 +1217,14 @@ void SimulationManager::runCircuit(bool didAnalyze) {
         return;
     }
 
+    // while testing, run a fixed number of steps (a batch), so the results don't depend on
+    // the clock
+    TestHooks *hooks = testHooks;
+    int fixedSteps = hooks ? hooks->fixedStepsPerFrame() : 0;
+
     // Check if we don't need to run simulation (for very slow simulation speeds).
     // If the circuit changed, do at least one iteration to make sure everything is consistent.
-    if (1000 >= steprate * (tm - lastIterTime) && !didAnalyze)
+    if (fixedSteps == 0 && 1000 >= steprate * (tm - lastIterTime) && !didAnalyze)
         return;
 
     bool delayWireProcessing = app->canDelayWireProcessing();
@@ -1240,6 +1246,14 @@ void SimulationManager::runCircuit(bool didAnalyze) {
             console("timestep up = " + jsNumberToString(timeStep) + " at " + jsNumberToString(t));
             stampCircuit();
             goodIterations = 0;
+        }
+        if (hooks) {
+            // land exactly on the next switch event or the end of the test
+            double ts = hooks->clampTimeStep(t, timeStep);
+            if (ts != timeStep) {
+                timeStep = ts;
+                stampCircuit();
+            }
         }
 
         for (CircuitElm *ce : elmArr)
@@ -1349,6 +1363,8 @@ void SimulationManager::runCircuit(bool didAnalyze) {
         if (!delayWireProcessing)
             calcWireCurrents();
         app->onTimeStep();
+        stepsSinceReset++;
+        bool testBreak = hooks != nullptr && hooks->checkTime();
         // save last node voltages so we can restart the next iteration if necessary
         for (auto &mp : matrices) {
             CircuitMatrix &m = *mp;
@@ -1361,8 +1377,13 @@ void SimulationManager::runCircuit(bool didAnalyze) {
 
         // Check whether enough time has elapsed to perform an *additional* iteration after
         // those we have already completed.  But limit total computation time to 50ms (20fps) by default
-        if ((timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - lastIterTime) ||
-            (tm - app->lastFrameTime > frameTimeLimit))
+        if (testBreak)
+            break;
+        if (fixedSteps > 0) {
+            if (stepsSinceReset % fixedSteps == 0)
+                break;
+        } else if ((timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - lastIterTime) ||
+                   (tm - app->lastFrameTime > frameTimeLimit))
             break;
         if (!app->simRunning)
             break;

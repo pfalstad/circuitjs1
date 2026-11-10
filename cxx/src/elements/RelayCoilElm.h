@@ -69,6 +69,8 @@ public:
     void dumpXmlState(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void draw(Graphics &g) override;
+    // what a scope shows (the info box uses coilCurrent itself)
+    double getCurrent() override { return coilCurrent; }
     double getCurrentIntoNode(int n) override { return n == 0 ? -coilCurrent : coilCurrent; }
     void setPoints() override;
     Point getPost(int n) override { return coilPosts[n]; }

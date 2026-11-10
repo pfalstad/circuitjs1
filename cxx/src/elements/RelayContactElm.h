@@ -46,6 +46,8 @@ public:
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;
     void draw(Graphics &g) override;
+    // what a scope shows (the info box uses switchCurrent itself)
+    double getCurrent() override { return switchCurrent; }
     double getCurrentIntoNode(int n) override;
     void setPoints() override;
     void setContactPosition(int i_position_, int type_);

@@ -60,6 +60,8 @@ void LogicInputElm::undumpXml(CircuitXMLDeserializer &xml) {
     SwitchElm::undumpXml(xml);
     hiV = xml.parseDoubleAttr("hi", hiV);
     loV = xml.parseDoubleAttr("lo", loV);
+    if (isTernary())
+        posCount = 3;
 }
 
 void LogicInputElm::setPoints() {

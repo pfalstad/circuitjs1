@@ -378,7 +378,9 @@ void ScopeSerializer::dumpXml(XmlElement *root) {
         return;
     XmlElement *xmlElm = root->createChild("o");
     CircuitXMLSerializer::dumpAttr(xmlElm, "en", eno);
-    CircuitXMLSerializer::dumpAttr(xmlElm, "sp", vPlot.scopePlotSpeed);
+    // the scope's speed: the plots only get it when the scopes are next set up, so until
+    // then (saving a circuit straight after loading it) theirs is still 0
+    CircuitXMLSerializer::dumpAttr(xmlElm, "sp", scope->speed);
     // strip flags that belong to old text format or are superseded by explicit XML attributes
     int f = flags & ~(FLAG_PERPLOTFLAGS | FLAG_PERPLOT_MAN_SCALE | FLAG_PLOTS | FLAG_TRIGGER);
     CircuitXMLSerializer::dumpAttr(xmlElm, "f", exportAsDecOrHex(f, 0));

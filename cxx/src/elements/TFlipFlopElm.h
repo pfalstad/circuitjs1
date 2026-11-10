@@ -32,6 +32,11 @@ public:
 
     CHIP_CONSTRUCTORS(TFlipFlopElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
+    // Q-bar isn't saved, so set it from Q, as the constructor does for the text format
+    void undumpXml(CircuitXMLDeserializer &xml) override {
+        ChipElm::undumpXml(xml);
+        pins[2].value = !pins[1].value;
+    }
     std::string getChipName() override { return "T flip-flop"; }
     void setupPins() override;
     int getPostCount() override { return 4 + (hasReset() ? 1 : 0) + (hasSet() ? 1 : 0); }
