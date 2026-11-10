@@ -123,12 +123,6 @@ export class EditDialog extends Dialog {
         cancelBtn.onclick = () => this.closeDialog();
         btnRow.appendChild(cancelBtn);
 
-        // Focus first text input after the dialog opens
-        if (this.firstInput !== null) {
-            const inp = this.firstInput;
-            requestAnimationFrame(() => { inp.focus(); inp.select(); });
-        }
-
         this.dialogEl.addEventListener("mousedown", () => { this.untouched = false; });
     }
 
@@ -565,6 +559,7 @@ export class EditDialog extends Dialog {
     show(topOffset: number = 70): void {
         if (!(this.elm instanceof CircuitElm)) {
             super.show();
+            this.focusFirstInput();
             return;
         }
         this.dialogEl.style.position = "fixed";
@@ -575,6 +570,17 @@ export class EditDialog extends Dialog {
         this.dialogEl.style.right = (UIManager.VERTICALPANELWIDTH + 16) + "px";
         this.dialogEl.show();
         this.positionNearElement(this.elm);
+        this.focusFirstInput();
+    }
+
+    // focus the first text field, with its value selected so typing replaces it.  This is done
+    // as soon as the dialog opens (not on the next frame) so that keys typed right away go into
+    // it, rather than to shouldPassKeyThrough() as keys pressed outside the editor.
+    private focusFirstInput(): void {
+        if (this.firstInput !== null) {
+            this.firstInput.focus();
+            this.firstInput.select();
+        }
     }
 
     // place the dialog beside the element being edited (right side preferred, else left),
