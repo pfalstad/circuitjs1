@@ -488,10 +488,14 @@ export class TestManager {
         const scripted = this.switchEvents.slice().sort((a, b) => a.t - b.t);
         this.switchEvents = [];
         this.refData = [];
-        // a couple of frames, so the scopes get set up
+        // a couple of frames, so the scopes get set up, and more until they're laid out (a
+        // circuit whose elements add sliders to the side panel can take longer, its scopes
+        // still 1 pixel wide after two)
         await frame();
         await frame();
         const sm = this.app.scopeManager;
+        for (let i = 0; i < 50 && [...Array(sm.scopeCount).keys()].some(si => sm.scopes[si].rect.width <= 1); i++)
+            await frame();
         let fill = 0, plots = 0;
         for (let si = 0; si < sm.scopeCount; si++)
             for (const plot of sm.scopes[si].plots as any[])

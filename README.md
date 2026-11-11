@@ -45,13 +45,6 @@ This type-checks the project and produces a production build in `ts/dist/`. To p
 npm run preview
 ```
 
-### Running the tests
-
-```bash
-cd ts
-npm test
-```
-
 ### Development using cloud containers
 
 1. Install [Visual Studio Code](https://code.visualstudio.com/) and the appropriate remote extension: either [Gitpod Extension](https://marketplace.visualstudio.com/items?itemName=gitpod.gitpod-desktop) or [Codespaces Extension](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces).
@@ -154,7 +147,6 @@ podman run --rm -it -v $(pwd):/src:Z -p 127.0.0.1:5173:5173/tcp circuitjs1-dev:l
 This will use the current directory inside the container.
 
 
-
 ## Embedding
 
 You can link to the full page version of the application using the link shown above.
@@ -185,6 +177,91 @@ You can add query parameters to link to change the applications startup behaviou
 .../circuitjs.html?hideInfoBox=<true|false>
 ```
 The simulator can also interface with your javascript code.  See [ts/jsinterface.html](http://www.falstad.com/circuit/jsinterface.html) for an example.
+
+## Running the tests
+
+There are three kinds of tests, all run from `ts/`:
+
+```bash
+cd ts
+npm test              # unit tests (vitest)
+npm run test:app      # regression tests of the simulator, in headless Chrome
+npm run test:ui       # UI tests: drive the app with the mouse and keyboard (Playwright)
+```
+
+The browser tests use your installed Chrome if there is one, otherwise Playwright's
+Chromium (`npx playwright install chromium` to get it).
+
+### Unit tests
+
+`npm test` runs the `*.test.ts` files with [vitest](https://vitest.dev/). Pass a file name
+or part of one to run just those: `npm test -- Expr`.
+
+### Regression tests
+
+A regression test is a circuit file with the scope data it should produce saved in it.
+Each test runs from reset (with any switch clicks replayed at the times they were
+recorded) and passes if its scopes show the same thing again. The tests are in
+[`auto-tests/`](auto-tests):
+
+- `auto-tests/tests.txt` lists hand-made tests (`npm run test:app` runs these)
+- `auto-tests/gen/tests.txt` lists the generated ones (several hundred, made from the
+  example circuits in `ts/public/circuits/` and the test circuits in `tests/`)
+
+```bash
+npx tsx scripts/run-tests.ts --list=gen/tests.txt     # run all the generated tests
+npx tsx scripts/run-tests.ts gen/tests/fuse.txt       # run particular tests
+npx tsx scripts/run-tests.ts --headed gen/tests/fuse.txt   # watch it run
+```
+
+Test file names are relative to `auto-tests/`. `--dist` tests the production build instead
+of the dev server. Failed tests get a screenshot (the path is printed). The script exits
+with status 1 if any test fails.
+
+You can also run a test in the app itself: open
+`http://localhost:5173/circuitjs.html?test=gen/tests/fuse.txt` (or
+`?testlist=gen/tests.txt`) with the dev server running.
+
+### Making regression tests
+
+Tests are made by recording what a circuit does now, so check that it's right first.
+`scripts/create-tests.ts` runs each circuit from reset until its scopes are full, saves the
+result in `auto-tests/gen/`, then runs the new test to make sure it passes:
+
+```bash
+npx tsx scripts/create-tests.ts ../tests/mycircuit.txt
+```
+
+A circuit needs scopes to get a test. Rather than adding them to the circuit itself, you
+can describe them in `auto-tests/src/specs.txt`, one line per circuit: the scopes to add
+(by element number), switches to click and when, and `probes=` to watch chip pins. The
+comment at the top of `scripts/make-test-sources.ts` gives the format. Then make the copy
+with the scopes added, and record its test:
+
+```bash
+npx tsx scripts/make-test-sources.ts --list ../tests/mycircuit.txt   # element numbers
+npx tsx scripts/make-test-sources.ts tests/mycircuit.txt             # writes auto-tests/src/tests/mycircuit.txt
+npx tsx scripts/create-tests.ts ../auto-tests/src/tests/mycircuit.txt
+```
+
+An existing test is never overwritten unless you pass `--force`, because it's what later
+versions are compared against. Re-record a test only when you've checked that the new
+behavior is correct. Circuits that can't be tested are listed in `auto-tests/gen/exclude.txt`
+with the reason, and `auto-tests/gen/report.txt` says why any circuit got no test.
+
+### UI tests
+
+The UI tests (`ts/ui-tests/`) use [Playwright](https://playwright.dev/) to click through
+the real app: building circuits from the toolbar, editing, menus, and drawing (compared
+against screenshots).
+
+```bash
+npm run test:ui                         # all of them, headless
+npm run test:ui -- --headed             # watch them run
+npm run test:ui -- -g "undo"            # just the tests whose names match
+npm run test:ui -- --update-snapshots   # accept new screenshots
+```
+
 
 ## Building an Electron application
 

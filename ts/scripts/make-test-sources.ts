@@ -7,7 +7,7 @@
 //
 // The name is the test's: circuits/ for public/circuits, tests/ for ../tests.  scopes= is a
 // comma-separated list of scopes, each a +-separated list of the element numbers to plot in
-// it (an element's voltage, or V(ce) for a transistor; en:i for its current).  speed= is
+// it (an element's voltage, or V(ce) for a transistor; en:i for its current, en:p its power).  speed= is
 // the scopes' speed (time steps per pixel; the circuit's own, if it adds none).
 // clicks=en@t,... toggles switch en at time t;
 // with no times (clicks=en,en,...) they're spread evenly over the run.  steps=N lets the
@@ -137,6 +137,9 @@ async function main(): Promise<number> {
                         // VAL_CURRENT, or VAL_IC for a transistor
                         if (what === "i")
                             sc.addValue(ce.isTransistorElm() ? 2 : 3, ce);
+                        // VAL_POWER
+                        else if (what === "p")
+                            sc.addValue(7, ce);
                         else
                             sc.addElm(ce);
                     }
