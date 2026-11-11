@@ -42,6 +42,9 @@ export class BusLogicInputElm extends SwitchElm {
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xxOrXa, yyOrYa);
+            // (the base class allocated the nodes before busWidth was set, which happens after
+            // super() returns, so it allocated one; allocate one per post)
+            this.allocNodes();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
         }
