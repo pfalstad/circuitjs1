@@ -204,12 +204,15 @@ Each test runs from reset (with any switch clicks replayed at the times they wer
 recorded) and passes if its scopes show the same thing again. The tests are in
 [`auto-tests/`](auto-tests):
 
-- `auto-tests/tests.txt` lists hand-made tests (`npm run test:app` runs these)
 - `auto-tests/gen/tests.txt` lists the generated ones (several hundred, made from the
-  example circuits in `ts/public/circuits/` and the test circuits in `tests/`)
+  example circuits in `ts/public/circuits/` and the test circuits in `tests/`); it's
+  rewritten whenever tests are made
+- `auto-tests/tests.txt` lists hand-made tests, and takes in all of `gen/tests.txt` with
+  an `include gen/tests.txt` line, so it's every test
 
 ```bash
-npx tsx scripts/run-tests.ts --list=gen/tests.txt     # run all the generated tests
+npm run test:app                                      # run all the tests (about 2 minutes)
+npx tsx scripts/run-tests.ts --list=gen/tests.txt     # just the generated ones
 npx tsx scripts/run-tests.ts gen/tests/fuse.txt       # run particular tests
 npx tsx scripts/run-tests.ts --headed gen/tests/fuse.txt   # watch it run
 ```
@@ -220,7 +223,7 @@ with status 1 if any test fails.
 
 You can also run a test in the app itself: open
 `http://localhost:5173/circuitjs.html?test=gen/tests/fuse.txt` (or
-`?testlist=gen/tests.txt`) with the dev server running.
+`?testlist=tests.txt` for all of them) with the dev server running.
 
 ### Making regression tests
 

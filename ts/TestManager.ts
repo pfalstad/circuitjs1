@@ -3,7 +3,8 @@
 // A test is a circuit file with a <test len="..."/> tag, the switch toggles to replay
 // (<switchevent t="..." en="..."/>) and the scope data to expect (<scopedata ...>).
 // Run one with ?test=<file> or a list of them with ?testlist=<file> (one file name per
-// line, relative to the list).  Files are found relative to ?testbase=, by default
+// line, relative to the list; "include <list>" for all of another list's, as
+// auto-tests/tests.txt does gen/tests.txt).  Files are found relative to ?testbase=, by default
 // auto-tests/ in the dev server and `vite preview` (see vite.config.ts), otherwise
 // http://127.0.0.1:5001/auto-tests/ (test-interface/test_server.py).
 //
@@ -156,11 +157,31 @@ export class TestManager {
         return resp.text();
     }
 
+    // the test files a list names, relative to it.  "include <list>" takes in another list's
+    // (relative to this one), like auto-tests/tests.txt does gen/tests.txt
+    private async readTestList(url: string, depth = 0): Promise<string[]> {
+        const out: string[] = [];
+        for (const line of (await this.fetchText(url)).split("\n").map(l => l.trim())) {
+            if (!line || line.startsWith("#"))
+                continue;
+            const inc = line.match(/^include\s+(\S+)$/);
+            if (inc == null) {
+                out.push(line);
+                continue;
+            }
+            if (depth > 10)
+                throw new Error("lists include each other: " + url);
+            const dir = inc[1].includes("/") ? inc[1].replace(/[^/]*$/, "") : "";
+            for (const name of await this.readTestList(new URL(inc[1], url).href, depth + 1))
+                out.push(dir + name);
+        }
+        return out;
+    }
+
     async loadTestList(filename: string): Promise<void> {
         const url = new URL(filename, this.base).href;
         try {
-            const text = await this.fetchText(url);
-            this.testList = text.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+            this.testList = await this.readTestList(url);
             this.testListUrl = url;
             this.testListIdx = 0;
             this.results = [];

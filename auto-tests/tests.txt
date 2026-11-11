@@ -9,3 +9,6 @@ lrc.txt
 lrcswitch.txt
 ota-vca.txt
 td4.txt
+
+# the tests create-tests.ts made (see README.md)
+include gen/tests.txt
