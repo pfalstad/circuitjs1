@@ -3,6 +3,7 @@ import { CircuitElm } from "./CircuitElm";
 import { ChipElm } from "./ChipElm";
 import { CounterElm } from "./CounterElm";
 import { PinLayoutModel } from "./PinLayoutModel";
+import { HookRegistry } from "./HookRegistry";
 
 const off = { getState: () => false };
 
@@ -111,12 +112,34 @@ describe("pin layout models", () => {
         const idx = findEditInfo(c, ei => ei.name === "Pin Layout");
         expect(idx).toBeGreaterThan(0);
         const ei = c.getEditInfo(idx)!;
-        expect(ei.choice!.items).toEqual(["Default", "north"]);
+        expect(ei.choice!.items).toEqual(["Default", "north", "Create New..."]);
         ei.choice!.selectedIndex = 1;
         (ei.choice as any).element = null;
         c.setEditValue(idx, ei);
         expect(c.pinLayout).toBe(m);
         expect(ei.newDialog).toBe(true);
+    });
+
+    it("opens the pin layout editor for a new layout when Create New is selected", () => {
+        const c = makeCounter();
+        const m = northLayout(c);
+        c.setPinLayout(m);
+        const calls: any[] = [];
+        const saved = HookRegistry.editPinLayout;
+        HookRegistry.editPinLayout = (chip, model) => calls.push([chip, model]);
+        try {
+            const idx = findEditInfo(c, ei => ei.name === "Pin Layout");
+            const ei = c.getEditInfo(idx)!;
+            ei.choice!.selectedIndex = ei.choice!.items.length - 1;
+            (ei.choice as any).element = null;
+            c.setEditValue(idx, ei);
+            expect(calls).toEqual([[c, null]]);
+            // the current layout stays attached until the new one is saved
+            expect(c.pinLayout).toBe(m);
+            expect(ei.newDialog).toBe(true);
+        } finally {
+            HookRegistry.editPinLayout = saved;
+        }
     });
 
     it("drops the layout if an edit changes the pins anyway", () => {

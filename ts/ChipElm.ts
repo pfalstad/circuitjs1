@@ -789,16 +789,13 @@ export abstract class ChipElm extends CircuitElm {
             ei.choice.add(Locale.LS("Default"));
             for (const m of fitting)
                 ei.choice.add(m.name);
+            // last item: make a new layout from the current pin positions
+            ei.choice.add(Locale.LS("Create New..."));
             ei.choice.select(this.pinLayoutChoices.indexOf(this.pinLayout));
             return ei;
         }
-        if (n === 1) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.button = { label: Locale.LS("Create Pin Layout") };
-            return ei;
-        }
         // (the editor starts from the current pin positions, so they must be the model's)
-        if (n === 2 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout)) {
+        if (n === 1 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout)) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.button = { label: Locale.LS("Edit Pin Layout") };
             return ei;
@@ -808,16 +805,20 @@ export abstract class ChipElm extends CircuitElm {
 
     setPinLayoutEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            const pl = this.pinLayoutChoices[ei.choice!.getSelectedIndex()] ?? null;
+            const idx = ei.choice!.getSelectedIndex();
+            // rebuild the dialog: structural fields are locked or unlocked, and
+            // "Create New..." goes back to showing the current layout
+            ei.newDialog = true;
+            if (idx === this.pinLayoutChoices.length) {
+                HookRegistry.editPinLayout?.(this, null);
+                return;
+            }
+            const pl = this.pinLayoutChoices[idx] ?? null;
             if (pl !== this.pinLayout)
                 this.setPinLayout(pl);
-            // structural fields are locked or unlocked
-            ei.newDialog = true;
             return;
         }
-        if (n === 1)
-            HookRegistry.editPinLayout?.(this, null);
-        if (n === 2 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout))
+        if (n === 1 && this.pinLayout !== null && this.pinLayoutFits(this.pinLayout))
             HookRegistry.editPinLayout?.(this, this.pinLayout);
     }
 
