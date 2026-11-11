@@ -23,6 +23,9 @@ export default defineConfig({
         viewport: { width: 1400, height: 900 },
         channel: "chrome",
         trace: "retain-on-failure",
+        // fail when something to click isn't there, rather than waiting for it until the test
+        // times out (which can be many minutes, for the tests that build whole circuits)
+        actionTimeout: 10_000,
         screenshot: "only-on-failure",
         // SLOWMO=300 waits 300ms before each mouse/keyboard action, to watch with --headed
         launchOptions: { slowMo: Number(process.env.SLOWMO ?? 0) },

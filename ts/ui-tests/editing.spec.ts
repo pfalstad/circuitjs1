@@ -185,3 +185,29 @@ test("a plain wire's properties don't offer the bus value options", async ({ sim
     await expect(sim.dialog.getByRole("checkbox")).toHaveCount(2);
     await expect(sim.dialog.getByText("Show Bus Value")).toHaveCount(0);
 });
+
+test("hovering over a new pin of a bus splitter that was made wider", async ({ sim, page }) => {
+    await sim.menu("Draw", "Digital Chips", "Add Bus Splitter");
+    await sim.drag(96, 96, 128, 96);
+    await page.keyboard.press("Escape");
+    await sim.clickElm(96, 96);
+    await sim.field("# of Bits").fill("8");
+    await sim.dialog.getByRole("button", { name: "OK" }).click();
+    // hover over each of its pins (the fixture fails the test if this throws an exception)
+    const posts: [number, number][] = await page.evaluate(() => {
+        const e = (window as any).__app.elmList[0];
+        return [...Array(e.getPostCount()).keys()].map(i => [e.getPost(i).x, e.getPost(i).y]);
+    });
+    expect(posts).toHaveLength(16);
+    for (const p of posts) {
+        await sim.move(...p);
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+    }
+});
+
+test("draw an instruction display", async ({ sim }) => {
+    // (the fixture fails the test if drawing it while it's dragged out throws an exception)
+    await sim.menu("Draw", "Outputs and Labels", "Add Instruction Display");
+    await sim.drag(96, 96, 160, 96);
+    expect((await sim.elements()).map(e => e.type)).toEqual(["InstructionDisplayElm"]);
+});

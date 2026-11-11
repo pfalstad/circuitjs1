@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, Sim } from "./fixtures";
 
 // Builds the full-wave rectifier subcircuit example (public/circuits/fullrect-sc.txt) from
 // scratch with the mouse and keyboard, the way a user would: draw the bridge rectifier, make
@@ -36,7 +36,7 @@ const outer: { key?: string; menu?: string[]; type: string; from: Pt; to: Pt; ro
     { key: "g", type: "GroundElm",     from: [672, 448], to: [672, 464] },
 ];
 
-const SIDE_N = 0, SIDE_S = 1, SIDE_W = 2, SIDE_E = 3;
+const { SIDE_N, SIDE_S, SIDE_W, SIDE_E } = Sim;
 
 const sortKey = (e: { type: string; x: number; y: number; x2: number; y2: number }) =>
     [e.type, e.x, e.y, e.x2, e.y2].join(" ");
@@ -67,48 +67,14 @@ test("build the full-wave rectifier subcircuit example from scratch, and it rect
     // on the right, then make the chip narrower, since nothing is on its top or bottom now
     await sim.menu("File", "Create Subcircuit...");
     await expect(sim.dialog).toBeVisible();
-    const editor = sim.dialog.locator("canvas");
-    // where pins are on the editor's canvas, and where to drop one to put it on a side, at
-    // a position (just outside the chip, beside that position)
-    const pinLayout = () => page.evaluate(() => {
-        const ed = (window as any).__app.constructor.dialogShowing.editor;
-        return {
-            pins: ed.entries.map((e: any, i: number) => ({
-                name: e.name, side: e.side, pos: e.pos,
-                at: [ed.chip.pins[i].textloc.x / ed.scale, ed.chip.pins[i].textloc.y / ed.scale],
-            })),
-            sizeX: ed.chip.sizeX, sizeY: ed.chip.sizeY,
-        };
-    });
-    const dropPoint = (side: number, pos: number) => page.evaluate(([side, pos]) => {
-        const ed = (window as any).__app.constructor.dialogShowing.editor;
-        const c = ed.chip;
-        // (see ChipElm.getPinPos: in units of pin spacing, the chip's body is from 0 to
-        // sizeX across and 0 to sizeY down, with a pin's position rounded from where it is
-        // along its side.  So position 0 is right at a corner: go a little past it, so it
-        // isn't taken as being on the other side of the corner)
-        const xr = c.x + c.cspc2 - c.cspc, yr = c.y - c.cspc;
-        const xd = side === 2 ? -0.5 : side === 3 ? c.sizeX + 0.5 : pos + 0.2;
-        const yd = side === 0 ? -0.5 : side === 1 ? c.sizeY + 0.5 : pos + 0.2;
-        return [(xr + (xd + 0.5) * c.cspc2) / ed.scale, (yr + (yd + 0.5) * c.cspc2) / ed.scale];
-    }, [side, pos]);
-    const box = (await editor.boundingBox())!;
-    const movePin = async (name: string, side: number, pos: number) => {
-        const from = (await pinLayout()).pins.find((p: any) => p.name === name).at;
-        const to = await dropPoint(side, pos);
-        await page.mouse.move(box.x + from[0], box.y + from[1]);
-        await page.mouse.down();
-        await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 8 });
-        await page.mouse.up();
-    };
-    const layout = async () => (await pinLayout()).pins.map((p: any) => [p.name, p.side, p.pos]);
+    const layout = async () => (await sim.pinLayout()).pins.map(p => [p.name, p.side, p.pos]);
     expect(await layout()).toEqual([["in", SIDE_N, 1], ["in-", SIDE_S, 1], ["out", SIDE_E, 0], ["out-", SIDE_W, 0]]);
-    await movePin("out-", SIDE_E, 1);
-    await movePin("in", SIDE_W, 0);
-    await movePin("in-", SIDE_W, 1);
+    await sim.movePin("out-", SIDE_E, 1);
+    await sim.movePin("in", SIDE_W, 0);
+    await sim.movePin("in-", SIDE_W, 1);
     await sim.dialog.getByRole("button", { name: "-" }).first().click();    // width
     expect(await layout()).toEqual([["in", SIDE_W, 0], ["in-", SIDE_W, 1], ["out", SIDE_E, 0], ["out-", SIDE_E, 1]]);
-    expect(await pinLayout()).toMatchObject({ sizeX: 2, sizeY: 2 });
+    expect(await sim.pinLayout()).toMatchObject({ sizeX: 2, sizeY: 2 });
     await sim.dialog.getByRole("textbox").fill("fullrect");
     await sim.dialog.getByRole("button", { name: "OK" }).click();
     await expect(sim.dialog).toBeHidden();
