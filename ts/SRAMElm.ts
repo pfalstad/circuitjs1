@@ -34,6 +34,9 @@ export class SRAMElm extends ChipElm {
     static readonly FLAG_HEX_DISPLAY = 4;
     addressNodes: number = 0;
     dataNodes: number = 0;
+    // where a write reads its data from: dataNodes (the same bidirectional pins reads drive),
+    // unless FLAG_SEPARATE_IO adds a separate set of data input pins after them
+    dataInNodes: number = 0;
     internalNodes: number = 0;
     addressBits: number = 0;
     dataBits: number = 0;
@@ -41,6 +44,13 @@ export class SRAMElm extends ChipElm {
     initialMap: Map<number, number> | null = null; // saved initial contents for restore on reset
     loadedFileName: string | null = null; // remembers the last file loaded via "Load Contents From File"
     static readonly FLAG_RELOAD_ON_RESET = 2;
+    // separate data in/out pins instead of one bidirectional bus, like bipolar RAMs (74189, 82S16)
+    static readonly FLAG_SEPARATE_IO = 8;
+    // invert the data outputs (74189, 82S16)
+    static readonly FLAG_INVERT_OUTPUT = 16;
+    // add an active-low chip select pin: while it's high, nothing is written and the outputs are off
+    static readonly FLAG_CHIP_SELECT = 32;
+    // (these flag values match ts-digital's SRAMElm, for compatibility)
     static contentsOverride: string | null = null;
     static fileNameOverride: string | null = null;
 
@@ -109,6 +119,22 @@ export class SRAMElm extends ChipElm {
         this.setupPins();
     }
 
+    hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
+    hasInvertedOutput(): boolean { return this.hasFlag(SRAMElm.FLAG_INVERT_OUTPUT); }
+    hasChipSelect(): boolean { return this.hasFlag(SRAMElm.FLAG_CHIP_SELECT); }
+    // the chip select post, if any, comes after all the others so it doesn't renumber them
+    protected get chipSelectNode(): number { return this.getPostCount() - 1; }
+
+    // the pin options offered in the edit dialog, as flags
+    protected pinOptions(): number[] {
+        return [SRAMElm.FLAG_SEPARATE_IO, SRAMElm.FLAG_INVERT_OUTPUT, SRAMElm.FLAG_CHIP_SELECT];
+    }
+    private static readonly PIN_OPTION_NAMES: Record<number, string> = {
+        [SRAMElm.FLAG_SEPARATE_IO]: "Separate Data In/Out",
+        [SRAMElm.FLAG_INVERT_OUTPUT]: "Inverted Data Out",
+        [SRAMElm.FLAG_CHIP_SELECT]: "Chip Select",
+    };
+
     reset(): void {
         super.reset();
         if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0 && this.initialMap !== null)
@@ -126,7 +152,11 @@ export class SRAMElm extends ChipElm {
         this.sizeX = 2;
         const addrY = this.useBus() ? 1 : this.addressBits;
         const dataY = this.useBus() ? 1 : this.dataBits;
-        this.sizeY = Math.max(addrY, dataY) + 1;
+        const separate = this.hasSeparateIO();
+        const westY = separate ? addrY + dataY : addrY;
+        // east side: OE, then chip select (if any), then the data pins at the bottom
+        const eastY = this.hasChipSelect() ? dataY + 1 : dataY;
+        this.sizeY = Math.max(westY, eastY) + 1;
         this.bits = this.addressBits;
         this.pins = new Array(this.getPostCount());
         this.pins[0] = new Pin(this, 0, ChipElm.SIDE_W, "WE");
@@ -135,13 +165,26 @@ export class SRAMElm extends ChipElm {
         this.pins[1].lineOver = true;
         this.addressNodes = 2;
         this.dataNodes = 2 + this.addressBits;
-        this.internalNodes = 2 + this.addressBits + this.dataBits;
+        this.dataInNodes = separate ? this.dataNodes + this.dataBits : this.dataNodes;
+        // internal nodes come right after the posts
+        this.internalNodes = this.getPostCount();
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
+        if (this.hasInvertedOutput())
+            for (let i = 0; i !== this.dataBits; i++)
+                this.pins[this.dataNodes + i].lineOver = true;
+        if (separate)
+            this.makeBitPins(this.dataBits, 1, ChipElm.SIDE_W, this.dataInNodes, "DI", false, false, true);
+        if (this.hasChipSelect()) {
+            const cs = new Pin(this, 1, ChipElm.SIDE_E, "CS");
+            cs.lineOver = true;
+            this.pins[this.chipSelectNode] = cs;
+        }
         this.allocNodes();
     }
     getPostCount(): number {
-        return 2 + this.addressBits + this.dataBits;
+        return 2 + this.addressBits + this.dataBits + (this.hasSeparateIO() ? this.dataBits : 0) +
+            (this.hasChipSelect() ? 1 : 0);
     }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
@@ -182,7 +225,16 @@ export class SRAMElm extends ChipElm {
                 (this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0);
             return ei;
         }
-        return super.getChipEditInfo(n);
+        const opts = this.pinOptions();
+        const opt = opts[n - reloadIdx - 1];
+        if (n > reloadIdx && opt !== undefined) {
+            const ei = new EditInfo("", 0, -1, -1);
+            if (opt !== SRAMElm.FLAG_INVERT_OUTPUT)
+                ei.setStructural(); // adds pins
+            ei.checkbox = new Checkbox(SRAMElm.PIN_OPTION_NAMES[opt], this.hasFlag(opt));
+            return ei;
+        }
+        return super.getChipEditInfo(n - opts.length);
     }
 
     static loadFileSupported(): boolean {
@@ -323,6 +375,12 @@ export class SRAMElm extends ChipElm {
             else
                 this.initialMap = null;
         }
+        const opt = this.pinOptions()[n - reloadIdx - 1];
+        if (n > reloadIdx && opt !== undefined) {
+            this.flags = ei.changeFlag(this.flags, opt);
+            this.setupPins();
+            this.setPoints();
+        }
     }
     getVoltageSourceCount(): number { return this.dataBits; }
     getInternalNodeCount(): number { return this.dataBits; }
@@ -349,9 +407,18 @@ export class SRAMElm extends ChipElm {
         }
     }
 
+    protected chipSelected(): boolean {
+        return !this.hasChipSelect() || this.nodes[this.chipSelectNode].v < this.getThreshold();
+    }
+
     doStep(): void {
-        const writeEnabled = this.nodes[0].v < this.getThreshold();
-        const outputEnabled = (this.nodes[1].v < this.getThreshold()) && !writeEnabled;
+        const selected = this.chipSelected();
+        const writeEnabled = selected && this.nodes[0].v < this.getThreshold();
+        // with separate I/O, the outputs follow the data being written (write-through, like the
+        // 82S16).  With a bidirectional bus they're off while writing, so they don't fight the
+        // writer.
+        const separate = this.hasSeparateIO();
+        const outputEnabled = selected && (this.nodes[1].v < this.getThreshold()) && (separate || !writeEnabled);
 
         // get address
         this.address = 0;
@@ -359,8 +426,17 @@ export class SRAMElm extends ChipElm {
             this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
         }
 
-        const dataObj = this.map.get(this.address);
-        const data = (dataObj === undefined) ? 0 : dataObj;
+        let data: number;
+        if (writeEnabled && separate) {
+            data = 0;
+            for (let i = 0; i !== this.dataBits; i++)
+                data |= (this.nodes[this.dataInNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
+        } else {
+            const dataObj = this.map.get(this.address);
+            data = (dataObj === undefined) ? 0 : dataObj;
+        }
+        if (this.hasInvertedOutput())
+            data ^= (1 << this.dataBits) - 1;
         for (let i = 0; i !== this.dataBits; i++) {
             const p = this.pins[i + this.dataNodes];
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.internalNodes + i], p.voltSource,
@@ -377,13 +453,13 @@ export class SRAMElm extends ChipElm {
 
     stepFinished(): void {
         let data = 0;
-        const writeEnabled = this.nodes[0].v < this.getThreshold();
+        const writeEnabled = this.chipSelected() && this.nodes[0].v < this.getThreshold();
         if (!writeEnabled)
             return;
 
         // store data in RAM
         for (let i = 0; i !== this.dataBits; i++) {
-            data |= (this.nodes[this.dataNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
+            data |= (this.nodes[this.dataInNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
         }
         this.map.set(this.address, data);
     }

@@ -57,19 +57,28 @@ export class ROMElm extends SRAMElm {
 
         this.addressNodes = 1;
         this.dataNodes = 1 + this.addressBits;
-        this.internalNodes = 1 + this.addressBits + this.dataBits;
+        this.internalNodes = this.getPostCount();
 
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
+        if (this.hasInvertedOutput())
+            for (let i = 0; i !== this.dataBits; i++)
+                this.pins[this.dataNodes + i].lineOver = true;
+        // chip select goes in the free spot at the top of the east side
+        if (this.hasChipSelect()) {
+            const cs = new Pin(this, 0, ChipElm.SIDE_E, "CS");
+            cs.lineOver = true;
+            this.pins[this.chipSelectNode] = cs;
+        }
         this.allocNodes();
     }
 
     getPostCount(): number {
-        return 1 + this.addressBits + this.dataBits;
+        return 1 + this.addressBits + this.dataBits + (this.hasChipSelect() ? 1 : 0);
     }
 
     doStep(): void {
-        const outputEnabled = this.nodes[0].v < this.getThreshold();
+        const outputEnabled = this.chipSelected() && this.nodes[0].v < this.getThreshold();
 
         // get address
         this.address = 0;
@@ -77,7 +86,9 @@ export class ROMElm extends SRAMElm {
             this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
 
         const dataObj = this.map.get(this.address);
-        const data = (dataObj === undefined) ? 0 : dataObj;
+        let data = (dataObj === undefined) ? 0 : dataObj;
+        if (this.hasInvertedOutput())
+            data ^= (1 << this.dataBits) - 1;
         for (let i = 0; i !== this.dataBits; i++) {
             const p = this.pins[i + this.dataNodes];
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.internalNodes + i], p.voltSource,
@@ -94,4 +105,9 @@ export class ROMElm extends SRAMElm {
 
     // no writing
     stepFinished(): void {}
+
+    // no separate data in/out, since there's no data in
+    protected pinOptions(): number[] {
+        return [SRAMElm.FLAG_INVERT_OUTPUT, SRAMElm.FLAG_CHIP_SELECT];
+    }
 }
