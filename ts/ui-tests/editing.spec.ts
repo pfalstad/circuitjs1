@@ -211,3 +211,30 @@ test("draw an instruction display", async ({ sim }) => {
     await sim.drag(96, 96, 160, 96);
     expect((await sim.elements()).map(e => e.type)).toEqual(["InstructionDisplayElm"]);
 });
+
+test("a custom transformer's properties say what's wrong with a bad description", async ({ sim, page }) => {
+    // (the fixture fails the test if a bad description throws an exception)
+    await sim.menu("Draw", "Passive Components", "Add Custom Transformer");
+    await sim.drag(96, 96, 160, 96);
+    await page.keyboard.press("Escape");
+    const desc = await sim.prop(0, "description");
+    await sim.clickElm(96, 96);
+    await expect(sim.dialog).toBeVisible();
+    for (const [bad, error] of [
+        ["1,x", "Description: expected number, got 'x'"],
+        ["1:", "Description: expected number at end"],
+        ["1:0", "Description: turns ratio cannot be zero"],
+    ]) {
+        await sim.field("Description").fill(bad!);
+        await sim.dialog.getByRole("button", { name: "Apply" }).click();
+        await expect(sim.dialog.getByText(error!, { exact: true })).toBeVisible();
+        // (and it keeps the old description)
+        expect(await sim.prop(0, "description")).toBe(desc);
+    }
+    // a good one is taken
+    await sim.field("Description").fill("1:2,2");
+    await sim.dialog.getByRole("button", { name: "OK" }).click();
+    await expect(sim.dialog).toBeHidden();
+    expect(await sim.prop(0, "description")).toBe("1:2,2");
+    expect(await sim.prop(0, "coilCount")).toBe(3);
+});

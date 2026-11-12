@@ -16,7 +16,6 @@
     You should have received a copy of the GNU General Public License
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
-import { parseIntStrict } from "./NumberParse";
 import { moduleBaseURL } from "./ModuleBase";
 
 // Simplified from util/Locale.java
@@ -99,7 +98,7 @@ export class Locale {
             if (i + 5 < length && input.charAt(i) === '\\' && input.charAt(i + 1) === 'u') {
                 // Found a Unicode escape sequence
                 const hexCode = input.substring(i + 2, i + 6);
-                const codePoint = parseIntStrict(hexCode, 16);
+                const codePoint = /^[0-9a-fA-F]{4}$/.test(hexCode) ? parseInt(hexCode, 16) : NaN;
                 if (!isNaN(codePoint)) {
                     // Convert hex code to a Unicode character
                     result += String.fromCharCode(codePoint);

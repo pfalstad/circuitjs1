@@ -50,7 +50,8 @@ export class LampElm extends CircuitElm {
             this.updateResistance();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!);
-            this.temp     = parseFloatStrict(st!.nextToken());
+            // (plain parseFloat: old files can have NaN here, which Java's parseDouble accepted)
+            this.temp     = parseFloat(st!.nextToken());
             if (isNaN(this.temp))
                 this.temp = this.roomTemp;
             this.nom_pow  = parseFloatStrict(st!.nextToken());
