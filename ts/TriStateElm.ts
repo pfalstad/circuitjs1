@@ -30,6 +30,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
+import { WireRouter } from "./WireRouter";
 import { parseFloatStrict } from "./NumberParse";
 
 export class TriStateElm extends CircuitElm {
@@ -213,6 +214,12 @@ export class TriStateElm extends CircuitElm {
     }
 
     getPostWidth(n: number): number { return n < 2 * this.busWidth ? this.busWidth : 1; }
+
+    // block the whole triangle (it's 2*hs+4 tall), including the control lead.  The
+    // control post is on the edge of the obstacle, so wires can still reach it from outside.
+    addRoutingObstacle(router: WireRouter): void {
+        this.addRoutingObstacleWithLeads(router, 16);
+    }
 
     getInfo(arr: string[]): void {
         arr[0] = "tri-state buffer";
