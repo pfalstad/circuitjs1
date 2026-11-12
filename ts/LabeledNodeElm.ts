@@ -21,6 +21,8 @@ import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
 import { VoltageSource } from "./VoltageSource";
 import { Point } from "./Point";
+import { Rectangle } from "./Rectangle";
+import { WireRouter } from "./WireRouter";
 import { Graphics } from "./Graphics";
 import { StringTokenizer } from "./StringTokenizer";
 import { Locale } from "./Locale";
@@ -86,6 +88,7 @@ export class LabeledNodeElm extends CircuitElm {
     }
 
     readonly circleSize: number = 17;
+    textRect: Rectangle | null = null;
 
     setPoints(): void {
         super.setPoints();
@@ -166,15 +169,15 @@ export class LabeledNodeElm extends CircuitElm {
         return null;
     }
 
-    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
-        if (this.isRotateText() && pt1.x === pt2.x) {
-            this.drawRotatedLabeledNode(g, str, pt1, pt2);
-            return;
-        }
-        super.drawLabeledNode(g, str, pt1, pt2);
+    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): Rectangle {
+        if (this.isRotateText() && pt1.x === pt2.x)
+            this.textRect = this.drawRotatedLabeledNode(g, str, pt1, pt2);
+        else
+            this.textRect = super.drawLabeledNode(g, str, pt1, pt2);
+        return this.textRect;
     }
 
-    drawRotatedLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
+    drawRotatedLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): Rectangle {
         let lineOver = false;
         if (str.startsWith("/")) {
             lineOver = true;
@@ -204,6 +207,31 @@ export class LabeledNodeElm extends CircuitElm {
             g.drawLine(-w / 2, xa, w / 2, xa);
             g.restore();
         }
+        return new Rectangle(tx - h / 2, ty - w / 2, h, w);
+    }
+
+    // Routed wires may cross the stub like any other wire, but not its end or
+    // the text.  Otherwise a wire passing between the end of the stub and the
+    // text looks like it's connected to the label.
+    addRoutingObstacle(router: WireRouter): void {
+        router.addWire(this.x, this.y, this.x2, this.y2);
+        if (this.busWidth > 1)
+            return;
+        const dx = Math.sign(this.x2 - this.x), dy = Math.sign(this.y2 - this.y);
+        if ((dx === 0) === (dy === 0))
+            return;  // not horizontal or vertical
+        // from the end of the stub (lead1) to point2, but not over the post
+        const gs = CircuitElm.app.gridSize;
+        let lx = this.x2 - dx * this.circleSize, ly = this.y2 - dy * this.circleSize;
+        if ((lx - this.x) * dx + (ly - this.y) * dy < gs) {
+            lx = this.x + dx * gs; ly = this.y + dy * gs;
+        }
+        if ((this.x2 - lx) * dx + (this.y2 - ly) * dy >= 0)
+            router.addObstacle(lx, ly, this.x2, this.y2);
+        // the text (as of the last draw)
+        const r = this.textRect;
+        if (r !== null)
+            router.addObstacle(r.x, r.y, r.x + r.width, r.y + r.height);
     }
 
     draw(g: Graphics): void {

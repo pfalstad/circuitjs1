@@ -313,6 +313,9 @@ export class WireRouter {
             else return -1;
 
             let r = prev[0], c = prev[1];
+            // the corner cell must also be free in the new direction
+            if (!this.canLeave(r, c, moveDir))
+                return -1;
             for (let s = 0; s < steps; s++) {
                 r += Math.sign(dr);
                 c += Math.sign(dc);
@@ -392,7 +395,7 @@ export class WireRouter {
 
             for (const neigh of this.neighbors(current.r, current.c)) {
                 const nr = neigh[0], nc = neigh[1], moveDir = neigh[2];
-                if (!this.canMoveTo(nr, nc, moveDir)) continue;
+                if (!this.canLeave(current.r, current.c, moveDir) || !this.canMoveTo(nr, nc, moveDir)) continue;
 
                 let moveCost = 1.0;
                 if (current.dir !== WireRouter.NONE && moveDir !== current.dir && moveDir !== this.opposite(current.dir))
@@ -467,6 +470,14 @@ export class WireRouter {
         if ((cell & WireRouter.OBSTACLE) !== 0) return false;
         const flag = (moveDir === WireRouter.LEFT || moveDir === WireRouter.RIGHT) ? WireRouter.HORIZONTAL : WireRouter.VERTICAL;
         return (cell & flag) === 0;
+    }
+
+    // check that a wire can exit cell (r, c) in moveDir.  canMoveTo() only checks the
+    // cell being entered, so without this a wire could turn in a cell that has an
+    // existing wire running in the new direction and overlap it.
+    private canLeave(r: number, c: number, moveDir: number): boolean {
+        const flag = (moveDir === WireRouter.LEFT || moveDir === WireRouter.RIGHT) ? WireRouter.HORIZONTAL : WireRouter.VERTICAL;
+        return (this.grid![r][c] & flag) === 0;
     }
 
     private getMoveDir(dr: number, dc: number): number {

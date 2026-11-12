@@ -1003,7 +1003,8 @@ export abstract class CircuitElm implements Editable {
         g.restore();
     }
 
-    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
+    // draw a node label next to pt2; returns the text's bounding rectangle
+    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): Rectangle {
         g.save();
         g.setFont(CircuitElm.valueFont);
         let lineOver = false;
@@ -1031,6 +1032,7 @@ export abstract class CircuitElm implements Editable {
             const ya = y - h/2 - 1;
             g.drawLine(x, ya, x+w, ya);
         }
+        return new Rectangle(x, y-h/2, w, h);
     }
 
     drawCoil(g: Graphics, hs: number, p1: Point, p2: Point, v1: number, v2: number): void {
