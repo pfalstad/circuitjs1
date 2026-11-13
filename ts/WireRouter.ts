@@ -18,7 +18,6 @@
 */
 
 import { Point } from "./Point";
-import { parseIntStrict } from "./NumberParse";
 
 interface RoutableElm {
     x: number; y: number; x2: number; y2: number;
@@ -27,57 +26,49 @@ interface RoutableElm {
     addRoutingObstacle(router: WireRouter): void;
 }
 
-// Simple min-heap for A* priority queue
-class MinHeap<T> {
-    private data: T[] = [];
-    constructor(private compare: (a: T, b: T) => number) {}
-    offer(item: T): void {
-        this.data.push(item);
-        this._bubbleUp(this.data.length - 1);
-    }
-    poll(): T | undefined {
-        if (this.data.length === 0) return undefined;
-        const top = this.data[0];
-        const last = this.data.pop()!;
-        if (this.data.length > 0) {
-            this.data[0] = last;
-            this._sinkDown(0);
-        }
-        return top;
-    }
-    isEmpty(): boolean { return this.data.length === 0; }
-    private _bubbleUp(i: number): void {
+// Min-heap of A* states keyed on fScore, stored in parallel arrays.
+class StateHeap {
+    private f: number[] = [];
+    private g: number[] = [];
+    private s: number[] = [];
+    isEmpty(): boolean { return this.f.length === 0; }
+    topG(): number { return this.g[0]; }
+    topState(): number { return this.s[0]; }
+    offer(f: number, g: number, s: number): void {
+        const fa = this.f, ga = this.g, sa = this.s;
+        let i = fa.length;
+        fa.push(f); ga.push(g); sa.push(s);
         while (i > 0) {
-            const parent = (i - 1) >> 1;
-            if (this.compare(this.data[i], this.data[parent]) < 0) {
-                [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
-                i = parent;
-            } else break;
+            const p = (i - 1) >> 1;
+            if (f >= fa[p]) break;
+            fa[i] = fa[p]; ga[i] = ga[p]; sa[i] = sa[p];
+            i = p;
         }
+        fa[i] = f; ga[i] = g; sa[i] = s;
     }
-    private _sinkDown(i: number): void {
-        const n = this.data.length;
+    pop(): void {
+        const fa = this.f, ga = this.g, sa = this.s;
+        const lf = fa.pop()!, lg = ga.pop()!, ls = sa.pop()!;
+        const n = fa.length;
+        if (n === 0) return;
+        let i = 0;
         while (true) {
-            let smallest = i;
-            const l = 2 * i + 1, r = 2 * i + 2;
-            if (l < n && this.compare(this.data[l], this.data[smallest]) < 0) smallest = l;
-            if (r < n && this.compare(this.data[r], this.data[smallest]) < 0) smallest = r;
-            if (smallest === i) break;
-            [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
-            i = smallest;
+            const l = 2 * i + 1, r = l + 1;
+            let m = i, mf = lf;
+            if (l < n && fa[l] < mf) { m = l; mf = fa[l]; }
+            if (r < n && fa[r] < mf) { m = r; }
+            if (m === i) break;
+            fa[i] = fa[m]; ga[i] = ga[m]; sa[i] = sa[m];
+            i = m;
         }
+        fa[i] = lf; ga[i] = lg; sa[i] = ls;
     }
-}
-
-interface AStarNode {
-    r: number; c: number; dir: number;
-    gScore: number; fScore: number;
 }
 
 export class WireRouter {
     private rows: number = 0;
     private cols: number = 0;
-    private grid: number[][] | null = null;
+    private grid: Uint8Array[] | null = null;
 
     private static readonly OBSTACLE   = 1;
     private static readonly HORIZONTAL = 2;
@@ -185,7 +176,7 @@ export class WireRouter {
 
         this.grid = [];
         for (let r = 0; r < this.rows; r++)
-            this.grid.push(new Array(this.cols).fill(0));
+            this.grid.push(new Uint8Array(this.cols));
 
         for (const ce of elmList) {
             if (wire === ce) continue;
@@ -363,10 +354,41 @@ export class WireRouter {
         }
 
         console.log("A*");
+        const fullPath = this.aStar(startR, startC, goalR, goalC);
+        if (fullPath === null) return [];
+        const compressed = this.compressPath(fullPath);
+        return compressed.map(pt => new Point(pt[1] * this.gridSize + this.originX, pt[0] * this.gridSize + this.originY));
+    }
 
-        const openSet = new MinHeap<AStarNode>((a, b) => a.fScore - b.fScore);
-        const gScore = new Map<string, number>();
-        const cameFrom = new Map<string, string>();
+    // A* search state, indexed by (r * cols + c) * 4 + (dir - 1).  Buffers are shared
+    // between routers and reused; a generation stamp marks which entries are valid
+    // so they never need to be cleared.
+    private static gScoreBuf = new Float64Array(0);
+    private static cameFromBuf = new Int32Array(0);
+    private static stampBuf = new Uint32Array(0);
+    private static generation = 0;
+
+    private aStar(startR: number, startC: number, goalR: number, goalC: number): number[][] | null {
+        const cols = this.cols;
+        const nStates = this.rows * cols * 4;
+        if (WireRouter.stampBuf.length < nStates) {
+            WireRouter.gScoreBuf = new Float64Array(nStates);
+            WireRouter.cameFromBuf = new Int32Array(nStates);
+            WireRouter.stampBuf = new Uint32Array(nStates);
+            WireRouter.generation = 0;
+        }
+        if (++WireRouter.generation === 0xffffffff) {
+            WireRouter.stampBuf.fill(0);
+            WireRouter.generation = 1;
+        }
+        const gen = WireRouter.generation;
+        const gScore = WireRouter.gScoreBuf;
+        const cameFrom = WireRouter.cameFromBuf;
+        const stamp = WireRouter.stampBuf;
+        const grid = this.grid!;
+        const turnPenalty = this.turnPenalty;
+        const heap = new StateHeap();
+        const OBST = WireRouter.OBSTACLE, HORIZ = WireRouter.HORIZONTAL, VERT = WireRouter.VERTICAL;
 
         const startPrefs = this.getPreferredEscapeDirections(startR, startC);
 
@@ -374,56 +396,67 @@ export class WireRouter {
             if (!this.canMoveTo(startR + this.dr(d), startC + this.dc(d), d)) continue;
             let initG = 0.0;
             if (startPrefs.includes(d)) initG += WireRouter.ESCAPE_BONUS;
-            const key = this.key(startR, startC, d);
-            const h = this.manhattan(startR, startC, goalR, goalC);
-            openSet.offer({ r: startR, c: startC, dir: d, gScore: initG, fScore: initG + h });
-            gScore.set(key, initG);
+            const s = (startR * cols + startC) * 4 + d - 1;
+            heap.offer(initG + Math.abs(startR - goalR) + Math.abs(startC - goalC), initG, s);
+            gScore[s] = initG;
+            cameFrom[s] = -1;
+            stamp[s] = gen;
         }
 
-        let bestGoalNode: AStarNode | null = null;
+        // the heuristic (manhattan distance) is consistent, so the first goal state
+        // popped has the lowest cost and we can stop there.
+        let goalState = -1;
+        while (!heap.isEmpty()) {
+            const g = heap.topG(), s = heap.topState();
+            heap.pop();
+            if (g > gScore[s]) continue;
 
-        while (!openSet.isEmpty()) {
-            const current = openSet.poll()!;
-            const currKey = this.key(current.r, current.c, current.dir);
+            const cell = s >> 2;
+            const dir = (s & 3) + 1;
+            const r = (cell / cols) | 0;
+            const c = cell - r * cols;
+            if (r === goalR && c === goalC) { goalState = s; break; }
 
-            if (current.gScore > (gScore.get(currKey) ?? Infinity)) continue;
-
-            if (current.r === goalR && current.c === goalC) {
-                if (bestGoalNode === null || current.gScore < bestGoalNode.gScore)
-                    bestGoalNode = current;
-            }
-
-            for (const neigh of this.neighbors(current.r, current.c)) {
-                const nr = neigh[0], nc = neigh[1], moveDir = neigh[2];
-                if (!this.canLeave(current.r, current.c, moveDir) || !this.canMoveTo(nr, nc, moveDir)) continue;
+            const here = grid[r][c];
+            for (let moveDir = 1; moveDir <= 4; moveDir++) {
+                let nr = r, nc = c;
+                if (moveDir === WireRouter.UP) nr--;
+                else if (moveDir === WireRouter.DOWN) nr++;
+                else if (moveDir === WireRouter.LEFT) nc--;
+                else nc++;
+                if (nr < 0 || nr >= this.rows || nc < 0 || nc >= cols) continue;
+                const horiz = moveDir >= WireRouter.LEFT;
+                const flag = horiz ? HORIZ : VERT;
+                // canLeave(r, c, moveDir) && canMoveTo(nr, nc, moveDir)
+                if ((here & flag) !== 0) continue;
+                const there = grid[nr][nc];
+                if ((there & (OBST | flag)) !== 0) continue;
 
                 let moveCost = 1.0;
-                if (current.dir !== WireRouter.NONE && moveDir !== current.dir && moveDir !== this.opposite(current.dir))
-                    moveCost += this.turnPenalty;
+                if (horiz !== (dir >= WireRouter.LEFT))
+                    moveCost += turnPenalty;
 
-                const nKey = this.key(nr, nc, moveDir);
-                const tentG = current.gScore + moveCost;
-                if (tentG < (gScore.get(nKey) ?? Infinity)) {
-                    cameFrom.set(nKey, currKey);
-                    gScore.set(nKey, tentG);
-                    const h = this.manhattan(nr, nc, goalR, goalC);
-                    openSet.offer({ r: nr, c: nc, dir: moveDir, gScore: tentG, fScore: tentG + h });
+                const ns = (nr * cols + nc) * 4 + moveDir - 1;
+                const tentG = g + moveCost;
+                if (stamp[ns] !== gen || tentG < gScore[ns]) {
+                    stamp[ns] = gen;
+                    cameFrom[ns] = s;
+                    gScore[ns] = tentG;
+                    heap.offer(tentG + Math.abs(nr - goalR) + Math.abs(nc - goalC), tentG, ns);
                 }
             }
         }
 
-        if (bestGoalNode === null) return [];
+        if (goalState < 0) return null;
 
         const fullPath: number[][] = [];
-        let currentKey: string | undefined = this.key(bestGoalNode.r, bestGoalNode.c, bestGoalNode.dir);
-        while (currentKey !== undefined) {
-            const pos = this.parseKey(currentKey);
-            fullPath.unshift([pos[0], pos[1]]);
-            currentKey = cameFrom.get(currentKey);
+        for (let s = goalState; s >= 0; s = cameFrom[s]) {
+            const cell = s >> 2;
+            const r = (cell / cols) | 0;
+            fullPath.push([r, cell - r * cols]);
         }
-
-        const compressed = this.compressPath(fullPath);
-        return compressed.map(pt => new Point(pt[1] * this.gridSize + this.originX, pt[0] * this.gridSize + this.originY));
+        fullPath.reverse();
+        return fullPath;
     }
 
     private compressPath(fullPath: number[][]): number[][] {
@@ -500,23 +533,8 @@ export class WireRouter {
         return Math.abs(r1 - r2) + Math.abs(c1 - c2);
     }
 
-    private neighbors(r: number, c: number): number[][] {
-        const list: number[][] = [];
-        if (r > 0)           list.push([r - 1, c, WireRouter.UP]);
-        if (r < this.rows-1) list.push([r + 1, c, WireRouter.DOWN]);
-        if (c > 0)           list.push([r, c - 1, WireRouter.LEFT]);
-        if (c < this.cols-1) list.push([r, c + 1, WireRouter.RIGHT]);
-        return list;
-    }
 
-    private key(r: number, c: number, d: number): string {
-        return r + "," + c + "," + d;
-    }
 
-    private parseKey(key: string): number[] {
-        const parts = key.split(",");
-        return [parseIntStrict(parts[0]), parseIntStrict(parts[1]), parseIntStrict(parts[2])];
-    }
 
     drawGrid(ctx: CanvasRenderingContext2D, showGridLines: boolean): void {
         if (this.grid === null || this.rows === 0 || this.cols === 0) return;
