@@ -179,24 +179,35 @@ export class Locale {
         else
             lang = lang.replace(/-.*/, "");
 
-        // English has no UI catalog, but it can still carry search
-        // abbreviations (locale_en.txt). A missing file just leaves the map
-        // empty, which is the previous behaviour.
+        // locale_en.txt is the base layer: it holds the language-neutral search
+        // abbreviations ("gnd", "vcc", "dff"), so they work in every locale.
+        // The selected language is loaded on top and overrides entries.
+        const base = await Locale.fetchCatalog("en");
+        if (lang === "en") {
+            Locale.localizationMap = base;
+            return;
+        }
+
+        const localized = await Locale.fetchCatalog(lang);
+        const merged = new Map<string, string>(base);
+        localized.forEach((value, key) => merged.set(key, value));
+        Locale.localizationMap = merged;
+    }
+
+    // Fetches and parses one catalog. A missing or broken file yields an empty
+    // map instead of throwing, so a locale without a catalog still works.
+    private static async fetchCatalog(lang: string): Promise<Map<string, string>> {
         const url = moduleBaseURL + "locale/locale_" + lang + ".txt";
         try {
             const response = await fetch(url);
             if (response.ok) {
                 const text = await response.text();
-                Locale.localizationMap = Locale.processLocale(text);
-            } else {
-                console.log("Bad file server response: " + response.statusText);
-                // if there was an error in retrieving the
-                // language, default to English (empty map)
-                Locale.localizationMap = new Map<string, string>();
+                return Locale.processLocale(text);
             }
+            console.log("Bad file server response: " + response.statusText);
         } catch (e) {
             console.log("failed file reading", e);
-            Locale.localizationMap = new Map<string, string>();
         }
+        return new Map<string, string>();
     }
 }

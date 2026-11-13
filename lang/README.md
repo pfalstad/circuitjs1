@@ -22,6 +22,8 @@ Rules:
   name.
 - `findmissing.py` ignores keys it does not know, so these entries are not
   reported as missing translations.
-- `locale_en.txt` contains only these entries. English needs no UI catalog, but
-  the abbreviations are useful there too, so `Locale.load()` reads the English
-  file as well (a missing one simply yields an empty map).
+- `locale_en.txt` is the base layer. English needs no UI catalog, but it
+  carries the language-neutral abbreviations ("gnd", "vcc", "dff"), and
+  `Locale.load()` loads it first for every locale, then overlays the selected
+  language file. So those terms work everywhere, and a locale only has to add
+  its own words. A missing file simply yields an empty map.
