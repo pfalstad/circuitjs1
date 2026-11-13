@@ -225,6 +225,11 @@ const subheadHtml = '<span class="checkMark" style="visibility:hidden">&#10003;<
 
 export class Menus {
 
+    // Element class name -> Draw submenu title. Filled while the Draw menu is
+    // composed; the component search field shows it as a hint so users can see
+    // where a part lives in the menu tree.
+    elementCategories: Map<string, string> = new Map();
+
     aboutItem                = new MenuItem();
     importFromLocalFileItem  = new MenuItem();
     importFromTextItem       = new MenuItem();
@@ -490,7 +495,7 @@ export class Menus {
             "Add Wire",         "WireElm",
             "Add Routed Wire",  "RoutedWireElm",
             "Add Resistor",     "ResistorElm",
-        ]);
+        ], "Basic");
 
         const passMenu = new Menu(this.app);
         this.makeClassCheckItems(passMenu, [
@@ -518,7 +523,7 @@ export class Menus {
             "Add Crystal",                 "CrystalElm",
             "Add Cross Switch",            "CrossSwitchElm",
             "Add Gyrator",                 "GyratorElm",
-        ]);
+        ], "Passive Components");
         menu.addSubmenu(subheadHtml + Locale.LS("Passive Components"), passMenu);
 
         const inputMenu = new Menu(this.app);
@@ -541,7 +546,7 @@ export class Menus {
             "Add Audio Input",                      "AudioInputElm",
             "Add Data Input",                       "DataInputElm",
             "Add External Voltage (JavaScript)",    "ExtVoltageElm",
-        ]);
+        ], "Inputs and Sources");
         menu.addSubmenu(subheadHtml + Locale.LS("Inputs and Sources"), inputMenu);
 
         const outputMenu = new Menu(this.app);
@@ -567,7 +572,7 @@ export class Menus {
             "Add DC Motor",                   "DCMotorElm",
             "Add 3-Phase Motor",              "ThreePhaseMotorElm",
             "Add Wattmeter (old)",            "WattmeterElm",
-        ]);
+        ], "Outputs and Labels");
         menu.addSubmenu(subheadHtml + Locale.LS("Outputs and Labels"), outputMenu);
 
         // need these registered before unijunction element setup
@@ -593,7 +598,7 @@ export class Menus {
             "Add Tunnel Diode",                   "TunnelDiodeElm",
             "Add Triode",                         "TriodeElm",
             "Add Unijunction Transistor",         "UnijunctionElm",
-        ]);
+        ], "Active Components");
         menu.addSubmenu(subheadHtml + Locale.LS("Active Components"), activeMenu);
 
         // do these later so all the other elements are added to the map first
@@ -626,7 +631,7 @@ export class Menus {
             "Add TL431",                                      "SubcircuitElm:~TL431",
             "Add Motor Protection Switch",                    "MotorProtectionSwitchElm",
             "Add Subcircuit Instance",                        "SubcircuitElm",
-        ]);
+        ], "Active Building Blocks");
         menu.addSubmenu(subheadHtml + Locale.LS("Active Building Blocks"), activeBlocMenu);
 
         const gateMenu = new Menu(this.app);
@@ -641,7 +646,7 @@ export class Menus {
             "Add OR Gate",      "OrGateElm",
             "Add XOR Gate",     "XorGateElm",
             "Add XNOR Gate",    "XnorGateElm",
-        ]);
+        ], "Logic Gates, Input and Output");
         menu.addSubmenu(subheadHtml + Locale.LS("Logic Gates, Input and Output"), gateMenu);
 
         const chipMenu = new Menu(this.app);
@@ -667,7 +672,7 @@ export class Menus {
             "Add ROM",                  "ROMElm",
             "Add Bus Transceiver",      "BusTransceiverElm",
             "Add Bus Splitter",         "BusSplitterElm",
-        ]);
+        ], "Digital Chips");
         menu.addSubmenu(subheadHtml + Locale.LS("Digital Chips"), chipMenu);
 
         const achipMenu = new Menu(this.app);
@@ -678,7 +683,7 @@ export class Menus {
             "Add ADC",              "ADCElm",
             "Add VCO",              "VCOElm",
             "Add Monostable",       "MonostableElm",
-        ]);
+        ], "Analog and Hybrid Chips");
         menu.addSubmenu(subheadHtml + Locale.LS("Analog and Hybrid Chips"), achipMenu);
 
         menu.addSubmenu(subheadHtml + Locale.LS("Subcircuits"), this.subcircuitMenuBar![num]);
@@ -697,9 +702,12 @@ export class Menus {
         menu.addCheckboxItem(mi);
     }
 
-    makeClassCheckItems(menu: Menu, items: string[]): void {
-        for (let i = 0; i < items.length; i += 2)
+    makeClassCheckItems(menu: Menu, items: string[], category?: string): void {
+        for (let i = 0; i < items.length; i += 2) {
+            if (category != null)
+                this.elementCategories.set(items[i + 1], category);
             menu.addCheckboxItem(this.getClassCheckItem(Locale.LS(items[i]), items[i + 1]));
+        }
     }
 
     getClassCheckItem(s: string, t: string): any {

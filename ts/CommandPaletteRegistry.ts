@@ -68,6 +68,9 @@ class ScoredCommand {
 export class CommandPaletteRegistry {
 
     static commands: PaletteCommand[] = [];
+    // Component placement modes only (category "Mode" minus drag/select tools).
+    // Backs the always-visible search field in the menu bar.
+    static componentCommands: PaletteCommand[] = [];
     // Kept separate so hundreds of example circuits don't appear until the user types
     // at least MIN_CIRCUIT_QUERY_LEN characters.
     static circuitCommands: PaletteCommand[] = [];
@@ -75,8 +78,192 @@ export class CommandPaletteRegistry {
 
     static readonly MIN_CIRCUIT_QUERY_LEN = 2;
 
+    // Modes that are tools, not parts — kept out of the component search field.
+    static readonly NON_COMPONENT_MODES: Set<string> = new Set([
+        "DragAll", "DragRow", "DragColumn", "DragSelected", "DragPost", "Select",
+    ]);
+
+    // Extra search terms per element class. The UI labels are English-only in most
+    // locales, so German users would otherwise have to search for "resistor".
+    static readonly ELEMENT_ALIASES: Record<string, string> = {
+        WireElm: "draht leitung kabel",
+        RoutedWireElm: "draht leitung kabel",
+        ResistorElm: "widerstand",
+        CapacitorElm: "kondensator kapazität",
+        PolarCapacitorElm: "kondensator elko elektrolyt",
+        InductorElm: "spule induktivität",
+        SwitchElm: "schalter",
+        PushSwitchElm: "taster schalter",
+        Switch2Elm: "umschalter wechselschalter",
+        DPDTSwitchElm: "umschalter wechselschalter",
+        MBBSwitchElm: "umschalter",
+        CrossSwitchElm: "kreuzschalter",
+        PotElm: "potentiometer poti drehwiderstand",
+        TransformerElm: "transformator trafo",
+        TappedTransformerElm: "transformator trafo",
+        CustomTransformerElm: "transformator trafo",
+        TransLineElm: "leitung transmission line",
+        RelayElm: "relais",
+        RelayCoilElm: "relaisspule relais",
+        RelayContactElm: "relaiskontakt relais",
+        LDRElm: "fotowiderstand ldr",
+        ThermistorNTCElm: "heißleiter ntc thermistor",
+        MemristorElm: "memristor",
+        SparkGapElm: "funkenstrecke",
+        FuseElm: "sicherung",
+        CrystalElm: "quarz schwingquarz",
+        GyratorElm: "gyrator",
+        GroundElm: "masse ground erde",
+        DCVoltageElm: "spannungsquelle gleichspannung",
+        BatteryElm: "batterie akku",
+        ACVoltageElm: "spannungsquelle wechselspannung",
+        RailElm: "spannungsquelle",
+        ACRailElm: "spannungsquelle wechselspannung",
+        SquareRailElm: "rechteck spannungsquelle",
+        ClockElm: "takt clock rechteck",
+        SweepElm: "sweep wobbler frequenz",
+        VarRailElm: "spannungsquelle variabel",
+        AntennaElm: "antenne",
+        AMElm: "am modulation",
+        FMElm: "fm modulation",
+        CurrentElm: "stromquelle",
+        NoiseElm: "rauschen noise",
+        AudioInputElm: "audioeingang",
+        DataInputElm: "dateneingang",
+        ExtVoltageElm: "externe spannung javascript",
+        OutputElm: "analogausgang",
+        LEDElm: "led leuchtdiode",
+        LampElm: "lampe glühlampe",
+        TextElm: "text beschriftung",
+        BoxElm: "rahmen box",
+        LineElm: "linie",
+        LabeledNodeElm: "knoten label",
+        ProbeElm: "messspitze oszilloskop probe",
+        OhmMeterElm: "ohmmeter widerstandsmessung",
+        AmmeterElm: "amperemeter strommesser",
+        WattmeterTrueElm: "wattmeter leistungsmesser",
+        WattmeterElm: "wattmeter leistungsmesser",
+        TestPointElm: "messpunkt testpunkt",
+        DecimalDisplayElm: "anzeige dezimal",
+        InstructionDisplayElm: "anzeige text",
+        LEDArrayElm: "led array anzeige",
+        DataRecorderElm: "datenrekorder aufzeichnung",
+        AudioOutputElm: "audioausgang lautsprecher",
+        StopTriggerElm: "trigger stopp",
+        DCMotorElm: "motor gleichstrommotor",
+        ThreePhaseMotorElm: "drehstrommotor motor",
+        DiodeElm: "diode",
+        ZenerElm: "zenerdiode",
+        NTransistorElm: "transistor npn",
+        PTransistorElm: "transistor pnp",
+        NMosfetElm: "mosfet fet",
+        PMosfetElm: "mosfet fet",
+        NJfetElm: "jfet fet",
+        PJfetElm: "jfet fet",
+        SCRElm: "thyristor scr",
+        DiacElm: "diac",
+        TriacElm: "triac",
+        NDarlingtonElm: "darlington transistor",
+        PDarlingtonElm: "darlington transistor",
+        VaractorElm: "varicap kapazitätsdiode",
+        TunnelDiodeElm: "tunneldiode",
+        TriodeElm: "triode röhre",
+        UnijunctionElm: "unijunction transistor",
+        OpAmpElm: "opv operationsverstärker",
+        OpAmpSwapElm: "opv operationsverstärker",
+        OpAmpRealElm: "opv operationsverstärker",
+        AnalogSwitchElm: "analogschalter",
+        AnalogSwitch2Elm: "analogschalter",
+        AnalogMuxElm: "multiplexer mux",
+        TriStateElm: "tristate buffer",
+        SchmittElm: "schmitt trigger",
+        InvertingSchmittElm: "schmitt trigger invertierend",
+        DelayBufferElm: "verzögerung buffer",
+        ComparatorElm: "komparator vergleicher",
+        OTAElm: "ota",
+        NortonAmpElm: "norton verstärker",
+        OptocouplerElm: "optokoppler",
+        TimeDelayRelayElm: "zeitrelais",
+        MotorProtectionSwitchElm: "motorschutzschalter",
+        LogicInputElm: "logikeingang schalter",
+        LogicOutputElm: "logikausgang",
+        BusLogicInputElm: "bus eingang",
+        InverterElm: "inverter not nicht-gatter",
+        NandGateElm: "nand gatter",
+        NorGateElm: "nor gatter",
+        AndGateElm: "und gatter and",
+        OrGateElm: "oder gatter or",
+        XorGateElm: "xor gatter",
+        XnorGateElm: "xnor gatter",
+        DFlipFlopElm: "flipflop d",
+        JKFlipFlopElm: "flipflop jk",
+        TFlipFlopElm: "flipflop t",
+        SevenSegElm: "7-segment anzeige siebensegment",
+        SevenSegDecoderElm: "7-segment dekoder siebensegment",
+        MultiplexerElm: "multiplexer mux",
+        DeMultiplexerElm: "demultiplexer",
+        SipoShiftElm: "schieberegister sipo",
+        PisoShiftElm: "schieberegister piso",
+        CounterElm: "zähler counter",
+        Counter2Elm: "zähler counter",
+        DecadeElm: "ringzähler johanson",
+        LatchElm: "latch register speicher",
+        SeqGenElm: "sequenzgenerator",
+        FullAdderElm: "addierer volladdierer",
+        HalfAdderElm: "addierer halbaddierer",
+        UserDefinedLogicElm: "custom logic logik",
+        SRAMElm: "ram speicher",
+        ROMElm: "rom speicher",
+        BusTransceiverElm: "bus transceiver",
+        BusSplitterElm: "bus splitter",
+        TimerElm: "555 timer ne555",
+        PhaseCompElm: "phasenkomparator",
+        DACElm: "dac wandler",
+        ADCElm: "adc wandler",
+        VCOElm: "vco oszillator",
+        MonostableElm: "monoflop monostabil",
+    };
+
+    // Component-only search for the menu-bar field. Same idea as the palette, but
+    // scored against label + keywords only (the category text would otherwise make
+    // short queries match half the menu) and with a density floor for fuzzy hits.
+    static searchComponents(query: string, maxResults: number): PaletteCommand[] {
+        const q = query.toLowerCase().trim();
+        if (q.length === 0)
+            return [];
+        const scored: ScoredCommand[] = [];
+        for (const cmd of CommandPaletteRegistry.componentCommands) {
+            const target = (cmd.label + " " + cmd.keywords).toLowerCase();
+            const idx = target.indexOf(q);
+            let score = 0;
+            if (idx >= 0) {
+                score = 1000 - idx + (q.length * 10);
+            } else {
+                let qi = 0;
+                let s = 0;
+                let lastMatch = -2;
+                for (let ti = 0; ti < target.length && qi < q.length; ti++) {
+                    if (target.charAt(ti) === q.charAt(qi)) {
+                        s += (lastMatch === ti - 1) ? 10 : 1;
+                        lastMatch = ti;
+                        qi++;
+                    }
+                }
+                // Require a dense subsequence; scattered letters across a long
+                // keyword string are noise, not a match.
+                if (qi === q.length && s >= q.length * 4)
+                    score = s;
+            }
+            if (score > 0)
+                scored.push(new ScoredCommand(cmd, score));
+        }
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, maxResults).map(s => s.cmd);
+    }
+
     static clear(): void {
         CommandPaletteRegistry.commands = [];
+        CommandPaletteRegistry.componentCommands = [];
         CommandPaletteRegistry.circuitCommands = [];
         CommandPaletteRegistry.byId.clear();
     }
@@ -118,7 +305,19 @@ export class CommandPaletteRegistry {
             const sc = item.getShortcut();
             if (sc != null && sc.length === 1)
                 kw += " " + sc;
-            CommandPaletteRegistry.add("main:" + cls, label, "Mode", kw, "main", cls);
+            const alias = CommandPaletteRegistry.ELEMENT_ALIASES[cls];
+            if (alias != null)
+                kw += " " + alias;
+            const category = (m.elementCategories != null) ? m.elementCategories.get(cls) : null;
+            const cmd = new PaletteCommand({
+                id: "main:" + cls, label, category: "Mode", keywords: kw,
+                menu: "main", item: cls,
+                hint: (category != null && category.length > 0) ? category : undefined,
+            });
+            const isNew = !CommandPaletteRegistry.byId.has(cmd.id);
+            CommandPaletteRegistry.addCommand(cmd);
+            if (isNew && !CommandPaletteRegistry.NON_COMPONENT_MODES.has(cls))
+                CommandPaletteRegistry.componentCommands.push(cmd);
         }
 
         const cm = m.ctrlMetaKey;
