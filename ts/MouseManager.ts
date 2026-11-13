@@ -355,7 +355,8 @@ export class MouseManager {
 		this.splitAt(this.dragElm.x2, this.dragElm.y2);
 		this.ui.elmList.push(this.dragElm);
 		this.dragElm.draggingDone();
-		CircuitElm.sortBoxes(this.ui.elmList);
+		if (this.dragElm.isBoxElm())
+		    CircuitElm.sortBoxes(this.ui.elmList);
 		this.sim.undoManager?.writeRecoveryToStorage();
 		this.sim.unsavedChanges = true;
 		this.sim.needAnalyze();
@@ -1635,7 +1636,6 @@ export class MouseManager {
 	Scope.dragStartTime = -1;
 	Scope.endDragPlotY();
 
-	const moved = (this.tempMouseMode === MouseManager.MODE_DRAG_POST || this.tempMouseMode === MouseManager.MODE_DRAG_SELECTED);
 	this.tempMouseMode = this.mouseMode;
 	this.selectedArea = null;
 	this.dragging = false;
@@ -1685,6 +1685,8 @@ export class MouseManager {
 		this.splitAt(this.dragElm.x2, this.dragElm.y2);
 		this.ui.elmList.push(this.dragElm);
 		this.dragElm.draggingDone();
+		if (this.dragElm.isBoxElm())
+		    CircuitElm.sortBoxes(this.ui.elmList);	// new boxes go behind, largest first
 		circuitChanged = true;
 		this.sim.undoManager?.writeRecoveryToStorage();
 		this.sim.unsavedChanges = true;
@@ -1693,9 +1695,6 @@ export class MouseManager {
 		this.sim.updateToolbar();
 	    }
 	}
-	// boxes go behind everything, largest first
-	if (circuitChanged || moved)
-	    CircuitElm.sortBoxes(this.ui.elmList);
 	if (circuitChanged) {
 	    this.sim.needAnalyze();
 	    this.sim.undoManager?.pushUndo();

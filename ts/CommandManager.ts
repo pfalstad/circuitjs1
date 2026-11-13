@@ -382,6 +382,11 @@ export class CommandManager {
 
     doEdit(eable: any, pushUndo: boolean = true): void {
         this.app.mouse.clearSelection();
+        // put the box behind everything (largest first), so a fill opacity set in the
+        // dialog shows correctly.  Only here and when boxes are created, not on load, so
+        // old circuits keep their element order (tests refer to elements by position)
+        if (eable instanceof CircuitElm && eable.isBoxElm())
+            CircuitElm.sortBoxes(this.app.elmList);
         if (pushUndo)
             this.app.undoManager?.pushUndo();
         if (CirSim.editDialog != null) {
@@ -737,7 +742,8 @@ export class CommandManager {
             for (let i = oldsz; i != this.app.elmList.length; i++)
                 this.app.elmList[i].move(dx, dy);
         }
-        CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
+        if (this.app.elmList.slice(oldsz).some(ce => ce.isBoxElm()))
+            CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
         this.app.needAnalyze();
         this.app.undoManager?.writeRecoveryToStorage();
     }
