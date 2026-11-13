@@ -125,9 +125,9 @@ export class BoxElm extends ShapeElm {
         ctx.closePath();
     }
 
-    extraCount(): number { return 2; }
+    shapeEditCount(): number { return 2; }
 
-    getExtraEditInfo(n: number): EditInfo | null {
+    getShapeEditInfo(n: number): EditInfo | null {
         if (n === 0)
             return new EditInfo("Fill Opacity (%)", this.opacity, 0, 100).setDimensionless().setUnitStep().disallowSliders();
         if (n === 1)
@@ -135,7 +135,7 @@ export class BoxElm extends ShapeElm {
         return null;
     }
 
-    setExtraEditValue(n: number, ei: EditInfo): void {
+    setShapeEditValue(n: number, ei: EditInfo): void {
         const v = Math.round(ei.value);
         if (n === 0) {
             if (v < 0 || v > 100) {

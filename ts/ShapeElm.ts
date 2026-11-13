@@ -30,7 +30,7 @@ import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 // Common base for the editable drawing shapes (BoxElm, LineElm): colour, thickness and
 // line style, plus a "last used" memory so a new shape copies the one most recently drawn
 // or edited.  Snap mode is a session setting shared by all shapes and isn't saved.
-// Edit dialog rows: the 3 common rows, the subclass's own rows (getExtraEditInfo), then
+// Edit dialog rows: the 3 common rows, the subclass's own rows (getShapeEditInfo), then
 // the 2 snap checkboxes.
 export abstract class ShapeElm extends GraphicElm {
 
@@ -193,9 +193,9 @@ export abstract class ShapeElm extends GraphicElm {
 
     showPropertiesOnCreate(): boolean { return false; }
 
-    extraCount(): number { return 0; }
-    getExtraEditInfo(n: number): EditInfo | null { return null; }
-    setExtraEditValue(n: number, ei: EditInfo): void { }
+    shapeEditCount(): number { return 0; }
+    getShapeEditInfo(n: number): EditInfo | null { return null; }
+    setShapeEditValue(n: number, ei: EditInfo): void { }
 
     getEditInfo(n: number): EditInfo | null {
         if (n === 0)
@@ -211,9 +211,9 @@ export abstract class ShapeElm extends GraphicElm {
             return ei;
         }
         n -= 3;
-        if (n < this.extraCount())
-            return this.getExtraEditInfo(n);
-        n -= this.extraCount();
+        if (n < this.shapeEditCount())
+            return this.getShapeEditInfo(n);
+        n -= this.shapeEditCount();
         // neither ticked = free placement.  ticking one also snaps this shape (snapPoints)
         if (n === 0) {
             const ei = EditInfo.createCheckbox("Snap to Grid", ShapeElm.snap === ShapeElm.SNAP_GRID);
@@ -241,10 +241,10 @@ export abstract class ShapeElm extends GraphicElm {
             this.thickness = t;
         } else if (n === 2) {
             this.lineStyle = ei.choice!.getSelectedIndex();
-        } else if (n - 3 < this.extraCount()) {
-            this.setExtraEditValue(n - 3, ei);
+        } else if (n - 3 < this.shapeEditCount()) {
+            this.setShapeEditValue(n - 3, ei);
         } else {
-            const k = n - 3 - this.extraCount();
+            const k = n - 3 - this.shapeEditCount();
             const mode = (k === 0) ? ShapeElm.SNAP_GRID : ShapeElm.SNAP_MID;
             if (ei.checkbox!.getState()) {
                 ShapeElm.snap = mode;

@@ -129,9 +129,9 @@ export class LineElm extends ShapeElm {
         return p;
     }
 
-    extraCount(): number { return 1; }
+    shapeEditCount(): number { return 1; }
 
-    getExtraEditInfo(n: number): EditInfo | null {
+    getShapeEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Arrowheads", 0, -1, -1);
             ei.choice = new Choice();
@@ -145,7 +145,7 @@ export class LineElm extends ShapeElm {
         return null;
     }
 
-    setExtraEditValue(n: number, ei: EditInfo): void {
+    setShapeEditValue(n: number, ei: EditInfo): void {
         if (n === 0)
             this.arrows = ei.choice!.getSelectedIndex();
     }
