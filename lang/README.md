@@ -17,6 +17,10 @@ Rules:
 - Key is `search:` plus the element class name (`ts/<Class>Elm.ts`, the same
   name the Draw menu registers in `UIManager.mainMenuItemNames`).
 - Value is a space-separated list of extra search terms.
+- Only add a term that appears in no other indexed text. The search already
+  matches the class name, the English label and the localized label, so
+  `"search:CapacitorElm"="cap"` or `"search:CCCSElm"="cccs"` add nothing.
+  `ts/LocaleSearchTerms.test.ts` fails the build if an entry is redundant.
 - Entries are optional and additive: they only extend the keywords, they never
   replace the label. A locale without them still searches by label and class
   name.
