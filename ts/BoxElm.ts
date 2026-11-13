@@ -81,6 +81,11 @@ export class BoxElm extends ShapeElm {
         this.setBbox(this.x, this.y, this.x2, this.y2);
         const bx = Math.min(this.x, this.x2), by = Math.min(this.y, this.y2);
         const bw = Math.abs(this.x2 - this.x), bh = Math.abs(this.y2 - this.y);
+        // a thick stroke is centred on the edge, so half of it lies outside the box
+        if (this.thickness > 1) {
+            const pad = Math.ceil(this.thickness / 2);
+            this.adjustBbox(bx - pad, by - pad, bx + bw + pad, by + bh + pad);
+        }
         const r = Math.min(this.cornerRadius, Math.trunc(Math.min(bw, bh) / 2));
         const ctx = g.context;
         if (this.opacity > 0) {

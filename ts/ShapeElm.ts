@@ -138,6 +138,20 @@ export abstract class ShapeElm extends GraphicElm {
         this.setPoints();
     }
 
+    // ticking a snap checkbox in this shape's dialog snaps this shape too, not just the
+    // ones drawn or moved afterwards.  Skipped if it would flatten the shape: a line to a
+    // point, or a box to a line.
+    snapPoints(): void {
+        const x = this.snapCoord(this.x), y = this.snapCoord(this.y);
+        const x2 = this.snapCoord(this.x2), y2 = this.snapCoord(this.y2);
+        if (this.isBoxElm() ? (x === x2 || y === y2) : (x === x2 && y === y2))
+            return;
+        this.x = x; this.y = y; this.x2 = x2; this.y2 = y2;
+        this.setBbox(this.x, this.y, this.x2, this.y2);
+        this.setPoints();
+        CircuitElm.app.repaint();
+    }
+
     // shapes have no posts, but both stored points are resize handles
     getNumHandles(): number { return 2; }
 
@@ -200,7 +214,7 @@ export abstract class ShapeElm extends GraphicElm {
         if (n < this.extraCount())
             return this.getExtraEditInfo(n);
         n -= this.extraCount();
-        // neither ticked = free placement.  only affects what's drawn or moved from now on
+        // neither ticked = free placement.  ticking one also snaps this shape (snapPoints)
         if (n === 0) {
             const ei = EditInfo.createCheckbox("Snap to Grid", ShapeElm.snap === ShapeElm.SNAP_GRID);
             this.gridBox = ei.checkbox;
@@ -237,6 +251,7 @@ export abstract class ShapeElm extends GraphicElm {
                 const other = (k === 0) ? this.midBox : this.gridBox;
                 if (other != null)
                     other.setState(false);	// no event fired, so no loop
+                this.snapPoints();
             } else if (ShapeElm.snap === mode)
                 ShapeElm.snap = ShapeElm.SNAP_FREE;
         }

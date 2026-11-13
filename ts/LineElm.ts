@@ -91,6 +91,15 @@ export class LineElm extends ShapeElm {
         // arrowhead size grows with thickness; shorten the line so a thick
         // stroke doesn't poke out past the arrow's tip
         const alen = Math.min(6 + 3 * this.thickness, len / 2);
+        // a thick stroke (round ends) and arrowheads reach past the end points
+        let pad = (this.thickness > 1) ? this.thickness / 2 : 0;
+        if (aStart || aEnd)
+            pad = Math.max(pad, alen * .45);	// arrowhead half-width, see arrowHead()
+        if (pad > 0) {
+            pad = Math.ceil(pad);
+            this.adjustBbox(Math.min(this.x, this.x2) - pad, Math.min(this.y, this.y2) - pad,
+                            Math.max(this.x, this.x2) + pad, Math.max(this.y, this.y2) + pad);
+        }
         let sx = this.x, sy = this.y, ex = this.x2, ey = this.y2;
         if (len > 0) {
             const ux = (this.x2 - this.x) / len, uy = (this.y2 - this.y) / len;
