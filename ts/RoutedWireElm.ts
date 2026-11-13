@@ -231,6 +231,10 @@ export class RoutedWireElm extends WireElm {
 
         for (let i = 0; i < rp1.length - 1; i++)
             router.addWire(rp1[i].x, rp1[i].y, rp1[i + 1].x, rp1[i + 1].y);
+        // the second half starts where the first ended, so it may leave in any direction
+        // (canLeave() would otherwise stop it carrying straight on through the via point).
+        // It still can't double back over the first half, whose other cells stay marked.
+        router.clearPoint(vx, vy);
 
         const rp2 = router.routeWire(vx, vy, this.x2, this.y2);
         if (rp2.length < 2) return;

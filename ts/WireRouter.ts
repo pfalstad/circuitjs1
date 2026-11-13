@@ -135,6 +135,14 @@ export class WireRouter {
             this.grid![r][c] |= WireRouter.OBSTACLE;
     }
 
+    // clear the cell at a point, so a route can start or end there whatever is in it
+    clearPoint(px: number, py: number): void {
+        const r = (py - this.originY) / this.gridSize | 0;
+        const c = (px - this.originX) / this.gridSize | 0;
+        if (this.isValid(r, c))
+            this.grid![r][c] = 0;
+    }
+
     addWire(px1: number, py1: number, px2: number, py2: number): void {
         const r1 = (py1 - this.originY) / this.gridSize | 0;
         const c1 = (px1 - this.originX) / this.gridSize | 0;
