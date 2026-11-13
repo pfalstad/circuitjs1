@@ -53,6 +53,16 @@ export class Locale {
         return s;
     }
 
+    // Look up a catalog entry without the LS() fallback: returns null when the
+    // key is absent, so callers can tell "not translated" from "translated to
+    // the same text". Used for non-UI entries such as "search:<ElmClass>".
+    static lookup(s: string): string | null {
+        if (s == null || s.length === 0)
+            return null;
+        const sm = Locale.localizationMap.get(s);
+        return (sm != null) ? sm : null;
+    }
+
     static weAreInUS(orCanada: boolean): boolean {
         try {
             const languages = navigator.languages;
@@ -169,12 +179,9 @@ export class Locale {
         else
             lang = lang.replace(/-.*/, "");
 
-        if (lang.startsWith("en")) {
-            // no need to load locale file for English
-            Locale.localizationMap = new Map<string, string>();
-            return;
-        }
-
+        // English has no UI catalog, but it can still carry search
+        // abbreviations (locale_en.txt). A missing file just leaves the map
+        // empty, which is the previous behaviour.
         const url = moduleBaseURL + "locale/locale_" + lang + ".txt";
         try {
             const response = await fetch(url);

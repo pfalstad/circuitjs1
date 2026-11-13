@@ -100,6 +100,12 @@ export class CommandPaletteRegistry {
             let score = 0;
             if (idx >= 0) {
                 score = 1000 - idx + (q.length * 10);
+                // A standalone word should beat a longer word that merely
+                // starts with the query ("gnd" vs. "GND output", "vcc" vs.
+                // the VCCS class name).
+                const isWord = (i: number) => i < 0 || i >= target.length || !/[a-z0-9äöüß]/.test(target.charAt(i));
+                if (isWord(idx - 1) && isWord(idx + q.length))
+                    score += 200;
             } else {
                 let qi = 0;
                 let s = 0;
@@ -164,11 +170,17 @@ export class CommandPaletteRegistry {
             const name = item.getLabel();
             const label = Locale.LS("Mode: ") + name;
             // Index the English source label too: the menu label is localized,
-            // so without it "resistor" would stop matching in a German UI. It
-            // sits right after the class name so English hits rank as well as
-            // localized ones.
+            // so without it "resistor" would stop matching in a German UI.
             const englishLabel = (m.elementLabels != null) ? m.elementLabels.get(cls) : null;
+            // Abbreviations the label doesn't contain ("opv", "elko", "trafo")
+            // are language data too, so they live in the locale files as
+            // "search:<ElmClass>" entries instead of a table in code. They go
+            // right after the class name so they rank ahead of incidental
+            // matches inside other labels.
+            const extraTerms = Locale.lookup("search:" + cls);
             let kw = cls + " ";
+            if (extraTerms != null)
+                kw += extraTerms + " ";
             if (englishLabel != null)
                 kw += englishLabel + " ";
             kw += name;
