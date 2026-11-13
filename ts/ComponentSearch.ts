@@ -129,8 +129,9 @@ export class ComponentSearch {
 
             const label = document.createElement("span");
             label.className = "componentSearchLabel";
-            // Drop the "Mode: " prefix the palette uses; the field is component-only.
-            const text = Locale.LS(cmd.label).replace(/^Mode:\s*/, "");
+            // Component entries carry the plain element name ("Widerstand
+            // einfügen"), no "Mode: " prefix like the command palette.
+            const text = Locale.LS(cmd.label);
             label.innerHTML = CommandPaletteRegistry.highlightMatch(text, query);
             row.appendChild(label);
 

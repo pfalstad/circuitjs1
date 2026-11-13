@@ -168,7 +168,7 @@ export class CommandPaletteRegistry {
             const item = ui.mainMenuItems[i];
             const cls = ui.mainMenuItemNames[i];
             const name = item.getLabel();
-            const label = Locale.LS("Mode: ") + name;
+            const label = name;
             // Index the English source label too: the menu label is localized,
             // so without it "resistor" would stop matching in a German UI.
             const englishLabel = (m.elementLabels != null) ? m.elementLabels.get(cls) : null;
