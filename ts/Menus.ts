@@ -230,6 +230,11 @@ export class Menus {
     // where a part lives in the menu tree.
     elementCategories: Map<string, string> = new Map();
 
+    // Element class name -> English source label ("Add Resistor"). The menu
+    // shows the localized label, but the search should still match the English
+    // term in every locale.
+    elementLabels: Map<string, string> = new Map();
+
     aboutItem                = new MenuItem();
     importFromLocalFileItem  = new MenuItem();
     importFromTextItem       = new MenuItem();
@@ -706,6 +711,7 @@ export class Menus {
         for (let i = 0; i < items.length; i += 2) {
             if (category != null)
                 this.elementCategories.set(items[i + 1], category);
+            this.elementLabels.set(items[i + 1], items[i]);
             menu.addCheckboxItem(this.getClassCheckItem(Locale.LS(items[i]), items[i + 1]));
         }
     }

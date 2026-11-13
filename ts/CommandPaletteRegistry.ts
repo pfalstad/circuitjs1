@@ -83,147 +83,6 @@ export class CommandPaletteRegistry {
         "DragAll", "DragRow", "DragColumn", "DragSelected", "DragPost", "Select",
     ]);
 
-    // Extra search terms per element class. The UI labels are English-only in most
-    // locales, so German users would otherwise have to search for "resistor".
-    static readonly ELEMENT_ALIASES: Record<string, string> = {
-        WireElm: "draht leitung kabel",
-        RoutedWireElm: "draht leitung kabel",
-        ResistorElm: "widerstand",
-        CapacitorElm: "kondensator kapazität",
-        PolarCapacitorElm: "kondensator elko elektrolyt",
-        InductorElm: "spule induktivität",
-        SwitchElm: "schalter",
-        PushSwitchElm: "taster schalter",
-        Switch2Elm: "umschalter wechselschalter",
-        DPDTSwitchElm: "umschalter wechselschalter",
-        MBBSwitchElm: "umschalter",
-        CrossSwitchElm: "kreuzschalter",
-        PotElm: "potentiometer poti drehwiderstand",
-        TransformerElm: "transformator trafo",
-        TappedTransformerElm: "transformator trafo",
-        CustomTransformerElm: "transformator trafo",
-        TransLineElm: "leitung transmission line",
-        RelayElm: "relais",
-        RelayCoilElm: "relaisspule relais",
-        RelayContactElm: "relaiskontakt relais",
-        LDRElm: "fotowiderstand ldr",
-        ThermistorNTCElm: "heißleiter ntc thermistor",
-        MemristorElm: "memristor",
-        SparkGapElm: "funkenstrecke",
-        FuseElm: "sicherung",
-        CrystalElm: "quarz schwingquarz",
-        GyratorElm: "gyrator",
-        GroundElm: "masse ground erde",
-        DCVoltageElm: "spannungsquelle gleichspannung",
-        BatteryElm: "batterie akku",
-        ACVoltageElm: "spannungsquelle wechselspannung",
-        RailElm: "spannungsquelle",
-        ACRailElm: "spannungsquelle wechselspannung",
-        SquareRailElm: "rechteck spannungsquelle",
-        ClockElm: "takt clock rechteck",
-        SweepElm: "sweep wobbler frequenz",
-        VarRailElm: "spannungsquelle variabel",
-        AntennaElm: "antenne",
-        AMElm: "am modulation",
-        FMElm: "fm modulation",
-        CurrentElm: "stromquelle",
-        NoiseElm: "rauschen noise",
-        AudioInputElm: "audioeingang",
-        DataInputElm: "dateneingang",
-        ExtVoltageElm: "externe spannung javascript",
-        OutputElm: "analogausgang",
-        LEDElm: "led leuchtdiode",
-        LampElm: "lampe glühlampe",
-        TextElm: "text beschriftung",
-        BoxElm: "rahmen box",
-        LineElm: "linie",
-        LabeledNodeElm: "knoten label",
-        ProbeElm: "messspitze oszilloskop probe",
-        OhmMeterElm: "ohmmeter widerstandsmessung",
-        AmmeterElm: "amperemeter strommesser",
-        WattmeterTrueElm: "wattmeter leistungsmesser",
-        WattmeterElm: "wattmeter leistungsmesser",
-        TestPointElm: "messpunkt testpunkt",
-        DecimalDisplayElm: "anzeige dezimal",
-        InstructionDisplayElm: "anzeige text",
-        LEDArrayElm: "led array anzeige",
-        DataRecorderElm: "datenrekorder aufzeichnung",
-        AudioOutputElm: "audioausgang lautsprecher",
-        StopTriggerElm: "trigger stopp",
-        DCMotorElm: "motor gleichstrommotor",
-        ThreePhaseMotorElm: "drehstrommotor motor",
-        DiodeElm: "diode",
-        ZenerElm: "zenerdiode",
-        NTransistorElm: "transistor npn",
-        PTransistorElm: "transistor pnp",
-        NMosfetElm: "mosfet fet",
-        PMosfetElm: "mosfet fet",
-        NJfetElm: "jfet fet",
-        PJfetElm: "jfet fet",
-        SCRElm: "thyristor scr",
-        DiacElm: "diac",
-        TriacElm: "triac",
-        NDarlingtonElm: "darlington transistor",
-        PDarlingtonElm: "darlington transistor",
-        VaractorElm: "varicap kapazitätsdiode",
-        TunnelDiodeElm: "tunneldiode",
-        TriodeElm: "triode röhre",
-        UnijunctionElm: "unijunction transistor",
-        OpAmpElm: "opv operationsverstärker",
-        OpAmpSwapElm: "opv operationsverstärker",
-        OpAmpRealElm: "opv operationsverstärker",
-        AnalogSwitchElm: "analogschalter",
-        AnalogSwitch2Elm: "analogschalter",
-        AnalogMuxElm: "multiplexer mux",
-        TriStateElm: "tristate buffer",
-        SchmittElm: "schmitt trigger",
-        InvertingSchmittElm: "schmitt trigger invertierend",
-        DelayBufferElm: "verzögerung buffer",
-        ComparatorElm: "komparator vergleicher",
-        OTAElm: "ota",
-        NortonAmpElm: "norton verstärker",
-        OptocouplerElm: "optokoppler",
-        TimeDelayRelayElm: "zeitrelais",
-        MotorProtectionSwitchElm: "motorschutzschalter",
-        LogicInputElm: "logikeingang schalter",
-        LogicOutputElm: "logikausgang",
-        BusLogicInputElm: "bus eingang",
-        InverterElm: "inverter not nicht-gatter",
-        NandGateElm: "nand gatter",
-        NorGateElm: "nor gatter",
-        AndGateElm: "und gatter and",
-        OrGateElm: "oder gatter or",
-        XorGateElm: "xor gatter",
-        XnorGateElm: "xnor gatter",
-        DFlipFlopElm: "flipflop d",
-        JKFlipFlopElm: "flipflop jk",
-        TFlipFlopElm: "flipflop t",
-        SevenSegElm: "7-segment anzeige siebensegment",
-        SevenSegDecoderElm: "7-segment dekoder siebensegment",
-        MultiplexerElm: "multiplexer mux",
-        DeMultiplexerElm: "demultiplexer",
-        SipoShiftElm: "schieberegister sipo",
-        PisoShiftElm: "schieberegister piso",
-        CounterElm: "zähler counter",
-        Counter2Elm: "zähler counter",
-        DecadeElm: "ringzähler johanson",
-        LatchElm: "latch register speicher",
-        SeqGenElm: "sequenzgenerator",
-        FullAdderElm: "addierer volladdierer",
-        HalfAdderElm: "addierer halbaddierer",
-        UserDefinedLogicElm: "custom logic logik",
-        SRAMElm: "ram speicher",
-        ROMElm: "rom speicher",
-        BusTransceiverElm: "bus transceiver",
-        BusSplitterElm: "bus splitter",
-        TimerElm: "555 timer ne555",
-        PhaseCompElm: "phasenkomparator",
-        DACElm: "dac wandler",
-        ADCElm: "adc wandler",
-        VCOElm: "vco oszillator",
-        MonostableElm: "monoflop monostabil",
-    };
-
     // Component-only search for the menu-bar field. Same idea as the palette, but
     // scored against label + keywords only (the category text would otherwise make
     // short queries match half the menu) and with a density floor for fuzzy hits.
@@ -233,7 +92,10 @@ export class CommandPaletteRegistry {
             return [];
         const scored: ScoredCommand[] = [];
         for (const cmd of CommandPaletteRegistry.componentCommands) {
-            const target = (cmd.label + " " + cmd.keywords).toLowerCase();
+            // Keywords first: they hold the English source label, so an English
+            // query outranks a localized label that merely contains the word
+            // (e.g. "resistor" vs. German "Fotoresistor hinzufügen").
+            const target = (cmd.keywords + " " + cmd.label).toLowerCase();
             const idx = target.indexOf(q);
             let score = 0;
             if (idx >= 0) {
@@ -301,13 +163,18 @@ export class CommandPaletteRegistry {
             const cls = ui.mainMenuItemNames[i];
             const name = item.getLabel();
             const label = Locale.LS("Mode: ") + name;
-            let kw = cls + " " + name;
+            // Index the English source label too: the menu label is localized,
+            // so without it "resistor" would stop matching in a German UI. It
+            // sits right after the class name so English hits rank as well as
+            // localized ones.
+            const englishLabel = (m.elementLabels != null) ? m.elementLabels.get(cls) : null;
+            let kw = cls + " ";
+            if (englishLabel != null)
+                kw += englishLabel + " ";
+            kw += name;
             const sc = item.getShortcut();
             if (sc != null && sc.length === 1)
                 kw += " " + sc;
-            const alias = CommandPaletteRegistry.ELEMENT_ALIASES[cls];
-            if (alias != null)
-                kw += " " + alias;
             const category = (m.elementCategories != null) ? m.elementCategories.get(cls) : null;
             const cmd = new PaletteCommand({
                 id: "main:" + cls, label, category: "Mode", keywords: kw,
