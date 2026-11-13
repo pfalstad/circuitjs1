@@ -737,6 +737,7 @@ export class CommandManager {
             for (let i = oldsz; i != this.app.elmList.length; i++)
                 this.app.elmList[i].move(dx, dy);
         }
+        CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
         this.app.needAnalyze();
         this.app.undoManager?.writeRecoveryToStorage();
     }

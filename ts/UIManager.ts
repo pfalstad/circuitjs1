@@ -1197,6 +1197,9 @@ export class UIManager {
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_POST ||
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SELECTED) {
             for (const ce of this.elmList) {
+                // boxes and lines only show their dots while they're the ones being moved
+                if (ce.isShapeElm() && ce !== this.mouse.getMouseElm() && !ce.isSelected())
+                    continue;
                 if (ce !== this.mouse.getMouseElm() || this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);

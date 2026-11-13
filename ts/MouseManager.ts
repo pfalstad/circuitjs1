@@ -72,6 +72,9 @@ export class MouseManager {
     dragging: boolean = false;
     wheelSensitivity: number = 1;
     dragElm: CircuitElm | null = null;
+    // mouse offset from the grabbed box/line's first point, so a moved shape can snap by itself
+    grabDX: number = 0;
+    grabDY: number = 0;
     menuElm: CircuitElm | null = null;
     private mouseElm: CircuitElm | null = null;
     didSwitch: boolean = false;
@@ -352,6 +355,7 @@ export class MouseManager {
 		this.splitAt(this.dragElm.x2, this.dragElm.y2);
 		this.ui.elmList.push(this.dragElm);
 		this.dragElm.draggingDone();
+		CircuitElm.sortBoxes(this.ui.elmList);
 		this.sim.undoManager?.writeRecoveryToStorage();
 		this.sim.unsavedChanges = true;
 		this.sim.needAnalyze();
@@ -427,6 +431,8 @@ export class MouseManager {
 	}
 	let changed = false;
 	if (this.dragElm != null) {
+	    if (this.dragElm.isShapeElm())
+		(this.dragElm as any).shiftLock = e.shiftKey;
 	    this.dragElm.drag(gx, gy);
 	    // now that we're actually dragging out a new element, don't leave whatever
 	    // was hovered before still looking highlighted underneath it
@@ -447,7 +453,10 @@ export class MouseManager {
 	    break;
 	case MouseManager.MODE_DRAG_POST:
 	    if (this.mouseElm != null) {
-		this.dragPost(this.snapGrid(gx), this.snapGrid(gy), e.shiftKey);
+		if (this.mouseElm.isShapeElm() && !e.shiftKey)
+		    this.dragPost(gx, gy, false);	// the box/line snaps itself
+		else
+		    this.dragPost(this.snapGrid(gx), this.snapGrid(gy), e.shiftKey);
 		changed = true;
 	    }
 	    break;
@@ -559,8 +568,15 @@ export class MouseManager {
 	    y = this.snapGrid(y);
 	}
 
-	const dx = x - this.dragGridX;
-	const dy = y - this.dragGridY;
+	let dx = x - this.dragGridX;
+	let dy = y - this.dragGridY;
+	// a grabbed box/line snaps its own first point per its snap setting;
+	// anything else selected along with it moves by the same amount
+	if (this.mouseElm != null && this.mouseElm.isShapeElm() && this.onlyGraphicsElmsSelected()) {
+	    const se = this.mouseElm as any;
+	    dx = se.snapCoord(x - this.grabDX) - se.x;
+	    dy = se.snapCoord(y - this.grabDY) - se.y;
+	}
 	if (dx === 0 && dy === 0) {
 	    // don't leave mouseElm selected if we selected it above
 	    if (me) this.mouseElm!.setSelected(false);
@@ -608,6 +624,10 @@ export class MouseManager {
 	    this.draggingPost =
 		(Graphics.distanceSq(this.mouseElm!.x, this.mouseElm!.y, x, y) >
 		 Graphics.distanceSq(this.mouseElm!.x2, this.mouseElm!.y2, x, y)) ? 1 : 0;
+	}
+	if (!all && this.mouseElm!.isShapeElm()) {
+	    (this.mouseElm as any).movePostTo(this.draggingPost, x, y);
+	    return;
 	}
 	const dx = x - this.dragGridX;
 	const dy = y - this.dragGridY;
@@ -1470,6 +1490,10 @@ export class MouseManager {
 	this.sim.undoManager?.pushUndo();
 	this.initDragGridX = gx;
 	this.initDragGridY = gy;
+	if (this.mouseElm != null) {
+	    this.grabDX = gx - this.mouseElm.x;
+	    this.grabDY = gy - this.mouseElm.y;
+	}
 	this.dragging = true;
 	this.dragMovedElms.clear();
 
@@ -1518,6 +1542,8 @@ export class MouseManager {
 	} catch (ex) {
 	    CirSim.debugger();
 	}
+	if (this.dragElm != null && this.dragElm.isShapeElm())
+	    (this.dragElm as any).placeStart(gx, gy);	// boxes/lines snap (or not) themselves
 
 	this.sim.updateToolbar();
     }
@@ -1609,6 +1635,7 @@ export class MouseManager {
 	Scope.dragStartTime = -1;
 	Scope.endDragPlotY();
 
+	const moved = (this.tempMouseMode === MouseManager.MODE_DRAG_POST || this.tempMouseMode === MouseManager.MODE_DRAG_SELECTED);
 	this.tempMouseMode = this.mouseMode;
 	this.selectedArea = null;
 	this.dragging = false;
@@ -1666,6 +1693,9 @@ export class MouseManager {
 		this.sim.updateToolbar();
 	    }
 	}
+	// boxes go behind everything, largest first
+	if (circuitChanged || moved)
+	    CircuitElm.sortBoxes(this.ui.elmList);
 	if (circuitChanged) {
 	    this.sim.needAnalyze();
 	    this.sim.undoManager?.pushUndo();
