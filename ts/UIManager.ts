@@ -524,6 +524,9 @@ export class UIManager {
     private lastShiftKeyUpMs = 0;           // when the last tap ended, or 0 if it wasn't one
     private shiftUsedWithOther = false;     // something else pressed while Shift is held
     private keyPressedSinceShiftUp = false; // something else pressed since Shift was released
+    // the last keydown closed the property editor to go to the circuit (see onKeyDown), so its
+    // keypress is handled as a shortcut even though it was aimed at the editor's text field
+    private keyPassedThrough = false;
 
     constructor(app: CirSim) {
         this.app = app;
@@ -1683,10 +1686,25 @@ export class UIManager {
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
 
+        // A key pressed right after the property editor pops up may be meant for the circuit
+        // instead; if so, close the editor and handle the key below as if it weren't there.
+        // (Only keys aimed at the editor or nothing in particular, not the component search
+        // field.  This comes before the text field check below, since the editor focuses its
+        // first field.)
+        this.keyPassedThrough = false;
+        const ed = CirSim.editDialog;
+        if (ed != null && ed.isShowing() && !this.modalDialogIsShowing() &&
+                (!this.isTextEntryTarget(e) || ed.contains(e.target as Node)) &&
+                ed.shouldPassKeyThrough(e)) {
+            ed.closeDialog();
+            this.keyPassedThrough = true;
+        }
+
         // Typing in a text field (component search, dialogs) must not trigger canvas
         // shortcuts or the double-Shift palette gesture. The command palette's own
         // input is exempt: its arrow/Enter handling lives in this handler.
-        if (!(CirSim.commandPalette != null && CirSim.commandPalette.isShowing()) && this.isTextEntryTarget(e))
+        if (!this.keyPassedThrough && !(CirSim.commandPalette != null && CirSim.commandPalette.isShowing()) &&
+                this.isTextEntryTarget(e))
             return;
 
         // Handle a press-and-drag gesture started on a toolbar icon, which may end up
@@ -1716,12 +1734,6 @@ export class UIManager {
         } else if (!e.repeat) {
             this.otherPressedForShiftTap();
         }
-
-        // a key pressed right after the property editor pops up may be meant for the circuit
-        // instead; if so, close the editor and handle the key below as if it weren't there
-        const ed = CirSim.editDialog;
-        if (ed != null && ed.isShowing() && !this.modalDialogIsShowing() && ed.shouldPassKeyThrough(e))
-            ed.closeDialog();
 
         if (this.dialogIsShowing()) {
             if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing()) {
@@ -1914,8 +1926,8 @@ export class UIManager {
             return;
 
         // Don't turn typed characters in the component search field into zoom/switch
-        // shortcuts.
-        if (this.isTextEntryTarget(e))
+        // shortcuts.  (A key the property editor passed through is meant as one, though.)
+        if (this.isTextEntryTarget(e) && !this.keyPassedThrough)
             return;
 
         if (cc === 45 /* '-' */) {

@@ -145,6 +145,9 @@ export class Dialog {
         document.body.removeChild(this.dialogEl);
     }
 
+    // true if this node is inside the dialog
+    contains(n: Node | null): boolean { return n != null && this.dialogEl.contains(n); }
+
     enterPressed(): void {
         if (this.closeOnEnter && this.apply())
             this.closeDialog();
