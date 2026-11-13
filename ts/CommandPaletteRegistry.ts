@@ -68,6 +68,9 @@ class ScoredCommand {
 export class CommandPaletteRegistry {
 
     static commands: PaletteCommand[] = [];
+    // Component placement modes only (category "Mode" minus drag/select tools).
+    // Backs the always-visible search field in the menu bar.
+    static componentCommands: PaletteCommand[] = [];
     // Kept separate so hundreds of example circuits don't appear until the user types
     // at least MIN_CIRCUIT_QUERY_LEN characters.
     static circuitCommands: PaletteCommand[] = [];
@@ -75,8 +78,60 @@ export class CommandPaletteRegistry {
 
     static readonly MIN_CIRCUIT_QUERY_LEN = 2;
 
+    // Modes that are tools, not parts — kept out of the component search field.
+    static readonly NON_COMPONENT_MODES: Set<string> = new Set([
+        "DragAll", "DragRow", "DragColumn", "DragSelected", "DragPost", "Select",
+    ]);
+
+    // Component-only search for the menu-bar field. Same idea as the palette, but
+    // scored against label + keywords only (the category text would otherwise make
+    // short queries match half the menu) and with a density floor for fuzzy hits.
+    static searchComponents(query: string, maxResults: number): PaletteCommand[] {
+        const q = query.toLowerCase().trim();
+        if (q.length === 0)
+            return [];
+        const scored: ScoredCommand[] = [];
+        for (const cmd of CommandPaletteRegistry.componentCommands) {
+            // Keywords first: they hold the English source label, so an English
+            // query outranks a localized label that merely contains the word
+            // (e.g. "resistor" vs. German "Fotoresistor hinzufügen").
+            const target = (cmd.keywords + " " + cmd.label).toLowerCase();
+            const idx = target.indexOf(q);
+            let score = 0;
+            if (idx >= 0) {
+                score = 1000 - idx + (q.length * 10);
+                // A standalone word should beat a longer word that merely
+                // starts with the query ("gnd" vs. "GND output", "vcc" vs.
+                // the VCCS class name).
+                const isWord = (i: number) => i < 0 || i >= target.length || !/[a-z0-9äöüß]/.test(target.charAt(i));
+                if (isWord(idx - 1) && isWord(idx + q.length))
+                    score += 200;
+            } else {
+                let qi = 0;
+                let s = 0;
+                let lastMatch = -2;
+                for (let ti = 0; ti < target.length && qi < q.length; ti++) {
+                    if (target.charAt(ti) === q.charAt(qi)) {
+                        s += (lastMatch === ti - 1) ? 10 : 1;
+                        lastMatch = ti;
+                        qi++;
+                    }
+                }
+                // Require a dense subsequence; scattered letters across a long
+                // keyword string are noise, not a match.
+                if (qi === q.length && s >= q.length * 4)
+                    score = s;
+            }
+            if (score > 0)
+                scored.push(new ScoredCommand(cmd, score));
+        }
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, maxResults).map(s => s.cmd);
+    }
+
     static clear(): void {
         CommandPaletteRegistry.commands = [];
+        CommandPaletteRegistry.componentCommands = [];
         CommandPaletteRegistry.circuitCommands = [];
         CommandPaletteRegistry.byId.clear();
     }
@@ -113,12 +168,35 @@ export class CommandPaletteRegistry {
             const item = ui.mainMenuItems[i];
             const cls = ui.mainMenuItemNames[i];
             const name = item.getLabel();
-            const label = Locale.LS("Mode: ") + name;
-            let kw = cls + " " + name;
+            const label = name;
+            // Index the English source label too: the menu label is localized,
+            // so without it "resistor" would stop matching in a German UI.
+            const englishLabel = (m.elementLabels != null) ? m.elementLabels.get(cls) : null;
+            // Abbreviations the label doesn't contain ("opv", "elko", "trafo")
+            // are language data too, so they live in the locale files as
+            // "search:<ElmClass>" entries instead of a table in code. They go
+            // right after the class name so they rank ahead of incidental
+            // matches inside other labels.
+            const extraTerms = Locale.lookup("search:" + cls);
+            let kw = cls + " ";
+            if (extraTerms != null)
+                kw += extraTerms + " ";
+            if (englishLabel != null)
+                kw += englishLabel + " ";
+            kw += name;
             const sc = item.getShortcut();
             if (sc != null && sc.length === 1)
                 kw += " " + sc;
-            CommandPaletteRegistry.add("main:" + cls, label, "Mode", kw, "main", cls);
+            const category = (m.elementCategories != null) ? m.elementCategories.get(cls) : null;
+            const cmd = new PaletteCommand({
+                id: "main:" + cls, label, category: "Mode", keywords: kw,
+                menu: "main", item: cls,
+                hint: (category != null && category.length > 0) ? category : undefined,
+            });
+            const isNew = !CommandPaletteRegistry.byId.has(cmd.id);
+            CommandPaletteRegistry.addCommand(cmd);
+            if (isNew && !CommandPaletteRegistry.NON_COMPONENT_MODES.has(cls))
+                CommandPaletteRegistry.componentCommands.push(cmd);
         }
 
         const cm = m.ctrlMetaKey;

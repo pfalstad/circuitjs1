@@ -43,6 +43,7 @@ import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
 import { EditDialog } from "./EditDialog";
+import { ComponentSearch } from "./ComponentSearch";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -485,6 +486,7 @@ export class UIManager {
     lastCursorStyle: string | null = null;
 
     toolbar: Toolbar;
+    componentSearch: ComponentSearch | null = null;
     subcircuitBar: SubcircuitBar;
 
     layoutPanel: HTMLElement;
@@ -705,6 +707,8 @@ export class UIManager {
         if (!this.hideMenu) {
             menuBar.style.cssText = `position:absolute;left:0;top:0;right:0;height:${UIManager.MENUBARHEIGHT}px;`;
             this.layoutPanel.appendChild(menuBar);
+            // Always-visible component search, right-aligned in the menu bar.
+            this.componentSearch = new ComponentSearch(this.app, menuBar);
         }
 
         // sidebar: right strip from below menu bar to bottom
@@ -1663,8 +1667,24 @@ export class UIManager {
         this.keyPressedSinceShiftUp = true;
     }
 
+    // True when the event originates from a text entry control, so global
+    // single-key shortcuts must stay out of the way.
+    private isTextEntryTarget(e: Event): boolean {
+        const t = e.target as HTMLElement | null;
+        if (t == null)
+            return false;
+        const tag = t.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
+    }
+
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
+
+        // Typing in a text field (component search, dialogs) must not trigger canvas
+        // shortcuts or the double-Shift palette gesture. The command palette's own
+        // input is exempt: its arrow/Enter handling lives in this handler.
+        if (!(CirSim.commandPalette != null && CirSim.commandPalette.isShowing()) && this.isTextEntryTarget(e))
+            return;
 
         // Handle a press-and-drag gesture started on a toolbar icon, which may end up
         // anywhere on the page (not just over the canvas), so it needs to be tracked here.
@@ -1888,6 +1908,11 @@ export class UIManager {
         const cc = e.charCode;
 
         if (this.dialogIsShowing())
+            return;
+
+        // Don't turn typed characters in the component search field into zoom/switch
+        // shortcuts.
+        if (this.isTextEntryTarget(e))
             return;
 
         if (cc === 45 /* '-' */) {

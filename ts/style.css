@@ -588,3 +588,130 @@ td.gwt-MenuItem.open > .menuDropdown {
 .toast.fading {
     opacity: 0;
 }
+
+/* ---- Always-visible component search (menu bar) ---- */
+
+.componentSearch {
+    position: absolute;
+    right: 8px;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    z-index: 6;
+}
+
+.componentSearchInput {
+    width: 220px;
+    height: 22px;
+    box-sizing: border-box;
+    padding: 0 9px;
+    border: 1px solid #b9c3d6;
+    border-radius: 11px;
+    background: #fff;
+    color: #000;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.componentSearchInput::placeholder {
+    color: #8a93a5;
+}
+
+.componentSearchInput:focus {
+    outline: none;
+    border-color: #5b8def;
+    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25);
+}
+
+.componentSearchList {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 300px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #b9c3d6;
+    border-radius: 4px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    z-index: 10000;
+    font-size: 12px;
+}
+
+.componentSearchItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    color: #000;
+    white-space: nowrap;
+}
+
+.componentSearchItemSelected {
+    background: #007bff;
+    color: #fff;
+}
+
+.componentSearchLabel b {
+    font-weight: 700;
+}
+
+.componentSearchHint {
+    color: #777;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.componentSearchItemSelected .componentSearchHint {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.componentSearchEmpty {
+    padding: 8px 10px;
+    color: #777;
+}
+
+@media (max-width: 900px) {
+    .componentSearchInput { width: 150px; }
+}
+
+/* Mobile: the menu bar collapses to a hamburger, but the search field stays
+   visible next to it — that's the whole point of the field. */
+@media only screen and (max-width: 600px) {
+    .componentSearch {
+        left: 6px;
+        right: 30px;          /* leave room for the hamburger icon */
+        height: 30px;
+    }
+
+    .componentSearchInput {
+        width: 100%;
+        height: 24px;
+        /* 16px keeps iOS Safari from zooming the page on focus */
+        font-size: 16px;
+        border-radius: 12px;
+    }
+
+    .componentSearchList {
+        position: fixed;
+        top: 30px;
+        left: 0;
+        right: 0;
+        width: auto;
+        max-height: 50vh;
+        border-radius: 0;
+        font-size: 14px;
+    }
+
+    .componentSearchItem {
+        padding: 9px 12px;
+    }
+
+    .componentSearchHint {
+        font-size: 12px;
+    }
+}
