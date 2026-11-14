@@ -58,6 +58,13 @@ export class RoutedWireConnection {
     }
 }
 
+// thrown by SimulationManager.stop() to abandon whatever the simulator was doing (analyzing,
+// stamping or running the circuit).  Code that drives the simulation catches it with
+// SimulationManager.isStop().
+export class SimStoppedError extends Error {
+    name = "SimStoppedError";
+}
+
 export class SimulationManager {
 
     app: CirSim;
@@ -547,7 +554,6 @@ export class SimulationManager {
 			    + " resolved=" + this.wireInfoResolved.get(wk.wire));
 		    }
 		    this.stop("wire loop detected", wire);
-		    return false;
 		}
 	    }
 	}
@@ -1063,14 +1069,10 @@ export class SimulationManager {
 	// preStampCircuit returns false if there's an error.  It can return false if we have capacitor loops
 	// but we just need to try again in that case.  Try again 10 times to avoid infinite loop.
 	for (i = 0; i !== 10; i++)
-	    if (this.preStampCircuit(false) || this.app.stopMessage != null)
+	    if (this.preStampCircuit(false))
 		break;
-	if (this.app.stopMessage != null)
-	    return;
-	if (i === 10) {
+	if (i === 10)
 	    this.stop("failed to stamp circuit", null);
-	    return;
-	}
 
 	this.stampCircuit();
     }
@@ -1109,10 +1111,6 @@ export class SimulationManager {
 	    ce.stamp();
 	}
 
-	// check if we called stop()
-	if (this.matrices == null)
-	    return;
-
 	// save original matrices for restoring during nonlinear iterations
 	let maxMatrixSize = 0;
 	for (let mi = 0; mi !== this.matrices.length; mi++) {
@@ -1140,7 +1138,6 @@ export class SimulationManager {
 	    if (!m.nonLinear) {
 		if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m)) {
 		    this.stop("Singular matrix!", null);
-		    return;
 		}
 	    }
 	}
@@ -1263,11 +1260,25 @@ export class SimulationManager {
     }
 
 
-    stop(s: string, ce: any): void {
+    // stop the simulation with an error message (and the element responsible, if any, to
+    // highlight), abandoning the current analysis or time step by throwing SimStoppedError
+    stop(s: string, ce: any): never {
+	this.halt(s, ce);
+	throw new SimStoppedError(s);
+    }
+
+    // stop the simulation without throwing, for code that's already handling an exception
+    halt(s: string, ce: any): void {
 	this.app.setStopElm(ce, Locale.LS(s));
-	this.matrices = null;  // causes an exception
+	this.matrices = null;
 	this.app.setSimRunning(false);
 	this.app.analyzeFlag = false;
+    }
+
+    // whether e was thrown by stop().  (Checks the name rather than instanceof, which fails after
+    // a hot reload, when the sim object is from the old module and the caller is from the new one.)
+    static isStop(e: unknown): boolean {
+	return e instanceof Error && e.name === "SimStoppedError";
     }
 
     // control voltage source vs with voltage from n1 to n2 (must
@@ -1496,8 +1507,6 @@ export class SimulationManager {
 		}
 		for (i = 0; i !== this.elmArr.length; i++)
 		    this.elmArr[i].doStep();
-		if (this.app.stopMessage != null)
-		    return;
 		const printit = debugprint;
 		debugprint = false;
 		for (let mi = 0; mi !== this.matrices!.length; mi++) {
@@ -1507,9 +1516,8 @@ export class SimulationManager {
 			    for (i = 0; i !== m.size; i++) {
 				const x = m.matrix[i][j];
 				if (isNaN(x) || !isFinite(x)) {
-				    this.stop("nan/infinite matrix!", null);
 				    SimulationManager.console("matrix " + mi + " [" + i + "][" + j + "] is " + x);
-				    return;
+				    this.stop("nan/infinite matrix!", null);
 				}
 			    }
 			}
@@ -1527,10 +1535,8 @@ export class SimulationManager {
 		    if (m.nonLinear) {
 			if (this.converged && subiter > 0)
 			    continue;
-			if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m)) {
+			if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m))
 			    this.stop("Singular matrix!", null);
-			    return;
-			}
 		    }
 		    SimulationManager.lu_solve(m.matrix, m.size, m.permute, m.rightSide, m);
 		    this.applySolvedRightSide(m);
@@ -1552,7 +1558,6 @@ export class SimulationManager {
 		if (this.timeStep < this.minTimeStep || !this.adjustTimeStep) {
 		    SimulationManager.console("convergence failed after " + subiter + " iterations");
 		    this.stop("Convergence failed!", null);
-		    break;
 		}
 		// we reduced the timestep.  reset circuit state to the way it was at start of iteration
 		for (let mi = 0; mi !== this.matrices!.length; mi++)

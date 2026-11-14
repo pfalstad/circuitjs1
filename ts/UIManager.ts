@@ -1069,8 +1069,10 @@ export class UIManager {
                 try {
                     this.app.sim.preStampAndStampCircuit();
                 } catch (e) {
-                    this.app.sim.stop("Exception in stampCircuit()", null);
-                    CirSim.console("Exception in stampCircuit: " + e);
+                    if (!SimulationManager.isStop(e)) {
+                        this.app.sim.halt("Exception in stampCircuit()", null);
+                        CirSim.console("Exception in stampCircuit: " + e);
+                    }
                 }
                 perfmon.stopContext();
             }
@@ -1085,9 +1087,11 @@ export class UIManager {
                 try {
                     this.app.sim.runCircuit(didAnalyze);
                 } catch (e) {
-                    CirSim.debugger();
-                    CirSim.console("exception in runCircuit " + e);
-                    this.app.consoleExceptionOccurred = true;
+                    if (!SimulationManager.isStop(e)) {
+                        CirSim.debugger();
+                        CirSim.console("exception in runCircuit " + e);
+                        this.app.consoleExceptionOccurred = true;
+                    }
                 }
                 perfmon.stopContext();
             }

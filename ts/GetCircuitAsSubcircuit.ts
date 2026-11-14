@@ -49,7 +49,15 @@ function getCircuitAsComposite(sim: SimulationManager): SubcircuitModel | null {
     }
 
     // redo node allocation to avoid auto-assigning ground
-    if (!sim.preStampCircuit(true)) {
+    let ok: boolean;
+    try {
+        ok = sim.preStampCircuit(true);
+    } catch (e) {
+        if (!SimulationManager.isStop(e))
+            throw e;
+        ok = false;
+    }
+    if (!ok) {
         for (const se of closedSwitches) se.position = 0;
         return null;
     }

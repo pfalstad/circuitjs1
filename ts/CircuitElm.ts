@@ -1470,10 +1470,8 @@ export abstract class CircuitElm implements Editable {
 
     validateRailNode(n: number): boolean {
         const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(n), CircuitElm.sim);
-        if (fpi.findPath(CircuitNode.ground)) {
+        if (fpi.findPath(CircuitNode.ground))
             CircuitElm.sim.stop("Path to ground with no resistance!", this);
-            return false;
-        }
         return true;
     }
 

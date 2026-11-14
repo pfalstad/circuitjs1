@@ -18,6 +18,7 @@
 */
 
 import { CirSim } from "./CirSim";
+import { SimulationManager } from "./SimulationManager";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { CircuitElm } from "./CircuitElm";
 import { Point } from "./Point";
@@ -1040,7 +1041,8 @@ export class MouseManager {
 		try {
 		    this.sim.sim.preStampAndStampCircuit();
 		} catch (e) {
-		    this.sim.sim.stop("Exception in stampCircuit()", null);
+		    if (!SimulationManager.isStop(e))
+			this.sim.sim.halt("Exception in stampCircuit()", null);
 		}
 	    }
 
