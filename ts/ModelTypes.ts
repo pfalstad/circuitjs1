@@ -320,6 +320,7 @@ export interface PastedModelReplacement {
 // If not, those definitions are dropped too, so the pasted elements use the existing models.
 // Returns the text to paste and the models being replaced (see finishPastedModels).
 export function resolvePastedModels(text: string): { text: string, replaced: PastedModelReplacement[] } {
+    text = text.trimStart();
     if (!text.startsWith("<"))
         return { text, replaced: [] };
     const doc = new DOMParser().parseFromString(text, "text/xml");

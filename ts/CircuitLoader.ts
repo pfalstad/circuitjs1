@@ -130,6 +130,8 @@ export class CircuitLoader {
     // read a circuit (or a model library, or a clipboard being pasted), once the element
     // classes it uses are loaded.  If they already are, it's read before this returns.
     async readCircuit(text: string, flags: number = 0): Promise<void> {
+        // leading whitespace would keep an XML circuit from being recognized as one
+        text = text.trimStart();
         const missing = ElementFactory.missing(CirSim.classesUsedBy(text));
         if (missing.length === 0 && this.pendingRead == null) {
             this.readCircuitNow(text, flags);
@@ -159,6 +161,7 @@ export class CircuitLoader {
     // read a circuit whose element classes are all loaded: one that came from this session,
     // like an undo state
     readCircuitNow(text: string, flags: number = 0): void {
+        text = text.trimStart();
         // a post selection (Select/Drag Posts mode) refers to the old elements
         this.app.mouse?.clearPostSelection();
         if (CircuitLoader.isModelLibrary(text)) {
