@@ -1663,8 +1663,10 @@ export class UIManager {
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup',   (e) => this.onKeyUp(e));
         document.addEventListener('keypress', (e) => this.onKeyPress(e));
-        // (a mouse button pressed during or between Shift taps means they're not a double tap)
+        // (a mouse button pressed or the wheel turned during or between Shift taps means
+        // they're not a double tap, so shift-wheel zooming twice doesn't open the palette)
         document.addEventListener('mousedown', () => this.otherPressedForShiftTap(), true);
+        document.addEventListener('wheel', () => this.otherPressedForShiftTap(), { capture: true, passive: true });
         document.addEventListener('touchstart', () => this.otherPressedForShiftTap(), { capture: true, passive: true });
     }
 

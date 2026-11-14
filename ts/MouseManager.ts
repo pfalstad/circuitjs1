@@ -1709,32 +1709,63 @@ export class MouseManager {
     private onMouseWheel(e: WheelEvent): void {
 	e.preventDefault();
 
-	// once we start zooming, don't allow other uses of mouse wheel for a while
-	// so we don't accidentally edit a resistor value while zooming
-	const zooming = Date.now() < this.zoomTime + 1000;
-	let zoomOnly = zooming;
+	const overScope = this.sim.scopeManager.scopeSelected !== -1 ||
+	    (this.mouseElm != null && this.mouseElm.isScopeElm());
 
-	if (this.ui.isReadOnly() || !this.sim.menus.mouseWheelEditCheckItem.getState())
-	    zoomOnly = true;
-
-	if (!zoomOnly)
-	    this.scrollValues(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e));
-
-	if (this.mouseElm != null && (this.mouseElm as any).onMouseWheel && !zoomOnly)
-	    (this.mouseElm as any).onMouseWheel(e);
-	else if (this.sim.scopeManager.scopeSelected !== -1)
-	    this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].onMouseWheel(e);
-	else if (this.mouseElm != null && this.mouseElm.isScopeElm() && !zooming)
-	    // undocked scope: adjust its time scale, like a docked scope
-	    (this.mouseElm as any).elmScope.onMouseWheel(e);
-	else if (!this.sim.modalDialogIsShowing()) {
-	    const canvas = this.ui.cv as HTMLCanvasElement;
-	    this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
-	    this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
-	    this.zoomCircuit(-ScrollValuePopup.normalizeWheelDelta(e) * this.wheelSensitivity, false);
-	    this.zoomTime = Date.now();
+	if ((e.shiftKey && !overScope) || (e.ctrlKey && !e.altKey && !e.metaKey)) {
+	    // shift+wheel always zooms (except over a scope, which uses shift+wheel for its vertical scale).
+	    // so does ctrl+wheel, which is what a trackpad pinch gesture sends.
+	    this.wheelZoom(e);
+	} else if (e.altKey || e.metaKey) {
+	    // alt+wheel (or cmd+wheel on a Mac) always edits the component under the mouse, never zooms
+	    if (!this.ui.isReadOnly() && !this.wheelEditElm(e))
+		this.wheelScope(e, true);
+	} else {
+	    // plain wheel: guess.  once we start zooming, don't allow other uses of mouse wheel for a while
+	    // so we don't accidentally edit a resistor value while zooming
+	    const zooming = Date.now() < this.zoomTime + 1000;
+	    const zoomOnly = zooming || this.ui.isReadOnly() || !this.sim.menus.mouseWheelEditCheckItem.getState();
+	    const handled = (!zoomOnly && this.wheelEditElm(e)) || this.wheelScope(e, !zooming);
+	    if (!handled)
+		this.wheelZoom(e);
 	}
 	this.sim.repaint();
+    }
+
+    // open the value popup and/or pass the wheel event to the element under the mouse.
+    // returns true if the element handled the event itself
+    private wheelEditElm(e: WheelEvent): boolean {
+	this.scrollValues(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e));
+	if (this.mouseElm != null && (this.mouseElm as any).onMouseWheel) {
+	    (this.mouseElm as any).onMouseWheel(e);
+	    return true;
+	}
+	return false;
+    }
+
+    // pass the wheel event to the selected docked scope, or (if allowed) the undocked scope under the mouse
+    private wheelScope(e: WheelEvent, allowUndocked: boolean): boolean {
+	if (this.sim.scopeManager.scopeSelected !== -1) {
+	    this.sim.scopeManager.scopes[this.sim.scopeManager.scopeSelected].onMouseWheel(e);
+	    return true;
+	}
+	if (allowUndocked && this.mouseElm != null && this.mouseElm.isScopeElm()) {
+	    (this.mouseElm as any).elmScope.onMouseWheel(e);
+	    return true;
+	}
+	return false;
+    }
+
+    private wheelZoom(e: WheelEvent): void {
+	if (this.sim.modalDialogIsShowing())
+	    return;
+	// browsers often turn shift+wheel into horizontal scrolling, so look at deltaX too
+	const d = (e.deltaY === 0 && e.shiftKey) ? e.deltaX : e.deltaY;
+	const canvas = this.ui.cv as HTMLCanvasElement;
+	this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
+	this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
+	this.zoomCircuit(-(Math.round(d * 0.12) || 0) * this.wheelSensitivity, false);
+	this.zoomTime = Date.now();
     }
 
     zoomCircuit(dy: number, fromKeyboard: boolean = false): void {
