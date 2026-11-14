@@ -261,12 +261,14 @@ export abstract class ChipElm extends CircuitElm {
     drawChip(g: Graphics): void {
         g.save();
         const f = new Font("normal", 0, 10 * this.csize);
-        let hasVertical = false;
-        for (let i = 0; i !== this.getPostCount(); i++)
-            if (this.pins[i].side === ChipElm.SIDE_N || this.pins[i].side === ChipElm.SIDE_S) {
-                hasVertical = true;
-                break;
-            }
+        // W/E pin labels can be wider than one cell, unless they share a row with
+        // N/S pin labels (which only happens in the top and bottom rows)
+        let hasN = false, hasS = false;
+        for (let i = 0; i !== this.getPostCount(); i++) {
+            const s = this.pins[i].side;
+            if (s === ChipElm.SIDE_N) hasN = true;
+            if (s === ChipElm.SIDE_S) hasS = true;
+        }
         for (let i = 0; i !== this.getPostCount(); i++) {
             g.setFont(f);
             const p = this.pins[i];
@@ -291,8 +293,12 @@ export abstract class ChipElm extends CircuitElm {
             g.setColor(p.selected ? CircuitElm.selectColor : CircuitElm.whiteColor);
             let fsz = 10 * this.csize;
             let availSpace = this.cspc * 2 - 8;
-            if (!hasVertical && this.sizeX > 2)
-                availSpace = this.cspc * 2.5 + this.cspc * (this.sizeX - 3);
+            const rowLimited = p.side === ChipElm.SIDE_N || p.side === ChipElm.SIDE_S ||
+                (hasN && p.textloc.y < this.rectPointsY[0] + this.cspc2) ||
+                (hasS && p.textloc.y > this.rectPointsY[2] - this.cspc2);
+            const fsx = this.flippedSizeX;
+            if (!rowLimited && fsx > 2)
+                availSpace = this.cspc * 2.5 + this.cspc * (fsx - 3);
             const text = p.busWidth > 1 ? p.text + "/" + p.busWidth : p.text;
             while (true) {
                 const sw = g.context.measureText(text).width;
