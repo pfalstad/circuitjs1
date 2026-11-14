@@ -48,11 +48,23 @@ export interface ChipPinEditorOptions {
 // canvas for laying out the pins of a chip by dragging them around, used by the subcircuit and
 // pin layout model editors.  Changes the pos/side of the entries and the size directly.
 export class ChipPinEditor {
+    // the canvas, in a box that sets its size (see makeFlexible)
+    readonly element: HTMLDivElement;
     readonly canvas: HTMLCanvasElement;
     private context: CanvasRenderingContext2D;
     chip: SubcircuitChipElm;
     private postCount: number = 0;
-    private scale: number = 1;
+
+    // view: screen (CSS pixel) = world * viewScale + viewOffset.  The chip is fitted to the
+    // canvas, times zoom (mouse wheel).  viewCenter is the world point at the middle of the
+    // canvas, or null to center the chip.
+    private viewScale: number = 1;
+    private viewOffsetX: number = 0;
+    private viewOffsetY: number = 0;
+    private zoom: number = 1;
+    private viewCenter: { x: number, y: number } | null = null;
+    private panning: boolean = false;
+    private static readonly VIEW_MARGIN = 40;
 
     private dragging: boolean = false;
     private rubberBand: boolean = false;
@@ -70,22 +82,133 @@ export class ChipPinEditor {
 
     constructor(private readonly entries: PinLayoutEntry[], private readonly size: PinLayoutSize,
                 private readonly options: ChipPinEditorOptions = {}) {
+        this.element = document.createElement("div");
+        this.element.style.position = "relative";
+        this.element.style.width = "400px";
+        this.element.style.height = "400px";
+        this.element.style.flexShrink = "0";
         this.canvas = document.createElement("canvas");
-        this.canvas.width = 400;
-        this.canvas.height = 400;
-        this.canvas.style.width = "400px";
-        this.canvas.style.height = "400px";
+        this.canvas.style.position = "absolute";
+        this.canvas.style.left = "0";
+        this.canvas.style.top = "0";
+        this.canvas.style.width = "100%";
+        this.canvas.style.height = "100%";
         this.canvas.style.display = "block";
+        this.element.appendChild(this.canvas);
         this.context = this.canvas.getContext("2d")!;
+        this.updateCanvasSize();
+        // follow the size of the box (when the dialog is resized)
+        new ResizeObserver(() => {
+            if (this.updateCanvasSize())
+                this.draw();
+        }).observe(this.element);
 
         this.canvas.addEventListener("mousedown",  e => this.onMouseDown(e));
         this.canvas.addEventListener("mouseup",    () => this.onMouseUp());
-        this.canvas.addEventListener("mousemove",  e => this.mouseMoved(e.offsetX, e.offsetY));
+        this.canvas.addEventListener("mousemove",  e => { if (!this.panning) this.mouseMoved(e.offsetX, e.offsetY); });
+        this.canvas.addEventListener("wheel",      e => this.onWheel(e), { passive: false });
+        // no autoscroll on middle click (we pan with it)
+        this.canvas.addEventListener("auxclick",   e => e.preventDefault());
 
         this.chip = new SubcircuitChipElm(50, 50);
         this.chip.x2 = 200;
         this.chip.y2 = 50;
         this.createPins();
+    }
+
+    // let the box (and canvas) take whatever space the dialog gives it, instead of a fixed
+    // size.  The dialog should be a flex column with an explicit size.
+    makeFlexible(): void {
+        const s = this.element.style;
+        s.width = "auto";
+        s.height = "auto";
+        s.flex = "1 1 0";
+        s.minWidth = "100px";
+        s.minHeight = "100px";
+    }
+
+    // make the canvas's pixel size match its displayed size; true if it changed
+    private updateCanvasSize(): boolean {
+        const dpr = window.devicePixelRatio || 1;
+        const w = Math.max(1, Math.round(this.element.clientWidth * dpr));
+        const h = Math.max(1, Math.round(this.element.clientHeight * dpr));
+        if (w === this.canvas.width && h === this.canvas.height)
+            return false;
+        this.canvas.width = w;
+        this.canvas.height = h;
+        return true;
+    }
+
+    // canvas size in CSS pixels
+    private get viewWidth(): number  { return this.canvas.width  / (window.devicePixelRatio || 1); }
+    private get viewHeight(): number { return this.canvas.height / (window.devicePixelRatio || 1); }
+
+    private fitScale(): number {
+        const bb = this.chip.boundingBox;
+        const m = ChipPinEditor.VIEW_MARGIN * 2;
+        return Math.min(this.viewWidth / (bb.width + m), this.viewHeight / (bb.height + m));
+    }
+
+    private updateView(): void {
+        const bb = this.chip.boundingBox;
+        this.viewScale = this.fitScale() * this.zoom;
+        const cx = this.viewCenter?.x ?? bb.x + bb.width / 2;
+        const cy = this.viewCenter?.y ?? bb.y + bb.height / 2;
+        this.viewOffsetX = this.viewWidth  / 2 - cx * this.viewScale;
+        this.viewOffsetY = this.viewHeight / 2 - cy * this.viewScale;
+    }
+
+    private toWorldX(x: number): number { return (x - this.viewOffsetX) / this.viewScale; }
+    private toWorldY(y: number): number { return (y - this.viewOffsetY) / this.viewScale; }
+    private toScreenX(x: number): number { return x * this.viewScale + this.viewOffsetX; }
+    private toScreenY(y: number): number { return y * this.viewScale + this.viewOffsetY; }
+
+    // zoom in/out, keeping the point under the mouse where it is
+    private onWheel(e: WheelEvent): void {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!this.chip.boundingBox) return;
+        this.updateView();
+        const wx = this.toWorldX(e.offsetX), wy = this.toWorldY(e.offsetY);
+        let dy = e.deltaY;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) dy *= 16;
+        else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) dy *= 400;
+        this.zoom = Math.max(0.25, Math.min(10, this.zoom * Math.exp(-dy * 0.002)));
+        if (Math.abs(this.zoom - 1) < 0.04) {
+            // back to the fitted view
+            this.zoom = 1;
+            this.viewCenter = null;
+        } else {
+            const k = this.fitScale() * this.zoom;
+            this.viewCenter = {
+                x: wx - (e.offsetX - this.viewWidth  / 2) / k,
+                y: wy - (e.offsetY - this.viewHeight / 2) / k,
+            };
+        }
+        this.draw();
+    }
+
+    // pan the view by alt-dragging or middle-dragging.  Follows the mouse outside the canvas.
+    private startPan(e: MouseEvent): void {
+        e.preventDefault();
+        this.updateView();
+        const startX = e.clientX, startY = e.clientY;
+        const cx = this.toWorldX(this.viewWidth / 2), cy = this.toWorldY(this.viewHeight / 2);
+        const k = this.viewScale;
+        this.canvas.style.cursor = "grabbing";
+        this.panning = true;
+        const move = (ev: MouseEvent) => {
+            this.viewCenter = { x: cx - (ev.clientX - startX) / k, y: cy - (ev.clientY - startY) / k };
+            this.draw();
+        };
+        const up = () => {
+            window.removeEventListener("mousemove", move, true);
+            window.removeEventListener("mouseup", up, true);
+            this.canvas.style.cursor = "";
+            this.panning = false;
+        };
+        window.addEventListener("mousemove", move, true);
+        window.addEventListener("mouseup", up, true);
     }
 
     // Width/Height buttons
@@ -128,13 +251,13 @@ export class ChipPinEditor {
     draw(): void {
         if (!this.chip.boundingBox) return;
         const g = new Graphics(this.context);
-        const scalew = this.canvas.width  / (this.chip.boundingBox.width  + this.chip.boundingBox.x * 2);
-        const scaleh = this.canvas.height / (this.chip.boundingBox.height + this.chip.boundingBox.y * 2);
-        this.scale = 1 / Math.min(scalew, scaleh);
+        this.updateView();
         this.context.fillStyle = CirSim.theApp.getBackgroundColor().getHexValue();
         this.context.setTransform(1, 0, 0, 1, 0, 0);
         this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.context.setTransform(1 / this.scale, 0, 0, 1 / this.scale, 0, 0);
+        const dpr = window.devicePixelRatio || 1;
+        const k = this.viewScale * dpr;
+        this.context.setTransform(k, 0, 0, k, this.viewOffsetX * dpr, this.viewOffsetY * dpr);
         this.chip.setLabel(this.options.getLabel?.() ?? null);
         this.chip.draw(g);
     }
@@ -182,8 +305,8 @@ export class ChipPinEditor {
         for (let i = 0; i < this.postCount; i++) {
             const p = this.chip.pins[i];
             if (p.busZ > 0) continue;
-            const dx = x * this.scale - p.textloc.x;
-            const dy = y * this.scale - p.textloc.y;
+            const dx = this.toWorldX(x) - p.textloc.x;
+            const dy = this.toWorldY(y) - p.textloc.y;
             const dist = Math.hypot(dx, dy);
             if (dist < bestDist) { bestDist = dist; best = i; }
         }
@@ -201,7 +324,8 @@ export class ChipPinEditor {
         const w  = Math.abs(this.rubberBandX2 - this.rubberBandX1);
         const h  = Math.abs(this.rubberBandY2 - this.rubberBandY1);
         this.context.save();
-        this.context.setTransform(1, 0, 0, 1, 0, 0);
+        const dpr = window.devicePixelRatio || 1;
+        this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.context.fillStyle = "rgba(68,136,255,0.15)";
         this.context.fillRect(x1, y1, w, h);
         this.context.strokeStyle = "#4488ff";
@@ -220,8 +344,8 @@ export class ChipPinEditor {
             let selSide = firstSel;
             for (let i = 0; i < this.postCount; i++) {
                 if (this.chip.pins[i].busZ > 0) continue;
-                const px = this.chip.pins[i].textloc.x / this.scale | 0;
-                const py = this.chip.pins[i].textloc.y / this.scale | 0;
+                const px = this.toScreenX(this.chip.pins[i].textloc.x) | 0;
+                const py = this.toScreenY(this.chip.pins[i].textloc.y) | 0;
                 if (px >= x1 && px <= x2 && py >= y1 && py <= y2) {
                     if (selSide === -1) selSide = this.entries[i].side;
                     if (this.entries[i].side === selSide) this.selectedPins.add(i);
@@ -246,16 +370,16 @@ export class ChipPinEditor {
             if (selSide2 === -1) {
                 for (let i = 0; i < this.postCount; i++) {
                     if (this.chip.pins[i].busZ > 0) continue;
-                    const px = this.chip.pins[i].textloc.x / this.scale | 0;
-                    const py = this.chip.pins[i].textloc.y / this.scale | 0;
+                    const px = this.toScreenX(this.chip.pins[i].textloc.x) | 0;
+                    const py = this.toScreenY(this.chip.pins[i].textloc.y) | 0;
                     if (px >= x1 && px <= x2 && py >= y1 && py <= y2) { selSide2 = this.entries[i].side; break; }
                 }
             }
             for (let i = 0; i < this.postCount; i++) {
                 this.chip.pins[i].selected = this.selectedPins.has(i);
                 if (this.chip.pins[i].busZ > 0) continue;
-                const px = this.chip.pins[i].textloc.x / this.scale | 0;
-                const py = this.chip.pins[i].textloc.y / this.scale | 0;
+                const px = this.toScreenX(this.chip.pins[i].textloc.x) | 0;
+                const py = this.toScreenY(this.chip.pins[i].textloc.y) | 0;
                 if (px >= x1 && px <= x2 && py >= y1 && py <= y2 && this.entries[i].side === selSide2)
                     this.chip.pins[i].selected = true;
             }
@@ -266,7 +390,7 @@ export class ChipPinEditor {
         if (this.dragging) {
             if (this.selectedPin < 0) return;
             const pos: number[] = [0, 0];
-            if (!this.chip.getPinPos(x * this.scale | 0, y * this.scale | 0, this.dragCurrentSide, pos)) return;
+            if (!this.chip.getPinPos(this.toWorldX(x) | 0, this.toWorldY(y) | 0, this.dragCurrentSide, pos)) return;
             this.dragCurrentSide = pos[1];
 
             // Reset to drag-start snapshot so each call is idempotent
@@ -381,6 +505,11 @@ export class ChipPinEditor {
     }
 
     private onMouseDown(event: MouseEvent): void {
+        if (event.button === 1 || (event.button === 0 && event.altKey)) {
+            this.startPan(event);
+            return;
+        }
+        if (event.button !== 0) return;
         const x = event.offsetX, y = event.offsetY;
         const hoveredPin = this.findNearestPin(x, y);
 

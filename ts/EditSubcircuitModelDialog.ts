@@ -44,6 +44,7 @@ export class EditSubcircuitModelDialog extends Dialog {
 
     constructor() {
         super();
+        this.makeResizable();
         this.closeOnEnter = true;
     }
 
@@ -106,7 +107,7 @@ export class EditSubcircuitModelDialog extends Dialog {
                 ? (this.modelNameInput ? this.modelNameInput.value : this.model.name)
                 : null,
         });
-        this.dialogEl.appendChild(this.editor.canvas);
+        this.dialogEl.appendChild(this.editor.element);
 
         if (this.model.name === null || this.model.name === "") {
             this.dialogEl.appendChild(Object.assign(document.createElement("label"), { textContent: Locale.LS("Model Name") }));
@@ -267,6 +268,8 @@ export class EditSubcircuitModelDialog extends Dialog {
 
     show(): void {
         super.show();
+        this.fixSize();
+        this.editor?.makeFlexible();
         this.drawChip();
     }
 

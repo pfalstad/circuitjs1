@@ -40,6 +40,7 @@ export class EditPinLayoutDialog extends Dialog {
     // model is the model to edit, or null to create one from the chip's current layout
     constructor(private readonly chip: ChipElm, private readonly model: PinLayoutModel | null) {
         super();
+        this.makeResizable();
         const reg = PinLayoutModel.registry;
 
         // start from where the chip's pins are now (where the model puts them, if editing it)
@@ -68,7 +69,7 @@ export class EditPinLayoutDialog extends Dialog {
                 pin.clock = cp.clock;
             },
         });
-        this.dialogEl.appendChild(this.editor.canvas);
+        this.dialogEl.appendChild(this.editor.element);
         this.dialogEl.appendChild(this.editor.createSizeControls());
 
         const nameRow = document.createElement("div");
@@ -108,6 +109,8 @@ export class EditPinLayoutDialog extends Dialog {
 
     show(): void {
         super.show();
+        this.fixSize();
+        this.editor.makeFlexible();
         this.editor.draw();
     }
 
