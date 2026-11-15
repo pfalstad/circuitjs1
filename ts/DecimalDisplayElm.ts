@@ -32,12 +32,17 @@ export class DecimalDisplayElm extends ChipElm {
     bitCount: number;
     displayMode: number = 0; // 0=decimal, 1=hex, 2=octal
 
+    // the chip is made wide enough for the largest value.  (without this, as in circuits saved
+    // before that was done, it's always 3 wide; set when the bit count or mode is changed)
+    static readonly FLAG_ALLOW_WIDE = 1 << 1;
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xa, ya);
             this.bitCount = 4;
+            this.flags |= DecimalDisplayElm.FLAG_ALLOW_WIDE;
             this.setupPins();
         } else {
             super(xa, ya, xb, yb!, f!, st!);
@@ -58,28 +63,66 @@ export class DecimalDisplayElm extends ChipElm {
         }
     }
 
+    getRadix(): number {
+        switch (this.displayMode) {
+        case 1:  return 16;
+        case 2:  return 8;
+        default: return 10;
+        }
+    }
+
+    // number of digits needed for the largest value we can show
+    maxDigits(): number {
+        return (2 ** this.bitCount - 1).toString(this.getRadix()).length;
+    }
+
     draw(g: Graphics): void {
         this.drawChip(g);
-        const xl = this.x + this.cspc + this.flippedSizeX * this.cspc;
-        let yl   = this.y - this.cspc + this.flippedSizeY * this.cspc;
-        if (this.isFlippedXY())
-            yl += ((this.flags & ChipElm.FLAG_FLIP_Y) !== 0) ? -this.cspc / 2 : this.cspc / 2;
-        g.save();
-        g.setFont(new Font("SansSerif", 0, 15 * this.csize));
-        g.setColor(CircuitElm.whiteColor);
-        g.context.textBaseline = "middle";
         let value = 0;
         for (let i = 0; i !== this.bitCount; i++)
             if (this.pins[i].value)
-                value |= 1 << i;
-        let str: string;
-        switch (this.displayMode) {
-        case 1:  str = value.toString(16).toUpperCase(); break;
-        case 2:  str = value.toString(8); break;
-        default: str = String(value); break;
+                value += 2 ** i;
+        const str = value.toString(this.getRadix()).toUpperCase();
+
+        // the space inside the chip that isn't taken by the pin labels
+        let x1 = this.rectPointsX[0], x2 = this.rectPointsX[2];
+        let y1 = this.rectPointsY[0], y2 = this.rectPointsY[2];
+        // which side the pins (and so their labels) are on, after any flipping
+        const post = this.pins[0].post;
+        const left = post.x < x1, right = post.x > x2;
+        if (left || right) {
+            g.setFont(new Font("normal", 0, 10 * this.csize));
+            let labelW = 0;
+            for (let i = 0; i !== this.getPostCount(); i++) {
+                const p = this.pins[i];
+                if (p.busZ > 0)
+                    continue;
+                const text = p.busWidth > 1 ? p.text + "/" + p.busWidth : p.text;
+                labelW = Math.max(labelW, g.context.measureText(text).width);
+            }
+            const band = 5 + labelW + 3 * this.csize;
+            if (left)
+                x1 += band;
+            else
+                x2 -= band;
+        } else if (post.y < y1)
+            y1 += this.cspc2;
+        else
+            y2 -= this.cspc2;
+
+        g.save();
+        let fsz = 15 * this.csize;
+        g.setFont(new Font("SansSerif", 0, fsz));
+        g.setColor(CircuitElm.whiteColor);
+        g.context.textBaseline = "middle";
+        const avail = x2 - x1 - 4 * this.csize;
+        let w = g.context.measureText(str).width;
+        if (w > avail && avail > 0) {
+            fsz = Math.max(6, Math.floor(fsz * avail / w));
+            g.setFont(new Font("SansSerif", 0, fsz));
+            w = g.context.measureText(str).width;
         }
-        const w = g.context.measureText(str).width;
-        g.drawString(str, xl + 5 * this.csize - w / 2, yl);
+        g.drawString(str, (x1 + x2) / 2 - w / 2, (y1 + y2) / 2);
         g.restore();
     }
 
@@ -102,7 +145,12 @@ export class DecimalDisplayElm extends ChipElm {
     setupPins(): void {
         if (!this.bitCount)
             return;
-        this.sizeX = 3;
+        // wide enough for the pin labels plus the largest value.  (in units of csize: a grid
+        // unit is 16, a digit is about 8.4, and the labels and margins take about 22, or 27
+        // for two-digit pin numbers)
+        const labels = this.bitCount > 10 ? 27 : 22;
+        this.sizeX = !this.hasFlag(DecimalDisplayElm.FLAG_ALLOW_WIDE) ? 3 :
+            Math.max(3, Math.ceil((labels + 8.4 * this.maxDigits()) / 16));
         this.sizeY = this.useBus() ? 2 : this.bitCount;
         this.pins  = new Array(this.bitCount);
         this.makeBitPins(this.bitCount, 0, ChipElm.SIDE_W, 0, "I", false, false, false);
@@ -136,6 +184,7 @@ export class DecimalDisplayElm extends ChipElm {
                 const newBitCount = Math.trunc(ei.value);
                 if (newBitCount !== this.bitCount) {
                     this.bitCount = newBitCount;
+                    this.flags |= DecimalDisplayElm.FLAG_ALLOW_WIDE;
                     this.setupPins();
                     this.setPoints();
                 }
@@ -143,7 +192,14 @@ export class DecimalDisplayElm extends ChipElm {
                 ei.setError("must be between 1 and 16");
             return;
         }
-        if (n === 1)
-            this.displayMode = ei.choice!.getSelectedIndex();
+        if (n === 1) {
+            const mode = ei.choice!.getSelectedIndex();
+            if (mode !== this.displayMode) {
+                this.displayMode = mode;
+                this.flags |= DecimalDisplayElm.FLAG_ALLOW_WIDE;
+                this.setupPins();
+                this.setPoints();
+            }
+        }
     }
 }
