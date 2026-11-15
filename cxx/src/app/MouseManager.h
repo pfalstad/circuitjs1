@@ -151,6 +151,8 @@ private:
     bool didSwitch = false;
     int draggingPost = -1;
     int dragGridX = 0, dragGridY = 0;
+    // mouse offset from the grabbed box/line's first point, so a moved shape can snap by itself
+    int grabDX = 0, grabDY = 0;
     double dragScreenX = 0, dragScreenY = 0;
     int initDragGridX = 0, initDragGridY = 0;
     double mouseDownScreenX = 0, mouseDownScreenY = 0;

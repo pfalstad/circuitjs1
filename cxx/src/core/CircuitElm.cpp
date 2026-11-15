@@ -19,6 +19,8 @@
 
 #include "CircuitElm.h"
 
+#include "../elements/BoxElm.h"
+
 #include "WireRouter.h"
 
 #include <cmath>
@@ -429,6 +431,30 @@ void CircuitElm::setMouseElm(bool v) {
         mouseElmRef = this;
     else if (mouseElmRef == this)
         mouseElmRef = nullptr;
+}
+
+void CircuitElm::sortBoxes(std::vector<CircuitElm *> &list) {
+    bool hint = (&list == &app->elmList && app->hintType != -1);
+    CircuitElm *h1 = hint ? app->getElm(app->hintItem1) : nullptr;
+    CircuitElm *h2 = hint ? app->getElm(app->hintItem2) : nullptr;
+    std::vector<CircuitElm *> boxes, rest;
+    for (CircuitElm *ce : list)
+        (ce->isBoxElm() ? boxes : rest).push_back(ce);
+    if (boxes.empty())
+        return;
+    std::stable_sort(boxes.begin(), boxes.end(), [](CircuitElm *a, CircuitElm *b) {
+        return static_cast<BoxElm *>(b)->area() < static_cast<BoxElm *>(a)->area();
+    });
+    list = boxes;
+    list.insert(list.end(), rest.begin(), rest.end());
+    if (hint) {
+        auto indexOf = [&](CircuitElm *e) {
+            auto it = std::find(list.begin(), list.end(), e);
+            return it == list.end() ? -1 : (int) (it - list.begin());
+        };
+        app->hintItem1 = indexOf(h1);
+        app->hintItem2 = indexOf(h2);
+    }
 }
 
 double CircuitElm::lineDistanceSq(double xa, double ya, double xb, double yb, double gx, double gy) {

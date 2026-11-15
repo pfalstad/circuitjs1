@@ -101,8 +101,17 @@ void QtGraphics::drawString(const std::string &s, double x, double y) {
 }
 
 void QtGraphics::setLineDash(double a, double b) {
-    st.dashOn = a;
-    st.dashOff = (a == 0) ? 0 : b;
+    if (a == 0)
+        st.dashes.clear();
+    else
+        st.dashes = {a, b};
+}
+
+void QtGraphics::setLineDashPattern(const std::vector<double> &pattern) {
+    st.dashes = pattern;
+    // (canvas repeats an odd-length list to make it even)
+    if (st.dashes.size() % 2 == 1)
+        st.dashes.insert(st.dashes.end(), pattern.begin(), pattern.end());
 }
 
 void QtGraphics::saveState() {
@@ -195,9 +204,12 @@ QPen QtGraphics::makePen() const {
     pen.setWidthF(st.lineWidth);
     pen.setJoinStyle(Qt::MiterJoin);
     pen.setCapStyle(st.cap == CAP_ROUND ? Qt::RoundCap : st.cap == CAP_SQUARE ? Qt::SquareCap : Qt::FlatCap);
-    if (st.dashOn > 0 && st.lineWidth > 0) {
+    if (!st.dashes.empty() && st.lineWidth > 0) {
         // Qt dash lengths are in units of the pen width
-        pen.setDashPattern({st.dashOn / st.lineWidth, st.dashOff / st.lineWidth});
+        QList<qreal> d;
+        for (double v : st.dashes)
+            d.push_back(v / st.lineWidth);
+        pen.setDashPattern(d);
     }
     return pen;
 }

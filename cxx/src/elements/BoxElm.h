@@ -19,23 +19,40 @@
 
 #pragma once
 
-#include "GraphicElm.h"
+#include "ShapeElm.h"
 
-class BoxElm : public GraphicElm {
+class BoxElm : public ShapeElm {
 public:
-    bool showPropertiesOnCreate() override { return false; }
     ELM_CLASS(BoxElm)
+    int opacity = 0;  // fill, 0-100%; 0 = no fill
+    int cornerRadius = 0;
+
+    // box-only memory of the last box drawn or edited
+    static inline int lastOpacity = 0;
+    static inline int lastCornerRadius = 0;
+
     BoxElm(int xx, int yy);
     BoxElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st);
+    void postConstruct(StringTokenizer *st) override;
 
     int getDumpType() override { return 'b'; }
-    void drag(int xx, int yy) override { x2 = xx; y2 = yy; }
+    int defaultStyle() override { return STYLE_DASHED; }
+    bool isBoxElm() override { return true; }
+    void remember() override;
     bool creationFailed() override { return std::abs(x2 - x) < 32 || std::abs(y2 - y) < 32; }
+    // Shift: square, using the longer side
+    void constrain() override;
+    // used by CircuitElm::sortBoxes()
+    double area() { return (double) std::abs(x2 - x) * std::abs(y2 - y); }
     void draw(Graphics &g) override;
-    std::optional<EditInfo> getEditInfo(int n) override { return std::nullopt; }
-    void setEditValue(int n, EditInfo &ei) override {}
-    void getInfo(std::vector<std::string> &arr) override {}
-    int getShortcut() override { return 0; }
+    // rectangle outline with rounded corners (arcs, so it survives SVG export)
+    static void boxPath(Graphics &g, double bx, double by, double bw, double bh, double r);
+    int shapeEditCount() override { return 2; }
+    std::optional<EditInfo> getShapeEditInfo(int n) override;
+    void setShapeEditValue(int n, EditInfo &ei) override;
+    void dumpXml(XmlElement *doc, XmlElement *elem) override;
+    void undumpXml(CircuitXMLDeserializer &xml) override;
+    // only the edges count, so whatever is inside the box can still be picked
     double getMouseDistance(int gx, int gy) override;
     void selectRect(const Rectangle &r, bool add) override;
 };

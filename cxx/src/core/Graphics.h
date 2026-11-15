@@ -94,6 +94,8 @@ public:
     void setFont(const Font &f) { applyFont(f); currentFontSize = f.size; }
     // 0 turns dashing off
     virtual void setLineDash(double a, double b) = 0;
+    // any number of dash/gap lengths (canvas setLineDash()); empty turns dashing off
+    virtual void setLineDashPattern(const std::vector<double> &pattern) = 0;
 
     static double distanceSq(double x1, double y1, double x2, double y2) {
         x2 -= x1;

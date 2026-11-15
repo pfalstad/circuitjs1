@@ -270,6 +270,11 @@ void CirSim::doPaste(const std::string *dump) {
         for (int i = oldsz; i != (int) elmList.size(); i++)
             elmList[i]->move(dx, dy);
     }
+    for (int i = oldsz; i < (int) elmList.size(); i++)
+        if (elmList[i]->isBoxElm()) {
+            CircuitElm::sortBoxes(elmList);  // pasted boxes go behind
+            break;
+        }
     needAnalyze();
     writeRecoveryToStorage();
 }

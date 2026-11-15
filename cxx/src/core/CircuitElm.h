@@ -429,6 +429,8 @@ public:
     virtual bool isBusSplitterElm() { return false; }
     virtual bool isScopeElm() { return false; }
     virtual bool isGraphicElm() { return false; }
+    virtual bool isShapeElm() { return false; }
+    virtual bool isBoxElm() { return false; }
     virtual bool isRoutedWireElm() { return false; }
     // a switch was toggled, by the user or a test (for recording tests)
     static void recordToggle(CircuitElm *ce);
@@ -465,6 +467,11 @@ public:
     virtual void draggingDone() {}
 
     double lineDistanceSq(double xa, double ya, double xb, double yb, double gx, double gy);
+    // Put boxes first in the list, so they're drawn (and saved) behind everything else,
+    // with larger boxes ahead of the smaller ones they hold.  Everything else keeps its
+    // order.  Boxes have no posts, so this doesn't change the simulation; hints refer to
+    // elements by position, so they're remapped to follow their elements.
+    static void sortBoxes(std::vector<CircuitElm *> &list);
     virtual double getMouseDistance(int gx, int gy);
 
     virtual void updateModels() {}

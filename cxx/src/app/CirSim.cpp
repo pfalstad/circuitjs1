@@ -1088,6 +1088,9 @@ void CirSim::updateCircuit(QPainter &painter) {
     int tmm = mouse.tempMouseMode;
     if (tmm == MODE_DRAG_ROW || tmm == MODE_DRAG_COLUMN || tmm == MODE_DRAG_POST || tmm == MODE_DRAG_SELECTED) {
         for (CircuitElm *ce : *uiElmList) {
+            // boxes and lines only show their dots while they're the ones being moved
+            if (ce->isShapeElm() && ce != mouse.getMouseElm() && !ce->isSelected())
+                continue;
             if (ce != mouse.getMouseElm() || tmm != MODE_DRAG_POST) {
                 g.setColor(Color::gray);
                 g.fillOval(ce->x - 3, ce->y - 3, 7, 7);
@@ -1578,6 +1581,11 @@ void CirSim::doDelete(CircuitElm *menuElm) {
 
 void CirSim::doEdit(Editable *e) {
     mouse.clearSelection();
+    // put the box behind everything (largest first), so a fill opacity set in the
+    // dialog shows correctly.  Only here and when boxes are created, not on load, so
+    // old circuits keep their element order (tests refer to elements by position)
+    if (CircuitElm *ce = dynamic_cast<CircuitElm *>(e); ce != nullptr && ce->isBoxElm())
+        CircuitElm::sortBoxes(elmList);
     pushUndo();
     closeEditDialog();
     editDialog = new EditDialog(e, this);

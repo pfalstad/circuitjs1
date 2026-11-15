@@ -19,6 +19,8 @@
 
 #include "MouseManager.h"
 
+#include "elements/ShapeElm.h"
+
 #include "core/Adjustable.h"
 #include "core/SimulationManager.h"
 #include "elements/RoutedWireElm.h"
@@ -273,6 +275,10 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     sim->pushUndo();
     initDragGridX = gx;
     initDragGridY = gy;
+    if (mouseElm != nullptr) {
+        grabDX = gx - mouseElm->x;
+        grabDY = gy - mouseElm->y;
+    }
     dragging = true;
     dragMovedSet.clear();
     dragMovedElms.clear();
@@ -313,6 +319,8 @@ void MouseManager::onMouseDown(QMouseEvent *e) {
     if (!sim->circuitArea.contains(ex, ey))
         return;
     sim->dragElm = ElementFactory::constructElement(sim->mouseModeStr.toStdString(), x0, y0);
+    if (sim->dragElm != nullptr && sim->dragElm->isShapeElm())
+        static_cast<ShapeElm *>(sim->dragElm)->placeStart(gx, gy);  // boxes/lines snap (or not) themselves
 }
 
 void MouseManager::onMouseMove(QMouseEvent *e) {
@@ -359,6 +367,8 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
         return;
     }
     if (sim->dragElm != nullptr) {
+        if (sim->dragElm->isShapeElm())
+            static_cast<ShapeElm *>(sim->dragElm)->shiftLock = e->modifiers() & Qt::ShiftModifier;
         sim->dragElm->drag(gx, gy);
         // now that we're actually dragging out a new element, don't leave whatever
         // was hovered before still looking highlighted underneath it
@@ -377,8 +387,12 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
         dragColumn(snapGrid(gx), snapGrid(gy));
         break;
     case SimApp::MODE_DRAG_POST:
-        if (mouseElm != nullptr)
-            dragPost(snapGrid(gx), snapGrid(gy), e->modifiers() & Qt::ShiftModifier);
+        if (mouseElm != nullptr) {
+            if (mouseElm->isShapeElm() && !(e->modifiers() & Qt::ShiftModifier))
+                dragPost(gx, gy, false);  // the box/line snaps itself
+            else
+                dragPost(snapGrid(gx), snapGrid(gy), e->modifiers() & Qt::ShiftModifier);
+        }
         break;
     case SimApp::MODE_SELECT:
         if (mouseElm == nullptr)
@@ -479,6 +493,13 @@ bool MouseManager::dragSelected(int x, int y) {
 
     int ddx = x - dragGridX;
     int ddy = y - dragGridY;
+    // a grabbed box/line snaps its own first point per its snap setting;
+    // anything else selected along with it moves by the same amount
+    if (mouseElm != nullptr && mouseElm->isShapeElm() && onlyGraphicsElmsSelected()) {
+        ShapeElm *se = static_cast<ShapeElm *>(mouseElm);
+        ddx = se->snapCoord(x - grabDX) - se->x;
+        ddy = se->snapCoord(y - grabDY) - se->y;
+    }
     if (ddx == 0 && ddy == 0) {
         // don't leave mouseElm selected if we selected it above
         if (me)
@@ -527,6 +548,10 @@ void MouseManager::dragPost(int x, int y, bool all) {
     if (draggingPost == -1) {
         draggingPost = (Graphics::distanceSq(mouseElm->x, mouseElm->y, x, y) >
                         Graphics::distanceSq(mouseElm->x2, mouseElm->y2, x, y)) ? 1 : 0;
+    }
+    if (!all && mouseElm->isShapeElm()) {
+        static_cast<ShapeElm *>(mouseElm)->movePostTo(draggingPost, x, y);
+        return;
     }
     int ddx = x - dragGridX;
     int ddy = y - dragGridY;
@@ -978,6 +1003,8 @@ CircuitElm *MouseManager::endDrag() {
             splitAt(de->x2, de->y2);
             sim->uiElmList->push_back(de);
             de->draggingDone();
+            if (de->isBoxElm())
+                CircuitElm::sortBoxes(*sim->uiElmList);  // new boxes go behind, largest first
             circuitChanged = true;
             sim->writeRecoveryToStorage();
             createdElm = de;
@@ -1226,6 +1253,8 @@ bool MouseManager::toolbarDragEnd(QPoint) {
             splitAt(de->x2, de->y2);
             sim->uiElmList->push_back(de);
             de->draggingDone();
+            if (de->isBoxElm())
+                CircuitElm::sortBoxes(*sim->uiElmList);
             sim->writeRecoveryToStorage();
             sim->needAnalyze();
             sim->pushUndo();

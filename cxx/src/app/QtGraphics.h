@@ -44,6 +44,7 @@ public:
     double measureWidth(const std::string &s) override;
     void setLineWidth(double w) override { st.lineWidth = w; }
     void setLineDash(double a, double b) override;
+    void setLineDashPattern(const std::vector<double> &pattern) override;
 
     void saveState() override;
     void restoreState() override;
@@ -82,7 +83,7 @@ private:
         QColor fillColor = Qt::black;
         std::optional<QLinearGradient> strokeGradient;
         double lineWidth = 1;
-        double dashOn = 0, dashOff = 0;
+        std::vector<double> dashes;  // dash, gap, dash, gap...; empty for a solid line
         LineCap cap = CAP_BUTT;
         TextAlign align = ALIGN_LEFT;
         TextBaseline baseline = BASELINE_ALPHABETIC;
