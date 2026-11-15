@@ -52,6 +52,11 @@ export class SRAMElm extends ChipElm {
     static readonly FLAG_CHIP_SELECT = 32;
     // (these flag values match ts-digital's SRAMElm, for compatibility)
     static contentsOverride: string | null = null;
+    private contentsEi: EditInfo | null = null;  // the Contents field in the edit dialog, if any
+
+    private getContentsTextArea(): HTMLTextAreaElement | null {
+        return (this.contentsEi?.textArea?.element as HTMLTextAreaElement | null | undefined) ?? null;
+    }
     static fileNameOverride: string | null = null;
 
     constructor(xx: number, yy: number);
@@ -112,7 +117,7 @@ export class SRAMElm extends ChipElm {
         this.map = new Map();
         try {
             const s = xml.parseContents();
-            if (s) this.parseContentsString(s);
+            if (s) this.parseContentsString(s, this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY), true);
         } catch (e) {}
         if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
             this.initialMap = new Map(this.map);
@@ -193,6 +198,7 @@ export class SRAMElm extends ChipElm {
             return new EditInfo("# of Data Bits", this.dataBits, 1, 1).setDimensionless().setStructural();
         if (n === 2) {
             const ei = new EditInfo("Contents", 0).setIsState();
+            this.contentsEi = ei;
             ei.textArea = { value: SRAMElm.contentsOverride !== null ? SRAMElm.contentsOverride : this.contentsToString(), element: null };
             SRAMElm.contentsOverride = null;
             if (SRAMElm.fileNameOverride !== null)
@@ -308,31 +314,57 @@ export class SRAMElm extends ChipElm {
         return h.length < 2 ? "0" + h : h;
     }
 
-    parseContentsString(s: string): void {
-        this.map.clear();
+    // parse the Contents text ("addr: val val val..." lines) into this.map.  Returns an error
+    // message for the first bad line, if any, in which case the contents are left unchanged
+    // (unless lenient, when loading a file: then whatever could be parsed is used, as before).
+    parseContentsString(s: string, hex: boolean = this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY),
+                        lenient: boolean = false): string | null {
+        const map: Map<number, number> = new Map();
+        let error: string | null = null;
         const lines = s.split("\n");
         for (let i = 0; i !== lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === "")
+                continue;
+            const colon = line.indexOf(":");
+            const lineError = (msg: string) => "line " + (i + 1) + ": " + msg;
+            if (colon < 0) {
+                error ??= lineError("expected \"address: values\"");
+                continue;
+            }
             try {
-                const line = lines[i];
-                const args = line.split(/: */);
-                let addr = this.parseNumber(args[0]);
-                const vals = args[1].split(/ +/);
-                for (let j = 0; j !== vals.length; j++) {
-                    const val = this.parseNumber(vals[j]);
-                    this.map.set(addr++, val);
-                }
-            } catch (e) {}
+                let addr = this.parseNumber(line.substring(0, colon).trim(), hex);
+                const rest = line.substring(colon + 1).trim();
+                if (rest === "")
+                    continue;
+                for (const v of rest.split(/\s+/))
+                    map.set(addr++, this.parseNumber(v, hex));
+            } catch (e) {
+                error ??= lineError((e as Error).message);
+            }
         }
+        if (error === null || lenient)
+            this.map = map;
+        return error;
     }
 
-    parseNumber(str: string): number {
-        if (str.startsWith("0x"))
-            return parseIntStrict(str.substring(2), 16);
-        if (this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY))
-            return parseIntStrict(str, 16);
-        if (str.startsWith("0b"))
-            return parseIntStrict(str.substring(2), 2);
-        return parseIntStrict(str);
+    // parse an address or value: hex in hex mode, otherwise decimal; 0x (hex) and 0b
+    // (binary, except in hex mode, where it's a hex number) prefixes work in either mode
+    parseNumber(str: string, hex: boolean = this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY)): number {
+        if (/^0x[0-9a-f]+$/i.test(str))
+            return parseInt(str.substring(2), 16);
+        if (hex) {
+            if (/^[0-9a-f]+$/i.test(str))
+                return parseInt(str, 16);
+            throw new Error("\"" + str + "\" is not a hex number");
+        }
+        if (/^0b[01]+$/.test(str))
+            return parseInt(str.substring(2), 2);
+        if (/^-?[0-9]+$/.test(str))
+            return parseInt(str, 10);
+        if (/^[0-9a-f]+$/i.test(str))
+            throw new Error("\"" + str + "\" is not a decimal number (check Hex Display to enter hex, or write 0x" + str + ")");
+        throw new Error("\"" + str + "\" is not a number");
     }
 
     setChipEditValue(n: number, ei: EditInfo): void {
@@ -353,17 +385,32 @@ export class SRAMElm extends ChipElm {
                 ei.setError("must be between 2 and 16");
         }
         if (n === 2) {
-            this.parseContentsString(ei.textArea.element ? ei.textArea.element.value : ei.textArea.value);
+            const err = this.parseContentsString(ei.textArea.element ? ei.textArea.element.value : ei.textArea.value);
+            if (err !== null) {
+                ei.setError(err);
+                return;
+            }
             if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
                 this.initialMap = new Map(this.map);
         }
         if (n === 3) {
             const oldFlags = this.flags;
-            if (ei.textArea && ei.textArea.element)
-                this.parseContentsString(ei.textArea.element.value);
-            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_HEX_DISPLAY);
+            const newFlags = ei.changeFlag(this.flags, SRAMElm.FLAG_HEX_DISPLAY);
+            // read the contents as written before converting them to the new mode.  If they
+            // aren't valid in the old mode but are in the new one (say, hex was typed and then
+            // Hex Display checked), take them as being in the new mode.  If neither, leave the
+            // text alone, so it can be fixed (the dialog shows the error).
+            const ta = this.getContentsTextArea();
+            let keepText: string | null = null;
+            if (ta != null) {
+                const text = ta.value;
+                if (this.parseContentsString(text, (oldFlags & SRAMElm.FLAG_HEX_DISPLAY) !== 0) !== null &&
+                    this.parseContentsString(text, (newFlags & SRAMElm.FLAG_HEX_DISPLAY) !== 0) !== null)
+                    keepText = text;
+            }
+            this.flags = newFlags;
             if (this.flags !== oldFlags) {
-                SRAMElm.contentsOverride = this.contentsToString();
+                SRAMElm.contentsOverride = keepText ?? this.contentsToString();
                 ei.newDialog = true;
             }
         }

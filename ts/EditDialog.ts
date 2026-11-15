@@ -507,11 +507,12 @@ export class EditDialog extends Dialog {
             return;
         let changed = false;
         let applied = false;
+        let applyFailed = false;
 
         // for buttons, choices and checkboxes, apply pending text-field changes first
         // (in case setEditValue rebuilds the dialog, which would discard them)
         if ((ei.button !== null || ei.choice !== null || ei.checkbox !== null) && !ei.newDialog) {
-            this.apply();
+            applyFailed = !this.apply();
             applied = true;
         }
 
@@ -524,6 +525,10 @@ export class EditDialog extends Dialog {
             if (!applied) this.apply();
             this.clearDialog();
             this.buildDialog();
+            // the error shown is from before this change, which may have fixed it (say,
+            // checking an SRAM's Hex Display after typing hex contents), so check again
+            if (applyFailed)
+                this.apply();
         }
     }
 
