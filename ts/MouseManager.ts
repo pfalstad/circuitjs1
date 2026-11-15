@@ -93,6 +93,8 @@ export class MouseManager {
     // elements grabbed at mouse-down for DragRow/DragColumn
     dragRowColElms: CircuitElm[] = [];
     dragRowColPosts: number[] = [];
+    // set when the current drag has changed the circuit, so endDrag() saves the recovery copy
+    private dragChangedCircuit = false;
     // elements moved by dragSelected during the current drag
     dragMovedElms: Set<CircuitElm> = new Set();
 
@@ -507,8 +509,10 @@ export class MouseManager {
 		this.dragGridY = this.snapGrid(this.dragGridY);
 	    }
 	}
+	// (the recovery copy is written when the drag ends; writing it on every mouse move
+	// is slow for a big circuit, since it serializes the whole thing)
 	if (changed)
-	    this.sim.undoManager?.writeRecoveryToStorage();
+	    this.dragChangedCircuit = true;
 	this.sim.repaint();
     }
 
@@ -1701,6 +1705,9 @@ export class MouseManager {
 	    this.sim.needAnalyze();
 	    this.sim.undoManager?.pushUndo();
 	}
+	if (this.dragChangedCircuit)
+	    this.sim.undoManager?.writeRecoveryToStorage();
+	this.dragChangedCircuit = false;
 	if (this.dragElm != null)
 	    this.dragElm.delete();
 	this.dragElm = null;

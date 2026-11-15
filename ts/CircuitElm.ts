@@ -1469,8 +1469,11 @@ export abstract class CircuitElm implements Editable {
     validate(): boolean { return true; }
 
     validateRailNode(n: number): boolean {
-        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(n), CircuitElm.sim);
-        if (fpi.findPath(CircuitNode.ground))
+        // search from our node toward ground rather than the other way: the search is the same
+        // in either direction, but starting from ground means walking everything connected to
+        // ground (every gate output, etc.), which is slow when many elements do this check
+        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, CircuitNode.ground, CircuitElm.sim);
+        if (fpi.findPath(this.getNode(n)))
             CircuitElm.sim.stop("Path to ground with no resistance!", this);
         return true;
     }

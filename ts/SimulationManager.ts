@@ -58,6 +58,89 @@ export class RoutedWireConnection {
     }
 }
 
+// buckets elements by location, so makePostDrawList() can find the elements a post lies on
+// without checking every element in the circuit for every unconnected post
+class ElmGrid {
+    static readonly CELL = 128;
+    static readonly MAX_CELLS = 256;    // elements spanning more cells than this go in `big`
+    private cells: Map<string, any[]> = new Map();
+    private big: any[] = [];
+
+    constructor(list: any[]) {
+	for (const ce of list) {
+	    if (ce.isGraphicElm())
+		continue;
+	    let x1: number, y1: number, x2: number, y2: number;
+	    if (ce.isRoutedWireElm()) {
+		// its bounding box is only set when it's drawn, so use its path
+		const rp = ce.routePoints;
+		if (rp == null || rp.length < 2)
+		    continue;	// pointOnPath() is always false
+		x1 = x2 = rp[0].x; y1 = y2 = rp[0].y;
+		for (const p of rp) {
+		    x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y);
+		    x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y);
+		}
+	    } else {
+		const b = ce.boundingBox;
+		if (b.width < 0 || b.height < 0)
+		    continue;	// contains() is always false
+		x1 = b.x; y1 = b.y; x2 = b.x + b.width; y2 = b.y + b.height;
+	    }
+	    this.add(ce, x1, y1, x2, y2);
+	}
+    }
+
+    private add(ce: any, x1: number, y1: number, x2: number, y2: number): void {
+	const C = ElmGrid.CELL;
+	const cx1 = Math.floor(x1 / C), cx2 = Math.floor(x2 / C);
+	const cy1 = Math.floor(y1 / C), cy2 = Math.floor(y2 / C);
+	if (!((cx2 - cx1 + 1) * (cy2 - cy1 + 1) <= ElmGrid.MAX_CELLS)) {
+	    this.big.push(ce);
+	    return;
+	}
+	for (let cx = cx1; cx <= cx2; cx++)
+	    for (let cy = cy1; cy <= cy2; cy++) {
+		const key = cx + "," + cy;
+		const l = this.cells.get(key);
+		if (l == null)
+		    this.cells.set(key, [ce]);
+		else
+		    l.push(ce);
+	    }
+    }
+
+    // is this unconnected post on an element it doesn't belong to?
+    isBadConnection(cn: Point): boolean {
+	const C = ElmGrid.CELL;
+	const l = this.cells.get(Math.floor(cn.x / C) + "," + Math.floor(cn.y / C));
+	return (l != null && ElmGrid.anyBad(l, cn)) || ElmGrid.anyBad(this.big, cn);
+    }
+
+    private static anyBad(list: any[], cn: Point): boolean {
+	for (const ce of list) {
+	    // routed wire: check path directly instead of bounding box (which is too big)
+	    if (ce.isRoutedWireElm()) {
+		if (ce.pointOnPath(cn))
+		    return true;
+		continue;
+	    }
+	    // does this post intersect elm's bounding box?
+	    if (!ce.boundingBox.contains(cn.x, cn.y))
+		continue;
+	    // does this post belong to the elm?
+	    const pc = ce.getPostCount();
+	    let k: number;
+	    for (k = 0; k !== pc; k++)
+		if (ce.getPost(k).x === cn.x && ce.getPost(k).y === cn.y)
+		    break;
+	    if (k === pc)
+		return true;
+	}
+	return false;
+    }
+}
+
 // thrown by SimulationManager.stop() to abandon whatever the simulator was doing (analyzing,
 // stamping or running the circuit).  Code that drives the simulation catches it with
 // SimulationManager.isStop().
@@ -166,9 +249,9 @@ export class SimulationManager {
     }
 
     // map points to node numbers
-    nodeMap: Map<Point, NodeMapEntry> = new Map();
+    nodeMap: Map<string, NodeMapEntry> = new Map();   // keyed by pointKey()
     // separate node map for UI element list (when viewing composite internals)
-    uiNodeMap: Map<Point, NodeMapEntry> = new Map();
+    uiNodeMap: Map<string, NodeMapEntry> = new Map();   // keyed by pointKey()
 
     // info about each wire segment and its neighbors, used to calculate wire currents
     wireInfoList: WireSegment[] = [];
@@ -339,40 +422,10 @@ export class SimulationManager {
 	    }
 	}
 
-	// convert string-keyed map back to Point-keyed for the rest of the code
-	// we store these as Point-keyed maps using pointKey() for lookup
 	if (uiList)
-	    this.uiNodeMap = this.nmToPointMap(nm, list);
+	    this.uiNodeMap = nm;
 	else
-	    this.nodeMap = this.nmToPointMap(nm, list);
-    }
-
-    // convert string-key map to Point-key map by scanning element posts
-    private nmToPointMap(nm: Map<string, NodeMapEntry>, list: any[]): Map<Point, NodeMapEntry> {
-	const result: Map<Point, NodeMapEntry> = new Map();
-	for (const ce of list) {
-	    const bw = ce.isRemovableWire() ? ce.getBusWidth() : ce.getPostCount();
-	    for (let j = 0; j < bw; j++) {
-		const p = ce.isRemovableWire() ? ce.getPost(j) : ce.getPost(j);
-		if (p == null) continue;
-		const key = SimulationManager.pointKey(p);
-		const entry = nm.get(key);
-		if (entry != null)
-		    result.set(p, entry);
-	    }
-	    // also check connectedPost
-	    if (ce.isRemovableWire()) {
-		for (let j = 0; j < ce.getBusWidth(); j++) {
-		    const p = ce.getConnectedPost(j);
-		    if (p == null) continue;
-		    const key = SimulationManager.pointKey(p);
-		    const entry = nm.get(key);
-		    if (entry != null)
-			result.set(p, entry);
-		}
-	    }
-	}
-	return result;
+	    this.nodeMap = nm;
     }
 
     // assign nodes to UI wires (which aren't part of simulation) based on neighboring non-wire elements
@@ -427,13 +480,9 @@ export class SimulationManager {
 	}
     }
 
-    // look up Point in a Point-keyed map using coordinate equality
-    private getFromPointMap<V>(map: Map<Point, V>, pt: Point): V | undefined {
-	for (const [k, v] of map.entries()) {
-	    if (k.x === pt.x && k.y === pt.y && k.z === pt.z)
-		return v;
-	}
-	return undefined;
+    // look up a Point in a map keyed by pointKey()
+    private getFromPointMap<V>(map: Map<string, V>, pt: Point): V | undefined {
+	return map.get(SimulationManager.pointKey(pt));
     }
 
     // generate info we need to calculate wire currents.  Most other elements calculate currents using
@@ -464,6 +513,9 @@ export class SimulationManager {
 	let moved = 0;
 	this.wireInfoResolved = new Map();
 
+	// each node's links, grouped by the location of the post they're for (filled as needed)
+	const linksByPos: Map<CircuitNode, Map<string, CircuitNodeLink[]>> = new Map();
+
 	// build label endpoint map: label string → list of WireSegments sharing that label
 	const labelMap: Map<string, WireSegment[]> = new Map();
 	for (i = 0; i !== this.wireInfoList.length; i++) {
@@ -492,28 +544,46 @@ export class SimulationManager {
 	    const labelNeighbors: WireSegment[] = [];
 	    let isReady0 = true, isReady1 = !wire.isGroundElm();
 
-	    // position-based matching via cn.links
-	    for (j = 0; j !== cn1.links.length; j++) {
-		const cnl = cn1.links[j];
-		const ce = cnl.elm;
-		if (ce === wire) continue;
-		if (!this.wireInfoElmSet.has(ce)) continue;
-		if (cnl.num >= ce.getPostCount()) continue;
-		const pt = ce.getPost(cnl.num);
-		if (pt == null) continue;
-		const ptKey = SimulationManager.pointKey(pt);
-
-		const neighborBit = cnl.num % ce.getBusWidth();
-		const notReady = (ce.isRemovableWire() && !this.isWireInfoResolved(ce, neighborBit));
-
-		if (ws.endpoint0 != null && ws.endpoint0 === ptKey) {
-		    neighbors0.push(ce);
-		    if (notReady) isReady0 = false;
-		} else if (ws.endpoint1 != null && !ws.endpoint1.startsWith("label:") && ws.endpoint1 === ptKey) {
-		    neighbors1.push(ce);
-		    if (notReady) isReady1 = false;
+	    // position-based matching via cn.links.  (the links are grouped by location once per
+	    // node, since a node with many wire segments would otherwise have all its links scanned
+	    // for each of them)
+	    let byPos = linksByPos.get(cn1);
+	    if (byPos == null) {
+		byPos = new Map();
+		for (j = 0; j !== cn1.links.length; j++) {
+		    const cnl = cn1.links[j];
+		    const ce = cnl.elm;
+		    if (!this.wireInfoElmSet.has(ce)) continue;
+		    if (cnl.num >= ce.getPostCount()) continue;
+		    const pt = ce.getPost(cnl.num);
+		    if (pt == null) continue;
+		    const ptKey = SimulationManager.pointKey(pt);
+		    let l = byPos.get(ptKey);
+		    if (l == null)
+			byPos.set(ptKey, l = []);
+		    l.push(cnl);
 		}
+		linksByPos.set(cn1, byPos);
 	    }
+	    const at0 = ws.endpoint0 != null ? byPos.get(ws.endpoint0) : undefined;
+	    const at1 = (ws.endpoint1 != null && ws.endpoint1 !== ws.endpoint0 && !ws.endpoint1.startsWith("label:")) ?
+		byPos.get(ws.endpoint1) : undefined;
+	    if (at0 != null)
+		for (const cnl of at0) {
+		    const ce = cnl.elm;
+		    if (ce === wire) continue;
+		    neighbors0.push(ce);
+		    if (ce.isRemovableWire() && !this.isWireInfoResolved(ce, cnl.num % ce.getBusWidth()))
+			isReady0 = false;
+		}
+	    if (at1 != null)
+		for (const cnl of at1) {
+		    const ce = cnl.elm;
+		    if (ce === wire) continue;
+		    neighbors1.push(ce);
+		    if (ce.isRemovableWire() && !this.isWireInfoResolved(ce, cnl.num % ce.getBusWidth()))
+			isReady1 = false;
+		}
 
 	    // label-based matching: find other WireSegments sharing the same label endpoint
 	    if (ws.endpoint1 != null && ws.endpoint1.startsWith("label:")) {
@@ -624,7 +694,7 @@ export class SimulationManager {
 	    if (cln != null)
 		cln.node = CircuitNode.ground;
 	    else
-		this.nodeMap.set(pt, new NodeMapEntry(CircuitNode.ground));
+		this.nodeMap.set(SimulationManager.pointKey(pt), new NodeMapEntry(CircuitNode.ground));
 	}
     }
 
@@ -664,7 +734,7 @@ export class SimulationManager {
 		    if (cln != null)
 			cln.node = cn2;
 		    else
-			this.nodeMap.set(pt, new NodeMapEntry(cn2));
+			this.nodeMap.set(SimulationManager.pointKey(pt), new NodeMapEntry(cn2));
 		    this.nodeList.push(cn2);
 		} else {
 		    const cn2 = cln.node!;
@@ -1186,6 +1256,7 @@ export class SimulationManager {
 
 	const postDrawList: Point[] = this.app.postDrawList = [];
 	const badConnectionList: Point[] = this.app.badConnectionList = [];
+	let badGrid: ElmGrid | null = null;
 	for (const entry of postCountMap.values()) {
 	    if (entry.count !== 2)
 		postDrawList.push(entry.pt);
@@ -1193,72 +1264,57 @@ export class SimulationManager {
 	    // look for bad connections, posts not connected to other elements which intersect
 	    // other elements' bounding boxes
 	    if (entry.count === 1) {
-		let bad = false;
 		const cn = entry.pt;
-		for (j = 0; j !== drawList.length && !bad; j++) {
-		    const ce = drawList[j];
-		    if (ce.isGraphicElm())
-			continue;
-
-		    // routed wire: check path directly instead of bounding box (which is too big)
-		    if (ce.isRoutedWireElm()) {
-			if (ce.pointOnPath(cn))
-			    bad = true;
-			continue;
-		    }
-
-		    // does this post intersect elm's bounding box?
-		    if (!ce.boundingBox.contains(cn.x, cn.y))
-			continue;
-		    let k: number;
-		    // does this post belong to the elm?
-		    const pc = ce.getPostCount();
-		    for (k = 0; k !== pc; k++)
-			if (ce.getPost(k).x === cn.x && ce.getPost(k).y === cn.y)
-			    break;
-		    if (k === pc)
-			bad = true;
-		}
-		if (bad)
+		if (badGrid == null)
+		    badGrid = new ElmGrid(drawList);
+		if (badGrid.isBadConnection(cn))
 		    badConnectionList.push(cn);
 	    }
 	}
 	badConnectionList.push(...this.busMismatchList);
 
-	// build mapping from elements to connected routed wires
+	// build mapping from elements to connected routed wires.  First index the posts of the
+	// other elements by location (x, y only, so all posts of a bus pin share one entry),
+	// recording each element once per location with the first of its posts there.
 	this.routedWireMap = new Map();
+	let postElms: Map<string, {elm: any, post: number}[]> | null = null;
 	for (i = 0; i !== drawList.length; i++) {
-	    const ce = drawList[i];
-	    if (!ce.isRoutedWireElm())
+	    const rw = drawList[i];
+	    if (!rw.isRoutedWireElm())
 		continue;
-	    const rw = ce;
-	    const rwPosts = rw.getPostCount();
-	    for (let rp = 0; rp < rwPosts; rp++) {
-		const rwPt = rw.getPost(rp);
-		for (j = 0; j !== drawList.length; j++) {
-		    const other = drawList[j];
-		    if (other === rw || other.isRoutedWireElm())
+	    if (postElms == null) {
+		postElms = new Map();
+		for (const other of drawList) {
+		    if (other.isRoutedWireElm())
 			continue;
 		    const otherPosts = other.getPostCount();
 		    for (let op = 0; op < otherPosts; op++) {
-			const op2 = other.getPost(op);
-			if (op2.x === rwPt.x && op2.y === rwPt.y) {
-			    let list = this.routedWireMap.get(other);
-			    if (list == null) {
-				list = [];
-				this.routedWireMap.set(other, list);
-			    }
-			    list.push(new RoutedWireConnection(rw, rp, op));
-			    // a bus pin has busWidth posts at the same location; record only one
-			    // connection per routed-wire post, or dragging moves it busWidth times
-			    break;
-			}
+			const p = other.getPost(op);
+			const key = p.x + "," + p.y;
+			let list = postElms.get(key);
+			if (list == null)
+			    postElms.set(key, list = []);
+			else if (list[list.length - 1].elm === other)
+			    continue;
+			list.push({elm: other, post: op});
 		    }
+		}
+	    }
+	    const rwPosts = rw.getPostCount();
+	    for (let rp = 0; rp < rwPosts; rp++) {
+		const rwPt = rw.getPost(rp);
+		const list = postElms.get(rwPt.x + "," + rwPt.y);
+		if (list == null)
+		    continue;
+		for (const {elm, post} of list) {
+		    let conns = this.routedWireMap.get(elm);
+		    if (conns == null)
+			this.routedWireMap.set(elm, conns = []);
+		    conns.push(new RoutedWireConnection(rw, rp, post));
 		}
 	    }
 	}
     }
-
 
     // stop the simulation with an error message (and the element responsible, if any, to
     // highlight), abandoning the current analysis or time step by throwing SimStoppedError
