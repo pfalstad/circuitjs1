@@ -39,15 +39,16 @@
 static QString LSq(const QString &s) { return QString::fromStdString(Locale::LS(s.toStdString())); }
 
 enum {
-    ROLE_SECTION = Qt::UserRole,  // a section label ("Recent"), not a command
-    ROLE_HTML,                    // the label, with the matched part in <b>
-    ROLE_HINT,
+    ROLE_SECTION = PALETTE_ROLE_SECTION,
+    ROLE_HTML = PALETTE_ROLE_HTML,
+    ROLE_HINT = PALETTE_ROLE_HINT,
 };
 
 // draws the rows the way style.css draws .command-palette-item and friends
 class PaletteItemDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    PaletteItemDelegate(QObject *parent, int width) : QStyledItemDelegate(parent), width(width) {}
+    int width;
 
     void paint(QPainter *p, const QStyleOptionViewItem &opt, const QModelIndex &index) const override {
         p->save();
@@ -97,9 +98,13 @@ public:
     }
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override {
-        return QSize(CommandPalette::WIDTH, index.data(ROLE_SECTION).toBool() ? 24 : 32);
+        return QSize(width, index.data(ROLE_SECTION).toBool() ? 24 : 32);
     }
 };
+
+QStyledItemDelegate *createPaletteItemDelegate(QObject *parent, int width) {
+    return new PaletteItemDelegate(parent, width);
+}
 
 CommandPalette::CommandPalette(CirSim *s) : QFrame(s, Qt::Popup | Qt::FramelessWindowHint), sim(s) {
     setAttribute(Qt::WA_DeleteOnClose);
@@ -121,7 +126,7 @@ CommandPalette::CommandPalette(CirSim *s) : QFrame(s, Qt::Popup | Qt::FramelessW
     layout->addWidget(filterBox);
 
     listPanel = new QListWidget();
-    listPanel->setItemDelegate(new PaletteItemDelegate(listPanel));
+    listPanel->setItemDelegate(new PaletteItemDelegate(listPanel, WIDTH));
     listPanel->setFocusPolicy(Qt::NoFocus);
     listPanel->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     listPanel->setSelectionMode(QAbstractItemView::SingleSelection);

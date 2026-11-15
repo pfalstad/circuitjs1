@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -37,4 +38,9 @@ std::string convertUnicodeEscapes(const std::string &input);
 
 // Ported from circuitjs1.java: circuitjs1.processLocale()
 std::unordered_map<std::string, std::string> processLocale(const std::string &data);
+
+// Look up a catalog entry without the LS() fallback: returns nothing when the
+// key is absent, so callers can tell "not translated" from "translated to
+// the same text". Used for non-UI entries such as "search:<ElmClass>".
+std::optional<std::string> lookup(const std::string &s);
 }

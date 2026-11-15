@@ -23,9 +23,19 @@
 #include <vector>
 
 class CirSim;
+class QStyledItemDelegate;
 class QLineEdit;
 class QListWidget;
 struct PaletteCommand;
+
+// list item data roles for the palette's rows
+enum {
+    PALETTE_ROLE_SECTION = Qt::UserRole,  // a section label ("Recent"), not a command
+    PALETTE_ROLE_HTML,                    // the label, with the matched part in <b>
+    PALETTE_ROLE_HINT,
+};
+// draws a row the way the palette does (also used by ComponentSearch)
+QStyledItemDelegate *createPaletteItemDelegate(QObject *parent, int width);
 
 // Command palette popup (VS Code / Sublime style). Opened via double-tap Shift, /, the
 // toolbar's search button, Edit > Find Component/Command..., or a user-assigned shortcut.

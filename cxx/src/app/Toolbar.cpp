@@ -19,6 +19,8 @@
 
 #include "Toolbar.h"
 
+#include "ComponentSearch.h"
+
 #include <QApplication>
 #include <QFontDatabase>
 #include <QLabel>
@@ -175,6 +177,12 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
     modeLabel = new QLabel();
     modeLabel->setStyleSheet("QLabel { font-size: 16px; color: #333; padding-left: 8px; padding-right: 10px; }");
     addWidget(modeLabel);
+
+    // the component search field, at the right end
+    QWidget *spacer = new QWidget();
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    addWidget(spacer);
+    addWidget(new ComponentSearch(app));
 }
 
 void Toolbar::setEuroResistors(bool euro) {

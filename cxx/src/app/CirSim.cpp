@@ -450,23 +450,29 @@ void CirSim::loadLocale() {
     else
         lang = lang.section('-', 0, 0).section('_', 0, 0);
 
-    Locale::localizationMap.clear();
-    if (lang.startsWith("en")) {
-        // no need to load locale file for English
+    // locale_en.txt is the base layer: it holds the language-neutral search
+    // abbreviations ("gnd", "vcc", "dff"), so they work in every locale.
+    // The selected language is loaded on top and overrides entries.
+    Locale::localizationMap = readLocaleCatalog("en");
+    if (lang == "en")
         return;
-    }
+    for (auto &kv : readLocaleCatalog(lang))
+        Locale::localizationMap[kv.first] = kv.second;
+}
 
+// Reads and parses one catalog. A missing file yields an empty map, so a locale
+// without a catalog still works.
+std::unordered_map<std::string, std::string> CirSim::readLocaleCatalog(const QString &lang) {
     QFile f(resourceDir() + "/locale/locale_" + lang + ".txt");
     if (!f.open(QIODevice::ReadOnly)) {
-        // default to English (empty map)
         SimulationManager::console("Can't read " + f.fileName().toStdString());
-        return;
+        return {};
     }
     std::string data = f.readAll().toStdString();
     // fetch().text() drops a byte order mark
     if (data.rfind("\xEF\xBB\xBF", 0) == 0)
         data.erase(0, 3);
-    Locale::localizationMap = Locale::processLocale(data);
+    return Locale::processLocale(data);
 }
 
 void CirSim::createCircuitsMenu() {
@@ -1466,6 +1472,10 @@ bool CirSim::eventFilter(QObject *obj, QEvent *e) {
         keyPressedSinceShiftUp = true;
     }
     return QMainWindow::eventFilter(obj, e);
+}
+
+void CirSim::focusCanvas() {
+    canvas->setFocus();
 }
 
 void CirSim::passKeyToCircuit(QKeyEvent *e) {

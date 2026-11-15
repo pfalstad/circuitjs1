@@ -19,6 +19,8 @@
 
 #include "CommandPaletteRegistry.h"
 
+#include <QSet>
+
 #include <QAction>
 #include <QMenu>
 #include <QMenuBar>
@@ -30,12 +32,19 @@
 
 std::vector<PaletteCommand *> CommandPaletteRegistry::commands;
 std::vector<PaletteCommand *> CommandPaletteRegistry::circuitCommands;
+std::vector<PaletteCommand *> CommandPaletteRegistry::componentCommands;
+
+// Modes that are tools, not parts — kept out of the component search field.
+static const QSet<QString> NON_COMPONENT_MODES = {
+    "DragAll", "DragRow", "DragColumn", "DragSelected", "DragPost", "Select",
+};
 std::map<QString, std::unique_ptr<PaletteCommand>> CommandPaletteRegistry::byId;
 
 static QString LSq(const char *s) { return QString::fromStdString(Locale::LS(s)); }
 
 void CommandPaletteRegistry::clear() {
     commands.clear();
+    componentCommands.clear();
     circuitCommands.clear();
     byId.clear();
 }
@@ -110,14 +119,33 @@ void CommandPaletteRegistry::buildStatic(CirSim *app) {
         QString name = app->classToLabelMap.value(cls);
         auto cmd = std::make_unique<PaletteCommand>();
         cmd->id = "main:" + cls;
-        cmd->label = LSq("Mode: ") + name;
+        cmd->label = name;
         cmd->category = "Mode";
-        cmd->keywords = cls + " " + name;
+        // Index the English source label too: the menu label is localized,
+        // so without it "resistor" would stop matching in a German UI.
+        QString englishLabel = app->elementLabels.value(cls);
+        // Abbreviations the label doesn't contain ("opv", "elko", "trafo")
+        // are language data too, so they live in the locale files as
+        // "search:<ElmClass>" entries instead of a table in code. They go
+        // right after the class name so they rank ahead of incidental
+        // matches inside other labels.
+        std::optional<std::string> extraTerms = Locale::lookup("search:" + cls.toStdString());
+        cmd->keywords = cls + " ";
+        if (extraTerms)
+            cmd->keywords += QString::fromStdString(*extraTerms) + " ";
+        if (!englishLabel.isEmpty())
+            cmd->keywords += englishLabel + " ";
+        cmd->keywords += name;
         QString sc = item->shortcut().toString(QKeySequence::PortableText);
         if (sc.size() == 1)
             cmd->keywords += " " + sc.toLower();
+        cmd->hint = app->elementCategories.value(cls);
         cmd->action = item;
+        PaletteCommand *p = cmd.get();
+        bool isNew = !byId.count(cmd->id);
         addCommand(std::move(cmd));
+        if (isNew && !NON_COMPONENT_MODES.contains(cls))
+            componentCommands.push_back(p);
     }
 
     add(app, "file:newwindow", "New Window...", "File", "new window");
@@ -265,6 +293,56 @@ std::vector<PaletteCommand *> CommandPaletteRegistry::search(const QString &quer
             return aMode;
         return b.second < a.second;
     });
+    std::vector<PaletteCommand *> result;
+    for (size_t i = 0; i < scored.size() && (int) i < maxResults; i++)
+        result.push_back(scored[i].first);
+    return result;
+}
+
+std::vector<PaletteCommand *> CommandPaletteRegistry::searchComponents(const QString &query, int maxResults) {
+    QString q = query.toLower().trimmed();
+    if (q.isEmpty())
+        return {};
+    std::vector<std::pair<PaletteCommand *, int>> scored;
+    for (PaletteCommand *cmd : componentCommands) {
+        // Keywords first: they hold the English source label, so an English
+        // query outranks a localized label that merely contains the word
+        // (e.g. "resistor" vs. German "Fotoresistor hinzufügen").
+        QString target = (cmd->keywords + " " + cmd->label).toLower();
+        int idx = target.indexOf(q);
+        int score = 0;
+        if (idx >= 0) {
+            score = 1000 - idx + (q.size() * 10);
+            // A standalone word should beat a longer word that merely
+            // starts with the query ("gnd" vs. "GND output", "vcc" vs.
+            // the VCCS class name).
+            auto isWord = [&](int i) {
+                if (i < 0 || i >= target.size())
+                    return true;
+                QChar c = target[i];
+                return !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == QChar(0xe4) ||
+                         c == QChar(0xf6) || c == QChar(0xfc) || c == QChar(0xdf));
+            };
+            if (isWord(idx - 1) && isWord(idx + q.size()))
+                score += 200;
+        } else {
+            int qi = 0, s = 0, lastMatch = -2;
+            for (int ti = 0; ti < target.size() && qi < q.size(); ti++) {
+                if (target[ti] == q[qi]) {
+                    s += (lastMatch == ti - 1) ? 10 : 1;
+                    lastMatch = ti;
+                    qi++;
+                }
+            }
+            // Require a dense subsequence; scattered letters across a long
+            // keyword string are noise, not a match.
+            if (qi == q.size() && s >= q.size() * 4)
+                score = s;
+        }
+        if (score > 0)
+            scored.push_back({cmd, score});
+    }
+    std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return b.second < a.second; });
     std::vector<PaletteCommand *> result;
     for (size_t i = 0; i < scored.size() && (int) i < maxResults; i++)
         result.push_back(scored[i].first);

@@ -208,6 +208,7 @@ public:
     // a key the property editor passed through (EditDialog::shouldPassKeyThrough()): handle
     // it as if the editor weren't there (menu shortcuts, Delete, and so on)
     void passKeyToCircuit(QKeyEvent *e);
+    void focusCanvas();
     // watches every key and mouse press, for double-tap Shift (see handleKey())
     bool eventFilter(QObject *obj, QEvent *e) override;
     // key for the command palette (Edit > Find Component/Command...); "/" by default
@@ -219,6 +220,11 @@ public:
     void saveShortcuts();
     void loadShortcuts();
     QMap<QString, QString> classToLabelMap;
+    // element class name -> Draw submenu title (translated), shown as a hint in the component
+    // search; and -> English menu label ("Add Resistor"), so the search matches the English
+    // term in every locale
+    QMap<QString, QString> elementCategories;
+    QMap<QString, QString> elementLabels;
     void handleKey(QKeyEvent *e);
     void handleKeyRelease(QKeyEvent *e);
     // the key as a switch keyShortcut string ("" if it can't be one), and whether any switch uses it
@@ -347,6 +353,7 @@ private:
     bool shiftUsedWithOther = false;       // something else pressed while Shift is held
     bool keyPressedSinceShiftUp = false;   // something else pressed since Shift was released
     void loadLocale();
+    std::unordered_map<std::string, std::string> readLocaleCatalog(const QString &lang);
     void createCircuitsMenu();
     void createDrawMenu();
     // the part of readCircuit() after the loader is done

@@ -260,15 +260,19 @@ void CirSim::createDrawMenu() {
     QMenu *menu = menuBar()->addMenu(menuTitle("Draw", tr("&Draw")));
     drawMenu = menu;
 
-    auto addItems = [&](QMenu *m, const MenuItemDef *items, size_t n) {
-        for (size_t i = 0; i < n; i++)
+    auto addItems = [&](QMenu *m, const MenuItemDef *items, size_t n, const char *category) {
+        for (size_t i = 0; i < n; i++) {
+            // for the component search field (see CommandPaletteRegistry::buildStatic())
+            elementCategories[items[i].cls] = LS(category);
+            elementLabels[items[i].cls] = items[i].label;
             mainMenuItems.push_back(getClassCheckItem(m, LS(items[i].label), items[i].cls));
+        }
     };
     auto addSub = [&](const char *title, const MenuItemDef *items, size_t n) {
-        addItems(menu->addMenu(LS(title)), items, n);
+        addItems(menu->addMenu(LS(title)), items, n, title);
     };
 #define N(a) (sizeof(a) / sizeof(a[0]))
-    addItems(menu, topItems, N(topItems));
+    addItems(menu, topItems, N(topItems), "Basic");
     addSub("Passive Components", passiveItems, N(passiveItems));
     addSub("Inputs and Sources", inputItems, N(inputItems));
     addSub("Outputs and Labels", outputItems, N(outputItems));

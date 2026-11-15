@@ -135,4 +135,13 @@ std::unordered_map<std::string, std::string> processLocale(const std::string &da
     return map;
 }
 
+std::optional<std::string> lookup(const std::string &s) {
+    if (s.empty())
+        return std::nullopt;
+    auto it = localizationMap.find(s);
+    if (it == localizationMap.end())
+        return std::nullopt;
+    return it->second;
+}
+
 }

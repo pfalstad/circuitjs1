@@ -52,6 +52,9 @@ public:
     // Kept separate so hundreds of example circuits don't appear until the user types
     // at least MIN_CIRCUIT_QUERY_LEN characters.
     static std::vector<PaletteCommand *> circuitCommands;
+    // Component placement modes only (category "Mode" minus drag/select tools).
+    // Backs the always-visible component search field.
+    static std::vector<PaletteCommand *> componentCommands;
 
     static constexpr int MIN_CIRCUIT_QUERY_LEN = 2;
 
@@ -70,6 +73,10 @@ public:
 
     static int fuzzyScore(const QString &query, const PaletteCommand *cmd);
     static std::vector<PaletteCommand *> search(const QString &query, int maxResults);
+    // Component-only search for the search field. Same idea as the palette, but
+    // scored against label + keywords only (the category text would otherwise make
+    // short queries match half the menu) and with a density floor for fuzzy hits.
+    static std::vector<PaletteCommand *> searchComponents(const QString &query, int maxResults);
     static std::vector<PaletteCommand *> recentCommands();
     // Returns HTML with matched portions wrapped in <b> (label is escaped).
     static QString highlightMatch(const QString &label, const QString &query);
