@@ -343,6 +343,98 @@ void SimulationManager::setWireInfoResolved(CircuitElm *ce, int bit) {
     wireInfoResolved[ce].insert(bit);
 }
 
+namespace {
+
+// buckets elements by location, so makePostDrawList() can find the elements a post lies on
+// without checking every element in the circuit for every unconnected post
+class ElmGrid {
+public:
+    static constexpr int CELL = 128;
+    static constexpr int MAX_CELLS = 256;  // elements spanning more cells than this go in big
+
+    explicit ElmGrid(const std::vector<CircuitElm *> &list) {
+        for (CircuitElm *ce : list) {
+            if (ce->isGraphicElm())
+                continue;
+            double x1, y1, x2, y2;
+            if (ce->isRoutedWireElm()) {
+                // its bounding box is only set when it's drawn, so use its path
+                const std::vector<Point> &rp = static_cast<RoutedWireElm *>(ce)->routePoints;
+                if (rp.size() < 2)
+                    continue;  // pointOnPath() is always false
+                x1 = x2 = rp[0].x;
+                y1 = y2 = rp[0].y;
+                for (const Point &p : rp) {
+                    x1 = std::min(x1, (double) p.x);
+                    y1 = std::min(y1, (double) p.y);
+                    x2 = std::max(x2, (double) p.x);
+                    y2 = std::max(y2, (double) p.y);
+                }
+            } else {
+                const Rectangle &b = ce->boundingBox;
+                if (b.width < 0 || b.height < 0)
+                    continue;  // contains() is always false
+                x1 = b.x;
+                y1 = b.y;
+                x2 = b.x + b.width;
+                y2 = b.y + b.height;
+            }
+            add(ce, x1, y1, x2, y2);
+        }
+    }
+
+    // is this unconnected post on an element it doesn't belong to?
+    bool isBadConnection(const Point &cn) const {
+        auto it = cells.find(key((long long) std::floor(cn.x / (double) CELL), (long long) std::floor(cn.y / (double) CELL)));
+        return (it != cells.end() && anyBad(it->second, cn)) || anyBad(big, cn);
+    }
+
+private:
+    std::unordered_map<long long, std::vector<CircuitElm *>> cells;
+    std::vector<CircuitElm *> big;
+
+    static long long key(long long cx, long long cy) { return (cx << 32) ^ (cy & 0xffffffffLL); }
+
+    void add(CircuitElm *ce, double x1, double y1, double x2, double y2) {
+        long long cx1 = (long long) std::floor(x1 / CELL), cx2 = (long long) std::floor(x2 / CELL);
+        long long cy1 = (long long) std::floor(y1 / CELL), cy2 = (long long) std::floor(y2 / CELL);
+        if (!((cx2 - cx1 + 1) * (cy2 - cy1 + 1) <= MAX_CELLS)) {
+            big.push_back(ce);
+            return;
+        }
+        for (long long cx = cx1; cx <= cx2; cx++)
+            for (long long cy = cy1; cy <= cy2; cy++)
+                cells[key(cx, cy)].push_back(ce);
+    }
+
+    static bool anyBad(const std::vector<CircuitElm *> &list, const Point &cn) {
+        for (CircuitElm *ce : list) {
+            // routed wire: check path directly instead of bounding box (which is too big)
+            if (ce->isRoutedWireElm()) {
+                if (static_cast<RoutedWireElm *>(ce)->pointOnPath(cn))
+                    return true;
+                continue;
+            }
+            // does this post intersect elm's bounding box?
+            if (!ce->boundingBox.contains(cn.x, cn.y))
+                continue;
+            // does this post belong to the elm?
+            int pc = ce->getPostCount();
+            int k;
+            for (k = 0; k != pc; k++) {
+                Point p = ce->getPost(k);
+                if (p.x == cn.x && p.y == cn.y)
+                    break;
+            }
+            if (k == pc)
+                return true;
+        }
+        return false;
+    }
+};
+
+}  // namespace
+
 static bool startsWith(const std::string &s, const char *prefix) {
     return s.rfind(prefix, 0) == 0;
 }
@@ -350,6 +442,9 @@ static bool startsWith(const std::string &s, const char *prefix) {
 bool SimulationManager::calcWireInfo() {
     int moved = 0;
     wireInfoResolved.clear();
+
+    // each node's links, grouped by the location of the post they're for (filled as needed)
+    std::unordered_map<CircuitNode *, std::unordered_map<std::string, std::vector<const CircuitNodeLink *>>> linksByPos;
 
     // build label endpoint map: label string -> list of WireSegments sharing that label
     std::unordered_map<std::string, std::vector<WireSegment *>> labelMap;
@@ -375,29 +470,53 @@ bool SimulationManager::calcWireInfo() {
         std::vector<WireSegment *> labelNeighbors;
         bool isReady0 = true, isReady1 = !wire->isGroundElm();
 
-        // position-based matching via cn.links
-        for (size_t j = 0; j != cn1->links.size(); j++) {
-            const CircuitNodeLink &cnl = cn1->links[j];
-            CircuitElm *ce = cnl.elm;
-            if (ce == wire)
-                continue;
-            if (!wireInfoElmSet.count(ce))
-                continue;
-            if (cnl.num >= ce->getPostCount())
-                continue;
-            std::string ptKey = pointKey(ce->getPost(cnl.num));
-
-            int neighborBit = cnl.num % ce->getBusWidth();
-            bool notReady = (ce->isRemovableWire() && !isWireInfoResolved(ce, neighborBit));
-
-            if (ws->endpoint0 == ptKey) {
-                neighbors0.push_back(ce);
-                if (notReady) isReady0 = false;
-            } else if (ws->endpoint1 && !startsWith(*ws->endpoint1, "label:") && *ws->endpoint1 == ptKey) {
-                neighbors1.push_back(ce);
-                if (notReady) isReady1 = false;
+        // position-based matching via cn.links.  (the links are grouped by location once per
+        // node, since a node with many wire segments would otherwise have all its links scanned
+        // for each of them)
+        auto byPosIt = linksByPos.find(cn1.get());
+        if (byPosIt == linksByPos.end()) {
+            auto &byPos = linksByPos[cn1.get()];
+            for (size_t j = 0; j != cn1->links.size(); j++) {
+                const CircuitNodeLink &cnl = cn1->links[j];
+                CircuitElm *ce = cnl.elm;
+                if (!wireInfoElmSet.count(ce))
+                    continue;
+                if (cnl.num >= ce->getPostCount())
+                    continue;
+                byPos[pointKey(ce->getPost(cnl.num))].push_back(&cnl);
             }
+            byPosIt = linksByPos.find(cn1.get());
         }
+        const auto &byPos = byPosIt->second;
+        const std::vector<const CircuitNodeLink *> *at0 = nullptr, *at1 = nullptr;
+        {
+            auto it = byPos.find(ws->endpoint0);
+            if (it != byPos.end())
+                at0 = &it->second;
+        }
+        if (ws->endpoint1 && ws->endpoint1 != ws->endpoint0 && !startsWith(*ws->endpoint1, "label:")) {
+            auto it = byPos.find(*ws->endpoint1);
+            if (it != byPos.end())
+                at1 = &it->second;
+        }
+        if (at0)
+            for (const CircuitNodeLink *cnl : *at0) {
+                CircuitElm *ce = cnl->elm;
+                if (ce == wire)
+                    continue;
+                neighbors0.push_back(ce);
+                if (ce->isRemovableWire() && !isWireInfoResolved(ce, cnl->num % ce->getBusWidth()))
+                    isReady0 = false;
+            }
+        if (at1)
+            for (const CircuitNodeLink *cnl : *at1) {
+                CircuitElm *ce = cnl->elm;
+                if (ce == wire)
+                    continue;
+                neighbors1.push_back(ce);
+                if (ce->isRemovableWire() && !isWireInfoResolved(ce, cnl->num % ce->getBusWidth()))
+                    isReady1 = false;
+            }
 
         // label-based matching: find other WireSegments sharing the same label endpoint
         if (ws->endpoint1 && startsWith(*ws->endpoint1, "label:")) {
@@ -1011,6 +1130,7 @@ void SimulationManager::makePostDrawList() {
 
     app->postDrawList.clear();
     app->badConnectionList.clear();
+    std::unique_ptr<ElmGrid> badGrid;
     for (const PostCount &entry : posts) {
         if (entry.count != 2)
             app->postDrawList.push_back(entry.pt);
@@ -1018,63 +1138,52 @@ void SimulationManager::makePostDrawList() {
         // look for bad connections, posts not connected to other elements which intersect
         // other elements' bounding boxes
         if (entry.count == 1) {
-            bool bad = false;
             const Point &cn = entry.pt;
-            for (size_t j = 0; j != drawList.size() && !bad; j++) {
-                CircuitElm *ce = drawList[j];
-                if (ce->isGraphicElm())
-                    continue;
-
-                // routed wire: check path directly instead of bounding box (which is too big)
-                if (ce->isRoutedWireElm()) {
-                    if (static_cast<RoutedWireElm *>(ce)->pointOnPath(cn))
-                        bad = true;
-                    continue;
-                }
-
-                // does this post intersect elm's bounding box?
-                if (!ce->boundingBox.contains(cn.x, cn.y))
-                    continue;
-                int k;
-                // does this post belong to the elm?
-                int pc = ce->getPostCount();
-                for (k = 0; k != pc; k++) {
-                    Point p = ce->getPost(k);
-                    if (p.x == cn.x && p.y == cn.y)
-                        break;
-                }
-                if (k == pc)
-                    bad = true;
-            }
-            if (bad)
+            if (!badGrid)
+                badGrid = std::make_unique<ElmGrid>(drawList);
+            if (badGrid->isBadConnection(cn))
                 app->badConnectionList.push_back(cn);
         }
     }
     for (const Point &p : busMismatchList)
         app->badConnectionList.push_back(p);
 
-    // build mapping from elements to connected routed wires
+    // build mapping from elements to connected routed wires.  First index the posts of the
+    // other elements by location (x, y only, so all posts of a bus pin share one entry),
+    // recording each element once per location with the first of its posts there.  (a bus
+    // pin has busWidth posts at the same location; record only one connection per
+    // routed-wire post, or dragging moves it busWidth times)
     routedWireMap.clear();
+    struct ElmPost {
+        CircuitElm *elm;
+        int post;
+    };
+    std::unique_ptr<std::unordered_map<long long, std::vector<ElmPost>>> postElms;
+    auto locKey = [](const Point &p) { return ((long long) p.x << 32) ^ (unsigned int) p.y; };
     for (CircuitElm *rw : drawList) {
         if (!rw->isRoutedWireElm())
             continue;
-        int rwPosts = rw->getPostCount();
-        for (int rp = 0; rp < rwPosts; rp++) {
-            Point rwPt = rw->getPost(rp);
+        if (!postElms) {
+            postElms = std::make_unique<std::unordered_map<long long, std::vector<ElmPost>>>();
             for (CircuitElm *other : drawList) {
-                if (other == rw || other->isRoutedWireElm())
+                if (other->isRoutedWireElm())
                     continue;
                 int otherPosts = other->getPostCount();
                 for (int op = 0; op < otherPosts; op++) {
-                    Point op2 = other->getPost(op);
-                    if (op2.x == rwPt.x && op2.y == rwPt.y) {
-                        routedWireMap[other].push_back({rw, rp, op});
-                        // a bus pin has busWidth posts at the same location; record only one
-                        // connection per routed-wire post, or dragging moves it busWidth times
-                        break;
-                    }
+                    std::vector<ElmPost> &list = (*postElms)[locKey(other->getPost(op))];
+                    if (!list.empty() && list.back().elm == other)
+                        continue;
+                    list.push_back({other, op});
                 }
             }
+        }
+        int rwPosts = rw->getPostCount();
+        for (int rp = 0; rp < rwPosts; rp++) {
+            auto it = postElms->find(locKey(rw->getPost(rp)));
+            if (it == postElms->end())
+                continue;
+            for (const ElmPost &ep : it->second)
+                routedWireMap[ep.elm].push_back({rw, rp, ep.post});
         }
     }
 }

@@ -438,8 +438,10 @@ void MouseManager::mouseDragged(QMouseEvent *e) {
             dragGridY = snapGrid(dragGridY);
         }
     }
+    // (the recovery copy is written when the drag ends; writing it on every mouse move
+    // is slow for a big circuit, since it serializes the whole thing)
     if (changed)
-        sim->writeRecoveryToStorage();
+        dragChangedCircuit = true;
     sim->repaint();
 }
 
@@ -1014,6 +1016,9 @@ CircuitElm *MouseManager::endDrag() {
         sim->needAnalyze();
         sim->pushUndo();
     }
+    if (dragChangedCircuit)
+        sim->writeRecoveryToStorage();
+    dragChangedCircuit = false;
     sim->repaint();
     sim->updateToolbar();
     return createdElm;

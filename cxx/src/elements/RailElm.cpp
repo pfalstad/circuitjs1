@@ -57,8 +57,11 @@ void RailElm::doStep() {
 }
 
 bool RailElm::validateRailNode(int n) {
-    FindPathInfo fpi(FindPathInfo::VOLTAGE, this, getNode(n), sim);
-    if (fpi.findPath(CircuitNode::ground)) {
+    // search from our node toward ground rather than the other way: the search is the same
+    // in either direction, but starting from ground means walking everything connected to
+    // ground (every gate output, etc.), which is slow when many elements do this check
+    FindPathInfo fpi(FindPathInfo::VOLTAGE, this, CircuitNode::ground, sim);
+    if (fpi.findPath(getNode(n))) {
         internalResistance = .001;
         return false;
     }
