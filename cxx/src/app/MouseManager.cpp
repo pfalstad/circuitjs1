@@ -1051,13 +1051,6 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
         return;
     }
 
-    // once we start zooming, don't allow other uses of mouse wheel for a while
-    // so we don't accidentally edit a resistor value while zooming
-    bool zooming = sim->currentTimeMillis() < zoomTime + 1000;
-    bool zoomOnly = zooming;
-    if (sim->isReadOnly() || !sim->options.mouseWheelEdit)
-        zoomOnly = true;
-
     ScopeManager *sm = sim->scopeManager;
     QPoint globalPos = e->globalPosition().toPoint();
     // shift+wheel adjusts a scope's vertical scale.  shift+wheel often turns into horizontal
@@ -1070,25 +1063,75 @@ void MouseManager::onMouseWheel(QWheelEvent *e) {
                                 : -(ad.y() != 0 ? ad.y() : ad.x()) * 100.0 / 120.0;
         shiftNorm = jsmath::round(d * 0.12);
     }
-    if (!zoomOnly && mouseElm != nullptr && !sim->modalDialogIsShowing() && sm->scopeSelected == -1 &&
-        (mouseElm->isResistorElm() || mouseElm->isCapacitorElm() || mouseElm->isInductorElm())) {
-        wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
-    } else if (!zoomOnly && mouseElm != nullptr &&
-               (mouseElm->isMosfetElm() || mouseElm->isTransistorElm() || mouseElm->isGateElm())) {
-        // (GateElm.onMouseWheel() in the TS version, for gates)
-        wheelPopup = new TypeScrollPopup(globalPos, norm, mouseElm, sim);
-    } else if (!zoomOnly && mouseElm != nullptr && mouseElm->onMouseWheel(norm)) {
+    double scopeNorm = shift ? shiftNorm : norm;
+
+    // the browser's ctrlKey and metaKey.  (On macOS, Qt reports Cmd as ControlModifier and
+    // Ctrl as MetaModifier.)
+    Qt::KeyboardModifiers mods = e->modifiers();
+#ifdef Q_OS_MACOS
+    bool ctrlKey = mods & Qt::MetaModifier, metaKey = mods & Qt::ControlModifier;
+#else
+    bool ctrlKey = mods & Qt::ControlModifier, metaKey = mods & Qt::MetaModifier;
+#endif
+    bool altKey = mods & Qt::AltModifier;
+    bool overScope = sm->scopeSelected != -1 || (mouseElm != nullptr && mouseElm->isScopeElm());
+
+    // open the value popup or pass the wheel to the element under the mouse.
+    // returns true if that handled it
+    auto wheelEditElm = [&]() {
+        if (mouseElm == nullptr)
+            return false;
+        if (!sim->modalDialogIsShowing() && sm->scopeSelected == -1 &&
+            (mouseElm->isResistorElm() || mouseElm->isCapacitorElm() || mouseElm->isInductorElm())) {
+            wheelPopup = new ScrollValuePopup(globalPos, norm, mouseElm, sim);
+            return true;
+        }
+        if (mouseElm->isMosfetElm() || mouseElm->isTransistorElm() || mouseElm->isGateElm()) {
+            // (GateElm.onMouseWheel() in the TS version, for gates)
+            wheelPopup = new TypeScrollPopup(globalPos, norm, mouseElm, sim);
+            return true;
+        }
         // (the element's slider moved)
-    } else if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
-        sm->scopes[sm->scopeSelected]->onMouseWheel(shift ? shiftNorm : norm, wheelSensitivity, shift);
-    } else if (mouseElm != nullptr && mouseElm->isScopeElm() && !zooming) {
-        // undocked scope: adjust its time scale, like a docked scope
-        static_cast<ScopeElm *>(mouseElm)->elmScope->onMouseWheel(shift ? shiftNorm : norm, wheelSensitivity, shift);
-    } else {
+        return mouseElm->onMouseWheel(norm);
+    };
+    // pass the wheel to the selected docked scope, or (if allowed) the undocked scope under the mouse
+    auto wheelScope = [&](bool allowUndocked) {
+        if (sm->scopeSelected != -1 && sm->scopeSelected < sm->scopeCount) {
+            sm->scopes[sm->scopeSelected]->onMouseWheel(scopeNorm, wheelSensitivity, shift);
+            return true;
+        }
+        if (allowUndocked && mouseElm != nullptr && mouseElm->isScopeElm()) {
+            static_cast<ScopeElm *>(mouseElm)->elmScope->onMouseWheel(scopeNorm, wheelSensitivity, shift);
+            return true;
+        }
+        return false;
+    };
+    auto wheelZoom = [&]() {
+        if (sim->modalDialogIsShowing())
+            return;
         mouseCursorX = sim->mouseCursorX = e->position().x();
         mouseCursorY = sim->mouseCursorY = e->position().y();
-        zoomCircuit(-norm * wheelSensitivity, false);
+        // (shiftNorm uses the horizontal delta that shift+wheel often turns into)
+        zoomCircuit(-(shift ? shiftNorm : norm) * wheelSensitivity, false);
         zoomTime = sim->currentTimeMillis();
+    };
+
+    if ((shift && !overScope) || (ctrlKey && !altKey && !metaKey)) {
+        // shift+wheel always zooms (except over a scope, which uses shift+wheel for its vertical scale).
+        // so does ctrl+wheel, which is what a trackpad pinch gesture sends in a browser.
+        wheelZoom();
+    } else if (altKey || metaKey) {
+        // alt+wheel (or cmd+wheel on a Mac) always edits the component under the mouse, never zooms
+        if (!sim->isReadOnly() && !wheelEditElm())
+            wheelScope(true);
+    } else {
+        // plain wheel: guess.  once we start zooming, don't allow other uses of mouse wheel for a while
+        // so we don't accidentally edit a resistor value while zooming
+        bool zooming = sim->currentTimeMillis() < zoomTime + 1000;
+        bool zoomOnly = zooming || sim->isReadOnly() || !sim->options.mouseWheelEdit;
+        bool handled = (!zoomOnly && wheelEditElm()) || wheelScope(!zooming);
+        if (!handled)
+            wheelZoom();
     }
     sim->repaint();
 }

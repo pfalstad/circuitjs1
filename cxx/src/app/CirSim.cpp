@@ -1465,7 +1465,9 @@ bool CirSim::eventFilter(QObject *obj, QEvent *e) {
     // (keys that are menu shortcuts never reach handleKey(), so watch for them here; a
     // shortcut key gets a ShortcutOverride event even if it never gets a KeyPress)
     QEvent::Type t = e->type();
-    bool other = t == QEvent::MouseButtonPress || t == QEvent::TouchBegin;
+    // (a mouse button pressed or the wheel turned during or between Shift taps means they're
+    // not a double tap, so shift-wheel zooming twice doesn't open the palette)
+    bool other = t == QEvent::MouseButtonPress || t == QEvent::TouchBegin || t == QEvent::Wheel;
     if (t == QEvent::KeyPress || t == QEvent::ShortcutOverride) {
         QKeyEvent *ke = static_cast<QKeyEvent *>(e);
         other = ke->key() != Qt::Key_Shift && !ke->isAutoRepeat();

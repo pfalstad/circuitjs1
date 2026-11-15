@@ -1361,11 +1361,18 @@ void SimulationManager::runCircuit(bool didAnalyze) {
             timeStepAccum -= maxTimeStep;
             timeStepCount++;
         }
-        for (CircuitElm *ce : elmArr)
+        // (a stop() here abandons the rest of the time step, as the exception it throws in the
+        // TS version does)
+        for (CircuitElm *ce : elmArr) {
             ce->stepFinished();
+            if (app->stopMessage)
+                return;
+        }
         if (!delayWireProcessing)
             calcWireCurrents();
         app->onTimeStep();
+        if (app->stopMessage)
+            return;
         stepsSinceReset++;
         bool testBreak = hooks != nullptr && hooks->checkTime();
         // save last node voltages so we can restart the next iteration if necessary
