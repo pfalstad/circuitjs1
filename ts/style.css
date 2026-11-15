@@ -331,7 +331,13 @@ td.gwt-MenuItem.open > .menuDropdown {
     display: none;
 }
 
-@media only screen and (max-width: 600px) {
+/* The collapsed (hamburger) layout is used on narrow screens and on any touch device:
+   phones in landscape and tablets included. A horizontal menu bar with desktop dropdowns
+   has nowhere to put its submenus on a touch screen -- they ran off the bottom without
+   scrolling and rolled off the right edge (issues #430, #431) -- while this layout is what
+   touch users already get in portrait. (pointer: coarse) means the primary input is a
+   finger, so a laptop with a touchscreen and a mouse is unaffected. */
+@media only screen and (max-width: 600px), (pointer: coarse) {
     /* sidebar toggle tab — floats over the right edge of the canvas */
     .triggerLabel {
         display: initial;
@@ -353,21 +359,44 @@ td.gwt-MenuItem.open > .menuDropdown {
         padding-top: 5px;
     }
 
-    /* top-menu hamburger icon */
+    /* Top-menu button -- top LEFT: the component search field sits at the right end of the
+       menu bar (z-index 6) and covered a bare burger icon completely, leaving the menu
+       unreachable. A labelled button is also easier to hit and find on a phone. */
     .toptriggerlabel {
-        z-index: 1;
-        top: 5px;
-        right: 5px;
-        width: 20px;
-        height: 20px;
+        z-index: 7;
+        top: 2px;
+        left: 6px;
+        right: auto;
+        height: 26px;
+        padding: 0 11px 0 9px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
         position: absolute;
-        display: block;
+        background: #1d5fbf;
+        color: #fff;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: .02em;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+        -webkit-tap-highlight-color: transparent;
     }
     .toptriggerlabel::before {
         content: "☰";
-        font-size: 16px;
-        padding-left: 2px;
+        position: static;
+        padding: 0;
+        font-size: 15px;
+        line-height: 1;
         pointer-events: none;
+    }
+    /* pressed / menu open: the glyph turns into a close mark */
+    .toptrigger:checked + .toptriggerlabel {
+        background: #14427f;
+        box-shadow: inset 0 1px 4px rgba(0, 0, 0, .45);
+    }
+    .toptrigger:checked + .toptriggerlabel::before {
+        content: "✕";
     }
 
     /* checked top-trigger covers the screen so a tap outside closes the menu */
@@ -411,12 +440,22 @@ td.gwt-MenuItem.open > .menuDropdown {
         top: 30px;
         left: 0;
         width: 100%;
-        max-height: 300px;
+        /* leave room for the hamburger bar and the browser chrome on a short screen */
+        max-height: min(300px, 72dvh);
         overflow-y: auto;
+        /* keep a swiped-to-the-end menu from scrolling the page underneath (on a phone that
+           dragged the whole canvas off screen) */
+        overscroll-behavior: contain;
         box-sizing: border-box;
         z-index: 4;
         text-align: left;
         font-weight: normal;
+    }
+
+    /* taller rows: fingers, not a mouse pointer */
+    .menuItem {
+        min-height: 28px;
+        padding: 4px 8px;
     }
 
     /* nested submenus expand inline below their parent item (no room to the right) */
@@ -431,10 +470,18 @@ td.gwt-MenuItem.open > .menuDropdown {
         border-top: 1px solid #ccc;
         background: #eef;
     }
+    /* indent each nesting level: with inline expansion the depth is otherwise only
+       visible through the tinted background */
+    .menuDropdown .menuDropdown .menuItem {
+        padding-left: 20px;
+    }
+    .menuDropdown .menuDropdown .menuDropdown .menuItem {
+        padding-left: 32px;
+    }
 
-    /* when sidebar trigger is checked, slide the tab left */
+    /* when sidebar trigger is checked, slide the tab left by the panel's real width */
     .trigger:checked + .triggerLabel {
-        right: 128px;
+        right: var(--vpanel-width, 128px);
     }
 
     /* sidebar panel: collapsed by default, expands on trigger:checked */
@@ -445,18 +492,19 @@ td.gwt-MenuItem.open > .menuDropdown {
         transition: width 1s;
         overflow: hidden;
     }
+    /* --vpanel-width comes from UIManager (clamped 128..166px): the panel's contents are
+       built for that width, so a hardcoded 128px clipped the sliders and labels on wider
+       phones in landscape (where the computed width is 166px) */
     .trigger:checked ~ .verticalPanel {
-        width: 128px !important;
+        width: var(--vpanel-width, 128px) !important;
     }
 
-    /* canvas takes full width on mobile */
-    .canvasWrapper {
-        width: 100% !important;
-    }
-
-    /* sidebar is collapsed, so toolbar and canvas extend to the right edge */
+    /* the sidebar is collapsed, so toolbar and canvas extend to the right edge */
     .mainToolbar, .canvasWrapper {
         right: 0 !important;
+    }
+    .canvasWrapper {
+        width: 100% !important;
     }
 }
 
@@ -696,8 +744,9 @@ td.gwt-MenuItem.open > .menuDropdown {
    visible next to it — that's the whole point of the field. */
 @media only screen and (max-width: 600px) {
     .componentSearch {
-        left: 6px;
-        right: 30px;          /* leave room for the hamburger icon */
+        /* the menu button sits at the top left of this bar, so the field leaves room there */
+        left: 96px;
+        right: 6px;
         height: 30px;
     }
 
