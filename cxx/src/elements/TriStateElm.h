@@ -71,6 +71,7 @@ public:
     bool hasGroundConnection(int n1) override { return n1 >= busWidth && n1 < 2 * busWidth; }
     std::optional<EditInfo> getEditInfo(int n) override;
     void setEditValue(int n, EditInfo &ei) override;
+    void addRoutingObstacle(WireRouter &router) override { addRoutingObstacleWithLeads(router, 16); }
     void flipX(int c2, int count) override;
     void flipY(int c2, int count) override;
     void flipXY(int c2, int count) override;

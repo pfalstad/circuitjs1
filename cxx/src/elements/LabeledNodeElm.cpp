@@ -27,8 +27,10 @@
 #include "../core/CustomLogicModel.h"
 #include "../core/Graphics.h"
 #include "../core/Locale.h"
+#include "../core/SimApp.h"
 #include "../core/SimulationManager.h"
 #include "../core/StringTokenizer.h"
+#include "../core/WireRouter.h"
 
 OrderedMap<LabelEntry> LabeledNodeElm::labelList;
 
@@ -124,15 +126,15 @@ std::optional<std::string> LabeledNodeElm::getLabelForNode(const NodeRef &cn) {
     return std::nullopt;
 }
 
-void LabeledNodeElm::drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
-    if (isRotateText() && pt1.x == pt2.x) {
-        drawRotatedLabeledNode(g, str, pt1, pt2);
-        return;
-    }
-    CircuitElm::drawLabeledNode(g, str, pt1, pt2);
+Rectangle LabeledNodeElm::drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
+    if (isRotateText() && pt1.x == pt2.x)
+        textRect = drawRotatedLabeledNode(g, str, pt1, pt2);
+    else
+        textRect = CircuitElm::drawLabeledNode(g, str, pt1, pt2);
+    return *textRect;
 }
 
-void LabeledNodeElm::drawRotatedLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
+Rectangle LabeledNodeElm::drawRotatedLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
     bool lineOver = false;
     if (!str.empty() && str[0] == '/') {
         lineOver = true;
@@ -161,6 +163,33 @@ void LabeledNodeElm::drawRotatedLabeledNode(Graphics &g, std::string str, const 
         g.rotate(-M_PI / 2);
         g.drawLine(-w / 2, xa, w / 2, xa);
         g.restore();
+    }
+    return Rectangle(tx - h / 2, ty - w / 2, h, w);
+}
+
+// Routed wires may cross the stub like any other wire, but not its end or
+// the text.  Otherwise a wire passing between the end of the stub and the
+// text looks like it's connected to the label.
+void LabeledNodeElm::addRoutingObstacle(WireRouter &router) {
+    router.addWire(x, y, x2, y2);
+    if (busWidth > 1)
+        return;
+    int dx = sign(x2 - x), dy = sign(y2 - y);
+    if ((dx == 0) == (dy == 0))
+        return;  // not horizontal or vertical
+    // from the end of the stub (lead1) to point2, but not over the post
+    int gs = app->gridSize;
+    int lx = x2 - dx * circleSize, ly = y2 - dy * circleSize;
+    if ((lx - x) * dx + (ly - y) * dy < gs) {
+        lx = x + dx * gs;
+        ly = y + dy * gs;
+    }
+    if ((x2 - lx) * dx + (y2 - ly) * dy >= 0)
+        router.addObstacle(lx, ly, x2, y2);
+    // the text (as of the last draw)
+    if (textRect) {
+        const Rectangle &r = *textRect;
+        router.addObstacle((int) r.x, (int) r.y, (int) (r.x + r.width), (int) (r.y + r.height));
     }
 }
 

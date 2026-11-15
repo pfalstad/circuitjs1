@@ -74,8 +74,10 @@ public:
     // find label text for the given node, if any (used to show label in getInfo() for wires)
     static std::optional<std::string> getLabelForNode(const NodeRef &cn);
 
-    void drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) override;
-    void drawRotatedLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2);
+    std::optional<Rectangle> textRect;  // the label text, as of the last draw
+    Rectangle drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) override;
+    Rectangle drawRotatedLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2);
+    void addRoutingObstacle(WireRouter &router) override;
     void draw(Graphics &g) override;
 
     double getCurrentIntoNode(int n) override;

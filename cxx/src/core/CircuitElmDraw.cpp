@@ -325,7 +325,7 @@ void CircuitElm::drawValues(Graphics &g, const std::string &s, double hs) {
     g.restore();
 }
 
-void CircuitElm::drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
+Rectangle CircuitElm::drawLabeledNode(Graphics &g, std::string str, const Point &pt1, const Point &pt2) {
     g.save();
     g.setFont(valueFont);
     bool lineOver = false;
@@ -353,6 +353,7 @@ void CircuitElm::drawLabeledNode(Graphics &g, std::string str, const Point &pt1,
         double ya = yy - h / 2 - 1;
         g.drawLine(xx, ya, xx + w, ya);
     }
+    return Rectangle(xx, yy - h / 2, w, h);
 }
 
 void CircuitElm::drawCoil(Graphics &g, double hs, const Point &p1, const Point &p2, double v1, double v2) {

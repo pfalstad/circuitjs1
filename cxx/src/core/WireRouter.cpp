@@ -21,9 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <limits>
-#include <unordered_map>
 
 #include "CircuitElm.h"
 
@@ -31,55 +29,58 @@ WireRouter *WireRouter::lastRouter = nullptr;
 
 namespace {
 
-// Simple min-heap for A* priority queue (the same algorithm as the TS version, so ties
-// come out in the same order)
-template <class T>
-class MinHeap {
+// Min-heap of A* states keyed on fScore, stored in parallel arrays.
+class StateHeap {
 public:
-    explicit MinHeap(std::function<double(const T &, const T &)> cmp) : compare(std::move(cmp)) {}
-    void offer(const T &item) {
-        data.push_back(item);
-        bubbleUp((int) data.size() - 1);
-    }
-    T poll() {
-        T top = data[0];
-        T last = data.back();
-        data.pop_back();
-        if (!data.empty()) {
-            data[0] = last;
-            sinkDown(0);
+    bool isEmpty() const { return f.empty(); }
+    double topG() const { return g[0]; }
+    int topState() const { return s[0]; }
+    void offer(double fv, double gv, int sv) {
+        size_t i = f.size();
+        f.push_back(fv); g.push_back(gv); s.push_back(sv);
+        while (i > 0) {
+            size_t p = (i - 1) >> 1;
+            if (fv >= f[p])
+                break;
+            f[i] = f[p]; g[i] = g[p]; s[i] = s[p];
+            i = p;
         }
-        return top;
+        f[i] = fv; g[i] = gv; s[i] = sv;
     }
-    bool isEmpty() const { return data.empty(); }
+    void pop() {
+        double lf = f.back(), lg = g.back();
+        int ls = s.back();
+        f.pop_back(); g.pop_back(); s.pop_back();
+        size_t n = f.size();
+        if (n == 0)
+            return;
+        size_t i = 0;
+        while (true) {
+            size_t l = 2 * i + 1, r = l + 1;
+            size_t m = i;
+            double mf = lf;
+            if (l < n && f[l] < mf) { m = l; mf = f[l]; }
+            if (r < n && f[r] < mf) m = r;
+            if (m == i)
+                break;
+            f[i] = f[m]; g[i] = g[m]; s[i] = s[m];
+            i = m;
+        }
+        f[i] = lf; g[i] = lg; s[i] = ls;
+    }
 
 private:
-    std::vector<T> data;
-    std::function<double(const T &, const T &)> compare;
-    void bubbleUp(int i) {
-        while (i > 0) {
-            int parent = (i - 1) >> 1;
-            if (compare(data[i], data[parent]) < 0) {
-                std::swap(data[i], data[parent]);
-                i = parent;
-            } else
-                break;
-        }
-    }
-    void sinkDown(int i) {
-        int n = (int) data.size();
-        while (true) {
-            int smallest = i;
-            int l = 2 * i + 1, r = 2 * i + 2;
-            if (l < n && compare(data[l], data[smallest]) < 0) smallest = l;
-            if (r < n && compare(data[r], data[smallest]) < 0) smallest = r;
-            if (smallest == i)
-                break;
-            std::swap(data[i], data[smallest]);
-            i = smallest;
-        }
-    }
+    std::vector<double> f, g;
+    std::vector<int> s;
 };
+
+// A* search state, indexed by (r * cols + c) * 4 + (dir - 1).  Buffers are shared
+// between routers and reused; a generation stamp marks which entries are valid
+// so they never need to be cleared.
+std::vector<double> gScoreBuf;
+std::vector<int> cameFromBuf;
+std::vector<uint32_t> stampBuf;
+uint32_t generation = 0;
 
 int jsSign(int x) { return (x > 0) - (x < 0); }
 
@@ -117,14 +118,21 @@ void WireRouter::addObstacle(int px1, int py1, int px2, int py2) {
     for (int c = minC; c <= maxC; c++)
         for (int r = minR; r <= maxR; r++)
             if (isValid(r, c))
-                grid[r][c] |= OBSTACLE;
+                cell(r, c) |= OBSTACLE;
 }
 
 void WireRouter::addObstaclePoint(int px, int py) {
     int r = idiv(py - originY, gridSize);
     int c = idiv(px - originX, gridSize);
     if (isValid(r, c))
-        grid[r][c] |= OBSTACLE;
+        cell(r, c) |= OBSTACLE;
+}
+
+void WireRouter::clearPoint(int px, int py) {
+    int r = idiv(py - originY, gridSize);
+    int c = idiv(px - originX, gridSize);
+    if (isValid(r, c))
+        cell(r, c) = 0;
 }
 
 void WireRouter::addWire(int px1, int py1, int px2, int py2) {
@@ -137,11 +145,11 @@ void WireRouter::addWire(int px1, int py1, int px2, int py2) {
     if (r1 == r2) {
         for (int c = minC; c <= maxC; c++)
             if (isValid(r1, c))
-                grid[r1][c] |= HORIZONTAL;
+                cell(r1, c) |= HORIZONTAL;
     } else {
         for (int r = minR; r <= maxR; r++)
             if (isValid(r, c1))
-                grid[r][c1] |= VERTICAL;
+                cell(r, c1) |= VERTICAL;
     }
 }
 
@@ -166,7 +174,7 @@ void WireRouter::initGrid(CircuitElm *wire, int gridSize_, const std::vector<Cir
     rows = (int) std::trunc((maxY - originY) / gridSize + 1 + margin * 2);
     cols = (int) std::trunc((maxX - originX) / gridSize + 1 + margin * 2);
 
-    grid.assign(rows, std::vector<int>(cols, 0));
+    grid.assign((size_t) rows * cols, 0);
 
     for (CircuitElm *ce : elmList) {
         if (wire == ce)
@@ -178,8 +186,8 @@ void WireRouter::initGrid(CircuitElm *wire, int gridSize_, const std::vector<Cir
         }
     }
     // clear start and end cells
-    grid[idiv(wire->y - originY, gridSize)][idiv(wire->x - originX, gridSize)] = 0;
-    grid[idiv(wire->y2 - originY, gridSize)][idiv(wire->x2 - originX, gridSize)] = 0;
+    cell(idiv(wire->y - originY, gridSize), idiv(wire->x - originX, gridSize)) = 0;
+    cell(idiv(wire->y2 - originY, gridSize), idiv(wire->x2 - originX, gridSize)) = 0;
 }
 
 int WireRouter::dr(int dir) const {
@@ -295,6 +303,9 @@ double WireRouter::evaluatePath(const std::vector<std::vector<int>> &corners, in
         else return -1;
 
         int r = prev[0], c = prev[1];
+        // the corner cell must also be free in the new direction
+        if (!canLeave(r, c, moveDir))
+            return -1;
         for (int s = 0; s < steps; s++) {
             r += jsSign(dR);
             c += jsSign(dC);
@@ -342,13 +353,35 @@ std::vector<Point> WireRouter::routeWire(int px1, int py1, int px2, int py2) {
     if (!patternPath.empty())
         return patternPath;
 
-    MinHeap<AStarNode> openSet([](const AStarNode &a, const AStarNode &b) { return a.fScore - b.fScore; });
-    std::unordered_map<long, double> gScore;
-    std::unordered_map<long, long> cameFrom;
-    auto getG = [&](long k) {
-        auto it = gScore.find(k);
-        return it == gScore.end() ? std::numeric_limits<double>::infinity() : it->second;
-    };
+    std::vector<std::vector<int>> fullPath = aStar(startR, startC, goalR, goalC);
+    if (fullPath.empty())
+        return {};
+    std::vector<std::vector<int>> compressed = compressPath(fullPath);
+    std::vector<Point> out;
+    for (const auto &pt : compressed)
+        out.emplace_back(pt[1] * gridSize + originX, pt[0] * gridSize + originY);
+    return out;
+}
+
+std::vector<std::vector<int>> WireRouter::aStar(int startR, int startC, int goalR, int goalC) {
+    const int ncols = cols;
+    const size_t nStates = (size_t) rows * ncols * 4;
+    if (stampBuf.size() < nStates) {
+        gScoreBuf.assign(nStates, 0);
+        cameFromBuf.assign(nStates, 0);
+        stampBuf.assign(nStates, 0);
+        generation = 0;
+    }
+    if (++generation == 0xffffffff) {
+        std::fill(stampBuf.begin(), stampBuf.end(), 0);
+        generation = 1;
+    }
+    const uint32_t gen = generation;
+    double *gScore = gScoreBuf.data();
+    int *cameFrom = cameFromBuf.data();
+    uint32_t *stamp = stampBuf.data();
+    const uint8_t *gr = grid.data();
+    StateHeap heap;
 
     std::vector<int> startPrefs = getPreferredEscapeDirections(startR, startC);
 
@@ -358,65 +391,75 @@ std::vector<Point> WireRouter::routeWire(int px1, int py1, int px2, int py2) {
         double initG = 0.0;
         if (std::find(startPrefs.begin(), startPrefs.end(), d) != startPrefs.end())
             initG += ESCAPE_BONUS;
-        long k = key(startR, startC, d);
-        double h = manhattan(startR, startC, goalR, goalC);
-        openSet.offer({startR, startC, d, initG, initG + h});
-        gScore[k] = initG;
+        int s = (startR * ncols + startC) * 4 + d - 1;
+        heap.offer(initG + manhattan(startR, startC, goalR, goalC), initG, s);
+        gScore[s] = initG;
+        cameFrom[s] = -1;
+        stamp[s] = gen;
     }
 
-    std::optional<AStarNode> bestGoalNode;
-
-    while (!openSet.isEmpty()) {
-        AStarNode current = openSet.poll();
-        long currKey = key(current.r, current.c, current.dir);
-
-        if (current.gScore > getG(currKey))
+    // the heuristic (manhattan distance) is consistent, so the first goal state
+    // popped has the lowest cost and we can stop there.
+    int goalState = -1;
+    while (!heap.isEmpty()) {
+        double g = heap.topG();
+        int s = heap.topState();
+        heap.pop();
+        if (g > gScore[s])
             continue;
 
-        if (current.r == goalR && current.c == goalC) {
-            if (!bestGoalNode || current.gScore < bestGoalNode->gScore)
-                bestGoalNode = current;
+        int cellIdx = s >> 2;
+        int dir = (s & 3) + 1;
+        int r = cellIdx / ncols;
+        int c = cellIdx - r * ncols;
+        if (r == goalR && c == goalC) {
+            goalState = s;
+            break;
         }
 
-        for (const auto &neigh : neighbors(current.r, current.c)) {
-            int nr = neigh[0], nc = neigh[1], moveDir = neigh[2];
-            if (!canMoveTo(nr, nc, moveDir))
+        uint8_t here = gr[cellIdx];
+        for (int moveDir = 1; moveDir <= 4; moveDir++) {
+            int nr = r, nc = c;
+            if (moveDir == UP) nr--;
+            else if (moveDir == DOWN) nr++;
+            else if (moveDir == LEFT) nc--;
+            else nc++;
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= ncols)
+                continue;
+            bool horiz = moveDir >= LEFT;
+            int flag = horiz ? HORIZONTAL : VERTICAL;
+            // canLeave(r, c, moveDir) && canMoveTo(nr, nc, moveDir)
+            if ((here & flag) != 0)
+                continue;
+            uint8_t there = gr[nr * ncols + nc];
+            if ((there & (OBSTACLE | flag)) != 0)
                 continue;
 
             double moveCost = 1.0;
-            if (current.dir != NONE && moveDir != current.dir && moveDir != opposite(current.dir))
+            if (horiz != (dir >= LEFT))
                 moveCost += turnPenalty;
 
-            long nKey = key(nr, nc, moveDir);
-            double tentG = current.gScore + moveCost;
-            if (tentG < getG(nKey)) {
-                cameFrom[nKey] = currKey;
-                gScore[nKey] = tentG;
-                double h = manhattan(nr, nc, goalR, goalC);
-                openSet.offer({nr, nc, moveDir, tentG, tentG + h});
+            int ns = (nr * ncols + nc) * 4 + moveDir - 1;
+            double tentG = g + moveCost;
+            if (stamp[ns] != gen || tentG < gScore[ns]) {
+                stamp[ns] = gen;
+                cameFrom[ns] = s;
+                gScore[ns] = tentG;
+                heap.offer(tentG + manhattan(nr, nc, goalR, goalC), tentG, ns);
             }
         }
     }
 
-    if (!bestGoalNode)
-        return {};
-
     std::vector<std::vector<int>> fullPath;
-    std::optional<long> currentKey = key(bestGoalNode->r, bestGoalNode->c, bestGoalNode->dir);
-    while (currentKey) {
-        long k = *currentKey;
-        int d = (int) (k % 8);
-        long rc = (k - d) / 8;
-        fullPath.insert(fullPath.begin(), {(int) (rc / cols), (int) (rc % cols)});
-        auto it = cameFrom.find(k);
-        currentKey = it == cameFrom.end() ? std::nullopt : std::optional<long>(it->second);
+    if (goalState < 0)
+        return fullPath;
+    for (int s = goalState; s >= 0; s = cameFrom[s]) {
+        int cellIdx = s >> 2;
+        int r = cellIdx / ncols;
+        fullPath.push_back({r, cellIdx - r * ncols});
     }
-
-    std::vector<std::vector<int>> compressed = compressPath(fullPath);
-    std::vector<Point> out;
-    for (const auto &pt : compressed)
-        out.emplace_back(pt[1] * gridSize + originX, pt[0] * gridSize + originY);
-    return out;
+    std::reverse(fullPath.begin(), fullPath.end());
+    return fullPath;
 }
 
 std::vector<std::vector<int>> WireRouter::compressPath(const std::vector<std::vector<int>> &fullPath) {
@@ -442,17 +485,17 @@ void WireRouter::placeWire(const std::vector<std::vector<int>> &path) {
     if (path.size() < 2)
         return;
     const auto &s = path[0], &e = path.back();
-    grid[s[0]][s[1]] |= (HORIZONTAL | VERTICAL);
-    grid[e[0]][e[1]] |= (HORIZONTAL | VERTICAL);
+    cell(s[0], s[1]) |= (HORIZONTAL | VERTICAL);
+    cell(e[0], e[1]) |= (HORIZONTAL | VERTICAL);
     int prevDir = NONE;
     for (size_t i = 1; i < path.size(); i++) {
         const auto &prev = path[i - 1], &curr = path[i];
         int dR = curr[0] - prev[0], dC = curr[1] - prev[1];
         int thisDir = getMoveDir(dR, dC);
         int flag = (thisDir == LEFT || thisDir == RIGHT) ? HORIZONTAL : VERTICAL;
-        grid[curr[0]][curr[1]] |= flag;
+        cell(curr[0], curr[1]) |= flag;
         if (prevDir != NONE && thisDir != prevDir && thisDir != opposite(prevDir))
-            grid[prev[0]][prev[1]] |= (HORIZONTAL | VERTICAL);
+            cell(prev[0], prev[1]) |= (HORIZONTAL | VERTICAL);
         prevDir = thisDir;
     }
 }
@@ -460,11 +503,16 @@ void WireRouter::placeWire(const std::vector<std::vector<int>> &path) {
 bool WireRouter::canMoveTo(int r, int c, int moveDir) const {
     if (!isValid(r, c))
         return false;
-    int cell = grid[r][c];
-    if ((cell & OBSTACLE) != 0)
+    int v = cell(r, c);
+    if ((v & OBSTACLE) != 0)
         return false;
     int flag = (moveDir == LEFT || moveDir == RIGHT) ? HORIZONTAL : VERTICAL;
-    return (cell & flag) == 0;
+    return (v & flag) == 0;
+}
+
+bool WireRouter::canLeave(int r, int c, int moveDir) const {
+    int flag = (moveDir == LEFT || moveDir == RIGHT) ? HORIZONTAL : VERTICAL;
+    return (cell(r, c) & flag) == 0;
 }
 
 int WireRouter::getMoveDir(int dR, int dC) const {
@@ -481,13 +529,4 @@ int WireRouter::opposite(int d) const {
     if (d == LEFT) return RIGHT;
     if (d == RIGHT) return LEFT;
     return NONE;
-}
-
-std::vector<std::array<int, 3>> WireRouter::neighbors(int r, int c) const {
-    std::vector<std::array<int, 3>> list;
-    if (r > 0) list.push_back({r - 1, c, UP});
-    if (r < rows - 1) list.push_back({r + 1, c, DOWN});
-    if (c > 0) list.push_back({r, c - 1, LEFT});
-    if (c < cols - 1) list.push_back({r, c + 1, RIGHT});
-    return list;
 }

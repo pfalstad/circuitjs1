@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <optional>
 #include <vector>
@@ -40,6 +40,8 @@ public:
     // the bounding box of some points (TS: addObstacle(pts))
     void addObstacle(const std::vector<Point> &pts);
     void addObstaclePoint(int px, int py);
+    // clear the cell at a point, so a route can start or end there whatever is in it
+    void clearPoint(int px, int py);
     void addWire(int px1, int py1, int px2, int py2);
     void initGrid(CircuitElm *wire, int gridSize, const std::vector<CircuitElm *> &elmList,
                   const std::optional<Rectangle> &bounds);
@@ -49,14 +51,11 @@ public:
     static WireRouter *lastRouter;
 
 private:
-    struct AStarNode {
-        int r, c, dir;
-        double gScore, fScore;
-    };
-
     int rows = 0;
     int cols = 0;
-    std::vector<std::vector<int>> grid;
+    std::vector<uint8_t> grid;  // rows * cols
+    uint8_t &cell(int r, int c) { return grid[(size_t) r * cols + c]; }
+    uint8_t cell(int r, int c) const { return grid[(size_t) r * cols + c]; }
 
     static constexpr int OBSTACLE = 1;
     static constexpr int HORIZONTAL = 2;
@@ -84,9 +83,12 @@ private:
     std::vector<std::vector<int>> compressPath(const std::vector<std::vector<int>> &fullPath);
     bool isValid(int r, int c) const { return r >= 0 && r < rows && c >= 0 && c < cols; }
     bool canMoveTo(int r, int c, int moveDir) const;
+    // check that a wire can exit cell (r, c) in moveDir.  canMoveTo() only checks the
+    // cell being entered, so without this a wire could turn in a cell that has an
+    // existing wire running in the new direction and overlap it.
+    bool canLeave(int r, int c, int moveDir) const;
+    std::vector<std::vector<int>> aStar(int startR, int startC, int goalR, int goalC);
     int getMoveDir(int dr, int dc) const;
     int opposite(int d) const;
     int manhattan(int r1, int c1, int r2, int c2) const { return std::abs(r1 - r2) + std::abs(c1 - c2); }
-    std::vector<std::array<int, 3>> neighbors(int r, int c) const;
-    long key(int r, int c, int d) const { return ((long) r * cols + c) * 8 + d; }
 };
