@@ -27,6 +27,7 @@
 #include <QMenu>
 
 #include "CirSim.h"
+#include "EditDialog.h"
 #include "ScopePropertiesDialog.h"
 #include "SliderDialog.h"
 #include "core/CircuitElm.h"
@@ -41,6 +42,9 @@ static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s));
 void CirSim::doPopupMenu(const QPoint &globalPos) {
     if (isReadOnly())
         return;
+    // bringing up the context menu means the user is done with the property editor
+    if (editDialog != nullptr)
+        editDialog->closeDialog();
     CircuitElm *menuElm = mouse.getMouseElm();
     ScopeManager *sm = scopeManager;
     sm->menuScope = -1;

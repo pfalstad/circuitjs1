@@ -42,7 +42,8 @@ LampElm::LampElm(int xx, int yy) : CircuitElm(xx, yy) {
 }
 
 LampElm::LampElm(int xa, int ya, int xb, int yb, int f, StringTokenizer &st) : CircuitElm(xa, ya, xb, yb, f) {
-    temp = parseFloatStrict(st.nextToken());
+    // (plain parseFloat: old files can have NaN here, which Java's parseDouble accepted)
+    temp = jsParseFloat(st.nextToken());
     if (std::isnan(temp))
         temp = roomTemp;
     nom_pow = parseFloatStrict(st.nextToken());

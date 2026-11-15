@@ -66,6 +66,10 @@ void BusSplitterElm::setChipEditValue(int n, EditInfo &ei) {
         if (ei.value >= 2) {
             bits = (int) std::floor(ei.value);
             setupPins();
+            // (one node per post: the circuit analysis only gives this a node for each post
+            // that's connected to something, so without this, the new posts wouldn't have
+            // nodes, and showing the voltage of one, when the mouse is over it, would fail)
+            allocNodes();
             setPoints();
         } else
             ei.setError("must be >= 2");

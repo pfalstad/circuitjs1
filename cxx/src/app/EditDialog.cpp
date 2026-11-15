@@ -28,12 +28,14 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QAction>
+#include <QApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTextEdit>
 #include <QRegularExpression>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -122,41 +124,63 @@ EditDialog::EditDialog(Editable *ce, CirSim *f) : QDialog(f, Qt::Tool), elm(ce),
     });
     connect(cancelBtn, &QPushButton::clicked, this, [this] { closeDialog(); });
 
-    if (firstInputNumeric && dynamic_cast<CircuitElm *>(ce) != nullptr)
-        passShortcutsThrough();
+    installKeyFilter();
 }
 
-// The editor pops up with its first field focused whenever an element is created, so you
-// can place a resistor, type 10k and press Enter. But a letter can't start a numeric value,
-// so if one is typed into that field before it's been touched and it's a tool shortcut,
-// the user is moving on to the next element: close the editor and act on the shortcut.
-void EditDialog::passShortcutsThrough() {
-    shortcutInput = firstInput;
-    shortcutInputUntouched = true;
-    // any click in the dialog counts as touching it
+// watch keys and clicks in the dialog and all its widgets (again when it's rebuilt)
+void EditDialog::installKeyFilter() {
     installEventFilter(this);
     for (QWidget *w : findChildren<QWidget *>())
         w->installEventFilter(this);
 }
 
+bool EditDialog::shouldPassKeyThrough(QKeyEvent *e) {
+    if (!untouched || dynamic_cast<CircuitElm *>(elm) == nullptr)
+        return false;
+    // (a modifier pressed on its own, e.g. Shift on the way to a shortcut, doesn't count)
+    int key = e->key();
+    if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta ||
+        key == Qt::Key_CapsLock)
+        return false;
+    untouched = false;
+    // (Space toggles a checkbox or opens a dropdown)
+    if (key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Escape || key == Qt::Key_Space)
+        return false;
+    QWidget *focus = QApplication::focusWidget();
+    if (focus == nullptr || !isAncestorOf(focus))
+        return true;
+    // keys that move around within the focused field or the editor
+    if (key == Qt::Key_Tab || key == Qt::Key_Backtab || key == Qt::Key_Left || key == Qt::Key_Right ||
+        key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home || key == Qt::Key_End)
+        return false;
+    if (qobject_cast<QLineEdit *>(focus) || qobject_cast<QTextEdit *>(focus) ||
+        qobject_cast<QPlainTextEdit *>(focus)) {
+        // a text field (a label, say) takes any key; a numeric one only what starts a number
+        if (focus != firstInput || !firstInputNumeric)
+            return false;
+        QString text = e->text();
+        bool startsNumber = !(e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier)) &&
+                            text.size() == 1 && (text[0].isDigit() || text[0] == '.' || text[0] == '-');
+        return !startsNumber;
+    }
+    return true;
+}
+
 bool EditDialog::eventFilter(QObject *obj, QEvent *e) {
     if (e->type() == QEvent::MouseButtonPress)
-        shortcutInputUntouched = false;
-    if (e->type() != QEvent::KeyPress || obj != shortcutInput)
+        untouched = false;
+    // (a key the focused widget doesn't take goes on to its parents; only look at it once)
+    if (e->type() != QEvent::KeyPress || obj != (QApplication::focusWidget() ? QApplication::focusWidget() : this))
         return QDialog::eventFilter(obj, e);
     QKeyEvent *ke = static_cast<QKeyEvent *>(e);
-    bool wasUntouched = shortcutInputUntouched;
-    shortcutInputUntouched = false;
-    QString text = ke->text();
-    if (!wasUntouched || (ke->modifiers() & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier)) ||
-        text.size() != 1 || !((text[0] >= 'a' && text[0] <= 'z') || (text[0] >= 'A' && text[0] <= 'Z')))
+    if (windowModality() != Qt::NonModal || QApplication::activeModalWidget() != nullptr ||
+        !shouldPassKeyThrough(ke))
         return QDialog::eventFilter(obj, e);
-    QKeySequence k(QKeyCombination(ke->modifiers() & Qt::ShiftModifier, (Qt::Key) ke->key()));
-    QAction *a = cframe->findToolShortcut(k);
-    if (a == nullptr)
-        return QDialog::eventFilter(obj, e);
+    // a key pressed right after the editor pops up is meant for the circuit instead
+    CirSim *f = cframe;
+    std::unique_ptr<QKeyEvent> copy(ke->clone());
     closeDialog();
-    a->trigger();
+    f->passKeyToCircuit(copy.get());
     return true;
 }
 
@@ -279,14 +303,13 @@ void EditDialog::buildDialog() {
     }
     building = false;
 
-    // Focus first text input after the dialog opens
+    // focus the first text field, with its value selected so typing replaces it.  This is done
+    // right away (not on the next event loop pass) so that keys typed as the dialog opens go
+    // into it, rather than to the main window.
     if (firstInput) {
-        QWidget *inp = firstInput;
-        QTimer::singleShot(0, inp, [inp] {
-            inp->setFocus();
-            if (QLineEdit *le = qobject_cast<QLineEdit *>(inp))
-                le->selectAll();
-        });
+        firstInput->setFocus();
+        if (QLineEdit *le = qobject_cast<QLineEdit *>(firstInput))
+            le->selectAll();
     }
 }
 
@@ -545,6 +568,7 @@ void EditDialog::itemStateChanged(int idx) {
 void EditDialog::resetDialog() {
     clearDialog();
     buildDialog();
+    installKeyFilter();
     adjustSize();
 }
 

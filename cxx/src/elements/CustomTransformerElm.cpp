@@ -144,16 +144,20 @@ bool CustomTransformerElm::parseDescription(const std::string &desc, EditInfo *e
     needDots = false;
     size_t ti = 0;
     while (true) {
+        if (ti >= tokens.size()) {
+            if (ei)
+                ei->setError("expected number at end");
+            return false;
+        }
         const std::string &tok = tokens[ti++];
         double n = 0;
-        // (the TS version uses parseFloatStrict(), which throws before its NaN check)
-        double parsed = jsParseFloat(tok);
-        if (std::isnan(parsed)) {
+        try {
+            n = parseFloatStrict(tok);
+        } catch (...) {
             if (ei)
                 ei->setError("expected number, got '" + tok + "'");
             return false;
         }
-        n = parsed;
         if (n == 0) {
             if (ei)
                 ei->setError("turns ratio cannot be zero");

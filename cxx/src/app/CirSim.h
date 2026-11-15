@@ -205,6 +205,11 @@ public:
     void setRunStopShortcut(const QKeySequence &k);
     // the tool (or command) assigned to key k, or null if there is none
     QAction *findToolShortcut(const QKeySequence &k);
+    // a key the property editor passed through (EditDialog::shouldPassKeyThrough()): handle
+    // it as if the editor weren't there (menu shortcuts, Delete, and so on)
+    void passKeyToCircuit(QKeyEvent *e);
+    // watches every key and mouse press, for double-tap Shift (see handleKey())
+    bool eventFilter(QObject *obj, QEvent *e) override;
     // key for the command palette (Edit > Find Component/Command...); "/" by default
     QKeySequence paletteShortcut;
     QAction *searchItem = nullptr;
@@ -334,9 +339,13 @@ private:
     QImage getCircuitAsImage(int type);
     void drawCircuitInPainter(QPainter &painter, int type, const Rectangle &bounds, double w, double h);
     QAction *recoverItem = nullptr;
-    // for double-tap Shift, which opens the command palette (see handleKey())
-    qint64 lastShiftKeyUpMs = 0;
-    bool keyPressedSinceShiftUp = false;
+    // For double-tap Shift, which opens the command palette (see handleKey()).  A Shift press
+    // only counts as a tap if Shift was pressed and released on its own, not used with another
+    // key (Shift-W) or the mouse (shift-drag); and the two taps only count as a double tap if
+    // nothing else was pressed in between.
+    qint64 lastShiftKeyUpMs = 0;           // when the last tap ended, or 0 if it wasn't one
+    bool shiftUsedWithOther = false;       // something else pressed while Shift is held
+    bool keyPressedSinceShiftUp = false;   // something else pressed since Shift was released
     void loadLocale();
     void createCircuitsMenu();
     void createDrawMenu();

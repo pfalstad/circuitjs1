@@ -151,6 +151,9 @@ std::optional<EditInfo> WireElm::getEditInfo(int n) {
         return EditInfo::createCheckbox("Show Current", mustShowCurrent());
     if (n == 1)
         return EditInfo::createCheckbox("Show Voltage", mustShowVoltage());
+    // (the bus value options only apply to bus wires)
+    if (n >= 2 && busWidth == 1)
+        return std::nullopt;
     if (n == 2)
         return EditInfo::createCheckbox("Show Bus Value", mustShowBusValue());
     if (n == 3)

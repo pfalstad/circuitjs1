@@ -39,20 +39,31 @@ void ROMElm::setupPins() {
     pins[0].lineOver = true;
     addressNodes = 1;
     dataNodes = 1 + addressBits;
-    internalNodes = 1 + addressBits + dataBits;
+    internalNodes = getPostCount();
     makeBitPins(addressBits, sizeY - addrY, SIDE_W, addressNodes, "A", false, false, true);
     makeBitPins(dataBits, sizeY - dataY, SIDE_E, dataNodes, "D", true, false, true);
+    if (hasInvertedOutput())
+        for (int i = 0; i != dataBits; i++)
+            pins[dataNodes + i].lineOver = true;
+    // chip select goes in the free spot at the top of the east side
+    if (hasChipSelect()) {
+        Pin cs(this, 0, SIDE_E, "CS");
+        cs.lineOver = true;
+        pins[chipSelectNode()] = cs;
+    }
     allocNodes();
 }
 
 void ROMElm::doStep() {
-    bool outputEnabled = nodes[0]->v < getThreshold();
+    bool outputEnabled = chipSelected() && nodes[0]->v < getThreshold();
     // get address
     address = 0;
     for (int i = 0; i != addressBits; i++)
         address |= (nodes[addressNodes + i]->v > getThreshold()) ? 1 << (addressBits - 1 - i) : 0;
     auto it = map.find(address);
     int data = (it == map.end()) ? 0 : it->second;
+    if (hasInvertedOutput())
+        data ^= (1 << dataBits) - 1;
     for (int i = 0; i != dataBits; i++) {
         Pin &p = pins[i + dataNodes];
         sim->updateVoltageSource(CircuitNode::ground, nodes[internalNodes + i], p.voltSource,

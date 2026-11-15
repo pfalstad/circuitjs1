@@ -108,7 +108,11 @@ void SRAMElm::setupPins() {
     sizeX = 2;
     int addrY = useBus() ? 1 : addressBits;
     int dataY = useBus() ? 1 : dataBits;
-    sizeY = std::max(addrY, dataY) + 1;
+    bool separate = hasSeparateIO();
+    int westY = separate ? addrY + dataY : addrY;
+    // east side: OE, then chip select (if any), then the data pins at the bottom
+    int eastY = hasChipSelect() ? dataY + 1 : dataY;
+    sizeY = std::max(westY, eastY) + 1;
     bits = addressBits;
     pins.assign(getPostCount(), Pin());
     pins[0] = Pin(this, 0, SIDE_W, "WE");
@@ -117,9 +121,21 @@ void SRAMElm::setupPins() {
     pins[1].lineOver = true;
     addressNodes = 2;
     dataNodes = 2 + addressBits;
-    internalNodes = 2 + addressBits + dataBits;
+    dataInNodes = separate ? dataNodes + dataBits : dataNodes;
+    // internal nodes come right after the posts
+    internalNodes = getPostCount();
     makeBitPins(addressBits, sizeY - addrY, SIDE_W, addressNodes, "A", false, false, true);
     makeBitPins(dataBits, sizeY - dataY, SIDE_E, dataNodes, "D", true, false, true);
+    if (hasInvertedOutput())
+        for (int i = 0; i != dataBits; i++)
+            pins[dataNodes + i].lineOver = true;
+    if (separate)
+        makeBitPins(dataBits, 1, SIDE_W, dataInNodes, "DI", false, false, true);
+    if (hasChipSelect()) {
+        Pin cs(this, 1, SIDE_E, "CS");
+        cs.lineOver = true;
+        pins[chipSelectNode()] = cs;
+    }
     allocNodes();
 }
 
@@ -149,7 +165,17 @@ std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
     }
     if (n == 5)
         return EditInfo::createCheckbox("Restore Contents on Reset", (flags & FLAG_RELOAD_ON_RESET) != 0);
-    return ChipElm::getChipEditInfo(n);
+    std::vector<int> opts = pinOptions();
+    if (n > 5 && n - 6 < (int) opts.size()) {
+        int opt = opts[n - 6];
+        const char *name = opt == FLAG_SEPARATE_IO ? "Separate Data In/Out"
+                           : opt == FLAG_INVERT_OUTPUT ? "Inverted Data Out" : "Chip Select";
+        EditInfo ei = EditInfo::createCheckbox(name, hasFlag(opt));
+        if (opt != FLAG_INVERT_OUTPUT)
+            ei.setStructural();  // adds pins
+        return ei;
+    }
+    return ChipElm::getChipEditInfo(n - (int) opts.size());
 }
 
 static std::string upperHex(int v) {
@@ -308,6 +334,12 @@ void SRAMElm::setChipEditValue(int n, EditInfo &ei) {
         else
             initialMap.reset();
     }
+    std::vector<int> opts = pinOptions();
+    if (n > 5 && n - 6 < (int) opts.size()) {
+        flags = ei.changeFlag(flags, opts[n - 6]);
+        setupPins();
+        setPoints();
+    }
 }
 
 void SRAMElm::setVoltageSource(int j, VoltageSource *vs) {
@@ -332,15 +364,33 @@ void SRAMElm::stamp() {
     }
 }
 
+bool SRAMElm::chipSelected() {
+    return !hasChipSelect() || nodes[chipSelectNode()]->v < getThreshold();
+}
+
 void SRAMElm::doStep() {
-    bool writeEnabled = nodes[0]->v < getThreshold();
-    bool outputEnabled = (nodes[1]->v < getThreshold()) && !writeEnabled;
+    bool selected = chipSelected();
+    bool writeEnabled = selected && nodes[0]->v < getThreshold();
+    // with separate I/O, the outputs follow the data being written (write-through, like the
+    // 82S16).  With a bidirectional bus they're off while writing, so they don't fight the
+    // writer.
+    bool separate = hasSeparateIO();
+    bool outputEnabled = selected && (nodes[1]->v < getThreshold()) && (separate || !writeEnabled);
     // get address
     address = 0;
     for (int i = 0; i != addressBits; i++)
         address |= (nodes[addressNodes + i]->v > getThreshold()) ? 1 << (addressBits - 1 - i) : 0;
-    auto it = map.find(address);
-    int data = (it == map.end()) ? 0 : it->second;
+    int data;
+    if (writeEnabled && separate) {
+        data = 0;
+        for (int i = 0; i != dataBits; i++)
+            data |= (nodes[dataInNodes + i]->v > getThreshold()) ? 1 << (dataBits - 1 - i) : 0;
+    } else {
+        auto it = map.find(address);
+        data = (it == map.end()) ? 0 : it->second;
+    }
+    if (hasInvertedOutput())
+        data ^= (1 << dataBits) - 1;
     for (int i = 0; i != dataBits; i++) {
         Pin &p = pins[i + dataNodes];
         sim->updateVoltageSource(CircuitNode::ground, nodes[internalNodes + i], p.voltSource,
@@ -356,11 +406,11 @@ void SRAMElm::doStep() {
 
 void SRAMElm::stepFinished() {
     int data = 0;
-    bool writeEnabled = nodes[0]->v < getThreshold();
+    bool writeEnabled = chipSelected() && nodes[0]->v < getThreshold();
     if (!writeEnabled)
         return;
     // store data in RAM
     for (int i = 0; i != dataBits; i++)
-        data |= (nodes[dataNodes + i]->v > getThreshold()) ? 1 << (dataBits - 1 - i) : 0;
+        data |= (nodes[dataInNodes + i]->v > getThreshold()) ? 1 << (dataBits - 1 - i) : 0;
     map[address] = data;
 }

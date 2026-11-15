@@ -29,8 +29,12 @@ public:
     int getDumpType() override { return 436; }
     // no WE pin; just OE + address + data
     void setupPins() override;
-    int getPostCount() override { return 1 + addressBits + dataBits; }
+    int getPostCount() override { return 1 + addressBits + dataBits + (hasChipSelect() ? 1 : 0); }
     void doStep() override;
     // no writing
     void stepFinished() override {}
+
+protected:
+    // no separate data in/out, since there's no data in
+    std::vector<int> pinOptions() override { return {FLAG_INVERT_OUTPUT, FLAG_CHIP_SELECT}; }
 };

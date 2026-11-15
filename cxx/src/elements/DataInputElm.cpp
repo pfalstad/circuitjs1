@@ -157,13 +157,11 @@ void DataInputElm::doLoadCallback(const std::string &s, const std::string &name)
         // skip comments
         if (line[0] == '#')
             continue;
-        // (the TS version uses parseFloatStrict(), which throws before the NaN check below)
-        double d = jsParseFloat(line);
-        if (std::isnan(d)) {
+        try {
+            data->push_back(parseFloatStrict(line));
+        } catch (...) {
             SimulationManager::console("parse error on line " + std::to_string(i));
             parseError = true;
-        } else {
-            data->push_back(d);
         }
     }
     if (data->empty() || parseError) {

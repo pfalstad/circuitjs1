@@ -78,7 +78,13 @@ private:
     std::string unitString(const EditInfo &ei);
     double parseUnitsEi(Field &f);
     void itemStateChanged(int idx);
-    void passShortcutsThrough();
+    // The editor pops up whenever an element is created or clicked, with its first text field
+    // (if any) focused, so you can place a resistor, type 10k and press Enter.  If the first key
+    // pressed before the editor has been touched can't start a number, the user is moving on:
+    // close the editor and handle the key as the main window would (tool shortcuts, Delete,
+    // Ctrl-C and so on).
+    bool shouldPassKeyThrough(QKeyEvent *e);
+    void installKeyFilter();
 
     CirSim *cframe;
     std::vector<Field> fields;
@@ -89,9 +95,7 @@ private:
     int activeColCount = 0;
     QWidget *firstInput = nullptr;
     bool firstInputNumeric = false;
-    // the first field, while letters typed into it may be tool shortcuts (passShortcutsThrough())
-    QWidget *shortcutInput = nullptr;
-    bool shortcutInputUntouched = false;
+    bool untouched = true;  // no key pressed or mouse clicked in it yet
     bool closeOnEnter = true;
     bool building = false;
 };

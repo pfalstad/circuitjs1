@@ -20,6 +20,7 @@
 #include "TestManager.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -94,23 +95,54 @@ void TestManager::runTest(const std::string &file) {
     runNextTest();
 }
 
-void TestManager::runTestList(const std::string &file) {
-    testList.clear();
-    testListIdx = 0;
-    results.clear();
-    done = false;
+// the test files a list names, relative to it.  "include <list>" takes in another list's
+// (relative to this one), like auto-tests/tests.txt does gen/tests.txt
+static bool readTestList(const std::string &file, std::vector<std::string> &out, std::string &err,
+                         int depth = 0) {
     std::string text;
     if (!readFile(file, text)) {
-        report("Could not load test list: " + file);
-        finish();
-        return;
+        err = "Could not load test list: " + file;
+        return false;
     }
     std::istringstream in(text);
     std::string line;
     while (std::getline(in, line)) {
         line = trim(line);
-        if (!line.empty() && line[0] != '#')
-            testList.push_back(line);
+        if (line.empty() || line[0] == '#')
+            continue;
+        if (line.compare(0, 7, "include") != 0 || line.size() < 9 || !std::isspace((unsigned char) line[7])) {
+            out.push_back(line);
+            continue;
+        }
+        std::string inc = trim(line.substr(8));
+        if (inc.empty() || inc.find_first_of(" \t") != std::string::npos) {
+            out.push_back(line);
+            continue;
+        }
+        if (depth > 10) {
+            err = "lists include each other: " + file;
+            return false;
+        }
+        std::string dir = dirOf(inc);
+        std::vector<std::string> sub;
+        if (!readTestList(dirOf(file) + inc, sub, err, depth + 1))
+            return false;
+        for (const std::string &name : sub)
+            out.push_back(dir + name);
+    }
+    return true;
+}
+
+void TestManager::runTestList(const std::string &file) {
+    testList.clear();
+    testListIdx = 0;
+    results.clear();
+    done = false;
+    std::string err;
+    if (!readTestList(file, testList, err)) {
+        report(err);
+        finish();
+        return;
     }
     testListDir = dirOf(file);
     runNextTest();

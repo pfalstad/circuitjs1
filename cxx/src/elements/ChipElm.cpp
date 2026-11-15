@@ -678,17 +678,14 @@ std::optional<EditInfo> ChipElm::getPinLayoutEditInfo(int n) {
         ei.choice->add(Locale::LS("Default"));
         for (PinLayoutModel *m : fitting)
             ei.choice->add(m->name);
+        // last item: make a new layout from the current pin positions
+        ei.choice->add(Locale::LS("Create New..."));
         ei.choice->select((int) (std::find(pinLayoutChoices.begin(), pinLayoutChoices.end(), pinLayout) -
                                  pinLayoutChoices.begin()));
         return ei;
     }
-    if (n == 1) {
-        EditInfo ei("", 0, -1, -1);
-        ei.button = EditButton{Locale::LS("Create Pin Layout")};
-        return ei;
-    }
     // (the editor starts from the current pin positions, so they must be the model's)
-    if (n == 2 && pinLayout != nullptr && pinLayoutFits(pinLayout)) {
+    if (n == 1 && pinLayout != nullptr && pinLayoutFits(pinLayout)) {
         EditInfo ei("", 0, -1, -1);
         ei.button = EditButton{Locale::LS("Edit Pin Layout")};
         return ei;
@@ -699,16 +696,19 @@ std::optional<EditInfo> ChipElm::getPinLayoutEditInfo(int n) {
 void ChipElm::setPinLayoutEditValue(int n, EditInfo &ei) {
     if (n == 0) {
         int sel = ei.choice->getSelectedIndex();
+        // rebuild the dialog: structural fields are locked or unlocked, and
+        // "Create New..." goes back to showing the current layout
+        ei.newDialog = true;
+        if (sel == (int) pinLayoutChoices.size()) {
+            app->editPinLayout(this, nullptr);
+            return;
+        }
         PinLayoutModel *pl = sel >= 0 && sel < (int) pinLayoutChoices.size() ? pinLayoutChoices[sel] : nullptr;
         if (pl != pinLayout)
             setPinLayout(pl);
-        // structural fields are locked or unlocked
-        ei.newDialog = true;
         return;
     }
-    if (n == 1)
-        app->editPinLayout(this, nullptr);
-    if (n == 2 && pinLayout != nullptr && pinLayoutFits(pinLayout))
+    if (n == 1 && pinLayout != nullptr && pinLayoutFits(pinLayout))
         app->editPinLayout(this, pinLayout);
 }
 

@@ -146,6 +146,7 @@ void CirSim::resizeEvent(QResizeEvent *e) {
 
 CirSim::CirSim() {
     sim = std::make_unique<SimulationManager>(this);
+    qApp->installEventFilter(this);
     scopeManagerOwner = std::make_unique<ScopeManager>(this);
     scopeManager = scopeManagerOwner.get();
     loader = std::make_unique<CircuitLoader>(this, sim.get());
@@ -1365,14 +1366,14 @@ void CirSim::handleKey(QKeyEvent *e) {
         if (!e->isAutoRepeat()) {
             mouse.shiftChanged(true);
             qint64 now = QDateTime::currentMSecsSinceEpoch();
-            // Second Shift within 400 ms, with no other key in between, opens the palette.
+            // Second Shift tap within 400 ms of the first, with nothing else pressed in
+            // between, opens the palette.
             if (lastShiftKeyUpMs > 0 && now - lastShiftKeyUpMs < 400 && !keyPressedSinceShiftUp) {
                 openCommandPalette();
                 lastShiftKeyUpMs = 0;
             }
+            shiftUsedWithOther = false;
         }
-    } else if (!e->isAutoRepeat()) {
-        keyPressedSinceShiftUp = true;
     }
     // "/" opens the palette too, unless it's assigned to something else.  (If it's the
     // palette's own shortcut, the menu item gets it first.)
@@ -1451,10 +1452,45 @@ void CirSim::handleKey(QKeyEvent *e) {
     }
 }
 
+bool CirSim::eventFilter(QObject *obj, QEvent *e) {
+    // (keys that are menu shortcuts never reach handleKey(), so watch for them here; a
+    // shortcut key gets a ShortcutOverride event even if it never gets a KeyPress)
+    QEvent::Type t = e->type();
+    bool other = t == QEvent::MouseButtonPress || t == QEvent::TouchBegin;
+    if (t == QEvent::KeyPress || t == QEvent::ShortcutOverride) {
+        QKeyEvent *ke = static_cast<QKeyEvent *>(e);
+        other = ke->key() != Qt::Key_Shift && !ke->isAutoRepeat();
+    }
+    if (other) {
+        shiftUsedWithOther = true;
+        keyPressedSinceShiftUp = true;
+    }
+    return QMainWindow::eventFilter(obj, e);
+}
+
+void CirSim::passKeyToCircuit(QKeyEvent *e) {
+    activateWindow();
+    canvas->setFocus();
+    QKeySequence k(QKeyCombination(e->modifiers() & ~Qt::KeypadModifier, (Qt::Key) e->key()));
+    QAction *a = findToolShortcut(k);
+    if (a == nullptr)
+        for (QAction *b : findChildren<QAction *>())
+            if (b->isEnabled() && b->shortcuts().contains(k)) {
+                a = b;
+                break;
+            }
+    if (a != nullptr) {
+        a->trigger();
+        return;
+    }
+    handleKey(e);
+}
+
 void CirSim::handleKeyRelease(QKeyEvent *e) {
     if (e->key() == Qt::Key_Shift && !e->isAutoRepeat()) {
         mouse.shiftChanged(false);
-        lastShiftKeyUpMs = QDateTime::currentMSecsSinceEpoch();
+        // (if Shift was used with something else, this wasn't a tap)
+        lastShiftKeyUpMs = shiftUsedWithOther ? 0 : QDateTime::currentMSecsSinceEpoch();
         keyPressedSinceShiftUp = false;
     }
     if (e->isAutoRepeat() || isReadOnly())
