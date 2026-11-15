@@ -73,8 +73,20 @@ public:
     // same "addr: val val val..." text the Contents field understands
     void fetchLoadFileData();
     std::string toHex(int val);
-    void parseContentsString(const std::string &s);
-    int parseNumber(const std::string &str);
+    // parse the Contents text ("addr: val val val..." lines) into map.  Returns an error
+    // message for the first bad line, if any, in which case the contents are left unchanged
+    // (unless lenient, when loading a file: then whatever could be parsed is used, as before).
+    std::optional<std::string> parseContentsString(const std::string &s, bool hex, bool lenient = false);
+    std::optional<std::string> parseContentsString(const std::string &s) {
+        return parseContentsString(s, hasFlag(FLAG_HEX_DISPLAY));
+    }
+    // parse an address or value: hex in hex mode, otherwise decimal; 0x (hex) and 0b
+    // (binary, except in hex mode, where it's a hex number) prefixes work in either mode.
+    // Throws std::runtime_error with a message if it's not a number.
+    int parseNumber(const std::string &str, bool hex);
+    // the text in the edit dialog's Contents field, as last shown or applied (TS: read from
+    // the text area itself)
+    std::optional<std::string> dialogContentsText;
     void setChipEditValue(int n, EditInfo &ei) override;
     int getVoltageSourceCount() override { return dataBits; }
     int getInternalNodeCount() override { return dataBits; }

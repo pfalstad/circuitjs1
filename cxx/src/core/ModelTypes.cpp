@@ -26,6 +26,7 @@
 #include <set>
 
 #include "CircuitElm.h"
+#include "JsNumber.h"
 #include "CircuitXMLDeserializer.h"
 #include "CircuitXMLSerializer.h"
 #include "CustomLogicModel.h"
@@ -353,7 +354,8 @@ std::vector<TypedModel> loadModelLibrary(CircuitXMLDeserializer &xml, const XmlE
     return loaded;
 }
 
-ResolvedPaste resolvePastedModels(SimApp *app, const std::string &text) {
+ResolvedPaste resolvePastedModels(SimApp *app, const std::string &textIn) {
+    const std::string text = jsTrimStart(textIn);
     ResolvedPaste result{text, {}};
     if (text.empty() || text[0] != '<')
         return result;

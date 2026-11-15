@@ -543,11 +543,12 @@ void EditDialog::itemStateChanged(int idx) {
         return;
     bool changed = false;
     bool applied = false;
+    bool applyFailed = false;
 
     // for buttons, choices and checkboxes, apply pending text-field changes first
     // (in case setEditValue rebuilds the dialog, which would discard them)
     if ((ei.button || ei.choice || ei.checkbox) && !ei.newDialog) {
-        apply();
+        applyFailed = !apply();
         applied = true;
     }
 
@@ -560,8 +561,14 @@ void EditDialog::itemStateChanged(int idx) {
     if (changed) {
         if (!applied)
             apply();
-        // rebuilding destroys the widget that sent this signal, so do it afterwards
-        QTimer::singleShot(0, this, [this] { resetDialog(); });
+        // rebuilding destroys the widget that sent this signal, so do it afterwards.  The
+        // error shown is from before this change, which may have fixed it (say, checking an
+        // SRAM's Hex Display after typing hex contents), so check again
+        QTimer::singleShot(0, this, [this, applyFailed] {
+            resetDialog();
+            if (applyFailed)
+                apply();
+        });
     }
 }
 

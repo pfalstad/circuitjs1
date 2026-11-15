@@ -21,6 +21,7 @@
 
 #include "../core/StringTokenizer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -32,6 +33,8 @@
 void DecimalDisplayElm::postConstruct(StringTokenizer *st) {
     ChipElm::postConstruct(st);
     bitCount = 4;
+    if (st == nullptr)
+        flags |= FLAG_ALLOW_WIDE;
     if (st != nullptr) {
         try {
             bitCount = parseIntStrict(st->nextToken());
@@ -49,29 +52,75 @@ std::string DecimalDisplayElm::getChipName() {
     }
 }
 
+int DecimalDisplayElm::getRadix() {
+    switch (displayMode) {
+    case 1: return 16;
+    case 2: return 8;
+    default: return 10;
+    }
+}
+
+// value.toString(radix).toUpperCase()
+static std::string toRadixString(unsigned long long value, int radix) {
+    std::string s;
+    do {
+        s.insert(s.begin(), "0123456789ABCDEF"[value % radix]);
+        value /= radix;
+    } while (value != 0);
+    return s;
+}
+
+int DecimalDisplayElm::maxDigits() {
+    return (int) toRadixString((1ULL << bitCount) - 1, getRadix()).size();
+}
+
 void DecimalDisplayElm::draw(Graphics &g) {
     drawChip(g);
-    int xl = x + cspc + flippedSizeX * cspc;
-    int yl = y - cspc + flippedSizeY * cspc;
-    if (isFlippedXY())
-        yl += ((flags & FLAG_FLIP_Y) != 0) ? -cspc / 2 : cspc / 2;
-    g.save();
-    g.setFont(Font("SansSerif", 0, 15 * csize));
-    g.setColor(whiteColor);
-    g.setTextBaseline(Graphics::BASELINE_MIDDLE);
-    int value = 0;
+    unsigned long long value = 0;
     for (int i = 0; i != bitCount; i++)
         if (pins[i].value)
-            value |= 1 << i;
-    char buf[40];
-    switch (displayMode) {
-    case 1: std::snprintf(buf, sizeof buf, "%X", value); break;
-    case 2: std::snprintf(buf, sizeof buf, "%o", value); break;
-    default: std::snprintf(buf, sizeof buf, "%d", value); break;
-    }
-    std::string str = buf;
+            value += 1ULL << i;
+    std::string str = toRadixString(value, getRadix());
+
+    // the space inside the chip that isn't taken by the pin labels
+    double x1 = rectPointsX[0], x2 = rectPointsX[2];
+    double y1 = rectPointsY[0], y2 = rectPointsY[2];
+    // which side the pins (and so their labels) are on, after any flipping
+    const Point &post = pins[0].post;
+    bool left = post.x < x1, right = post.x > x2;
+    if (left || right) {
+        g.setFont(Font("normal", 0, 10 * csize));
+        double labelW = 0;
+        for (int i = 0; i != getPostCount(); i++) {
+            const Pin &p = pins[i];
+            if (p.busZ > 0)
+                continue;
+            std::string text = p.busWidth > 1 ? p.text + "/" + std::to_string(p.busWidth) : p.text;
+            labelW = std::max(labelW, g.measureWidth(text));
+        }
+        double band = 5 + labelW + 3 * csize;
+        if (left)
+            x1 += band;
+        else
+            x2 -= band;
+    } else if (post.y < y1)
+        y1 += cspc2;
+    else
+        y2 -= cspc2;
+
+    g.save();
+    int fsz = 15 * csize;
+    g.setFont(Font("SansSerif", 0, fsz));
+    g.setColor(whiteColor);
+    g.setTextBaseline(Graphics::BASELINE_MIDDLE);
+    double avail = x2 - x1 - 4 * csize;
     double w = g.measureWidth(str);
-    g.drawString(str, xl + 5 * csize - w / 2, yl);
+    if (w > avail && avail > 0) {
+        fsz = std::max(6, (int) std::floor(fsz * avail / w));
+        g.setFont(Font("SansSerif", 0, fsz));
+        w = g.measureWidth(str);
+    }
+    g.drawString(str, (x1 + x2) / 2 - w / 2, (y1 + y2) / 2);
     g.restore();
 }
 
@@ -91,7 +140,11 @@ void DecimalDisplayElm::undumpXml(CircuitXMLDeserializer &xml) {
 void DecimalDisplayElm::setupPins() {
     if (!bitCount)
         return;
-    sizeX = 3;
+    // wide enough for the pin labels plus the largest value.  (in units of csize: a grid
+    // unit is 16, a digit is about 8.4, and the labels and margins take about 22, or 27
+    // for two-digit pin numbers)
+    int labels = bitCount > 10 ? 27 : 22;
+    sizeX = !hasFlag(FLAG_ALLOW_WIDE) ? 3 : std::max(3, (int) std::ceil((labels + 8.4 * maxDigits()) / 16));
     sizeY = useBus() ? 2 : bitCount;
     pins.assign(bitCount, Pin());
     makeBitPins(bitCount, 0, SIDE_W, 0, "I", false, false, false);
@@ -119,6 +172,7 @@ void DecimalDisplayElm::setChipEditValue(int n, EditInfo &ei) {
             int newBitCount = (int) std::trunc(ei.value);
             if (newBitCount != bitCount) {
                 bitCount = newBitCount;
+                flags |= FLAG_ALLOW_WIDE;
                 setupPins();
                 setPoints();
             }
@@ -126,6 +180,13 @@ void DecimalDisplayElm::setChipEditValue(int n, EditInfo &ei) {
             ei.setError("must be between 1 and 16");
         return;
     }
-    if (n == 1)
-        displayMode = ei.choice->getSelectedIndex();
+    if (n == 1) {
+        int mode = ei.choice->getSelectedIndex();
+        if (mode != displayMode) {
+            displayMode = mode;
+            flags |= FLAG_ALLOW_WIDE;
+            setupPins();
+            setPoints();
+        }
+    }
 }

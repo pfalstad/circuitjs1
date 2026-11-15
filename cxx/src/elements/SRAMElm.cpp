@@ -19,6 +19,10 @@
 
 #include "SRAMElm.h"
 
+#include <stdexcept>
+
+#include <cstring>
+
 #include <algorithm>
 
 #include "../core/StringTokenizer.h"
@@ -91,7 +95,7 @@ void SRAMElm::undumpXml(CircuitXMLDeserializer &xml) {
     map.clear();
     try {
         std::optional<std::string> s = xml.parseContents();
-        if (s && !s->empty()) parseContentsString(*s);
+        if (s && !s->empty()) parseContentsString(*s, hasFlag(FLAG_HEX_DISPLAY), true);
     } catch (...) {}
     if ((flags & FLAG_RELOAD_ON_RESET) != 0)
         initialMap = map;
@@ -148,6 +152,7 @@ std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
         EditInfo ei("Contents", 0);
         ei.setIsState();
         ei.textArea = TextArea{contentsOverride ? *contentsOverride : contentsToString()};
+        dialogContentsText = ei.textArea->value;
         contentsOverride.reset();
         if (fileNameOverride)
             loadedFileName = fileNameOverride;
@@ -242,59 +247,84 @@ std::string SRAMElm::toHex(int val) {
     return h.size() < 2 ? "0" + h : h;
 }
 
-// split the way JS line.split(/ +/) does
-static std::vector<std::string> splitSpaces(const std::string &s) {
-    std::vector<std::string> out;
-    size_t start = 0;
-    while (true) {
-        size_t p = s.find(' ', start);
-        if (p == std::string::npos) {
-            out.push_back(s.substr(start));
-            return out;
-        }
-        out.push_back(s.substr(start, p - start));
-        start = s.find_first_not_of(' ', p);
-        if (start == std::string::npos) {
-            out.push_back("");
-            return out;
-        }
-    }
+static std::string trimWS(const std::string &s) {
+    size_t a = s.find_first_not_of(" \t\r\n\f\v");
+    if (a == std::string::npos)
+        return "";
+    size_t b = s.find_last_not_of(" \t\r\n\f\v");
+    return s.substr(a, b - a + 1);
 }
 
-void SRAMElm::parseContentsString(const std::string &s) {
-    map.clear();
+std::optional<std::string> SRAMElm::parseContentsString(const std::string &s, bool hex, bool lenient) {
+    std::map<int, int> newMap;
+    std::optional<std::string> error;
     size_t lineStart = 0;
+    int lineNum = 0;
     while (lineStart <= s.size()) {
         size_t nl = s.find('\n', lineStart);
-        std::string line = s.substr(lineStart, nl == std::string::npos ? std::string::npos : nl - lineStart);
+        std::string line = trimWS(s.substr(lineStart, nl == std::string::npos ? std::string::npos : nl - lineStart));
         lineStart = (nl == std::string::npos) ? s.size() + 1 : nl + 1;
+        lineNum++;
+        if (line.empty())
+            continue;
+        auto lineError = [&](const std::string &msg) { return "line " + std::to_string(lineNum) + ": " + msg; };
+        size_t colon = line.find(':');
+        if (colon == std::string::npos) {
+            if (!error)
+                error = lineError("expected \"address: values\"");
+            continue;
+        }
         try {
-            // args = line.split(/: */)
-            size_t colon = line.find(':');
-            int addr = parseNumber(line.substr(0, colon));
-            if (colon == std::string::npos)
-                continue;  // (args[1] is undefined in JS, which throws)
-            size_t vstart = line.find_first_not_of(' ', colon + 1);
-            if (vstart == std::string::npos)
-                vstart = line.size();
-            size_t vend = line.find(':', vstart);
-            std::vector<std::string> vals = splitSpaces(line.substr(vstart, vend == std::string::npos ? std::string::npos : vend - vstart));
-            for (const std::string &v : vals) {
-                int val = parseNumber(v);
-                map[addr++] = val;
+            int addr = parseNumber(trimWS(line.substr(0, colon)), hex);
+            std::string rest = trimWS(line.substr(colon + 1));
+            if (rest.empty())
+                continue;
+            size_t p = 0;
+            while (p < rest.size()) {
+                size_t e = rest.find_first_of(" \t\r\n\f\v", p);
+                if (e == std::string::npos)
+                    e = rest.size();
+                newMap[addr++] = parseNumber(rest.substr(p, e - p), hex);
+                p = rest.find_first_not_of(" \t\r\n\f\v", e);
+                if (p == std::string::npos)
+                    break;
             }
-        } catch (...) {}
+        } catch (std::exception &e) {
+            if (!error)
+                error = lineError(e.what());
+        }
     }
+    if (!error || lenient)
+        map = newMap;
+    return error;
 }
 
-int SRAMElm::parseNumber(const std::string &str) {
-    if (str.rfind("0x", 0) == 0)
-        return parseIntStrict(str.substr(2), 16);
-    if (hasFlag(FLAG_HEX_DISPLAY))
-        return parseIntStrict(str, 16);
-    if (str.rfind("0b", 0) == 0)
-        return parseIntStrict(str.substr(2), 2);
-    return parseIntStrict(str);
+static bool allOf(const std::string &s, size_t from, const char *chars) {
+    if (s.size() <= from)
+        return false;
+    for (size_t i = from; i < s.size(); i++)
+        if (!std::strchr(chars, s[i]))
+            return false;
+    return true;
+}
+
+int SRAMElm::parseNumber(const std::string &str, bool hex) {
+    static const char *HEX = "0123456789abcdefABCDEF";
+    if (str.size() > 2 && (str.compare(0, 2, "0x") == 0 || str.compare(0, 2, "0X") == 0) && allOf(str, 2, HEX))
+        return (int) jsParseInt(str.substr(2), 16);
+    if (hex) {
+        if (allOf(str, 0, HEX))
+            return (int) jsParseInt(str, 16);
+        throw std::runtime_error("\"" + str + "\" is not a hex number");
+    }
+    if (str.compare(0, 2, "0b") == 0 && allOf(str, 2, "01"))
+        return (int) jsParseInt(str.substr(2), 2);
+    if (allOf(str, (!str.empty() && str[0] == '-') ? 1 : 0, "0123456789"))
+        return (int) jsParseInt(str, 10);
+    if (allOf(str, 0, HEX))
+        throw std::runtime_error("\"" + str + "\" is not a decimal number (check Hex Display to enter hex, or write 0x" +
+                                 str + ")");
+    throw std::runtime_error("\"" + str + "\" is not a number");
 }
 
 void SRAMElm::setChipEditValue(int n, EditInfo &ei) {
@@ -315,15 +345,34 @@ void SRAMElm::setChipEditValue(int n, EditInfo &ei) {
             ei.setError("must be between 2 and 16");
     }
     if (n == 2) {
-        parseContentsString(ei.textArea->value);
+        dialogContentsText = ei.textArea->value;
+        std::optional<std::string> err = parseContentsString(ei.textArea->value);
+        if (err) {
+            ei.setError(*err);
+            return;
+        }
         if ((flags & FLAG_RELOAD_ON_RESET) != 0)
             initialMap = map;
     }
     if (n == 3) {
         int oldFlags = flags;
-        flags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
-        if (flags != oldFlags)
+        int newFlags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
+        // read the contents as written before converting them to the new mode.  If they
+        // aren't valid in the old mode but are in the new one (say, hex was typed and then
+        // Hex Display checked), take them as being in the new mode.  If neither, leave the
+        // text alone, so it can be fixed (the dialog shows the error).
+        std::optional<std::string> keepText;
+        if (dialogContentsText) {
+            const std::string text = *dialogContentsText;
+            if (parseContentsString(text, (oldFlags & FLAG_HEX_DISPLAY) != 0) &&
+                parseContentsString(text, (newFlags & FLAG_HEX_DISPLAY) != 0))
+                keepText = text;
+        }
+        flags = newFlags;
+        if (flags != oldFlags) {
+            contentsOverride = keepText ? *keepText : contentsToString();
             ei.newDialog = true;
+        }
     }
     if (n == 4)
         fetchLoadFileData();

@@ -179,12 +179,14 @@ void ChipElm::setSize(int s) {
 void ChipElm::drawChip(Graphics &g) {
     g.save();
     Font f("normal", 0, 10 * csize);
-    bool hasVertical = false;
-    for (int i = 0; i != getPostCount(); i++)
-        if (pins[i].side == SIDE_N || pins[i].side == SIDE_S) {
-            hasVertical = true;
-            break;
-        }
+    // W/E pin labels can be wider than one cell, unless they share a row with
+    // N/S pin labels (which only happens in the top and bottom rows)
+    bool hasN = false, hasS = false;
+    for (int i = 0; i != getPostCount(); i++) {
+        int s = pins[i].side;
+        if (s == SIDE_N) hasN = true;
+        if (s == SIDE_S) hasS = true;
+    }
     for (int i = 0; i != getPostCount(); i++) {
         g.setFont(f);
         Pin &p = pins[i];
@@ -209,8 +211,12 @@ void ChipElm::drawChip(Graphics &g) {
         g.setColor(p.selected ? selectColor : whiteColor);
         int fsz = 10 * csize;
         double availSpace = cspc * 2 - 8;
-        if (!hasVertical && sizeX > 2)
-            availSpace = cspc * 2.5 + cspc * (sizeX - 3);
+        bool rowLimited = p.side == SIDE_N || p.side == SIDE_S ||
+                          (hasN && p.textloc.y < rectPointsY[0] + cspc2) ||
+                          (hasS && p.textloc.y > rectPointsY[2] - cspc2);
+        int fsx = flippedSizeX;
+        if (!rowLimited && fsx > 2)
+            availSpace = cspc * 2.5 + cspc * (fsx - 3);
         std::string text = p.busWidth > 1 ? p.text + "/" + std::to_string(p.busWidth) : p.text;
         while (true) {
             double sw = g.measureWidth(text);

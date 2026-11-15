@@ -154,3 +154,17 @@ double parseFloatStrict(const std::string &s) {
         throw std::runtime_error("invalid float: \"" + s + "\"");
     return n;
 }
+
+std::string jsTrimStart(const std::string &s) {
+    size_t i = 0;
+    while (i < s.size()) {
+        unsigned char c = s[i];
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v')
+            i++;
+        else if (s.compare(i, 3, "\xEF\xBB\xBF") == 0 || s.compare(i, 2, "\xC2\xA0") == 0)
+            i += (c == 0xEF) ? 3 : 2;  // BOM, no-break space
+        else
+            break;
+    }
+    return s.substr(i);
+}

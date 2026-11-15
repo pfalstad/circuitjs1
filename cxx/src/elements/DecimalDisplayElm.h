@@ -29,9 +29,16 @@ public:
     int bitCount = 0;
     int displayMode = 0;  // 0=decimal, 1=hex, 2=octal
 
+    // the chip is made wide enough for the largest value.  (without this, as in circuits saved
+    // before that was done, it's always 3 wide; set when the bit count or mode is changed)
+    static constexpr int FLAG_ALLOW_WIDE = 1 << 1;
+
     CHIP_CONSTRUCTORS(DecimalDisplayElm, ChipElm)
     void postConstruct(StringTokenizer *st) override;
     std::string getChipName() override;
+    int getRadix();
+    // number of digits needed for the largest value we can show
+    int maxDigits();
     void draw(Graphics &g) override;
     void dumpXml(XmlElement *doc, XmlElement *elem) override;
     void undumpXml(CircuitXMLDeserializer &xml) override;

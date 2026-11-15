@@ -34,6 +34,9 @@ double jsParseInt(const std::string &s, int radix = 0);
 // JS String(number), e.g. "0.000015", "1e-7", "1000000"
 std::string jsNumberToString(double d);
 
+// JS s.trimStart(): drops leading whitespace (including a byte order mark)
+std::string jsTrimStart(const std::string &s);
+
 // parseIntStrict()/parseFloatStrict(): throw std::runtime_error on NaN
 int parseIntStrict(const std::string &s, int radix = 0);
 double parseFloatStrict(const std::string &s);

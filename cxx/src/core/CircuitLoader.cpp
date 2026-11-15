@@ -93,7 +93,9 @@ void CircuitLoader::readModelLibrary(const std::string &text) {
         app->alert(Locale::LS("No models found in file"));
 }
 
-void CircuitLoader::readCircuit(const std::string &text, int flags) {
+void CircuitLoader::readCircuit(const std::string &textIn, int flags) {
+    // leading whitespace would keep an XML circuit from being recognized as one
+    const std::string text = jsTrimStart(textIn);
     // a post selection (Select/Drag Posts mode) refers to the old elements
     app->clearPostSelection();
     if (isModelLibrary(text)) {
