@@ -64,6 +64,9 @@ protected:
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *) override;
+    // zoom in/out, keeping the point under the mouse where it is
+    void wheelEvent(QWheelEvent *e) override;
+    QSize sizeHint() const override { return QSize(400, 400); }
 
 private:
     int findNearestPin(int x, int y);
@@ -84,7 +87,28 @@ private:
     int &sizeY;
     ChipPinEditorOptions options;
     int postCount = 0;
-    double scale = 1;
+
+    // view: screen = world * viewScale + viewOffset.  The chip is fitted to the widget, times
+    // zoom (mouse wheel).  viewCenter is the world point at the middle of the widget, or none
+    // to center the chip.
+    double viewScale = 1;
+    double viewOffsetX = 0;
+    double viewOffsetY = 0;
+    double zoom = 1;
+    std::optional<std::pair<double, double>> viewCenter;
+    static constexpr int VIEW_MARGIN = 40;
+    // panning the view by alt-dragging or middle-dragging (the mouse is grabbed while a
+    // button is down, so it follows the mouse outside the widget)
+    bool panning = false;
+    QPointF panStart;
+    double panCenterX = 0, panCenterY = 0, panScale = 1;
+
+    double fitScale() const;
+    void updateView();
+    double toWorldX(double x) const { return (x - viewOffsetX) / viewScale; }
+    double toWorldY(double y) const { return (y - viewOffsetY) / viewScale; }
+    double toScreenX(double x) const { return x * viewScale + viewOffsetX; }
+    double toScreenY(double y) const { return y * viewScale + viewOffsetY; }
 
     bool dragging = false;
     bool rubberBand = false;

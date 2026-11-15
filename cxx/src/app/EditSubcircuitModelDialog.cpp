@@ -97,6 +97,7 @@ bool EditSubcircuitModelDialog::createModel() {
 
 void EditSubcircuitModelDialog::createDialog() {
     QVBoxLayout *v = new QVBoxLayout(this);
+    setSizeGripEnabled(true);
 
     QLabel *title = new QLabel(LS("Edit Subcircuit Pin Layout"));
     QFont bold = title->font();
@@ -108,7 +109,7 @@ void EditSubcircuitModelDialog::createDialog() {
     ChipPinEditorOptions opts;
     opts.getLabel = [this] { return labelName(); };
     editor = new ChipPinEditor(app, model->extList, model->sizeX, model->sizeY, opts);
-    v->addWidget(editor);
+    v->addWidget(editor, 1);  // (grows when the dialog is resized)
 
     if (model->name.empty()) {
         v->addWidget(new QLabel(LS("Model Name")));

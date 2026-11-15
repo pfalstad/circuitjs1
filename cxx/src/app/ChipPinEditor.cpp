@@ -24,6 +24,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QWheelEvent>
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -39,7 +40,9 @@ static QString LS(const char *s) { return QString::fromStdString(Locale::LS(s));
 ChipPinEditor::ChipPinEditor(CirSim *a, std::vector<PinLayoutEntry> &e, int &sx, int &sy,
                              ChipPinEditorOptions opts)
     : app(a), entries(e), sizeX(sx), sizeY(sy), options(std::move(opts)) {
-    setFixedSize(400, 400);
+    // (it takes whatever space the dialog gives it, so the dialog can be resized)
+    setMinimumSize(100, 100);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setMouseTracking(true);
 
     chip.reset(SubcircuitChipElm::create(50, 50));
@@ -86,10 +89,42 @@ void ChipPinEditor::createPins() {
     chip->setPoints();
 
     // (the TS version does this in draw(); the mouse handlers need it before the next paint)
+    updateView();
+}
+
+double ChipPinEditor::fitScale() const {
     const Rectangle &bb = chip->boundingBox;
-    double scalew = 400.0 / (bb.width + bb.x * 2);
-    double scaleh = 400.0 / (bb.height + bb.y * 2);
-    scale = 1 / std::min(scalew, scaleh);
+    double m = VIEW_MARGIN * 2;
+    return std::min(width() / (bb.width + m), height() / (bb.height + m));
+}
+
+void ChipPinEditor::updateView() {
+    const Rectangle &bb = chip->boundingBox;
+    viewScale = fitScale() * zoom;
+    double cx = viewCenter ? viewCenter->first : bb.x + bb.width / 2;
+    double cy = viewCenter ? viewCenter->second : bb.y + bb.height / 2;
+    viewOffsetX = width() / 2.0 - cx * viewScale;
+    viewOffsetY = height() / 2.0 - cy * viewScale;
+}
+
+void ChipPinEditor::wheelEvent(QWheelEvent *e) {
+    e->accept();
+    updateView();
+    double ex = e->position().x(), ey = e->position().y();
+    double wx = toWorldX(ex), wy = toWorldY(ey);
+    // the browser's deltaY, in pixels
+    QPoint pd = e->pixelDelta();
+    double dy = !pd.isNull() ? -pd.y() : -e->angleDelta().y() * 100.0 / 120.0;
+    zoom = std::max(0.25, std::min(10.0, zoom * std::exp(-dy * 0.002)));
+    if (std::abs(zoom - 1) < 0.04) {
+        // back to the fitted view
+        zoom = 1;
+        viewCenter.reset();
+    } else {
+        double k = fitScale() * zoom;
+        viewCenter = std::make_pair(wx - (ex - width() / 2.0) / k, wy - (ey - height() / 2.0) / k);
+    }
+    update();
 }
 
 void ChipPinEditor::paintEvent(QPaintEvent *) {
@@ -98,7 +133,8 @@ void ChipPinEditor::paintEvent(QPaintEvent *) {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.setColor(app->getBackgroundColor());
     g.fillRect(0, 0, width(), height());
-    g.setTransform(1 / scale, 0, 0, 1 / scale, 0, 0);
+    updateView();
+    g.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
     g.setFont(CircuitElm::unitsFont);
     g.setLineCap(Graphics::CAP_ROUND);
     chip->setLabel(options.getLabel ? options.getLabel() : std::nullopt);
@@ -118,15 +154,37 @@ void ChipPinEditor::paintEvent(QPaintEvent *) {
 }
 
 void ChipPinEditor::mousePressEvent(QMouseEvent *e) {
+    if (e->button() == Qt::MiddleButton || (e->button() == Qt::LeftButton && (e->modifiers() & Qt::AltModifier))) {
+        // pan the view
+        updateView();
+        panning = true;
+        panStart = e->position();
+        panCenterX = toWorldX(width() / 2.0);
+        panCenterY = toWorldY(height() / 2.0);
+        panScale = viewScale;
+        setCursor(Qt::ClosedHandCursor);
+        return;
+    }
     if (e->button() == Qt::LeftButton)
         onMouseDown((int) e->position().x(), (int) e->position().y(), e->modifiers() & Qt::ShiftModifier);
 }
 
 void ChipPinEditor::mouseMoveEvent(QMouseEvent *e) {
+    if (panning) {
+        viewCenter = std::make_pair(panCenterX - (e->position().x() - panStart.x()) / panScale,
+                                    panCenterY - (e->position().y() - panStart.y()) / panScale);
+        update();
+        return;
+    }
     mouseMoved((int) e->position().x(), (int) e->position().y());
 }
 
 void ChipPinEditor::mouseReleaseEvent(QMouseEvent *) {
+    if (panning) {
+        panning = false;
+        unsetCursor();
+        return;
+    }
     onMouseUp();
 }
 
@@ -179,8 +237,8 @@ int ChipPinEditor::findNearestPin(int x, int y) {
         const Pin &p = chip->pins[i];
         if (p.busZ > 0)
             continue;
-        double dx = x * scale - p.textloc.x;
-        double dy = y * scale - p.textloc.y;
+        double dx = toWorldX(x) - p.textloc.x;
+        double dy = toWorldY(y) - p.textloc.y;
         double dist = std::hypot(dx, dy);
         if (dist < bestDist) {
             bestDist = dist;
@@ -214,8 +272,8 @@ int ChipPinEditor::firstSelectedSide() const {
 
 // is pin i's label inside the rubber band (in canvas coordinates)?
 bool ChipPinEditor::inRubberBand(int i, int x1, int y1, int x2, int y2) const {
-    int px = (int) (chip->pins[i].textloc.x / scale);
-    int py = (int) (chip->pins[i].textloc.y / scale);
+    int px = (int) toScreenX(chip->pins[i].textloc.x);
+    int py = (int) toScreenY(chip->pins[i].textloc.y);
     return px >= x1 && px <= x2 && py >= y1 && py <= y2;
 }
 
@@ -276,7 +334,7 @@ void ChipPinEditor::mouseMoved(int x, int y) {
         if (selectedPin < 0)
             return;
         int pos[2] = {0, 0};
-        if (!chip->getPinPos((int) (x * scale), (int) (y * scale), dragCurrentSide, pos))
+        if (!chip->getPinPos((int) toWorldX(x), (int) toWorldY(y), dragCurrentSide, pos))
             return;
         dragCurrentSide = pos[1];
 

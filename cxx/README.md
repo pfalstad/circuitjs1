@@ -34,14 +34,16 @@ chosen in Other Options, or the system language, is used.
 
 Mouse: hover shows info, click toggles switches and logic inputs, drag moves
 elements, Cmd-drag moves posts, Shift-drag selects, Option-drag or right-drag
-pans, wheel zooms.  Dragging a toolbar icon (or a palette variant) onto the canvas
+pans, wheel zooms (Shift- or Ctrl-wheel always zooms; Option- or Cmd-wheel always edits the
+part under the mouse).  Dragging a toolbar icon (or a palette variant) onto the canvas
 drops that element there (Shift makes it vertical, Escape cancels).  A new element's
 ends, or a dragged post, split any wire or element lead they land on, and the edit
 dialog opens for a newly placed element.  The wheel over a resistor, capacitor or inductor steps its value
 through the E12 series, and over a transistor or MOSFET flips its type (Enter or a
 click keeps the change, Escape reverts it; Options → Edit Values With Mouse Wheel).
 The command palette (Edit → Find Component/Command..., the toolbar's search button, `/`,
-or Shift twice) searches the menu commands, element modes and example circuits.
+or Shift twice) searches the menu commands, element modes and example circuits.  The search field at the right end of
+the toolbar finds parts to place, by English or localized name or common abbreviations.
 
 ## Test
     (cd tools && npm install)          # once, for the TS harness

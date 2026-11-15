@@ -64,6 +64,7 @@ EditPinLayoutDialog::EditPinLayoutDialog(CirSim *a, ChipElm *c, PinLayoutModel *
     }
 
     QVBoxLayout *v = new QVBoxLayout(this);
+    setSizeGripEnabled(true);
     QLabel *title = new QLabel(QString::fromStdString(titleText));
     QFont bold = title->font();
     bold.setBold(true);
@@ -81,7 +82,7 @@ EditPinLayoutDialog::EditPinLayoutDialog(CirSim *a, ChipElm *c, PinLayoutModel *
         pin.clock = cp.clock;
     };
     editor = new ChipPinEditor(app, entries, sizeX, sizeY, opts);
-    v->addWidget(editor);
+    v->addWidget(editor, 1);  // (grows when the dialog is resized)
     v->addLayout(editor->createSizeControls());
 
     QHBoxLayout *nameRow = new QHBoxLayout();
