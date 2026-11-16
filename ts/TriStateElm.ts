@@ -30,7 +30,7 @@ import { Point } from "./Point";
 import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
-import { chipStart } from "./digital/chip_desc";
+import { chipStart, MAX_PINS } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis, DigitalTriStateDriver } from "./digital/DigitalGraphBuilder";
 import { parseFloatStrict } from "./NumberParse";
@@ -164,7 +164,32 @@ export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
         }
         pinMap.set(this.controlNode(), controlPin);
 
+        // The raw enable and each bit's raw data as cells of their own, for a charge-storing
+        // node's keeper (see DigitalTriStateKeeper). Same delay on both, and a control change
+        // touches only the enable cell, so the keeper never sees a half-updated pair. Skipped
+        // past the pin limit (the keeper then isn't used for this element).
+        if (this.keeperPinsFit()) {
+            desc.push(chipStart((pin) => { pin[this.enablePin()] = pin[controlPin]; })
+                .inputPins(controlPin).outputPin(this.enablePin())
+                .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
+            for (let i = 0; i < n; i++) {
+                const dataPin = i + 1, bufPin = this.dataBufPin(i);
+                desc.push(chipStart((pin) => { pin[bufPin] = pin[dataPin]; })
+                    .inputPins(dataPin).outputPin(bufPin)
+                    .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
+            }
+        }
+
         return { desc, pinMap };
+    }
+
+    private enablePin(): number { return 2 * this.busWidth + 2; }
+    private dataBufPin(bit: number): number { return 2 * this.busWidth + 3 + bit; }
+    private keeperPinsFit(): boolean { return this.dataBufPin(this.busWidth - 1) <= MAX_PINS; }
+
+    digitalTriStateKeeperPins(postIndex: number): { data: number; enable: number } | null {
+        if (!this.isTriStateOutput(postIndex) || !this.keeperPinsFit()) return null;
+        return { data: this.dataBufPin(postIndex - this.busWidth), enable: this.enablePin() };
     }
 
     isTriStateOutput(postIndex: number): boolean {

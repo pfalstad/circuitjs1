@@ -113,6 +113,46 @@ describe("tri-state bus sharing (DigitalGraphBuilder OR-merge)", () => {
         warn.mockRestore();
     });
 
+    // Regression (xreg circuit): a logic input sharing a bus with a tri-state output used to be
+    // flagged as a wiring conflict, and the first-listed driver - here the disabled tri-state -
+    // won, pinning the bus at 0 regardless of the logic input.
+    it("merges a single ordinary driver with tri-state outputs on one node", () => {
+        const warn = vi.spyOn(console, "log").mockImplementation(() => {});
+        const data = manualSource(0);
+        const control = manualSource(0); // disabled
+        const driver = makeTriState();
+        driver.highVoltage = 5;
+        const input = manualSource(1);   // ordinary (non-tri-state) driver, listed after
+        (input as any).highVoltage = 5;
+        const sink = probe();
+
+        connect({ elm: data, num: 0 }, { elm: driver, num: 0 });
+        connect({ elm: control, num: 0 }, { elm: driver, num: driver.controlNode() });
+        connect({ elm: driver, num: 1 }, { elm: input, num: 0 }, { elm: sink, num: 0 });
+
+        const elmList = [data, control, driver, input, sink];
+        const graph = buildDigitalCircuit(elmList);
+        data.chip = graph.chipsByElm.get(data)![0];
+        control.chip = graph.chipsByElm.get(control)![0];
+        input.chip = graph.chipsByElm.get(input)![0];
+        graph.circuit.run(20);
+
+        expect(warn).not.toHaveBeenCalled();
+        const sinkChip = graph.chipsByElm.get(sink)![0];
+        expect(sinkChip.inputLinks[0].chip.output).toBe(1);
+        syncDigitalToNodesNew(elmList, graph);
+        expect(driver.nodes[1].v).toBe(5);
+
+        input.set(0);
+        graph.circuit.run(20);
+        expect(sinkChip.inputLinks[0].chip.output).toBe(0);
+
+        input.set(1);
+        graph.circuit.run(20);
+        expect(sinkChip.inputLinks[0].chip.output).toBe(1);
+        warn.mockRestore();
+    });
+
     // Regression for the real bug report: syncDigitalToNodesNew() used to resolve each driver's
     // OWN chip and write nodes[postIndex].v with it, so on a shared bus whichever element sorts
     // LAST in elmList silently won regardless of which one was actually enabled - a disabled
@@ -146,5 +186,60 @@ describe("tri-state bus sharing (DigitalGraphBuilder OR-merge)", () => {
         syncDigitalToNodesNew(elmList, graph);
         expect(driverA.nodes[1].v).toBe(5); // driverA (enabled, data=1) should win the bus
         expect(driverB.nodes[1].v).toBe(5); // same shared node - driverB must report the same value
+    });
+});
+
+describe("charge storage (capacitor on a tri-state node)", () => {
+    function cap() { return { nodes: [] as any[], digitalHoldsCharge: () => true }; }
+
+    function build(withCap: boolean) {
+        const data = manualSource(1);
+        const control = manualSource(1);
+        const driver = makeTriState();
+        driver.highVoltage = 5;
+        const sink = probe();
+        connect({ elm: data, num: 0 }, { elm: driver, num: 0 });
+        connect({ elm: control, num: 0 }, { elm: driver, num: driver.controlNode() });
+        const posts = [{ elm: driver, num: 1 }, { elm: sink, num: 0 }];
+        if (withCap) posts.push({ elm: cap(), num: 0 });
+        connect(...posts);
+        const elmList = [data, control, driver, sink];
+        const graph = buildDigitalCircuit(elmList);
+        data.chip = graph.chipsByElm.get(data)![0];
+        control.chip = graph.chipsByElm.get(control)![0];
+        graph.circuit.run(1000);
+        const bus = () => graph.chipsByElm.get(sink)![0].inputLinks[0].chip.output;
+        return { data, control, driver, graph, elmList, bus };
+    }
+
+    it("holds the last driven value while the only driver is disabled", () => {
+        const { data, control, driver, graph, elmList, bus } = build(true);
+        expect(bus()).toBe(1);
+
+        control.set(0);                 // disable: node keeps its charge
+        graph.circuit.run(1000);
+        expect(bus()).toBe(1);
+        syncDigitalToNodesNew(elmList, graph);
+        expect(driver.nodes[1].v).toBe(5);
+
+        data.set(0);                    // data changes while disabled: no effect
+        graph.circuit.run(1000);
+        expect(bus()).toBe(1);
+
+        control.set(1);                 // re-enable with data 0: node discharges
+        graph.circuit.run(1000);
+        expect(bus()).toBe(0);
+
+        control.set(0);
+        data.set(1);
+        graph.circuit.run(1000);
+        expect(bus()).toBe(0);          // and holds the 0
+    });
+
+    it("reads 0 when disabled without a capacitor", () => {
+        const { control, graph, bus } = build(false);
+        control.set(0);
+        graph.circuit.run(1000);
+        expect(bus()).toBe(0);
     });
 });

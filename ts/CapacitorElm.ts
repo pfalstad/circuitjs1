@@ -46,6 +46,11 @@ export class CapacitorElm extends CircuitElm {
     static readonly FLAG_BACK_EULER = 2;
     static readonly FLAG_RESISTANCE = 4;
 
+    /** The digital engine can't simulate the charge, but a capacitor on a node driven only by
+     * tri-state outputs makes that node hold its last value while they're all disabled (see
+     * DigitalChargeStorage in digital/DigitalGraphBuilder.ts). */
+    digitalHoldsCharge(): boolean { return true; }
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {

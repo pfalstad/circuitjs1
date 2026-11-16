@@ -15,7 +15,7 @@
 
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
-import { chipStart } from "./chip_desc";
+import { chipStart, MAX_PINS } from "./chip_desc";
 import type { ChipDesc, ChipLogic, CustomLogic } from "./chip_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
@@ -147,6 +147,32 @@ export function isDigitalTriStateReadback(elm: any): elm is DigitalTriStateReadb
     return elm != null && typeof elm.digitalTriStateReadbackPin === "function";
 }
 
+/**
+ * Implemented by a tri-state driver that can also export its raw ENABLE and DATA as output cells
+ * of their own (internal pins within its digitalSynthesis() desc), so a charge-storing node (see
+ * DigitalChargeStorage below) can tell "disabled" apart from "enabled, driving 0" - the
+ * AND(enable, data) output alone can't. Both cells must have the same delay: switching the
+ * enable then changes only the enable cell, so the keeper can't sample a half-updated pair.
+ */
+export interface DigitalTriStateKeeper {
+    digitalTriStateKeeperPins(postIndex: number): { data: number; enable: number } | null;
+}
+
+export function isDigitalTriStateKeeper(elm: any): elm is DigitalTriStateKeeper {
+    return elm != null && typeof elm.digitalTriStateKeeperPins === "function";
+}
+
+/** Implemented by a non-digital element (a capacitor) whose presence on a node means the node
+ * should HOLD its last driven value while nothing drives it, instead of reading 0 - see
+ * resolveNodeDrivers()'s keeper cell. */
+export interface DigitalChargeStorage {
+    digitalHoldsCharge(): boolean;
+}
+
+function nodeHoldsCharge(node: any): boolean {
+    return (node?.links ?? []).some((l: any) => typeof l.elm?.digitalHoldsCharge === "function" && l.elm.digitalHoldsCharge());
+}
+
 interface DriverCandidate {
     entry: SynthEntry;
     pin: number;
@@ -178,14 +204,15 @@ function collectOutputsByNode(synthMap: Map<any, SynthEntry>): Map<any, DriverCa
 /**
  * Resolves every node that has at least one digital-output candidate down to a single
  * (entry, pin) that actually drives it, plus any extra CircuitEntry[] needed to make that true.
- * A node with exactly one candidate resolves to it directly, same as before. A node with several
- * candidates that are NOT all tri-state outputs (see DigitalTriStateDriver above) is a genuine
- * wiring conflict - same "multiple drivers, pick the first and warn" fallback as before. A node
- * with several candidates that ARE all tri-state outputs gets a synthesized glue chip: one OR
- * cell wide enough to combine every candidate's own AND(enable, data) output - each disabled
- * driver already contributes 0 (see DigitalTriStateDriver's own docstring), so ORing them together
- * reproduces "whichever one is enabled wins" without ever needing a real third state. That glue
- * chip becomes the driver every other input sharing this node resolves to.
+ * A node with exactly one candidate resolves to it directly, same as before. A node with two or
+ * more candidates that are NOT tri-state outputs (see DigitalTriStateDriver above) is a genuine
+ * wiring conflict - same "multiple drivers, pick the first and warn" fallback as before. Any other
+ * shared node (tri-state outputs, plus at most one ordinary driver - e.g. a logic input on a bus
+ * that tri-state buffers also drive) gets a synthesized glue chip: one OR cell wide enough to
+ * combine every candidate's output - each disabled tri-state driver already contributes 0 (see
+ * DigitalTriStateDriver's own docstring), so ORing them together reproduces "whichever one is
+ * enabled wins" (the ordinary driver counting as always enabled) without ever needing a real third
+ * state. That glue chip becomes the driver every other input sharing this node resolves to.
  */
 function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
     byNode: Map<any, { entry: SynthEntry; pin: number }>;
@@ -199,12 +226,42 @@ function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
     for (const [node, candidates] of candidatesByNode) {
         let resolved: { entry: SynthEntry; pin: number };
 
-        if (candidates.length === 1) {
+        const isTri = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
+        const plainDrivers = candidates.filter(c => !isTri(c)).length;
+        // A capacitor on a node of tri-state drivers makes it a dynamic storage node: while
+        // every driver is disabled it keeps its last value. Needs every tri-state candidate's
+        // raw data and enable (see DigitalTriStateKeeper); a plain driver is always enabled, so it never holds.
+        const keeperPins = candidates.map(c =>
+            isTri(c) && isDigitalTriStateKeeper(c.elm) ? c.elm.digitalTriStateKeeperPins(c.postIndex) : null);
+        const keeper = plainDrivers === 0 && 2 * candidates.length + 1 <= MAX_PINS
+            && keeperPins.every(p => p != null) && nodeHoldsCharge(node);
+
+        if (keeper) {
+            // Inputs: data_i on pin 2i+1, enable_i on 2i+2 (the driver's raw data/enable cells);
+            // output = OR of the enabled drivers' data while any is enabled, else the previous
+            // output.
+            const name = "_keep" + trisCounter++;
+            const n = candidates.length;
+            const outPin = 2 * n + 1;
+            const logic: ChipLogic = (pin, prevPin) => {
+                let data = 0, enabled = 0;
+                for (let i = 0; i < n; i++) { data |= pin[2 * i + 1] & pin[2 * i + 2]; enabled |= pin[2 * i + 2]; }
+                pin[outPin] = enabled ? data : prevPin[outPin];
+            };
+            const inPins = Array.from({ length: 2 * n }, (_, i) => i + 1);
+            const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin).prevOutputPin(outPin)];
+            const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
+
+            extra.push(CHIP(name, desc));
+            candidates.forEach((c, i) => {
+                extra.push(CONNECTION(c.entry.name, keeperPins[i]!.data, name, 2 * i + 1));
+                extra.push(CONNECTION(c.entry.name, keeperPins[i]!.enable, name, 2 * i + 2));
+            });
+            resolved = { entry: mergeEntry, pin: outPin };
+        } else if (candidates.length === 1) {
             resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
         } else {
-            const allTriState = candidates.every(c =>
-                isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex));
-            if (!allTriState) {
+            if (plainDrivers > 1) {
                 console.log("digital wiring: multiple drivers for a shared node");
                 resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
             } else {
@@ -537,11 +594,11 @@ export function digitalOutputChip<C extends EngineChip>(elm: any, postIndex: num
  * instead of digitalOutputChip() directly, or it silently shows whichever driver on the shared
  * node happens to resolve last rather than the actual bus value. */
 export function digitalOutputChipResolved<C extends EngineChip>(elm: any, postIndex: number, graph: DigitalGraph<C, EngineCircuit>): C | null {
-    if (isDigitalTriStateDriver(elm) && elm.isTriStateOutput(postIndex)) {
-        const node = (elm as any).nodes?.[postIndex];
-        const chip = node != null ? graph.triStateChipByNode.get(node) : undefined;
-        if (chip) return chip;
-    }
+    // Any output post, not just tri-state-marked ones: an ordinary driver can share a merged node
+    // too (see resolveNodeDrivers()). For an unshared node this is just the post's own cell.
+    const node = (elm as any).nodes?.[postIndex];
+    const chip = node != null ? graph.triStateChipByNode.get(node) : undefined;
+    if (chip) return chip;
     return digitalOutputChip(elm, postIndex, graph.chipsByElm);
 }
 
