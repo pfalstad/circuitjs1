@@ -176,7 +176,11 @@ export class ScrollValuePopup {
     }
 
     doDeltaY(dy: number): void {
-        this.deltaY += dy / (window.devicePixelRatio || 1);
+        // a single wheel event moves at most one step (times the sensitivity).  a mouse wheel
+        // notch's pixel deltaY varies a lot by browser/platform (~100 in Chromium, more in
+        // Firefox), which otherwise skipped values; small trackpad deltas still accumulate
+        dy /= (window.devicePixelRatio || 1);
+        this.deltaY += Math.max(-ScrollValuePopup.scale, Math.min(ScrollValuePopup.scale, dy));
         this.setElmValue();
         this.setupLabels();
     }

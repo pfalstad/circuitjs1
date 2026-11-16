@@ -64,6 +64,12 @@ export class Dialog {
             if (e.clientX < r.left || e.clientX > r.right ||
                 e.clientY < r.top || e.clientY > r.bottom)
                 return;
+            // the resize grip: leave it to the browser, but keep the top left corner where it
+            // is while resizing (rather than resizing about the center)
+            if (this.resizable && e.clientX > r.right - 18 && e.clientY > r.bottom - 18) {
+                this.pinPosition();
+                return;
+            }
             this.dlgDragStartX = e.clientX;
             this.dlgDragStartY = e.clientY;
             this.dragOrigLeft = r.left;
@@ -83,13 +89,7 @@ export class Dialog {
                 if (Math.abs(dx) < 3 && Math.abs(dy) < 3)
                     return;
                 this.dlgDragging = true;
-                // switch from the browser's automatic centering to explicit
-                // positioning, keeping the dialog where it currently is
-                const r = this.dialogEl.getBoundingClientRect();
-                this.dialogEl.style.margin = "0";
-                this.dialogEl.style.position = "fixed";
-                this.dialogEl.style.left = r.left + "px";
-                this.dialogEl.style.top = r.top + "px";
+                const r = this.pinPosition();
                 this.dragOrigLeft = r.left;
                 this.dragOrigTop = r.top;
                 const sel = window.getSelection();
@@ -109,6 +109,33 @@ export class Dialog {
         };
         this.dialogEl.addEventListener("pointerup", endDrag);
         this.dialogEl.addEventListener("pointercancel", endDrag);
+    }
+
+    // switch from the browser's automatic centering to explicit positioning, keeping the
+    // dialog where it currently is
+    private pinPosition(): DOMRect {
+        const r = this.dialogEl.getBoundingClientRect();
+        this.dialogEl.style.margin = "0";
+        this.dialogEl.style.position = "fixed";
+        this.dialogEl.style.left = r.left + "px";
+        this.dialogEl.style.top = r.top + "px";
+        return r;
+    }
+
+    // let the user resize the dialog with a grip in the bottom right corner.  The dialog's
+    // contents are laid out in a column; give the part that should grow flex: 1.
+    private resizable: boolean = false;
+    protected makeResizable(): void {
+        this.resizable = true;
+        this.dialogEl.classList.add("resizableDialog");
+    }
+
+    // fix the dialog's size at its natural size, so that flexible contents fill it
+    // (call after it's shown)
+    protected fixSize(): void {
+        const r = this.dialogEl.getBoundingClientRect();
+        this.dialogEl.style.width = r.width + "px";
+        this.dialogEl.style.height = r.height + "px";
     }
 
     // move the dialog to the given viewport position, keeping it on screen
@@ -144,6 +171,9 @@ export class Dialog {
         }
         document.body.removeChild(this.dialogEl);
     }
+
+    // true if this node is inside the dialog
+    contains(n: Node | null): boolean { return n != null && this.dialogEl.contains(n); }
 
     enterPressed(): void {
         if (this.closeOnEnter && this.apply())

@@ -6,7 +6,7 @@ export class FindPathInfo {
     static readonly SHORT   = 3;
     static readonly CAP_V   = 4;
 
-    visited: boolean[];
+    visited: Uint8Array;
     dest: CircuitNode;
     firstElm: any;  // CircuitElm — typed as any to avoid circular import
     type: number;
@@ -19,7 +19,7 @@ export class FindPathInfo {
         this.type = type_;
         this.firstElm = elm_;
         this.sim = sim_;
-        this.visited = new Array(sim_.nodeList.length).fill(false);
+        this.visited = new Uint8Array(sim_.nodeList.length);
     }
 
     // look through circuit for loop starting at node n1 of firstElm, for a path back to
@@ -32,7 +32,7 @@ export class FindPathInfo {
         if (this.visited[n1.index])
             return false;
 
-        this.visited[n1.index] = true;
+        this.visited[n1.index] = 1;
         for (let i = 0; i < n1.links.length; i++) {
             const cnl = n1.links[i];
             const ce = cnl.elm;

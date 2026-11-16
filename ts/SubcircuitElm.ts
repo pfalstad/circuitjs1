@@ -42,8 +42,12 @@ export class SubcircuitElm extends CompositeElm {
     inputCount: number = 0;
     outputCount: number = 0;
     model: SubcircuitModel = null!;
+    // name of the model compElmList was built from
+    builtModelName: string | null = null;
     highVoltage: number = 0;
     static lastModelName: string = "default";
+    // models whose elements are being built, to catch a subcircuit that contains itself
+    private static building = new Set<SubcircuitModel>();
     static readonly FLAG_SMALL = 2;
 
     constructor(xx: number, yy: number);
@@ -91,7 +95,7 @@ export class SubcircuitElm extends CompositeElm {
 
     undumpXml(xml: CircuitXMLDeserializer): void {
         this.modelName    = xml.parseStringAttr("mo", this.modelName)!;
-        this.highVoltage  = xml.parseDoubleAttr("hv", 0);
+        this.highVoltage  = xml.parseDoubleAttr("hv", this.highVoltage);
         this.updateModels();
         super.undumpXml(xml);
     }
@@ -154,14 +158,37 @@ export class SubcircuitElm extends CompositeElm {
         if (st !== undefined) {
             this._updateModels(st);
         } else {
+            // rebuilding from the same model (e.g. after it was edited): keep the inner
+            // elements' state (SRAM contents etc.), matched up by index
+            let state: Element | null = null;
+            if (this.builtModelName === this.modelName && this.compElmList?.length > 0) {
+                const doc = document.implementation.createDocument(null, "cir", null);
+                state = doc.documentElement;
+                this.dumpXmlState(doc, state);
+            }
             this.model = null!;
             this._updateModels(null);
+            if (state !== null && this.model != null) {
+                const xml = new CircuitXMLDeserializer(CircuitElm.app);
+                xml.parseChildElement(state);
+                try {
+                    this.undumpChildState(xml, true);
+                } catch (e) {
+                    CirSim.console("couldn't restore subcircuit state: " + e);
+                }
+            }
         }
     }
 
     private _updateModels(st: StringTokenizer | null): void {
         if (this.model !== null && this.model.name === this.modelName) return;
         this.model = SubcircuitModel.getModelWithName(this.modelName)!;
+        if (this.model && SubcircuitElm.building.has(this.model)) {
+            // the model contains itself (directly or through other subcircuits), which would
+            // expand forever; leave this copy empty, drawn as a placeholder
+            CirSim.console("subcircuit " + this.modelName + " contains itself");
+            this.model = null!;
+        }
         if (!this.model) {
             // referenced subcircuit model isn't available (e.g. not in scope in this circuit).
             // fall back to an empty/placeholder state instead of leaving fields uninitialized,
@@ -169,6 +196,7 @@ export class SubcircuitElm extends CompositeElm {
             // updateModels() call (if the model becomes available) can still resolve it
             this.postCount = 0;
             this.compElmList = [];
+            this.builtModelName = null;
             this.numPosts = this.numNodes = 0;
             this.posts = [];
             this.allocNodes();
@@ -179,11 +207,17 @@ export class SubcircuitElm extends CompositeElm {
         const externalNodes = new Array(this.postCount);
         for (let i = 0; i < this.postCount; i++)
             externalNodes[i] = this.model.extList[i].node;
-        if (st !== null) {
-            this.loadComposite(st, this.model.getNodeList(), externalNodes);
-        } else {
-            this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
+        SubcircuitElm.building.add(this.model);
+        try {
+            if (st !== null) {
+                this.loadComposite(st, this.model.getNodeList(), externalNodes);
+            } else {
+                this.loadCompositeXml(this.model.getElmEntries(), externalNodes);
+            }
+        } finally {
+            SubcircuitElm.building.delete(this.model);
         }
+        this.builtModelName = this.model.name;
         this.propagateHighVoltage();
         this.allocNodes();
         this.setPoints();

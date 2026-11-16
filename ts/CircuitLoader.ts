@@ -17,7 +17,10 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { loadModelLibrary } from "./ModelTypes";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
+import { ElementFactory } from "./ElementFactory";
 import { SimulationManager } from "./SimulationManager";
 import { ScopeManager } from "./ScopeManager";
 import { Menus } from "./Menus";
@@ -51,6 +54,9 @@ export class CircuitLoader {
     static readonly RC_NO_CENTER    = 2;
     static readonly RC_SUBCIRCUITS  = 4;
     static readonly RC_KEEP_TITLE   = 8;
+    // restoring an earlier state of the same circuit (undo/redo, leaving a subcircuit editor),
+    // so keep its local models, including ones no element uses yet
+    static readonly RC_KEEP_MODELS  = 16;
 
     constructor(app: CirSim, sim: SimulationManager,
                 scopes: ScopeManager, menus: Menus) {
@@ -85,41 +91,88 @@ export class CircuitLoader {
         CircuitElm.voltageRange = 5;
         this.scopes.clearScopes();
         this.sim.lastIterTime = 0;
-        if (this.app.contextStack.length === 0) {
-            SubcircuitModel.clearLocalModels();
-        }
         if (this.app.ui.subcircuitStack.length > 0) {
+            // (the editor may be showing an inner element of an instance that's about to be replaced)
+            CirSim.editDialog?.closeDialog();
             this.app.ui.subcircuitStack.length = 0;
             this.app.ui.elmList = this.app.elmList;
             this.app.ui.updateSubcircuitPath();
         }
     }
 
-    // subcircuit library files (saved from the Subcircuit Manager) are XML circuit files
-    // containing only subcircuit models
-    static isSubcircuitLibrary(text: string): boolean {
-        return /^<cir\b[^>]*\bsublib="1"/.test(text);
+    // model library files (saved from the Model Manager) are XML circuit files containing
+    // only models, marked with lib="1" (sublib="1" in older files, which held only subcircuits)
+    static isModelLibrary(text: string): boolean {
+        return /^<cir\b[^>]*\b(sub)?lib="1"/.test(text);
     }
 
-    // load subcircuit models from a library file, making them global.  Leaves the current circuit alone.
-    readSubcircuitLibrary(text: string): void {
+    // load models from a library file, making them global.  Leaves the current circuit alone.
+    readModelLibrary(text: string): void {
         const doc = new DOMParser().parseFromString(text, "text/xml");
         const xml = new CircuitXMLDeserializer(this.app);
-        const models = SubcircuitModel.loadLibrary(xml, doc.documentElement);
-        // make any existing instances pick up the new definitions
-        for (const m of models)
-            this.app.refreshModels(m.name);
+        const models = loadModelLibrary(xml, doc.documentElement);
+        // make any existing elements and subcircuit instances pick up the new definitions
+        if (models.length > 0)
+            this.app.updateModels();
+        for (const tm of models)
+            if (tm.type.tag === "ccm")
+                this.app.refreshModels(tm.model.name);
         if (models.length === 0)
-            this.app.ui.showToast(Locale.LS("No subcircuits found in file"));
+            this.app.ui.showToast(Locale.LS("No models found in file"));
         else
-            this.app.ui.showToast(Locale.LS("Loaded subcircuits: ") + models.map(m => m.name).join(", "));
+            this.app.ui.showToast(Locale.LS("Loaded models: ") + models.map(tm => tm.model.name).join(", "));
     }
 
-    readCircuit(text: string, flags: number = 0): void {
-        if (CircuitLoader.isSubcircuitLibrary(text)) {
-            this.readSubcircuitLibrary(text);
+    // reads happen in the order they were asked for, even when an earlier one is still
+    // waiting for its classes
+    private pendingRead: Promise<void> | null = null;
+
+    // read a circuit (or a model library, or a clipboard being pasted), once the element
+    // classes it uses are loaded.  If they already are, it's read before this returns.
+    async readCircuit(text: string, flags: number = 0): Promise<void> {
+        // leading whitespace would keep an XML circuit from being recognized as one
+        text = text.trimStart();
+        const missing = ElementFactory.missing(CirSim.classesUsedBy(text));
+        if (missing.length === 0 && this.pendingRead == null) {
+            this.readCircuitNow(text, flags);
             return;
         }
+        const loading = ElementFactory.ensureLoaded(missing);
+        const prev = this.pendingRead;
+        const read = (async () => {
+            await prev?.catch(() => {});
+            try {
+                await loading;
+            } catch (e) {
+                // read what we can; the elements that couldn't be loaded are reported and left out
+                CirSim.console("can't load element classes: " + e);
+            }
+            this.readCircuitNow(text, flags);
+        })();
+        this.pendingRead = read;
+        try {
+            await read;
+        } finally {
+            if (this.pendingRead === read)
+                this.pendingRead = null;
+        }
+    }
+
+    // read a circuit whose element classes are all loaded: one that came from this session,
+    // like an undo state
+    readCircuitNow(text: string, flags: number = 0): void {
+        text = text.trimStart();
+        // a post selection (Select/Drag Posts mode) refers to the old elements
+        this.app.mouse?.clearPostSelection();
+        if (CircuitLoader.isModelLibrary(text)) {
+            this.readModelLibrary(text);
+            return;
+        }
+        // a different circuit, so drop the previous one's local models (but not when loading a
+        // subcircuit's contents to edit it)
+        if ((flags & (CircuitLoader.RC_RETAIN | CircuitLoader.RC_KEEP_MODELS)) === 0 &&
+                this.app.contextStack.length === 0)
+            ModelRegistry.clearAllLocal();
         if (text.startsWith("<")) {
 	    if ((flags & CircuitLoader.RC_RETAIN) == 0)
 		this.clearCircuit();
@@ -138,7 +191,7 @@ export class CircuitLoader {
             const response = await fetch(url);
             if (response.ok) {
                 const text = await response.text();
-                this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
+                await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
                 this.app.allowSave(false);
                 this.app.unsavedChanges = false;
                 this.app.savedFlag = true;
@@ -312,7 +365,7 @@ export class CircuitLoader {
 	    const response = await fetch(url);
 	    if (response.ok) {
 		const text = await response.text();
-		this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
+		await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
 		this.app.allowSave(false);
 		this.app.unsavedChanges = false;
 		this.app.savedFlag = true;

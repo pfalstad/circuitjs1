@@ -32,7 +32,7 @@ function setup() {
         chip.circuit.globalTime = now;
         sim.t = now;
         plot.fillFromDigitalHistory();
-        trigger.check([plot], false, sim, SPC, W);
+        trigger.check([plot], plot, false, sim, SPC, W);
     };
     const pulse = (rise: number, fall: number) => {
         history.push({ time: rise, value: 1 }, { time: fall, value: 0 });

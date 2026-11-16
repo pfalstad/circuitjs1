@@ -42,6 +42,9 @@ export class BusLogicInputElm extends SwitchElm {
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xxOrXa, yyOrYa);
+            // (the base class allocated the nodes before busWidth was set, which happens after
+            // super() returns, so it allocated one; allocate one per post)
+            this.allocNodes();
         } else {
             super(xxOrXa, yyOrYa, xb, yb!, f!, st!);
         }
@@ -58,10 +61,17 @@ export class BusLogicInputElm extends SwitchElm {
             CircuitXMLSerializer.dumpAttr(elem, "lo", this.loV);
     }
 
+    dumpXmlState(doc: Document, elem: Element): void {
+        super.dumpXmlState(doc, elem);
+        // (for top-level elements, dumpXml may have written it already)
+        if (elem.getAttribute("va") === null)
+            CircuitXMLSerializer.dumpAttr(elem, "va", this.value);
+    }
+
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
         this.busWidth = xml.parseIntAttr("bw", this.busWidth);
-        this.value = xml.parseIntAttr("va", 0);
+        this.value = xml.parseIntAttr("va", this.value);
         this.hiV = xml.parseDoubleAttr("hi", this.hiV);
         this.loV = xml.parseDoubleAttr("lo", this.loV);
     }
@@ -129,6 +139,7 @@ export class BusLogicInputElm extends SwitchElm {
     }
 
     toggle(): void {
+        CircuitElm.recordToggle(this);
         this.value++;
         if (this.value >= (1 << this.busWidth))
             this.value = 0;

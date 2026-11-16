@@ -399,6 +399,35 @@ export class DMatrixSparseCSC {
         return dst;
     }
 
+    // the same as convert(), reading only the given entries (col*n+row, sorted); all others must be zero
+    static convertEntries(circuitMatrix: number[][], entries: number[], tol: number): DMatrixSparseCSC {
+        const n = circuitMatrix.length;
+        let nonzero = 0;
+        for (let k = 0; k !== entries.length; k++) {
+            const j = entries[k] % n;
+            if (circuitMatrix[j][(entries[k] - j) / n] !== 0)
+                nonzero++;
+        }
+        const dst = new DMatrixSparseCSC(n, n, nonzero);
+        dst.nz_length = 0;
+        dst.col_idx[0] = 0;
+        let col = 0;
+        for (let k = 0; k !== entries.length; k++) {
+            const j = entries[k] % n, i = (entries[k] - j) / n;
+            while (col < i)
+                dst.col_idx[++col] = dst.nz_length;
+            const value = circuitMatrix[j][i];
+            if (!(Math.abs(value) <= tol)) {
+                dst.nz_rows[dst.nz_length] = j;
+                dst.nz_values[dst.nz_length] = value;
+                ++dst.nz_length;
+            }
+        }
+        while (col < n)
+            dst.col_idx[++col] = dst.nz_length;
+        return dst;
+    }
+
     createCoordinateIterator(): { hasNext(): boolean; next(): CoordinateRealValue } {
         const matrix = this;
         const coordinate = new CoordinateRealValue();

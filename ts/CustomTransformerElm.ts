@@ -180,13 +180,13 @@ export class CustomTransformerElm extends CircuitElm {
         while (true) {
             const tok = tokens[ti++];
             let n = 0;
-            const parsed = parseFloatStrict(tok);
-            if (isNaN(parsed)) {
+            try {
+                n = parseFloatStrict(tok);
+            } catch (e) {
                 if (ei !== undefined)
-                    ei.setError("expected number, got '" + tok + "'");
+                    ei.setError(tok === undefined ? "expected number at end" : "expected number, got '" + tok + "'");
                 return false;
             }
-            n = parsed;
             if (n === 0) {
                 if (ei !== undefined)
                     ei.setError("turns ratio cannot be zero");

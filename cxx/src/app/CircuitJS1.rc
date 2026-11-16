@@ -1,0 +1,2 @@
+// Windows exe icon; Qt also uses IDI_ICON1 as the default window icon
+IDI_ICON1 ICON "CircuitJS1.ico"

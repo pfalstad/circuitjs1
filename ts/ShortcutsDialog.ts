@@ -159,6 +159,12 @@ export class ShortcutsDialog extends Dialog {
             if (menuItemIndex >= 0) {
                 const item = this.ui.mainMenuItems[menuItemIndex];
                 item.setShortcut(str);
+                // the element menu is built twice (right-click menu and Draw menu), so update
+                // the other copy of this item too
+                const name = this.ui.mainMenuItemNames[menuItemIndex];
+                for (let j = 0; j !== this.ui.mainMenuItems.length; j++)
+                    if (j !== menuItemIndex && this.ui.mainMenuItemNames[j] === name)
+                        this.ui.mainMenuItems[j].setShortcut(str);
                 if (str.length > 0)
                     this.sim.shortcuts.set(str.charCodeAt(0), this.ui.mainMenuItemNames[menuItemIndex]);
             } else if (menuItemIndex === -1) {

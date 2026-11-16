@@ -16,7 +16,6 @@
     You should have received a copy of the GNU General Public License
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
-import { parseIntStrict } from "./NumberParse";
 import { moduleBaseURL } from "./ModuleBase";
 
 // Simplified from util/Locale.java
@@ -51,6 +50,16 @@ export class Locale {
             return sm2;
 
         return s;
+    }
+
+    // Look up a catalog entry without the LS() fallback: returns null when the
+    // key is absent, so callers can tell "not translated" from "translated to
+    // the same text". Used for non-UI entries such as "search:<ElmClass>".
+    static lookup(s: string): string | null {
+        if (s == null || s.length === 0)
+            return null;
+        const sm = Locale.localizationMap.get(s);
+        return (sm != null) ? sm : null;
     }
 
     static weAreInUS(orCanada: boolean): boolean {
@@ -99,7 +108,7 @@ export class Locale {
             if (i + 5 < length && input.charAt(i) === '\\' && input.charAt(i + 1) === 'u') {
                 // Found a Unicode escape sequence
                 const hexCode = input.substring(i + 2, i + 6);
-                const codePoint = parseIntStrict(hexCode, 16);
+                const codePoint = /^[0-9a-fA-F]{4}$/.test(hexCode) ? parseInt(hexCode, 16) : NaN;
                 if (!isNaN(codePoint)) {
                     // Convert hex code to a Unicode character
                     result += String.fromCharCode(codePoint);
@@ -169,27 +178,35 @@ export class Locale {
         else
             lang = lang.replace(/-.*/, "");
 
-        if (lang.startsWith("en")) {
-            // no need to load locale file for English
-            Locale.localizationMap = new Map<string, string>();
+        // locale_en.txt is the base layer: it holds the language-neutral search
+        // abbreviations ("gnd", "vcc", "dff"), so they work in every locale.
+        // The selected language is loaded on top and overrides entries.
+        const base = await Locale.fetchCatalog("en");
+        if (lang === "en") {
+            Locale.localizationMap = base;
             return;
         }
 
+        const localized = await Locale.fetchCatalog(lang);
+        const merged = new Map<string, string>(base);
+        localized.forEach((value, key) => merged.set(key, value));
+        Locale.localizationMap = merged;
+    }
+
+    // Fetches and parses one catalog. A missing or broken file yields an empty
+    // map instead of throwing, so a locale without a catalog still works.
+    private static async fetchCatalog(lang: string): Promise<Map<string, string>> {
         const url = moduleBaseURL + "locale/locale_" + lang + ".txt";
         try {
             const response = await fetch(url);
             if (response.ok) {
                 const text = await response.text();
-                Locale.localizationMap = Locale.processLocale(text);
-            } else {
-                console.log("Bad file server response: " + response.statusText);
-                // if there was an error in retrieving the
-                // language, default to English (empty map)
-                Locale.localizationMap = new Map<string, string>();
+                return Locale.processLocale(text);
             }
+            console.log("Bad file server response: " + response.statusText);
         } catch (e) {
             console.log("failed file reading", e);
-            Locale.localizationMap = new Map<string, string>();
         }
+        return new Map<string, string>();
     }
 }

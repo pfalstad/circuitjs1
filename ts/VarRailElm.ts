@@ -127,4 +127,8 @@ export class VarRailElm extends RailElm {
         super.setMouseElm(v);
         this.slider?.draw();
     }
+
+    onMouseWheel(e: WheelEvent): void {
+        this.slider?.onMouseWheel(e);
+    }
 }

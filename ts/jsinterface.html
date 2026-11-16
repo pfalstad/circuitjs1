@@ -52,7 +52,9 @@ function importExportedCircuit() {
     alert("No exported circuit found.");
     return;
   }
-  sim.importCircuit(exportedCircuit, false);
+  // returns a promise, since the simulator may have to load code for some of the
+  // circuit's elements first.  the circuit has been read when it resolves
+  sim.importCircuit(exportedCircuit, false).then(() => console.log("imported"));
 }
 
 // called when simulator updates its display

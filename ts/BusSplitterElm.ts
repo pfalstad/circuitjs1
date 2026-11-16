@@ -95,7 +95,7 @@ export class BusSplitterElm extends ChipElm {
 
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         return null;
     }
     setChipEditValue(n: number, ei: EditInfo): void {
@@ -103,6 +103,10 @@ export class BusSplitterElm extends ChipElm {
             if (ei.value >= 2) {
                 this.bits = Math.floor(ei.value);
                 this.setupPins();
+                // (one node per post: the circuit analysis only gives this a node for each post
+                // that's connected to something, so without this, the new posts wouldn't have
+                // nodes, and showing the voltage of one, when the mouse is over it, would fail)
+                this.allocNodes();
                 this.setPoints();
             } else
                 ei.setError("must be >= 2");

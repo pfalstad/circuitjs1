@@ -135,6 +135,9 @@ export class RelayContactElm extends CircuitElm {
         this.setBbox(this.point1, this.point2, this.openhs);
     }
 
+    // what a scope shows (the info box uses switchCurrent itself)
+    getCurrent(): number { return this.switchCurrent; }
+
     getCurrentIntoNode(n: number): number {
         if (n === 0) return -this.switchCurrent;
         if (n === 1 + this.i_position) return this.switchCurrent;
@@ -163,7 +166,9 @@ export class RelayContactElm extends CircuitElm {
         }
     }
 
-    setPosition(i_position_: number, type_: number): void {
+    // (not setPosition(), which would replace CircuitElm.setPosition(x, y, x2, y2) and break
+    // loading XML files)
+    setContactPosition(i_position_: number, type_: number): void {
         this.i_position = this.isNormallyClosed() ? (1 - i_position_) : i_position_;
         this.type = type_;
     }

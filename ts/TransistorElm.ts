@@ -19,7 +19,6 @@
 
 import { CircuitElm } from "./CircuitElm";
 import { TransistorModel } from "./TransistorModel";
-import { EditTransistorModelDialog } from "./EditTransistorModelDialog";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -110,6 +109,8 @@ export class TransistorElm extends CircuitElm {
         this.geqBE = this.geqBC = this.ceqBE = this.ceqBC = 0;
         this.badIters = 0;
         this.localSubIters = 0;
+        // start from zero, not from the voltages that were loaded
+        this.justLoaded = false;
     }
 
     getDumpType(): number { return 't'.charCodeAt(0); }
@@ -126,8 +127,10 @@ export class TransistorElm extends CircuitElm {
     dumpXmlState(doc: Document, elem: Element): void {
         // "vBE"/"vBC" (mixed case) are correctly-named, not cross-wired like Java's
         // lowercase "vbe"/"vbc" (see undumpXml, which still accepts the old names)
-        CircuitXMLSerializer.dumpAttr(elem, "vBE", this.nodes[0].v - this.nodes[2].v);
-        CircuitXMLSerializer.dumpAttr(elem, "vBC", this.nodes[0].v - this.nodes[1].v);
+        // until the first step after a load, they're the ones that were loaded (the nodes'
+        // voltages are still 0)
+        CircuitXMLSerializer.dumpAttr(elem, "vBE", this.justLoaded ? this.lastvbe : this.nodes[0].v - this.nodes[2].v);
+        CircuitXMLSerializer.dumpAttr(elem, "vBC", this.justLoaded ? this.lastvbc : this.nodes[0].v - this.nodes[1].v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -717,9 +720,12 @@ export class TransistorElm extends CircuitElm {
         }
         if (n === 4) {
             const newModel = new TransistorModel(this.model);
-            const editDialog = new EditTransistorModelDialog(newModel, CirSim.theApp, this);
-            CirSim.diodeModelEditDialog = editDialog;
-            editDialog.show();
+            // the dialog is loaded when it's first needed
+            import("./EditTransistorModelDialog").then(({ EditTransistorModelDialog }) => {
+                const editDialog = new EditTransistorModelDialog(newModel, CirSim.theApp, this);
+                CirSim.diodeModelEditDialog = editDialog;
+                editDialog.show();
+            });
             return;
         }
         if (n === 5) {
@@ -728,9 +734,11 @@ export class TransistorElm extends CircuitElm {
                 window.alert(Locale.LS("This model cannot be modified.  Change the model name to allow customization."));
                 return;
             }
-            const editDialog = new EditTransistorModelDialog(this.model, CirSim.theApp, null);
-            CirSim.diodeModelEditDialog = editDialog;
-            editDialog.show();
+            import("./EditTransistorModelDialog").then(({ EditTransistorModelDialog }) => {
+                const editDialog = new EditTransistorModelDialog(this.model, CirSim.theApp, null);
+                CirSim.diodeModelEditDialog = editDialog;
+                editDialog.show();
+            });
             return;
         }
     }

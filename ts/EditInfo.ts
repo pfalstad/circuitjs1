@@ -31,8 +31,17 @@ export class EditInfo {
     noSliders: boolean = false;
     isColor: boolean = false;
     newColumn: boolean = false;
+    // field edits per-instance state (saved by dumpXmlState), so it can be edited even on
+    // elements inside a subcircuit instance, where other fields are read-only
+    isState: boolean = false;
+    // field changes the element's set of pins (bit count, pin options, ...), so it can't be
+    // changed while a pin layout model is attached (see ChipElm.pinLayout)
+    structural: boolean = false;
+    // shown but can't be changed
+    disabled: boolean = false;
     positive: boolean = false;
     nonNegative: boolean = false;
+    integer: boolean = false;
     minVal: number = 0;
     maxVal: number = 0;
     error: string | null = null;
@@ -77,6 +86,8 @@ export class EditInfo {
     setUnitStep(): EditInfo { this.unitStep = true; return this; }
     disallowSliders(): EditInfo { this.noSliders = true; return this; }
     setIsColor(): EditInfo { this.isColor = true; return this; }
+    setIsState(): EditInfo { this.isState = true; return this; }
+    setStructural(): EditInfo { this.structural = true; return this; }
     newColumnMethod(): EditInfo { this.newColumn = true; return this; }
     changeFlag(flags: number, bit: number): number {
         if (this.checkbox.getState())
@@ -92,6 +103,8 @@ export class EditInfo {
     setErrorFieldName(s: string): EditInfo { this.errorFieldName = s; return this; }
     setPositive(): EditInfo { this.positive = true; return this; }
     setNonNegative(): EditInfo { this.nonNegative = true; return this; }
+    // whole numbers only (implies dimensionless, so the stepper buttons step by 1)
+    setInteger(): EditInfo { this.integer = this.dimensionless = true; return this; }
 
     canCreateAdjustable(): boolean {
         return this.choice == null && this.checkbox == null && this.button == null &&

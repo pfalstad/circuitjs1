@@ -69,7 +69,7 @@ export class ADCElm extends ChipElm {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         return null;
     }
 

@@ -585,7 +585,7 @@
 "Add Audio Input"="Tilføj lydindgang"
 "Add CCII-"="Tilføj CCII-"
 "Add Comparator (Hi-Z/GND output)"="Tilføj komparator (Hi-Z/GND udgang)"
-"Add Counter w/ Load"="Tilføj tæller med load"
+"Add Counter w/ Load (9316)"="Tilføj tæller med load (9316)"
 "Add Cross Switch"="Tilføj kryds-switch"
 "Add Crystal"="Tilføj krystal"
 "Add Current-Controlled Current Source (CCCS)"="Tilføj strømstyret strømkilde (CCCS)"

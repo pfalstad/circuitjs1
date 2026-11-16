@@ -191,6 +191,7 @@ export class VCCSElm extends ChipElm {
 
     getPostCount(): number { return this.inputCount + 2; }
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
     getDumpType(): number { return 213; }
 
     getConnection(n1: number, n2: number): boolean {

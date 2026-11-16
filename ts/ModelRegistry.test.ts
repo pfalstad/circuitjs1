@@ -1,0 +1,170 @@
+import { describe, it, expect } from "vitest";
+import { ModelRegistry } from "./ModelRegistry";
+
+class M {
+    dumped = false;
+    constructor(public name: string) {}
+}
+
+describe("ModelRegistry", () => {
+    it("adds built-ins on first use, once", () => {
+        let calls = 0;
+        const reg: ModelRegistry<M> = new ModelRegistry<M>(() => { calls++; reg.setGlobal(new M("default")); });
+        expect(calls).toBe(0);
+        expect(reg.get("default")?.name).toBe("default");
+        expect(reg.has("default")).toBe(true);
+        expect(calls).toBe(1);
+        reg.reset();
+        expect(reg.has("default")).toBe(true);
+        expect(calls).toBe(2);
+    });
+
+    it("lets local models shadow global ones", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        expect(reg.get("a")).toBe(l);
+        expect(reg.models()).toEqual([l]);
+        expect(reg.isLocal(l)).toBe(true);
+        expect(reg.isGlobal(g)).toBe(true);
+        reg.clearLocal();
+        expect(reg.get("a")).toBe(g);
+    });
+
+    it("renames within the same tier", () => {
+        const reg = new ModelRegistry<M>();
+        const l = new M("a");
+        reg.setLocal(l);
+        reg.rename(l, "b");
+        expect(reg.hasLocal("b")).toBe(true);
+        expect(reg.has("a")).toBe(false);
+        expect(l.name).toBe("b");
+    });
+
+    it("adds a renamed model that wasn't registered to the local tier", () => {
+        const reg = new ModelRegistry<M>();
+        const m = new M("");
+        reg.rename(m, "");
+        expect(reg.models()).toEqual([]);
+        reg.rename(m, "a");
+        expect(reg.isLocal(m)).toBe(true);
+    });
+
+    it("loads into a new local model, shadowing a global one", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a");
+        reg.setGlobal(g);
+        const l = reg.getForLoad("a", () => new M(""));
+        expect(l).not.toBe(g);
+        expect(reg.isLocal(l)).toBe(true);
+        expect(reg.getForLoad("a", () => new M(""))).toBe(l);
+        expect(reg.get("a")).toBe(l);
+    });
+
+    it("leaves global models alone when loading an undo state", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a");
+        reg.setGlobal(g);
+        const l = new M("b");
+        reg.setLocal(l);
+        ModelRegistry.loadingUndoState = true;
+        try {
+            // a global model isn't shadowed; its definition goes into a discarded model
+            const ga = reg.getForLoad("a", () => new M(""));
+            expect(ga).not.toBe(g);
+            expect(reg.hasLocal("a")).toBe(false);
+            expect(reg.get("a")).toBe(g);
+            // a local model is still loaded into (reverting edits to it)
+            expect(reg.getForLoad("b", () => new M(""))).toBe(l);
+            // a model that no longer exists is restored as a local model
+            const c = reg.getForLoad("c", () => new M(""));
+            expect(reg.isLocal(c)).toBe(true);
+        } finally {
+            ModelRegistry.loadingUndoState = false;
+        }
+    });
+
+    it("moves models between tiers", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        reg.makeGlobal(l);
+        expect(reg.isGlobal(l)).toBe(true);
+        expect(reg.hasLocal("a")).toBe(false);
+        reg.makeLocal(l);
+        expect(reg.isLocal(l)).toBe(true);
+        expect(reg.hasGlobal("a")).toBe(false);
+    });
+
+    it("picks unique names", () => {
+        const reg = new ModelRegistry<M>();
+        expect(reg.uniqueName("x")).toBe("x");
+        reg.setGlobal(new M("x"));
+        reg.setLocal(new M("x-2"));
+        expect(reg.uniqueName("x")).toBe("x-3");
+    });
+
+    it("collects models added locally", () => {
+        const reg = new ModelRegistry<M>();
+        const old = new M("old");
+        reg.setLocal(old);
+        const added = reg.collectLocal(() => reg.setLocal(new M("new")));
+        expect(added.map(m => m.name)).toEqual(["new"]);
+        expect(reg.get("old")).toBe(old);
+        expect(reg.has("new")).toBe(false);
+    });
+
+    it("clears dumped flags in both tiers and bumps the sequence number on changes", () => {
+        const reg = new ModelRegistry<M>();
+        const a = new M("a"), b = new M("b");
+        const seq = reg.sequenceNumber;
+        reg.setGlobal(a);
+        reg.setLocal(b);
+        expect(reg.sequenceNumber).toBeGreaterThan(seq);
+        a.dumped = b.dumped = true;
+        reg.clearDumpedFlags();
+        expect(a.dumped || b.dumped).toBe(false);
+    });
+
+    it("deletes only the given model, not a same-named one in the other tier", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        reg.delete(l);
+        expect(reg.get("a")).toBe(g);
+        reg.setLocal(l);
+        reg.delete(g);
+        expect(reg.get("a")).toBe(l);
+        expect(reg.hasGlobal("a")).toBe(false);
+    });
+
+    it("lists global models shadowed by local ones", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a"), h = new M("b");
+        reg.setGlobal(g);
+        reg.setGlobal(h);
+        reg.setLocal(l);
+        expect(reg.allModels()).toEqual([g, h, l]);
+        expect(reg.isShadowed(g)).toBe(true);
+        expect(reg.isShadowed(h)).toBe(false);
+        expect(reg.isShadowed(l)).toBe(false);
+    });
+
+    it("tells whether a scope change would replace a same-named model", () => {
+        const reg = new ModelRegistry<M>();
+        const g = new M("a"), l = new M("a"), only = new M("b");
+        reg.setGlobal(g);
+        reg.setLocal(l);
+        reg.setLocal(only);
+        expect(reg.wouldReplace(l, "global")).toBe(true);    // replaces g
+        expect(reg.wouldReplace(l, "local")).toBe(false);    // already local
+        expect(reg.wouldReplace(g, "local")).toBe(true);     // replaces l
+        expect(reg.wouldReplace(g, "global")).toBe(true);    // drops l
+        expect(reg.wouldReplace(only, "persistent")).toBe(false);
+        reg.removeLocal("a");
+        expect(reg.wouldReplace(g, "local")).toBe(false);
+    });
+});

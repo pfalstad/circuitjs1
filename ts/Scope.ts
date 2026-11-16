@@ -74,7 +74,6 @@ export class Scope {
     position: number;
     // speed is sim timestep units per pixel
     speed: number = 64;
-    stackCount: number = 0; // number of scopes in this column
     text: string | null = null;
     rect: Rectangle;
     manualScale: boolean = false;
@@ -105,6 +104,7 @@ export class Scope {
     scale: number[]; // Max value to scale the display to show - indexed for each value of UNITS - e.g. UNITS_V, UNITS_A etc.
     reduceRange: boolean[];
     wheelDeltaY: number = 0;
+    wheelDeltaScale: number = 0;
     selectedPlot: number = -1;
     properties: ScopePropertiesDialog | null = null;
     curColor: string = "";
@@ -117,6 +117,7 @@ export class Scope {
     static lastManDivisions: number = 8;
     drawGridLines: boolean = true;
     somethingSelected: boolean = false;
+    exporting: boolean = false;  // drawing for PNG/SVG export; ignore mouse/menu selection
 
     trigger: ScopeTrigger = new ScopeTrigger();
 
@@ -126,6 +127,8 @@ export class Scope {
     static cursorScope: Scope | null = null;
     static draggingPlotYScope: Scope | null = null;
     draggingPlotY: boolean = false;
+    // the drag started on the trigger level line, so it moves that instead of the plot
+    draggingTriggerLevel: boolean = false;
     dragPlotYMouseStart: number = 0;
     dragPlotYInitialPosition: number = 0;
 
@@ -199,6 +202,29 @@ export class Scope {
         this.resetGraph();
     }
 
+    // Transistor values (Ib/Ic/Ie, Vbe/Vbc/Vce).  In an X/Y or V-vs-I plot they act as two
+    // radio groups, one current and one voltage: picking one replaces the other in the same
+    // plot slot, so the X/Y axis assignment is kept.  Time plots can still show any mix.
+    showTransistorValue(val: number, state: boolean): void {
+        if (!this.plot2d.enabled) {
+            this.showPlotValue(val, state);
+            return;
+        }
+        if (!state)
+            return;  // radio behavior: can't uncheck, the dialog re-syncs the box
+        for (let i = 0; i < this.plots.length; i++) {
+            const p = this.plots[i];
+            if (p.elm !== null && p.elm.isTransistorElm() && p.value >= VAL_IB && p.value <= VAL_VCE &&
+                    p.units === p.elm.getScopeUnits(val)) {
+                this.plots[i] = new ScopePlot(p.elm, p.units, val, this.getManScaleFromMaxScale(p.units, false));
+                this.calcVisiblePlots();
+                this.resetGraph();
+                return;
+            }
+        }
+        this.showPlotValue(val, true);
+    }
+
     showCharge(b: boolean): void { this.showPlotValue(VAL_CHARGE, b); }
     showPower(b: boolean): void  { this.showPlotValue(VAL_POWER, b); }
 
@@ -239,6 +265,8 @@ export class Scope {
         this.calcVisiblePlots();
         this.scopeTimeStep = this.sim.maxTimeStep;
         this.plot2d.allocImage();
+        if (!this.plot2d.keepOnResize)
+            this.plot2d.resetFit();
         this.trigger.reset(this.scopePointCount);
         this.plot2d.lastTrailSimTime = -1;
     }
@@ -291,7 +319,9 @@ export class Scope {
         return this.trigger.validDataCount(plot, ipa, w, this.scopePointCount);
     }
 
-    checkTrigger(): void { this.trigger.check(this.visiblePlots, this.plot2d.enabled, this.sim, this.scopePointCount, this.rect.width); }
+    checkTrigger(): void { this.trigger.check(this.visiblePlots, this.triggerSourcePlot(), this.plot2d.enabled, this.sim, this.scopePointCount, this.rect.width); }
+
+    triggerSourcePlot(): ScopePlot | null { return this.trigger.sourcePlot(this.plots, this.visiblePlots); }
 
     setTriggerMode(mode: number): void {
         const wasActive = this.trigger.isActive();
@@ -307,7 +337,16 @@ export class Scope {
         this.resetGraph();
     }
 
-    drawTriggerIndicator(g: Graphics): void { this.trigger.drawIndicator(g, this.visiblePlots, this.rect); }
+    drawTriggerIndicator(g: Graphics, forExport: boolean): void {
+        const highlight = !forExport && (this.draggingTriggerLevel || (Scope.draggingPlotYScope === null && this.cursorNearTriggerLevel()));
+        this.trigger.drawIndicator(g, this.triggerSourcePlot(), this.rect, highlight);
+    }
+
+    cursorNearTriggerLevel(): boolean {
+        const mx = this.app.mouse.mouseCursorX, my = this.app.mouse.mouseCursorY;
+        return this.rect.contains(mx, my) && !this.plot2d.enabled && !this.fftPlot.enabled &&
+            this.trigger.nearLevel(this.triggerSourcePlot(), this.rect, my - this.rect.y);
+    }
 
     initialize(): void {
         this.resetGraph();
@@ -323,7 +362,10 @@ export class Scope {
         this.showV = this.showI = false;
         this.showScale = this.showFreq = this.manualScale = this.showMin = this.showP2P = this.showElmInfo = false;
         this.fftPlot.enabled = false;
-        if (!this.serializer.loadDefaults()) {
+        if (this.serializer.loadDefaults()) {
+            // trigger mode affects the buffer size
+            this.resetGraph();
+        } else {
             // set showV and showI appropriately depending on what plots are present
             let i;
             for (i = 0; i !== this.plots.length; i++) {
@@ -368,8 +410,13 @@ export class Scope {
         const w = this.rect.width;
         const h = this.rect.height;
         this.rect = r;
-        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h))
+        if (this.rect.width !== w || (this.plot2d.enabled && this.rect.height !== h)) {
+            // a resize (window resize, or Export Image drawing the circuit at another scale)
+            // keeps the X/Y trail and fit; the trail image is just scaled to the new size
+            this.plot2d.keepOnResize = true;
             this.resetGraph();
+            this.plot2d.keepOnResize = false;
+        }
     }
 
     // pick a speed (sim timestep units per pixel), rounded to a power of 2, so a
@@ -737,6 +784,8 @@ export class Scope {
             if (this.plot2d.digitalRaster)
                 this.plot2d.fillDigitalRaster();
             this.plot2d.draw(g);
+            if (this.properties !== null && this.properties.isShowing())
+                this.properties.refreshTrail();
             return;
         }
 
@@ -765,16 +814,17 @@ export class Scope {
         for (si = 0; si !== this.visiblePlots.length; si++) {
             const plot = this.visiblePlots[si];
             this.calcPlotScale(plot);
-            if (this.app.scopeManager.scopeSelected === -1 && plot.elm !== null && plot.elm.isMouseElm())
+            if (this.app.scopeManager.scopeSelected === -1 && plot.elm !== null && plot.elm.isMouseElm() && !this.exporting)
                 this.somethingSelected = true;
             this.reduceRange[plot.units] = true;
         }
 
-        const sel = this.app.scopeManager.scopeMenuIsSelected(this);
+        const sel = this.app.scopeManager.scopeMenuIsSelected(this) && !this.exporting;
 
         const somethingSelectedHere = this.somethingSelected;
 
-        this.checkForSelectionElsewhere();
+        if (!this.exporting)
+            this.checkForSelectionElsewhere();
         if (this.selectedPlot >= 0)
             this.somethingSelected = true;
 
@@ -815,7 +865,7 @@ export class Scope {
         if (this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length)
             this.drawPlot(g, this.visiblePlots[this.selectedPlot], allPlotsSameUnits, true, sel);
 
-        this.drawTriggerIndicator(g);
+        this.drawTriggerIndicator(g, forExport);
         this.overlays.draw(g);
 
         g.restore();
@@ -927,6 +977,7 @@ export class Scope {
             positionOffset = gridMax * 2.0 * (plot.manVPosition) / (V_POSITION_STEPS);
             this.gridStepY = plot.manScale;
         }
+        plot.gridStepY = this.gridStepY;
         plot.plotOffset = -gridMid + positionOffset;
         plot.gridMult = maxy / gridMax;
         return gridMid;
@@ -959,7 +1010,25 @@ export class Scope {
 
         // vertical (time) gridlines
         const ts = this.sim.maxTimeStep * this.speed;
-        const tRight = this.isTriggered() ? this.trigger.time + ts * this.rect.width / 2 : this.sim.t;
+        if (this.isTriggered()) {
+            // keep the graticule fixed, with the trigger point on a major line in the center,
+            // rather than aligned to absolute time, which makes the lines jump at every trigger
+            const cx = Math.trunc(this.rect.width / 2);
+            const step = this.gridStepX / ts;   // pixels per division
+            if (step <= 0)
+                return;
+            for (let ll = -Math.floor(cx / step); ; ll++) {
+                const gx = cx + Math.round(ll * step);
+                if (gx >= this.rect.width)
+                    break;
+                if (gx < 0)
+                    continue;
+                g.setColor(ll % 10 === 0 ? majorDiv : minorDiv);
+                g.drawLine(gx, 0, gx, this.rect.height - 1);
+            }
+            return;
+        }
+        const tRight = this.sim.t;
         const tstart = tRight - ts * this.rect.width;
         const tx = tRight - (tRight % this.gridStepX);
         for (let ll = 0; ; ll++) {
@@ -980,7 +1049,7 @@ export class Scope {
         const maxy = Math.trunc((this.rect.height - 1) / 2);
 
         let color = (this.somethingSelected) ? "#A0A0A0" : plot.color;
-        if (allSelected || (this.app.scopeManager.scopeSelected === -1 && this.getSingleElm() === null && plot.elm.isMouseElm()))
+        if (allSelected || (this.app.scopeManager.scopeSelected === -1 && this.getSingleElm() === null && plot.elm.isMouseElm() && !this.exporting))
             color = CircuitElm.selectColor.getHexValue();
         else if (selected)
             color = plot.color;
@@ -1011,6 +1080,17 @@ export class Scope {
         const drawWidth = this.validDataCount(plot, ipa, this.rect.width);
         let ox = -1, oy = -1;
         let i;
+        // exporting: build one connected path per trace. A column with a single
+        // sample (minvy === maxvy, the common case) contributes one point, same as
+        // the on-screen pixel. A column with genuine spread (noise or a fast
+        // transition, not just oversampling) keeps BOTH extremes as two vertices
+        // instead of collapsing to the midpoint, so real signal content survives
+        // the export instead of being smoothed away -- visiting whichever extreme
+        // is closer to the pen's current position first avoids an unnecessary
+        // zigzag reversal. The whole trace still ends up as one connected,
+        // selectable path -- mirrors the CSV export's one-series-per-trace shape.
+        let exportPathStarted = false;
+        let exportLastY = 0;
         for (i = 0; i !== drawWidth; i++) {
             const ip = (i + ipa) & (this.scopePointCount - 1);
             const minvy = Math.round(plot.gridMult * (minV[ip] + plot.plotOffset));
@@ -1021,6 +1101,38 @@ export class Scope {
                     this.reduceRange[plot.units] = false;
                     curMinRangeLo = -1000;
                     minRangeHi = 1000;
+                }
+                if (this.exporting) {
+                    if (minvy === maxvy) {
+                        const y = maxy - minvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, y);
+                            exportPathStarted = true;
+                        } else {
+                            g.context.lineTo(i, y);
+                        }
+                        exportLastY = y;
+                    } else {
+                        const yLo = maxy - minvy;
+                        const yHi = maxy - maxvy;
+                        if (!exportPathStarted) {
+                            g.context.beginPath();
+                            g.context.moveTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportPathStarted = true;
+                            exportLastY = yHi;
+                        } else if (Math.abs(exportLastY - yLo) <= Math.abs(exportLastY - yHi)) {
+                            g.context.lineTo(i, yLo);
+                            g.context.lineTo(i, yHi);
+                            exportLastY = yHi;
+                        } else {
+                            g.context.lineTo(i, yHi);
+                            g.context.lineTo(i, yLo);
+                            exportLastY = yLo;
+                        }
+                    }
+                    continue;
                 }
                 if (ox !== -1) {
                     if (minvy === oy && maxvy === oy)
@@ -1034,10 +1146,19 @@ export class Scope {
                     continue;
                 }
                 g.drawLine(i, maxy - minvy, i, maxy - maxvy);
+            } else if (exportPathStarted) {
+                // out-of-range clamp hit mid-trace -- close off what we have and
+                // start a fresh subpath rather than bridging across the skip
+                g.context.stroke();
+                exportPathStarted = false;
             }
         }
-        if (ox !== -1)
+        if (this.exporting) {
+            if (exportPathStarted)
+                g.context.stroke();
+        } else if (ox !== -1) {
             g.drawLine(ox, maxy - oy, i - 1, maxy - oy);
+        }
     }
 
     static clearCursorInfo(): void {
@@ -1227,10 +1348,6 @@ export class Scope {
     }
 
     getScopeText(): string | null {
-        // stacked scopes?  don't show text
-        if (this.stackCount !== 1)
-            return null;
-
         // multiple elms?  don't show text (unless one is selected)
         if (this.selectedPlot < 0 && this.getSingleElm() === null)
             return null;
@@ -1324,31 +1441,57 @@ export class Scope {
         URL.revokeObjectURL(url);
     }
 
-    exportPNG(): void {
+    exportImage(): void {
+        CirSim.dialogShowing = new (window as any).ScopeExportImageDialog(this);
+        CirSim.dialogShowing.show();
+    }
+
+    exportPNG(transparent: boolean = false): void {
+        // render at the display's pixel density so the PNG is as sharp as the on-screen scope
+        const scale = window.devicePixelRatio || 1;
         const cv = document.createElement('canvas');
-        cv.width = this.rect.width;
-        cv.height = this.rect.height;
+        cv.width = Math.round(this.rect.width * scale);
+        cv.height = Math.round(this.rect.height * scale);
         const context = cv.getContext('2d') as CanvasRenderingContext2D;
-        this.drawForExport(context);
+        context.scale(scale, scale);
+        this.drawForExport(context, transparent);
         Scope.downloadDataURL(cv.toDataURL(), "scope.png");
     }
 
-    exportSVG(): void {
+    exportSVG(transparent: boolean = false): void {
         const context = new (window as any).C2S(this.rect.width, this.rect.height);
-        this.drawForExport(context);
+        this.drawForExport(context, transparent);
         Scope.downloadSVG(context.getSerializedSvg(), "scope.svg");
     }
 
     // draws this scope, sized to its own rect, into a fresh context at (0,0) instead of
-    // its on-screen position, with a solid background and no mouse-driven UI chrome --
-    // shared by exportPNG/exportSVG
-    private drawForExport(context: CanvasRenderingContext2D): void {
+    // its on-screen position, with a solid (or transparent) background and no mouse-driven
+    // UI chrome -- shared by exportPNG/exportSVG
+    private drawForExport(context: CanvasRenderingContext2D, transparent: boolean): void {
         context.lineCap = "round";
         context.translate(-this.rect.x, -this.rect.y);
         const g = new Graphics(context);
-        g.setColor(this.app.isPrintable() ? Color.white : Color.black);
-        g.fillRect(0, 0, this.rect.width, this.rect.height);
-        this.drawImpl(g, true);
+        if (!transparent) {
+            // match the on-screen background: docked scopes (position >= 0) sit in the
+            // bottom area, drawn #eee/#111 in UIManager.drawBottomArea(); embedded scope
+            // elements (position == -1) are drawn on the main canvas background
+            if (this.position >= 0)
+                g.setColor(this.app.isPrintable() ? "#eee" : "#111");
+            else
+                g.setColor(this.app.isPrintable() ? Color.white : Color.black);
+            g.fillRect(this.rect.x, this.rect.y, this.rect.width, this.rect.height);
+        }
+        // draw all plots in their own colors (as if the mouse weren't over the scope),
+        // so the legend of trace names is shown too
+        const savedSelectedPlot = this.selectedPlot;
+        this.selectedPlot = -1;
+        this.exporting = true;
+        try {
+            this.drawImpl(g, true);
+        } finally {
+            this.exporting = false;
+            this.selectedPlot = savedSelectedPlot;
+        }
     }
 
     static downloadDataURL(dataURL: string, filename: string): void {
@@ -1386,10 +1529,16 @@ export class Scope {
         this.visiblePlots[plot].manVPosition = v;
     }
 
-    // start dragging the currently selected plot up/down (manual scale mode only)
+    // start dragging the trigger level line if the mouse is on it, otherwise the currently
+    // selected plot up/down (manual scale mode only)
     startDragPlotY(mouseX: number, mouseY: number): boolean {
         if (!this.rect.contains(mouseX, mouseY))
             return false;
+        if (this.cursorNearTriggerLevel()) {
+            this.draggingPlotY = this.draggingTriggerLevel = true;
+            Scope.draggingPlotYScope = this;
+            return true;
+        }
         if (!this.isManualScale() || this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
             return false;
         this.draggingPlotY = true;
@@ -1400,6 +1549,10 @@ export class Scope {
     }
 
     dragPlotY(mouseY: number): void {
+        if (this.draggingTriggerLevel) {
+            this.trigger.setLevelFromY(this.triggerSourcePlot(), this.rect, mouseY - this.rect.y);
+            return;
+        }
         if (this.selectedPlot < 0 || this.selectedPlot >= this.visiblePlots.length)
             return;
         const maxy = Math.max(1, Math.trunc((this.rect.height - 1) / 2));
@@ -1411,7 +1564,7 @@ export class Scope {
 
     static endDragPlotY(): void {
         if (Scope.draggingPlotYScope != null)
-            Scope.draggingPlotYScope.draggingPlotY = false;
+            Scope.draggingPlotYScope.draggingPlotY = Scope.draggingPlotYScope.draggingTriggerLevel = false;
         Scope.draggingPlotYScope = null;
     }
 
@@ -1478,17 +1631,17 @@ export class Scope {
         if (mi === "showpower")
             this.showPower(state);
         if (mi === "showib")
-            this.showPlotValue(VAL_IB, state);
+            this.showTransistorValue(VAL_IB, state);
         if (mi === "showic")
-            this.showPlotValue(VAL_IC, state);
+            this.showTransistorValue(VAL_IC, state);
         if (mi === "showie")
-            this.showPlotValue(VAL_IE, state);
+            this.showTransistorValue(VAL_IE, state);
         if (mi === "showvbe")
-            this.showPlotValue(VAL_VBE, state);
+            this.showTransistorValue(VAL_VBE, state);
         if (mi === "showvbc")
-            this.showPlotValue(VAL_VBC, state);
+            this.showTransistorValue(VAL_VBC, state);
         if (mi === "showvce")
-            this.showPlotValue(VAL_VCE, state);
+            this.showTransistorValue(VAL_VCE, state);
         if (mi === "showvcevsic") {
             this.plot2d.enabled = true;
             this.plot2d.plotXY = false;
@@ -1505,6 +1658,16 @@ export class Scope {
         }
         if (mi === "manualscale")
             this.setManualScale(state, true);
+        if (mi === "xyorigin") {
+            this.plot2d.includeOrigin = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
+        if (mi === "xyalignx") {
+            this.plot2d.alignX = state;
+            this.plot2d.resetFit();
+            this.plot2d.clearView();
+        }
         if (mi === "plotxy") {
             this.plot2d.plotXY = this.plot2d.enabled = state;
             this.plot2d.digitalRaster = false;
@@ -1577,6 +1740,10 @@ export class Scope {
     }
 
     onMouseWheel(e: WheelEvent): void {
+        if (e.shiftKey) {
+            this.onShiftMouseWheel(e);
+            return;
+        }
         this.wheelDeltaY += ScrollValuePopup.normalizeWheelDelta(e) * this.app.mouse.wheelSensitivity;
         if (this.wheelDeltaY > 5) {
             this.slowDown();
@@ -1586,6 +1753,40 @@ export class Scope {
             this.speedUp();
             this.wheelDeltaY = 0;
         }
+    }
+
+    // shift+wheel adjusts the vertical scale of the selected plot (manual scale mode only)
+    private onShiftMouseWheel(e: WheelEvent): void {
+        if (!this.manualScale || this.plot2d.enabled || this.visiblePlots.length === 0)
+            return;
+        // browsers often turn shift+wheel into horizontal scrolling, so look at deltaX too
+        const d = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+        if (d === 0)
+            return;
+        this.wheelDeltaScale += (Math.round(d * 0.12) || 0) * this.app.mouse.wheelSensitivity;
+        if (Math.abs(this.wheelDeltaScale) <= 5)
+            return;
+        // step through the 1-2-5 sequence, like the time scale
+        const plotId = (this.selectedPlot >= 0 && this.selectedPlot < this.visiblePlots.length) ? this.selectedPlot : 0;
+        const cur = this.visiblePlots[plotId].manScale;
+        const next = this.wheelDeltaScale > 0 ? Scope.nextHigherManScale(cur) : Scope.nextLowerManScale(cur);
+        this.wheelDeltaScale = 0;
+        this.setManualScaleValue(plotId, Math.max(next, MIN_MAN_SCALE));
+    }
+
+    // step through the 1-2-5 sequence of manual scale values
+    static nextHigherManScale(d: number): number {
+        d = d * 1.001;
+        let s = MIN_MAN_SCALE;
+        for (let a = 0; s < d; a++) s *= multa[a % 3];
+        return s;
+    }
+
+    static nextLowerManScale(d: number): number {
+        const target = d * 0.999;
+        let s = MIN_MAN_SCALE, lasts = s;
+        for (let a = 0; s < target; a++) { lasts = s; s *= multa[a % 3]; }
+        return lasts;
     }
 
     getElm(): CircuitElm | null {

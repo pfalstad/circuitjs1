@@ -39,6 +39,10 @@ export class StopTriggerElm extends CircuitElm {
     stopped: boolean = false;
     conditionActive: boolean = false;
     durationMet: boolean = false;
+    // armed: we've seen the condition false at least once since reset, so a later
+    // true counts as a real transition (edge).  Without this, a condition that is
+    // already true when the circuit loads/resets would stop the sim on the first step.
+    armed: boolean = false;
     delay: number = 0;
     // Ported from upstream's analog stepFinished() but not yet wired into digitalSynthesis()'s
     // event-driven detect() below - requires its own scheduled check distinct from the existing
@@ -99,6 +103,7 @@ export class StopTriggerElm extends CircuitElm {
         this.triggerCount = 0;
         this.stopAtTick = null;
         this.stopped = false;
+        this.armed = false;  // must see the condition go false before it can trigger
     }
     getDumpType(): number { return 408; }
     getPostCount(): number { return 1; }
@@ -166,7 +171,10 @@ export class StopTriggerElm extends CircuitElm {
             const v = high ? this.highVoltage : 0;
             const condition = (this.type === 0 && v >= this.triggerVoltage) ||
                 (this.type === 1 && v <= this.triggerVoltage);
-            if (!this.conditionActive && condition) {
+            if (!condition)
+                this.armed = true;
+            // ignore the condition until armed, i.e. only a false->true transition starts it
+            if (this.armed && !this.conditionActive && condition) {
                 this.conditionActive = true;
                 this.triggerCount++;
                 if (!this.triggered && this.triggerCount >= this.count) {

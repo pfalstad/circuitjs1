@@ -55,10 +55,12 @@ export class ScopePlot implements HistoryWatcher {
     manScale: number = 1.0; // Units per division
     manVPosition: number = 0; // 0 is center of screen. +V_POSITION_STEPS/2 is top of screen
     gridMult: number = 0;
+    gridStepY: number = 0; // units per vertical division, set by Scope.calcGridParams
     plotOffset: number = 0;
     acCoupled: boolean = false;
     acAlpha: number = 0.9999; // Filter coefficient for AC coupling
-    acLastOut: number = 0; // Store y[i-1] term for AC coupling filter
+    acDc: number = 0; // DC level removed by AC coupling filter (the coupling capacitor's voltage)
+    acCount: number = 0; // samples since filter was reset, for fast start
 
     // Snapshot of liveMin/liveMax taken by ScopeTrigger once a triggered sweep has been fully
     // captured. The live buffer has to keep recording (the next trigger needs pre-trigger
@@ -259,6 +261,9 @@ export class ScopePlot implements HistoryWatcher {
         // Adjust the time constant of the AC coupled filter in proportion to the number of samples
         // we are seeing on the scope (if my maths is right). The constant is empirically determined
         this.acAlpha = 1.0 - 1.0 / (1.15 * sp * spc);
+        // restart AC coupling filter so we don't carry over stale state (e.g. after reset)
+        this.acDc = 0;
+        this.acCount = 0;
         const oldMin = this.liveMin;
         const oldMax = this.liveMax;
         this.liveMin = new Array(spc).fill(0);
@@ -293,14 +298,18 @@ export class ScopePlot implements HistoryWatcher {
             // stray direct call can't corrupt the history-built arrays.
             return;
         let v = this.elm.getScopeValue(this.value);
-         // AC coupling filter. 1st order IIR high pass
-         // y[i] = alpha x (y[i-1]+x[i]-x[i-1])
+         // AC coupling filter. 1st order IIR high pass, written as y[i] = x[i] - dc[i] where
+         // dc[i] = dc[i-1] + k (x[i]-dc[i-1]).  With k = 1-alpha this is the same as
+         // y[i] = alpha x (y[i-1]+x[i]-x[i-1]).  To avoid a long startup transient, k starts at 1
+         // and decreases as 1/n, so dc is the running average of all samples so far, until it
+         // reaches 1-alpha.
          // We calculate for all iterations (even DC coupled) to prime the data in case they switch to AC later
-        const newAcOut = this.acAlpha * (this.acLastOut + v - this.lastValue);
+        this.acCount++;
+        const k = Math.max(1 / this.acCount, 1 - this.acAlpha);
+        this.acDc += (v - this.acDc) * k;
         this.lastValue = v;
-        this.acLastOut = newAcOut;
         if (this.isAcCoupled())
-            v = newAcOut;
+            v -= this.acDc;
         if (v < this.liveMin[this.ptr])
             this.liveMin[this.ptr] = v;
         if (v > this.liveMax[this.ptr])

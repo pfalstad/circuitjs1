@@ -33,6 +33,7 @@ import { VoltageSource } from "./VoltageSource";
 import { chipStart, MAX_PINS } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis, DigitalTriStateDriver } from "./digital/DigitalGraphBuilder";
+import { WireRouter } from "./WireRouter";
 import { parseFloatStrict } from "./NumberParse";
 
 export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
@@ -271,6 +272,12 @@ export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
     }
 
     getPostWidth(n: number): number { return n < 2 * this.busWidth ? this.busWidth : 1; }
+
+    // block the whole triangle (it's 2*hs+4 tall), including the control lead.  The
+    // control post is on the edge of the obstacle, so wires can still reach it from outside.
+    addRoutingObstacle(router: WireRouter): void {
+        this.addRoutingObstacleWithLeads(router, 16);
+    }
 
     getInfo(arr: string[]): void {
         arr[0] = "tri-state buffer";

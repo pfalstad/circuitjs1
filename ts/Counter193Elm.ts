@@ -69,12 +69,12 @@ export class Counter193Elm extends ChipElm implements DigitalInitialState {
     //   mrPost               CLR (master reset, active high)
     //   loadPost             LD (parallel load, active low)
     //   tcuPost, tcdPost     CO (carry, active low), BO (borrow, active low)
-    cpuPost: number = 0;
-    cpdPost: number = 0;
-    mrPost: number = 0;
-    loadPost: number = 0;
-    tcuPost: number = 0;
-    tcdPost: number = 0;
+    declare cpuPost: number;
+    declare cpdPost: number;
+    declare mrPost: number;
+    declare loadPost: number;
+    declare tcuPost: number;
+    declare tcdPost: number;
 
     lastCPU: boolean = false;
     lastCPD: boolean = false;

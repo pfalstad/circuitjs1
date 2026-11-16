@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CircuitJS1
+Comment=Electronic circuit simulator
+Exec=CircuitJS1 %f
+Icon=CircuitJS1
+Categories=Education;Electronics;Science;
+Terminal=false

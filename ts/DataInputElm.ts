@@ -165,12 +165,11 @@ export class DataInputElm extends RailElm {
             if (arr[i].length === 0) continue;
             // skip comments
             if (arr[i].charAt(0) === '#') continue;
-            const d = parseFloatStrict(arr[i]);
-            if (isNaN(d)) {
+            try {
+                this.data.push(parseFloatStrict(arr[i]));
+            } catch (e) {
                 CirSim.console("parse error on line " + i);
                 parseError = true;
-            } else {
-                this.data.push(d);
             }
         }
         if (this.data.length === 0 || parseError) {

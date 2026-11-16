@@ -1,0 +1,14 @@
+abs-cccs.txt
+abs-ccvs.txt
+abs-vccs.txt
+abs-vcvs.txt
+analogmux.txt
+capac.txt
+fullrect-sc.txt
+lrc.txt
+lrcswitch.txt
+ota-vca.txt
+td4.txt
+
+# the tests create-tests.ts made (see README.md)
+include gen/tests.txt

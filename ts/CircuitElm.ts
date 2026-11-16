@@ -1003,7 +1003,8 @@ export abstract class CircuitElm implements Editable {
         g.restore();
     }
 
-    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): void {
+    // draw a node label next to pt2; returns the text's bounding rectangle
+    drawLabeledNode(g: Graphics, str: string, pt1: Point, pt2: Point): Rectangle {
         g.save();
         g.setFont(CircuitElm.valueFont);
         let lineOver = false;
@@ -1031,6 +1032,7 @@ export abstract class CircuitElm implements Editable {
             const ya = y - h/2 - 1;
             g.drawLine(x, ya, x+w, ya);
         }
+        return new Rectangle(x, y-h/2, w, h);
     }
 
     drawCoil(g: Graphics, hs: number, p1: Point, p2: Point, v1: number, v2: number): void {
@@ -1434,7 +1436,14 @@ export abstract class CircuitElm implements Editable {
     elmScope: any = null;
     clearElmScope(): void {}
     isGraphicElm(): boolean { return false; }
+    isShapeElm(): boolean { return false; }
+    isBoxElm(): boolean { return false; }
     isRoutedWireElm(): boolean { return false; }
+    // a switch was toggled, by the user or a test (for recording tests)
+    static recordToggle(ce: CircuitElm): void {
+        SimulationManager.testHooks?.recordSwitchToggle(ce);
+    }
+
     isSwitchElm(): boolean { return false; }
     // whether to automatically bring up the property editor when this element is created
     // (overridden to false for elements whose settings are rarely changed on creation)
@@ -1449,6 +1458,7 @@ export abstract class CircuitElm implements Editable {
     isSubcircuitElm(): boolean { return false; }
     isTransistorElm(): boolean { return false; }
     isMosfetElm(): boolean { return false; }
+    isGateElm(): boolean { return false; }
     isJfetElm(): boolean { return false; }
     isOutputElm(): boolean { return false; }
     isLogicOutputElm(): boolean { return false; }
@@ -1459,11 +1469,12 @@ export abstract class CircuitElm implements Editable {
     validate(): boolean { return true; }
 
     validateRailNode(n: number): boolean {
-        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, this.getNode(n), CircuitElm.sim);
-        if (fpi.findPath(CircuitNode.ground)) {
+        // search from our node toward ground rather than the other way: the search is the same
+        // in either direction, but starting from ground means walking everything connected to
+        // ground (every gate output, etc.), which is slow when many elements do this check
+        const fpi = new FindPathInfo(FindPathInfo.VOLTAGE, this, CircuitNode.ground, CircuitElm.sim);
+        if (fpi.findPath(this.getNode(n)))
             CircuitElm.sim.stop("Path to ground with no resistance!", this);
-            return false;
-        }
         return true;
     }
 
@@ -1475,6 +1486,29 @@ export abstract class CircuitElm implements Editable {
     }
 
     draggingDone(): void {}
+
+    // Put boxes first in the list, so they're drawn (and saved) behind everything else,
+    // with larger boxes ahead of the smaller ones they hold.  Everything else keeps its
+    // order.  Boxes have no posts, so this doesn't change the simulation; hints refer to
+    // elements by position, so they're remapped to follow their elements.  (Lives here
+    // rather than in BoxElm so MouseManager etc. don't need to import element classes.)
+    static sortBoxes(list: CircuitElm[]): void {
+        const app = CircuitElm.app;
+        const hint = (list === app.elmList && app.hintType !== -1);
+        const h1 = hint ? app.getElm(app.hintItem1) : null;
+        const h2 = hint ? app.getElm(app.hintItem2) : null;
+        const boxes = list.filter(ce => ce.isBoxElm());
+        if (boxes.length === 0)
+            return;
+        const rest = list.filter(ce => !ce.isBoxElm());
+        boxes.sort((a, b) => (b as any).area() - (a as any).area());	// stable
+        list.length = 0;
+        list.push(...boxes, ...rest);
+        if (hint) {
+            app.hintItem1 = list.indexOf(h1);
+            app.hintItem2 = list.indexOf(h2);
+        }
+    }
 
     lineDistanceSq(xa: number, ya: number, xb: number, yb: number, gx: number, gy: number): number {
         const dtop = (yb-ya)*gx - (xb-xa)*gy + xb*ya - yb*xa;

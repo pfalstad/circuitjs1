@@ -54,6 +54,8 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
         super.undumpXml(xml);
         this.queueSize = xml.parseIntAttr("qs", this.queueSize);
         this.optimizationDisabled = xml.parseBooleanAttr("nopt", this.optimizationDisabled);
+        // Q-bar isn't saved, so set it from Q, as the constructor does for the text format
+        this.pins[2].value = !this.pins[1].value;
     }
 
     /** DigitalInitialState - see its own docstring. this.pins[1].value (Q) already holds what
@@ -214,12 +216,12 @@ export class DFlipFlopElm extends ChipElm implements DigitalInitialState {
         if (n === 0) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Reset Pin", this.hasReset());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 1) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Set Pin", this.hasSet());
-            return ei;
+            return ei.setStructural();
         }
         if (n === 2) {
             const ei = new EditInfo("", 0, -1, -1);

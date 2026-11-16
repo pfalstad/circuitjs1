@@ -20,6 +20,7 @@
 import { Scope } from "./Scope";
 import { ScopePlot } from "./ScopePlot";
 import { ScopePlot2d } from "./ScopePlot2d";
+import { ScopeTrigger } from "./ScopeTrigger";
 import { CircuitXMLSerializer as CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { StringTokenizer } from "./StringTokenizer";
@@ -111,7 +112,9 @@ export class ScopeSerializer {
             return;
         const xmlElm = doc.createElement("o");
         CircuitXMLSerializer.dumpAttr(xmlElm, "en", eno);
-        CircuitXMLSerializer.dumpAttr(xmlElm, "sp", vPlot.scopePlotSpeed);
+        // the scope's speed: the plots only get it when the scopes are next set up, so until
+        // then (saving a circuit straight after loading it) theirs is still 0
+        CircuitXMLSerializer.dumpAttr(xmlElm, "sp", this.scope.speed);
         // strip flags that belong to old text format or are superseded by explicit XML attributes
         const f = flags & ~(ScopeSerializer.FLAG_PERPLOTFLAGS | ScopeSerializer.FLAG_PERPLOT_MAN_SCALE | ScopeSerializer.FLAG_PLOTS | ScopeSerializer.FLAG_TRIGGER);
         CircuitXMLSerializer.dumpAttr(xmlElm, "f", ScopeSerializer.exportAsDecOrHex(f, 0));
@@ -154,6 +157,10 @@ export class ScopeSerializer {
             xmlElm.setAttribute("x", this.scope.text);
         if (this.scope.plot2d.trailPersistence !== ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE)
             CircuitXMLSerializer.dumpAttr(xmlElm, "tp", this.scope.plot2d.trailPersistence);
+        if (!this.scope.plot2d.includeOrigin)
+            CircuitXMLSerializer.dumpAttr(xmlElm, "xyo", 0);
+        if (this.scope.plot2d.alignX)
+            CircuitXMLSerializer.dumpAttr(xmlElm, "xya", 1);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -170,6 +177,8 @@ export class ScopeSerializer {
         this.scope.manDivisions = xml.parseIntAttr("md", 8);
         this.scope.text = xml.parseStringAttr("x", null);
         this.scope.plot2d.trailPersistence = xml.parseIntAttr("tp", ScopePlot2d.DEFAULT_TRAIL_PERSISTENCE);
+        this.scope.plot2d.includeOrigin = xml.parseIntAttr("xyo", 1) !== 0;
+        this.scope.plot2d.alignX = xml.parseIntAttr("xya", 0) !== 0;
         // All of these must be read before parseChildElement() changes the XML context
         // to a child <p> element.
         this.scope.trigger.undumpXml(xml);
@@ -232,6 +241,11 @@ export class ScopeSerializer {
 
     undump(st: StringTokenizer): void {
         this.scope.initialize();
+        // the text format has no trigger settings, so don't inherit them from the saved defaults
+        this.scope.trigger.mode = ScopeTrigger.TRIGGER_FREERUN;
+        this.scope.trigger.edge = ScopeTrigger.TRIGGER_EDGE_RISING;
+        this.scope.trigger.level = 0;
+        this.scope.trigger.source = 0;
         const e = parseIntStrict(st.nextToken());
         if (e === -1)
             return;
@@ -339,12 +353,17 @@ export class ScopeSerializer {
         const stor = typeof localStorage !== 'undefined' ? localStorage : null;
         if (stor === null)
             return;
-        const vPlot = this.scope.plots[0];
-        const flags = this.getFlags();
-        let s = "1 " + flags + " " + vPlot.scopePlotSpeed;
-        if ((flags & ScopeSerializer.FLAG_TRIGGER) !== 0)
-            s += " " + this.scope.trigger.level;
-        stor.setItem("scopeDefaults", s);
+        const scope = this.scope;
+        const trig = scope.trigger;
+        const d = {
+            v: 2,
+            flags: this.getFlags(),
+            speed: scope.plots.length > 0 ? scope.plots[0].scopePlotSpeed : scope.speed,
+            md: scope.manDivisions,
+            plots: scope.plots.map(p => ({ u: p.units, ms: p.manScale, mp: p.manVPosition, ac: p.acCoupled })),
+            trig: { mode: trig.mode, edge: trig.edge, level: trig.level, source: trig.source },
+        };
+        stor.setItem("scopeDefaults", JSON.stringify(d));
     }
 
     loadDefaults(): boolean {
@@ -354,13 +373,57 @@ export class ScopeSerializer {
         const str = stor.getItem("scopeDefaults");
         if (str === null)
             return false;
-        const arr = str.split(" ");
-        const flags = parseIntStrict(arr[1]);
-        this.setFlags(flags);
-        this.scope.speed = parseIntStrict(arr[2]);
-        if (arr.length > 3 && (flags & ScopeSerializer.FLAG_TRIGGER) !== 0)
-            this.scope.trigger.level = parseFloatStrict(arr[3]);
+        try {
+            if (str.charAt(0) === '{')
+                this.loadDefaultsJson(JSON.parse(str));
+            else {
+                // old format: "1 flags speed [triggerLevel]"
+                const arr = str.split(" ");
+                const flags = parseIntStrict(arr[1]);
+                this.setFlags(flags);
+                this.scope.speed = parseIntStrict(arr[2]);
+                if (arr.length > 3 && (flags & ScopeSerializer.FLAG_TRIGGER) !== 0)
+                    this.scope.trigger.level = parseFloatStrict(arr[3]);
+            }
+        } catch (e) {
+            return false;
+        }
         return true;
+    }
+
+    private loadDefaultsJson(d: any): void {
+        const scope = this.scope;
+        const flags = d.flags | 0;
+        this.setFlags(flags);
+        if (typeof d.speed === 'number' && d.speed > 0)
+            scope.speed = d.speed;
+        if (typeof d.md === 'number' && d.md > 0)
+            scope.manDivisions = d.md;
+        const saved: any[] = Array.isArray(d.plots) ? d.plots : [];
+        const manual = (flags & ScopeSerializer.FLAG_MAN_SCALE) !== 0;
+        for (let i = 0; i < scope.plots.length; i++) {
+            const p = scope.plots[i];
+            // prefer the saved plot in the same slot; otherwise any saved plot with the same units
+            let sp = saved[i];
+            if (!sp || sp.u !== p.units)
+                sp = saved.find(x => x && x.u === p.units);
+            if (!sp)
+                continue;
+            p.acCoupled = !!sp.ac;
+            if (manual && typeof sp.ms === 'number' && sp.ms > 0) {
+                p.manScale = sp.ms;
+                p.manVPosition = sp.mp | 0;
+                p.manScaleSet = true;
+            }
+        }
+        const t = d.trig;
+        if (t) {
+            const trig = scope.trigger;
+            if (typeof t.mode === 'number') trig.mode = t.mode;
+            if (typeof t.edge === 'number') trig.edge = t.edge;
+            if (typeof t.level === 'number') trig.level = t.level;
+            if (typeof t.source === 'number') trig.source = t.source;
+        }
     }
 
     private static exportAsDecOrHex(v: number, thresh: number): string {

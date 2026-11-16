@@ -60,19 +60,28 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
 
         this.addressNodes = 1;
         this.dataNodes = 1 + this.addressBits;
-        this.internalNodes = 1 + this.addressBits + this.dataBits;
+        this.internalNodes = this.getPostCount();
 
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
+        if (this.hasInvertedOutput())
+            for (let i = 0; i !== this.dataBits; i++)
+                this.pins[this.dataNodes + i].lineOver = true;
+        // chip select goes in the free spot at the top of the east side
+        if (this.hasChipSelect()) {
+            const cs = new Pin(this, 0, ChipElm.SIDE_E, "CS");
+            cs.lineOver = true;
+            this.pins[this.chipSelectNode] = cs;
+        }
         this.allocNodes();
     }
 
     getPostCount(): number {
-        return 1 + this.addressBits + this.dataBits;
+        return 1 + this.addressBits + this.dataBits + (this.hasChipSelect() ? 1 : 0);
     }
 
     doStep(): void {
-        const outputEnabled = this.nodes[0].v < this.getThreshold();
+        const outputEnabled = this.chipSelected() && this.nodes[0].v < this.getThreshold();
 
         // get address
         this.address = 0;
@@ -80,7 +89,9 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
             this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
 
         const dataObj = this.map.get(this.address);
-        const data = (dataObj === undefined) ? 0 : dataObj;
+        let data = (dataObj === undefined) ? 0 : dataObj;
+        if (this.hasInvertedOutput())
+            data ^= (1 << this.dataBits) - 1;
         for (let i = 0; i !== this.dataBits; i++) {
             const p = this.pins[i + this.dataNodes];
             CircuitElm.sim.updateVoltageSource(CircuitNode.ground, this.nodes[this.internalNodes + i], p.voltSource,
@@ -114,9 +125,14 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
         const addrPin = (k: number) => 2 + k;
         const outPin = (i: number) => 2 + m + i;
 
+        // chip select (active low), when present, gates OE
+        const cs = this.hasChipSelect();
+        const csPin = 2 + m + n;
+
         const pinMap = new Map<number, number>();
         pinMap.set(0, oePin);
         for (let k = 0; k < m; k++) pinMap.set(this.addressNodes + k, addrPin(k));
+        if (cs) pinMap.set(this.chipSelectNode, csPin);
 
         const desc: ChipDesc[] = [];
         for (let i = 0; i < n; i++) {
@@ -126,10 +142,12 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
                 for (let k = 0; k < m; k++) address |= pin[addrPin(k)] << (m - 1 - k);
                 const stored = this.map.get(address) ?? 0;
                 const bit = (stored >> (n - 1 - i)) & 1;
-                const oeActive = pin[oePin] === 0; // OE is active low
+                const oeActive = pin[oePin] === 0 && (!cs || pin[csPin] === 0); // both active low
                 pin[thisOutPin] = oeActive ? bit : 0;
             };
-            desc.push(chipStart(logic).inputPins(oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)))
+            const inPins = [oePin, ...Array.from({ length: m }, (_, k) => addrPin(k))];
+            if (cs) inPins.push(csPin);
+            desc.push(chipStart(logic).inputPins(...inPins)
                 .outputPin(thisOutPin));
             pinMap.set(this.dataNodes + i, thisOutPin);
         }
@@ -146,4 +164,9 @@ export class ROMElm extends SRAMElm implements DigitalTriStateDriver {
     // without this override it would inherit SRAM's formula and try to connect into a pin this
     // ROM's own chips never actually declared as an input.
     digitalTriStateReadbackPin(): null { return null; }
+
+    // no separate data in/out, since there's no data in
+    protected pinOptions(): number[] {
+        return [SRAMElm.FLAG_INVERT_OUTPUT, SRAMElm.FLAG_CHIP_SELECT];
+    }
 }

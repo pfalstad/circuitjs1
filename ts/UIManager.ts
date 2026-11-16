@@ -18,6 +18,8 @@
 */
 
 import { CirSim } from "./CirSim";
+import { SimulationManager } from "./SimulationManager";
+import { ElementFactory } from "./ElementFactory";
 import { Menus } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ScopeManager } from "./ScopeManager";
@@ -28,7 +30,6 @@ import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Point } from "./Point";
 import { SwitchElm } from "./SwitchElm";
-import { BoxElm } from "./BoxElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SubcircuitModel } from "./SubcircuitModel";
@@ -41,6 +42,8 @@ import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { EditDialog } from "./EditDialog";
+import { ComponentSearch } from "./ComponentSearch";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -120,10 +123,7 @@ export class Scrollbar {
             if (this.enabled && this.attachedElm)
                 CirSim.theApp.mouse.setMouseElm(this.attachedElm);
         });
-        can.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
-        }, { passive: false });
+        can.addEventListener('wheel', (e) => this.onMouseWheel(e), { passive: false });
 
         can.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -251,6 +251,11 @@ export class Scrollbar {
         }
     }
 
+    onMouseWheel(e: WheelEvent): void {
+        e.preventDefault();
+        if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
+    }
+
     getValue(): number { return this.val; }
 
     setValue(v: number): void {
@@ -279,7 +284,7 @@ export class Scrollbar {
     addChangeHandler(fn: () => void): void { this.command = fn; }
 }
 
-class LoadFile {
+export class LoadFile {
     element: HTMLInputElement;
     static isSupported(): boolean { return !!(window.File && window.FileReader); }
 
@@ -303,23 +308,26 @@ class LoadFile {
         }
         const reader = new FileReader();
         reader.onload = () => {
-            const text = reader.result as string;
-            if (CircuitLoader.isSubcircuitLibrary(text)) {
-                // library files just add global subcircuits; keep the current circuit and its title
-                app.loader.readSubcircuitLibrary(text);
-                app.createNewLoadFile();
-                return;
-            }
-            app.undoManager?.pushUndo();
-            app.resetEditingContext();
-            app.loader.readCircuit(text);
+            LoadFile.doLoadCallback(app, reader.result as string, file.name);
             app.createNewLoadFile();
-            app.setCircuitTitle(file.name);
-            ExportAsLocalFileDialog.setLastFileName(file.name);
-            app.unsavedChanges = false;
-            app.savedFlag = true;
         };
         reader.readAsText(file);
+    }
+
+    static async doLoadCallback(app: CirSim, text: string, name: string): Promise<void> {
+        if (CircuitLoader.isModelLibrary(text)) {
+            // library files just add global models; keep the current circuit and its title
+            // (readCircuit() loads their element classes, then reads them as a library)
+            await app.loader.readCircuit(text);
+            return;
+        }
+        app.undoManager?.pushUndo();
+        app.resetEditingContext();
+        await app.loader.readCircuit(text);
+        app.setCircuitTitle(name);
+        ExportAsLocalFileDialog.setLastFileName(name);
+        app.unsavedChanges = false;
+        app.savedFlag = true;
     }
 }
 
@@ -328,6 +336,7 @@ class CheckboxMenuItem {
     private _shortcut: string;
     private _state: boolean = false;
     private _command: (() => void) | null = null;
+    _li: HTMLLIElement | null = null;  // linked DOM element, set by Menu.addCheckboxItem
 
     constructor(label: string, shortcut: string = "") {
         this._label = label;
@@ -335,9 +344,27 @@ class CheckboxMenuItem {
     }
 
     getState(): boolean { return this._state; }
-    setState(s: boolean): void { this._state = s; }
+    setState(s: boolean): void {
+        this._state = s;
+        if (this._li) {
+            const mark = this._li.querySelector('.checkMark') as HTMLElement | null;
+            if (mark) mark.style.visibility = s ? 'visible' : 'hidden';
+        }
+    }
     getShortcut(): string { return this._shortcut; }
-    setShortcut(s: string): void { this._shortcut = s; }
+    // also redraws the shortcut shown in the menu (the label is built once, before saved
+    // shortcuts are loaded), as a readable name like "F3" rather than the stored char
+    setShortcut(s: string): void {
+        this._shortcut = s;
+        if (!this._li) return;
+        let hint = this._li.querySelector('.shortcutHint') as HTMLElement | null;
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'shortcutHint';
+            this._li.appendChild(hint);
+        }
+        hint.textContent = KeyNames.displayText(s) ?? s;
+    }
     setScheduledCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     setCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     execute(): void { if (this._command) this._command(); }
@@ -476,6 +503,7 @@ export class UIManager {
     lastCursorStyle: string | null = null;
 
     toolbar: Toolbar;
+    componentSearch: ComponentSearch | null = null;
     subcircuitBar: SubcircuitBar;
 
     layoutPanel: HTMLElement;
@@ -507,8 +535,15 @@ export class UIManager {
     lastResizeTime: number = 0;
 
     // For tracking shift double-tap to open the command palette (see onKeyDown/onKeyUp).
-    private lastShiftKeyUpMs = 0;
-    private keyPressedSinceShiftUp = false;
+    // A Shift press only counts as a tap if Shift was pressed and released on its own, not
+    // used with another key (Shift-W) or the mouse (shift-drag); and the two taps only count
+    // as a double tap if nothing else was pressed in between.
+    private lastShiftKeyUpMs = 0;           // when the last tap ended, or 0 if it wasn't one
+    private shiftUsedWithOther = false;     // something else pressed while Shift is held
+    private keyPressedSinceShiftUp = false; // something else pressed since Shift was released
+    // the last keydown closed the property editor to go to the circuit (see onKeyDown), so its
+    // keypress is handled as a shortcut even though it was aimed at the editor's text field
+    private keyPassedThrough = false;
 
     constructor(app: CirSim) {
         this.app = app;
@@ -630,7 +665,8 @@ export class UIManager {
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
             (this.app as any).startCircuitLink == null);
-        this.menus.showPropsOnClickCheckItem.setState(this.menus.toolbarCheckItem.getState());
+        this.app.showPropsOnCreate = this.getOptionFromStorage("showPropsOnCreate", false);
+        this.app.showPropsOnClick = this.getOptionFromStorage("showPropsOnClick", true);
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({
@@ -691,6 +727,8 @@ export class UIManager {
         if (!this.hideMenu) {
             menuBar.style.cssText = `position:absolute;left:0;top:0;right:0;height:${UIManager.MENUBARHEIGHT}px;`;
             this.layoutPanel.appendChild(menuBar);
+            // Always-visible component search, right-aligned in the menu bar.
+            this.componentSearch = new ComponentSearch(this.app, menuBar);
         }
 
         // sidebar: right strip from below menu bar to bottom
@@ -701,6 +739,7 @@ export class UIManager {
         }
 
         // toolbar: left of sidebar, below menu bar
+        this.toolbar.element.classList.add('mainToolbar');
         this.toolbar.element.style.position = 'absolute';
         this.toolbar.element.style.left = '0';
         this.toolbar.element.style.top = mbh + 'px';
@@ -833,7 +872,9 @@ export class UIManager {
         this.mouse.enableDisableMenuItems();
         this.setiFrameHeight();
 
-        menuBar.addEventListener('click', () => this.mouse.doMainMenuChecks());
+        // capture phase: menu items call stopPropagation(), which would otherwise keep this from
+        // ever firing (leaving the Draw > Subcircuits menu empty)
+        menuBar.addEventListener('click', () => this.mouse.doMainMenuChecks(), true);
 
         this.registerKeyHandlers();
 
@@ -949,7 +990,8 @@ export class UIManager {
         if (this.elmList == null)
             return null;
         for (const ce of this.elmList) {
-            if (ce instanceof BoxElm && ce.zoomIn())
+            // (BoxElm is loaded lazily, so it isn't imported here)
+            if (ce.isBoxElm() && (ce as any).zoomIn())
                 return ce.getBoundingBox();
         }
         return null;
@@ -1037,23 +1079,53 @@ export class UIManager {
 
         this.checkCanvasSize();
 
-        let didAnalyze = this.app.analyzeFlag;
-        if (this.app.analyzeFlag || this.app.dcAnalysisFlag) {
-            perfmon.startContext("analyzeCircuit()");
-            this.app.sim.analyzeCircuit();
-            this.app.analyzeFlag = false;
-            perfmon.stopContext();
-        }
-
-        if (this.app.sim.needsStamp && this.app.simRunning) {
-            perfmon.startContext("stampCircuit()");
-            try {
-                this.app.sim.preStampAndStampCircuit();
-            } catch (e) {
-                this.app.sim.stop("Exception in stampCircuit()", null);
-                CirSim.console("Exception in stampCircuit: " + e);
+        // analyze and run a batch of time steps; while a test runs, maybe several batches
+        // before drawing, each as it would be in a frame of its own (switch events and the
+        // end of the test take effect at the next batch's analyze), so tests run faster
+        // than the display's frame rate allows
+        const batches = SimulationManager.testHooks?.batchesPerFrame() ?? 1;
+        for (let b = 0; b < batches; b++) {
+            let didAnalyze = this.app.analyzeFlag;
+            if (this.app.analyzeFlag || this.app.dcAnalysisFlag) {
+                perfmon.startContext("analyzeCircuit()");
+                this.app.sim.analyzeCircuit();
+                this.app.analyzeFlag = false;
+                perfmon.stopContext();
             }
-            perfmon.stopContext();
+
+            if (this.app.sim.needsStamp && this.app.simRunning) {
+                perfmon.startContext("stampCircuit()");
+                try {
+                    this.app.sim.preStampAndStampCircuit();
+                } catch (e) {
+                    if (!SimulationManager.isStop(e)) {
+                        this.app.sim.halt("Exception in stampCircuit()", null);
+                        CirSim.console("Exception in stampCircuit: " + e);
+                    }
+                }
+                perfmon.stopContext();
+            }
+
+            this.app.scopeManager.setupScopes();
+
+            if (this.app.simRunning) {
+                if (this.app.sim.needsStamp)
+                    CirSim.console("needsStamp while simRunning?");
+
+                perfmon.startContext("runCircuit()");
+                try {
+                    this.app.sim.runCircuit(didAnalyze);
+                } catch (e) {
+                    if (!SimulationManager.isStop(e)) {
+                        CirSim.debugger();
+                        CirSim.console("exception in runCircuit " + e);
+                        this.app.consoleExceptionOccurred = true;
+                    }
+                }
+                perfmon.stopContext();
+            }
+            if (!this.app.simRunning)
+                break;
         }
 
         // app.stopElm may be buried inside a subcircuit, so find the top-level element to highlight
@@ -1061,8 +1133,6 @@ export class UIManager {
 
         if (stopHighlightElm != null && stopHighlightElm !== this.mouse.getMouseElm())
             stopHighlightElm.setMouseElm(true);
-
-        this.app.scopeManager.setupScopes();
 
         const g = new Graphics(this.cvcontext);
 
@@ -1079,21 +1149,6 @@ export class UIManager {
         }
 
         g.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
-
-        if (this.app.simRunning) {
-            if (this.app.sim.needsStamp)
-                CirSim.console("needsStamp while simRunning?");
-
-            perfmon.startContext("runCircuit()");
-            try {
-                this.app.sim.runCircuit(didAnalyze);
-            } catch (e) {
-                CirSim.debugger();
-                CirSim.console("exception in runCircuit " + e);
-                this.app.consoleExceptionOccurred = true;
-            }
-            perfmon.stopContext();
-        }
 
         const sysTime = Date.now();
         if (this.app.simRunning) {
@@ -1139,6 +1194,12 @@ export class UIManager {
             this.app.transform[4] * scale,
             this.app.transform[5] * scale);
 
+        // Find the scope cursor before drawing anything, since scope elements are drawn along with
+        // the circuit.  If it were left from the last frame, its time could be relative to an
+        // older trigger sweep, so a triggered scope element under the mouse would lose it on
+        // every new sweep and flicker.
+        this.selectScopeCursor();
+
         perfmon.startContext("elm.draw()");
         try {
             for (const ce of this.elmList) {
@@ -1173,12 +1234,39 @@ export class UIManager {
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_POST ||
                 this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SELECTED) {
             for (const ce of this.elmList) {
+                // boxes and lines only show their dots while they're the ones being moved
+                if (ce.isShapeElm() && ce !== this.mouse.getMouseElm() && !ce.isSelected())
+                    continue;
                 if (ce !== this.mouse.getMouseElm() || this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_POST) {
                     g.setColor(Color.gray);
                     g.fillOval(ce.x - 3, ce.y - 3, 7, 7);
                     g.fillOval(ce.x2 - 3, ce.y2 - 3, 7, 7);
                 } else {
                     ce.drawHandles(g, CircuitElm.selectColor);
+                }
+            }
+        }
+
+        if (this.mouse.mouseMode === MouseManager.MODE_SELECT_POSTS) {
+            // show every post, and highlight the selected ones
+            g.setColor(Color.gray);
+            for (const ce of this.elmList) {
+                for (let i = 0; i < ce.getPostCount(); i++) {
+                    const p = ce.getPost(i);
+                    if (p != null)
+                        g.fillOval(p.x - 3, p.y - 3, 7, 7);
+                }
+            }
+            g.setColor(CircuitElm.selectColor);
+            for (const k of this.mouse.postSelLocs) {
+                const [px, py] = k.split(",").map(Number);
+                g.fillOval(px - 4, py - 4, 9, 9);
+            }
+            // outline moving elements that have no posts to show (text, boxes, ...)
+            for (const ce of this.mouse.postSelRigid) {
+                if (ce.getPostCount() === 0) {
+                    const bb = ce.boundingBox;
+                    g.drawRect(bb.x, bb.y, bb.width, bb.height);
                 }
             }
         }
@@ -1325,6 +1413,21 @@ export class UIManager {
         g.drawString("exception, see console!", x, this.canvasHeight - 10);
     }
 
+    // Set the scope cursor (time and selected plot) from the mouse position over a scope, if any
+    selectScopeCursor(): void {
+        Scope.clearCursorInfo();
+        // while dragging the splitter, the mouse sits on the top edge of the scopes;
+        // don't treat that as hovering over a plot
+        if (this.mouse.tempMouseMode === MouseManager.MODE_DRAG_SPLITTER)
+            return;
+        const ct = this.app.stopMessage != null ? 0 : this.app.scopeManager.scopeCount;
+        for (let i = 0; i !== ct; i++)
+            this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+        if (this.app.scopeElmArr != null)
+            for (let i = 0; i !== this.app.scopeElmArr.length; i++)
+                this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
+    }
+
     drawBottomArea(g: Graphics): void {
         let leftX = 0;
         let h = 0;
@@ -1344,16 +1447,6 @@ export class UIManager {
         let ct = this.app.scopeManager.scopeCount;
         if (this.app.stopMessage != null)
             ct = 0;
-        Scope.clearCursorInfo();
-        // while dragging the splitter, the mouse sits on the top edge of the scopes;
-        // don't treat that as hovering over a plot
-        if (this.mouse.tempMouseMode !== MouseManager.MODE_DRAG_SPLITTER) {
-            for (let i = 0; i !== ct; i++)
-                this.app.scopeManager.scopes[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
-            if (this.app.scopeElmArr != null)
-                for (let i = 0; i !== this.app.scopeElmArr.length; i++)
-                    this.app.scopeElmArr[i].selectScope(this.mouse.mouseCursorX, this.mouse.mouseCursorY);
-        }
         for (let i = 0; i !== ct; i++)
             this.app.scopeManager.scopes[i].draw(g);
         if (this.mouse.mouseWasOverSplitter) {
@@ -1425,6 +1518,8 @@ export class UIManager {
             if (badnodes > 0)
                 info[i++] = badnodes + (badnodes === 1 ?
                     Locale.LS(" bad connection") : Locale.LS(" bad connections"));
+            if (this.app.railsWithoutGround)
+                info[i++] = Locale.LS("no ground node!");
             if (this.app.savedFlag)
                 info[i++] = "(saved)";
 
@@ -1454,6 +1549,19 @@ export class UIManager {
 
     isReadOnly(): boolean {
         return this.menus.noEditCheckItem.getState() || this.subcircuitStack.length > 0;
+    }
+
+    isViewingSubcircuit(): boolean {
+        return this.subcircuitStack.length > 0;
+    }
+
+    // can elm's properties be edited?  inside a subcircuit view, only state fields can be
+    // (see EditDialog's state-only mode), so only elements that have some
+    canEditProperties(elm: CircuitElm): boolean {
+        if (!this.isReadOnly())
+            return true;
+        return this.isViewingSubcircuit() && !this.menus.noEditCheckItem.getState() &&
+            EditDialog.hasStateFields(elm);
     }
 
     // show an element (menu bar) as a floating context-menu popup at the given client coordinates
@@ -1557,6 +1665,8 @@ export class UIManager {
 
     setMouseMode(mode: number): void {
         this.mouse.mouseMode = mode;
+        if (mode !== MouseManager.MODE_SELECT_POSTS)
+            this.mouse.clearPostSelection();
         if (mode === MouseManager.MODE_ADD_ELM)
             this.setCursorStyle("cursorCross");
         else
@@ -1616,10 +1726,51 @@ export class UIManager {
         document.addEventListener('keydown', (e) => this.onKeyDown(e));
         document.addEventListener('keyup',   (e) => this.onKeyUp(e));
         document.addEventListener('keypress', (e) => this.onKeyPress(e));
+        // (a mouse button pressed or the wheel turned during or between Shift taps means
+        // they're not a double tap, so shift-wheel zooming twice doesn't open the palette)
+        document.addEventListener('mousedown', () => this.otherPressedForShiftTap(), true);
+        document.addEventListener('wheel', () => this.otherPressedForShiftTap(), { capture: true, passive: true });
+        document.addEventListener('touchstart', () => this.otherPressedForShiftTap(), { capture: true, passive: true });
+    }
+
+    private otherPressedForShiftTap(): void {
+        this.shiftUsedWithOther = true;
+        this.keyPressedSinceShiftUp = true;
+    }
+
+    // True when the event originates from a text entry control, so global
+    // single-key shortcuts must stay out of the way.
+    private isTextEntryTarget(e: Event): boolean {
+        const t = e.target as HTMLElement | null;
+        if (t == null)
+            return false;
+        const tag = t.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
     }
 
     private onKeyDown(e: KeyboardEvent): void {
         const code = e.keyCode;
+
+        // A key pressed right after the property editor pops up may be meant for the circuit
+        // instead; if so, close the editor and handle the key below as if it weren't there.
+        // (Only keys aimed at the editor or nothing in particular, not the component search
+        // field.  This comes before the text field check below, since the editor focuses its
+        // first field.)
+        this.keyPassedThrough = false;
+        const ed = CirSim.editDialog;
+        if (ed != null && ed.isShowing() && !this.modalDialogIsShowing() &&
+                (!this.isTextEntryTarget(e) || ed.contains(e.target as Node)) &&
+                ed.shouldPassKeyThrough(e)) {
+            ed.closeDialog();
+            this.keyPassedThrough = true;
+        }
+
+        // Typing in a text field (component search, dialogs) must not trigger canvas
+        // shortcuts or the double-Shift palette gesture. The command palette's own
+        // input is exempt: its arrow/Enter handling lives in this handler.
+        if (!this.keyPassedThrough && !(CirSim.commandPalette != null && CirSim.commandPalette.isShowing()) &&
+                this.isTextEntryTarget(e))
+            return;
 
         // Handle a press-and-drag gesture started on a toolbar icon, which may end up
         // anywhere on the page (not just over the canvas), so it needs to be tracked here.
@@ -1635,16 +1786,18 @@ export class UIManager {
                 this.mouse.toolbarDragOrientationChanged(true);
 
                 const now = Date.now();
-                // Second Shift within 400 ms, with no other key in between, opens the palette.
+                // Second Shift tap within 400 ms of the first, with nothing else pressed in
+                // between, opens the palette.
                 if (this.lastShiftKeyUpMs > 0 && now - this.lastShiftKeyUpMs < 400 &&
                         !this.keyPressedSinceShiftUp && !this.dialogIsShowing()) {
                     this.app.commands.menuPerformed("key", "commandpalette");
                     e.preventDefault();
                     this.lastShiftKeyUpMs = 0;
                 }
+                this.shiftUsedWithOther = false;
             }
         } else if (!e.repeat) {
-            this.keyPressedSinceShiftUp = true;
+            this.otherPressedForShiftTap();
         }
 
         if (this.dialogIsShowing()) {
@@ -1709,7 +1862,6 @@ export class UIManager {
                 this.app.scopeManager.scopeSelected = -1;
             } else {
                 this.mouse.menuElm = null;
-                this.app.undoManager.pushUndo();
                 this.app.commands.doDelete(true);
                 e.preventDefault();
             }
@@ -1758,6 +1910,7 @@ export class UIManager {
                 } else {
                     this.setMouseMode(MouseManager.MODE_ADD_ELM);
                     this.mouseModeStr = c;
+                    CirSim.preloadClass(c);
                     this.updateToolbar();
                     this.mouse.tempMouseMode = this.mouse.mouseMode;
                 }
@@ -1800,7 +1953,8 @@ export class UIManager {
             this.app.repaint();
             this.mouse.toolbarDragOrientationChanged(false);
 
-            this.lastShiftKeyUpMs = Date.now();
+            // (if Shift was used with something else, this wasn't a tap)
+            this.lastShiftKeyUpMs = this.shiftUsedWithOther ? 0 : Date.now();
             this.keyPressedSinceShiftUp = false;
         }
 
@@ -1834,6 +1988,11 @@ export class UIManager {
         const cc = e.charCode;
 
         if (this.dialogIsShowing())
+            return;
+
+        // Don't turn typed characters in the component search field into zoom/switch
+        // shortcuts.  (A key the property editor passed through is meant as one, though.)
+        if (this.isTextEntryTarget(e) && !this.keyPassedThrough)
             return;
 
         if (cc === 45 /* '-' */) {
@@ -1879,28 +2038,35 @@ export class UIManager {
             if (toggled) {
                 e.preventDefault();
                 this.app.repaint();
-            } else {
-                const c = this.app.shortcuts.get(cc);
-                if (c != null) {
-                    e.preventDefault();
-                    if (c.startsWith("cmd:")) {
-                        const parts = c.split(":");
-                        this.app.commands.menuPerformed(parts[1], parts[2]);
-                        return;
-                    }
-                    this.setMouseMode(MouseManager.MODE_ADD_ELM);
-                    this.mouseModeStr = c;
-                    this.updateToolbar();
-                    this.mouse.tempMouseMode = this.mouse.mouseMode;
-                } else if (cc === KEY_SPACE) {
-                    this.setMouseMode(MouseManager.MODE_SELECT);
-                    this.mouseModeStr = "Select";
-                    this.updateToolbar();
-                    this.mouse.tempMouseMode = this.mouse.mouseMode;
-                    e.preventDefault();
-                }
+            } else if (this.doToolShortcut(cc)) {
+                e.preventDefault();
+            } else if (cc === KEY_SPACE) {
+                this.setMouseMode(MouseManager.MODE_SELECT);
+                this.mouseModeStr = "Select";
+                this.updateToolbar();
+                this.mouse.tempMouseMode = this.mouse.mouseMode;
+                e.preventDefault();
             }
         }
+    }
+
+    // select the tool (or run the command) assigned to the key with char code cc.
+    // returns false if no shortcut is assigned to it.
+    doToolShortcut(cc: number): boolean {
+        const c = this.app.shortcuts.get(cc);
+        if (c == null)
+            return false;
+        if (c.startsWith("cmd:")) {
+            const parts = c.split(":");
+            this.app.commands.menuPerformed(parts[1], parts[2]);
+            return true;
+        }
+        this.setMouseMode(MouseManager.MODE_ADD_ELM);
+        this.mouseModeStr = c;
+        CirSim.preloadClass(c);
+        this.updateToolbar();
+        this.mouse.tempMouseMode = this.mouse.mouseMode;
+        return true;
     }
 
     private handleReadonlyKeyDown(e: KeyboardEvent, code: number): void {
@@ -1995,7 +2161,9 @@ export class UIManager {
             const list = SubcircuitModel.getModelList();
             for (let i = 0; i !== list.length; i++) {
                 const name: string = list[i].name;
-                menu.addCheckboxItem(this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name));
+                const mi = this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name);
+                mi.setState(this.mouseModeStr === "SubcircuitElm:" + name);
+                menu.addCheckboxItem(mi);
             }
         }
         MouseManager.lastSubcircuitMenuUpdate = SubcircuitModel.sequenceNumber;
@@ -2008,25 +2176,27 @@ export class UIManager {
 
         let shortcut = "";
         let elm: any = null;
-        try {
-            elm = this.app.constructElement(t, 0, 0);
-        } catch (e) {
-            this.app.console("exception: " + e);
-        }
-
-        this.app.register(t, elm);
-        if (elm == null && t.indexOf("Elm") >= 0)
-            this.app.console("can't create class: " + t);
-        if (elm != null) {
-            if (elm.needsShortcut()) {
-                shortcut += String.fromCharCode(elm.getShortcut());
-                if (this.app.shortcuts.get(elm.getShortcut()) != null &&
-                        this.app.shortcuts.get(elm.getShortcut()) !== t)
-                    this.app.console("already have shortcut for " + String.fromCharCode(elm.getShortcut()) + " " + elm);
-                this.app.shortcuts.set(elm.getShortcut(), t);
+        // a class that isn't loaded yet was registered by registerElements(), which also
+        // recorded its shortcut.  (A subcircuit whose elements aren't loaded has none.)
+        const lazy = ElementFactory.getLazyClass(CirSim.classAliases[t] ?? t);
+        if (CirSim.isClassLoaded(t)) {
+            try {
+                elm = this.app.constructElement(t, 0, 0);
+            } catch (e) {
+                this.app.console("exception: " + e);
             }
-            elm.delete();
+            this.app.register(t, elm);
+            if (elm == null && t.indexOf("Elm") >= 0)
+                this.app.console("can't create class: " + t);
         }
+        const key = elm != null ? (elm.needsShortcut() ? elm.getShortcut() : 0) : (lazy?.shortcut ?? 0);
+        if (key > 0) {
+            shortcut += String.fromCharCode(key);
+            if (this.app.shortcuts.get(key) != null && this.app.shortcuts.get(key) !== t)
+                this.app.console("already have shortcut for " + String.fromCharCode(key) + " " + t);
+            this.app.shortcuts.set(key, t);
+        }
+        elm?.delete();
 
         const mi = (shortcut === "")
             ? new CheckboxMenuItem(s)
@@ -2142,9 +2312,11 @@ export class UIManager {
 
             this.app.shortcuts.clear();
 
+            // the element menu is built twice (right-click menu and Draw menu), so there are
+            // two items per class; clear all of them, skipping fixed labels like "(Alt-drag)"
             for (let i = 0; i !== this.mainMenuItems.length; i++) {
                 const item = this.mainMenuItems[i];
-                if (item.getShortcut().length > 1) break;
+                if (item.getShortcut().length > 1) continue;
                 item.setShortcut("");
             }
 
@@ -2152,13 +2324,15 @@ export class UIManager {
                 const arr = keys[i].split("=");
                 if (arr.length !== 2) continue;
                 const c = parseIntStrict(arr[0]);
-                const className = arr[1];
+                let className = arr[1];
+                // CustomCompositeElm was renamed SubcircuitElm; keep shortcuts saved by the old version
+                if (className === "CustomCompositeElm" || className.startsWith("CustomCompositeElm:"))
+                    className = "SubcircuitElm" + className.substring("CustomCompositeElm".length);
                 this.app.shortcuts.set(c, className);
 
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
                     if (this.mainMenuItemNames[j] === className) {
                         this.mainMenuItems[j].setShortcut(String.fromCharCode(c));
-                        break;
                     }
                 }
             }

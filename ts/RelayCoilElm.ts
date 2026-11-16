@@ -194,6 +194,9 @@ export class RelayCoilElm extends CircuitElm {
         this.adjustBbox(this.coilPosts[0], this.coilPosts[1]);
     }
 
+    // what a scope shows (the info box uses coilCurrent itself)
+    getCurrent(): number { return this.coilCurrent; }
+
     getCurrentIntoNode(n: number): number {
         return n === 0 ? -this.coilCurrent : this.coilCurrent;
     }
@@ -307,7 +310,7 @@ export class RelayCoilElm extends CircuitElm {
     toggleSwitchPositions(): void {
         for (const ce of this.elmList) {
             if (ce instanceof RelayContactElm && (ce as RelayContactElm).label === this.label)
-                (ce as RelayContactElm).setPosition(1 - this.switchPosition, this.type);
+                (ce as RelayContactElm).setContactPosition(1 - this.switchPosition, this.type);
         }
     }
 
@@ -317,7 +320,7 @@ export class RelayCoilElm extends CircuitElm {
     setSwitchPositions(position: number): void {
         for (const ce of this.elmList) {
             if (ce instanceof RelayContactElm && (ce as RelayContactElm).label === this.label)
-                (ce as RelayContactElm).setPosition(position, this.type);
+                (ce as RelayContactElm).setContactPosition(position, this.type);
         }
     }
 

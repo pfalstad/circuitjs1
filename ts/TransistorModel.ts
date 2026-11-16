@@ -24,13 +24,15 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
-    static modelMap: Map<string, TransistorModel>;
+    static readonly registry = new ModelRegistry<TransistorModel>(
+        () => TransistorModel.createModelMap(), "transistormodel:", (m, doc) => m.dumpXml(doc));
 
     flags: number = 0;
     name: string;
@@ -149,19 +151,17 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
     }
 
     static getModelWithName(name: string): TransistorModel {
-        TransistorModel.createModelMap();
-        let lm = TransistorModel.modelMap.get(name);
+        let lm = TransistorModel.registry.get(name);
         if (lm != null)
             return lm;
         lm = new TransistorModel();
         lm.name = name;
-        TransistorModel.modelMap.set(name, lm);
+        TransistorModel.registry.setGlobal(lm);
         return lm;
     }
 
     static getModelWithNameOrCopy(name: string, oldmodel: TransistorModel | null): TransistorModel {
-        TransistorModel.createModelMap();
-        const lm = TransistorModel.modelMap.get(name);
+        const lm = TransistorModel.registry.get(name);
         if (lm != null)
             return lm;
         if (oldmodel == null) {
@@ -170,14 +170,12 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
         }
         const copy = new TransistorModel(oldmodel);
         copy.name = name;
-        TransistorModel.modelMap.set(name, copy);
+        TransistorModel.registry.setLocal(copy);
         return copy;
     }
 
-    static createModelMap(): void {
-        if (TransistorModel.modelMap != null)
-            return;
-        TransistorModel.modelMap = new Map<string, TransistorModel>();
+    // add the built-in models (called by the registry when first used)
+    private static createModelMap(): void {
         TransistorModel.addDefaultModel("default",       new TransistorModel("default",        1e-13));
         TransistorModel.addDefaultModel("spice-default", new TransistorModel("spice-default",  1e-16));
 
@@ -207,25 +205,18 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
     }
 
     static addDefaultModel(name: string, dm: TransistorModel): void {
-        TransistorModel.modelMap.set(name, dm);
         dm.readOnly = dm.builtIn = true;
         dm.name = name;
+        TransistorModel.registry.setGlobal(dm);
     }
 
     static getDefaultModel(): TransistorModel {
         return TransistorModel.getModelWithName("default");
     }
 
-    static clearDumpedFlags(): void {
-        if (TransistorModel.modelMap == null)
-            return;
-        for (const [, tm] of TransistorModel.modelMap)
-            tm.dumped = false;
-    }
-
     static getModelList(): TransistorModel[] {
         const vector: TransistorModel[] = [];
-        for (const [, tm] of TransistorModel.modelMap) {
+        for (const tm of TransistorModel.registry.models()) {
             if (tm.internal)
                 continue;
             if (!vector.includes(tm))
@@ -249,11 +240,12 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
         const st = new StringTokenizer(s);
         const tm = TransistorModel.undumpModel(st);
         tm.builtIn = tm.internal = true;
+        TransistorModel.registry.makeGlobal(tm);
     }
 
     static undumpModel(st: StringTokenizer): TransistorModel {
         const name = CustomLogicModel.unescape(st.nextToken());
-        const dm = TransistorModel.getModelWithName(name);
+        const dm = TransistorModel.registry.getForLoad(name!, () => new TransistorModel());
         dm.undump(st);
         return dm;
     }
@@ -323,9 +315,7 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.value;
-            if (this.name.length > 0)
-                TransistorModel.modelMap.set(this.name, this);
+            TransistorModel.registry.rename(this, ei.textf.value);
         }
         if (n === 1) this.satCur = ei.value;
         if (n === 2) this.betaR = ei.value;
@@ -353,6 +343,7 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
             if (ei.value >= 0) this.transitTimeR = ei.value;
             else ei.setError("must be >= 0");
         }
+        TransistorModel.registry.resave(this);
         this.updateModel();
         CircuitElm.app.updateModels();
     }
@@ -362,17 +353,8 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
     pickName(): void {
         this.name = "transistormodel";
-        if (TransistorModel.modelMap.get(this.name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = this.name + "-" + num;
-                if (TransistorModel.modelMap.get(n) == null) {
-                    this.name = n;
-                    break;
-                }
-            }
-        }
-        TransistorModel.modelMap.set(this.name, this);
+        this.name = TransistorModel.registry.uniqueName(this.name);
+        TransistorModel.registry.setLocal(this);
     }
 
     dumpXml(doc: Document): void {
@@ -411,7 +393,7 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
 
     static undumpModelXml(xml: CircuitXMLDeserializer): TransistorModel {
         const name = xml.parseStringAttr("nm", null);
-        const tm = TransistorModel.getModelWithName(name);
+        const tm = TransistorModel.registry.getForLoad(name!, () => new TransistorModel());
         tm.undumpXml(xml);
         return tm;
     }

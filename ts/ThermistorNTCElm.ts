@@ -106,6 +106,15 @@ export class ThermistorNTCElm extends CircuitElm {
         super.delete();
     }
 
+    setMouseElm(v: boolean): void {
+        super.setMouseElm(v);
+        this.slider?.draw();
+    }
+
+    onMouseWheel(e: WheelEvent): void {
+        this.slider?.onMouseWheel(e);
+    }
+
     setPoints(): void {
         super.setPoints();
         this.calcLeads(32);

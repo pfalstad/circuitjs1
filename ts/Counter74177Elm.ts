@@ -56,11 +56,11 @@ export class Counter74177Elm extends ChipElm implements DigitalInitialState {
     //   clk2Post         CLK2 (present only when bits>=2 && !singleClock(); else -1)
     //   loadPost, clrPost
     //   outputBase..+bits-1   Q0..Q(bits-1)
-    clk1Post: number = 0;
-    clk2Post: number = -1;
-    loadPost: number = 0;
-    clrPost: number = 0;
-    outputBase: number = 0;
+    declare clk1Post: number;
+    declare clk2Post: number;
+    declare loadPost: number;
+    declare clrPost: number;
+    declare outputBase: number;
 
     lastClk1: boolean = false;
     lastRippleClock: boolean = false; // tracks whatever clocks bit 1 (CLK2, or bit 0 if singleClock())

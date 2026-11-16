@@ -33,6 +33,7 @@ export class SubcircuitChipElm extends ChipElm {
     needsBits(): boolean { return false; }
     setupPins(): void {}
     getVoltageSourceCount(): number { return 0; }
+    allowsPinLayout(): boolean { return false; }
 
     setPins(p: Pin[]): void {
         this.pins = p;

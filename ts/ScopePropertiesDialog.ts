@@ -128,6 +128,8 @@ export class ScopePropertiesDialog extends Dialog {
     private triggerLevelTextBox: HTMLInputElement;
     private trigModePDiv: HTMLDivElement;
     private trigLevelDiv: HTMLDivElement;
+    private trigSourceDiv: HTMLDivElement;
+    private trigSourceBox: HTMLSelectElement;
 
     // Trail
     private trailBar: HTMLInputElement;
@@ -154,6 +156,8 @@ export class ScopePropertiesDialog extends Dialog {
     private xyPlotsSection: ExpandingSection;
     private viBox: ScopeCheckBox;
     private xyBox: ScopeCheckBox;
+    private xyOriginBox: ScopeCheckBox;
+    private xyAlignBox: ScopeCheckBox;
     private xySettingsDiv: HTMLDivElement;
     private xyPlotXBox: HTMLSelectElement;
     private xyPlotYBox: HTMLSelectElement;
@@ -274,10 +278,7 @@ export class ScopePropertiesDialog extends Dialog {
             if (!scope.isManualScale() || this.plotSelection >= scope.visiblePlots.length) return;
             const d = this.getManualScaleValue();
             if (d === 0) return;
-            let s = Scope.MIN_MAN_SCALE, lasts = s;
-            const target = d * 0.999;
-            for (let a = 0; s < target; a++) { lasts = s; s *= Scope.multa[a % 3]; }
-            scope.setManualScaleValue(this.plotSelection, lasts);
+            scope.setManualScaleValue(this.plotSelection, Scope.nextLowerManScale(d));
             this.updateUi();
         });
         this.vScaleRow2.appendChild(this.scaleDownButton);
@@ -371,6 +372,13 @@ export class ScopePropertiesDialog extends Dialog {
         });
         tContent.appendChild(this.trigEdgeDiv);
 
+        this.trigSourceDiv = document.createElement('div');
+        this.trigSourceDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
+        this.trigSourceBox = this.makeXYSelect('Source:', this.trigSourceDiv, (idx) => {
+            if (idx >= 0) { scope.trigger.source = idx; scope.resetGraph(); }
+        });
+        tContent.appendChild(this.trigSourceDiv);
+
         this.trigLevelDiv = document.createElement('div');
         this.trigLevelDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
         const lvlLbl = document.createElement('span');
@@ -384,6 +392,14 @@ export class ScopePropertiesDialog extends Dialog {
         const trigApplyBtn = document.createElement('button');
         trigApplyBtn.textContent = Locale.LS('Apply');
         trigApplyBtn.addEventListener('click', () => this.applyTriggerLevel());
+        this.triggerLevelTextBox.addEventListener('keydown', (e) => {
+            // apply like the button does, without letting the dialog close on Enter
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.applyTriggerLevel();
+            }
+        });
         this.trigLevelDiv.appendChild(trigApplyBtn);
         tContent.appendChild(this.trigLevelDiv);
 
@@ -433,6 +449,10 @@ export class ScopePropertiesDialog extends Dialog {
         this.viBox.element.addEventListener('change', () => this.onCheckboxChange(this.viBox));
         this.xyBox = new ScopeCheckBox('Plot X/Y', 'plotxy', xyBasicDiv);
         this.xyBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyBox));
+        this.xyOriginBox = new ScopeCheckBox('Include Origin', 'xyorigin', xyBasicDiv);
+        this.xyOriginBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyOriginBox));
+        this.xyAlignBox = new ScopeCheckBox('Align X', 'xyalignx', xyBasicDiv);
+        this.xyAlignBox.element.addEventListener('change', () => this.onCheckboxChange(this.xyAlignBox));
 
         this.xySettingsDiv = document.createElement('div');
         this.xySettingsDiv.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px;align-items:center;margin-top:4px;';
@@ -447,15 +467,17 @@ export class ScopePropertiesDialog extends Dialog {
         // Trail Persistence (inside XY Plots section)
         const trailDiv = document.createElement('div');
         trailDiv.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;';
-        trailDiv.appendChild(Object.assign(document.createElement('span'), { textContent: Locale.LS('Trail Persistence (time steps)') }));
+        trailDiv.appendChild(Object.assign(document.createElement('span'), { textContent: Locale.LS('Trail Persistence') }));
+        // slider 0 = default (frame-based fade); 1..TRAIL_MAX = 1/100 to 10x the scope's
+        // horizontal time span, logarithmic, 20 steps per decade
         this.trailBar = document.createElement('input');
         this.trailBar.type = 'range';
         this.trailBar.min  = '0';
-        this.trailBar.max  = '61';
-        this.trailBar.value = String(ScopePropertiesDialog.trailStepsToSlider(scope.plot2d.trailPersistence));
+        this.trailBar.max  = String(ScopePropertiesDialog.TRAIL_MAX);
+        this.trailBar.value = String(this.trailTimeToSlider(scope.plot2d.trailTime()));
         this.trailBar.style.flex = '1';
         this.trailBar.addEventListener('input', () => {
-            scope.plot2d.trailPersistence = ScopePropertiesDialog.trailSliderToSteps(Number(this.trailBar.value));
+            scope.plot2d.trailPersistence = this.trailSliderToSteps(Number(this.trailBar.value));
             this.setTrailLabel();
         });
         trailDiv.appendChild(this.trailBar);
@@ -668,6 +690,9 @@ export class ScopePropertiesDialog extends Dialog {
         const newsp = Math.pow(2, 10 - Number(this.speedBar.value));
         if (scope.speed !== newsp) scope.setSpeed(newsp);
         this.setScopeSpeedLabel();
+        // the trail keeps its time; its slider range moves with the horizontal span
+        this.trailBar.value = String(this.trailTimeToSlider(scope.plot2d.trailTime()));
+        this.setTrailLabel();
     }
 
     private setScopeSpeedLabel(): void {
@@ -676,11 +701,26 @@ export class ScopePropertiesDialog extends Dialog {
 
     private setTrailLabel(): void {
         if (this.scope.plot2d.trailPersistence <= 0) {
-            this.trailLabel.textContent = Locale.LS('default');
+            // measured value: 2 significant figures, so it doesn't flicker in the last digits
+            const t = this.scope.plot2d.defaultTrailTime();
+            const r = t > 0 ? Number(t.toPrecision(2)) : 0;
+            this.trailLabel.textContent = Locale.LS('default') + (r > 0 ? ' (\u2248' + CircuitElm.getUnitText(r, 's') + ')' : '');
         } else {
-            const maxTs = this.app.sim?.maxTimeStep ?? 0;
-            this.trailLabel.textContent = CircuitElm.getUnitText(this.scope.plot2d.trailPersistence * maxTs, 's');
+            this.trailLabel.textContent = CircuitElm.getUnitText(this.scope.plot2d.trailTime(), 's');
         }
+    }
+
+    // called while drawing: the default trail time is measured live from the sim speed
+    // (twice a second is plenty for a readout)
+    private lastTrailRefresh: number = 0;
+    refreshTrail(): void {
+        if (this.scope.plot2d.trailPersistence > 0)
+            return;
+        const now = performance.now();
+        if (now - this.lastTrailRefresh < 500)
+            return;
+        this.lastTrailRefresh = now;
+        this.setTrailLabel();
     }
 
     private applyTriggerLevel(): void {
@@ -743,6 +783,10 @@ export class ScopePropertiesDialog extends Dialog {
         this.viBox.setValue(scope.plot2d.enabled && !scope.plot2d.plotXY && !scope.plot2d.digitalRaster);
         this.xyBox.setValue(scope.plot2d.plotXY);
         this.rasterBox.setValue(scope.plot2d.digitalRaster);
+        this.xyOriginBox.setValue(scope.plot2d.includeOrigin);
+        this.xyOriginBox.setEnabled(scope.plot2d.enabled && !scope.isManualScale());
+        this.xyAlignBox.setValue(scope.plot2d.alignX);
+        this.xyAlignBox.setEnabled(scope.plot2d.enabled && !scope.isManualScale());
         this.resistanceBox.setValue(scope.hasPlotValue(Scope.VAL_R));
         this.resistanceBox.setEnabled(scope.canShowResistance());
         if (this.chargeBox !== null)
@@ -784,6 +828,9 @@ export class ScopePropertiesDialog extends Dialog {
         this.triggerLevelTextBox.disabled = !trigActive;
         this.trigEdgeDiv.style.display  = trigActive ? '' : 'none';
         this.trigLevelDiv.style.display = trigActive ? '' : 'none';
+        this.trigSourceDiv.style.display = trigActive ? '' : 'none';
+        if (trigActive)
+            this.populatePlotListBox(this.trigSourceBox, scope.plots.indexOf(scope.triggerSourcePlot()!), false);
 
         // XY settings visibility
         const xyActive = scope.plot2d.plotXY;
@@ -815,8 +862,10 @@ export class ScopePropertiesDialog extends Dialog {
         const scope = this.scope;
         this.updateChannelButtons();
         const manual = scope.isManualScale();
-        this.channelSettingsDiv.style.display = manual ? '' : 'none';
-        this.vScaleRow0.style.display = (manual && this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
+        const havePlot = this.plotSelection < scope.visiblePlots.length;
+        // channel selection and AC/DC coupling are available in both manual and auto scale modes
+        this.channelSettingsDiv.style.display = '';
+        this.vScaleRow0.style.display = havePlot ? '' : 'none';
         this.vScaleRow1.style.display = (manual && this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
         this.vScaleRow2.style.display = (!manual || this.plotSelection < scope.visiblePlots.length) ? '' : 'none';
         this.divisionsRow.style.display = manual ? '' : 'none';
@@ -834,10 +883,6 @@ export class ScopePropertiesDialog extends Dialog {
             this.positionLabel.textContent = 'CH ' + (this.plotSelection + 1) + ' ' + Locale.LS('Position');
             this.positionBar.value         = String(p.manVPosition);
             this.positionBar.disabled      = false;
-            this.dcButton.disabled = false;
-            this.acButton.disabled = !p.canAcCouple();
-            this.dcButton.checked  = !p.isAcCoupled();
-            this.acButton.checked  = p.isAcCoupled();
         } else if (manual) {
             this.manualScaleIdLabel.textContent = '';
             this.manualScaleLabel.textContent   = '';
@@ -845,8 +890,6 @@ export class ScopePropertiesDialog extends Dialog {
             this.manualScaleTextBox.disabled    = true;
             this.positionLabel.textContent      = '';
             this.positionBar.disabled           = true;
-            this.dcButton.disabled = true;
-            this.acButton.disabled = true;
         } else {
             this.manualScaleIdLabel.textContent = '';
             this.manualScaleLabel.textContent   = Locale.LS('Max Value') + ' (' + scope.getScaleUnitsText() + ')';
@@ -854,6 +897,17 @@ export class ScopePropertiesDialog extends Dialog {
             this.manualScaleTextBox.disabled    = true;
             this.positionLabel.textContent      = '';
             this.positionBar.disabled           = true;
+        }
+
+        if (havePlot) {
+            const p = scope.visiblePlots[this.plotSelection];
+            this.dcButton.disabled = false;
+            this.acButton.disabled = !p.canAcCouple();
+            this.dcButton.checked  = !p.isAcCoupled();
+            this.acButton.checked  = p.isAcCoupled();
+        } else {
+            this.dcButton.disabled = true;
+            this.acButton.disabled = true;
         }
         this.setScopeSpeedLabel();
     }
@@ -894,20 +948,22 @@ export class ScopePropertiesDialog extends Dialog {
     }
 
     static nextHighestScale(d: number): number {
-        d = d * 1.001;
-        let s = Scope.MIN_MAN_SCALE;
-        for (let a = 0; s < d; a++) s *= Scope.multa[a % 3];
-        return s;
+        return Scope.nextHigherManScale(d);
     }
 
-    static trailSliderToSteps(v: number): number {
+    static readonly TRAIL_MAX = 61;
+
+    // slider 1..TRAIL_MAX -> span * 10^((v-1)/20 - 2), stored as timesteps; 0 = default
+    trailSliderToSteps(v: number): number {
         if (v <= 0) return 0;
-        return Math.round(Math.pow(10, v / 10));
+        const t = this.scope.plot2d.fitWindow() * Math.pow(10, (v - 1) / 20 - 2);
+        return Math.max(1, Math.round(t / this.scope.sim.maxTimeStep));
     }
 
-    static trailStepsToSlider(steps: number): number {
-        if (steps <= 0) return 0;
-        return Math.round(Math.log10(steps) * 10);
+    trailTimeToSlider(t: number): number {
+        if (t <= 0) return 0;
+        const v = 1 + Math.round(20 * (Math.log10(t / this.scope.plot2d.fitWindow()) + 2));
+        return Math.max(1, Math.min(ScopePropertiesDialog.TRAIL_MAX, v));
     }
 }
 

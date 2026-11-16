@@ -1,8 +1,9 @@
-import { defineConfig, type Plugin } from 'vitest/config'
+import { configDefaults, defineConfig, type Plugin } from 'vitest/config'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { CodeSplittingNameFunction } from 'rolldown'
 
 const mimeTypes: Record<string, string> = {
   '.html': 'text/html',
@@ -45,6 +46,36 @@ function serveWarDir(): Plugin {
   }
 }
 
+// Serves the regression test circuits (../auto-tests, and ../tests that they're made
+// from) at /auto-tests/ and /tests/, in the dev server and `vite preview`, for TestManager
+function serveTestDirs(): Plugin {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  const dirs: Record<string, string> = {
+    '/auto-tests/': path.resolve(tsRoot, '../auto-tests'),
+    '/tests/': path.resolve(tsRoot, '../tests'),
+  }
+  const middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!req.url || req.method !== 'GET') return next()
+    const urlPath = decodeURIComponent(req.url.split('?')[0]!)
+    const prefix = Object.keys(dirs).find(p => urlPath.startsWith(p))
+    if (!prefix) return next()
+    const dir = dirs[prefix]!
+    const filePath = path.join(dir, urlPath.slice(prefix.length))
+    if (!filePath.startsWith(dir + path.sep)) return next()
+    fs.stat(filePath, (err: NodeJS.ErrnoException | null, stat: fs.Stats) => {
+      if (err || !stat.isFile()) return next()
+      res.setHeader('Content-Type', 'text/plain')
+      res.setHeader('Cache-Control', 'no-store')
+      fs.createReadStream(filePath).pipe(res)
+    })
+  }
+  return {
+    name: 'serve-test-dirs',
+    configureServer(server) { server.middlewares.use(middleware) },
+    configurePreviewServer(server) { server.middlewares.use(middleware) },
+  }
+}
+
 // Assets directory name, relative to build.outDir. The compiled JS/CSS bundle
 // and the circuits/, locale/, and images/ resources all land here together
 // (mirroring GWT's per-module output directory, e.g. war/circuitjs1/) so that
@@ -81,11 +112,39 @@ function copyPublicAssets(): Plugin {
   }
 }
 
+// Puts everything the startup code imports statically (following imports
+// from main.ts) into one chunk. Otherwise rolldown gives each startup module
+// that a lazy chunk also imports its own chunk, so startup loads dozens of
+// files. main.ts itself stays in the entry chunk: it awaits CirSim.init() at
+// top level, which loads element chunks that import from the startup chunk,
+// and they'd wait forever for a chunk still waiting on them.
+function startupChunk(): CodeSplittingNameFunction {
+  const tsRoot = path.dirname(fileURLToPath(import.meta.url))
+  let startup: Set<string> | null = null
+  return (id, ctx) => {
+    if (startup == null) {
+      const found = new Set<string>()
+      const visit = (m: string) => {
+        if (found.has(m))
+          return
+        found.add(m)
+        ctx.getModuleInfo(m)?.importedIds.forEach(visit)
+      }
+      const main = path.join(tsRoot, 'main.ts')
+      visit(main)
+      found.delete(main)
+      startup = found
+    }
+    return startup.has(id) ? 'circuitjs' : null
+  }
+}
+
 export default defineConfig({
   base: './',
-  plugins: [serveWarDir(), copyPublicAssets()],
+  plugins: [serveWarDir(), serveTestDirs(), copyPublicAssets()],
   server: {
     port: 5173,
+    host: true,
     open: true
   },
   build: {
@@ -93,16 +152,18 @@ export default defineConfig({
     copyPublicDir: false,
     rolldownOptions: {
       // circuitjs.html is the only page with app code. The other static
-      // pages are copied by copyPublicAssets(), since codeSplitting: false
-      // doesn't allow multiple inputs.
+      // pages are copied by copyPublicAssets().
       input: {
         circuitjs: 'circuitjs.html',
       },
       output: {
-        // Emit the app as a single JS file. CirSim.init() awaits all its
-        // dynamic imports at startup anyway, so splitting only added a
-        // waterfall of sequential requests.
-        codeSplitting: false,
+        // Startup code is all imported statically, so it lands in the main
+        // chunk. Only what's loaded on demand with import() is split off:
+        // the KiCad and SPICE exporters, ZipWriter, and the element classes
+        // registerElements.ts loads lazily.
+        codeSplitting: {
+          groups: [{ name: startupChunk() }],
+        },
         // Several element classes look up their own class name at runtime
         // (CircuitElm.getClassName() uses this.constructor.name) to resolve
         // types via ElementFactory. Minifying away class names breaks that.
@@ -118,6 +179,8 @@ export default defineConfig({
     // Several digital-optimization regression tests run real circuits out
     // to millions of ticks (comparing against an always-correct baseline)
     // and legitimately take longer than vitest's 5000ms default.
-    testTimeout: 60000
+    testTimeout: 60000,
+    // the UI tests are run by Playwright (npm run test:ui), not vitest
+    exclude: [...configDefaults.exclude, 'ui-tests/**'],
   }
 })

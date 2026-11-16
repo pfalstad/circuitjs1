@@ -24,13 +24,15 @@ import { CustomLogicModel } from "./CustomLogicModel";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
-    static modelMap: Map<string, DiodeModel>;
+    static readonly registry = new ModelRegistry<DiodeModel>(
+        () => DiodeModel.createModelMap(), "diodemodel:", (m, doc) => m.dumpXml(doc));
 
     flags: number = 0;
     name: string;
@@ -93,19 +95,17 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     }
 
     static getModelWithName(name: string): DiodeModel {
-        DiodeModel.createModelMap();
-        let lm = DiodeModel.modelMap.get(name);
+        let lm = DiodeModel.registry.get(name);
         if (lm != null)
             return lm;
         lm = new DiodeModel();
         lm.name = name;
-        DiodeModel.modelMap.set(name, lm);
+        DiodeModel.registry.setGlobal(lm);
         return lm;
     }
 
     static getModelWithNameOrCopy(name: string, oldmodel: DiodeModel | null): DiodeModel {
-        DiodeModel.createModelMap();
-        const lm = DiodeModel.modelMap.get(name);
+        const lm = DiodeModel.registry.get(name);
         if (lm != null)
             return lm;
         if (oldmodel == null) {
@@ -115,14 +115,12 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 //	CirSim.console("copying to " + name);
         const copy = new DiodeModel(oldmodel);
         copy.name = name;
-        DiodeModel.modelMap.set(name, copy);
+        DiodeModel.registry.setLocal(copy);
         return copy;
     }
 
-    static createModelMap(): void {
-        if (DiodeModel.modelMap != null)
-            return;
-        DiodeModel.modelMap = new Map<string, DiodeModel>();
+    // add the built-in models (called by the registry when first used)
+    private static createModelMap(): void {
         DiodeModel.addDefaultModel("spice-default", new DiodeModel(1e-14, 0, 1, 0, null));
         DiodeModel.addDefaultModel("default", new DiodeModel(1.7143528192808883e-7, 0, 2, 0, null));
         DiodeModel.addDefaultModel("default-zener", new DiodeModel(1.7143528192808883e-7, 0, 2, 5.6, null));
@@ -159,9 +157,9 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     }
 
     static addDefaultModel(name: string, dm: DiodeModel): void {
-        DiodeModel.modelMap.set(name, dm);
         dm.readOnly = dm.builtIn = true;
         dm.name = name;
+        DiodeModel.registry.setGlobal(dm);
     }
 
     setInternal(): DiodeModel {
@@ -173,12 +171,10 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     // change circuit behavior.  We don't do this anymore because we discovered that changing the leakage current to get a given fwdrop
     // does not work well; the leakage currents can be way too high or low.
     static getModelWithParameters(fwdrop: number, zvoltage: number): DiodeModel {
-        DiodeModel.createModelMap();
-
         const emcoef = 2;
 
         // look for existing model with same parameters
-        for (const [, dm] of DiodeModel.modelMap) {
+        for (const dm of DiodeModel.registry.models()) {
             if (Math.abs(dm.fwdrop - fwdrop) < 1e-8 && dm.seriesResistance === 0 && Math.abs(dm.breakdownVoltage - zvoltage) < 1e-8 && dm.emissionCoefficient === emcoef)
                 return dm;
         }
@@ -208,18 +204,12 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         const st = new StringTokenizer(s);
         const dm = DiodeModel.undumpModel(st);
         dm.builtIn = dm.internal = true;
-    }
-
-    static clearDumpedFlags(): void {
-        if (DiodeModel.modelMap == null)
-            return;
-        for (const [, dm] of DiodeModel.modelMap)
-            dm.dumped = false;
+        DiodeModel.registry.makeGlobal(dm);
     }
 
     static getModelList(zener: boolean): DiodeModel[] {
         const vector: DiodeModel[] = [];
-        for (const [, dm] of DiodeModel.modelMap) {
+        for (const dm of DiodeModel.registry.models()) {
             if (dm.internal)
                 continue;
             if (zener && dm.breakdownVoltage === 0)
@@ -243,7 +233,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
     static undumpModel(st: StringTokenizer): DiodeModel {
         const name = CustomLogicModel.unescape(st.nextToken());
-        const dm = DiodeModel.getModelWithName(name);
+        const dm = DiodeModel.registry.getForLoad(name!, () => new DiodeModel());
         dm.undump(st);
         return dm;
     }
@@ -262,7 +252,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
     static undumpModelXml(xml: CircuitXMLDeserializer): DiodeModel {
         const name = xml.parseStringAttr("nm", null);
-        const dm = DiodeModel.getModelWithName(name);
+        const dm = DiodeModel.registry.getForLoad(name!, () => new DiodeModel());
         dm.undumpXml(xml);
         return dm;
     }
@@ -305,9 +295,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.name = ei.textf.value;
-            if (this.name.length > 0)
-                DiodeModel.modelMap.set(this.name, this);
+            DiodeModel.registry.rename(this, ei.textf.value);
         }
         if (n === 1)
             this.saturationCurrent = ei.value;
@@ -325,6 +313,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         }
         if (n === 4)
             this.breakdownVoltage = Math.abs(ei.value);
+        DiodeModel.registry.resave(this);
         this.updateModel();
         CircuitElm.app.updateModels();
     }
@@ -378,16 +367,8 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
             this.name = "fwdrop=" + CircuitElm.showFormat.format(this.forwardVoltage);
         else
             this.name = "diodemodel";
-        if (DiodeModel.modelMap.get(this.name) != null) {
-            let num = 2;
-            for (;; num++) {
-                const n = this.name + "-" + num;
-                if (DiodeModel.modelMap.get(n) == null) {
-                    this.name = n;
-                    break;
-                }
-            }
-        }
+        this.name = DiodeModel.registry.uniqueName(this.name);
+        DiodeModel.registry.setLocal(this);
     }
 }
 

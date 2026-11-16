@@ -1,0 +1,67 @@
+<cir f="1" ts="0.000005" ic="10.20027730826997" cb="50" pb="50" vr="5" mts="5e-11">
+  <PisoShift x="192 208 208 208" f="2" bi="8" dt="0"/>
+  <L x="192 272 144 272" f="0" p="0"/>
+  <L x="192 240 144 240" f="0" p="0"/>
+  <L x="192 208 144 208" f="0" p="0"/>
+  <L x="256 176 256 128" f="0" p="0"/>
+  <L x="288 176 288 128" f="0" p="1"/>
+  <L x="320 176 320 128" f="0" p="0"/>
+  <L x="352 176 352 128" f="0" p="1"/>
+  <L x="384 176 384 128" f="0" p="1"/>
+  <L x="416 176 416 128" f="0" p="0"/>
+  <L x="448 176 464 128" f="0" p="1"/>
+  <L x="480 176 480 128" f="0" p="0"/>
+  <O x="544 240 560 240" f="0" sc="0"/>
+  <o en="12" sp="8" f="x2" p="0">
+    <p v="0" sc="5"/>
+  </o>
+  <o en="1" sp="8" f="x3" p="1">
+    <p v="0" sc="5"/>
+    <p v="3" sc="0.1"/>
+  </o>
+  <o en="3" sp="8" f="x3" p="2">
+    <p v="0" sc="5"/>
+    <p v="3" sc="0.1"/>
+  </o>
+  <!-- max-steps=4096 -->
+  <switchevent t="0.001" en="2"/>
+  <switchevent t="0.002" en="2"/>
+  <switchevent t="0.00275" en="3"/>
+  <switchevent t="0.003" en="1"/>
+  <switchevent t="0.0035" en="1"/>
+  <switchevent t="0.004" en="1"/>
+  <switchevent t="0.0045" en="1"/>
+  <switchevent t="0.00475" en="3"/>
+  <switchevent t="0.005" en="1"/>
+  <switchevent t="0.0055" en="1"/>
+  <switchevent t="0.00575" en="3"/>
+  <switchevent t="0.006" en="1"/>
+  <switchevent t="0.0065" en="1"/>
+  <switchevent t="0.00675" en="3"/>
+  <switchevent t="0.007" en="1"/>
+  <switchevent t="0.0075" en="1"/>
+  <switchevent t="0.008" en="1"/>
+  <switchevent t="0.0085" en="1"/>
+  <switchevent t="0.00875" en="3"/>
+  <switchevent t="0.009" en="1"/>
+  <switchevent t="0.0095" en="1"/>
+  <switchevent t="0.00975" en="3"/>
+  <switchevent t="0.01" en="1"/>
+  <switchevent t="0.0105" en="1"/>
+  <switchevent t="0.011" en="1"/>
+  <switchevent t="0.0115" en="1"/>
+  <switchevent t="0.012" en="1"/>
+  <switchevent t="0.0125" en="1"/>
+  <switchevent t="0.013" en="1"/>
+  <switchevent t="0.0135" en="1"/>
+  <switchevent t="0.014" en="1"/>
+  <switchevent t="0.0145" en="1"/>
+  <switchevent t="0.015" en="1"/>
+  <switchevent t="0.0155" en="1"/>
+  <switchevent t="0.016" en="1"/>
+  <switchevent t="0.0165" en="1"/>
+  <switchevent t="0.017" en="1"/>
+  <switchevent t="0.0175" en="1"/>
+  <switchevent t="0.018" en="1"/>
+  <switchevent t="0.0185" en="1"/>
+</cir>

@@ -44,6 +44,9 @@ export class EditDialog extends Dialog {
     cframe: CirSim;
     einfos: (EditInfo | null)[];
     einfocount: number = 0;
+    // editing an element inside a subcircuit instance: only state fields (EditInfo.isState)
+    // are shown, since only state is saved per instance; other edits would be lost on reload
+    stateOnly: boolean;
 
     private mainPanel: HTMLDivElement;
     private errorLabel: HTMLDivElement;
@@ -51,6 +54,8 @@ export class EditDialog extends Dialog {
     private activeCol: HTMLDivElement;     // current column being filled
     private activeColCount: number = 0;
     private firstInput: HTMLInputElement | HTMLTextAreaElement | null = null;
+    private firstInputNumeric: boolean = false;
+    private untouched = true;    // no key pressed or mouse clicked in it yet
     protected applyButton: HTMLButtonElement;
 
     constructor(ce: Editable, f: CirSim) {
@@ -58,6 +63,7 @@ export class EditDialog extends Dialog {
         this.elm = ce;
         this.cframe = f;
         this.einfos = new Array(20).fill(null);
+        this.stateOnly = ce instanceof CircuitElm && !!f.ui?.isViewingSubcircuit();
 
         // Title
         let title = "Edit Component";
@@ -117,12 +123,43 @@ export class EditDialog extends Dialog {
         cancelBtn.onclick = () => this.closeDialog();
         btnRow.appendChild(cancelBtn);
 
-        // Focus first text input after the dialog opens
-        if (this.firstInput !== null) {
-            const inp = this.firstInput;
-            requestAnimationFrame(() => { inp.focus(); inp.select(); });
-        }
+        this.dialogEl.addEventListener("mousedown", () => { this.untouched = false; });
     }
+
+    // The editor pops up whenever an element is created or clicked, with its first text field
+    // (if any) focused, so you can place a resistor, type 10k and press Enter.  If the first key
+    // pressed before the editor has been touched can't start a number, the user is moving on:
+    // UIManager.onKeyDown() asks this, closes the editor, and then handles the key as usual
+    // (tool shortcuts, Delete, Ctrl-C and so on).
+    shouldPassKeyThrough(e: KeyboardEvent): boolean {
+        if (!this.untouched || !(this.elm instanceof CircuitElm))
+            return false;
+        // (a modifier pressed on its own, e.g. Shift on the way to a shortcut, doesn't count)
+        if (["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key))
+            return false;
+        this.untouched = false;
+        // (Space toggles a checkbox or opens a dropdown)
+        if (e.key === "Enter" || e.key === "Escape" || e.key === " ")
+            return false;
+        const focus = document.activeElement;
+        if (focus == null || !this.dialogEl.contains(focus))
+            return true;
+        if (EditDialog.NAV_KEYS.has(e.key))
+            return false;
+        if (focus instanceof HTMLTextAreaElement ||
+            (focus instanceof HTMLInputElement && focus.type === "text")) {
+            // a text field (a label, say) takes any key; a numeric one only what starts a number
+            if (focus !== this.firstInput || !this.firstInputNumeric)
+                return false;
+            return !(!e.ctrlKey && !e.metaKey && !e.altKey && /^[0-9.\-]$/.test(e.key));
+        }
+        return true;
+    }
+
+    // keys that move around within the focused field or the editor
+    private static readonly NAV_KEYS = new Set([
+        "Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End",
+    ]);
 
     private addColumn(): HTMLDivElement {
         const col = document.createElement("div");
@@ -138,6 +175,8 @@ export class EditDialog extends Dialog {
             this.einfos[i] = this.elm.getEditInfo(i);
             if (this.einfos[i] === null) break;
             const ei = this.einfos[i]!;
+            if (this.stateOnly && !ei.isState)
+                continue;
 
             // Start new column when current is full or element requests it
             if (this.activeColCount > 15 || ei.newColumn) {
@@ -154,6 +193,7 @@ export class EditDialog extends Dialog {
                 label.style.marginTop = "6px";
             this.activeCol.appendChild(label);
             this.activeColCount++;
+            const firstWidget = this.activeCol.childElementCount;
 
             const idx = i; // snapshot loop index for closures
             if (ei.choice !== null) {
@@ -206,8 +246,10 @@ export class EditDialog extends Dialog {
                 inp.type = "text";
                 inp.style.width = "180px";
                 ei.textf = inp;
-                if (this.firstInput === null)
+                if (this.firstInput === null) {
                     this.firstInput = inp;
+                    this.firstInputNumeric = (ei.text === null);
+                }
                 if (ei.text !== null) {
                     inp.value = ei.text;
                     if (ei.isColor)
@@ -217,6 +259,18 @@ export class EditDialog extends Dialog {
                     inp.value = this.unitString(ei);
                     this.activeCol.appendChild(this.makeValueStepperRow(ei));
                 }
+            }
+            if (ei.disabled) {
+                const kids = this.activeCol.children;
+                for (let k = firstWidget; k < kids.length; k++) {
+                    const w = kids[k] as HTMLElement;
+                    const ctls = w.matches("input, select, button, textarea") ? [w] :
+                        Array.from(w.querySelectorAll("input, select, button, textarea"));
+                    for (const c of ctls)
+                        (c as HTMLInputElement).disabled = true;
+                }
+                if (this.firstInput !== null && (this.firstInput as HTMLInputElement).disabled)
+                    this.firstInput = null;
             }
         }
         this.einfocount = i;
@@ -407,6 +461,8 @@ export class EditDialog extends Dialog {
     apply(): boolean {
         for (let i = 0; i !== this.einfocount; i++) {
             const ei = this.einfos[i]!;
+            if ((this.stateOnly && !ei.isState) || ei.disabled)
+                continue;
             ei.error = null;
             if (ei.textf !== null && ei.text === null) {
                 try {
@@ -417,8 +473,12 @@ export class EditDialog extends Dialog {
                 ei.setError("must be > 0");
             if (ei.nonNegative && ei.value < 0)
                 ei.setError("must be >= 0");
-            // choices and buttons are handled via itemStateChanged, not apply
-            if (ei.button !== null || ei.choice !== null)
+            if (ei.integer && !Number.isInteger(ei.value))
+                ei.setError("must be an integer");
+            // choices, checkboxes and buttons are handled via itemStateChanged, not apply.
+            // (Re-running their setEditValue here is redundant and can have side effects,
+            // e.g. GateElm's checkboxes rebuild the dialog, which discarded later fields.)
+            if (ei.button !== null || ei.choice !== null || ei.checkbox !== null)
                 continue;
             if (ei.error === null)
                 this.elm.setEditValue(i, ei);
@@ -443,12 +503,16 @@ export class EditDialog extends Dialog {
 
     itemStateChanged(idx: number): void {
         const ei = this.einfos[idx]!;
+        if (ei.disabled)
+            return;
         let changed = false;
         let applied = false;
+        let applyFailed = false;
 
-        // for buttons and choices, apply pending text-field changes first
-        if ((ei.button !== null || ei.choice !== null) && !ei.newDialog) {
-            this.apply();
+        // for buttons, choices and checkboxes, apply pending text-field changes first
+        // (in case setEditValue rebuilds the dialog, which would discard them)
+        if ((ei.button !== null || ei.choice !== null || ei.checkbox !== null) && !ei.newDialog) {
+            applyFailed = !this.apply();
             applied = true;
         }
 
@@ -461,6 +525,20 @@ export class EditDialog extends Dialog {
             if (!applied) this.apply();
             this.clearDialog();
             this.buildDialog();
+            // the error shown is from before this change, which may have fixed it (say,
+            // checking an SRAM's Hex Display after typing hex contents), so check again
+            if (applyFailed)
+                this.apply();
+        }
+    }
+
+    static hasStateFields(elm: Editable): boolean {
+        for (let i = 0; ; i++) {
+            const ei = elm.getEditInfo(i);
+            if (ei === null)
+                return false;
+            if (ei.isState)
+                return true;
         }
     }
 
@@ -473,6 +551,7 @@ export class EditDialog extends Dialog {
         this.colsRow.innerHTML = "";
         this.activeCol = this.addColumn();
         this.firstInput = null;
+        this.firstInputNumeric = false;
         this.einfos.fill(null);
         this.einfocount = 0;
     }
@@ -485,6 +564,7 @@ export class EditDialog extends Dialog {
     show(topOffset: number = 70): void {
         if (!(this.elm instanceof CircuitElm)) {
             super.show();
+            this.focusFirstInput();
             return;
         }
         this.dialogEl.style.position = "fixed";
@@ -494,6 +574,54 @@ export class EditDialog extends Dialog {
         // dock to the left of the element-picker sidebar, not on top of it
         this.dialogEl.style.right = (UIManager.VERTICALPANELWIDTH + 16) + "px";
         this.dialogEl.show();
+        this.positionNearElement(this.elm);
+        this.focusFirstInput();
+    }
+
+    // focus the first text field, with its value selected so typing replaces it.  This is done
+    // as soon as the dialog opens (not on the next frame) so that keys typed right away go into
+    // it, rather than to shouldPassKeyThrough() as keys pressed outside the editor.
+    private focusFirstInput(): void {
+        if (this.firstInput !== null) {
+            this.firstInput.focus();
+            this.firstInput.select();
+        }
+    }
+
+    // place the dialog beside the element being edited (right side preferred, else left),
+    // so it doesn't cover it.  If there isn't room on either side, leave it docked.
+    private positionNearElement(elm: CircuitElm): void {
+        const cv: HTMLCanvasElement | undefined = this.cframe.ui?.cv;
+        const bb = elm.boundingBox;
+        if (!cv || !bb)
+            return;
+        const t = this.cframe.transform;
+        const cr = cv.getBoundingClientRect();
+        const ex1 = cr.left + bb.x * t[0] + t[4];
+        const ex2 = cr.left + (bb.x + bb.width) * t[0] + t[4];
+        const ey1 = cr.top + bb.y * t[3] + t[5];
+        const ey2 = cr.top + (bb.y + bb.height) * t[3] + t[5];
+        const w = this.dialogEl.offsetWidth;
+        const h = this.dialogEl.offsetHeight;
+        const gap = 64;
+        const margin = 8;
+
+        let x: number;
+        if (ex2 + gap + w <= cr.right - margin)
+            x = ex2 + gap;
+        else if (ex1 - gap - w >= cr.left + margin)
+            x = ex1 - gap - w;
+        else
+            return;
+
+        // vertically center on the element, kept within the canvas area
+        let y = (ey1 + ey2) / 2 - h / 2;
+        y = Math.min(y, Math.max(cr.top, window.innerHeight - h) - margin);
+        y = Math.max(y, cr.top + margin);
+
+        this.dialogEl.style.right = "auto";
+        this.dialogEl.style.left = x + "px";
+        this.dialogEl.style.top = y + "px";
     }
 
     closeDialog(): void {

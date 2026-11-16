@@ -210,26 +210,20 @@ export class TransLineElm extends CircuitElm {
     }
 
     startIteration(): void {
-        if (this.voltageL == null) {
+        if (this.voltageL == null)
             CircuitElm.sim.stop("Transmission line delay too large!", this);
-            return;
-        }
         this.voltageL[this.ptr] = this.nodes[2].v - this.nodes[0].v + this.nodes[2].v - this.nodes[4].v;
         this.voltageR[this.ptr] = this.nodes[3].v - this.nodes[1].v + this.nodes[3].v - this.nodes[5].v;
     }
 
     doStep(): void {
-        if (this.voltageL == null) {
+        if (this.voltageL == null)
             CircuitElm.sim.stop("Transmission line delay too large!", this);
-            return;
-        }
         const nextPtr = (this.ptr + 1) % this.lenSteps;
         CircuitElm.sim.updateVoltageSource(this.nodes[4], this.nodes[0], this.voltSource1, -this.voltageR![nextPtr]);
         CircuitElm.sim.updateVoltageSource(this.nodes[5], this.nodes[1], this.voltSource2, -this.voltageL[nextPtr]);
-        if (Math.abs(this.nodes[0].v) > 1e-5 || Math.abs(this.nodes[1].v) > 1e-5) {
+        if (Math.abs(this.nodes[0].v) > 1e-5 || Math.abs(this.nodes[1].v) > 1e-5)
             CircuitElm.sim.stop("Need to ground transmission line!", this);
-            return;
-        }
     }
 
     stepFinished(): void {

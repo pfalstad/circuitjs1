@@ -17,16 +17,12 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { ModelRegistry } from "./ModelRegistry";
 import { CirSim } from "./CirSim";
+import { CircuitElm } from "./CircuitElm";
 import { CircuitLoader } from "./CircuitLoader";
 import { WireConverter } from "./WireConverter";
 import { MouseManager } from "./MouseManager";
-import { CustomLogicModel } from "./CustomLogicModel";
-import { DiodeModel } from "./DiodeModel";
-import { MosfetModel } from "./MosfetModel";
-import { RelayModel } from "./RelayModel";
-import { TransistorModel } from "./TransistorModel";
-import { SubcircuitModel } from "./SubcircuitModel";
 import { Graphics } from "./Graphics";
 import { Rectangle } from "./Rectangle";
 import { Locale } from "./Locale";
@@ -34,13 +30,17 @@ import { EditDialog } from "./EditDialog";
 import { EditOptions } from "./EditOptions";
 import { ExportAsTextDialog } from "./ExportAsTextDialog";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
+import { LoadFile } from "./UIManager";
 import { CommandPalette } from "./CommandPalette";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
+// registers HookRegistry.editPinLayout
+import "./EditPinLayoutDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
 import { parseIntStrict } from "./NumberParse";
+import { finishPastedModels, resolvePastedModels } from "./ModelTypes";
 
 export class CommandManager {
 
@@ -89,12 +89,18 @@ export class CommandManager {
             this.doExportAsText();
             this.app.unsavedChanges = false;
         }
+        if (item == "exportaskicad")
+            this.doExportAsKicad();
+        if (item == "exportasspice")
+            this.doExportAsSpice();
         if (item == "exportasimage")
             this.app.imageExporter?.doExportAsImage();
         if (item == "copypng") {
             this.app.imageExporter?.doImageToClipboard();
-            if (this.app.ui?.contextPanel != null)
-                this.app.ui.contextPanel.remove(); this.app.ui.contextPanel = null;
+            if (this.app.ui?.contextPanel != null) {
+                this.app.ui.contextPanel.remove();
+                this.app.ui.contextPanel = null;
+            }
         }
         if (item == "exportassvg")
             this.app.imageExporter?.doExportAsSVG();
@@ -107,14 +113,16 @@ export class CommandManager {
         if (item == "recover")
             this.app.undoManager?.doRecover();
 
-        if ((menu == "elm" || menu == "scopepop") && contextPanel != null)
-            contextPanel.remove(); this.app.ui.contextPanel = null;
+        if ((menu == "elm" || menu == "scopepop") && contextPanel != null) {
+            contextPanel.remove();
+            this.app.ui.contextPanel = null;
+        }
         if (menu == "options" && item == "shortcuts") {
             CirSim.dialogShowing = new (window as any).ShortcutsDialog(this.app);
             CirSim.dialogShowing.show();
         }
-        if (item == "subcircuits") {
-            CirSim.dialogShowing = new (window as any).SubcircuitDialog(this.app);
+        if (item == "modelmanager") {
+            CirSim.dialogShowing = new (window as any).ModelManagerDialog(this.app);
             CirSim.dialogShowing.show();
         }
         // "search" (Edit menu / toolbar) and "commandpalette" (double-tap Shift, / shortcut,
@@ -139,7 +147,8 @@ export class CommandManager {
             this.app.mouse.menuElm = this.app.mouse.getMouseElm();
             menu = "elm";
         }
-        if (menu != "elm")
+        // keep menuElm for the floating scope menu too: it is how scopepop finds its scope
+        if (menu != "elm" && menu != "scopepop")
             this.app.mouse.menuElm = null;
 
         if (item == "cut")
@@ -205,7 +214,6 @@ export class CommandManager {
         if (item == "delete") {
             if (menu != "elm")
                 this.app.mouse.menuElm = null;
-            this.app.undoManager?.pushUndo();
             this.doDelete(true);
         }
         if (item == "sliders")
@@ -257,16 +265,26 @@ export class CommandManager {
             if (sm.menuScope != -1)
                 s = sm.scopes[sm.menuScope];
             else
-                s = this.app.mouse.getMouseElm()?.elmScope;
+                // floating scope: use the element the menu was opened on.  mouseElm is cleared
+                // once the mouse leaves the canvas to reach the menu
+                s = (this.app.mouse.menuElm as any)?.elmScope;
 
             if (item == "dock") {
-                if (sm.scopeCount == sm.scopes.length)
+                const elm = this.app.mouse.menuElm as any;
+                if (sm.scopeCount == sm.scopes.length || !elm?.elmScope)
                     return;
-                sm.scopes[sm.scopeCount] = this.app.mouse.getMouseElm()?.elmScope;
-                this.app.mouse.getMouseElm()?.clearElmScope();
+                sm.scopes[sm.scopeCount] = elm.elmScope;
+                elm.clearElmScope();
                 sm.scopes[sm.scopeCount].position = sm.scopeCount;
                 sm.scopeCount++;
-                this.doDelete(false);
+                // remove the floating scope element itself.  (doDelete() would miss it, since
+                // it's not the mouse element any more, and would delete any selected elements)
+                const i = this.app.elmList.indexOf(elm);
+                if (i >= 0) {
+                    elm.delete();
+                    this.app.elmList.splice(i, 1);
+                }
+                this.app.needAnalyze();      // need to rebuild scopeElmArr
             }
             if (item == "undock") {
                 const elm = s.getElm();
@@ -303,10 +321,8 @@ export class CommandManager {
                 s.resetGraph(true);
             if (item == "exportcsv")
                 s.exportCSV();
-            if (item == "exportpng")
-                s.exportPNG();
-            if (item == "exportsvg")
-                s.exportSVG();
+            if (item == "exportimage")
+                s.exportImage();
             if (item == "properties")
                 s.showProperties();
             sm.deleteUnusedScopeElms?.();
@@ -324,12 +340,16 @@ export class CommandManager {
 
         // IES: Moved from itemStateChanged()
         if (menu == "main") {
-            if (contextPanel != null)
-                contextPanel.remove(); this.app.ui.contextPanel = null;
+            if (contextPanel != null) {
+                contextPanel.remove();
+                this.app.ui.contextPanel = null;
+            }
             this.app.setMouseMode(MouseManager.MODE_ADD_ELM);
             const s = item;
-            if (s.length > 0)
+            if (s.length > 0) {
                 this.app.ui.mouseModeStr = s;
+                CirSim.preloadClass(s);
+            }
             if (s == "DragAll")
                 this.app.setMouseMode(MouseManager.MODE_DRAG_ALL);
             else if (s == "DragRow")
@@ -340,6 +360,8 @@ export class CommandManager {
                 this.app.setMouseMode(MouseManager.MODE_DRAG_SELECTED);
             else if (s == "DragPost")
                 this.app.setMouseMode(MouseManager.MODE_DRAG_POST);
+            else if (s == "SelectPosts")
+                this.app.setMouseMode(MouseManager.MODE_SELECT_POSTS);
             else if (s == "Select")
                 this.app.setMouseMode(MouseManager.MODE_SELECT);
 
@@ -360,6 +382,11 @@ export class CommandManager {
 
     doEdit(eable: any, pushUndo: boolean = true): void {
         this.app.mouse.clearSelection();
+        // put the box behind everything (largest first), so a fill opacity set in the
+        // dialog shows correctly.  Only here and when boxes are created, not on load, so
+        // old circuits keep their element order (tests refer to elements by position)
+        if (eable instanceof CircuitElm && eable.isBoxElm())
+            CircuitElm.sortBoxes(this.app.elmList);
         if (pushUndo)
             this.app.undoManager?.pushUndo();
         if (CirSim.editDialog != null) {
@@ -401,6 +428,61 @@ export class CommandManager {
     doExportAsLocalFile(): void {
         const dump = this.app.dumpCircuit();
         CirSim.dialogShowing = new ExportAsLocalFileDialog(dump);
+        CirSim.dialogShowing.show();
+    }
+
+    async doExportAsKicad(): Promise<void> {
+        // the exporter carries KiCad's symbol library, so load it only when needed
+        const { exportKicadProject } = await import("./KicadExporter");
+        const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
+        const res = exportKicadProject(this.app.elmList, name, this.app.sim.maxTimeStep);
+        let note: string | null = null;
+        if (res.warnings.length > 0) {
+            const counts = new Map<string, number>();
+            for (const w of res.warnings)
+                counts.set(w, (counts.get(w) ?? 0) + 1);
+            note = Locale.LS("These elements have no KiCad equivalent and were left out: ") +
+                [...counts].map(([w, n]) => n > 1 ? w + " (" + n + ")" : w).join(", ");
+        }
+        // subcircuits are sheets of their own, so then it's a project folder, zipped
+        let data: string | Uint8Array = res.files[0].text;
+        let fileName = name + ".kicad_sch";
+        if (res.files.length > 1) {
+            const { makeZip } = await import("./ZipWriter");
+            const pro = JSON.stringify({ meta: { filename: name + ".kicad_pro", version: 1 } }, null, 2) + "\n";
+            data = makeZip([{ name: name + ".kicad_pro", text: pro }, ...res.files]
+                .map(f => ({ name: name + "/" + f.name, text: f.text })));
+            fileName = name + ".zip";
+        }
+        CirSim.dialogShowing = new ExportAsLocalFileDialog(data, fileName, "Export As KiCad Schematic", note);
+        CirSim.dialogShowing.show();
+    }
+
+    // each scope's traces, in the scope area and in the circuit
+    private scopeTraces(): { elm: CircuitElm | null; value: number }[] {
+        const sm = this.app.scopeManager;
+        const scopes = [...(sm ? sm.scopes.slice(0, sm.scopeCount) : []),
+                        ...this.app.elmList.filter(ce => ce instanceof ScopeElm).map(ce => (ce as ScopeElm).elmScope)];
+        return scopes.flatMap(s => s.plots.map(p => ({ elm: p.elm, value: p.value })));
+    }
+
+    async doExportAsSpice(): Promise<void> {
+        const { exportSpiceNetlist } = await import("./SpiceExporter");
+        const name = (ExportAsLocalFileDialog.lastFileName ?? "circuit").replace(/\.[^.]*$/, "");
+        const sim = this.app.sim;
+        // simulate as long as CircuitJS has so far, or 1000 steps if that's longer
+        const res = exportSpiceNetlist(this.app.elmList, {
+            title: name, timeStep: sim.maxTimeStep, stopTime: Math.max(sim.t, sim.maxTimeStep * 1000),
+            scopes: this.scopeTraces() });
+        let note: string | null = null;
+        if (res.warnings.length > 0) {
+            const counts = new Map<string, number>();
+            for (const w of res.warnings)
+                counts.set(w, (counts.get(w) ?? 0) + 1);
+            note = Locale.LS("These elements have no SPICE equivalent and were left out: ") +
+                [...counts].map(([w, n]) => n > 1 ? w + " (" + n + ")" : w).join(", ");
+        }
+        CirSim.dialogShowing = new ExportAsLocalFileDialog(res.text, name + ".cir", "Export As SPICE Netlist", note);
         CirSim.dialogShowing.show();
     }
 
@@ -493,7 +575,6 @@ export class CommandManager {
     }
 
     doCut(): void {
-        this.app.undoManager?.pushUndo();
         this.setMenuSelection();
         this.clipboard = this.copyOfSelectedElms();
         this.writeClipboardToStorage();
@@ -532,7 +613,8 @@ export class CommandManager {
     }
 
     willDelete(ce: any): boolean {
-        return ce.isSelected() || ce.isMouseElm();
+        // include menuElm: mouseElm is cleared once the mouse leaves the canvas to reach the context menu
+        return ce.isSelected() || ce.isMouseElm() || ce == this.app.mouse.menuElm;
     }
 
     copyOfSelectedElms(): string {
@@ -540,17 +622,13 @@ export class CommandManager {
         const doc = document.implementation.createDocument(null, "cir", null);
         const root = doc.documentElement;
 
-        CustomLogicModel.clearDumpedFlags();
-        SubcircuitModel.clearDumpedFlags();
-        DiodeModel.clearDumpedFlags();
-        TransistorModel.clearDumpedFlags();
-        RelayModel.clearDumpedFlags();
-        MosfetModel.clearDumpedFlags();
+        ModelRegistry.clearAllDumpedFlags();
 
         for (let i = this.app.elmList.length - 1; i >= 0; i--) {
             const ce = this.app.elmList[i];
-            ce.dumpXmlModel?.(doc);
             if (ce.isSelected() && !ce.isScopeElm?.()) {
+                // only the models the copied elements use
+                ce.dumpXmlModel?.(doc);
                 const elem = doc.createElement(ce.getXmlDumpType());
                 ce.dumpXml?.(doc, elem);
                 ce.dumpXmlState?.(doc, elem);
@@ -582,7 +660,7 @@ export class CommandManager {
         this.doPaste(s);
     }
 
-    doPaste(dump: string | null): void {
+    async doPaste(dump: string | null): Promise<void> {
         this.app.undoManager?.pushUndo();
         this.app.mouse.clearSelection();
         let oldbb: Rectangle | null = null;
@@ -605,12 +683,14 @@ export class CommandManager {
         if (oldsz > 0)
             flags |= CircuitLoader.RC_NO_CENTER;
 
-        if (dump != null)
-            this.app.loader.readCircuit(dump, flags);
-        else {
+        if (dump == null) {
             this.readClipboardFromStorage();
-            this.app.loader.readCircuit(this.clipboard, flags);
+            dump = this.clipboard;
         }
+        // pasted models with the names of existing ones: ask whether to replace them
+        const pasted = resolvePastedModels(dump!);
+        await this.app.loader.readCircuit(pasted.text, flags);
+        finishPastedModels(pasted.replaced);
 
         // select new items and get their bounding box
         let newbb: Rectangle | null = null;
@@ -662,6 +742,8 @@ export class CommandManager {
             for (let i = oldsz; i != this.app.elmList.length; i++)
                 this.app.elmList[i].move(dx, dy);
         }
+        if (this.app.elmList.slice(oldsz).some(ce => ce.isBoxElm()))
+            CircuitElm.sortBoxes(this.app.elmList);	// pasted boxes go behind
         this.app.needAnalyze();
         this.app.undoManager?.writeRecoveryToStorage();
     }
@@ -701,7 +783,7 @@ export class CommandManager {
 
     static electronOpenFileCallback(text: string, name: string): void {
         const app = CirSim.theApp;
-        (window as any).LoadFile?.doLoadCallback(text, name);
+        LoadFile.doLoadCallback(app, text, name);
         app.allowSave(true);
     }
 

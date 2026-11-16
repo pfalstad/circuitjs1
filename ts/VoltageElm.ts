@@ -104,6 +104,8 @@ export class VoltageElm extends CircuitElm {
 	    } catch (e) {
 	    }
 
+	    // old circuit files can have negative phase offsets
+	    this.phaseShift = VoltageElm.positivePhase(this.phaseShift);
 	    if ((this.flags & VoltageElm.FLAG_COS) != 0) {
 		this.flags &= ~VoltageElm.FLAG_COS;
 		this.phaseShift = VoltageElm.pi/2;
@@ -149,10 +151,16 @@ export class VoltageElm extends CircuitElm {
 	this.frequency = xml.parseDoubleAttr("fr", this.frequency);
 	this.maxVoltage = xml.parseDoubleAttr("maxv", this.maxVoltage);
 	this.bias = xml.parseDoubleAttr("bias", this.bias);
-	this.phaseShift = xml.parseDoubleAttr("phaseShift", this.phaseShift);
+	this.phaseShift = VoltageElm.positivePhase(xml.parseDoubleAttr("phaseShift", this.phaseShift));
 	this.dutyCycle = xml.parseDoubleAttr("dutyCycle", this.dutyCycle);
 	this.riseTime = xml.parseDoubleAttr("riseTime", this.riseTime);
 	this.internalResistance = xml.parseDoubleAttr("ir", 0);
+    }
+
+    // a phase offset from 0 to 2 pi.  the waveforms take the phase mod 2 pi, which would be
+    // negative early on with a negative offset
+    static positivePhase(p: number): number {
+	return ((p % (2*VoltageElm.pi)) + 2*VoltageElm.pi) % (2*VoltageElm.pi);
     }
 
     reset(): void {
@@ -681,8 +689,7 @@ export class VoltageElm extends CircuitElm {
 		}
 	    }
 	    if (n2 == 2) {
-		this.phaseShift = ei.value*VoltageElm.pi/180;
-		this.phaseShift = ((this.phaseShift % (2*VoltageElm.pi)) + 2*VoltageElm.pi) % (2*VoltageElm.pi);
+		this.phaseShift = VoltageElm.positivePhase(ei.value*VoltageElm.pi/180);
 	    }
 	    if (n2 == 3) {
 		if (this.timeSpec()) {
@@ -702,8 +709,7 @@ export class VoltageElm extends CircuitElm {
 	    if (n2 == 0 && this.waveform != VoltageElm.WF_DC && ei.value != 0)
 		this.setFrequency(ei.value, ei.continuous);
 	    if (n2 == 1) {
-		this.phaseShift = ei.value*VoltageElm.pi/180;
-		this.phaseShift = ((this.phaseShift % (2*VoltageElm.pi)) + 2*VoltageElm.pi) % (2*VoltageElm.pi);
+		this.phaseShift = VoltageElm.positivePhase(ei.value*VoltageElm.pi/180);
 	    }
 	}
     }

@@ -1097,7 +1097,7 @@
 "Add 3-Phase Motor"="Aggiungi motore trifase"
 "Add Adder"="Aggiungi sommatore"
 "Add Analog Multiplexer"="Aggiungi multiplexor analogico"
-"Add Counter w/ Load"="Aggiungi contatore con precarico"
+"Add Counter w/ Load (9316)"="Aggiungi contatore con precarico (9316)"
 "Add Cross Switch"="Aggiungi interruttore a croce"
 "Add Crystal"="Aggiungi cristallo"
 "Add DC Motor"="Aggiungi motore CC"

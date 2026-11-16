@@ -19,6 +19,7 @@
 
 import { CirSim } from "./CirSim";
 import { CircuitLoader } from "./CircuitLoader";
+import { ModelRegistry } from "./ModelRegistry";
 
 class UndoItem {
     dump: string;
@@ -68,33 +69,44 @@ export class UndoManager {
     }
 
     doUndo(): void {
-        if (this.undoStack.length === 0)
-            return;
-        this.redoStack.push(new UndoItem(this.sim, this.sim.dumpCircuit()));
-        const ui = this.undoStack.pop()!;
-        this.loadUndoItem(ui);
-        this.enableUndoRedo();
+        this.undoOrRedo(this.undoStack, this.redoStack);
     }
 
     doRedo(): void {
-        if (this.redoStack.length === 0)
-            return;
-        this.undoStack.push(new UndoItem(this.sim, this.sim.dumpCircuit()));
-        const ui = this.redoStack.pop()!;
-        this.loadUndoItem(ui);
+        this.undoOrRedo(this.redoStack, this.undoStack);
+    }
+
+    // load the top state of the from stack, pushing the current state onto the other stack
+    private undoOrRedo(from: UndoItem[], to: UndoItem[]): void {
+        const dump = this.sim.dumpCircuit();
+        // skip states identical to the current one (edits push the state after the change too),
+        // so undo doesn't appear to do nothing
+        const cur = UndoManager.withoutSliders(dump);
+        while (from.length > 0 && UndoManager.withoutSliders(from[from.length - 1].dump) === cur)
+            from.pop();
+        if (from.length > 0) {
+            to.push(new UndoItem(this.sim, dump));
+            this.loadUndoItem(from.pop()!);
+        }
         this.enableUndoRedo();
     }
 
     loadUndoItem(ui: UndoItem): void {
-        this.sim.loader.readCircuit(ui.dump, CircuitLoader.RC_NO_CENTER);
+        // everything in an undo state was loaded when it was saved
+        ModelRegistry.loadingUndoState = true;
+        try {
+            this.sim.loader.readCircuitNow(ui.dump, CircuitLoader.RC_NO_CENTER | CircuitLoader.RC_KEEP_MODELS);
+        } finally {
+            ModelRegistry.loadingUndoState = false;
+        }
         this.sim.transform[0] = this.sim.transform[3] = ui.scale;
         this.sim.transform[4] = ui.transform4;
         this.sim.transform[5] = ui.transform5;
     }
 
-    doRecover(): void {
+    async doRecover(): Promise<void> {
         this.pushUndo();
-        this.sim.loader.readCircuit(this.sim.recovery!);
+        await this.sim.loader.readCircuit(this.sim.recovery!);
         this.sim.allowSave(false);
         this.sim.menus.recoverItem.setEnabled(false);
         this.sim.unsavedChanges = false;
@@ -110,7 +122,10 @@ export class UndoManager {
         const stor = window.localStorage;
         if (stor == null)
             return;
-        const s = this.sim.dumpCircuit();
+        // while a subcircuit is being edited in place, the circuit on screen is just its
+        // contents; keep the whole circuit (as it was when editing started) instead
+        const ctx = this.sim.contextStack;
+        const s = ctx.length > 0 ? ctx[0].circuitDump : this.sim.dumpCircuit();
         stor.setItem("circuitRecovery", s);
     }
 

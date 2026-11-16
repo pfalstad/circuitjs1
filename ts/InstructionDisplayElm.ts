@@ -92,6 +92,9 @@ export class InstructionDisplayElm extends CircuitElm {
     constructor(xxOrXa: number, yyOrYa: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
         if (xb === undefined) {
             super(xxOrXa, yyOrYa);
+            // (the base class allocated the nodes before busWidth was set, which happens after
+            // super() returns, so it allocated one; allocate one per post)
+            this.allocNodes();
             this.lookupText = "0=text0\n1=text1\n0x2-0xF=other ({a})\n";
             this.parseEntries(null);
         } else {

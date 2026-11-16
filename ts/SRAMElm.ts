@@ -28,6 +28,7 @@ import { EditInfo } from "./EditInfo";
 import { Checkbox } from "./Checkbox";
 import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S, disableOptimizationEditInfo } from "./GateElm";
 import { sramBitCell, type SramMemory } from "./digital/nativeKinds";
+import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import type { DigitalSynthesis, DigitalTriStateDriver, DigitalTriStateReadback } from "./digital/DigitalGraphBuilder";
@@ -39,9 +40,8 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     static readonly FLAG_HEX_DISPLAY = 4;
     addressNodes: number = 0;
     dataNodes: number = 0;
-    // Where a write reads its incoming data FROM. Equals dataNodes (the same bidirectional pins
-    // reads drive) unless FLAG_SEPARATE_IO is set, in which case it points at a second, distinct
-    // set of pins appended after dataNodes - see setupPins()/hasSeparateIO() below.
+    // where a write reads its data from: dataNodes (the same bidirectional pins reads drive),
+    // unless FLAG_SEPARATE_IO adds a separate set of data input pins after them
     dataInNodes: number = 0;
     internalNodes: number = 0;
     addressBits: number = 0;
@@ -51,17 +51,19 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
     optimizationDisabled = false; // see DigitalSynthesis.optimizationDisabled
     loadedFileName: string | null = null; // remembers the last file loaded via "Load Contents From File"
     static readonly FLAG_RELOAD_ON_RESET = 2;
-    // Splits the single bidirectional data bus into separate Din/Dout pins - matching how real
-    // bipolar-RAM chips (82S16, 8225 - see digitalSynthesis()'s own docstring) are actually
-    // pinned out, and sidestepping the tri-state readback machinery entirely: Din becomes a
-    // plain, ordinary wired input once it's not also this element's own output post.
+    // separate data in/out pins instead of one bidirectional bus, like bipolar RAMs (74189, 82S16)
     static readonly FLAG_SEPARATE_IO = 8;
-    // Inverts every data output, including the disabled state (which then reads 1 instead of 0),
-    // so an open-collector /Dout part like the 82S16 needs no separate inverter after it. That
-    // inverter would be an ordinary chip fed by this CUSTOM_CHIP, so it could never be promoted,
-    // yet every downstream activationCheck() would keep recursing into it - very expensive.
+    // invert the data outputs (74189, 82S16)
     static readonly FLAG_INVERT_OUTPUT = 16;
+    // add an active-low chip select pin: while it's high, nothing is written and the outputs are off
+    static readonly FLAG_CHIP_SELECT = 32;
+    // (these flag values match ts-digital's SRAMElm, for compatibility)
     static contentsOverride: string | null = null;
+    private contentsEi: EditInfo | null = null;  // the Contents field in the edit dialog, if any
+
+    private getContentsTextArea(): HTMLTextAreaElement | null {
+        return (this.contentsEi?.textArea?.element as HTMLTextAreaElement | null | undefined) ?? null;
+    }
     static fileNameOverride: string | null = null;
 
     // The digital cells' view of the contents, read live through `this.map` (which reset/load
@@ -80,9 +82,6 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 
     /** Called when `map` is replaced: the running circuit's copy is no longer wanted. */
     private detachContents(): void { this.mem.syncFromEngine = null; }
-
-    hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
-    hasInvertedOutput(): boolean { return this.hasFlag(SRAMElm.FLAG_INVERT_OUTPUT); }
 
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
@@ -133,6 +132,10 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         this.syncContents();
         if (this.map.size > 0)
             elem.appendChild(doc.createTextNode(this.contentsToString()));
+        else
+            // mark empty contents so the state isn't skipped (CompositeElm.dumpXmlState skips
+            // children with no state), which would bring back the model's contents on reload
+            CircuitXMLSerializer.dumpAttr(elem, "em", 1);
     }
     undumpXml(xml: CircuitXMLDeserializer): void {
         super.undumpXml(xml);
@@ -142,10 +145,28 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         this.map = new Map();
         try {
             const s = xml.parseContents();
-            if (s) this.parseContentsString(s);
+            if (s) this.parseContentsString(s, this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY), true);
         } catch (e) {}
+        if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
+            this.initialMap = new Map(this.map);
         this.setupPins();
     }
+
+    hasSeparateIO(): boolean { return this.hasFlag(SRAMElm.FLAG_SEPARATE_IO); }
+    hasInvertedOutput(): boolean { return this.hasFlag(SRAMElm.FLAG_INVERT_OUTPUT); }
+    hasChipSelect(): boolean { return this.hasFlag(SRAMElm.FLAG_CHIP_SELECT); }
+    // the chip select post, if any, comes after all the others so it doesn't renumber them
+    protected get chipSelectNode(): number { return this.getPostCount() - 1; }
+
+    // the pin options offered in the edit dialog, as flags
+    protected pinOptions(): number[] {
+        return [SRAMElm.FLAG_SEPARATE_IO, SRAMElm.FLAG_INVERT_OUTPUT, SRAMElm.FLAG_CHIP_SELECT];
+    }
+    private static readonly PIN_OPTION_NAMES: Record<number, string> = {
+        [SRAMElm.FLAG_SEPARATE_IO]: "Separate Data In/Out",
+        [SRAMElm.FLAG_INVERT_OUTPUT]: "Inverted Data Out",
+        [SRAMElm.FLAG_CHIP_SELECT]: "Chip Select",
+    };
 
     reset(): void {
         super.reset();
@@ -164,11 +185,13 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 	if (this.dataBits === undefined)
 	    this.dataBits = 0;
         this.sizeX = 2;
-        const separate = this.hasSeparateIO();
         const addrY = this.useBus() ? 1 : this.addressBits;
         const dataY = this.useBus() ? 1 : this.dataBits;
+        const separate = this.hasSeparateIO();
         const westY = separate ? addrY + dataY : addrY;
-        this.sizeY = Math.max(westY, dataY) + 1;
+        // east side: OE, then chip select (if any), then the data pins at the bottom
+        const eastY = this.hasChipSelect() ? dataY + 1 : dataY;
+        this.sizeY = Math.max(westY, eastY) + 1;
         this.bits = this.addressBits;
         this.pins = new Array(this.getPostCount());
         this.pins[0] = new Pin(this, 0, ChipElm.SIDE_W, "WE");
@@ -178,28 +201,34 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         this.addressNodes = 2;
         this.dataNodes = 2 + this.addressBits;
         this.dataInNodes = separate ? this.dataNodes + this.dataBits : this.dataNodes;
-        // Internal (non-post) voltage-source nodes always come right after every real post -
-        // see CircuitElm.getNodeCount() - so this must track getPostCount() itself rather than a
-        // fixed offset, since separate I/O adds a whole extra block of real Din posts.
+        // internal nodes come right after the posts
         this.internalNodes = this.getPostCount();
         this.makeBitPins(this.addressBits, this.sizeY - addrY, ChipElm.SIDE_W, this.addressNodes, "A", false, false, true);
         this.makeBitPins(this.dataBits, this.sizeY - dataY, ChipElm.SIDE_E, this.dataNodes, "D", true, false, true);
         if (this.hasInvertedOutput())
-            for (let i = 0; i !== this.dataBits; i++) this.pins[this.dataNodes + i].lineOver = true;
+            for (let i = 0; i !== this.dataBits; i++)
+                this.pins[this.dataNodes + i].lineOver = true;
         if (separate)
             this.makeBitPins(this.dataBits, 1, ChipElm.SIDE_W, this.dataInNodes, "DI", false, false, true);
+        if (this.hasChipSelect()) {
+            const cs = new Pin(this, 1, ChipElm.SIDE_E, "CS");
+            cs.lineOver = true;
+            this.pins[this.chipSelectNode] = cs;
+        }
         this.allocNodes();
     }
     getPostCount(): number {
-        return 2 + this.addressBits + this.dataBits + (this.hasSeparateIO() ? this.dataBits : 0);
+        return 2 + this.addressBits + this.dataBits + (this.hasSeparateIO() ? this.dataBits : 0) +
+            (this.hasChipSelect() ? 1 : 0);
     }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Address Bits", this.addressBits, 1, 1).setDimensionless();
+            return new EditInfo("# of Address Bits", this.addressBits, 1, 1).setDimensionless().setStructural();
         if (n === 1)
-            return new EditInfo("# of Data Bits", this.dataBits, 1, 1).setDimensionless();
+            return new EditInfo("# of Data Bits", this.dataBits, 1, 1).setDimensionless().setStructural();
         if (n === 2) {
-            const ei = new EditInfo("Contents", 0);
+            const ei = new EditInfo("Contents", 0).setIsState();
+            this.contentsEi = ei;
             ei.textArea = { value: SRAMElm.contentsOverride !== null ? SRAMElm.contentsOverride : this.contentsToString(), element: null };
             SRAMElm.contentsOverride = null;
             if (SRAMElm.fileNameOverride !== null)
@@ -208,14 +237,14 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             return ei;
         }
         if (n === 3) {
-            const ei = new EditInfo("", 0, -1, -1);
+            const ei = new EditInfo("", 0, -1, -1).setIsState();
             ei.checkbox = new Checkbox("Hex Display", this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY));
             return ei;
         }
         if (n === 4 && SRAMElm.loadFileSupported()) {
             const ei = new EditInfo(
                 this.loadedFileName !== null ? "Loaded: " + this.loadedFileName : "",
-                0, -1, -1);
+                0, -1, -1).setIsState();
             const input = document.createElement("input");
             input.type = "file";
             input.addEventListener("change", () => {
@@ -232,19 +261,18 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 (this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0);
             return ei;
         }
-        if (n === reloadIdx + 1) {
+        const opts = this.pinOptions();
+        const opt = opts[n - reloadIdx - 1];
+        if (n > reloadIdx && opt !== undefined) {
             const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Separate Data In/Out", this.hasSeparateIO());
+            if (opt !== SRAMElm.FLAG_INVERT_OUTPUT)
+                ei.setStructural(); // adds pins
+            ei.checkbox = new Checkbox(SRAMElm.PIN_OPTION_NAMES[opt], this.hasFlag(opt));
             return ei;
         }
-        if (n === reloadIdx + 2) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Inverted Data Out", this.hasInvertedOutput());
-            return ei;
-        }
-        if (n === reloadIdx + 3)
+        if (n === reloadIdx + opts.length + 1)
             return disableOptimizationEditInfo(this.optimizationDisabled);
-        return super.getChipEditInfo(n);
+        return super.getChipEditInfo(n - opts.length - 1);
     }
 
     static loadFileSupported(): boolean {
@@ -319,32 +347,59 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         return h.length < 2 ? "0" + h : h;
     }
 
-    parseContentsString(s: string): void {
-        this.detachContents();
-        this.map.clear();
+    // parse the Contents text ("addr: val val val..." lines) into this.map.  Returns an error
+    // message for the first bad line, if any, in which case the contents are left unchanged
+    // (unless lenient, when loading a file: then whatever could be parsed is used, as before).
+    parseContentsString(s: string, hex: boolean = this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY),
+                        lenient: boolean = false): string | null {
+        const map: Map<number, number> = new Map();
+        let error: string | null = null;
         const lines = s.split("\n");
         for (let i = 0; i !== lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === "")
+                continue;
+            const colon = line.indexOf(":");
+            const lineError = (msg: string) => "line " + (i + 1) + ": " + msg;
+            if (colon < 0) {
+                error ??= lineError("expected \"address: values\"");
+                continue;
+            }
             try {
-                const line = lines[i];
-                const args = line.split(/: */);
-                let addr = this.parseNumber(args[0]);
-                const vals = args[1].split(/ +/);
-                for (let j = 0; j !== vals.length; j++) {
-                    const val = this.parseNumber(vals[j]);
-                    this.map.set(addr++, val);
-                }
-            } catch (e) {}
+                let addr = this.parseNumber(line.substring(0, colon).trim(), hex);
+                const rest = line.substring(colon + 1).trim();
+                if (rest === "")
+                    continue;
+                for (const v of rest.split(/\s+/))
+                    map.set(addr++, this.parseNumber(v, hex));
+            } catch (e) {
+                error ??= lineError((e as Error).message);
+            }
         }
+        if (error === null || lenient) {
+            this.detachContents();
+            this.map = map;
+        }
+        return error;
     }
 
-    parseNumber(str: string): number {
-        if (str.startsWith("0x"))
-            return parseIntStrict(str.substring(2), 16);
-        if (this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY))
-            return parseIntStrict(str, 16);
-        if (str.startsWith("0b"))
-            return parseIntStrict(str.substring(2), 2);
-        return parseIntStrict(str);
+    // parse an address or value: hex in hex mode, otherwise decimal; 0x (hex) and 0b
+    // (binary, except in hex mode, where it's a hex number) prefixes work in either mode
+    parseNumber(str: string, hex: boolean = this.hasFlag(SRAMElm.FLAG_HEX_DISPLAY)): number {
+        if (/^0x[0-9a-f]+$/i.test(str))
+            return parseInt(str.substring(2), 16);
+        if (hex) {
+            if (/^[0-9a-f]+$/i.test(str))
+                return parseInt(str, 16);
+            throw new Error("\"" + str + "\" is not a hex number");
+        }
+        if (/^0b[01]+$/.test(str))
+            return parseInt(str.substring(2), 2);
+        if (/^-?[0-9]+$/.test(str))
+            return parseInt(str, 10);
+        if (/^[0-9a-f]+$/i.test(str))
+            throw new Error("\"" + str + "\" is not a decimal number (check Hex Display to enter hex, or write 0x" + str + ")");
+        throw new Error("\"" + str + "\" is not a number");
     }
 
     setChipEditValue(n: number, ei: EditInfo): void {
@@ -365,17 +420,32 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
                 ei.setError("must be between 2 and 16");
         }
         if (n === 2) {
-            this.parseContentsString(ei.textArea.element ? ei.textArea.element.value : ei.textArea.value);
+            const err = this.parseContentsString(ei.textArea.element ? ei.textArea.element.value : ei.textArea.value);
+            if (err !== null) {
+                ei.setError(err);
+                return;
+            }
             if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
                 this.initialMap = new Map(this.map);
         }
         if (n === 3) {
             const oldFlags = this.flags;
-            if (ei.textArea && ei.textArea.element)
-                this.parseContentsString(ei.textArea.element.value);
-            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_HEX_DISPLAY);
+            const newFlags = ei.changeFlag(this.flags, SRAMElm.FLAG_HEX_DISPLAY);
+            // read the contents as written before converting them to the new mode.  If they
+            // aren't valid in the old mode but are in the new one (say, hex was typed and then
+            // Hex Display checked), take them as being in the new mode.  If neither, leave the
+            // text alone, so it can be fixed (the dialog shows the error).
+            const ta = this.getContentsTextArea();
+            let keepText: string | null = null;
+            if (ta != null) {
+                const text = ta.value;
+                if (this.parseContentsString(text, (oldFlags & SRAMElm.FLAG_HEX_DISPLAY) !== 0) !== null &&
+                    this.parseContentsString(text, (newFlags & SRAMElm.FLAG_HEX_DISPLAY) !== 0) !== null)
+                    keepText = text;
+            }
+            this.flags = newFlags;
             if (this.flags !== oldFlags) {
-                SRAMElm.contentsOverride = this.contentsToString();
+                SRAMElm.contentsOverride = keepText ?? this.contentsToString();
                 ei.newDialog = true;
             }
         }
@@ -388,17 +458,14 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             } else
                 this.initialMap = null;
         }
-        if (n === reloadIdx + 1) {
-            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_SEPARATE_IO);
+        const opts = this.pinOptions();
+        const opt = opts[n - reloadIdx - 1];
+        if (n > reloadIdx && opt !== undefined) {
+            this.flags = ei.changeFlag(this.flags, opt);
             this.setupPins();
             this.setPoints();
         }
-        if (n === reloadIdx + 2) {
-            this.flags = ei.changeFlag(this.flags, SRAMElm.FLAG_INVERT_OUTPUT);
-            this.setupPins();
-            this.setPoints();
-        }
-        if (n === reloadIdx + 3)
+        if (n === reloadIdx + opts.length + 1)
             this.optimizationDisabled = ei.checkbox!.getState();
     }
     getVoltageSourceCount(): number { return this.dataBits; }
@@ -426,9 +493,18 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         }
     }
 
+    protected chipSelected(): boolean {
+        return !this.hasChipSelect() || this.nodes[this.chipSelectNode].v < this.getThreshold();
+    }
+
     doStep(): void {
-        const writeEnabled = this.nodes[0].v < this.getThreshold();
-        const outputEnabled = this.nodes[1].v < this.getThreshold();
+        const selected = this.chipSelected();
+        const writeEnabled = selected && this.nodes[0].v < this.getThreshold();
+        // with separate I/O, the outputs follow the data being written (write-through, like the
+        // 82S16).  With a bidirectional bus they're off while writing, so they don't fight the
+        // writer.
+        const separate = this.hasSeparateIO();
+        const outputEnabled = selected && (this.nodes[1].v < this.getThreshold()) && (separate || !writeEnabled);
 
         // get address
         this.address = 0;
@@ -436,15 +512,11 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             this.address |= (this.nodes[this.addressNodes + i].v > this.getThreshold()) ? 1 << (this.addressBits - 1 - i) : 0;
         }
 
-        // real bipolar RAMs like the 82S16 write-through: while WE is active the output
-        // follows the data currently being written, rather than tri-stating - see doStep()'s
-        // docstring-equivalent note in digitalSynthesis() below.
         let data: number;
-        if (writeEnabled) {
+        if (writeEnabled && separate) {
             data = 0;
-            for (let i = 0; i !== this.dataBits; i++) {
+            for (let i = 0; i !== this.dataBits; i++)
                 data |= (this.nodes[this.dataInNodes + i].v > this.getThreshold()) ? 1 << (this.dataBits - 1 - i) : 0;
-            }
         } else {
             const dataObj = this.map.get(this.address);
             data = (dataObj === undefined) ? 0 : dataObj;
@@ -467,7 +539,7 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
 
     stepFinished(): void {
         let data = 0;
-        const writeEnabled = this.nodes[0].v < this.getThreshold();
+        const writeEnabled = this.chipSelected() && this.nodes[0].v < this.getThreshold();
         if (!writeEnabled)
             return;
 
@@ -516,11 +588,23 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         if (separate) for (let i = 0; i < n; i++) pinMap.set(this.dataInNodes + i, dataInPin(i));
 
         const desc: ChipDesc[] = [];
+        // Chip select (active low): while it's high, nothing is written and the outputs are off,
+        // which is just WE and OE both forced inactive - so it's folded into those two inputs by
+        // zero-delay OR cells rather than changing the bit cells themselves.
+        let weIn = wePin, oeIn = oePin;
+        if (this.hasChipSelect()) {
+            const csPin = 3 + m + 2 * n;
+            weIn = csPin + 1;
+            oeIn = csPin + 2;
+            pinMap.set(this.chipSelectNode, csPin);
+            desc.push(chipStart((pin) => { pin[weIn] = pin[wePin] | pin[csPin]; }).inputPins(wePin, csPin).outputPin(weIn));
+            desc.push(chipStart((pin) => { pin[oeIn] = pin[oePin] | pin[csPin]; }).inputPins(oePin, csPin).outputPin(oeIn));
+        }
         for (let i = 0; i < n; i++) {
             const bitMask = 1 << (n - 1 - i);
 
             desc.push(sramBitCell(this.mem, m, bitMask, invert)
-                .inputPins(wePin, oePin, ...Array.from({ length: m }, (_, k) => addrPin(k)), dataInPin(i))
+                .inputPins(weIn, oeIn, ...Array.from({ length: m }, (_, k) => addrPin(k)), dataInPin(i))
                 .outputPin(driverPin(i))
                 .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
             pinMap.set(this.dataNodes + i, driverPin(i));

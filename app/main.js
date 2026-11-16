@@ -213,7 +213,15 @@ function createWindow () {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow)
+// The page is loaded from file://, where a service worker can't fetch()
+// anything, so a worker registered by an earlier build (cached under the
+// web version's file names) would fail every load, including circuitjs.html
+// itself.  Clear any such worker and its caches before opening a window.
+app.on('ready', function () {
+  electron.session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] })
+    .catch(function (err) { console.error('Failed to clear service workers:', err); })
+    .then(createWindow);
+})
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function () {

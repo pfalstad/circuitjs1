@@ -185,6 +185,9 @@ export class WireElm extends CircuitElm {
             ei.checkbox = new Checkbox("Show Voltage", this.mustShowVoltage());
             return ei;
         }
+        // (the bus value options only apply to bus wires)
+        if (n >= 2 && this.busWidth == 1)
+            return null;
         if (n == 2) {
             const ei = new EditInfo("", 0, -1, -1);
             ei.checkbox = new Checkbox("Show Bus Value", this.mustShowBusValue());

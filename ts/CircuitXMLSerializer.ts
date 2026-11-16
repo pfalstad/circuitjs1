@@ -24,7 +24,6 @@
 
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
-import { HookRegistry } from "./HookRegistry";
 
 export class CircuitXMLSerializer {
     app: CirSim;
@@ -126,7 +125,6 @@ export class CircuitXMLSerializer {
                 ce.dumpXmlState(doc, elem);
             root.appendChild(elem);
         }
-        HookRegistry.dumpUnusedLocalSubcircuitModels?.(doc);
         const sm = this.app.scopeManager;
         if (this.saveState)
             for (let i = 0; i !== sm.scopeCount; i++)

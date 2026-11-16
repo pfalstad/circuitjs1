@@ -1,0 +1,465 @@
+/*
+    Copyright (C) Paul Falstad and Iain Sharp
+
+    This file is part of CircuitJS1.
+
+    CircuitJS1 is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
+
+    CircuitJS1 is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#include "SRAMElm.h"
+
+#include <stdexcept>
+
+#include <cstring>
+
+#include <algorithm>
+
+#include "../core/StringTokenizer.h"
+
+#include <cmath>
+#include <cstdio>
+
+#include "../core/CircuitXMLDeserializer.h"
+#include "../core/CircuitXMLSerializer.h"
+#include "../core/JsNumber.h"
+#include "../core/Locale.h"
+#include "../core/SimApp.h"
+#include "../core/SimulationManager.h"
+#include "../core/XmlDoc.h"
+
+void SRAMElm::postConstruct(StringTokenizer *st) {
+    ChipElm::postConstruct(st);
+    if (st == nullptr) {
+        addressBits = dataBits = 4;
+        map.clear();
+        setupPins();
+        return;
+    }
+    map.clear();
+    addressBits = parseIntStrict(st->nextToken());
+    dataBits = parseIntStrict(st->nextToken());
+    setupPins();
+    try {
+        // load contents
+        // format: addr val(addr) val(addr+1) val(addr+2) ... -1 addr val val ... -1 ... -2
+        while (true) {
+            std::string a_str = st->nextToken();
+            int a = parseIntStrict(a_str);
+            if (a < 0)
+                break;
+            int v = parseIntStrict(st->nextToken());
+            map[a] = v;
+            while (true) {
+                v = parseIntStrict(st->nextToken());
+                if (v < 0)
+                    break;
+                map[++a] = v;
+            }
+        }
+    } catch (...) {}
+    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+        initialMap = map;
+}
+
+void SRAMElm::dumpXml(XmlElement *doc, XmlElement *elem) {
+    ChipElm::dumpXml(doc, elem);
+    CircuitXMLSerializer::dumpAttr(elem, "ab", addressBits);
+    CircuitXMLSerializer::dumpAttr(elem, "db", dataBits);
+}
+
+void SRAMElm::dumpXmlState(XmlElement *doc, XmlElement *elem) {
+    ChipElm::dumpXmlState(doc, elem);
+    if (!map.empty())
+        elem->text += contentsToString();
+    else
+        // mark empty contents so the state isn't skipped (CompositeElm.dumpXmlState skips
+        // children with no state), which would bring back the model's contents on reload
+        CircuitXMLSerializer::dumpAttr(elem, "em", 1);
+}
+
+void SRAMElm::undumpXml(CircuitXMLDeserializer &xml) {
+    ChipElm::undumpXml(xml);
+    addressBits = xml.parseIntAttr("ab", addressBits);
+    dataBits = xml.parseIntAttr("db", dataBits);
+    map.clear();
+    try {
+        std::optional<std::string> s = xml.parseContents();
+        if (s && !s->empty()) parseContentsString(*s, hasFlag(FLAG_HEX_DISPLAY), true);
+    } catch (...) {}
+    if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+        initialMap = map;
+    setupPins();
+}
+
+void SRAMElm::reset() {
+    ChipElm::reset();
+    if ((flags & FLAG_RELOAD_ON_RESET) != 0 && initialMap)
+        map = *initialMap;
+}
+
+void SRAMElm::setupPins() {
+    sizeX = 2;
+    int addrY = useBus() ? 1 : addressBits;
+    int dataY = useBus() ? 1 : dataBits;
+    bool separate = hasSeparateIO();
+    int westY = separate ? addrY + dataY : addrY;
+    // east side: OE, then chip select (if any), then the data pins at the bottom
+    int eastY = hasChipSelect() ? dataY + 1 : dataY;
+    sizeY = std::max(westY, eastY) + 1;
+    bits = addressBits;
+    pins.assign(getPostCount(), Pin());
+    pins[0] = Pin(this, 0, SIDE_W, "WE");
+    pins[0].lineOver = true;
+    pins[1] = Pin(this, 0, SIDE_E, "OE");
+    pins[1].lineOver = true;
+    addressNodes = 2;
+    dataNodes = 2 + addressBits;
+    dataInNodes = separate ? dataNodes + dataBits : dataNodes;
+    // internal nodes come right after the posts
+    internalNodes = getPostCount();
+    makeBitPins(addressBits, sizeY - addrY, SIDE_W, addressNodes, "A", false, false, true);
+    makeBitPins(dataBits, sizeY - dataY, SIDE_E, dataNodes, "D", true, false, true);
+    if (hasInvertedOutput())
+        for (int i = 0; i != dataBits; i++)
+            pins[dataNodes + i].lineOver = true;
+    if (separate)
+        makeBitPins(dataBits, 1, SIDE_W, dataInNodes, "DI", false, false, true);
+    if (hasChipSelect()) {
+        Pin cs(this, 1, SIDE_E, "CS");
+        cs.lineOver = true;
+        pins[chipSelectNode()] = cs;
+    }
+    allocNodes();
+}
+
+std::optional<EditInfo> SRAMElm::getChipEditInfo(int n) {
+    if (n == 0)
+        return EditInfo("# of Address Bits", addressBits, 1, 1).setDimensionless().setStructural();
+    if (n == 1)
+        return EditInfo("# of Data Bits", dataBits, 1, 1).setDimensionless().setStructural();
+    if (n == 2) {
+        EditInfo ei("Contents", 0);
+        ei.setIsState();
+        ei.textArea = TextArea{contentsOverride ? *contentsOverride : contentsToString()};
+        dialogContentsText = ei.textArea->value;
+        contentsOverride.reset();
+        if (fileNameOverride)
+            loadedFileName = fileNameOverride;
+        fileNameOverride.reset();
+        return ei;
+    }
+    if (n == 3)
+        return EditInfo::createCheckbox("Hex Display", hasFlag(FLAG_HEX_DISPLAY)).setIsState();
+    if (n == 4) {
+        // (TS: a file input)
+        EditInfo ei(loadedFileName ? "Loaded: " + *loadedFileName : "", 0, -1, -1);
+        ei.setIsState();
+        ei.button = EditButton{Locale::LS("Load Contents From File") + "..."};
+        return ei;
+    }
+    if (n == 5)
+        return EditInfo::createCheckbox("Restore Contents on Reset", (flags & FLAG_RELOAD_ON_RESET) != 0);
+    std::vector<int> opts = pinOptions();
+    if (n > 5 && n - 6 < (int) opts.size()) {
+        int opt = opts[n - 6];
+        const char *name = opt == FLAG_SEPARATE_IO ? "Separate Data In/Out"
+                           : opt == FLAG_INVERT_OUTPUT ? "Inverted Data Out" : "Chip Select";
+        EditInfo ei = EditInfo::createCheckbox(name, hasFlag(opt));
+        if (opt != FLAG_INVERT_OUTPUT)
+            ei.setStructural();  // adds pins
+        return ei;
+    }
+    return ChipElm::getChipEditInfo(n - (int) opts.size());
+}
+
+static std::string upperHex(int v) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%X", (unsigned) v);
+    return buf;
+}
+
+std::string SRAMElm::contentsToString() {
+    bool hex = hasFlag(FLAG_HEX_DISPLAY);
+    std::string s;
+    int maxI = 1 << addressBits;
+    for (int i = 0; i < maxI; i++) {
+        auto it = map.find(i);
+        if (it == map.end() || it->second == 0)
+            continue;
+        int val = it->second;
+        s += (hex ? upperHex(i) : std::to_string(i)) + ": " + (hex ? toHex(val) : std::to_string(val));
+        int ct = 1;
+        while (true) {
+            it = map.find(++i);
+            if (it == map.end() || it->second == 0)
+                break;
+            val = it->second;
+            s += " " + (hex ? toHex(val) : std::to_string(val));
+            if (++ct == 8)
+                break;
+        }
+        s += "\n";
+    }
+    return s;
+}
+
+void SRAMElm::fetchLoadFileData() {
+    std::string name, arr;
+    if (!app->loadTextFile(name, arr))
+        return;
+    if (arr.size() >= 128000) {
+        app->alert(Locale::LS("Cannot load: That file is too large!"));
+        return;
+    }
+    int bytesPerValue = dataBits > 8 ? 2 : 1;
+    int hexDigits = bytesPerValue * 2;
+    size_t n = arr.size() - (arr.size() % bytesPerValue);
+    std::string str = "0x0:";
+    for (size_t i = 0; i < n; i += bytesPerValue) {
+        int val = 0;
+        for (int j = 0; j < bytesPerValue; j++)
+            val = (val << 8) | (unsigned char) arr[i + j];
+        std::string hex = upperHex(val);
+        while ((int) hex.size() < hexDigits)
+            hex = "0" + hex;
+        str += " 0x" + hex;
+    }
+    // doLoadCallback(); the dialog is rebuilt later, and getChipEditInfo() clears these
+    contentsOverride = str;
+    fileNameOverride = name;
+    app->resetEditDialog();
+}
+
+std::string SRAMElm::toHex(int val) {
+    int mask = (1 << dataBits) - 1;
+    std::string h = upperHex(val & mask);
+    return h.size() < 2 ? "0" + h : h;
+}
+
+static std::string trimWS(const std::string &s) {
+    size_t a = s.find_first_not_of(" \t\r\n\f\v");
+    if (a == std::string::npos)
+        return "";
+    size_t b = s.find_last_not_of(" \t\r\n\f\v");
+    return s.substr(a, b - a + 1);
+}
+
+std::optional<std::string> SRAMElm::parseContentsString(const std::string &s, bool hex, bool lenient) {
+    std::map<int, int> newMap;
+    std::optional<std::string> error;
+    size_t lineStart = 0;
+    int lineNum = 0;
+    while (lineStart <= s.size()) {
+        size_t nl = s.find('\n', lineStart);
+        std::string line = trimWS(s.substr(lineStart, nl == std::string::npos ? std::string::npos : nl - lineStart));
+        lineStart = (nl == std::string::npos) ? s.size() + 1 : nl + 1;
+        lineNum++;
+        if (line.empty())
+            continue;
+        auto lineError = [&](const std::string &msg) { return "line " + std::to_string(lineNum) + ": " + msg; };
+        size_t colon = line.find(':');
+        if (colon == std::string::npos) {
+            if (!error)
+                error = lineError("expected \"address: values\"");
+            continue;
+        }
+        try {
+            int addr = parseNumber(trimWS(line.substr(0, colon)), hex);
+            std::string rest = trimWS(line.substr(colon + 1));
+            if (rest.empty())
+                continue;
+            size_t p = 0;
+            while (p < rest.size()) {
+                size_t e = rest.find_first_of(" \t\r\n\f\v", p);
+                if (e == std::string::npos)
+                    e = rest.size();
+                newMap[addr++] = parseNumber(rest.substr(p, e - p), hex);
+                p = rest.find_first_not_of(" \t\r\n\f\v", e);
+                if (p == std::string::npos)
+                    break;
+            }
+        } catch (std::exception &e) {
+            if (!error)
+                error = lineError(e.what());
+        }
+    }
+    if (!error || lenient)
+        map = newMap;
+    return error;
+}
+
+static bool allOf(const std::string &s, size_t from, const char *chars) {
+    if (s.size() <= from)
+        return false;
+    for (size_t i = from; i < s.size(); i++)
+        if (!std::strchr(chars, s[i]))
+            return false;
+    return true;
+}
+
+int SRAMElm::parseNumber(const std::string &str, bool hex) {
+    static const char *HEX = "0123456789abcdefABCDEF";
+    if (str.size() > 2 && (str.compare(0, 2, "0x") == 0 || str.compare(0, 2, "0X") == 0) && allOf(str, 2, HEX))
+        return (int) jsParseInt(str.substr(2), 16);
+    if (hex) {
+        if (allOf(str, 0, HEX))
+            return (int) jsParseInt(str, 16);
+        throw std::runtime_error("\"" + str + "\" is not a hex number");
+    }
+    if (str.compare(0, 2, "0b") == 0 && allOf(str, 2, "01"))
+        return (int) jsParseInt(str.substr(2), 2);
+    if (allOf(str, (!str.empty() && str[0] == '-') ? 1 : 0, "0123456789"))
+        return (int) jsParseInt(str, 10);
+    if (allOf(str, 0, HEX))
+        throw std::runtime_error("\"" + str + "\" is not a decimal number (check Hex Display to enter hex, or write 0x" +
+                                 str + ")");
+    throw std::runtime_error("\"" + str + "\" is not a number");
+}
+
+void SRAMElm::setChipEditValue(int n, EditInfo &ei) {
+    if (n == 0) {
+        if (ei.value >= 2 && ei.value <= 16) {
+            addressBits = (int) std::floor(ei.value);
+            setupPins();
+            setPoints();
+        } else
+            ei.setError("must be between 2 and 16");
+    }
+    if (n == 1) {
+        if (ei.value >= 2 && ei.value <= 16) {
+            dataBits = (int) std::floor(ei.value);
+            setupPins();
+            setPoints();
+        } else
+            ei.setError("must be between 2 and 16");
+    }
+    if (n == 2) {
+        dialogContentsText = ei.textArea->value;
+        std::optional<std::string> err = parseContentsString(ei.textArea->value);
+        if (err) {
+            ei.setError(*err);
+            return;
+        }
+        if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+            initialMap = map;
+    }
+    if (n == 3) {
+        int oldFlags = flags;
+        int newFlags = ei.changeFlag(flags, FLAG_HEX_DISPLAY);
+        // read the contents as written before converting them to the new mode.  If they
+        // aren't valid in the old mode but are in the new one (say, hex was typed and then
+        // Hex Display checked), take them as being in the new mode.  If neither, leave the
+        // text alone, so it can be fixed (the dialog shows the error).
+        std::optional<std::string> keepText;
+        if (dialogContentsText) {
+            const std::string text = *dialogContentsText;
+            if (parseContentsString(text, (oldFlags & FLAG_HEX_DISPLAY) != 0) &&
+                parseContentsString(text, (newFlags & FLAG_HEX_DISPLAY) != 0))
+                keepText = text;
+        }
+        flags = newFlags;
+        if (flags != oldFlags) {
+            contentsOverride = keepText ? *keepText : contentsToString();
+            ei.newDialog = true;
+        }
+    }
+    if (n == 4)
+        fetchLoadFileData();
+    if (n == 5) {
+        flags = ei.changeFlag(flags, FLAG_RELOAD_ON_RESET);
+        if ((flags & FLAG_RELOAD_ON_RESET) != 0)
+            initialMap = map;
+        else
+            initialMap.reset();
+    }
+    std::vector<int> opts = pinOptions();
+    if (n > 5 && n - 6 < (int) opts.size()) {
+        flags = ei.changeFlag(flags, opts[n - 6]);
+        setupPins();
+        setPoints();
+    }
+}
+
+void SRAMElm::setVoltageSource(int j, VoltageSource *vs) {
+    ChipElm::setVoltageSource(j, vs);
+    vs->setNodes(CircuitNode::ground, nodes[internalNodes + j]);
+}
+
+bool SRAMElm::getMatrixConnection(int n1, int n2) {
+    // each internal node connects to its corresponding data pin
+    for (int i = 0; i != dataBits; i++)
+        if (comparePair(n1, n2, internalNodes + i, dataNodes + i))
+            return true;
+    return false;
+}
+
+void SRAMElm::stamp() {
+    for (int i = 0; i != dataBits; i++) {
+        Pin &p = pins[i + dataNodes];
+        sim->stampVoltageSource(CircuitNode::ground, nodes[internalNodes + i], p.voltSource);
+        sim->stampNonLinear(nodes[internalNodes + i]);
+        sim->stampNonLinear(nodes[dataNodes + i]);
+    }
+}
+
+bool SRAMElm::chipSelected() {
+    return !hasChipSelect() || nodes[chipSelectNode()]->v < getThreshold();
+}
+
+void SRAMElm::doStep() {
+    bool selected = chipSelected();
+    bool writeEnabled = selected && nodes[0]->v < getThreshold();
+    // with separate I/O, the outputs follow the data being written (write-through, like the
+    // 82S16).  With a bidirectional bus they're off while writing, so they don't fight the
+    // writer.
+    bool separate = hasSeparateIO();
+    bool outputEnabled = selected && (nodes[1]->v < getThreshold()) && (separate || !writeEnabled);
+    // get address
+    address = 0;
+    for (int i = 0; i != addressBits; i++)
+        address |= (nodes[addressNodes + i]->v > getThreshold()) ? 1 << (addressBits - 1 - i) : 0;
+    int data;
+    if (writeEnabled && separate) {
+        data = 0;
+        for (int i = 0; i != dataBits; i++)
+            data |= (nodes[dataInNodes + i]->v > getThreshold()) ? 1 << (dataBits - 1 - i) : 0;
+    } else {
+        auto it = map.find(address);
+        data = (it == map.end()) ? 0 : it->second;
+    }
+    if (hasInvertedOutput())
+        data ^= (1 << dataBits) - 1;
+    for (int i = 0; i != dataBits; i++) {
+        Pin &p = pins[i + dataNodes];
+        sim->updateVoltageSource(CircuitNode::ground, nodes[internalNodes + i], p.voltSource,
+                                 (data & (1 << (dataBits - 1 - i))) == 0 ? 0 : highVoltage);
+        // if output enabled, stamp a small resistor from internal voltage source to data pin.
+        // if output disabled, stamp a large pulldown resistor from data pin to ground.
+        if (outputEnabled)
+            sim->stampResistor(nodes[internalNodes + i], nodes[dataNodes + i], 1);
+        else
+            sim->stampResistor(nodes[dataNodes + i], CircuitNode::ground, 1e8);
+    }
+}
+
+void SRAMElm::stepFinished() {
+    int data = 0;
+    bool writeEnabled = chipSelected() && nodes[0]->v < getThreshold();
+    if (!writeEnabled)
+        return;
+    // store data in RAM
+    for (int i = 0; i != dataBits; i++)
+        data |= (nodes[dataInNodes + i]->v > getThreshold()) ? 1 << (dataBits - 1 - i) : 0;
+    map[address] = data;
+}

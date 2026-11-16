@@ -76,12 +76,12 @@ export class ExportAsTextDialog extends Dialog {
 
         const importButton = document.createElement("button");
         importButton.textContent = Locale.LS("Re-Import");
-        importButton.onclick = () => {
+        importButton.onclick = async () => {
             this.sim.undoManager?.pushUndo();
             const text = this.textArea.value;
             this.closeDialog();
             if (text != null) {
-                this.sim.readCircuit(text);
+                await this.sim.readCircuit(text);
                 this.sim.allowSave(false);
                 this.sim.unsavedChanges = false;
                 this.sim.savedFlag = true;

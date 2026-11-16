@@ -22,11 +22,13 @@ import { EditInfo } from "./EditInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CirSim } from "./CirSim";
+import { ModelRegistry } from "./ModelRegistry";
 import { parseIntStrict } from "./NumberParse";
 
 export class CustomLogicModel implements Editable {
     static readonly FLAG_SCHMITT = 1;
-    static modelMap: Map<string, CustomLogicModel> | null = null;
+    static readonly registry = new ModelRegistry<CustomLogicModel>(
+        null, "customlogicmodel:", (m, doc) => m.dumpXml(doc));
 
     flags: number = 0;
     name: string = "";
@@ -40,36 +42,25 @@ export class CustomLogicModel implements Editable {
     triState: boolean = false;
 
     static getModelWithName(name: string): CustomLogicModel {
-        if (CustomLogicModel.modelMap == null)
-            CustomLogicModel.modelMap = new Map<string, CustomLogicModel>();
-        let lm = CustomLogicModel.modelMap.get(name);
+        let lm = CustomLogicModel.registry.get(name);
         if (lm != null)
             return lm;
         lm = new CustomLogicModel();
         lm.name = name;
         lm.infoText = (name === "default") ? "custom logic" : name;
-        CustomLogicModel.modelMap.set(name, lm);
+        CustomLogicModel.registry.setLocal(lm);
         return lm;
     }
 
     static getModelWithNameOrCopy(name: string, oldmodel: CustomLogicModel | null): CustomLogicModel {
-        if (CustomLogicModel.modelMap == null)
-            CustomLogicModel.modelMap = new Map<string, CustomLogicModel>();
-        const lm = CustomLogicModel.modelMap.get(name);
+        const lm = CustomLogicModel.registry.get(name);
         if (lm != null)
             return lm;
         const copy = new CustomLogicModel(oldmodel ?? undefined);
         copy.name = name;
         copy.infoText = name;
-        CustomLogicModel.modelMap.set(name, copy);
+        CustomLogicModel.registry.setLocal(copy);
         return copy;
-    }
-
-    static clearDumpedFlags(): void {
-        if (CustomLogicModel.modelMap == null)
-            return;
-        for (const m of CustomLogicModel.modelMap.values())
-            m.dumped = false;
     }
 
     constructor(copy?: CustomLogicModel) {
@@ -92,7 +83,7 @@ export class CustomLogicModel implements Editable {
 
     static undumpModel(st: { nextToken(): string }): void {
         const name = CustomLogicModel.unescape(st.nextToken());
-        const model = CustomLogicModel.getModelWithName(name);
+        const model = CustomLogicModel.getModelForLoad(name);
         model.undump(st);
     }
 
@@ -105,10 +96,20 @@ export class CustomLogicModel implements Editable {
         this.parseRules(null);
     }
 
-    static undumpModelXml(xml: CircuitXMLDeserializer): void {
+    static undumpModelXml(xml: CircuitXMLDeserializer): CustomLogicModel {
         const name = xml.parseStringAttr("nm", null);
-        const model = CustomLogicModel.getModelWithName(name!);
+        const model = CustomLogicModel.getModelForLoad(name!);
         model.undumpXml(xml);
+        return model;
+    }
+
+    // the model to load a definition into (see ModelRegistry.getForLoad)
+    private static getModelForLoad(name: string): CustomLogicModel {
+        return CustomLogicModel.registry.getForLoad(name, () => {
+            const lm = new CustomLogicModel();
+            lm.infoText = (name === "default") ? "custom logic" : name;
+            return lm;
+        });
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -182,6 +183,7 @@ export class CustomLogicModel implements Editable {
             else
                 this.flags &= ~CustomLogicModel.FLAG_SCHMITT;
         }
+        CustomLogicModel.registry.resave(this);
         CirSim.theApp.updateModels();
     }
 

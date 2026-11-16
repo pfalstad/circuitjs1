@@ -96,7 +96,7 @@
 "Add Clock"="클럭 추가"
 "Add Comparator (Hi-Z/GND output)"="비교기 추가 (Hi-Z/GND 출력)"
 "Add Counter"="카운터 추가"
-"Add Counter w/ Load"="로드 가능한 카운터 추가"
+"Add Counter w/ Load (9316)"="로드 가능한 카운터 추가 (9316)"
 "Add Cross Switch"="크로스 스위치 추가"
 "Add Crystal"="크리스탈 추가"
 "Add Current Source"="전류 소스 추가"

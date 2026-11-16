@@ -26,16 +26,18 @@ export class ExportAsLocalFileDialog extends Dialog {
     private blobUrl: string;
     // if false, this isn't a circuit file, so don't remember its name for future circuit saves
     private rememberName: boolean;
+    // added to a file name typed without one
+    private defaultExt: string;
 
     static downloadIsSupported(): boolean {
         return "download" in document.createElement("a");
     }
 
-    static getBlobUrl(data: string): string {
+    static getBlobUrl(data: string | Uint8Array): string {
         const oldBlob = (document as any).exportBlob;
         if (oldBlob)
             URL.revokeObjectURL(oldBlob);
-        const blob = new Blob([data], { type: "text/plain" });
+        const blob = new Blob([data as BlobPart], { type: typeof data === "string" ? "text/plain" : "application/octet-stream" });
         const url = URL.createObjectURL(blob);
         (document as any).exportBlob = url;
         return url;
@@ -50,10 +52,13 @@ export class ExportAsLocalFileDialog extends Dialog {
             ExportAsLocalFileDialog.lastFileName = s;
     }
 
-    // fileName/title are given when exporting something other than the circuit (e.g. subcircuits)
-    constructor(data: string, fileName: string | null = null, title: string = "Export as Local File") {
+    // fileName/title are given when exporting something other than the circuit (e.g. subcircuits).
+    // note is shown above the file name
+    constructor(data: string | Uint8Array, fileName: string | null = null, title: string = "Export as Local File",
+                note: string | null = null) {
         super();
         this.rememberName = fileName == null;
+        this.defaultExt = fileName?.match(/\.[^.]*$/)?.[0] ?? ".txt";
 
         this.dialogEl.innerHTML = "";
 
@@ -61,6 +66,14 @@ export class ExportAsLocalFileDialog extends Dialog {
         titleEl.textContent = Locale.LS(title);
         titleEl.style.margin = "0 0 8px 0";
         this.dialogEl.appendChild(titleEl);
+
+        if (note != null) {
+            const noteEl = document.createElement("div");
+            noteEl.textContent = note;
+            noteEl.style.maxWidth = "350px";
+            noteEl.style.marginBottom = "8px";
+            this.dialogEl.appendChild(noteEl);
+        }
 
         const label = document.createElement("div");
         label.textContent = Locale.LS("File name:");
@@ -116,7 +129,7 @@ export class ExportAsLocalFileDialog extends Dialog {
     apply(): boolean {
         let fname = this.textBox.value;
         if (!fname.includes("."))
-            fname += ".txt";
+            fname += this.defaultExt;
         if (this.rememberName)
             ExportAsLocalFileDialog.setLastFileName(fname);
         const a = document.createElement("a");

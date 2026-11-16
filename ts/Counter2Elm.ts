@@ -134,7 +134,7 @@ export class Counter2Elm extends ChipElm implements DigitalInitialState {
     showPropertiesOnCreate(): boolean { return false; }
     getChipEditInfo(n: number): EditInfo | null {
         if (n === 0)
-            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless();
+            return new EditInfo("# of Bits", this.bits, 1, 1).setDimensionless().setStructural();
         if (n === 1)
             return new EditInfo("Modulus", this.modulus, 1, 1).setDimensionless();
         return null;

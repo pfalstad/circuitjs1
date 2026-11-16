@@ -62,10 +62,111 @@ export class RoutedWireConnection {
     }
 }
 
+// buckets elements by location, so makePostDrawList() can find the elements a post lies on
+// without checking every element in the circuit for every unconnected post
+class ElmGrid {
+    static readonly CELL = 128;
+    static readonly MAX_CELLS = 256;    // elements spanning more cells than this go in `big`
+    private cells: Map<string, any[]> = new Map();
+    private big: any[] = [];
+
+    constructor(list: any[]) {
+	for (const ce of list) {
+	    if (ce.isGraphicElm())
+		continue;
+	    let x1: number, y1: number, x2: number, y2: number;
+	    if (ce.isRoutedWireElm()) {
+		// its bounding box is only set when it's drawn, so use its path
+		const rp = ce.routePoints;
+		if (rp == null || rp.length < 2)
+		    continue;	// pointOnPath() is always false
+		x1 = x2 = rp[0].x; y1 = y2 = rp[0].y;
+		for (const p of rp) {
+		    x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y);
+		    x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y);
+		}
+	    } else {
+		const b = ce.boundingBox;
+		if (b.width < 0 || b.height < 0)
+		    continue;	// contains() is always false
+		x1 = b.x; y1 = b.y; x2 = b.x + b.width; y2 = b.y + b.height;
+	    }
+	    this.add(ce, x1, y1, x2, y2);
+	}
+    }
+
+    private add(ce: any, x1: number, y1: number, x2: number, y2: number): void {
+	const C = ElmGrid.CELL;
+	const cx1 = Math.floor(x1 / C), cx2 = Math.floor(x2 / C);
+	const cy1 = Math.floor(y1 / C), cy2 = Math.floor(y2 / C);
+	if (!((cx2 - cx1 + 1) * (cy2 - cy1 + 1) <= ElmGrid.MAX_CELLS)) {
+	    this.big.push(ce);
+	    return;
+	}
+	for (let cx = cx1; cx <= cx2; cx++)
+	    for (let cy = cy1; cy <= cy2; cy++) {
+		const key = cx + "," + cy;
+		const l = this.cells.get(key);
+		if (l == null)
+		    this.cells.set(key, [ce]);
+		else
+		    l.push(ce);
+	    }
+    }
+
+    // is this unconnected post on an element it doesn't belong to?
+    isBadConnection(cn: Point): boolean {
+	const C = ElmGrid.CELL;
+	const l = this.cells.get(Math.floor(cn.x / C) + "," + Math.floor(cn.y / C));
+	return (l != null && ElmGrid.anyBad(l, cn)) || ElmGrid.anyBad(this.big, cn);
+    }
+
+    private static anyBad(list: any[], cn: Point): boolean {
+	for (const ce of list) {
+	    // routed wire: check path directly instead of bounding box (which is too big)
+	    if (ce.isRoutedWireElm()) {
+		if (ce.pointOnPath(cn))
+		    return true;
+		continue;
+	    }
+	    // does this post intersect elm's bounding box?
+	    if (!ce.boundingBox.contains(cn.x, cn.y))
+		continue;
+	    // does this post belong to the elm?
+	    const pc = ce.getPostCount();
+	    let k: number;
+	    for (k = 0; k !== pc; k++)
+		if (ce.getPost(k).x === cn.x && ce.getPost(k).y === cn.y)
+		    break;
+	    if (k === pc)
+		return true;
+	}
+	return false;
+    }
+}
+
+// thrown by SimulationManager.stop() to abandon whatever the simulator was doing (analyzing,
+// stamping or running the circuit).  Code that drives the simulation catches it with
+// SimulationManager.isStop().
+export class SimStoppedError extends Error {
+    name = "SimStoppedError";
+}
+
 export class SimulationManager {
 
     app: CirSim;
     static theSim: SimulationManager | null = null;
+    // set by TestManager (only loaded for tests)
+    static testHooks: {
+        fixedStepsPerFrame(): number;
+        batchesPerFrame(): number;
+        clampTimeStep(t: number, timeStep: number): number;
+        checkTime(): boolean;
+        recordSwitchToggle(ce: any): void;
+    } | null = null;
+    // time steps since reset, so that with a fixed number of steps per batch while testing,
+    // the batches always end at the same steps
+    stepsSinceReset: number = 0;
 
     // this is different than the main elmList; it has CompositeElm child elms in it
     elmList: any[] = [];  // CircuitElm[]
@@ -158,6 +259,7 @@ export class SimulationManager {
     resetTime(): void {
     	this.t = this.timeStepAccum = 0;
     	this.timeStepCount = 0;
+    	this.stepsSinceReset = 0;
     }
 
     // zero all node voltages; nodes are shared between elements so this must be done
@@ -180,9 +282,9 @@ export class SimulationManager {
     }
 
     // map points to node numbers
-    nodeMap: Map<Point, NodeMapEntry> = new Map();
+    nodeMap: Map<string, NodeMapEntry> = new Map();   // keyed by pointKey()
     // separate node map for UI element list (when viewing composite internals)
-    uiNodeMap: Map<Point, NodeMapEntry> = new Map();
+    uiNodeMap: Map<string, NodeMapEntry> = new Map();   // keyed by pointKey()
 
     // info about each wire segment and its neighbors, used to calculate wire currents
     wireInfoList: WireSegment[] = [];
@@ -353,40 +455,10 @@ export class SimulationManager {
 	    }
 	}
 
-	// convert string-keyed map back to Point-keyed for the rest of the code
-	// we store these as Point-keyed maps using pointKey() for lookup
 	if (uiList)
-	    this.uiNodeMap = this.nmToPointMap(nm, list);
+	    this.uiNodeMap = nm;
 	else
-	    this.nodeMap = this.nmToPointMap(nm, list);
-    }
-
-    // convert string-key map to Point-key map by scanning element posts
-    private nmToPointMap(nm: Map<string, NodeMapEntry>, list: any[]): Map<Point, NodeMapEntry> {
-	const result: Map<Point, NodeMapEntry> = new Map();
-	for (const ce of list) {
-	    const bw = ce.isRemovableWire() ? ce.getBusWidth() : ce.getPostCount();
-	    for (let j = 0; j < bw; j++) {
-		const p = ce.isRemovableWire() ? ce.getPost(j) : ce.getPost(j);
-		if (p == null) continue;
-		const key = SimulationManager.pointKey(p);
-		const entry = nm.get(key);
-		if (entry != null)
-		    result.set(p, entry);
-	    }
-	    // also check connectedPost
-	    if (ce.isRemovableWire()) {
-		for (let j = 0; j < ce.getBusWidth(); j++) {
-		    const p = ce.getConnectedPost(j);
-		    if (p == null) continue;
-		    const key = SimulationManager.pointKey(p);
-		    const entry = nm.get(key);
-		    if (entry != null)
-			result.set(p, entry);
-		}
-	    }
-	}
-	return result;
+	    this.nodeMap = nm;
     }
 
     // assign nodes to UI wires (which aren't part of simulation) based on neighboring non-wire elements
@@ -441,13 +513,9 @@ export class SimulationManager {
 	}
     }
 
-    // look up Point in a Point-keyed map using coordinate equality
-    private getFromPointMap<V>(map: Map<Point, V>, pt: Point): V | undefined {
-	for (const [k, v] of map.entries()) {
-	    if (k.x === pt.x && k.y === pt.y && k.z === pt.z)
-		return v;
-	}
-	return undefined;
+    // look up a Point in a map keyed by pointKey()
+    private getFromPointMap<V>(map: Map<string, V>, pt: Point): V | undefined {
+	return map.get(SimulationManager.pointKey(pt));
     }
 
     // generate info we need to calculate wire currents.  Most other elements calculate currents using
@@ -478,6 +546,9 @@ export class SimulationManager {
 	let moved = 0;
 	this.wireInfoResolved = new Map();
 
+	// each node's links, grouped by the location of the post they're for (filled as needed)
+	const linksByPos: Map<CircuitNode, Map<string, CircuitNodeLink[]>> = new Map();
+
 	// build label endpoint map: label string → list of WireSegments sharing that label
 	const labelMap: Map<string, WireSegment[]> = new Map();
 	for (i = 0; i !== this.wireInfoList.length; i++) {
@@ -506,28 +577,46 @@ export class SimulationManager {
 	    const labelNeighbors: WireSegment[] = [];
 	    let isReady0 = true, isReady1 = !wire.isGroundElm();
 
-	    // position-based matching via cn.links
-	    for (j = 0; j !== cn1.links.length; j++) {
-		const cnl = cn1.links[j];
-		const ce = cnl.elm;
-		if (ce === wire) continue;
-		if (!this.wireInfoElmSet.has(ce)) continue;
-		if (cnl.num >= ce.getPostCount()) continue;
-		const pt = ce.getPost(cnl.num);
-		if (pt == null) continue;
-		const ptKey = SimulationManager.pointKey(pt);
-
-		const neighborBit = cnl.num % ce.getBusWidth();
-		const notReady = (ce.isRemovableWire() && !this.isWireInfoResolved(ce, neighborBit));
-
-		if (ws.endpoint0 != null && ws.endpoint0 === ptKey) {
-		    neighbors0.push(ce);
-		    if (notReady) isReady0 = false;
-		} else if (ws.endpoint1 != null && !ws.endpoint1.startsWith("label:") && ws.endpoint1 === ptKey) {
-		    neighbors1.push(ce);
-		    if (notReady) isReady1 = false;
+	    // position-based matching via cn.links.  (the links are grouped by location once per
+	    // node, since a node with many wire segments would otherwise have all its links scanned
+	    // for each of them)
+	    let byPos = linksByPos.get(cn1);
+	    if (byPos == null) {
+		byPos = new Map();
+		for (j = 0; j !== cn1.links.length; j++) {
+		    const cnl = cn1.links[j];
+		    const ce = cnl.elm;
+		    if (!this.wireInfoElmSet.has(ce)) continue;
+		    if (cnl.num >= ce.getPostCount()) continue;
+		    const pt = ce.getPost(cnl.num);
+		    if (pt == null) continue;
+		    const ptKey = SimulationManager.pointKey(pt);
+		    let l = byPos.get(ptKey);
+		    if (l == null)
+			byPos.set(ptKey, l = []);
+		    l.push(cnl);
 		}
+		linksByPos.set(cn1, byPos);
 	    }
+	    const at0 = ws.endpoint0 != null ? byPos.get(ws.endpoint0) : undefined;
+	    const at1 = (ws.endpoint1 != null && ws.endpoint1 !== ws.endpoint0 && !ws.endpoint1.startsWith("label:")) ?
+		byPos.get(ws.endpoint1) : undefined;
+	    if (at0 != null)
+		for (const cnl of at0) {
+		    const ce = cnl.elm;
+		    if (ce === wire) continue;
+		    neighbors0.push(ce);
+		    if (ce.isRemovableWire() && !this.isWireInfoResolved(ce, cnl.num % ce.getBusWidth()))
+			isReady0 = false;
+		}
+	    if (at1 != null)
+		for (const cnl of at1) {
+		    const ce = cnl.elm;
+		    if (ce === wire) continue;
+		    neighbors1.push(ce);
+		    if (ce.isRemovableWire() && !this.isWireInfoResolved(ce, cnl.num % ce.getBusWidth()))
+			isReady1 = false;
+		}
 
 	    // label-based matching: find other WireSegments sharing the same label endpoint
 	    if (ws.endpoint1 != null && ws.endpoint1.startsWith("label:")) {
@@ -568,7 +657,6 @@ export class SimulationManager {
 			    + " resolved=" + this.wireInfoResolved.get(wk.wire));
 		    }
 		    this.stop("wire loop detected", wire);
-		    return false;
 		}
 	    }
 	}
@@ -590,6 +678,7 @@ export class SimulationManager {
 	let i: number;
 	let gotGround = false;
 	let gotRail = false;
+	let gotTwoTerminalSource = false;
 	let volt: any = null;  // CircuitElm
 	let battery: any = null;  // CircuitElm
 
@@ -614,11 +703,18 @@ export class SimulationManager {
 	    }
 	    if (ce.isRailElm())
     		gotRail = true;
+	    else if (ce.isVoltageElm() || ce.isBatteryElm())
+		gotTwoTerminalSource = true;
 	    if (volt == null && ce.isVoltageElm())
     		volt = ce;
 	    if (battery == null && ce.isBatteryElm())
     		battery = ce;
 	}
+
+	// warn if there are both one-terminal (rail) and two-terminal voltage sources but
+	// no ground, since the two-terminal sources will float relative to the rails
+	if (!subcircuit)
+	    this.app.railsWithoutGround = !gotGround && gotRail && gotTwoTerminalSource;
 
 	// if no ground, and no rails, then the voltage elm's first terminal is ground;
 	// if there's no plain voltage elm, fall back to a battery's negative terminal
@@ -631,7 +727,7 @@ export class SimulationManager {
 	    if (cln != null)
 		cln.node = CircuitNode.ground;
 	    else
-		this.nodeMap.set(pt, new NodeMapEntry(CircuitNode.ground));
+		this.nodeMap.set(SimulationManager.pointKey(pt), new NodeMapEntry(CircuitNode.ground));
 	}
     }
 
@@ -671,7 +767,7 @@ export class SimulationManager {
 		    if (cln != null)
 			cln.node = cn2;
 		    else
-			this.nodeMap.set(pt, new NodeMapEntry(cn2));
+			this.nodeMap.set(SimulationManager.pointKey(pt), new NodeMapEntry(cn2));
 		    this.nodeList.push(cn2);
 		} else {
 		    const cn2 = cln.node!;
@@ -951,6 +1047,7 @@ export class SimulationManager {
 	if (this.elmList.length === 0) {
 	    this.app.postDrawList = [];
 	    this.app.badConnectionList = [];
+	    this.app.railsWithoutGround = false;
 	    return;
 	}
 	this.detectBusWidths();
@@ -1075,14 +1172,10 @@ export class SimulationManager {
 	// preStampCircuit returns false if there's an error.  It can return false if we have capacitor loops
 	// but we just need to try again in that case.  Try again 10 times to avoid infinite loop.
 	for (i = 0; i !== 10; i++)
-	    if (this.preStampCircuit(false) || this.app.stopMessage != null)
+	    if (this.preStampCircuit(false))
 		break;
-	if (this.app.stopMessage != null)
-	    return;
-	if (i === 10) {
+	if (i === 10)
 	    this.stop("failed to stamp circuit", null);
-	    return;
-	}
 
 	this.stampCircuit();
     }
@@ -1096,9 +1189,8 @@ export class SimulationManager {
 	for (i = 0; i !== this.matrices!.length; i++) {
 	    const m = this.matrices![i];
 	    const sz = m.size;
-	    m.matrix = Array.from({length: sz}, () => new Array(sz).fill(0));
+	    m.clear();
 	    m.rightSide = new Array(sz).fill(0);
-	    m.origMatrix = Array.from({length: sz}, () => new Array(sz).fill(0));
 	    m.origRightSide = new Array(sz).fill(0);
 	    m.permute = new Array(sz).fill(0);
 	    m.nodeVoltages = new Array(m.nodeCount).fill(0);
@@ -1121,10 +1213,6 @@ export class SimulationManager {
 	    ce.setParentList(this.elmList);
 	    ce.stamp();
 	}
-
-	// check if we called stop()
-	if (this.matrices == null)
-	    return;
 
 	// save original matrices for restoring during nonlinear iterations
 	let maxMatrixSize = 0;
@@ -1153,7 +1241,6 @@ export class SimulationManager {
 	    if (!m.nonLinear) {
 		if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m)) {
 		    this.stop("Singular matrix!", null);
-		    return;
 		}
 	    }
 	}
@@ -1186,7 +1273,7 @@ export class SimulationManager {
     // buildDigitalCircuit()).
     //
     // Reads digital/constants.ts's promotionEnabled (EditOptions.ts's "Disable Digital
-    // Optimization" checkbox 18) once per build - that checkbox already forces a restamp
+    // Optimization" checkbox) once per build - that checkbox already forces a restamp
     // (needAnalyze()) on toggle, so "fresh graph -> read the flag once at build time" is live
     // enough; there's no need to support toggling it without a restamp.
     initDigitalCircuit(): void {
@@ -1245,6 +1332,7 @@ export class SimulationManager {
 
 	const postDrawList: Point[] = this.app.postDrawList = [];
 	const badConnectionList: Point[] = this.app.badConnectionList = [];
+	let badGrid: ElmGrid | null = null;
 	for (const entry of postCountMap.values()) {
 	    if (entry.count !== 2)
 		postDrawList.push(entry.pt);
@@ -1252,75 +1340,77 @@ export class SimulationManager {
 	    // look for bad connections, posts not connected to other elements which intersect
 	    // other elements' bounding boxes
 	    if (entry.count === 1) {
-		let bad = false;
 		const cn = entry.pt;
-		for (j = 0; j !== drawList.length && !bad; j++) {
-		    const ce = drawList[j];
-		    if (ce.isGraphicElm())
-			continue;
-
-		    // routed wire: check path directly instead of bounding box (which is too big)
-		    if (ce.isRoutedWireElm()) {
-			if (ce.pointOnPath(cn))
-			    bad = true;
-			continue;
-		    }
-
-		    // does this post intersect elm's bounding box?
-		    if (!ce.boundingBox.contains(cn.x, cn.y))
-			continue;
-		    let k: number;
-		    // does this post belong to the elm?
-		    const pc = ce.getPostCount();
-		    for (k = 0; k !== pc; k++)
-			if (ce.getPost(k).x === cn.x && ce.getPost(k).y === cn.y)
-			    break;
-		    if (k === pc)
-			bad = true;
-		}
-		if (bad)
+		if (badGrid == null)
+		    badGrid = new ElmGrid(drawList);
+		if (badGrid.isBadConnection(cn))
 		    badConnectionList.push(cn);
 	    }
 	}
 	badConnectionList.push(...this.busMismatchList);
 
-	// build mapping from elements to connected routed wires
+	// build mapping from elements to connected routed wires.  First index the posts of the
+	// other elements by location (x, y only, so all posts of a bus pin share one entry),
+	// recording each element once per location with the first of its posts there.
 	this.routedWireMap = new Map();
+	let postElms: Map<string, {elm: any, post: number}[]> | null = null;
 	for (i = 0; i !== drawList.length; i++) {
-	    const ce = drawList[i];
-	    if (!ce.isRoutedWireElm())
+	    const rw = drawList[i];
+	    if (!rw.isRoutedWireElm())
 		continue;
-	    const rw = ce;
-	    const rwPosts = rw.getPostCount();
-	    for (let rp = 0; rp < rwPosts; rp++) {
-		const rwPt = rw.getPost(rp);
-		for (j = 0; j !== drawList.length; j++) {
-		    const other = drawList[j];
-		    if (other === rw || other.isRoutedWireElm())
+	    if (postElms == null) {
+		postElms = new Map();
+		for (const other of drawList) {
+		    if (other.isRoutedWireElm())
 			continue;
 		    const otherPosts = other.getPostCount();
 		    for (let op = 0; op < otherPosts; op++) {
-			const op2 = other.getPost(op);
-			if (op2.x === rwPt.x && op2.y === rwPt.y) {
-			    let list = this.routedWireMap.get(other);
-			    if (list == null) {
-				list = [];
-				this.routedWireMap.set(other, list);
-			    }
-			    list.push(new RoutedWireConnection(rw, rp, op));
-			}
+			const p = other.getPost(op);
+			const key = p.x + "," + p.y;
+			let list = postElms.get(key);
+			if (list == null)
+			    postElms.set(key, list = []);
+			else if (list[list.length - 1].elm === other)
+			    continue;
+			list.push({elm: other, post: op});
 		    }
+		}
+	    }
+	    const rwPosts = rw.getPostCount();
+	    for (let rp = 0; rp < rwPosts; rp++) {
+		const rwPt = rw.getPost(rp);
+		const list = postElms.get(rwPt.x + "," + rwPt.y);
+		if (list == null)
+		    continue;
+		for (const {elm, post} of list) {
+		    let conns = this.routedWireMap.get(elm);
+		    if (conns == null)
+			this.routedWireMap.set(elm, conns = []);
+		    conns.push(new RoutedWireConnection(rw, rp, post));
 		}
 	    }
 	}
     }
 
+    // stop the simulation with an error message (and the element responsible, if any, to
+    // highlight), abandoning the current analysis or time step by throwing SimStoppedError
+    stop(s: string, ce: any): never {
+	this.halt(s, ce);
+	throw new SimStoppedError(s);
+    }
 
-    stop(s: string, ce: any): void {
+    // stop the simulation without throwing, for code that's already handling an exception
+    halt(s: string, ce: any): void {
 	this.app.setStopElm(ce, Locale.LS(s));
-	this.matrices = null;  // causes an exception
+	this.matrices = null;
 	this.app.setSimRunning(false);
 	this.app.analyzeFlag = false;
+    }
+
+    // whether e was thrown by stop().  (Checks the name rather than instanceof, which fails after
+    // a hot reload, when the sim object is from the old module and the caller is from the new one.)
+    static isStop(e: unknown): boolean {
+	return e instanceof Error && e.name === "SimStoppedError";
     }
 
     // control voltage source vs with voltage from n1 to n2 (must
@@ -1407,7 +1497,7 @@ export class SimulationManager {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! node " + i.index + " (matrix row " + i.row + ") vs node " + j.index + " (matrix row " + j.row + ")");
 	    const m = (i !== CircuitNode.ground) ? i.matrix! : j.matrix!;
-	    m.matrix[i.row-1][j.row-1] += x;
+	    m.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1418,7 +1508,7 @@ export class SimulationManager {
 	if (j.row > 0) {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! vs row " + i.row + " vs node " + j.index + " (row " + j.row + ")");
-	    i.matrix!.matrix[i.row-1][j.row-1] += x;
+	    i.matrix!.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1429,7 +1519,7 @@ export class SimulationManager {
 	if (i.row > 0) {
 	    if (i.matrix !== j.matrix)
 		SimulationManager.console("stampMatrix cross-matrix! node " + i.index + " (row " + i.row + ") vs vs row " + j.row);
-	    j.matrix!.matrix[i.row-1][j.row-1] += x;
+	    j.matrix!.stamp(i.row-1, j.row-1, x);
 	}
     }
 
@@ -1439,7 +1529,7 @@ export class SimulationManager {
 	    SimulationManager.debugger();
 	if (i.matrix !== j.matrix)
 	    SimulationManager.console("stampMatrix cross-matrix! vs row " + i.row + " vs vs row " + j.row);
-	i.matrix!.matrix[i.row-1][j.row-1] += x;
+	i.matrix!.stamp(i.row-1, j.row-1, x);
     }
 
     // stamp value x on the right side of row i, representing an
@@ -1560,9 +1650,14 @@ export class SimulationManager {
 	    return;
 	}
 
+	// while testing, run a fixed number of steps (a batch), so the results don't depend on
+	// the clock
+	const testHooks = SimulationManager.testHooks;
+	const fixedSteps = testHooks?.fixedStepsPerFrame() ?? 0;
+
 	// Check if we don't need to run simulation (for very slow simulation speeds).
 	// If the circuit changed, do at least one iteration to make sure everything is consistent.
-	if (1000 >= steprate * (tm - this.lastIterTime) && !didAnalyze)
+	if (fixedSteps === 0 && 1000 >= steprate * (tm - this.lastIterTime) && !didAnalyze)
 	    return;
 
 	const delayWireProcessing = this.app.scopeManager.canDelayWireProcessing();
@@ -1585,7 +1680,14 @@ export class SimulationManager {
 		this.stampCircuit();
 		goodIterations = 0;
 	    }
-	    // TODO: TestManager integration
+	    if (testHooks) {
+		// land exactly on the next switch event or the end of the test
+		const ts = testHooks.clampTimeStep(this.t, this.timeStep);
+		if (ts !== this.timeStep) {
+		    this.timeStep = ts;
+		    this.stampCircuit();
+		}
+	    }
 
 	    let i: number, j: number, subiter: number;
 	    for (i = 0; i !== this.elmArr.length; i++)
@@ -1600,15 +1702,22 @@ export class SimulationManager {
 		    for (i = 0; i !== m.size; i++)
 			m.rightSide[i] = m.origRightSide[i];
 		    if (m.nonLinear) {
-			for (i = 0; i !== m.size; i++)
-			    for (j = 0; j !== m.size; j++)
-				m.matrix[i][j] = m.origMatrix[i][j];
+			if (this.usingSparse) {
+			    // the sparse lu_factor leaves m.matrix alone, so only stamped entries can differ
+			    const st = m.stamped;
+			    for (let k = 0; k !== st.length; k++) {
+				const r = st[k] % m.size, c = (st[k] - r) / m.size;
+				m.matrix[r][c] = m.origMatrix[r][c];
+			    }
+			} else {
+			    for (i = 0; i !== m.size; i++)
+				for (j = 0; j !== m.size; j++)
+				    m.matrix[i][j] = m.origMatrix[i][j];
+			}
 		    }
 		}
 		for (i = 0; i !== this.elmArr.length; i++)
 		    this.elmArr[i].doStep();
-		if (this.app.stopMessage != null)
-		    return;
 		const printit = debugprint;
 		debugprint = false;
 		for (let mi = 0; mi !== this.matrices!.length; mi++) {
@@ -1618,9 +1727,8 @@ export class SimulationManager {
 			    for (i = 0; i !== m.size; i++) {
 				const x = m.matrix[i][j];
 				if (isNaN(x) || !isFinite(x)) {
-				    this.stop("nan/infinite matrix!", null);
 				    SimulationManager.console("matrix " + mi + " [" + i + "][" + j + "] is " + x);
-				    return;
+				    this.stop("nan/infinite matrix!", null);
 				}
 			    }
 			}
@@ -1638,10 +1746,8 @@ export class SimulationManager {
 		    if (m.nonLinear) {
 			if (this.converged && subiter > 0)
 			    continue;
-			if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m)) {
+			if (!SimulationManager.lu_factor(m.matrix, m.size, m.permute, m))
 			    this.stop("Singular matrix!", null);
-			    return;
-			}
 		    }
 		    SimulationManager.lu_solve(m.matrix, m.size, m.permute, m.rightSide, m);
 		    this.applySolvedRightSide(m);
@@ -1663,7 +1769,6 @@ export class SimulationManager {
 		if (this.timeStep < this.minTimeStep || !this.adjustTimeStep) {
 		    SimulationManager.console("convergence failed after " + subiter + " iterations");
 		    this.stop("Convergence failed!", null);
-		    break;
 		}
 		// we reduced the timestep.  reset circuit state to the way it was at start of iteration
 		for (let mi = 0; mi !== this.matrices!.length; mi++)
@@ -1688,7 +1793,8 @@ export class SimulationManager {
 	    if (!delayWireProcessing)
 		this.calcWireCurrents();
 	    this.app.onTimeStep();
-	    // TODO: TestManager.theManager.checkTime()
+	    this.stepsSinceReset++;
+	    const testBreak = testHooks != null && testHooks.checkTime();
 	    // save last node voltages so we can restart the next iteration if necessary
 	    for (let mi = 0; mi !== this.matrices!.length; mi++) {
 		const m = this.matrices![mi];
@@ -1702,7 +1808,12 @@ export class SimulationManager {
 
 	    // Check whether enough time has elapsed to perform an *additional* iteration after
 	    // those we have already completed.  But limit total computation time to 50ms (20fps) by default
-	    if ((this.timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - this.lastIterTime) || (tm - this.app.ui.lastFrameTime > frameTimeLimit))
+	    if (testBreak)
+		break;
+	    if (fixedSteps > 0) {
+		if (this.stepsSinceReset % fixedSteps === 0)
+		    break;
+	    } else if ((this.timeStepCount - timeStepCountAtFrameStart) * 1000 >= steprate * (tm - this.lastIterTime) || (tm - this.app.ui.lastFrameTime > frameTimeLimit))
 		break;
 	    if (!this.app.simRunning)
 		break;
@@ -1821,7 +1932,11 @@ export class SimulationManager {
     static lu_factor(a: number[][], n: number, ipvt: number[], cm: CircuitMatrix): boolean {
 	const sm = SimulationManager.theSim;
 	if (sm !== null && sm.usingSparse) {
-	    const sparse = DMatrixSparseCSC.convert(a, DMatrixSparseCSC.EPS);
+	    if (!cm.stampedSorted) {
+		cm.stamped.sort((x, y) => x - y);
+		cm.stampedSorted = true;
+	    }
+	    const sparse = DMatrixSparseCSC.convertEntries(a, cm.stamped, DMatrixSparseCSC.EPS);
 	    if (cm.sparseLU === null) cm.sparseLU = new SparseLU();
 	    return cm.sparseLU.setA(sparse);
 	}

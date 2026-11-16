@@ -33,6 +33,8 @@ import { chipStart } from "./digital/chip_desc";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
 import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 import { CirSim } from "./CirSim";
+import { ScrollValuePopup } from "./ScrollValuePopup";
+import { TypeScrollPopup } from "./TypeScrollPopup";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 // DICE's 7400 (quad 2-input NAND) propagation delays - used as the shared LH/HL defaults for
@@ -110,6 +112,16 @@ export abstract class GateElm extends CircuitElm {
 
     isInverting(): boolean { return false; }
     isXorGateElm(): boolean { return false; }
+    isGateElm(): boolean { return true; }
+
+    // mouse wheel cycles AND/NAND/OR/NOR/XOR/XNOR (see TypeScrollPopup)
+    onMouseWheel(e: WheelEvent): void {
+        if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
+            CirSim.typeScrollPopup.doDeltaY(ScrollValuePopup.normalizeWheelDelta(e));
+            return;
+        }
+        CirSim.typeScrollPopup = new TypeScrollPopup(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e), this, CircuitElm.app);
+    }
 
     gsize: number = 0;
     gwidth: number = 0;
@@ -143,8 +155,11 @@ export abstract class GateElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        if (this.nodes[this.inputCount].v !== 0)
-            CircuitXMLSerializer.dumpAttr(elem, "o", this.nodes[this.inputCount].v);
+        // until the first step after a load, the output is the one that was loaded (the node's
+        // voltage is still 0)
+        const v = this.justLoaded ? (this.lastOutput ? this.highVoltage : 0) : this.nodes[this.inputCount].v;
+        if (v !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "o", v);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -282,6 +297,12 @@ export abstract class GateElm extends CircuitElm {
 
     setupVolts(): void {
         this.justLoaded = true;
+    }
+
+    reset(): void {
+        super.reset();
+        // compute the output from the inputs, not from the output that was loaded
+        this.justLoaded = false;
     }
 
     getLeadAdjustment(ix: number): number { return 0; }

@@ -63,7 +63,6 @@ Temporary Items
 /site
 
 # Other stuff
-/tests
 /circuits
 /client
 /offline
@@ -82,3 +81,5 @@ Temporary Items
 # tsc build output (dev builds via vite, tsc is type-check only)
 *.js.map
 *.d.ts.map
+/ts/ui-tests/results/
+/ts/ui-tests/report/

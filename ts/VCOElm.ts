@@ -116,6 +116,7 @@ export class VCOElm extends ChipElm {
 
     getPostCount(): number { return 6; }
     getVoltageSourceCount(): number { return 3; }
+    allowsPinLayout(): boolean { return false; }
     showPropertiesOnCreate(): boolean { return false; }
     getDumpType(): number { return 158; }
     getMatrixConnection(n1: number, n2: number): boolean { return true; }

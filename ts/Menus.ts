@@ -74,7 +74,34 @@ export class MenuItem {
 
     // GWT compatibility aliases used by scope popup menus
     setCommand(cmd: { execute(): void } | null): void { this._command = cmd ? () => cmd.execute() : null; }
-    setSubMenu(_sub: any): void { /* scope submenu — not used in plain HTML menus */ }
+    // Attach a submenu (or remove it with null).  While a submenu is attached, clicking
+    // the item itself does nothing; the submenu opens on hover/tap instead.
+    setSubMenu(sub: Menu | null): void {
+        const li = this._li;
+        if (!li) return;
+        li.querySelector(':scope > .menuDropdown')?.remove();
+        li.querySelector(':scope > .submenuArrow')?.remove();
+        li.classList.remove('open');
+        li.classList.toggle('hasSubmenu', sub != null);
+        if (!sub) return;
+        const arrow = document.createElement('span');
+        arrow.className = 'submenuArrow';
+        arrow.innerHTML = '&#9658;';
+        li.appendChild(arrow);
+        li.appendChild(sub.ul);
+        if (!li.dataset.submenuHandlers) {
+            li.dataset.submenuHandlers = '1';
+            li.addEventListener('mouseover', () => {
+                if (li.classList.contains('hasSubmenu') && !li.classList.contains('menuItemDisabled'))
+                    li.classList.add('open');
+            });
+            li.addEventListener('mouseleave', () => li.classList.remove('open'));
+            li.addEventListener('touchstart', () => {
+                if (li.classList.contains('hasSubmenu') && !li.classList.contains('menuItemDisabled'))
+                    li.classList.add('open');
+            }, { passive: true });
+        }
+    }
 
     execute(): void { if (this._enabled && this._command) this._command(); }
 }
@@ -102,7 +129,7 @@ function shortcutHtml(icon: string, text: string, shortcut: string): string {
 }
 
 // A vertical dropdown menu (equivalent to GWT MenuBar(true)).
-class Menu {
+export class Menu {
     ul: HTMLUListElement;
     private app: CirSim;
 
@@ -124,6 +151,8 @@ class Menu {
         li.addEventListener('click', e => {
             if (li.classList.contains('menuItemDisabled')) return;
             e.stopPropagation();
+            // item has a submenu attached via MenuItem.setSubMenu(); clicks go to its items
+            if (li.classList.contains('hasSubmenu')) return;
             closeAllMenus();
             this.app.commands.menuPerformed(menuName, cmdName);
         });
@@ -163,8 +192,8 @@ class Menu {
         const sc = item.getShortcut ? item.getShortcut() : '';
         li.innerHTML = `<span class="checkMark">&#10003;</span> <span class="itemLabel">${Locale.LS(label)}</span>` +
             (sc ? `<span class="shortcutHint">${sc}</span>` : '');
-        (li.querySelector('.checkMark') as HTMLElement).style.visibility = 'hidden';
         item._li = li;
+        item.setState(item.getState());
         li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
         li.addEventListener('click', e => {
             e.stopPropagation();
@@ -225,6 +254,16 @@ const subheadHtml = '<span class="checkMark" style="visibility:hidden">&#10003;<
 
 export class Menus {
 
+    // Element class name -> Draw submenu title. Filled while the Draw menu is
+    // composed; the component search field shows it as a hint so users can see
+    // where a part lives in the menu tree.
+    elementCategories: Map<string, string> = new Map();
+
+    // Element class name -> English source label ("Add Resistor"). The menu
+    // shows the localized label, but the search should still match the English
+    // term in every locale.
+    elementLabels: Map<string, string> = new Map();
+
     aboutItem                = new MenuItem();
     importFromLocalFileItem  = new MenuItem();
     importFromTextItem       = new MenuItem();
@@ -282,7 +321,6 @@ export class Menus {
     noEditCheckItem          = new CheckItem();
     mouseWheelEditCheckItem  = new CheckItem(true);
     toolbarCheckItem         = new CheckItem(true);
-    showPropsOnClickCheckItem = new CheckItem(true);
 
     menuBar: HTMLElement = document.createElement('nav');
     // right-click context popup — same Draw menu content, built separately
@@ -369,6 +407,8 @@ export class Menus {
             iconHtml("export", "Export As Link..."), "file", "exportasurl");
         fileMenu.addMenuItem(this.exportAsTextItem,
             iconHtml("export", "Export As Text..."), "file", "exportastext");
+        fileMenu.addCommand(iconHtml("export", "Export As KiCad Schematic..."),         "file", "exportaskicad");
+        fileMenu.addCommand(iconHtml("export", "Export As SPICE Netlist..."),           "file", "exportasspice");
         fileMenu.addCommand(iconHtml("image", "Export As Image..."),                    "file", "exportasimage");
         fileMenu.addCommand(iconHtml("image", "Copy Circuit Image to Clipboard"),       "file", "copypng");
         fileMenu.addCommand(iconHtml("image", "Export As SVG..."),                      "file", "exportassvg");
@@ -439,7 +479,6 @@ export class Menus {
         this.smallGridCheckItem.setCommand({ execute: () => this.app.setGrid() });
         optMenu.addCheckItem(this.toolbarCheckItem, "Toolbar");
         this.toolbarCheckItem.setCommand({ execute: () => this.app.ui?.setToolbar() });
-        optMenu.addCheckItem(this.showPropsOnClickCheckItem, "Show Properties On Click");
         optMenu.addCheckItem(this.crossHairCheckItem, "Show Cursor Cross Hairs");
         this.crossHairCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("crossHair", this.crossHairCheckItem.getState()) });
@@ -460,7 +499,7 @@ export class Menus {
         // ---- Tools menu ----
         const toolsMenu = new Menu(this.app);
         toolsMenu.addCommand(Locale.LS("Convert Wires to Routed Wires"), "tools", "convertWires");
-        toolsMenu.addCommand(Locale.LS("Subcircuit Manager"),            "tools", "subcircuits");
+        toolsMenu.addCommand(Locale.LS("Subcircuit/Model Manager"),      "tools", "modelmanager");
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----
@@ -492,7 +531,7 @@ export class Menus {
             "Add Wire",         "WireElm",
             "Add Routed Wire",  "RoutedWireElm",
             //"Add Resistor",     "ResistorElm",
-        ]);
+        ], "Basic");
 
         const passMenu = new Menu(this.app);
         this.makeClassCheckItems(passMenu, [
@@ -520,7 +559,7 @@ export class Menus {
             //"Add Crystal",                 "CrystalElm",
             //"Add Cross Switch",            "CrossSwitchElm",
             //"Add Gyrator",                 "GyratorElm",
-        ]);
+        ], "Passive Components");
         menu.addSubmenu(subheadHtml + Locale.LS("Passive Components"), passMenu);
 
         const inputMenu = new Menu(this.app);
@@ -544,7 +583,7 @@ export class Menus {
             "Add Data Input",                       "DataInputElm",
             "Add External Voltage (JavaScript)",    "ExtVoltageElm",
             "Add External Clock (JavaScript)",      "ExtClockElm",
-        ]);
+        ], "Inputs and Sources");
         menu.addSubmenu(subheadHtml + Locale.LS("Inputs and Sources"), inputMenu);
 
         const outputMenu = new Menu(this.app);
@@ -570,12 +609,8 @@ export class Menus {
             "Add DC Motor",                   "DCMotorElm",
             "Add 3-Phase Motor",              "ThreePhaseMotorElm",
             "Add Wattmeter (old)",            "WattmeterElm",
-        ]);
+        ], "Outputs and Labels");
         menu.addSubmenu(subheadHtml + Locale.LS("Outputs and Labels"), outputMenu);
-
-        // need these registered before unijunction element setup
-        this.app.register("CCVSElm", this.app.constructElement("CCVSElm", 0, 0));
-        this.app.register("VCCSElm", this.app.constructElement("VCCSElm", 0, 0));
 
         const activeMenu = new Menu(this.app);
         this.makeClassCheckItems(activeMenu, [
@@ -596,7 +631,7 @@ export class Menus {
             "Add Tunnel Diode",                   "TunnelDiodeElm",
             "Add Triode",                         "TriodeElm",
             "Add Unijunction Transistor",         "UnijunctionElm",
-        ]);
+        ], "Active Components");
         //menu.addSubmenu(subheadHtml + Locale.LS("Active Components"), activeMenu);
 
         // do these later so all the other elements are added to the map first
@@ -629,7 +664,7 @@ export class Menus {
             "Add TL431",                                      "SubcircuitElm:~TL431",
             "Add Motor Protection Switch",                    "MotorProtectionSwitchElm",
             "Add Subcircuit Instance",                        "SubcircuitElm",
-        ]);
+        ], "Active Building Blocks");
         menu.addSubmenu(subheadHtml + Locale.LS("Active Building Blocks"), activeBlocMenu);
 
         const gateMenu = new Menu(this.app);
@@ -644,7 +679,7 @@ export class Menus {
             "Add OR Gate",      "OrGateElm",
             "Add XOR Gate",     "XorGateElm",
             "Add XNOR Gate",    "XnorGateElm",
-        ]);
+        ], "Logic Gates, Input and Output");
         menu.addSubmenu(subheadHtml + Locale.LS("Logic Gates, Input and Output"), gateMenu);
 
         const chipMenu = new Menu(this.app);
@@ -673,7 +708,7 @@ export class Menus {
             "Add ROM",                  "ROMElm",
             "Add Bus Transceiver",      "BusTransceiverElm",
             "Add Bus Splitter",         "BusSplitterElm",
-        ]);
+        ], "Digital Chips");
         menu.addSubmenu(subheadHtml + Locale.LS("Digital Chips"), chipMenu);
 
         const achipMenu = new Menu(this.app);
@@ -684,7 +719,7 @@ export class Menus {
             "Add ADC",              "ADCElm",
             "Add VCO",              "VCOElm",
             "Add Monostable",       "MonostableElm",
-        ]);
+        ], "Analog and Hybrid Chips");
         //menu.addSubmenu(subheadHtml + Locale.LS("Analog and Hybrid Chips"), achipMenu);
 
         menu.addSubmenu(subheadHtml + Locale.LS("Subcircuits"), this.subcircuitMenuBar![num]);
@@ -696,6 +731,7 @@ export class Menus {
         mi = this.getClassCheckItem(Locale.LS("Drag Column"), "DragColumn"); mi.setShortcut(this.isMac ? Locale.LS("(A-Cmd-drag)") : Locale.LS("(A-M-drag)")); otherMenu.addCheckboxItem(mi);
         mi = this.getClassCheckItem(Locale.LS("Drag Selected"), "DragSelected"); otherMenu.addCheckboxItem(mi);
         mi = this.getClassCheckItem(Locale.LS("Drag Post"),   "DragPost");   mi.setShortcut("(" + this.ctrlMetaKey + "drag)"); otherMenu.addCheckboxItem(mi);
+        mi = this.getClassCheckItem(Locale.LS("Select/Drag Posts"), "SelectPosts"); otherMenu.addCheckboxItem(mi);
         menu.addSubmenu(subheadHtml + Locale.LS("Drag"), otherMenu);
 
         mi = this.getClassCheckItem(Locale.LS("Select/Drag Sel"), "Select");
@@ -703,9 +739,13 @@ export class Menus {
         menu.addCheckboxItem(mi);
     }
 
-    makeClassCheckItems(menu: Menu, items: string[]): void {
-        for (let i = 0; i < items.length; i += 2)
+    makeClassCheckItems(menu: Menu, items: string[], category?: string): void {
+        for (let i = 0; i < items.length; i += 2) {
+            if (category != null)
+                this.elementCategories.set(items[i + 1], category);
+            this.elementLabels.set(items[i + 1], items[i]);
             menu.addCheckboxItem(this.getClassCheckItem(Locale.LS(items[i]), items[i + 1]));
+        }
     }
 
     getClassCheckItem(s: string, t: string): any {
