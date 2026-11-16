@@ -496,7 +496,7 @@ export class Menus {
 
         const passMenu = new Menu(this.app);
         this.makeClassCheckItems(passMenu, [
-            //"Add Capacitor",                "CapacitorElm",
+            "Add Capacitor",                "CapacitorElm",
             //"Add Capacitor (polarized)",    "PolarCapacitorElm",
             //"Add Inductor",                 "InductorElm",
             "Add Switch",                   "SwitchElm",
@@ -605,8 +605,8 @@ export class Menus {
             //"Add Op Amp (ideal, - on top)",                   "OpAmpElm",
             //"Add Op Amp (ideal, + on top)",                   "OpAmpSwapElm",
             //"Add Op Amp (real)",                              "OpAmpRealElm",
-            //"Add Analog Switch (SPST)",                       "AnalogSwitchElm",
-            //"Add Analog Switch (SPDT)",                       "AnalogSwitch2Elm",
+            "Add Analog Switch (SPST)",                       "AnalogSwitchElm",
+            "Add Analog Switch (SPDT)",                       "AnalogSwitch2Elm",
             //"Add Analog Multiplexer",                         "AnalogMuxElm",
             "Add Tristate Buffer",                            "TriStateElm",
             "Add Schmitt Trigger",                            "SchmittElm",

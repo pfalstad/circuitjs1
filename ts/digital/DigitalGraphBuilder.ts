@@ -202,6 +202,167 @@ function collectOutputsByNode(synthMap: Map<any, SynthEntry>): Map<any, DriverCa
 }
 
 /**
+ * Implemented by an element that connects pairs of its posts bidirectionally while some signal
+ * says so (an analog switch). It drives nothing itself: each pair names the internal pin (within
+ * its own digitalSynthesis() desc) of a cell that's 1 while the pair is connected, and
+ * resolvePassGroups() below does the rest.
+ */
+export interface DigitalPassSwitch {
+    digitalPassPairs(): { a: number; b: number; closedPin: number }[];
+}
+
+export function isDigitalPassSwitch(elm: any): elm is DigitalPassSwitch {
+    return elm != null && typeof elm.digitalPassPairs === "function";
+}
+
+/** Most inputs one switch group's resolver cell may have: each cell is a lookup table of
+ * 2^inputs bits, and every node in the group gets one. */
+const MAX_PASS_GROUP_INPUTS = 16;
+
+type PinRef = { name: string; pin: number };
+
+/**
+ * Nodes joined by pass switches (see DigitalPassSwitch) form a group, however the switches are
+ * set. Every node in a group gets its own resolver cell, fed by every driver in the group and
+ * every switch's closed signal: it finds the nodes reachable from its own through closed
+ * switches and ORs the drivers on them (a tri-state counting only while enabled, an ordinary
+ * driver always) - so a change on either side of a closed switch shows on the other, and
+ * opening it splits them again. Nothing reachable reads 0, unless a reachable node holds charge
+ * (DigitalChargeStorage) and every tri-state in the group exports its raw data and enable
+ * (DigitalTriStateKeeper): then it reads the OR of those charged nodes' last values, so a
+ * stored bit can also be read out through a closed switch. (Charge sharing is approximate:
+ * joining a charged 1 and a charged 0 with nothing driving gives 1 on both.)
+ *
+ * Returns each grouped node's resolver; a group too big for MAX_PASS_GROUP_INPUTS is left out,
+ * with a warning, so its switches act open.
+ */
+function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map<any, DriverCandidate[]>,
+        extra: CircuitEntry[]): { byNode: Map<any, { entry: SynthEntry; pin: number }>; voltage: Map<any, number> } {
+    const byNode = new Map<any, { entry: SynthEntry; pin: number }>();
+    const voltage = new Map<any, number>();
+
+    // union-find over node objects
+    const parent = new Map<any, any>();
+    const find = (n: any): any => {
+        let r = n;
+        while (parent.get(r) !== r) r = parent.get(r);
+        parent.set(n, r);
+        return r;
+    };
+    const add = (n: any) => { if (!parent.has(n)) parent.set(n, n); };
+    const pairs: { na: any; nb: any; closed: PinRef }[] = [];
+    for (const [elm, entry] of synthMap) {
+        if (!isDigitalPassSwitch(elm)) continue;
+        for (const p of elm.digitalPassPairs()) {
+            const na = (elm as any).nodes?.[p.a], nb = (elm as any).nodes?.[p.b];
+            if (na == null || nb == null || na === nb) continue;
+            add(na); add(nb);
+            parent.set(find(na), find(nb));
+            pairs.push({ na, nb, closed: { name: entry.name, pin: p.closedPin } });
+        }
+    }
+
+    const groups = new Map<any, { nodes: any[]; pairs: typeof pairs }>();
+    for (const n of parent.keys()) {
+        const r = find(n);
+        if (!groups.has(r)) groups.set(r, { nodes: [], pairs: [] });
+        groups.get(r)!.nodes.push(n);
+    }
+    for (const p of pairs) groups.get(find(p.na))!.pairs.push(p);
+
+    let counter = 0;
+    for (const group of groups.values()) {
+        const index = new Map(group.nodes.map((n, i) => [n, i]));
+        const drivers: { node: number; data: PinRef; en: PinRef | null }[] = [];
+        let canHold = true, high = 5;
+        for (const [i, node] of group.nodes.entries()) {
+            for (const c of candidatesByNode.get(node) ?? []) {
+                if (typeof c.elm.highVoltage === "number") high = c.elm.highVoltage;
+                const tri = isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
+                const kp = tri && isDigitalTriStateKeeper(c.elm) ? c.elm.digitalTriStateKeeperPins(c.postIndex) : null;
+                if (kp) drivers.push({ node: i, data: { name: c.entry.name, pin: kp.data }, en: { name: c.entry.name, pin: kp.enable } });
+                else {
+                    // an ordinary driver (always enabled), or a tri-state whose enable we can't see
+                    // (its AND(enable, data) output still ORs in correctly; it just can't let
+                    // the group tell "disabled" from "driving 0", so nothing holds)
+                    if (tri) canHold = false;
+                    drivers.push({ node: i, data: { name: c.entry.name, pin: c.pin }, en: null });
+                }
+            }
+        }
+        const caps = canHold ? group.nodes.map((n, i) => nodeHoldsCharge(n) ? i : -1).filter(i => i >= 0) : [];
+        if (drivers.length === 0 && caps.length === 0) continue; // nothing ever drives it
+
+        const shared = drivers.length + drivers.filter(d => d.en).length + group.pairs.length;
+        if (shared + caps.length > MAX_PASS_GROUP_INPUTS) {
+            console.log("digital wiring: too many switches/drivers in one switch-connected group; its switches act open");
+            continue;
+        }
+
+        // One single-cell chip per node, so each has its own pin space. Input pins: each
+        // driver's data (+ enable), each switch's closed signal, each OTHER charged node's
+        // resolver output; then the output pin.
+        const group_ = counter++;
+        const nameOf = (x: number) => "_pass" + group_ + "_" + x;
+        const n = group.nodes.length;
+        const pairIdx = group.pairs.map(p => [index.get(p.na)!, index.get(p.nb)!]);
+        const outPinOf = (x: number) => shared + caps.filter(y => y !== x).length + 1;
+
+        for (let x = 0; x < n; x++) {
+            const name = nameOf(x);
+            let next = 1;
+            const conns: [PinRef, number][] = [];
+            const dPins = drivers.map(d => {
+                const data = next++;
+                conns.push([d.data, data]);
+                let en = 0;
+                if (d.en) { en = next++; conns.push([d.en, en]); }
+                return { data, en };
+            });
+            const pPins = group.pairs.map(p => { conns.push([p.closed, next]); return next++; });
+            const cPins = new Map<number, number>();
+            for (const y of caps) if (y !== x) {
+                conns.push([{ name: nameOf(y), pin: outPinOf(y) }, next]);
+                cPins.set(y, next++);
+            }
+            const outPin = next;
+
+            const logic: ChipLogic = (pin, prevPin) => {
+                const reach = new Array<boolean>(n).fill(false);
+                reach[x] = true;
+                for (let changed = true; changed;) {
+                    changed = false;
+                    pairIdx.forEach(([a, b], k) => {
+                        if (pin[pPins[k]] && reach[a] !== reach[b]) { reach[a] = reach[b] = true; changed = true; }
+                    });
+                }
+                let data = 0, enabled = 0;
+                drivers.forEach((d, k) => {
+                    if (!reach[d.node]) return;
+                    const e = dPins[k].en ? pin[dPins[k].en] : 1;
+                    enabled |= e;
+                    data |= pin[dPins[k].data] & e;
+                });
+                if (!enabled)
+                    for (const y of caps)
+                        if (reach[y]) data |= y === x ? prevPin[outPin] : pin[cPins.get(y)!];
+                pin[outPin] = data;
+            };
+            const cell = chipStart(logic).inputPins(...Array.from({ length: outPin - 1 }, (_, i) => i + 1)).outputPin(outPin);
+            if (caps.includes(x)) cell.prevOutputPin(outPin);
+            const desc: ChipDesc[] = [cell];
+            extra.push(CHIP(name, desc));
+            for (const [src, inPin] of conns) extra.push(CONNECTION(src.name, src.pin, name, inPin));
+
+            const node = group.nodes[x];
+            byNode.set(node, { entry: { name, desc, pinMap: new Map(), isTie: false }, pin: outPin });
+            voltage.set(node, high);
+        }
+    }
+    return { byNode, voltage };
+}
+
+/**
  * Resolves every node that has at least one digital-output candidate down to a single
  * (entry, pin) that actually drives it, plus any extra CircuitEntry[] needed to make that true.
  * A node with exactly one candidate resolves to it directly, same as before. A node with two or
@@ -217,14 +378,23 @@ function collectOutputsByNode(synthMap: Map<any, SynthEntry>): Map<any, DriverCa
 function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
     byNode: Map<any, { entry: SynthEntry; pin: number }>;
     extra: CircuitEntry[];
+    passVoltage: Map<any, number>;
 } {
     const candidatesByNode = collectOutputsByNode(synthMap);
     const byNode = new Map<any, { entry: SynthEntry; pin: number }>();
     const extra: CircuitEntry[] = [];
     let trisCounter = 0;
+    const pass = resolvePassGroups(synthMap, candidatesByNode, extra);
+    for (const [node, resolved] of pass.byNode) byNode.set(node, resolved);
 
     for (const [node, candidates] of candidatesByNode) {
         let resolved: { entry: SynthEntry; pin: number };
+        const grouped = pass.byNode.get(node);
+        if (grouped) {
+            resolved = grouped;
+            wireReadbacks(candidates, resolved, extra);
+            continue;
+        }
 
         const isTri = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
         const plainDrivers = candidates.filter(c => !isTri(c)).length;
@@ -284,21 +454,24 @@ function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
         }
 
         byNode.set(node, resolved);
-
-        // Wire the node's fully resolved value into any candidate's own readback pin (see
-        // DigitalTriStateReadback's own docstring) - deliberately every candidate, not just the
-        // one(s) that lost the merge: a bidirectional driver still needs to observe the bus even
-        // while IT'S the one actively driving it (SRAM reading back its own just-written value is
-        // harmless - the resolved value equals its own contribution whenever it's the sole or
-        // winning driver).
-        for (const c of candidates) {
-            if (!isDigitalTriStateReadback(c.elm)) continue;
-            const readbackPin = c.elm.digitalTriStateReadbackPin(c.postIndex);
-            if (readbackPin != null) extra.push(CONNECTION(resolved.entry.name, resolved.pin, c.entry.name, readbackPin));
-        }
+        wireReadbacks(candidates, resolved, extra);
     }
 
-    return { byNode, extra };
+    return { byNode, extra, passVoltage: pass.voltage };
+}
+
+/** Wires a node's fully resolved value into any candidate's own readback pin (see
+ * DigitalTriStateReadback's own docstring) - deliberately every candidate, not just the one(s)
+ * that lost the merge: a bidirectional driver still needs to observe the bus even while IT'S the
+ * one actively driving it (SRAM reading back its own just-written value is harmless - the
+ * resolved value equals its own contribution whenever it's the sole or winning driver). */
+function wireReadbacks(candidates: DriverCandidate[], resolved: { entry: SynthEntry; pin: number },
+        extra: CircuitEntry[]): void {
+    for (const c of candidates) {
+        if (!isDigitalTriStateReadback(c.elm)) continue;
+        const readbackPin = c.elm.digitalTriStateReadbackPin(c.postIndex);
+        if (readbackPin != null) extra.push(CONNECTION(resolved.entry.name, resolved.pin, c.entry.name, readbackPin));
+    }
 }
 
 /** Synthesizes every digital-capable element in `elmList`, checking digitalTie() before
@@ -429,6 +602,10 @@ export interface DigitalGraph<C extends EngineChip = EngineChip, K extends Engin
      * instead, or it silently shows whichever driver's own element happens to run last/first
      * rather than the actual merged bus value. */
     triStateChipByNode: Map<any, C>;
+    /** Every node in a switch-connected group (see resolvePassGroups()) with the high voltage to
+     * show: syncDigitalToNodesNew() writes these directly, since such a node may have no output
+     * post of its own (just the switch and a consumer). */
+    passNodeVoltage: Map<any, number>;
 }
 
 /** Full netlist build for a freshly-stamped circuit: synthesize + wire every digital-capable
@@ -466,7 +643,7 @@ export function buildDigitalCircuit(elmList: any[]): DigitalGraph<Chip, Circuit>
             for (const chip of chipsByElm.get(elm)!) chip.optimizationDisabled = true;
     }
 
-    return { circuit, wasm: null, srams: [], chipsByElm, triStateChipByNode: triStateChips(resolved, byName) };
+    return { circuit, wasm: null, srams: [], chipsByElm, triStateChipByNode: triStateChips(resolved, byName), passNodeVoltage: resolved.passVoltage };
 }
 
 /** buildDigitalGraph() on the WASM engine: the same CircuitDesc, serialized and flattened (see
@@ -498,7 +675,7 @@ function buildWasmDigitalCircuit(elmList: any[]): DigitalGraph<WasmChip, WasmCir
         else chipsByElm.set(elm, byName.get(entry.name) ?? []);
     }
 
-    return { circuit, wasm: circuit, srams, chipsByElm, triStateChipByNode: triStateChips(resolved, byName) };
+    return { circuit, wasm: circuit, srams, chipsByElm, triStateChipByNode: triStateChips(resolved, byName), passNodeVoltage: resolved.passVoltage };
 }
 
 function triStateChips<C>(resolved: ReturnType<typeof resolveNodeDrivers>, byName: Map<string, C[]>): Map<any, C> {
@@ -851,6 +1028,10 @@ export function syncDigitalToNodesNew(elmList: any[], graph: DigitalGraph): void
                 elm.nodes[post].v = high ? elm.highVoltage : 0;
             if (Array.isArray(elm.pins)) elm.pins[post].value = high;
         }
+    }
+    for (const [node, hv] of graph.passNodeVoltage) {
+        const chip = graph.triStateChipByNode.get(node);
+        if (chip) node.v = chip.currentValue() === 1 ? hv : 0;
     }
 }
 

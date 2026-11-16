@@ -25,6 +25,9 @@ import { Checkbox } from "./Checkbox";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { StringTokenizer } from "./StringTokenizer";
+import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S } from "./GateElm";
+import { chipStart } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class AnalogSwitch2Elm extends AnalogSwitchElm {
     swposts: Point[] = [];
@@ -58,7 +61,27 @@ export class AnalogSwitch2Elm extends AnalogSwitchElm {
 
     getPostCount(): number { return 4; }
 
+    // ---- digital engine (see AnalogSwitchElm's) ----
+    // Common connects to post 1 while closed (control high, unless swapped), else to post 2.
+
+    controlPost(): number { return 3; }
+
+    // pins: 1 control, 2 common-post 1 closed, 3 common-post 2 closed
+    digitalSynthesis(): DigitalSynthesis | null {
+        const delay: [number, number] = [DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S];
+        const desc = [
+            chipStart((pin) => { pin[2] = this.closedFrom(pin[1]); }).inputPins(1).outputPin(2).outputDelayS(...delay),
+            chipStart((pin) => { pin[3] = 1 - this.closedFrom(pin[1]); }).inputPins(1).outputPin(3).outputDelayS(...delay),
+        ];
+        return { desc, pinMap: new Map([[3, 1]]) };
+    }
+
+    digitalPassPairs(): { a: number; b: number; closedPin: number }[] {
+        return [{ a: 0, b: 1, closedPin: 2 }, { a: 0, b: 2, closedPin: 3 }];
+    }
+
     draw(g: Graphics): void {
+        this.updateOpen();
         this.setBbox(this.point1, this.point2, this.openhs);
 
         // draw first lead

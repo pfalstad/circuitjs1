@@ -28,8 +28,11 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { SimulationManager } from "./SimulationManager";
 import { parseFloatStrict } from "./NumberParse";
+import { DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S } from "./GateElm";
+import { chipStart } from "./digital/chip_desc";
+import type { DigitalSynthesis, DigitalPassSwitch } from "./digital/DigitalGraphBuilder";
 
-export class AnalogSwitchElm extends CircuitElm {
+export class AnalogSwitchElm extends CircuitElm implements DigitalPassSwitch {
     readonly FLAG_INVERT   = 1;
     readonly FLAG_PULLDOWN = 2;
     readonly FLAG_FLIPPED_X = 4;
@@ -119,7 +122,36 @@ export class AnalogSwitchElm extends CircuitElm {
         this.lead3  = this.interpPoint(this.lead1!, this.lead2!, 0.5, -this.openhs / 2);
     }
 
+    // ---- digital engine ----
+    // A pass switch (see DigitalPassSwitch): it drives nothing itself, just reports when posts
+    // 0 and 1 are connected, and the graph builder's switch-group resolvers make both sides show
+    // whatever drives either. The resistances and "Pulldown Resistor" don't apply.
+
+    controlPost(): number { return 2; }
+
+    /** Whether the control post closes the switch (1-bit, honoring "Normally closed"/"Swap NO/NC"). */
+    protected closedFrom(ctl: number): number {
+        return this.hasFlag(this.FLAG_INVERT) ? 1 - ctl : ctl;
+    }
+
+    /** Refreshes `open` from the control node: doStep() never runs on the digital path. */
+    protected updateOpen(): void {
+        this.open = this.closedFrom(this.nodes[this.controlPost()].v >= this.threshold ? 1 : 0) === 0;
+    }
+
+    // pins: 1 control, 2 closed
+    digitalSynthesis(): DigitalSynthesis | null {
+        const desc = [chipStart((pin) => { pin[2] = this.closedFrom(pin[1]); })
+            .inputPins(1).outputPin(2).outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S)];
+        return { desc, pinMap: new Map([[2, 1]]) };
+    }
+
+    digitalPassPairs(): { a: number; b: number; closedPin: number }[] {
+        return [{ a: 0, b: 1, closedPin: 2 }];
+    }
+
     draw(g: Graphics): void {
+        this.updateOpen();
         const hs1 = this.open ? 0 : 2;
         const hs2 = this.open ? this.openhs : 2;
         this.setBbox(this.point1, this.point2, this.openhs);
