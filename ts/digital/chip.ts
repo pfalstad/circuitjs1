@@ -878,13 +878,14 @@ export class Chip extends Cycle {
         return address;
     }
 
-    // Does the write for the current inputs, if /WE and /OE are both low (/OE stands in for
-    // the 82S16's /CE, which gates writes too). Returns true if the stored bit changed: the
+    // Does the write for the current inputs, if /WE is low. /OE doesn't gate writes, as in
+    // SRAMElm.stepFinished(); chip select is already folded into /WE (see SRAMElm.
+    // digitalSynthesis()). Returns true if the stored bit changed: the
     // table's two read entries for that address are updated, and the caller must forget the
     // input history, since the same inputs now give a different output.
     private sramWrite(): boolean {
         const x = this.inputs;
-        if ((x & 3) !== 0) return false;
+        if ((x & 1) !== 0) return false;
         const { mem, addrBits: m, bitMask } = this.sram!;
         const address = this.sramAddress(x);
         const cur = mem.read(address);

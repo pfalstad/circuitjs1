@@ -806,7 +806,7 @@ int32_t Chip::sramAddress(int32_t x) const {
 
 bool Chip::sramWrite() {
     int32_t x = inputs;
-    if ((x & 3) != 0) return false;
+    if ((x & 1) != 0) return false; // /WE low writes; /OE doesn't gate it - see chip.ts
     int m = sramAddrBits;
     int32_t address = sramAddress(x);
     int32_t cur = sramWords[address];

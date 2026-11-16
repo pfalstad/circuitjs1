@@ -563,12 +563,9 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
      * DigitalGraphBuilder.ts's layoutFromSynth()). Without the flag, SRAMElm's data pins stay
      * genuinely bidirectional (the same real pin drives while reading, receives while writing),
      * so dataInPin(i) is instead wired via digitalTriStateReadbackPin() below - a write must
-     * capture whatever's ACTUALLY on the shared bus (an external writer's driven value). Note this
-     * bit's own output is, per the real 82S16's write-through behavior, driven with that very same
-     * value while writing (see doStep()'s and update()'s matching /OE-gated, /WE-selected logic),
-     * so the readback and the output happen to agree during a write - the readback wiring exists
-     * for correctness (it must reflect the external bus, not this element's own output post) not
-     * because the two would otherwise differ. Either way the per-bit update() logic itself is
+     * capture whatever's ACTUALLY on the shared bus (an external writer's driven value). This
+     * bit's own output is off while writing (/WE forces /OE inactive below, as in doStep()), so the
+     * readback sees only the external writer. Either way the per-bit update() logic itself is
      * identical - only where dataInPin(i) gets its value from differs. */
     digitalSynthesis(): DigitalSynthesis {
         const m = this.addressBits;
@@ -599,6 +596,16 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
             pinMap.set(this.chipSelectNode, csPin);
             desc.push(chipStart((pin) => { pin[weIn] = pin[wePin] | pin[csPin]; }).inputPins(wePin, csPin).outputPin(weIn));
             desc.push(chipStart((pin) => { pin[oeIn] = pin[oePin] | pin[csPin]; }).inputPins(oePin, csPin).outputPin(oeIn));
+        }
+        // With a bidirectional bus the outputs are off while writing, so they don't fight the
+        // writer (SRAMElm.doStep()): /WE low forces /OE inactive. With separate I/O they follow
+        // the data being written (the bit cell's write-through).
+        if (!separate) {
+            const oeGated = 3 + m + 2 * n + 3;
+            const oeSrc = oeIn, weSrc = weIn;
+            desc.push(chipStart((pin) => { pin[oeGated] = pin[oeSrc] | (pin[weSrc] ^ 1); })
+                .inputPins(oeSrc, weSrc).outputPin(oeGated));
+            oeIn = oeGated;
         }
         for (let i = 0; i < n; i++) {
             const bitMask = 1 << (n - 1 - i);
