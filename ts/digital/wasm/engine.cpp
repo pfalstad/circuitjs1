@@ -506,7 +506,13 @@ struct Chip : Cycle {
         return (int32_t)((lut[inputs >> 5] >> (inputs & 0x1f)) & 1);
     }
 
+    // The optimizer keeps an event list per input state, so a chip with many inputs (an SRAM's
+    // address pins) can need millions of them - stop with a clear message instead of running out
+    // of memory. Same limit as chip.ts's MAX_INPUT_STATES.
     void growInputEventTable() {
+        if (inputs >= (1 << 16) || inputs < 0)
+            fatal("digital optimization can't handle a component with this many inputs (such as a large SRAM)"
+                  " - turn on \"Disable Digital Optimization\", or disable it on that component");
         while ((int)inputEventTable.size() <= inputs) {
             inputEventTable.emplace_back();
             inputEventTable.back().init(outputEvents.getQueueSize());

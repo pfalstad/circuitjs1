@@ -15,7 +15,7 @@
 
 import { ChipState } from "./chip";
 import type { Chip } from "./chip";
-import { chipStart, MAX_PINS } from "./chip_desc";
+import { chipStart } from "./chip_desc";
 import type { ChipDesc, ChipLogic, CustomLogic } from "./chip_desc";
 import { CHIP, CONNECTION, OPTIMIZATION_HINT, circuitLayout } from "./circuit_desc";
 import type { CircuitEntry, CircuitDesc } from "./circuit_desc";
@@ -148,23 +148,25 @@ export function isDigitalTriStateReadback(elm: any): elm is DigitalTriStateReadb
 }
 
 /**
- * Implemented by a tri-state driver that can also export its raw ENABLE and DATA as output cells
- * of their own (internal pins within its digitalSynthesis() desc), so a charge-storing node (see
+ * Implemented by a tri-state driver that also exports its ENABLE as an output cell of its own (an
+ * internal pin within its digitalSynthesis() desc), so a charge-storing node (see
  * DigitalChargeStorage below) can tell "disabled" apart from "enabled, driving 0" - the
- * AND(enable, data) output alone can't. Both cells must have the same delay: switching the
- * enable then changes only the enable cell, so the keeper can't sample a half-updated pair.
+ * AND(enable, data) output alone can't. The enable cell must fall no later than the AND output
+ * does, and rise at least two ticks after it (a tick being the engine's own delay unit): the node's
+ * resolver sees its merged data one tick late (see resolvePassGroups()), so "disabled" always
+ * arrives before the data drops, and the data before "enabled".
  */
-export interface DigitalTriStateKeeper {
-    digitalTriStateKeeperPins(postIndex: number): { data: number; enable: number } | null;
+export interface DigitalTriStateEnable {
+    digitalTriStateEnablePin(postIndex: number): number | null;
 }
 
-export function isDigitalTriStateKeeper(elm: any): elm is DigitalTriStateKeeper {
-    return elm != null && typeof elm.digitalTriStateKeeperPins === "function";
+export function isDigitalTriStateEnable(elm: any): elm is DigitalTriStateEnable {
+    return elm != null && typeof elm.digitalTriStateEnablePin === "function";
 }
 
 /** Implemented by a non-digital element (a capacitor) whose presence on a node means the node
  * should HOLD its last driven value while nothing drives it, instead of reading 0 - see
- * resolveNodeDrivers()'s keeper cell. */
+ * resolvePassGroups(). */
 export interface DigitalChargeStorage {
     digitalHoldsCharge(): boolean;
 }
@@ -215,31 +217,166 @@ export function isDigitalPassSwitch(elm: any): elm is DigitalPassSwitch {
     return elm != null && typeof elm.digitalPassPairs === "function";
 }
 
-/** Most inputs one switch group's resolver cell may have: each cell is a lookup table of
- * 2^inputs bits, and every node in the group gets one. */
+/** Most inputs one group's resolver cell may have: each cell is a lookup table of 2^inputs bits,
+ * and every node in the group gets one. */
 const MAX_PASS_GROUP_INPUTS = 16;
+/** Most inputs of one OR cell in orTree(). */
+const OR_TREE_FANIN = 8;
 
-type PinRef = { name: string; pin: number };
+// an output pin of a netlist chip; desc, when known, is that chip's description
+type PinRef = { name: string; pin: number; desc?: ChipDesc[] };
+
+/** ORs `sources` together through a tree of OR cells of at most OR_TREE_FANIN inputs (a single
+ * source is returned as is), so a node with many drivers doesn't need one huge lookup table.
+ * Every cell takes one tick, so two trees over the same number of sources have the same depth. */
+function orTree(sources: PinRef[], name: () => string, extra: CircuitEntry[]): PinRef {
+    let level = sources;
+    while (level.length > 1) {
+        const next: PinRef[] = [];
+        for (let i = 0; i < level.length; i += OR_TREE_FANIN) {
+            const group = level.slice(i, i + OR_TREE_FANIN);
+            const n = group.length, outPin = n + 1, cell = name();
+            const logic: ChipLogic = (pin) => {
+                let r = 0;
+                for (let k = 1; k <= n; k++) r |= pin[k];
+                pin[outPin] = r;
+            };
+            const desc = [chipStart(logic).inputPins(...group.map((_, k) => k + 1)).outputPin(outPin)];
+            extra.push(CHIP(cell, desc));
+            group.forEach((src, k) => extra.push(CONNECTION(src.name, src.pin, cell, k + 1)));
+            next.push({ name: cell, pin: outPin, desc });
+        }
+        level = next;
+    }
+    return level[0];
+}
+
+/** A one-tick buffer of `src` - see DigitalTriStateEnable for why the data needs it. */
+function delayOneTick(src: PinRef, name: string, extra: CircuitEntry[]): PinRef {
+    extra.push(CHIP(name, [chipStart((pin) => { pin[2] = pin[1]; }).inputPins(1).outputPin(2)]));
+    extra.push(CONNECTION(src.name, src.pin, name, 1));
+    return { name, pin: 2 };
+}
+
+/** One cell computing `logic` over `inputs` (pins 1..n, output n+1). */
+function cellOf(inputs: PinRef[], logic: (v: number[]) => number, name: string, extra: CircuitEntry[]): PinRef {
+    const n = inputs.length, outPin = n + 1;
+    const desc = [chipStart((pin) => {
+        const v = new Array<number>(n);
+        for (let k = 0; k < n; k++) v[k] = pin[k + 1];
+        pin[outPin] = logic(v);
+    }).inputPins(...inputs.map((_, k) => k + 1)).outputPin(outPin)];
+    extra.push(CHIP(name, desc));
+    inputs.forEach((src, k) => extra.push(CONNECTION(src.name, src.pin, name, k + 1)));
+    return { name, pin: outPin, desc };
+}
 
 /**
- * Nodes joined by pass switches (see DigitalPassSwitch) form a group, however the switches are
- * set. Every node in a group gets its own resolver cell, fed by every driver in the group and
- * every switch's closed signal: it finds the nodes reachable from its own through closed
- * switches and ORs the drivers on them (a tri-state counting only while enabled, an ordinary
- * driver always) - so a change on either side of a closed switch shows on the other, and
- * opening it splits them again. Nothing reachable reads 0, unless a reachable node holds charge
- * (DigitalChargeStorage) and every tri-state in the group exports its raw data and enable
- * (DigitalTriStateKeeper): then it reads the OR of those charged nodes' last values, so a
- * stored bit can also be read out through a closed switch. (Charge sharing is approximate:
- * joining a charged 1 and a charged 0 with nothing driving gives 1 on both.)
+ * Implemented by a tri-state driver (with an exported enable - see DigitalTriStateEnable) that has
+ * a drive strength: its on-resistance. When several enabled drivers share a node, only those with
+ * the lowest resistance count, as in the analog simulator, where 0.1 ohm against 1000 ohm wins
+ * outright - e.g. a cell's actively driven feedback against charge stored behind a pass buffer.
+ * Drivers of equal resistance are ORed.
+ */
+export interface DigitalDriveStrength {
+    digitalDriveResistance(postIndex: number): number;
+}
+
+function isDigitalDriveStrength(elm: any): elm is DigitalDriveStrength {
+    return elm != null && typeof elm.digitalDriveResistance === "function";
+}
+
+const isTriCandidate = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
+
+/** Most strength levels mergeNodeDrivers() will prioritize on one node; beyond that it falls back
+ * to ORing every driver (each level is two inputs of one cell). */
+const MAX_STRENGTH_LEVELS = 7;
+
+/**
+ * Merges one node's drivers into its data and, when `wantEnable`, its enable (null if an ordinary
+ * always-on driver or a tri-state without an exported enable is among them, or when not wanted).
+ *
+ * With one strength level (see DigitalDriveStrength) the data is the OR of every output. With
+ * several, the tri-states that export an enable are grouped by resistance and a priority cell picks
+ * the strongest level that's enabled; the other drivers (ordinary ones, tri-states without an
+ * enable) are ORed in regardless, as before. The enable is then a cell over the same inputs, so
+ * both have the same depth for every level.
+ *
+ * When there's an enable the data comes a tick later still, so "disabled" always reaches the
+ * consumer before the data drops (see DigitalTriStateEnable).
+ */
+function mergeNodeDrivers(candidates: DriverCandidate[], wantEnable: boolean, cellName: () => string,
+        extra: CircuitEntry[]): { data: PinRef; enable: PinRef | null } {
+    const others: PinRef[] = [];
+    const levels = new Map<number, { outs: PinRef[]; ens: PinRef[] }>();
+    for (const c of candidates) {
+        const out = { name: c.entry.name, pin: c.pin };
+        const en = isTriCandidate(c) && isDigitalTriStateEnable(c.elm) ? c.elm.digitalTriStateEnablePin(c.postIndex) : null;
+        if (en == null) { others.push(out); continue; }
+        const r = isDigitalDriveStrength(c.elm) ? c.elm.digitalDriveResistance(c.postIndex) : 0;
+        let level = levels.get(r);
+        if (!level) levels.set(r, level = { outs: [], ens: [] });
+        level.outs.push(out);
+        level.ens.push({ name: c.entry.name, pin: en });
+    }
+    const hasEnable = wantEnable && others.length === 0 && levels.size > 0;
+
+    let data: PinRef, enable: PinRef | null = null;
+    if (levels.size <= 1 || levels.size > MAX_STRENGTH_LEVELS) {
+        if (levels.size > MAX_STRENGTH_LEVELS)
+            console.log("digital wiring: too many drive strengths on one node; its drivers are ORed");
+        data = orTree(candidates.map(c => ({ name: c.entry.name, pin: c.pin })), cellName, extra);
+        if (hasEnable) enable = orTree([...levels.values()].flatMap(l => l.ens), cellName, extra);
+    } else {
+        // strongest (lowest resistance) first; inputs d0 e0 d1 e1 ... [always-on OR]
+        const sorted = [...levels.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]);
+        const inputs: PinRef[] = [];
+        for (const l of sorted) inputs.push(orTree(l.outs, cellName, extra), orTree(l.ens, cellName, extra));
+        const nl = sorted.length;
+        if (others.length) inputs.push(orTree(others, cellName, extra));
+        data = cellOf(inputs, (v) => {
+            let r = 0;
+            for (let k = 0; k < nl; k++) if (v[2 * k + 1]) { r = v[2 * k]; break; }
+            return nl * 2 < v.length ? r | v[nl * 2] : r;
+        }, cellName(), extra);
+        if (hasEnable) enable = cellOf(inputs, (v) => {
+            let r = 0;
+            for (let k = 0; k < nl; k++) r |= v[2 * k + 1];
+            return r;
+        }, cellName(), extra);
+    }
+    if (enable) data = delayOneTick(data, cellName(), extra);
+    return { data, enable };
+}
+
+/**
+ * Resolves the nodes whose value depends on more than their own drivers' outputs:
+ *
+ *  - nodes joined by pass switches (see DigitalPassSwitch), which form a group however the
+ *    switches are set, and
+ *  - a node holding charge (DigitalChargeStorage) driven by tri-state outputs, which keeps its
+ *    last value while they're all disabled - a group of one.
+ *
+ * Each node's own drivers are first merged into its data (the OR of their outputs, a disabled
+ * tri-state contributing 0) and, unless an ordinary always-on driver is among them, its enable
+ * (the OR of the tri-states' enables - see DigitalTriStateEnable). Then every node in a group gets
+ * a resolver cell fed by every node's data and enable and every switch's closed signal: it finds
+ * the nodes reachable from its own through closed switches and ORs the data of those that are
+ * enabled - so a change on either side of a closed switch shows on the other, and opening it splits
+ * them again. When nothing reachable is enabled it reads 0, unless a reachable node holds charge:
+ * then it reads the OR of those charged nodes' last values, so a stored bit can also be read out
+ * through a closed switch. (Charge sharing is approximate: joining a charged 1 and a charged 0 with
+ * nothing driving gives 1 on both.) A tri-state that doesn't export its enable (SRAM, ROM) can't
+ * tell the node when it's off, so its node counts as always enabled and never holds.
  *
  * Returns each grouped node's resolver; a group too big for MAX_PASS_GROUP_INPUTS is left out,
- * with a warning, so its switches act open.
+ * with a warning, so its switches act open and its nodes don't hold.
  */
 function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map<any, DriverCandidate[]>,
         extra: CircuitEntry[]): { byNode: Map<any, { entry: SynthEntry; pin: number }>; voltage: Map<any, number> } {
     const byNode = new Map<any, { entry: SynthEntry; pin: number }>();
     const voltage = new Map<any, number>();
+    const isTri = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
 
     // union-find over node objects
     const parent = new Map<any, any>();
@@ -261,6 +398,9 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
             pairs.push({ na, nb, closed: { name: entry.name, pin: p.closedPin } });
         }
     }
+    // charge-storing nodes with tri-state drivers, as groups of their own unless a switch joined them
+    for (const [node, candidates] of candidatesByNode)
+        if (candidates.some(isTri) && nodeHoldsCharge(node)) add(node);
 
     const groups = new Map<any, { nodes: any[]; pairs: typeof pairs }>();
     for (const n of parent.keys()) {
@@ -270,41 +410,43 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
     }
     for (const p of pairs) groups.get(find(p.na))!.pairs.push(p);
 
-    let counter = 0;
+    let counter = 0, cells = 0;
+    const cellName = () => "_pm" + cells++;
     for (const group of groups.values()) {
-        const index = new Map(group.nodes.map((n, i) => [n, i]));
-        const drivers: { node: number; data: PinRef; en: PinRef | null }[] = [];
-        let canHold = true, high = 5;
-        for (const [i, node] of group.nodes.entries()) {
-            for (const c of candidatesByNode.get(node) ?? []) {
-                if (typeof c.elm.highVoltage === "number") high = c.elm.highVoltage;
-                const tri = isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
-                const kp = tri && isDigitalTriStateKeeper(c.elm) ? c.elm.digitalTriStateKeeperPins(c.postIndex) : null;
-                if (kp) drivers.push({ node: i, data: { name: c.entry.name, pin: kp.data }, en: { name: c.entry.name, pin: kp.enable } });
-                else {
-                    // an ordinary driver (always enabled), or a tri-state whose enable we can't see
-                    // (its AND(enable, data) output still ORs in correctly; it just can't let
-                    // the group tell "disabled" from "driving 0", so nothing holds)
-                    if (tri) canHold = false;
-                    drivers.push({ node: i, data: { name: c.entry.name, pin: c.pin }, en: null });
-                }
-            }
-        }
-        const caps = canHold ? group.nodes.map((n, i) => nodeHoldsCharge(n) ? i : -1).filter(i => i >= 0) : [];
-        if (drivers.length === 0 && caps.length === 0) continue; // nothing ever drives it
+        const n = group.nodes.length;
+        const index = new Map(group.nodes.map((nd, i) => [nd, i]));
+        let high = 5;
 
-        const shared = drivers.length + drivers.filter(d => d.en).length + group.pairs.length;
+        // each node's drivers (none: nothing ever drives it)
+        const driven: { x: number; candidates: DriverCandidate[]; hasEnable: boolean }[] = [];
+        for (const [x, node] of group.nodes.entries()) {
+            const candidates = candidatesByNode.get(node) ?? [];
+            if (candidates.length === 0) continue;
+            for (const c of candidates) if (typeof c.elm.highVoltage === "number") high = c.elm.highVoltage;
+            const hasEnable = candidates.every(c => isTri(c) && isDigitalTriStateEnable(c.elm)
+                && c.elm.digitalTriStateEnablePin(c.postIndex) != null);
+            driven.push({ x, candidates, hasEnable });
+        }
+        const caps = group.nodes.map((nd, i) => nodeHoldsCharge(nd) ? i : -1).filter(i => i >= 0);
+        if (driven.length === 0) continue;
+
+        const enabledCount = driven.filter(p => p.hasEnable).length;
+        const shared = driven.length + enabledCount + group.pairs.length;
         if (shared + caps.length > MAX_PASS_GROUP_INPUTS) {
-            console.log("digital wiring: too many switches/drivers in one switch-connected group; its switches act open");
+            console.log("digital wiring: too many switches/drivers in one switch-connected group; its switches act open",
+                `(nodes ${n}, switches ${group.pairs.length}, driven nodes ${driven.length}, caps ${caps.length})`);
             continue;
         }
 
-        // One single-cell chip per node, so each has its own pin space. Input pins: each
-        // driver's data (+ enable), each switch's closed signal, each OTHER charged node's
-        // resolver output; then the output pin.
-        const group_ = counter++;
-        const nameOf = (x: number) => "_pass" + group_ + "_" + x;
-        const n = group.nodes.length;
+        // each node's merged data and enable (enable null: always on)
+        const merged: ({ data: PinRef; enable: PinRef | null } | null)[] = new Array(n).fill(null);
+        for (const p of driven) merged[p.x] = mergeNodeDrivers(p.candidates, true, cellName, extra);
+
+        // One single-cell chip per node, so each has its own pin space. Input pins: each driven
+        // node's data (+ enable), each switch's closed signal, each OTHER charged node's resolver
+        // output; then the output pin.
+        const g = counter++;
+        const nameOf = (x: number) => "_pass" + g + "_" + x;
         const pairIdx = group.pairs.map(p => [index.get(p.na)!, index.get(p.nb)!]);
         const outPinOf = (x: number) => shared + caps.filter(y => y !== x).length + 1;
 
@@ -312,11 +454,12 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
             const name = nameOf(x);
             let next = 1;
             const conns: [PinRef, number][] = [];
-            const dPins = drivers.map(d => {
+            const dPins = merged.map(m => {
+                if (m == null) return null;
                 const data = next++;
-                conns.push([d.data, data]);
+                conns.push([m.data, data]);
                 let en = 0;
-                if (d.en) { en = next++; conns.push([d.en, en]); }
+                if (m.enable) { en = next++; conns.push([m.enable, en]); }
                 return { data, en };
             });
             const pPins = group.pairs.map(p => { conns.push([p.closed, next]); return next++; });
@@ -337,11 +480,11 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
                     });
                 }
                 let data = 0, enabled = 0;
-                drivers.forEach((d, k) => {
-                    if (!reach[d.node]) return;
-                    const e = dPins[k].en ? pin[dPins[k].en] : 1;
+                dPins.forEach((d, k) => {
+                    if (d == null || !reach[k]) return;
+                    const e = d.en ? pin[d.en] : 1;
                     enabled |= e;
-                    data |= pin[dPins[k].data] & e;
+                    data |= pin[d.data] & e;
                 });
                 if (!enabled)
                     for (const y of caps)
@@ -398,59 +541,14 @@ function resolveNodeDrivers(synthMap: Map<any, SynthEntry>): {
 
         const isTri = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
         const plainDrivers = candidates.filter(c => !isTri(c)).length;
-        // A capacitor on a node of tri-state drivers makes it a dynamic storage node: while
-        // every driver is disabled it keeps its last value. Needs every tri-state candidate's
-        // raw data and enable (see DigitalTriStateKeeper); a plain driver is always enabled, so it never holds.
-        const keeperPins = candidates.map(c =>
-            isTri(c) && isDigitalTriStateKeeper(c.elm) ? c.elm.digitalTriStateKeeperPins(c.postIndex) : null);
-        const keeper = plainDrivers === 0 && 2 * candidates.length + 1 <= MAX_PINS
-            && keeperPins.every(p => p != null) && nodeHoldsCharge(node);
-
-        if (keeper) {
-            // Inputs: data_i on pin 2i+1, enable_i on 2i+2 (the driver's raw data/enable cells);
-            // output = OR of the enabled drivers' data while any is enabled, else the previous
-            // output.
-            const name = "_keep" + trisCounter++;
-            const n = candidates.length;
-            const outPin = 2 * n + 1;
-            const logic: ChipLogic = (pin, prevPin) => {
-                let data = 0, enabled = 0;
-                for (let i = 0; i < n; i++) { data |= pin[2 * i + 1] & pin[2 * i + 2]; enabled |= pin[2 * i + 2]; }
-                pin[outPin] = enabled ? data : prevPin[outPin];
-            };
-            const inPins = Array.from({ length: 2 * n }, (_, i) => i + 1);
-            const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin).prevOutputPin(outPin)];
-            const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
-
-            extra.push(CHIP(name, desc));
-            candidates.forEach((c, i) => {
-                extra.push(CONNECTION(c.entry.name, keeperPins[i]!.data, name, 2 * i + 1));
-                extra.push(CONNECTION(c.entry.name, keeperPins[i]!.enable, name, 2 * i + 2));
-            });
-            resolved = { entry: mergeEntry, pin: outPin };
-        } else if (candidates.length === 1) {
+        if (candidates.length === 1) {
+            resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
+        } else if (plainDrivers > 1) {
+            console.log("digital wiring: multiple drivers for a shared node");
             resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
         } else {
-            if (plainDrivers > 1) {
-                console.log("digital wiring: multiple drivers for a shared node");
-                resolved = { entry: candidates[0].entry, pin: candidates[0].pin };
-            } else {
-                const name = "_tris" + trisCounter++;
-                const n = candidates.length;
-                const outPin = n + 1;
-                const logic: ChipLogic = (pin) => {
-                    let result = 0;
-                    for (let i = 1; i <= n; i++) result |= pin[i];
-                    pin[outPin] = result;
-                };
-                const inPins = Array.from({ length: n }, (_, i) => i + 1);
-                const desc: ChipDesc[] = [chipStart(logic).inputPins(...inPins).outputPin(outPin)];
-                const mergeEntry: SynthEntry = { name, desc, pinMap: new Map([[0, outPin]]), isTie: false };
-
-                extra.push(CHIP(name, desc));
-                candidates.forEach((c, i) => extra.push(CONNECTION(c.entry.name, c.pin, name, i + 1)));
-                resolved = { entry: mergeEntry, pin: outPin };
-            }
+            const out = mergeNodeDrivers(candidates, false, () => "_tris" + trisCounter++, extra).data;
+            resolved = { entry: { name: out.name, desc: out.desc!, pinMap: new Map([[0, out.pin]]), isTie: false }, pin: out.pin };
         }
 
         byNode.set(node, resolved);

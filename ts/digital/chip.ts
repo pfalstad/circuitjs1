@@ -46,6 +46,9 @@ import { MAX_PINS } from "./chip_desc";
 import { TIMESCALE, MAX_U64, DEBUG_TRACE } from "./constants";
 
 
+/** Most input states a chip may have event lists for - see Chip.growInputEventTable(). */
+const MAX_INPUT_STATES = 1 << 16;
+
 let __maskWatchCount = 0;
 function __globalMaskWatchdog(): void {
     if (++__maskWatchCount > 3000000) throw new Error('mask-scan loop exceeded watchdog limit');
@@ -1065,6 +1068,17 @@ export class Chip extends Cycle {
         return this.backfillHistory(now) >= now;
     }
 
+    // The optimizer keeps an event list per input state, so a chip with many inputs (an SRAM's
+    // address pins) can need millions of them - stop with a clear message instead of running out
+    // of memory.
+    private growInputEventTable(): void {
+        if (this.inputs >= MAX_INPUT_STATES)
+            throw new Error(`digital optimization can't handle a component with ${this.inputLinks.length} inputs `
+                + `(such as a large SRAM) - turn on "Disable Digital Optimization", or disable it on that component`);
+        while (this.inputEventTable.length <= this.inputs)
+            this.inputEventTable.push(new CirqueNum(this.outputEvents.getQueueSize()));
+    }
+
     // Deactivates every output link that is set in `a` but not in `b`. The difference is
     // computed up front (matching the old single-mask semantics) because deactivateOutputs() can
     // re-enter and mutate these masks. The single-word path allocates nothing; wider chips take
@@ -1252,8 +1266,7 @@ export class Chip extends Cycle {
 
         this.inputs &= this.eventMask;
 
-        while (this.inputEventTable.length <= this.inputs)
-            this.inputEventTable.push(new CirqueNum(this.outputEvents.getQueueSize()));
+        this.growInputEventTable();
 
         this.firstInputTablePos = this.inputEventTable[this.inputs].begin();
         this.firstInputMask = this.activeInputs = (1 << this.inputLinks.length) - 1;
@@ -1623,8 +1636,7 @@ export class Chip extends Cycle {
             this.inputEvents.pop_back();
         }
 
-        while (this.inputEventTable.length <= this.inputs)
-            this.inputEventTable.push(new CirqueNum(this.outputEvents.getQueueSize()));
+        this.growInputEventTable();
 
         this.inputEventTable[this.inputs].push_back(this.inputEvents.end());
         this.inputEvents.push_back(new Event(globalTime, this.inputs));

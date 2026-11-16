@@ -236,6 +236,40 @@ describe("charge storage (capacitor on a tri-state node)", () => {
         expect(bus()).toBe(0);          // and holds the 0
     });
 
+    // 6502 IR cell: a weak (1000 ohm) buffer of stale charge and a strong (0.1 ohm) feedback
+    // buffer drive one node; while both are enabled the strong one wins, not their OR.
+    for (const withCap of [false, true]) it(`lowest on-resistance wins among enabled drivers${withCap ? " (holding node)" : ""}`, () => {
+        const mk = (r: number, d: 0 | 1) => {
+            const data = manualSource(d), control = manualSource(1), drv = makeTriState();
+            drv.r_on = r; drv.highVoltage = 5;
+            connect({ elm: data, num: 0 }, { elm: drv, num: 0 });
+            connect({ elm: control, num: 0 }, { elm: drv, num: drv.controlNode() });
+            return { data, control, drv };
+        };
+        const weak = mk(1000, 1), strong = mk(0.1, 0);
+        const sink = probe();
+        const posts: any[] = [{ elm: weak.drv, num: 1 }, { elm: strong.drv, num: 1 }, { elm: sink, num: 0 }];
+        if (withCap) posts.push({ elm: cap(), num: 0 });
+        connect(...posts);
+        const graph = buildDigitalCircuit([weak.data, weak.control, weak.drv, strong.data, strong.control, strong.drv, sink]);
+        for (const s of [weak.data, weak.control, strong.data, strong.control]) s.chip = graph.chipsByElm.get(s)![0];
+        const bus = () => graph.chipsByElm.get(sink)![0].inputLinks[0].chip.output;
+        graph.circuit.run(1000);
+        expect(bus()).toBe(0);          // strong 0 beats weak 1
+
+        strong.control.set(0);          // strong off: weak drives
+        graph.circuit.run(1000);
+        expect(bus()).toBe(1);
+
+        weak.data.set(0); strong.data.set(1); strong.control.set(1);
+        graph.circuit.run(1000);
+        expect(bus()).toBe(1);
+        weak.data.set(1);
+        strong.data.set(0);
+        graph.circuit.run(1000);
+        expect(bus()).toBe(0);
+    });
+
     it("reads 0 when disabled without a capacitor", () => {
         const { control, graph, bus } = build(false);
         control.set(0);

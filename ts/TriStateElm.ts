@@ -31,12 +31,13 @@ import { Polygon } from "./Polygon";
 import { StringTokenizer } from "./StringTokenizer";
 import { VoltageSource } from "./VoltageSource";
 import { chipStart, MAX_PINS } from "./digital/chip_desc";
+import { TIMESCALE } from "./digital/constants";
 import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
-import type { DigitalSynthesis, DigitalTriStateDriver } from "./digital/DigitalGraphBuilder";
+import type { DigitalSynthesis, DigitalTriStateDriver, DigitalTriStateEnable, DigitalDriveStrength } from "./digital/DigitalGraphBuilder";
 import { WireRouter } from "./WireRouter";
 import { parseFloatStrict } from "./NumberParse";
 
-export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
+export class TriStateElm extends CircuitElm implements DigitalTriStateDriver, DigitalTriStateEnable, DigitalDriveStrength {
     resistance: number = 0;
     r_on: number;
     r_off: number;
@@ -165,33 +166,25 @@ export class TriStateElm extends CircuitElm implements DigitalTriStateDriver {
         }
         pinMap.set(this.controlNode(), controlPin);
 
-        // The raw enable and each bit's raw data as cells of their own, for a charge-storing
-        // node's keeper (see DigitalTriStateKeeper). Same delay on both, and a control change
-        // touches only the enable cell, so the keeper never sees a half-updated pair. Skipped
-        // past the pin limit (the keeper then isn't used for this element).
-        if (this.keeperPinsFit()) {
-            desc.push(chipStart((pin) => { pin[this.enablePin()] = pin[controlPin]; })
-                .inputPins(controlPin).outputPin(this.enablePin())
-                .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
-            for (let i = 0; i < n; i++) {
-                const dataPin = i + 1, bufPin = this.dataBufPin(i);
-                desc.push(chipStart((pin) => { pin[bufPin] = pin[dataPin]; })
-                    .inputPins(dataPin).outputPin(bufPin)
-                    .outputDelayS(DEFAULT_GATE_DELAY_LH_S, DEFAULT_GATE_DELAY_HL_S));
-            }
-        }
+        // The enable as a cell of its own, for a charge-storing node (see DigitalTriStateEnable):
+        // it falls with the data cells above and rises two ticks after them. (A delay becomes
+        // max(1, trunc(seconds / TIMESCALE)) ticks - see Chip's constructor - so the rise is
+        // computed from the data cells' own tick count, plus a half tick against rounding.)
+        const dataRiseTicks = Math.max(1, Math.trunc(DEFAULT_GATE_DELAY_LH_S / TIMESCALE));
+        desc.push(chipStart((pin) => { pin[this.enablePin()] = pin[controlPin]; })
+            .inputPins(controlPin).outputPin(this.enablePin())
+            .outputDelayS((dataRiseTicks + 2.5) * TIMESCALE, DEFAULT_GATE_DELAY_HL_S));
 
         return { desc, pinMap };
     }
 
     private enablePin(): number { return 2 * this.busWidth + 2; }
-    private dataBufPin(bit: number): number { return 2 * this.busWidth + 3 + bit; }
-    private keeperPinsFit(): boolean { return this.dataBufPin(this.busWidth - 1) <= MAX_PINS; }
 
-    digitalTriStateKeeperPins(postIndex: number): { data: number; enable: number } | null {
-        if (!this.isTriStateOutput(postIndex) || !this.keeperPinsFit()) return null;
-        return { data: this.dataBufPin(postIndex - this.busWidth), enable: this.enablePin() };
+    digitalTriStateEnablePin(postIndex: number): number | null {
+        return this.isTriStateOutput(postIndex) && this.enablePin() <= MAX_PINS ? this.enablePin() : null;
     }
+
+    digitalDriveResistance(_postIndex: number): number { return this.r_on; }
 
     isTriStateOutput(postIndex: number): boolean {
         return postIndex >= this.busWidth && postIndex < 2 * this.busWidth;
