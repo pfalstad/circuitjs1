@@ -155,6 +155,9 @@ export class LinkMask {
     }
 }
 
+/** See Chip.initialize(). */
+const INIT_STEP_LIMIT = 1000;
+
 export class ChipLink {
     chip: Chip;
     mask: number;
@@ -912,7 +915,36 @@ export class Chip extends Cycle {
         }
     }
 
+    /** Settles this chip's output from its inputs and, if it changed, every chip downstream -
+     * depth first, in the same order as the recursive original (and the WASM engine's), but with
+     * an explicit stack: a big circuit's long chains, or a feedback loop that keeps toggling at
+     * startup, would otherwise overflow the call stack. Such a loop is cut off after
+     * INIT_STEP_LIMIT chip evaluations per chip in the circuit; the event engine takes it from
+     * there. */
     initialize(): void {
+        const stack: Chip[] = [];
+        const next: number[] = [];
+        let budget = INIT_STEP_LIMIT * Math.max(1, this.circuit?.chips.length ?? 1);
+        if (this.initializeOne()) { stack.push(this); next.push(0); }
+        while (stack.length > 0) {
+            const top = stack.length - 1;
+            const chip = stack[top];
+            const k = next[top];
+            if (k >= chip.outputLinks.length) { stack.pop(); next.pop(); continue; }
+            next[top] = k + 1;
+            const target = chip.outputLinks[k].chip;
+            if (target === chip) continue;
+            if (--budget < 0) {
+                console.log("digital: startup settling cut off - a feedback loop that keeps toggling?");
+                return;
+            }
+            if (target.initializeOne()) { stack.push(target); next.push(0); }
+        }
+    }
+
+    /** initialize()'s work for this chip alone: true if its output changed (and its consumers'
+     * input bits were updated), so they need settling too. */
+    private initializeOne(): boolean {
         let newOut = this.output;
 
         this.inputs &= this.eventMask;
@@ -921,21 +953,17 @@ export class Chip extends Cycle {
         switch (this.type) {
             case ChipType.SIMPLE_CHIP: newOut = (this.lutData >>> this.inputs) & 1; break;
             case ChipType.BASIC_CHIP: newOut = (this.lut![this.inputs >> 5] >> (this.inputs & 0x1f)) & 1; break;
-            case ChipType.CUSTOM_CHIP: this.customUpdate!(this, 0); return;
+            case ChipType.CUSTOM_CHIP: this.customUpdate!(this, 0); return false;
         }
 
-        if (newOut !== this.output) {
-            this.output = newOut;
+        if (newOut === this.output) return false;
+        this.output = newOut;
 
-            if (this.output) this.inputs |= this.prevOutputMask;
-            else this.inputs &= ~this.prevOutputMask;
+        if (this.output) this.inputs |= this.prevOutputMask;
+        else this.inputs &= ~this.prevOutputMask;
 
-            for (const link of this.outputLinks) link.chip.inputs ^= link.mask;
-            for (const link of this.outputLinks) {
-                if (link.chip === (this as Chip)) continue;
-                link.chip.initialize();
-            }
-        }
+        for (const link of this.outputLinks) link.chip.inputs ^= link.mask;
+        return true;
     }
 
     connect(chip: Chip, desc: ChipDesc, pin: number): void {

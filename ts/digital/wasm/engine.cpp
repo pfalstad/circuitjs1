@@ -479,6 +479,7 @@ struct Chip : Cycle {
 
     void customUpdate(int32_t mask);
     void initialize();
+    bool initializeOne();
     void connect(Chip* chip, int i, int32_t extraMask);
     Time climbToValidCycle(Time globalTime, Time time, Time delay);
     bool catchUpHistoryBeforeWake();
@@ -833,7 +834,34 @@ void Chip::forgetHistory() {
     }
 }
 
+// Settles this chip's output from its inputs and, if it changed, every chip downstream - depth
+// first, in the same order as the recursive original (and the TypeScript engine's), but with an
+// explicit stack: a big circuit's long chains, or a feedback loop that keeps toggling at startup,
+// would otherwise overflow the stack. Such a loop is cut off after INIT_STEP_LIMIT chip
+// evaluations per chip in the circuit; the event engine takes it from there.
+static const size_t INIT_STEP_LIMIT = 1000;
+
 void Chip::initialize() {
+    std::vector<std::pair<Chip*, size_t>> stack;
+    size_t budget = INIT_STEP_LIMIT * (circuit ? std::max<size_t>(1, circuit->chips.size()) : 1);
+    if (initializeOne()) stack.push_back({ this, 0 });
+    while (!stack.empty()) {
+        auto& top = stack.back();
+        Chip* chip = top.first;
+        if (top.second >= chip->outputLinks.size()) { stack.pop_back(); continue; }
+        Chip* target = chip->outputLinks[top.second++].chip;
+        if (target == chip) continue;
+        if (budget-- == 0) {
+            std::printf("digital: startup settling cut off - a feedback loop that keeps toggling?\n");
+            return;
+        }
+        if (target->initializeOne()) stack.push_back({ target, 0 });
+    }
+}
+
+// initialize()'s work for this chip alone: true if its output changed (and its consumers' input
+// bits were updated), so they need settling too.
+bool Chip::initializeOne() {
     int32_t newOut = _output;
 
     inputs &= eventMask;
@@ -842,22 +870,17 @@ void Chip::initialize() {
     switch (type) {
         case SIMPLE_CHIP: newOut = (int32_t)((lutData >> (inputs & 31)) & 1); break;
         case BASIC_CHIP: newOut = (int32_t)((lut[inputs >> 5] >> (inputs & 0x1f)) & 1); break;
-        case CUSTOM_CHIP: customUpdate(0); return;
+        case CUSTOM_CHIP: customUpdate(0); return false;
     }
 
-    if (newOut != _output) {
-        setOutput(newOut);
+    if (newOut == _output) return false;
+    setOutput(newOut);
 
-        if (_output) inputs |= prevOutputMask;
-        else inputs &= ~prevOutputMask;
+    if (_output) inputs |= prevOutputMask;
+    else inputs &= ~prevOutputMask;
 
-        for (ChipLink& link : outputLinks) link.chip->inputs ^= link.mask;
-        for (size_t k = 0; k < outputLinks.size(); k++) {
-            Chip* ch = outputLinks[k].chip;
-            if (ch == this) continue;
-            ch->initialize();
-        }
-    }
+    for (ChipLink& link : outputLinks) link.chip->inputs ^= link.mask;
+    return true;
 }
 
 // connect(chip, desc, pin), with the pin already resolved to input index `i` and the
