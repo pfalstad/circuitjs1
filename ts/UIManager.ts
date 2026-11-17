@@ -2070,7 +2070,11 @@ export class UIManager {
     }
 
     private handleReadonlyKeyDown(e: KeyboardEvent, code: number): void {
-        // readonly mode — still allow zoom keys via keypress, nothing here for keydown
+        // readonly mode — still allow copying (zoom keys are handled via keypress)
+        if (!(e.ctrlKey || e.metaKey))
+            return;
+        if (code === KEY_C) { this.app.commands.menuPerformed("key", "copy");      e.preventDefault(); }
+        if (code === KEY_A) { this.app.commands.menuPerformed("key", "selectAll"); e.preventDefault(); }
     }
 
     // ---- Widget management ----
