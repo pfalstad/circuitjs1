@@ -54,7 +54,9 @@ export class CommandManager {
     menuPerformed(menu: string, item: string): void {
         const contextPanel = this.app.ui?.contextPanel;
 
-        if ((menu == "edit" || menu == "main" || menu == "scopes") && this.app.ui?.isReadOnly()) {
+        // copying doesn't change anything, so it's allowed (e.g. when viewing a subcircuit)
+        if ((menu == "edit" || menu == "main" || menu == "scopes") && this.app.ui?.isReadOnly() &&
+                item != "copy" && item != "selectAll") {
             window.alert(Locale.LS("Editing disabled.  Re-enable from the Options menu."));
             return;
         }
@@ -624,8 +626,10 @@ export class CommandManager {
 
         ModelRegistry.clearAllDumpedFlags();
 
-        for (let i = this.app.elmList.length - 1; i >= 0; i--) {
-            const ce = this.app.elmList[i];
+        // the elements being displayed (a subcircuit's, if viewing one)
+        const elmList = this.app.ui?.elmList ?? this.app.elmList;
+        for (let i = elmList.length - 1; i >= 0; i--) {
+            const ce = elmList[i];
             if (ce.isSelected() && !ce.isScopeElm?.()) {
                 // only the models the copied elements use
                 ce.dumpXmlModel?.(doc);
