@@ -95,9 +95,14 @@ export class LabeledNodeElm extends CircuitElm {
         this.lead1 = this.interpPoint(this.point1, this.point2, 1 - this.circleSize / this.dn);
     }
 
+    // name of the net that post n is on (labels with the same key are connected)
+    labelKey(n: number): string {
+        return (this.busWidth > 1) ? this.text + ":" + n : this.text;
+    }
+
     // get post we're connected to
     getConnectedPost(n: number = 0): Point {
-        const key = (this.busWidth > 1) ? this.text + ":" + n : this.text;
+        const key = this.labelKey(n);
         const myPost = this.getPost(n);
         const le = LabeledNodeElm.labelList.get(key);
         if (le != null)
@@ -116,7 +121,7 @@ export class LabeledNodeElm extends CircuitElm {
         super.setNode(p, n);
 
         // save node so we can return it in getByName()
-        const key = (this.busWidth > 1) ? this.text + ":" + p : this.text;
+        const key = this.labelKey(p);
         const le = LabeledNodeElm.labelList.get(key);
         if (le != null) // should never happen
             le.node = n;

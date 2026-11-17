@@ -404,11 +404,13 @@ export class SimulationManager {
 	this.calculateWireClosureForList(this.elmList, false);
     }
 
-    // run wire closure on a given element list.  if uiList is true, treat LabeledNodeElm.getConnectedPost()
-    // as null (since labeled nodes in subcircuits connect to composite terminals, not to each other)
+    // run wire closure on a given element list.  if uiList is true (the elements of a subcircuit being
+    // viewed), labeled nodes are connected to the other labels with the same name in the list, rather
+    // than through LabeledNodeElm.labelList, which holds the main circuit's labels.
     calculateWireClosureForList(list: any[], uiList: boolean): void {
 	let i: number;
 	const nm: Map<string, NodeMapEntry> = new Map();
+	const uiLabels: Map<string, Point> = new Map();
 	this.wireInfoList = [];
 	this.wireInfoElmSet = new Set(list);
 	for (i = 0; i !== list.length; i++) {
@@ -425,7 +427,15 @@ export class SimulationManager {
 		let cn = nm.get(k0);
 
 		// what post are we connected to
-		const p1 = (uiList && ce.isLabeledNodeElm()) ? null : ce.getConnectedPost(j);
+		let p1: Point | null;
+		if (uiList && ce.isLabeledNodeElm()) {
+		    // first label with this name: remember its post; later ones connect to it
+		    const key = ce.labelKey(j);
+		    p1 = uiLabels.get(key) ?? null;
+		    if (p1 == null)
+			uiLabels.set(key, p0);
+		} else
+		    p1 = ce.getConnectedPost(j);
 		if (p1 == null) {
 		    // no connected post (true for labeled node the first time it's encountered, or ground)
 		    if (cn == null) {
