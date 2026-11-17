@@ -118,7 +118,14 @@ export class EditSubcircuitModelDialog extends Dialog {
             this.dialogEl.appendChild(this.modelNameInput);
         }
 
-        this.dialogEl.appendChild(this.editor.createSizeControls());
+        const sizeControls = this.editor.createSizeControls();
+        const sortBtn = document.createElement("button");
+        sortBtn.textContent = Locale.LS("Sort");
+        sortBtn.title = Locale.LS("Sort the selected pins (or all pins) by name");
+        sortBtn.style.marginLeft = "12px";
+        sortBtn.addEventListener("click", () => this.editor?.sortPins());
+        sizeControls.appendChild(sortBtn);
+        this.dialogEl.appendChild(sizeControls);
 
         // Label checkbox
         const labelLabel = document.createElement("label");
