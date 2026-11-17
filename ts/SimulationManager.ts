@@ -537,6 +537,14 @@ export class SimulationManager {
 	    }
 	}
 
+	// when viewing a subcircuit, the labels for its external pins carry current in from outside, so
+	// (like grounds) they can't be resolved from their label end, only from their post
+	const extLabels: Set<string> = new Set();
+	const stack = this.app.ui.subcircuitStack;
+	if (this.app.ui.elmList !== this.app.elmList && stack.length > 0)
+	    for (const ext of stack[stack.length - 1].model.extList)
+		extLabels.add(ext.busWidth > 1 ? "label:" + ext.name + ":" + ext.busZ : "label:" + ext.name);
+
 	for (i = 0; i !== this.wireInfoList.length; i++) {
 	    const ws = this.wireInfoList[i];
 	    const wire = ws.wire;
@@ -552,7 +560,7 @@ export class SimulationManager {
 	    const neighbors0: any[] = [];
 	    const neighbors1: any[] = [];
 	    const labelNeighbors: WireSegment[] = [];
-	    let isReady0 = true, isReady1 = !wire.isGroundElm();
+	    let isReady0 = true, isReady1 = !wire.isGroundElm() && !extLabels.has(ws.endpoint1);
 
 	    // position-based matching via cn.links.  (the links are grouped by location once per
 	    // node, since a node with many wire segments would otherwise have all its links scanned
