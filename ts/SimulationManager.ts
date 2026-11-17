@@ -410,12 +410,14 @@ export class SimulationManager {
     }
 
     // run wire closure on a given element list.  if uiList is true (the elements of a subcircuit being
-    // viewed), labeled nodes are connected to the other labels with the same name in the list, rather
-    // than through LabeledNodeElm.labelList, which holds the main circuit's labels.
+    // viewed), labeled nodes are connected to the other labels with the same name in the list, and grounds
+    // to the first ground in the list, rather than through LabeledNodeElm.labelList and
+    // GroundElm.firstGround, which hold the main circuit's (in its coordinates).
     calculateWireClosureForList(list: any[], uiList: boolean): void {
 	let i: number;
 	const nm: Map<string, NodeMapEntry> = new Map();
 	const uiLabels: Map<string, Point> = new Map();
+	let uiFirstGround: Point | null = null;
 	this.wireInfoList = [];
 	this.wireInfoElmSet = new Set(list);
 	for (i = 0; i !== list.length; i++) {
@@ -439,6 +441,10 @@ export class SimulationManager {
 		    p1 = uiLabels.get(key) ?? null;
 		    if (p1 == null)
 			uiLabels.set(key, p0);
+		} else if (uiList && ce.isGroundElm()) {
+		    p1 = uiFirstGround;
+		    if (p1 == null)
+			uiFirstGround = p0;
 		} else
 		    p1 = ce.getConnectedPost(j);
 		if (p1 == null) {
