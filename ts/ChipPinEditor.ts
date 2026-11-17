@@ -299,6 +299,35 @@ export class ChipPinEditor {
         this.draw();
     }
 
+    // sort the selected pins (or, with none selected, the pins on each side) by name, ignoring a
+    // leading "/", without moving any pin to another side.  The pins trade positions; the other
+    // pins of a bus move with it.
+    sortPins(): void {
+        const indices = this.selectedPins.size > 0 ? [...this.selectedPins] :
+            this.entries.map((_, i) => i);
+        const bySide = new Map<number, number[]>();
+        for (const i of indices) {
+            const e = this.entries[i];
+            if (e.busZ > 0) continue;
+            let list = bySide.get(e.side);
+            if (!list) bySide.set(e.side, list = []);
+            list.push(i);
+        }
+        const key = (i: number) => this.entries[i].name.replace(/^\//, "");
+        for (const [side, list] of bySide) {
+            const slots = list.map(i => this.entries[i].pos).sort((a, b) => a - b);
+            list.sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true, sensitivity: "base" }));
+            const newPos = new Map<number, number>();
+            list.forEach((i, k) => newPos.set(this.entries[i].pos, slots[k]));
+            for (const e of this.entries) {
+                const np = e.side === side ? newPos.get(e.pos) : undefined;
+                if (np !== undefined) e.pos = np;
+            }
+        }
+        this.createPins();
+        this.draw();
+    }
+
     private findNearestPin(x: number, y: number): number {
         let bestDist = 20;
         let best = -1;
