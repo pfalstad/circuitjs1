@@ -121,6 +121,8 @@ export class InstructionDisplayElm extends CircuitElm {
         super.undumpXml(xml);
         this.busWidth = xml.parseIntAttr("bw", this.busWidth);
         this.threshold = xml.parseDoubleAttr("th", this.threshold);
+        // the base class allocated the nodes before busWidth was known; allocate one per post
+        this.allocNodes();
         this.lookupText = "";
         try {
             const s = xml.parseContents();

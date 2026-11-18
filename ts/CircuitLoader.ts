@@ -282,6 +282,10 @@ export class CircuitLoader {
                         CirSim.console("unrecognized dump type: " + type);
                         break;
                     }
+                    // make sure it has a node for each post with the settings just loaded
+                    // (nodes are only assigned when the circuit is stamped, which doesn't
+                    // happen while the simulation is stopped)
+                    newce.allocNodes();
                     newce.setPoints();
                     this.app.elmList.push(newce);
                 } catch (ee) {
