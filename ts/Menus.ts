@@ -767,8 +767,9 @@ export class Menus {
             })
             .then(text => { if (text) this.processSetupList(text, openDefault); })
             .catch(() => { CirSim.console("Can't load circuit list!"); })
-            // extra menus only after Circuits is built, so Circuits always comes first
-            .finally(() => this.getSetupExtraLists(openDefault));
+            // Applied, then any manifest menus, only after Circuits is built,
+            // so they always come after it and in that order.
+            .finally(() => this.getSetupExtraLists(openDefault).then(() => this.getExtraManifestMenus(openDefault)));
     }
 
     // Optional "Applied" menu after Circuits: setupappliedlist.txt, with its
@@ -780,6 +781,45 @@ export class Menus {
             if (r.ok)
                 this.processSetupList(await r.text(), openDefault, "Applied", "applied");
         } catch (e) { }
+    }
+
+    // Optional further menus after Circuits and Applied, from extramenus.txt:
+    // one "<list-filename> <Menu Name>" pair per line -- the same format as an
+    // entry in setuplist.txt itself -- # comments and blank lines ignored. Each
+    // listed file's own circuits live in a directory named after it (its
+    // "setup"..."list.txt" wrapper stripped, e.g. setupTestbedlist.txt ->
+    // Testbed/). All of this is optional and server-side only: with
+    // extramenus.txt absent nothing changes, and adding a menu needs no
+    // rebuild. Menus load one at a time so they appear in manifest order.
+    // (The PWA service worker can cache extramenus.txt; hard-refresh if an
+    // edit doesn't show.)
+    async getExtraManifestMenus(openDefault: boolean): Promise<void> {
+        const entries: { file: string, title: string }[] = [];
+        try {
+            const r = await fetch(moduleBaseURL + 'extramenus.txt');
+            if (r.ok)
+                for (const line of (await r.text()).split(/\r?\n/)) {
+                    const t = line.trim();
+                    if (!t || t[0] === '#') continue;
+                    const sp = t.indexOf(' ');
+                    if (sp > 0)
+                        entries.push({ file: t.substring(0, sp), title: t.substring(sp + 1) });
+                }
+        } catch (e) { }
+        for (const { file, title } of entries) {
+            const key = this.extraMenuKeyFromFile(file);
+            try {
+                const r = await fetch(moduleBaseURL + file);
+                if (r.ok)
+                    this.processSetupList(await r.text(), openDefault, title, key);
+            } catch (e) { }
+        }
+    }
+
+    // Derives a manifest entry's circuits-directory key from its list filename,
+    // e.g. setupTestbedlist.txt -> Testbed.
+    extraMenuKeyFromFile(file: string): string {
+        return file.replace(/^setup/, '').replace(/list\.txt$/, '');
     }
 
     // extraKey is null for the Circuits menu, otherwise the extra menu's key
