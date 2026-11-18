@@ -121,6 +121,10 @@ export class CircuitXMLSerializer {
         // Options > Other Options > Disable Digital Optimization (XML only, not in the text format)
         if (!promotionEnabled)
             CircuitXMLSerializer.dumpAttr(root, "ddopt", 1);
+        // the simulation time, so the clocks pick up on the same phase as the elements' saved
+        // state (readers that don't know it ignore it)
+        if (this.saveState && sim.t > 0)
+            CircuitXMLSerializer.dumpAttr(root, "t", sim.t);
 
         for (const ce of this.app.elmList) {
             const elem = doc.createElement(ce.getXmlDumpType());

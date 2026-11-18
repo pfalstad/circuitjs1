@@ -29,7 +29,7 @@ import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
 import { setTimescale, promotionEnabled } from "./digital/constants";
-import { buildDigitalGraph, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedDigitalGraph, disposeDigitalGraph, snapshotDigitalState } from "./digital/DigitalGraphBuilder";
+import { buildDigitalGraph, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedDigitalGraph, disposeDigitalGraph, snapshotDigitalState, takeLoadedDigitalState } from "./digital/DigitalGraphBuilder";
 import type { EngineName } from "./digital/engine";
 import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 import { parseIntStrict } from "./NumberParse";
@@ -1299,8 +1299,12 @@ export class SimulationManager {
         // absolute time rather than restarting its cycle at the build instant.
         this.digitalTickEpoch = this.timeStepCount;
         // An edit rebuilds the graph from scratch; carry the old one's state over (see
-        // DigitalStateSnapshot) unless this rebuild is a reset.
-        const carried = this.digitalGraph && !this.discardDigitalState ? snapshotDigitalState(this.digitalGraph) : null;
+        // DigitalStateSnapshot) unless this rebuild is a reset. Elements that were just loaded (a
+        // file, undo, a paste) have no state in the old graph, but may have the state they were
+        // saved with (DigitalLoadedState) - taken by the first build, so a later Reset still
+        // starts cold.
+        const old = this.digitalGraph && !this.discardDigitalState ? snapshotDigitalState(this.digitalGraph) : null;
+        const carried = takeLoadedDigitalState(this.elmArr, old);
         this.discardDigitalState = false;
         if (this.digitalGraph) disposeDigitalGraph(this.digitalGraph);
         this.digitalGraph = buildDigitalGraph(this.elmArr, this.digitalEngine);
@@ -1324,6 +1328,9 @@ export class SimulationManager {
             if ("digitalChip" in elm) (elm as any).digitalChip = chips[0] ?? null;
 
         seedDigitalGraph(this.elmArr, this.digitalGraph, carried);
+        // so the node voltages (what gates and capacitors save - see DigitalLoadedState) show the
+        // seeded state even before the first frame runs
+        syncDigitalToNodesNew(this.elmArr, this.digitalGraph);
 
         this.digitalReady = true;
     }

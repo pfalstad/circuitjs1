@@ -137,9 +137,17 @@ describe("SimulationManager digital fast path (Phase 5 integration)", () => {
             digitalSynthesis: () => ({ desc: [sourceCell(high).outputPin(1)] as ChipDesc[], pinMap: new Map([[0, 1]]) }),
             nodes: [] as any[],
         });
-        // posts 0..n-1 in, n out
+        // posts 0..n-1 in, n out. `loaded`: an output loaded from a file, given to the digital
+        // circuit the way GateElm gives its own (DigitalLoadedState)
         const gate = (n: number, f: (ins: number[]) => number) => ({
             highVoltage: 5,
+            loaded: null as number | null,
+            takeDigitalLoadedState() {
+                if (this.loaded == null) return null;
+                const chips = [this.loaded];
+                this.loaded = null;
+                return { chips };
+            },
             digitalSynthesis: () => {
                 const ins = Array.from({ length: n }, (_, i) => i + 1);
                 return {
@@ -165,10 +173,11 @@ describe("SimulationManager digital fast path (Phase 5 integration)", () => {
             connect({ elm: q, num: 2 }, { elm: qb, num: 1 }, { elm: sinks[0], num: 0 });
             connect({ elm: hi, num: 0 }, { elm: inv, num: 0 });
             connect({ elm: inv, num: 1 }, { elm: sinks[1], num: 0 });
-            const sm = bareSim([r, hi, q, qb, inv, ...sinks], maxTimeStep);
+            const elms = [r, hi, q, qb, inv, ...sinks];
+            const sm = bareSim(elms, maxTimeStep);
             const out = (elm: any) => sm.digitalGraph!.chipsByElm.get(elm)![0].currentValue();
             const run = (ticks: number) => { sm.digitalGraph!.circuit.runWithDeadline(ticks); sm.timeStepCount += ticks; };
-            return { sm, r, q, inv, out, run };
+            return { sm, elms, r, q, inv, out, run };
         }
 
         it("a latch keeps its state and no startup event flips a carried value", () => {
@@ -203,6 +212,33 @@ describe("SimulationManager digital fast path (Phase 5 integration)", () => {
             sm.initDigitalCircuit();
             run(20);
             expect(out(q)).toBe(1);
+        });
+
+        it("the state saved with a circuit file is restored when it's loaded", () => {
+            const a = build();
+            a.sm.initDigitalCircuit();
+            pushSourceValue(a.r.digitalChip!, true);
+            a.run(20);
+            pushSourceValue(a.r.digitalChip!, false);
+            a.run(20);
+            expect(a.out(a.q)).toBe(0);
+
+            // what each gate saves (its output) and loads into a new copy of the circuit
+            const b = build();
+            a.elms.forEach((elm: any, i) => {
+                if ("loaded" in elm) (b.elms[i] as any).loaded = a.out(elm);
+            });
+            b.sm.resetTime(); // as loading a file does
+            b.sm.initDigitalCircuit();
+            b.run(20);
+            expect(b.out(b.q)).toBe(0);
+            expect(b.out(b.inv)).toBe(0);
+
+            // taken by that first build: a Reset afterward starts cold
+            b.sm.resetTime();
+            b.sm.initDigitalCircuit();
+            b.run(20);
+            expect(b.out(b.q)).toBe(1);
         });
     });
 });

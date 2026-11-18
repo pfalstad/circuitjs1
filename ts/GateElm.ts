@@ -305,6 +305,15 @@ export abstract class GateElm extends CircuitElm {
         this.justLoaded = false;
     }
 
+    /** DigitalLoadedState (digital/DigitalGraphBuilder.ts): the output that was loaded ("o"),
+     * for the digital circuit to start from. From then on the digital circuit keeps the output
+     * node's voltage up to date, so that is what dumpXmlState() should save. */
+    takeDigitalLoadedState(): { chips: number[] } | null {
+        if (!this.justLoaded) return null;
+        this.justLoaded = false;
+        return { chips: [this.lastOutput ? 1 : 0] };
+    }
+
     getLeadAdjustment(ix: number): number { return 0; }
 
     // Back-control fraction for the OR gate's concave back curve (the

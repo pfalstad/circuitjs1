@@ -171,12 +171,30 @@ export class RailElm extends VoltageElm {
         // retimePhase() by writing chip.output), so this is the whole answer - there's no need to
         // misrepresent the instant as low and pad out an extra low portion to reach a rise.
         //
+        // A reference instant within half a tick of an edge (on the tick grid: exactly on it) is
+        // taken as just BEFORE the edge, with the edge due right away. The engine dispatches an
+        // event due at the current tick only when it next runs, so a circuit this rail is rebuilt
+        // into (carried over from the old graph, or loaded from a file - see
+        // DigitalStateSnapshot) saw the rail at its level before the edge; the edge then fires as
+        // the build drains its zero-delay events, and reaches everything downstream through the
+        // gates' real delays. Starting past it instead would put the edge through every cell
+        // rebuilt without saved state (inverters, tri-states) in no time at all. Either way the
+        // edge stays on the grid the rail was already running on. At tick 0 there is nothing
+        // before: a fresh start begins low (the fall that would be "due" there never happened).
+        const halfTick = Math.PI / periodTicks;
+        if (nowTicks > 0) {
+            if (Math.abs(wm - lowAngle) < halfTick)
+                return { highTicks, lowTicks, periodTicks, startsHigh: false, edgeDelay: 0 };
+            if (wm < halfTick || wm > twoPi - halfTick)
+                return { highTicks, lowTicks, periodTicks, startsHigh: true, edgeDelay: 0 };
+        }
+
         // Neither delay is clamped up to 1 tick, which would put this edge - and, since the cycle
         // self-perpetuates from it, every edge after it - permanently a tick off the grid the
-        // rail was already running on. A delay rounding to 0 means the reference instant is
-        // sitting within half a tick of the edge itself, so take the edge as already done and go
-        // to the one after it: from the high portion that means starting low with a rise due in
-        // `lowTicks`, and from the low portion a rise a whole period later. Both stay on grid.
+        // rail was already running on. A delay rounding to 0 (at tick 0, within half a tick of an
+        // edge) takes the edge as already done and goes to the one after it: from the high portion
+        // that means starting low with a rise due in `lowTicks`, and from the low portion a rise a
+        // whole period later. Both stay on grid.
         const rawDelay = !highAtReference
             ? Math.round((lowAngle - wm) / twoPi * periodTicks)
             : Math.round((twoPi - wm) / twoPi * periodTicks);

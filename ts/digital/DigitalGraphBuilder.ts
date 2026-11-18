@@ -1044,6 +1044,40 @@ export function snapshotDigitalState(graph: DigitalGraph): DigitalStateSnapshot 
 }
 
 /**
+ * Implemented by an element whose saved simulation state (dumpXmlState()) says what its part of
+ * the digital circuit was doing, so a circuit loaded from a file - or restored by undo - picks up
+ * where it was saved instead of cold-starting. Returns that state once, the first time a digital
+ * build asks after the element was loaded (null after that, or after a Reset): `chips`, its cells'
+ * values in netlist order (null for one it can't say), and/or `posts`, the values of the nodes on
+ * its posts. GateElm gives its output ("o"); CapacitorElm the charge it holds ("vd"), which is
+ * what a charge-storing node remembers. Counters and flip-flops already do this through
+ * digitalInitialState().
+ */
+export interface DigitalLoadedState {
+    takeDigitalLoadedState(): { chips?: (number | null)[]; posts?: Map<number, number> } | null;
+}
+
+/** Collects the loaded state of `elmList`'s elements (see DigitalLoadedState) into `into` - for
+ * each element or post it doesn't already have a value for - or into a new snapshot, returned;
+ * null if there was none. */
+export function takeLoadedDigitalState(elmList: any[], into: DigitalStateSnapshot | null): DigitalStateSnapshot | null {
+    let snap = into;
+    for (const elm of elmList) {
+        if (typeof elm?.takeDigitalLoadedState !== "function") continue;
+        const loaded = (elm as DigitalLoadedState).takeDigitalLoadedState();
+        if (!loaded) continue;
+        snap ??= { byElm: new Map(), byPost: new Map() };
+        if (loaded.chips && !snap.byElm.has(elm)) snap.byElm.set(elm, loaded.chips);
+        if (loaded.posts) {
+            let posts = snap.byPost.get(elm);
+            if (!posts) snap.byPost.set(elm, posts = new Map());
+            for (const [p, v] of loaded.posts) if (!posts.has(p)) posts.set(p, v);
+        }
+    }
+    return snap;
+}
+
+/**
  * Writes carried values (see DigitalStateSnapshot) into a freshly built graph's PASSIVE chips.
  * Unlike seedChipValues(), it never lets a carried chip be recomputed with zero delay. The
  * snapshot is a running circuit caught mid-flight, so its values don't all agree with each other

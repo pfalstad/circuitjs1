@@ -51,6 +51,20 @@ export class CapacitorElm extends CircuitElm {
      * DigitalChargeStorage in digital/DigitalGraphBuilder.ts). */
     digitalHoldsCharge(): boolean { return true; }
 
+    // voltdiff was loaded and the digital circuit hasn't taken it yet (takeDigitalLoadedState())
+    private digitalStateLoaded = false;
+
+    /** DigitalLoadedState (digital/DigitalGraphBuilder.ts): the charge that was loaded ("vd"),
+     * as the value the node it holds remembers. */
+    takeDigitalLoadedState(): { posts: Map<number, number> } | null {
+        if (!this.digitalStateLoaded) return null;
+        this.digitalStateLoaded = false;
+        // which post holds the charge depends on which way round the capacitor is (the other is
+        // normally ground); a post whose node isn't a charge-storing one ignores its value
+        const th = 2.5;
+        return { posts: new Map([[0, this.voltdiff > th ? 1 : 0], [1, -this.voltdiff > th ? 1 : 0]]) };
+    }
+
     constructor(xx: number, yy: number);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
     constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
@@ -67,6 +81,7 @@ export class CapacitorElm extends CircuitElm {
             super(xa, ya, xb, yb!, f!);
             this.capacitance = parseFloatStrict(st!.nextToken());
             this.voltdiff = parseFloatStrict(st!.nextToken());
+            this.digitalStateLoaded = true;
             this.initialVoltage = 1e-3;
             this.compResistance = 0;
             this.capNode2 = 0;
@@ -89,6 +104,7 @@ export class CapacitorElm extends CircuitElm {
         this.current = this.curcount = this.curSourceValue = 0;
         // put small charge on caps when reset to start oscillators
         this.voltdiff = this.initialVoltage;
+        this.digitalStateLoaded = false;
     }
     shorted(): void {
         super.reset();
@@ -106,7 +122,9 @@ export class CapacitorElm extends CircuitElm {
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
-        CircuitXMLSerializer.dumpAttr(elem, "vd", this.voltdiff);
+        // the digital circuit doesn't update voltdiff, but keeps the node voltages up to date
+        const digital = CircuitElm.sim?.digitalReady && !this.digitalStateLoaded && this.nodes?.[this.capNode2];
+        CircuitXMLSerializer.dumpAttr(elem, "vd", digital ? this.nodes[0].v - this.nodes[this.capNode2].v : this.voltdiff);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -115,6 +133,7 @@ export class CapacitorElm extends CircuitElm {
         this.initialVoltage = xml.parseDoubleAttr("iv", this.initialVoltage);
         this.seriesResistance = xml.parseDoubleAttr("sr", this.seriesResistance);
         this.voltdiff = xml.parseDoubleAttr("vd", this.voltdiff);
+        if (xml.parseStringAttr("vd", null) != null) this.digitalStateLoaded = true;
         this.allocNodes();
     }
 

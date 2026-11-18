@@ -63,11 +63,23 @@ export class CircuitXMLDeserializer {
             sim.minTimeStep = this.parseDoubleAttr("mts", sim.minTimeStep);
             sim.solverType  = this.parseIntAttr("st", sim.solverType);
             setPromotionEnabled(this.parseIntAttr("ddopt", 0) === 0);
+            this.readSimTime();
             this.app.setGrid();
         }
 
         this.readElements(root, (readFlags & CircuitLoader.RC_SUBCIRCUITS) !== 0);
         this.app.loader.finishReadCircuit(readFlags);
+    }
+
+    // the simulation time the circuit was saved at ("t"), so the clocks carry on in phase with
+    // the elements' saved state (see DigitalLoadedState)
+    readSimTime(): void {
+        const sim = this.app.sim;
+        const t = this.parseDoubleAttr("t", 0);
+        if (t > 0) {
+            sim.t = t;
+            sim.timeStepCount = Math.round(t / sim.maxTimeStep);
+        }
     }
 
     // read elements from an already-parsed XML document (e.g. from SubcircuitModel.elmDoc)
