@@ -20,6 +20,7 @@
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitLoader } from "./CircuitLoader";
+import { setPromotionEnabled } from "./digital/constants";
 import { DiodeModel } from "./DiodeModel";
 import { RelayModel } from "./RelayModel";
 import { TransistorModel } from "./TransistorModel";
@@ -61,6 +62,7 @@ export class CircuitXMLDeserializer {
             ui.powerBar.setValue(this.parseIntAttr("pb", ui.powerBar.getValue()));
             sim.minTimeStep = this.parseDoubleAttr("mts", sim.minTimeStep);
             sim.solverType  = this.parseIntAttr("st", sim.solverType);
+            setPromotionEnabled(this.parseIntAttr("ddopt", 0) === 0);
             this.app.setGrid();
         }
 

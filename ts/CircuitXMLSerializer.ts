@@ -24,6 +24,7 @@
 
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
+import { promotionEnabled } from "./digital/constants";
 
 export class CircuitXMLSerializer {
     app: CirSim;
@@ -117,6 +118,9 @@ export class CircuitXMLSerializer {
         CircuitXMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
         if (sim.solverType !== 0)
             CircuitXMLSerializer.dumpAttr(root, "st", sim.solverType);
+        // Options > Other Options > Disable Digital Optimization (XML only, not in the text format)
+        if (!promotionEnabled)
+            CircuitXMLSerializer.dumpAttr(root, "ddopt", 1);
 
         for (const ce of this.app.elmList) {
             const elem = doc.createElement(ce.getXmlDumpType());

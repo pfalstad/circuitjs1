@@ -25,6 +25,7 @@ import { SimulationManager } from "./SimulationManager";
 import { ScopeManager } from "./ScopeManager";
 import { Menus } from "./Menus";
 import { CircuitElm } from "./CircuitElm";
+import { setPromotionEnabled } from "./digital/constants";
 import { StringTokenizer } from "./StringTokenizer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { WireRouter } from "./WireRouter";
@@ -84,6 +85,7 @@ export class CircuitLoader {
         this.menus.voltsCheckItem.setState(true);
         this.menus.showValuesCheckItem.setState(true);
         this.app.autoDCOnReset = false;
+        setPromotionEnabled(true);
         this.app.setGrid();
         this.app.ui.speedBar.setValue(117);
         this.app.ui.currentBar.setValue(50);
