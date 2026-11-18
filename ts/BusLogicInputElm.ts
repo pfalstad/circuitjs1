@@ -74,6 +74,7 @@ export class BusLogicInputElm extends SwitchElm {
         this.value = xml.parseIntAttr("va", this.value);
         this.hiV = xml.parseDoubleAttr("hi", this.hiV);
         this.loV = xml.parseDoubleAttr("lo", this.loV);
+        this.allocNodes();
     }
 
     getDumpType(): number { return 0; }

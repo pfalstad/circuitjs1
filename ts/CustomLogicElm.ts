@@ -48,6 +48,7 @@ export class CustomLogicElm extends ChipElm {
             super(xa, ya);
             this.modelName = CustomLogicElm.lastModelName;
             this.setupPins();
+            this.allocNodes();
         } else {
             super(xa, ya, xb, yb!, f!, st!);
             this.modelName = CustomLogicModel.unescape(st!.nextToken());
