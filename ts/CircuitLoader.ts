@@ -361,9 +361,13 @@ export class CircuitLoader {
         this.app.autoDCOnReset = (flags & 128) != 0;
     }
 
-    async loadFileFromURL(url: string): Promise<void> {
+    // fallbackUrl, if given, is tried if url can't be loaded (e.g. a circuits/
+    // lookup falling back to applied/)
+    async loadFileFromURL(url: string, fallbackUrl?: string): Promise<void> {
 	try {
 	    const response = await fetch(url);
+	    if (!response.ok && fallbackUrl)
+		return this.loadFileFromURL(fallbackUrl);
 	    if (response.ok) {
 		const text = await response.text();
 		await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
@@ -375,6 +379,8 @@ export class CircuitLoader {
 		console.log("Bad file server response:" + response.statusText);
 	    }
 	} catch (e) {
+	    if (fallbackUrl)
+		return this.loadFileFromURL(fallbackUrl);
 	    console.log("failed file reading", e);
 	}
     }

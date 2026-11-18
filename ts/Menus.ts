@@ -766,15 +766,30 @@ export class Menus {
                 return r.text();
             })
             .then(text => { if (text) this.processSetupList(text, openDefault); })
-            .catch(() => { CirSim.console("Can't load circuit list!"); });
+            .catch(() => { CirSim.console("Can't load circuit list!"); })
+            // extra menus only after Circuits is built, so Circuits always comes first
+            .finally(() => this.getSetupExtraLists(openDefault));
     }
 
-    processSetupList(text: string, openDefault: boolean): void {
+    // Optional "Applied" menu after Circuits: setupappliedlist.txt, with its
+    // circuits in applied/. Entirely optional and server-side only: with it
+    // absent, nothing changes.
+    async getSetupExtraLists(openDefault: boolean): Promise<void> {
+        try {
+            const r = await fetch(moduleBaseURL + 'setupappliedlist.txt');
+            if (r.ok)
+                this.processSetupList(await r.text(), openDefault, "Applied", "applied");
+        } catch (e) { }
+    }
+
+    // extraKey is null for the Circuits menu, otherwise the extra menu's key
+    // (its circuits are loaded from extraKey/)
+    processSetupList(text: string, openDefault: boolean, menuTitle = "Circuits", extraKey: string | null = null): void {
         const lines = text.split(/\r?\n/);
         const stack: Menu[] = [];
         const submenuStack: string[] = [""]; // submenu titles for palette circuit hints
         let currentMenu = new Menu(this.app);
-        this.addTopItem(this.menuBarRow, Locale.LS("Circuits"), currentMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS(menuTitle), currentMenu);
         stack.push(currentMenu);
 
         for (const line of lines) {
@@ -795,9 +810,10 @@ export class Menus {
                     const first = line[0] === '>';
                     const file  = line.substring(first ? 1 : 0, sp);
                     const title = Locale.LS(line.substring(sp + 1));
-                    currentMenu.addCommand(title, "circuits", "setup " + file + " " + title);
+                    currentMenu.addCommand(title, extraKey ? "extra:" + extraKey : "circuits", "setup " + file + " " + title);
                     // Also searchable from the command palette (query length >= 2).
-                    CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
+                    if (!extraKey)
+                        CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
 
                     const app = this.app as any;
                     if (file === app.startCircuit && app.startLabel == null) {
@@ -807,8 +823,12 @@ export class Menus {
                     if (first && app.startCircuit == null) {
                         app.startCircuit = file;
                         app.startLabel   = title;
-                        if (openDefault && this.app.stopMessage == null)
-                            this.readSetupFile(app.startCircuit, app.startLabel);
+                        if (openDefault && this.app.stopMessage == null) {
+                            if (extraKey)
+                                this.readSetupExtraFile(extraKey, app.startCircuit, app.startLabel);
+                            else
+                                this.readSetupFile(app.startCircuit, app.startLabel);
+                        }
                     }
                 }
             }
@@ -820,7 +840,18 @@ export class Menus {
         (this.app as any).resetEditingContext?.();
         // don't avoid caching here, it's unnecessary and makes offline PWA's not work
         const url = moduleBaseURL + 'circuits/' + str;
-        (this.app as any).loader?.loadFileFromURL(url);
+        // if it's not in circuits/, fall back to applied/ before giving up
+        (this.app as any).loader?.loadFileFromURL(url, moduleBaseURL + 'applied/' + str);
+        if (title != null)
+            this.app.setCircuitTitle(title);
+        this.app.unsavedChanges = false;
+        this.app.savedFlag = true;
+    }
+
+    readSetupExtraFile(key: string, str: string, title: string | null): void {
+        console.log(str);
+        (this.app as any).resetEditingContext?.();
+        (this.app as any).loader?.loadFileFromURL(moduleBaseURL + key + '/' + str);
         if (title != null)
             this.app.setCircuitTitle(title);
         this.app.unsavedChanges = false;
