@@ -944,8 +944,9 @@ export class Chip extends Cycle {
     }
 
     /** initialize()'s work for this chip alone: true if its output changed (and its consumers'
-     * input bits were updated), so they need settling too. */
-    private initializeOne(): boolean {
+     * input bits were updated), so they need settling too. Also used by DigitalGraphBuilder's
+     * seedCarriedValues(). */
+    initializeOne(): boolean {
         let newOut = this.output;
 
         this.inputs &= this.eventMask;
@@ -1242,7 +1243,8 @@ export class Chip extends Cycle {
 
         if (this.state === ChipState.ASLEEP) this.wakeUp();
 
-        this.lastInputEvent[Chip.nextBit(mask)] = globalTime;
+        // mask 0 (reevaluate()): no input changed, so no input to attribute it to
+        if (mask) this.lastInputEvent[Chip.nextBit(mask)] = globalTime;
 
         if (this.state === ChipState.ACTIVE) {
             this.deactivateOutputs();
@@ -1250,9 +1252,9 @@ export class Chip extends Cycle {
             this.inputEvents.pop_back();
         }
 
-        const inputChip = this.inputLinks[Chip.nextBit(mask)].chip;
+        const inputChip = mask ? this.inputLinks[Chip.nextBit(mask)].chip : null;
 
-        if (!inputChip.inputEvents.empty()) {
+        if (inputChip && !inputChip.inputEvents.empty()) {
             let time = inputChip.inputEvents.front().time;
             while (this.inputEvents.size() > 1 && this.inputEvents.get(this.inputEvents.inc(this.inputEvents.begin())).time < time) {
                 this.inputEventTable[this.inputEvents.front().state].pop_front();
@@ -1314,6 +1316,19 @@ export class Chip extends Cycle {
 
         this.inputEventTable[this.inputs].push_back(this.inputEvents.end());
         this.inputEvents.push_back(new Event(globalTime, this.inputs));
+    }
+
+    /** For a PASSIVE LUT chip whose output was written directly (DigitalGraphBuilder's
+     * seedCarriedValues(), carrying state into a rebuilt graph): if its inputs no longer give that output,
+     * schedules the change after its usual delay, exactly as updateInputs() does when an input
+     * flips. Settling this way rather than with initialize() keeps the gate delays: a carried
+     * circuit is mid-flight (a clock edge just landed), and collapsing its propagation to zero
+     * time lets two-phase logic race. */
+    reevaluate(): void {
+        if (this.type === ChipType.CUSTOM_CHIP || this.state !== ChipState.PASSIVE || this.pendingEvent !== 0) return;
+        const newOut = this.type === ChipType.SIMPLE_CHIP ? (this.lutData >>> this.inputs) & 1
+            : (this.lut![this.inputs >> 5] >> (this.inputs & 0x1f)) & 1;
+        if (newOut !== this.output) this.updateInputs(0);
     }
 
     static updateInputsSimple(chip: Chip, mask: number): void {

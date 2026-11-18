@@ -15,6 +15,7 @@ import { chipStart, customChipStart } from "./digital/chip_desc";
 import type { ChipDesc } from "./digital/chip_desc";
 import type { Chip } from "./digital/chip";
 import { connect } from "./digital/testWiring";
+import { sourceCell, pushSourceValue } from "./digital/nativeKinds";
 
 function fakeApp() {
     return {
@@ -125,5 +126,83 @@ describe("SimulationManager digital fast path (Phase 5 integration)", () => {
         expect(buf.nodes[1].v).toBe(5); // out = in = 1 -> highVoltage
         expect(sm.timeStepCount).toBeGreaterThan(0);
         expect(sm.t).toBeGreaterThan(0);
+    });
+
+    // Any edit rebuilds the digital graph from scratch (see initDigitalCircuit()); the state of the
+    // old graph has to carry over (DigitalStateSnapshot) rather than cold-start.
+    describe("rebuild carries state over", () => {
+        const maxTimeStep = 1e-6;
+        const source = (high: () => boolean) => ({
+            digitalChip: null as Chip | null,
+            digitalSynthesis: () => ({ desc: [sourceCell(high).outputPin(1)] as ChipDesc[], pinMap: new Map([[0, 1]]) }),
+            nodes: [] as any[],
+        });
+        // posts 0..n-1 in, n out
+        const gate = (n: number, f: (ins: number[]) => number) => ({
+            highVoltage: 5,
+            digitalSynthesis: () => {
+                const ins = Array.from({ length: n }, (_, i) => i + 1);
+                return {
+                    desc: [chipStart((pin) => { pin[n + 1] = f(ins.map(i => pin[i])); }).inputPins(...ins).outputPin(n + 1)
+                        .outputDelayS(2 * maxTimeStep, 2 * maxTimeStep)] as ChipDesc[],
+                    pinMap: new Map(Array.from({ length: n + 1 }, (_, i) => [i, i + 1] as [number, number])),
+                };
+            },
+            nodes: [] as any[],
+        });
+        const nor = () => gate(2, ([a, b]) => (a | b) ^ 1);
+
+        // q = NOR(r, qb), qb = NOR(0, q): a cold start settles q=1, a pulse on r latches q=0.
+        // inv inverts a source that is high: a cold start begins it at 0 and corrects it with a
+        // zero-delay event, which inv's cold copy reacts to - an event that must not survive
+        // into the carried state.
+        function build() {
+            const r = source(() => false), hi = source(() => true);
+            const q = nor(), qb = nor(), inv = gate(1, ([a]) => a ^ 1);
+            const sinks = [sinkElm(), sinkElm()];
+            connect({ elm: r, num: 0 }, { elm: q, num: 0 });
+            connect({ elm: qb, num: 2 }, { elm: q, num: 1 });
+            connect({ elm: q, num: 2 }, { elm: qb, num: 1 }, { elm: sinks[0], num: 0 });
+            connect({ elm: hi, num: 0 }, { elm: inv, num: 0 });
+            connect({ elm: inv, num: 1 }, { elm: sinks[1], num: 0 });
+            const sm = bareSim([r, hi, q, qb, inv, ...sinks], maxTimeStep);
+            const out = (elm: any) => sm.digitalGraph!.chipsByElm.get(elm)![0].currentValue();
+            const run = (ticks: number) => { sm.digitalGraph!.circuit.runWithDeadline(ticks); sm.timeStepCount += ticks; };
+            return { sm, r, q, inv, out, run };
+        }
+
+        it("a latch keeps its state and no startup event flips a carried value", () => {
+            const { sm, r, q, inv, out, run } = build();
+            sm.initDigitalCircuit();
+            run(20);
+            expect(out(q)).toBe(1);
+            pushSourceValue(r.digitalChip!, true);
+            run(20);
+            pushSourceValue(r.digitalChip!, false);
+            run(20);
+            expect(out(q)).toBe(0);
+            expect(out(inv)).toBe(0);
+
+            sm.initDigitalCircuit(); // rebuild, as for an edit
+            expect(out(q)).toBe(0);
+            run(20);
+            expect(out(q)).toBe(0);
+            expect(out(inv)).toBe(0);
+        });
+
+        it("a Reset still starts cold", () => {
+            const { sm, r, q, out, run } = build();
+            sm.initDigitalCircuit();
+            pushSourceValue(r.digitalChip!, true);
+            run(20);
+            pushSourceValue(r.digitalChip!, false);
+            run(20);
+            expect(out(q)).toBe(0);
+
+            sm.resetTime();
+            sm.initDigitalCircuit();
+            run(20);
+            expect(out(q)).toBe(1);
+        });
     });
 });

@@ -13,7 +13,7 @@
     methods; later phases add them to the remaining chip elements.
 */
 
-import { ChipState } from "./chip";
+import { ChipState, ChipType } from "./chip";
 import type { Chip } from "./chip";
 import { chipStart } from "./chip_desc";
 import type { ChipDesc, ChipLogic, CustomLogic } from "./chip_desc";
@@ -951,8 +951,8 @@ export function isDigitalInitialStateSource(elm: any): elm is DigitalInitialStat
  * event" branch fires and silently drops that sibling's seed before it ever takes effect.
  * A direct field write sidesteps this - there is no event to cancel.
  *
- * This is safe here in a way it is NOT for carrying live state across an edit mid-simulation (a
- * harder, unsolved problem - see git history): every chip this ever runs against has never
+ * This is safe here in a way it is NOT for carrying live state across an edit mid-simulation
+ * (that is seedCarriedValues()'s job, which has to be more careful): every chip this ever runs against has never
  * processed a single real event, so there is no pre-existing bookkeeping (inputEventTable/
  * outputEvents/activeInputs/...) for a raw field write to fall out of sync with - it's simply
  * choosing a different cold-start value than all-zero, the same class of thing Circuit's own
@@ -980,14 +980,159 @@ export function seedInitialDigitalState(elmList: any[], chipsByElm: Map<any, Chi
     seedChipValues(initialStateEntries(elmList, (elm, pin) => digitalChipForPin(elm, pin, chipsByElm)));
 }
 
-/** seedInitialDigitalState() on either engine. */
-export function seedDigitalGraph(elmList: any[], graph: DigitalGraph): void {
+/** seedInitialDigitalState() on either engine, plus - when `carried` is given - the state of
+ * the graph this one replaces (see DigitalStateSnapshot). */
+export function seedDigitalGraph(elmList: any[], graph: DigitalGraph, carried?: DigitalStateSnapshot | null): void {
+    const carry = carried ? carriedStateEntries(graph, carried) : [];
     if (graph.wasm) {
         const chipsByElm = graph.chipsByElm as Map<any, WasmChip[]>;
         graph.wasm.seed(initialStateEntries(elmList, (elm, pin) => digitalChipForPin(elm, pin, chipsByElm)?.index ?? null));
+        graph.wasm.seedCarried(carry.map(e => ({ chip: (e.chip as WasmChip).index, value: e.value })));
     } else {
         seedInitialDigitalState(elmList, graph.chipsByElm as Map<any, Chip[]>);
+        seedCarriedValues(carry as { chip: Chip; value: number }[]);
     }
+}
+
+/**
+ * The live state of a digital graph, saved just before a rebuild (any edit restamps the circuit
+ * and rebuilds the graph from scratch - SimulationManager.initDigitalCircuit()) so the new graph
+ * can carry it on instead of cold-starting. Without this, adding even an unconnected element
+ * scrambles every cross-coupled gate latch and charge-storing node in the circuit - only the few
+ * elements with a digitalInitialState() would keep their state.
+ *
+ * Only LUT cells are saved (CUSTOM_CHIP cells - sources, clocks, SRAM - own internal state of their
+ * own that a raw output write would contradict), and none belonging to an element with its own
+ * digitalInitialState(), which already re-derives its state. Keyed by things that survive a
+ * rebuild: an element's cells by the element object, in netlist order (skipped if the element now
+ * synthesizes a different number of cells), and a node's resolved driver (a tri-state bus's merge
+ * cell, a pass-switch group's or charge-storing node's resolver - cells that belong to no element)
+ * by every (element, post) on that node, since the CircuitNode objects themselves are new.
+ */
+export interface DigitalStateSnapshot {
+    byElm: Map<any, (number | null)[]>;
+    byPost: Map<any, Map<number, number>>;
+}
+
+/** The chips snapshotDigitalState() saves (see DigitalStateSnapshot's docstring), as a filter. */
+function carriedChipFilter(graph: DigitalGraph): (chip: EngineChip) => boolean {
+    const own = new Set<EngineChip>();
+    for (const [elm, chips] of graph.chipsByElm)
+        if (isDigitalInitialStateSource(elm)) for (const c of chips) own.add(c);
+    return (chip) => chip.type !== ChipType.CUSTOM_CHIP && !own.has(chip);
+}
+
+/** See DigitalStateSnapshot. */
+export function snapshotDigitalState(graph: DigitalGraph): DigitalStateSnapshot {
+    const isCarriedChip = carriedChipFilter(graph);
+    const byElm = new Map<any, (number | null)[]>();
+    for (const [elm, chips] of graph.chipsByElm) {
+        if (!chips.some(isCarriedChip)) continue;
+        byElm.set(elm, chips.map(c => isCarriedChip(c) ? c.currentValue() : null));
+    }
+    const byPost = new Map<any, Map<number, number>>();
+    for (const [node, chip] of graph.triStateChipByNode) {
+        if (!isCarriedChip(chip)) continue;
+        const value = chip.currentValue();
+        for (const link of node.links ?? []) {
+            let posts = byPost.get(link.elm);
+            if (!posts) byPost.set(link.elm, posts = new Map());
+            posts.set(link.num, value);
+        }
+    }
+    return { byElm, byPost };
+}
+
+/**
+ * Writes carried values (see DigitalStateSnapshot) into a freshly built graph's PASSIVE chips.
+ * Unlike seedChipValues(), it never lets a carried chip be recomputed with zero delay. The
+ * snapshot is a running circuit caught mid-flight, so its values don't all agree with each other
+ * (a clock edge has just landed, or the rebuilt clock rail starts on the other side of one).
+ * Settling that through Chip.initialize() pushes every edge through the whole circuit in one
+ * instant: two-phase logic races, and a latch that flips the wrong way stays flipped. Instead:
+ *
+ *  1. write every carried output, and fix every consumer's input bits to match - first cancelling
+ *     any output event the new graph's own startup scheduled for the chip (a cold-starting source
+ *     like a LogicInputElm corrects itself during drainZeroDelayEvents(), and its still-cold
+ *     consumers react). An event only toggles the output, so one left queued would flip the
+ *     carried value the wrong way when it fires;
+ *  2. settle only the chips that weren't carried (tri-state merge cells, pass-group data cells -
+ *     glue that belongs to no element) from those values, never re-evaluating a carried chip
+ *     (cancelling their startup events too: settling computes their final value directly);
+ *  3. give each carried chip whose inputs now disagree with it a normal, delayed output event
+ *     (Chip.reevaluate()), so whatever is still in flight propagates at real gate speed.
+ *
+ * wasm/engine.cpp's circuit_seed_carried() is a port of this.
+ */
+export function seedCarriedValues(entries: { chip: Chip; value: number }[]): void {
+    const carried = new Set<Chip>();
+    for (const { chip } of entries) if (chip.state === ChipState.PASSIVE) carried.add(chip);
+    const work: Chip[] = [];
+    const queued = new Set<Chip>();
+    const enqueueConsumers = (chip: Chip) => {
+        for (const link of chip.outputLinks)
+            if (!carried.has(link.chip) && !queued.has(link.chip)) { queued.add(link.chip); work.push(link.chip); }
+    };
+
+    // what updateInputs() does to cancel an output event (the queue skips the stale entry itself)
+    const cancelPending = (chip: Chip) => {
+        if (chip.pendingEvent === 0) return;
+        chip.pendingEvent = 0;
+        if (!chip.optimizationDisabled && !chip.outputEvents.empty()) chip.outputEvents.pop_back();
+    };
+
+    for (const chip of carried) {
+        cancelPending(chip);
+        if (chip.output) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
+    }
+
+    for (const { chip, value } of entries) {
+        if (!carried.has(chip) || chip.output === value) continue;
+        chip.output = value;
+        if (value) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
+        for (const link of chip.outputLinks) {
+            link.chip.inputs ^= link.mask;
+            link.chip.inputs &= link.chip.eventMask; // a seed is not an edge - see seedChipValues()
+        }
+        enqueueConsumers(chip);
+    }
+
+    // Glue has no feedback loops of its own, but bound it like Chip.initialize() does anyway.
+    let budget = 1000 * Math.max(1, work.length);
+    while (work.length > 0 && budget-- > 0) {
+        const chip = work.pop()!;
+        queued.delete(chip);
+        if (chip.state !== ChipState.PASSIVE) continue;
+        if (chip.type !== ChipType.CUSTOM_CHIP) {
+            cancelPending(chip);
+            if (chip.output) chip.inputs |= chip.prevOutputMask; else chip.inputs &= ~chip.prevOutputMask;
+        }
+        if (chip.initializeOne()) enqueueConsumers(chip);
+    }
+
+    for (const chip of carried) chip.reevaluate();
+}
+
+/** The seed entries that carry `snap` into the freshly built `graph` (see DigitalStateSnapshot). */
+function carriedStateEntries(graph: DigitalGraph, snap: DigitalStateSnapshot): { chip: EngineChip; value: number }[] {
+    const isCarriedChip = carriedChipFilter(graph);
+    const out: { chip: EngineChip; value: number }[] = [];
+    for (const [elm, chips] of graph.chipsByElm) {
+        const values = snap.byElm.get(elm);
+        if (!values || values.length !== chips.length) continue;
+        chips.forEach((chip, i) => {
+            const v = values[i];
+            if (v != null && isCarriedChip(chip)) out.push({ chip, value: v });
+        });
+    }
+    for (const [node, chip] of graph.triStateChipByNode) {
+        if (!isCarriedChip(chip)) continue;
+        for (const link of node.links ?? []) {
+            const v = snap.byPost.get(link.elm)?.get(link.num);
+            if (v !== undefined) { out.push({ chip, value: v }); break; }
+        }
+    }
+    return out;
 }
 
 /** Every element's digitalInitialState() entries, in order, each resolved by `resolve` to the

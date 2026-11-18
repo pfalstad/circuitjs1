@@ -8,6 +8,8 @@ import type { HistoryEntry, HistoryWatcher } from "./chip";
 
 export interface EngineChip {
     readonly state: number;
+    /** ChipType (chip.ts): SIMPLE/BASIC are LUT cells, CUSTOM runs code of its own. */
+    readonly type: number;
     readonly output: number;
     readonly cycleTime: number;
     readonly inputLinks: ArrayLike<unknown>;

@@ -62,6 +62,7 @@ interface EngineModule {
     _chip_skip_backfill_to(c: number, i: number, target: number): void;
     _chip_trim_history(c: number, i: number, haveWatchers: number, floor: number): void;
     _circuit_seed(c: number, n: number, chips: number, values: number): void;
+    _circuit_seed_carried(c: number, n: number, chips: number, values: number): void;
     _sram_read(c: number, mem: number, address: number): number;
 }
 
@@ -169,6 +170,16 @@ export class WasmCircuit implements EngineCircuit {
         this.m._free(pc); this.m._free(pv);
     }
 
+    /** seedCarriedValues() (DigitalGraphBuilder.ts) on chip indices. */
+    seedCarried(entries: { chip: number; value: number }[]): void {
+        const n = entries.length;
+        if (n === 0) return;
+        const pc = copyIn(this.m, Int32Array.from(entries, e => e.chip));
+        const pv = copyIn(this.m, Int32Array.from(entries, e => e.value));
+        this.m._circuit_seed_carried(this.c, n, pc, pv);
+        this.m._free(pc); this.m._free(pv);
+    }
+
     queuePush(i: number, delay: number): number { return this.m._circuit_queue_push(this.c, i, delay); }
     requestHalt(): void { this.m._circuit_request_halt(this.c); }
     setInputs(i: number, v: number): void { this.m._chip_set_inputs(this.c, i, v); }
@@ -225,6 +236,7 @@ export class WasmCircuit implements EngineCircuit {
 
     output(i: number): number { return this.m._chip_output(this.c, i); }
     state(i: number): number { return this.m._chip_state(this.c, i); }
+    type(i: number): number { return this.m._chip_type(this.c, i); }
     inputs(i: number): number { return this.m._chip_inputs(this.c, i); }
     pendingEvent(i: number): number { return this.m._chip_pending_event(this.c, i); }
     cycleTime(i: number): number { return this.m._chip_cycle_time(this.c, i); }
@@ -277,6 +289,7 @@ export class WasmChip implements EngineChip {
     get pendingEvent(): number { return this.w.pendingEvent(this.index); }
     set pendingEvent(v: number) { this.w.setPendingEvent(this.index, v); }
     get state(): number { return this.w.state(this.index); }
+    get type(): number { return this.w.type(this.index); }
     get cycleTime(): number { return this.w.cycleTime(this.index); }
     get inputLinks(): [number, number][] { return this.w.inputLinks(this.index); }
     get optimizationDisabled(): boolean { return this.w.optimizationDisabled(this.index); }

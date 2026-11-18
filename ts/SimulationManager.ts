@@ -29,7 +29,7 @@ import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
 import { setTimescale, promotionEnabled } from "./digital/constants";
-import { buildDigitalGraph, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedDigitalGraph, disposeDigitalGraph } from "./digital/DigitalGraphBuilder";
+import { buildDigitalGraph, syncDigitalToNodesNew, setCurrentDigitalGraph, syncNodesToPassiveChips, seedDigitalGraph, disposeDigitalGraph, snapshotDigitalState } from "./digital/DigitalGraphBuilder";
 import type { EngineName } from "./digital/engine";
 import type { DigitalGraph } from "./digital/DigitalGraphBuilder";
 import { parseIntStrict } from "./NumberParse";
@@ -238,6 +238,10 @@ export class SimulationManager {
     // timeStepCount === t/maxTimeStep, across edits, until a Reset zeroes all of them together.
     digitalTickEpoch: number = 0;
 
+    // Set by resetTime(): the next digital graph build starts cold instead of carrying the old
+    // graph's state on (see initDigitalCircuit()).
+    discardDigitalState: boolean = false;
+
     static console(text: string): void { console.log(text); }
     static debugger(): void { debugger; }
 
@@ -260,6 +264,7 @@ export class SimulationManager {
     	this.t = this.timeStepAccum = 0;
     	this.timeStepCount = 0;
     	this.stepsSinceReset = 0;
+    	this.discardDigitalState = true;
     }
 
     // zero all node voltages; nodes are shared between elements so this must be done
@@ -1293,6 +1298,10 @@ export class SimulationManager {
         // digitalSynthesis() reads it (RailElm.digitalSynthesis()) to prime its phase against
         // absolute time rather than restarting its cycle at the build instant.
         this.digitalTickEpoch = this.timeStepCount;
+        // An edit rebuilds the graph from scratch; carry the old one's state over (see
+        // DigitalStateSnapshot) unless this rebuild is a reset.
+        const carried = this.digitalGraph && !this.discardDigitalState ? snapshotDigitalState(this.digitalGraph) : null;
+        this.discardDigitalState = false;
         if (this.digitalGraph) disposeDigitalGraph(this.digitalGraph);
         this.digitalGraph = buildDigitalGraph(this.elmArr, this.digitalEngine);
         setCurrentDigitalGraph(this.digitalGraph);
@@ -1314,7 +1323,7 @@ export class SimulationManager {
         for (const [elm, chips] of this.digitalGraph.chipsByElm)
             if ("digitalChip" in elm) (elm as any).digitalChip = chips[0] ?? null;
 
-        seedDigitalGraph(this.elmArr, this.digitalGraph);
+        seedDigitalGraph(this.elmArr, this.digitalGraph, carried);
 
         this.digitalReady = true;
     }

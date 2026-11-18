@@ -1026,7 +1026,8 @@ void Chip::updateInputs(int32_t mask) {
 
     if (state == ASLEEP) wakeUp();
 
-    lastInputEvent[nextBit(mask)] = globalTime;
+    // mask 0 (circuit_seed_carried()): no input changed, so no input to attribute it to
+    if (mask) lastInputEvent[nextBit(mask)] = globalTime;
 
     if (state == ACTIVE) {
         deactivateOutputs();
@@ -1034,9 +1035,9 @@ void Chip::updateInputs(int32_t mask) {
         inputEvents.pop_back();
     }
 
-    Chip* inputChip = inputLinks[nextBit(mask)].chip;
+    Chip* inputChip = mask ? inputLinks[nextBit(mask)].chip : nullptr;
 
-    if (!inputChip->inputEvents.empty()) {
+    if (inputChip && !inputChip->inputEvents.empty()) {
         Time time = inputChip->inputEvents.front().time;
         while (inputEvents.size() > 1 && inputEvents.get(inputEvents.inc(inputEvents.begin())).time < time) {
             inputEventTable[inputEvents.front().state].pop_front();
@@ -1767,6 +1768,67 @@ EMSCRIPTEN_KEEPALIVE void circuit_seed(Circuit* c, int n, const int32_t* chipIdx
         }
     }
     for (Chip* chip : fresh) chip->initialize();
+}
+
+// seedCarriedValues() (DigitalGraphBuilder.ts) - see its comment. The last loop is
+// Chip.reevaluate() (chip.ts).
+EMSCRIPTEN_KEEPALIVE void circuit_seed_carried(Circuit* c, int n, const int32_t* chipIdx, const int32_t* values) {
+    size_t nc = c->chips.size();
+    std::vector<char> carried(nc, 0), queued(nc, 0);
+    std::vector<Chip*> carriedList, work;
+    for (int k = 0; k < n; k++) {
+        Chip* chip = c->chips[chipIdx[k]];
+        if (chip->state != PASSIVE || carried[chip->chipIndex]) continue;
+        carried[chip->chipIndex] = 1;
+        carriedList.push_back(chip);
+    }
+    auto enqueueConsumers = [&](Chip* chip) {
+        for (ChipLink& link : chip->outputLinks) {
+            int li = link.chip->chipIndex;
+            if (!carried[li] && !queued[li]) { queued[li] = 1; work.push_back(link.chip); }
+        }
+    };
+
+    auto cancelPending = [](Chip* chip) {
+        if (chip->pendingEvent == 0) return;
+        chip->pendingEvent = 0;
+        if (!chip->optimizationDisabled && !chip->outputEvents.empty()) chip->outputEvents.pop_back();
+    };
+    for (Chip* chip : carriedList) {
+        cancelPending(chip);
+        if (chip->_output) chip->inputs |= chip->prevOutputMask; else chip->inputs &= ~chip->prevOutputMask;
+    }
+
+    for (int k = 0; k < n; k++) {
+        Chip* chip = c->chips[chipIdx[k]];
+        int32_t value = values[k];
+        if (!carried[chip->chipIndex] || chip->_output == value) continue;
+        chip->setOutput(value);
+        if (value) chip->inputs |= chip->prevOutputMask; else chip->inputs &= ~chip->prevOutputMask;
+        for (ChipLink& link : chip->outputLinks) {
+            link.chip->inputs ^= link.mask;
+            link.chip->inputs &= link.chip->eventMask;
+        }
+        enqueueConsumers(chip);
+    }
+
+    size_t budget = 1000 * std::max<size_t>(1, work.size());
+    while (!work.empty() && budget-- > 0) {
+        Chip* chip = work.back();
+        work.pop_back();
+        queued[chip->chipIndex] = 0;
+        if (chip->state != PASSIVE) continue;
+        if (chip->type != CUSTOM_CHIP) {
+            cancelPending(chip);
+            if (chip->_output) chip->inputs |= chip->prevOutputMask; else chip->inputs &= ~chip->prevOutputMask;
+        }
+        if (chip->initializeOne()) enqueueConsumers(chip);
+    }
+
+    for (Chip* chip : carriedList) {
+        if (chip->type == CUSTOM_CHIP || chip->pendingEvent != 0) continue;
+        if (chip->lutLookup() != chip->_output) chip->updateInputs(0);
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE int sram_read(Circuit* c, int mem, int address) { return c->srams[mem].words[address]; }
