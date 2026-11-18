@@ -516,7 +516,9 @@ export class SimulationManager {
 		const nme = this.getFromPointMap(this.uiNodeMap, pt);
 		if (nme != null && nme.node != null) {
 		    const cn = nme.node;
-		    ce.setNode(j, cn);
+		    // set directly rather than with setNode(), so the wire's stale voltage (from when it was
+		    // last viewed) isn't pushed onto the node, which is shared with simulated elements
+		    ce.nodes[j] = cn;
 		    const cnl = new CircuitNodeLink();
 		    cnl.num = j;
 		    cnl.elm = ce;

@@ -1626,7 +1626,7 @@ export class UIManager {
         this.subcircuitStack.push(cce);
         this.elmList = allElms;
         this.updateSubcircuitPath();
-        this.app.sim.analyzeCircuit();
+        this.analyzeViewedCircuit();
         this.centerCircuit();
     }
 
@@ -1642,8 +1642,22 @@ export class UIManager {
             this.elmList = cce.buildDisplayElmList();
         }
         this.updateSubcircuitPath();
-        this.app.sim.analyzeCircuit();
+        this.analyzeViewedCircuit();
         this.centerCircuit();
+    }
+
+    // analyze after the viewed element list changes.  display wires only get their nodes (and so their
+    // voltages) when the circuit is stamped, which doesn't happen while stopped, so stamp it now.
+    private analyzeViewedCircuit(): void {
+        this.app.sim.analyzeCircuit();
+        if (this.app.simRunning || !this.app.sim.needsStamp)
+            return;
+        try {
+            this.app.sim.preStampAndStampCircuit();
+        } catch (e) {
+            if (!SimulationManager.isStop(e))
+                this.app.sim.halt("Exception in stampCircuit()", null);
+        }
     }
 
     updateSubcircuitPath(): void {
