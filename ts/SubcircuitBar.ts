@@ -153,6 +153,11 @@ export class SubcircuitBar {
         this.backButton.style.display = show ? '' : 'none';
     }
 
+    // height of the bar when visible (it overlays the top of the canvas), else 0
+    getVisibleHeight(): number {
+        return this.element.style.display === 'none' ? 0 : this.element.offsetHeight;
+    }
+
     updatePosition(left: number, top: number, width: number): void {
         this.element.style.left = left + 'px';
         this.element.style.top = top + 'px';
