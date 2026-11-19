@@ -1129,6 +1129,10 @@ export class SimulationManager {
 	for (i = 0; i !== this.voltageSourceCount; i++) {
 	    const vs = this.voltageSources[i];
 	    vs.assignMatrix();
+	    // both ends on ground (e.g. a controlled source with its outputs shorted to
+	    // ground), so there's no matrix to put it in
+	    if (vs.matrix == null)
+		this.stop("Voltage source/wire loop with no resistance!", vs.elm);
 	}
 	// assign VS row numbers (after node rows)
 	for (i = 0; i !== this.voltageSourceCount; i++) {

@@ -152,6 +152,8 @@ export class WattmeterTrueElm extends CircuitElm {
 
     setVoltageSource(j: number, vs: VoltageSource): void {
         this.voltSources[j] = vs;
+        // the source sits between posts 2 and 3, not on the last post (which may be ground)
+        vs.setNodes(this.nodes[2], this.nodes[3]);
     }
 
     draw(g: Graphics): void {

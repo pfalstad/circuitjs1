@@ -978,8 +978,16 @@ bool SimulationManager::preStampCircuit(bool subcircuit) {
 
     // assign voltage sources to matrices
     std::vector<int> vsPerMatrix(matrices.size(), 0);
-    for (int i = 0; i != voltageSourceCount; i++)
-        voltageSources[i]->assignMatrix();
+    for (int i = 0; i != voltageSourceCount; i++) {
+        VoltageSource *vs = voltageSources[i].get();
+        vs->assignMatrix();
+        // both ends on ground (e.g. a controlled source with its outputs shorted to
+        // ground), so there's no matrix to put it in
+        if (vs->matrix == nullptr) {
+            stop("Voltage source/wire loop with no resistance!", vs->elm);
+            return false;
+        }
+    }
     // assign VS row numbers (after node rows)
     for (int i = 0; i != voltageSourceCount; i++) {
         VoltageSource *vs = voltageSources[i].get();

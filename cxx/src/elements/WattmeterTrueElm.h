@@ -67,7 +67,11 @@ public:
     void setPoints() override;
     Point getPost(int n) override { return posts[n]; }
     void stamp() override;
-    void setVoltageSource(int j, VoltageSource *vs) override { voltSources[j] = vs; }
+    // the source sits between posts 2 and 3, not on the last post (which may be ground)
+    void setVoltageSource(int j, VoltageSource *vs) override {
+        voltSources[j] = vs;
+        vs->setNodes(nodes[2], nodes[3]);
+    }
     void draw(Graphics &g) override;
     // Average over whole cycles, delimited by rising crossings of the long-run mean
     // (ported from WattmeterElm.stepFinished(), which fixed the same averaging
