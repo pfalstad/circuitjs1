@@ -973,6 +973,10 @@ export class UIManager {
             cheight -= h;
         }
 
+        // the subcircuit bar overlays the top of the canvas, so keep the circuit below it
+        const barHeight = this.subcircuitBar ? this.subcircuitBar.getVisibleHeight() : 0;
+        cheight = Math.max(cheight - barHeight, 1);
+
         if (bounds != null)
             scale = Math.min(this.app.circuitArea.width / (bounds.width + 140),
                              cheight / (bounds.height + 100));
@@ -982,7 +986,7 @@ export class UIManager {
         this.app.transform[1] = this.app.transform[2] = this.app.transform[4] = this.app.transform[5] = 0;
         if (bounds != null) {
             this.app.transform[4] = (this.app.circuitArea.width - bounds.width * scale) / 2 - bounds.x * scale;
-            this.app.transform[5] = (cheight - bounds.height * scale) / 2 - bounds.y * scale;
+            this.app.transform[5] = barHeight + (cheight - bounds.height * scale) / 2 - bounds.y * scale;
         }
     }
 
