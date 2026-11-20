@@ -1589,6 +1589,7 @@ export class UIManager {
         this.updateSubcircuitPath();
         this.analyzeViewedCircuit();
         this.centerCircuit();
+	this.app.repaint();
     }
 
     // analyze after the viewed element list changes.  display wires only get their nodes (and so their
