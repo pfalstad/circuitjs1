@@ -108,8 +108,17 @@ export class MenuItem {
 
 // ---- Internal menu-building helpers ----
 
-function closeAllMenus(): void {
+export function closeAllMenus(): void {
     document.querySelectorAll('.gwt-MenuItem.open, .topMenuItem.open, li.hasSubmenu.open').forEach(el => el.classList.remove('open'));
+}
+
+// Get out of the way once an element or tool is picked: close the dropdowns and, in the
+// collapsed (touch) layout, the hamburger menu bar and the sidebar -- they cover the canvas
+// the element is about to be placed on.
+export function closeMenusAndOverlays(): void {
+    closeAllMenus();
+    document.querySelectorAll<HTMLInputElement>('input.toptrigger:checked, input.trigger:checked')
+        .forEach(cb => { cb.checked = false; });
 }
 
 function anyMenuOpen(): boolean {

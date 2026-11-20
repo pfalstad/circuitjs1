@@ -20,7 +20,7 @@
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { ElementFactory } from "./ElementFactory";
-import { Menus } from "./Menus";
+import { Menus, closeMenusAndOverlays } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ScopeManager } from "./ScopeManager";
 import { Scope } from "./Scope";
@@ -1660,9 +1660,12 @@ export class UIManager {
         this.mouse.mouseMode = mode;
         if (mode !== MouseManager.MODE_SELECT_POSTS)
             this.mouse.clearPostSelection();
-        if (mode === MouseManager.MODE_ADD_ELM)
+        if (mode === MouseManager.MODE_ADD_ELM) {
             this.setCursorStyle("cursorCross");
-        else
+            // the item was picked from a menu: clear the menus and the collapsed-layout
+            // overlays so the canvas is visible for placing it
+            closeMenusAndOverlays();
+        } else
             this.setCursorStyle("cursorPointer");
     }
 
