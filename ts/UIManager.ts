@@ -20,7 +20,7 @@
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { ElementFactory } from "./ElementFactory";
-import { Menus } from "./Menus";
+import { Menus, closeMenusAndOverlays } from "./Menus";
 import { MouseManager } from "./MouseManager";
 import { ScopeManager } from "./ScopeManager";
 import { Scope } from "./Scope";
@@ -93,6 +93,10 @@ export class Scrollbar {
         can.style.height  = Scrollbar.SCROLLHEIGHT + 'px';
         can.style.display = 'block';
         can.style.cursor  = 'default';
+        // A finger that lands on a slider while trying to scroll the sidebar used to drag the
+        // slider instead: the touch handlers cancelled every gesture. With pan-y the browser
+        // keeps vertical drags (scrolling the panel) and only horizontal drags reach the slider.
+        can.style.touchAction = 'pan-y';
         this.element = can;
         this.g = can.getContext('2d')!;
 
@@ -125,15 +129,21 @@ export class Scrollbar {
         });
         can.addEventListener('wheel', (e) => this.onMouseWheel(e), { passive: false });
 
+        // Do not cancel the gesture on touchstart: a vertical drag has to stay available for
+        // scrolling the sidebar (touch-action: pan-y above). The slider only takes horizontal
+        // moves, and only once the gesture has clearly gone sideways.
+        let touchStartX = 0, touchStartY = 0;
         can.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+            const t = e.touches[0];
+            touchStartX = t.clientX; touchStartY = t.clientY;
             this.dragging = false;
-            const t = e.touches[0];
             this.doMouseDown(t.clientX - can.getBoundingClientRect().left, false);
-        }, { passive: false });
+        }, { passive: true });
         can.addEventListener('touchmove', (e) => {
-            e.preventDefault();
             const t = e.touches[0];
+            const dx = Math.abs(t.clientX - touchStartX), dy = Math.abs(t.clientY - touchStartY);
+            if (dy > dx) { this.dragging = false; return; }   // vertical: let the panel scroll
+            e.preventDefault();
             this.doMouseMove(t.clientX - can.getBoundingClientRect().left);
         }, { passive: false });
         can.addEventListener('touchend', (e) => {
@@ -609,6 +619,9 @@ export class UIManager {
         UIManager.VERTICALPANELWIDTH = Math.floor(width / 5);
         if (UIManager.VERTICALPANELWIDTH > 166) UIManager.VERTICALPANELWIDTH = 166;
         if (UIManager.VERTICALPANELWIDTH < 128) UIManager.VERTICALPANELWIDTH = 128;
+        // the touch layout sizes the collapsed sidebar from this value; its contents (sliders,
+        // labels) are laid out for exactly this width
+        document.documentElement.style.setProperty('--vpanel-width', UIManager.VERTICALPANELWIDTH + 'px');
 
         this.verticalPanel = document.createElement('div');
         this.verticalPanel.className = 'verticalPanel';
@@ -632,6 +645,8 @@ export class UIManager {
         const topPanelCheckboxLabel = document.createElement('label');
         topPanelCheckboxLabel.className = 'toptriggerlabel';
         topPanelCheckboxLabel.setAttribute('for', 'toptrigger');
+        // the collapsed layout shows a labelled button instead of a bare burger glyph
+        topPanelCheckboxLabel.textContent = Locale.LS("Menu");
 
         // make buttons side by side if there's room
         this.buttonPanel = (UIManager.VERTICALPANELWIDTH === 166)
@@ -643,7 +658,12 @@ export class UIManager {
         this.menus.dotsCheckItem.setState(true);
         this.menus.voltsCheckItem.setState(true);
         this.menus.showValuesCheckItem.setState(true);
+        // The collapsed touch layout has no room for the 40px icon strip and the menu already
+        // reaches the same commands, so phones and tablets start without it
+        // (Options > Toolbar brings it back at any time).
+        const coarse = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
         this.menus.toolbarCheckItem.setState(
+            !coarse &&
             !this.hideMenu && !noEditing && !hideSidebar &&
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
@@ -1521,6 +1541,9 @@ export class UIManager {
         content.style.position = 'fixed';
         content.style.left = clientX + 'px';
         content.style.top  = clientY + 'px';
+        // the menu bar element is reused: drop a height cap left over from a previous open
+        content.style.maxHeight = '';
+        content.style.overflowY = '';
         document.body.appendChild(content);
         this.contextPanel = content;
 
@@ -1532,6 +1555,17 @@ export class UIManager {
         if (clampedX !== clientX || clampedY !== clientY) {
             content.style.left = clampedX + 'px';
             content.style.top  = clampedY + 'px';
+        }
+
+        // Clamping above places the panel by its top edge only, but opening a submenu inside
+        // it makes it grow again -- and on a short touch viewport that growth ran past the
+        // bottom edge, leaving the last entries cut off. Cap the height to the room below the
+        // (possibly clamped) top and let the panel scroll instead. 6px: leave room for the
+        // panel's own border/padding, which max-height does not cover.
+        const room = window.innerHeight - clampedY - 6;
+        if (h > room) {
+            content.style.maxHeight = Math.max(60, room) + 'px';
+            content.style.overflowY = 'auto';
         }
 
         // close on outside click
@@ -1626,9 +1660,12 @@ export class UIManager {
         this.mouse.mouseMode = mode;
         if (mode !== MouseManager.MODE_SELECT_POSTS)
             this.mouse.clearPostSelection();
-        if (mode === MouseManager.MODE_ADD_ELM)
+        if (mode === MouseManager.MODE_ADD_ELM) {
             this.setCursorStyle("cursorCross");
-        else
+            // the item was picked from a menu: clear the menus and the collapsed-layout
+            // overlays so the canvas is visible for placing it
+            closeMenusAndOverlays();
+        } else
             this.setCursorStyle("cursorPointer");
     }
 
