@@ -227,6 +227,9 @@ class CircuitBuilder {
 export class Circuit {
     chips: Chip[] = [];
     globalTime = 0;
+    // True during the constructor's settling pass, when a chip may still see inputs whose
+    // drivers haven't been settled yet: SRAM cells don't write then (see Chip.initializeOne()).
+    initializing = false;
 
     // Every chip Chip.addHistoryWatcher() has ever been called on (i.e. every chip
     // `historyWatched` has ever been set true for) - see Chip.trimHistory()'s own comment.
@@ -306,7 +309,12 @@ export class Circuit {
             for (const link of chip.outputLinks) link.chip.inputs |= link.mask;
         }
 
+        this.initializing = true;
         for (let i = 2; i < this.chips.length; i++) this.chips[i].initialize();
+        this.initializing = false;
+        // Now that every input has settled, do the writes of any SRAM cell whose /WE really is
+        // low at startup.
+        for (let i = 2; i < this.chips.length; i++) this.chips[i].initializeSramWrite();
     }
 
     // CANONICAL TIE-BREAK. The heap is keyed on time alone, so equal-time events would pop in

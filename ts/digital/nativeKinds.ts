@@ -80,10 +80,14 @@ export function pushSourceValue(engineChip: EngineChip, high: boolean): void {
 }
 
 /** A live-pushable source (LogicInputElm, ExtVoltageElm). `high` is read at initialization;
- * later changes are pushed with pushSourceValue() (or the engine's setSource()). */
+ * later changes are pushed with pushSourceValue() (or the engine's setSource()). The cell is
+ * born at its level, so that consumers see it while the circuit settles: otherwise a high
+ * source reads low until its 0-delay event runs, which (for one) has an SRAM write to address
+ * 0 through a /WE input that is really high. */
 export function sourceCell(high: () => boolean): ChipDescBuilder {
     return customChipStart((chip) => pushSourceValue(chip, high()))
-        .nativeKind({ kind: "source", high });
+        .nativeKind({ kind: "source", high })
+        .initialOutput(high() ? 1 : 0);
 }
 
 /** One data bit of an SRAM. Inputs: /WE, /OE, address bits MSB first, data in. Not a custom

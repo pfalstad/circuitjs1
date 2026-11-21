@@ -357,3 +357,29 @@ describe("SRAMElm on the WASM engine", () => {
         expect([...sram.map.entries()]).toEqual([[1, 2]]);
     });
 });
+
+// A live source (a logic input) driving /WE high must read high while the circuit first settles,
+// or the SRAM sees /WE low at address 0 and overwrites that word with the bus value.
+describe("SRAMElm startup", () => {
+    beforeAll(async () => { await loadWasmEngine(); });
+
+    for (const engine of ["ts", "wasm"] as const) {
+        it(`keeps address 0 when /WE is held high by a source (${engine})`, () => {
+            const sram = makeSram(2, 2, [[0, 3], [1, 2]]);
+            const src = (high: boolean) => {
+                const s: any = { nodes: [] };
+                s.digitalSynthesis = () => ({ desc: [sourceCell(() => high).outputPin(1)], pinMap: new Map([[0, 1]]) });
+                return s;
+            };
+            // /WE high, /OE low, address 0
+            const pins = [src(true), src(false), src(false), src(false)];
+            pins.forEach((p, k) => connect({ elm: p, num: 0 }, { elm: sram, num: k }));
+            const graph = buildDigitalGraph([...pins, sram], engine);
+            graph.circuit.drainZeroDelayEvents();
+            graph.circuit.run(20);
+            disposeDigitalGraph(graph);
+            expect(sram.map.get(0)).toBe(3);
+            expect(sram.map.get(1)).toBe(2);
+        });
+    }
+});

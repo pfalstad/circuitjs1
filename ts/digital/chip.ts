@@ -943,6 +943,12 @@ export class Chip extends Cycle {
         }
     }
 
+    /** For an SRAM cell, does the write its settled inputs call for (see Circuit's
+     * constructor), settling downstream if that changes the output. */
+    initializeSramWrite(): void {
+        if (this.sram !== null && this.sramWrite()) this.initialize();
+    }
+
     /** initialize()'s work for this chip alone: true if its output changed (and its consumers'
      * input bits were updated), so they need settling too. Also used by DigitalGraphBuilder's
      * seedCarriedValues(). */
@@ -950,7 +956,10 @@ export class Chip extends Cycle {
         let newOut = this.output;
 
         this.inputs &= this.eventMask;
-        if (this.sram !== null) this.sramWrite();
+        // Not during the circuit's first settling pass: this chip's inputs may still be the
+        // all-zero state its drivers haven't updated yet, which reads as /WE low at address 0,
+        // and would clobber that location. Circuit's constructor does the writes afterwards.
+        if (this.sram !== null && !this.circuit?.initializing) this.sramWrite();
 
         switch (this.type) {
             case ChipType.SIMPLE_CHIP: newOut = (this.lutData >>> this.inputs) & 1; break;

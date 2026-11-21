@@ -529,6 +529,8 @@ struct Circuit {
     std::vector<Chip*> chips;
     Time globalTime = 0;
     bool haltRequested = false;
+    // True during circuit_build()'s settling pass - see Circuit.initializing (circuit.ts).
+    bool initializing = false;
 
     std::vector<SramMem> srams;
     std::vector<MonoGroup> monoGroups;
@@ -865,7 +867,8 @@ bool Chip::initializeOne() {
     int32_t newOut = _output;
 
     inputs &= eventMask;
-    if (sramWords) sramWrite();
+    // Not during the first settling pass - see chip.ts's initializeOne().
+    if (sramWords && !(circuit && circuit->initializing)) sramWrite();
 
     switch (type) {
         case SIMPLE_CHIP: newOut = (int32_t)((lutData >> (inputs & 31)) & 1); break;
@@ -1640,7 +1643,12 @@ EMSCRIPTEN_KEEPALIVE void circuit_build(Circuit* c, int numCells, const double* 
         for (ChipLink& link : chip->outputLinks) link.chip->inputs |= link.mask;
     }
 
+    c->initializing = true;
     for (size_t i = 2; i < chips.size(); i++) chips[i]->initialize();
+    c->initializing = false;
+    // SRAM writes on the settled inputs - see circuit.ts's constructor.
+    for (size_t i = 2; i < chips.size(); i++)
+        if (chips[i]->sramWords && chips[i]->sramWrite()) chips[i]->initialize();
 }
 
 EMSCRIPTEN_KEEPALIVE void circuit_free(Circuit* c) {
