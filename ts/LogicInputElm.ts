@@ -259,6 +259,27 @@ export class LogicInputElm extends SwitchElm {
 
     getShortcut(): number { return 'i'.charCodeAt(0); }
 
+    // set the input from JavaScript: false/0 = low, true/1 = high (0..2 if ternary)
+    setPositionJS(p: number | boolean): void {
+        let pos = (typeof p === "boolean") ? (p ? 1 : 0) : Math.round(p);
+        pos = Math.max(0, Math.min(this.posCount - 1, pos));
+        if (pos === this.position)
+            return;
+        this.position = pos;
+        // no reanalysis needed, doStep() picks up the new voltage (digital mode: push it like toggle())
+        if (this.isDigitalSource() && this.digitalChip)
+            LogicInputElm.pushDigitalValue(this.digitalChip, this.digitalHigh());
+        CircuitElm.app.repaint();
+    }
+
+    addJSMethods(): void {
+        super.addJSMethods();
+        const p = this._jsProxy!;
+        p['getPosition'] = () => this.position;
+        p['setPosition'] = (v: number | boolean) => this.setPositionJS(v);
+        p['toggle']      = () => this.setPositionJS((this.position + 1) % this.posCount);
+    }
+
     getCurrentIntoNode(n: number): number { return this.current; }
 
     validate(): boolean { return this.validateRailNode(0); }

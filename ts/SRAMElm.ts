@@ -631,4 +631,61 @@ export class SRAMElm extends ChipElm implements DigitalTriStateDriver, DigitalTr
         if (postIndex < this.dataNodes || postIndex >= this.dataNodes + this.dataBits) return null;
         return 3 + this.addressBits + this.dataBits + (postIndex - this.dataNodes);
     }
+
+    // replace the contents from JavaScript, with:
+    //  - an array of values starting at startAddr,
+    //  - an array of runs, [addr, [values...], addr, [values...], ...], or
+    //  - text in the format of the Contents field ("addr: val val val...")
+    loadContentsJS(data: ArrayLike<number> | (number | ArrayLike<number>)[] | string, startAddr: number = 0): void {
+        if (typeof data === "string") {
+            const err = this.parseContentsString(data);
+            if (err !== null)
+                throw new Error("SRAM contents: " + err);
+        } else {
+            const mask = (1 << this.dataBits) - 1;
+            const map: Map<number, number> = new Map();
+            const isRuns = Array.isArray(data) && data.some(x => typeof x !== "number");
+            if (isRuns) {
+                const runs = data as (number | ArrayLike<number>)[];
+                if (runs.length % 2 !== 0)
+                    throw new Error("SRAM contents: expected [addr, [values...], addr, [values...], ...]");
+                for (let r = 0; r < runs.length; r += 2) {
+                    const addr = runs[r];
+                    const vals = runs[r + 1];
+                    if (typeof addr !== "number" || typeof vals === "number" || vals == null)
+                        throw new Error("SRAM contents: expected [addr, [values...], addr, [values...], ...]");
+                    for (let i = 0; i < vals.length; i++)
+                        map.set(addr + i, vals[i] & mask);
+                }
+            } else {
+                const vals = data as ArrayLike<number>;
+                for (let i = 0; i < vals.length; i++)
+                    map.set(startAddr + i, vals[i] & mask);
+            }
+            this.detachContents();
+            this.map = map;
+        }
+        if ((this.flags & SRAMElm.FLAG_RELOAD_ON_RESET) !== 0)
+            this.initialMap = new Map(this.map);
+        // the digital engine holds its own copy of the contents; rebuild it from map
+        CircuitElm.app.needAnalyze();
+    }
+
+    setValueJS(addr: number, v: number): void {
+        this.syncContents();
+        this.detachContents();
+        this.map.set(addr, v & ((1 << this.dataBits) - 1));
+        CircuitElm.app.needAnalyze();
+    }
+
+    addJSMethods(): void {
+        super.addJSMethods();
+        const p = this._jsProxy!;
+        p['loadContents'] = (data: (number | number[])[] | string, startAddr?: number) => this.loadContentsJS(data, startAddr ?? 0);
+        p['getContents']  = () => this.contentsToString();
+        p['getValue']     = (addr: number) => { this.syncContents(); return this.map.get(addr) ?? 0; };
+        p['setValue']     = (addr: number, v: number) => this.setValueJS(addr, v);
+        p['getAddressBits'] = () => this.addressBits;
+        p['getDataBits']    = () => this.dataBits;
+    }
 }
