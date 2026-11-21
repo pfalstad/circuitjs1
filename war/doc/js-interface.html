@@ -247,6 +247,25 @@ sim.getCircuitAsSVG();</code></pre>
     <li><strong>Example:</strong> <code>var labelName = labelElm.getLabelName();</code></li>
 </ul>
 
+<h3><code>getPosition()</code>, <code>setPosition(value)</code>, <code>toggle()</code> (For LogicInputElm)</h3>
+<ul>
+    <li><strong>Description:</strong> Gets or sets the state of a logic input. <code>value</code> is <code>0</code>/<code>false</code> for low and <code>1</code>/<code>true</code> for high (or 0, 1, 2 for a ternary input). <code>toggle()</code> switches to the next state, like clicking it.</li>
+    <li><strong>Returns:</strong> <code>getPosition()</code> returns the current state as a number.</li>
+    <li><strong>Example:</strong> <code>for (const e of sim.getElements()) if (e.getType() == "LogicInputElm") e.setPosition(1);</code></li>
+</ul>
+
+<h3><code>loadContents(data, startAddr)</code> (For SRAMElm and ROMElm)</h3>
+<ul>
+    <li><strong>Description:</strong> Replaces the memory contents. <code>data</code> is one of: an array of values (stored starting at <code>startAddr</code>, default 0); an array of runs, <code>[addr, [values...], addr, [values...], ...]</code> (<code>startAddr</code> is ignored); or a string in the same format as the Contents field in the edit dialog (<code>"addr: val val val..."</code>, one line per run). Any previous contents are cleared. Throws an error if the data can't be parsed.</li>
+    <li><strong>Example:</strong> <code>ram.loadContents([0x3E, 0x05, 0xC9]);</code>, <code>ram.loadContents([0, [1, 2, 3], 16, [4, 5]]);</code> or <code>ram.loadContents("0: 1 2 3\n16: 4 5");</code></li>
+</ul>
+
+<h3><code>getContents()</code>, <code>getValue(addr)</code>, <code>setValue(addr, value)</code>, <code>getAddressBits()</code>, <code>getDataBits()</code> (For SRAMElm and ROMElm)</h3>
+<ul>
+    <li><strong>Description:</strong> <code>getContents()</code> returns the contents as text (Contents field format). <code>getValue</code>/<code>setValue</code> read or write a single address. <code>getAddressBits</code>/<code>getDataBits</code> return the memory's size.</li>
+    <li><strong>Example:</strong> <code>var v = ram.getValue(16); ram.setValue(16, v+1);</code></li>
+</ul>
+
 <h3><code>getPostCount()</code></h3>
 <ul>
     <li><strong>Description:</strong> Returns the number of posts (connection points) for the element.</li>
