@@ -34,6 +34,7 @@ class MiniElement {
     hasAttribute(name: string): boolean { return this.attrs.has(name); }
     removeAttribute(name: string): void { this.attrs.delete(name); }
     appendChild<T extends MiniElement | MiniText>(n: T): T { this.childNodes.push(n); return n; }
+    hasChildNodes(): boolean { return this.childNodes.length > 0; }
     getElementsByTagName(tag: string): MiniElement[] {
         return this.children.flatMap(c => [...(tag === "*" || c.tagName === tag ? [c] : []), ...c.getElementsByTagName(tag)]);
     }
