@@ -397,6 +397,7 @@ export class MouseManager {
 	    this.heldSwitchElm = se;
 	if (!this.mouseElm.isLogicInputElm())
 	    this.sim.needAnalyze();
+	this.sim.jsInterface?.callSwitchHook(se);
 	return true;
     }
 
@@ -1671,8 +1672,10 @@ export class MouseManager {
 	    this.dragMovedElms.clear();
 	}
 	if (this.heldSwitchElm != null) {
-	    (this.heldSwitchElm as any).mouseUp();
+	    const held = this.heldSwitchElm as any;
 	    this.heldSwitchElm = null;
+	    held.mouseUp();
+	    this.sim.jsInterface?.callSwitchHook(held);
 	    circuitChanged = true;
 	}
 	let createdElm: CircuitElm | null = null;

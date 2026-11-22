@@ -1934,6 +1934,7 @@ export class UIManager {
                 if (se.momentary && se.keyShortcut != null && se.keyShortcut === keyStr) {
                     se.mouseUp();
                     released = true;
+                    this.app.jsInterface?.callSwitchHook(se);
                 }
             }
         }
@@ -1991,6 +1992,7 @@ export class UIManager {
                             if (!se.isLogicInputElm())
                                 this.app.needAnalyze();
                             toggled = true;
+                            this.app.jsInterface?.callSwitchHook(se);
                         }
                     }
                 }

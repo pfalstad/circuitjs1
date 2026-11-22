@@ -99,6 +99,16 @@ export class JSInterface {
             hook((window as any).CircuitJS1);
     }
 
+    // called when the user toggles a switch (click, release of a momentary switch, or
+    // keyboard shortcut).  not called for changes made through the JS interface.
+    callSwitchHook(elm: any): void {
+        const hook = (window as any).CircuitJS1?.onswitch;
+        if (!hook)
+            return;
+        elm.addJSMethods();
+        hook((window as any).CircuitJS1, elm.getJavaScriptObject());
+    }
+
     callSVGRenderedHook(svgData: string): void {
         const hook = (window as any).CircuitJS1?.onsvgrendered;
         if (hook)

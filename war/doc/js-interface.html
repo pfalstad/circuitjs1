@@ -247,10 +247,15 @@ sim.getCircuitAsSVG();</code></pre>
     <li><strong>Example:</strong> <code>var labelName = labelElm.getLabelName();</code></li>
 </ul>
 
-<h3><code>getPosition()</code>, <code>setPosition(value)</code>, <code>toggle()</code> (For LogicInputElm)</h3>
+<h3><code>getPosition()</code> (For switches, including LogicInputElm)</h3>
 <ul>
-    <li><strong>Description:</strong> Gets or sets the state of a logic input. <code>value</code> is <code>0</code>/<code>false</code> for low and <code>1</code>/<code>true</code> for high (or 0, 1, 2 for a ternary input). <code>toggle()</code> switches to the next state, like clicking it.</li>
-    <li><strong>Returns:</strong> <code>getPosition()</code> returns the current state as a number.</li>
+    <li><strong>Description:</strong> Returns the switch's current position as a number. For a logic input, 0 is low and 1 is high (2 is the third state of a ternary input). For an SPST switch, 0 is closed and 1 is open. For SPDT and other multi-position switches, it's the index of the selected throw.</li>
+    <li><strong>Example:</strong> <code>var pos = element.getPosition();</code></li>
+</ul>
+
+<h3><code>setPosition(value)</code>, <code>toggle()</code> (For LogicInputElm)</h3>
+<ul>
+    <li><strong>Description:</strong> Sets the state of a logic input. <code>value</code> is <code>0</code>/<code>false</code> for low and <code>1</code>/<code>true</code> for high (or 0, 1, 2 for a ternary input). <code>toggle()</code> switches to the next state, like clicking it.</li>
     <li><strong>Example:</strong> <code>for (const e of sim.getElements()) if (e.getType() == "LogicInputElm") e.setPosition(1);</code></li>
 </ul>
 
@@ -293,6 +298,13 @@ function didStep(sim) {
 ...
 function didAnalyze(sim) {
     // React to changes in circuit
+}</code></pre>
+    </li>
+    <li><strong>onswitch</strong>: Called when the user toggles a switch or logic input, by clicking it, by releasing a momentary switch, or with its keyboard shortcut. The second argument is the element, after it's been toggled. It isn't called for changes made with <code>setPosition()</code> or <code>toggle()</code>.
+        <pre><code>sim.onswitch = didSwitch;
+...
+function didSwitch(sim, elm) {
+    console.log(elm.getType() + " is now in position " + elm.getPosition());
 }</code></pre>
     </li>
 </ul>

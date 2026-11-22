@@ -212,7 +212,6 @@ export class LogicInputElm extends SwitchElm {
     addJSMethods(): void {
         super.addJSMethods();
         const p = this._jsProxy!;
-        p['getPosition'] = () => this.position;
         p['setPosition'] = (v: number | boolean) => this.setPositionJS(v);
         p['toggle']      = () => this.setPositionJS((this.position + 1) % this.posCount);
     }

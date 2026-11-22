@@ -326,4 +326,9 @@ export class SwitchElm extends CircuitElm {
     }
 
     getShortcut(): number { return 's'.charCodeAt(0); }
+
+    addJSMethods(): void {
+        super.addJSMethods();
+        this._jsProxy!['getPosition'] = () => this.position;
+    }
 }
