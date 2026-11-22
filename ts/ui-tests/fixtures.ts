@@ -124,7 +124,8 @@ export class Sim {
     // ---- the subcircuit pin layout editor (in the open Create Subcircuit dialog) ----
 
     // the pins, in the order the subcircuit lists them: name, side, position along the side,
-    // and where the pin is on the editor's canvas
+    // and where the pin is on the editor's canvas (in CSS pixels, using the editor's current
+    // zoom and pan; see ChipPinEditor.toScreenX)
     pinLayout(): Promise<{ pins: { name: string; side: number; pos: number; at: [number, number] }[];
                            sizeX: number; sizeY: number }> {
         return this.page.evaluate(() => {
@@ -132,7 +133,7 @@ export class Sim {
             return {
                 pins: ed.entries.map((e: any, i: number) => ({
                     name: e.name, side: e.side, pos: e.pos,
-                    at: [ed.chip.pins[i].textloc.x / ed.scale, ed.chip.pins[i].textloc.y / ed.scale],
+                    at: [ed.toScreenX(ed.chip.pins[i].textloc.x), ed.toScreenY(ed.chip.pins[i].textloc.y)],
                 })),
                 sizeX: ed.chip.sizeX, sizeY: ed.chip.sizeY,
             };
@@ -154,7 +155,7 @@ export class Sim {
             const xr = c.x + c.cspc2 - c.cspc, yr = c.y - c.cspc;
             const xd = side === 2 ? -0.5 : side === 3 ? c.sizeX + 0.5 : pos + 0.2;
             const yd = side === 0 ? -0.5 : side === 1 ? c.sizeY + 0.5 : pos + 0.2;
-            return [(xr + (xd + 0.5) * c.cspc2) / ed.scale, (yr + (yd + 0.5) * c.cspc2) / ed.scale];
+            return [ed.toScreenX(xr + (xd + 0.5) * c.cspc2), ed.toScreenY(yr + (yd + 0.5) * c.cspc2)];
         }, [side, pos]);
         await this.page.mouse.move(box.x + from[0], box.y + from[1]);
         await this.page.mouse.down();
