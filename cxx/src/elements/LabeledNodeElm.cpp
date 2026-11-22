@@ -68,7 +68,7 @@ void LabeledNodeElm::setPoints() {
 
 // get post we're connected to
 std::optional<Point> LabeledNodeElm::getConnectedPost(int n) {
-    std::string key = (busWidth > 1) ? text + ":" + std::to_string(n) : text;
+    std::string key = labelKey(n);
     Point myPost = getPost(n);
     LabelEntry *le = labelList.get(key);
     if (le != nullptr)
@@ -87,7 +87,7 @@ void LabeledNodeElm::setNode(int p, const NodeRef &n) {
     CircuitElm::setNode(p, n);
 
     // save node so we can return it in getByName()
-    std::string key = (busWidth > 1) ? text + ":" + std::to_string(p) : text;
+    std::string key = labelKey(p);
     LabelEntry *le = labelList.get(key);
     if (le != nullptr)  // should never happen
         le->node = n;

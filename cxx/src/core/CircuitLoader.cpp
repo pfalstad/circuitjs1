@@ -240,6 +240,9 @@ void CircuitLoader::readCircuitText(const std::string &text, int flags) {
                 SimulationManager::console("unrecognized dump type: " + type);
                 continue;
             }
+            // make sure it has a node for each post with the settings just loaded (nodes are
+            // only assigned when the circuit is stamped, which doesn't happen while stopped)
+            newce->allocNodes();
             newce->setPoints();
             app->elmList.push_back(newce);
         } catch (std::exception &ee) {

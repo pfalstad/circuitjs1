@@ -118,7 +118,7 @@ void EditSubcircuitModelDialog::createDialog() {
         v->addWidget(modelNameInput);
     }
 
-    v->addLayout(editor->createSizeControls());
+    v->addLayout(editor->createSizeControls(true));
 
     // Label checkbox
     labelCheck = new QCheckBox(LS("Show Label"));

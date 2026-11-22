@@ -53,11 +53,14 @@ public:
 
     std::unique_ptr<SubcircuitChipElm> chip;
 
-    // Width/Height buttons
-    QLayout *createSizeControls();
+    // Width/Height buttons, and optionally a Sort button (sortPins())
+    QLayout *createSizeControls(bool sortButton = false);
     void createPins();
     void draw() { update(); }
     void adjustChipSize(int dx, int dy);
+    // sort the selected pins (or, with none selected, the pins on each side) by name, ignoring a
+    // leading "/", without moving any pin to another side
+    void sortPins();
 
 protected:
     void paintEvent(QPaintEvent *) override;

@@ -54,6 +54,8 @@ public:
     static constexpr int circleSize = 17;
 
     void setPoints() override;
+    // name of the net that post n is on (labels with the same key are connected)
+    std::string labelKey(int n) const { return (busWidth > 1) ? text + ":" + std::to_string(n) : text; }
     std::optional<Point> getConnectedPost(int n) override;
     void setNode(int p, const NodeRef &n) override;
 

@@ -30,6 +30,7 @@
 #include "../elements/GroundElm.h"
 #include "../elements/LabeledNodeElm.h"
 #include "../elements/RoutedWireElm.h"
+#include "../elements/SubcircuitElm.h"
 #include "../elements/BusSplitterElm.h"
 #include "../elements/WireElm.h"
 
@@ -191,10 +192,14 @@ void SimulationManager::calculateWireClosure() {
     calculateWireClosureForList(elmList, false);
 }
 
-// run wire closure on a given element list.  if uiList is true, treat LabeledNodeElm.getConnectedPost()
-// as null (since labeled nodes in subcircuits connect to composite terminals, not to each other)
+// run wire closure on a given element list.  if uiList is true (the elements of a subcircuit being
+// viewed), labeled nodes are connected to the other labels with the same name in the list, and grounds
+// to the first ground in the list, rather than through LabeledNodeElm::labelList and
+// GroundElm::firstGround, which hold the main circuit's (in its coordinates).
 void SimulationManager::calculateWireClosureForList(std::vector<CircuitElm *> &list, bool uiList) {
     std::unordered_map<std::string, std::shared_ptr<NodeMapEntry>> nm;
+    std::unordered_map<std::string, Point> uiLabels;
+    std::optional<Point> uiFirstGround;
     wireInfoList.clear();
     wireInfoElmSet = std::unordered_set<CircuitElm *>(list.begin(), list.end());
     for (CircuitElm *ce : list) {
@@ -214,7 +219,19 @@ void SimulationManager::calculateWireClosureForList(std::vector<CircuitElm *> &l
 
             // what post are we connected to
             std::optional<Point> p1;
-            if (!(uiList && ce->isLabeledNodeElm()))
+            if (uiList && ce->isLabeledNodeElm()) {
+                // first label with this name: remember its post; later ones connect to it
+                std::string key = static_cast<LabeledNodeElm *>(ce)->labelKey(j);
+                auto lit = uiLabels.find(key);
+                if (lit != uiLabels.end())
+                    p1 = lit->second;
+                else
+                    uiLabels.emplace(key, p0);
+            } else if (uiList && ce->isGroundElm()) {
+                p1 = uiFirstGround;
+                if (!p1)
+                    uiFirstGround = p0;
+            } else
                 p1 = ce->getConnectedPost(j);
             if (!p1) {
                 // no connected post (true for labeled node the first time it's encountered, or ground)
@@ -316,7 +333,11 @@ void SimulationManager::assignUiWireNodes() {
             NodeMapEntry *nme = getFromPointMap(uiNodeMap, pt);
             if (nme != nullptr && nme->node) {
                 NodeRef cn = nme->node;
-                ce->setNode(j, cn);
+                // set directly rather than with setNode(), so the wire's stale voltage (from when it
+                // was last viewed) isn't pushed onto the node, which is shared with simulated elements
+                if (j >= (int) ce->nodes.size())
+                    ce->nodes.resize(j + 1);
+                ce->nodes[j] = cn;
                 cn->links.push_back({j, ce});
             } else if (!ce->isLabeledNodeElm()) {
                 console("missing node for " + pt.toString());
@@ -453,6 +474,18 @@ bool SimulationManager::calcWireInfo() {
             labelMap[*ws->endpoint1].push_back(ws.get());
     }
 
+    // when viewing a subcircuit, the labels for its external pins carry current in from outside, so
+    // (like grounds) they can't be resolved from their label end, only from their post
+    std::unordered_set<std::string> extLabels;
+    CircuitElm *viewed = app->viewedSubcircuit();
+    if (app->uiElmList != &app->elmList && viewed != nullptr) {
+        SubcircuitElm *sce = static_cast<SubcircuitElm *>(viewed);
+        if (sce->model)
+            for (const ExtListEntry &ext : sce->model->extList)
+                extLabels.insert(ext.busWidth > 1 ? "label:" + ext.name + ":" + std::to_string(ext.busZ)
+                                                  : "label:" + ext.name);
+    }
+
     for (int i = 0; i != (int) wireInfoList.size(); i++) {
         WireSegment *ws = wireInfoList[i].get();
         CircuitElm *wire = ws->wire;
@@ -468,7 +501,7 @@ bool SimulationManager::calcWireInfo() {
         std::vector<CircuitElm *> neighbors0;
         std::vector<CircuitElm *> neighbors1;
         std::vector<WireSegment *> labelNeighbors;
-        bool isReady0 = true, isReady1 = !wire->isGroundElm();
+        bool isReady0 = true, isReady1 = !wire->isGroundElm() && !(ws->endpoint1 && extLabels.count(*ws->endpoint1));
 
         // position-based matching via cn.links.  (the links are grouped by location once per
         // node, since a node with many wire segments would otherwise have all its links scanned

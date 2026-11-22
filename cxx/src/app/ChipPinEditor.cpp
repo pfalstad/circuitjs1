@@ -19,6 +19,7 @@
 
 #include "ChipPinEditor.h"
 
+#include <QCollator>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -28,6 +29,7 @@
 #include <algorithm>
 #include <climits>
 #include <cmath>
+#include <map>
 #include <set>
 
 #include "CirSim.h"
@@ -51,7 +53,7 @@ ChipPinEditor::ChipPinEditor(CirSim *a, std::vector<PinLayoutEntry> &e, int &sx,
     createPins();
 }
 
-QLayout *ChipPinEditor::createSizeControls() {
+QLayout *ChipPinEditor::createSizeControls(bool sortButton) {
     QHBoxLayout *hp = new QHBoxLayout();
     auto addBtn = [&](const QString &label, int dx, int dy) {
         QPushButton *b = new QPushButton(label);
@@ -66,8 +68,57 @@ QLayout *ChipPinEditor::createSizeControls() {
     hp->addWidget(new QLabel(LS("Height")));
     addBtn("+", 0, 1);
     addBtn("-", 0, -1);
+    if (sortButton) {
+        hp->addSpacing(12);
+        QPushButton *b = new QPushButton(LS("Sort"));
+        b->setAutoDefault(false);
+        b->setToolTip(LS("Sort the selected pins (or all pins) by name"));
+        connect(b, &QPushButton::clicked, this, [this] { sortPins(); });
+        hp->addWidget(b);
+    }
     hp->addStretch(1);
     return hp;
+}
+
+// The pins trade positions; the other pins of a bus move with it.
+void ChipPinEditor::sortPins() {
+    std::vector<int> indices;
+    if (!selectedPins.empty())
+        indices = selectedPins;
+    else
+        for (int i = 0; i < (int) entries.size(); i++)
+            indices.push_back(i);
+    std::map<int, std::vector<int>> bySide;
+    for (int i : indices)
+        if (entries[i].busZ <= 0)
+            bySide[entries[i].side].push_back(i);
+
+    QCollator collator;
+    collator.setNumericMode(true);
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    auto key = [&](int i) {
+        QString s = QString::fromStdString(entries[i].name);
+        return s.startsWith('/') ? s.mid(1) : s;
+    };
+    for (auto &[side, list] : bySide) {
+        std::vector<int> slotPos;
+        for (int i : list)
+            slotPos.push_back(entries[i].pos);
+        std::sort(slotPos.begin(), slotPos.end());
+        std::stable_sort(list.begin(), list.end(), [&](int a, int b) { return collator.compare(key(a), key(b)) < 0; });
+        std::map<int, int> newPos;
+        for (size_t k = 0; k < list.size(); k++)
+            newPos[entries[list[k]].pos] = slotPos[k];
+        for (PinLayoutEntry &e : entries) {
+            if (e.side != side)
+                continue;
+            auto it = newPos.find(e.pos);
+            if (it != newPos.end())
+                e.pos = it->second;
+        }
+    }
+    createPins();
+    draw();
 }
 
 void ChipPinEditor::createPins() {

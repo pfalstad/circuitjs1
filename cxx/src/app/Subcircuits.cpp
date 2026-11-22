@@ -39,6 +39,7 @@ void CirSim::pushSubcircuit(CircuitElm *cce, const std::vector<CircuitElm *> &al
     uiElmList = &subcircuitElmList;
     updateSubcircuitPath();
     needAnalyze();
+    stampViewedList = true;
     needCenter = true;
 }
 
@@ -56,6 +57,7 @@ void CirSim::popSubcircuit() {
     }
     updateSubcircuitPath();
     needAnalyze();
+    stampViewedList = true;
     needCenter = true;
 }
 

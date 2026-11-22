@@ -268,6 +268,8 @@ public:
     virtual void pushSubcircuit(CircuitElm *cce, const std::vector<CircuitElm *> &allElms) {}
     // leave the subcircuit view (UIManager.subcircuitStack is cleared when a circuit is loaded)
     virtual void resetSubcircuitView() {}
+    // the SubcircuitElm whose components are being shown, or null if showing the circuit
+    virtual CircuitElm *viewedSubcircuit() const { return nullptr; }
     // open the pin layout editor for a model (EditSubcircuitModelDialog)
     virtual void editSubcircuitPinLayout(const std::shared_ptr<class SubcircuitModel> &) {}
     // save the circuit and start editing a model's circuit in its place (CirSim.pushContext())

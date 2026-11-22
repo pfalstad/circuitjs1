@@ -294,6 +294,9 @@ public:
     std::vector<CircuitElm *> subcircuitElmList;
     void pushSubcircuit(CircuitElm *cce, const std::vector<CircuitElm *> &allElms) override;
     void popSubcircuit();
+    CircuitElm *viewedSubcircuit() const override {
+        return subcircuitStack.empty() ? nullptr : subcircuitStack.back();
+    }
     void resetSubcircuitView() override;
     void updateSubcircuitPath();
     void updateContextButtons();
@@ -402,6 +405,9 @@ private:
     int framerate = 0;
     long steprate = 0;
     bool needCenter = false;
+    // the viewed element list changed: stamp the circuit at the next analysis even if stopped,
+    // since display wires only get their nodes (and so their voltages) when it's stamped
+    bool stampViewedList = false;
     QString startCircuit, startLabel;
     QString screenshotPath;
     int screenshotFrames = -1;

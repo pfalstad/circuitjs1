@@ -146,7 +146,7 @@ Toolbar::Toolbar(CirSim *a) : QToolBar(a), app(a) {
     undoButton = createFontButton(ICON_REPLY, LS("Undo"), [this] { app->undoManager->doUndo(); });
     redoButton = createFontButton(ICON_FORWARD, LS("Redo"), [this] { app->undoManager->doRedo(); });
     createFontButton(ICON_SCISSORS, LS("Cut"), [this] { if (!app->isReadOnly()) app->doCut(nullptr); });
-    createFontButton(ICON_COPY, LS("Copy"), [this] { if (!app->isReadOnly()) app->doCopy(nullptr); });
+    createFontButton(ICON_COPY, LS("Copy"), [this] { app->doCopy(nullptr); });
     createFontButton(ICON_PASTE, LS("Paste"), [this] { if (!app->isReadOnly()) app->doPaste(); });
     createFontButton(ICON_CLONE, LS("Duplicate"), [this] { if (!app->isReadOnly()) app->doDuplicate(nullptr); });
     createFontButton(ICON_SEARCH, LS("Find Component/Command..."), [this] { app->openCommandPalette(); });

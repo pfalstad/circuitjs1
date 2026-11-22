@@ -52,9 +52,10 @@ void CirSim::setMenuSelection(CircuitElm *menuElm) {
     }
 }
 
+// (the selected elements being displayed: a subcircuit's, if viewing one)
 int CirSim::countSelected() {
     int count = 0;
-    for (CircuitElm *ce : elmList)
+    for (CircuitElm *ce : *uiElmList)
         if (ce->isSelected())
             count++;
     return count;
@@ -153,8 +154,10 @@ std::string CirSim::copyOfSelectedElms() {
 
     ModelRegistryBase::clearAllDumpedFlags();
 
-    for (int i = (int) elmList.size() - 1; i >= 0; i--) {
-        CircuitElm *ce = elmList[i];
+    // the elements being displayed (a subcircuit's, if viewing one)
+    std::vector<CircuitElm *> &list = *uiElmList;
+    for (int i = (int) list.size() - 1; i >= 0; i--) {
+        CircuitElm *ce = list[i];
         if (ce->isSelected() && !ce->isScopeElm()) {
             // only the models the copied elements use
             ce->dumpXmlModel(&root);

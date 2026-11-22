@@ -246,7 +246,8 @@ void CirSim::createMenus() {
     redoItem->setShortcuts({QKeySequence(Qt::CTRL | Qt::Key_Y), QKeySequence::Redo});
     edit->addSeparator();
     cutItem = addEditItem("Cut", QKeySequence::Cut, [this] { doCut(keyMenuElm()); });
-    copyItem = addEditItem("Copy", QKeySequence::Copy, [this] { doCopy(keyMenuElm()); });
+    // copying doesn't change anything, so it's allowed (e.g. when viewing a subcircuit)
+    copyItem = addEditItem("Copy", QKeySequence::Copy, [this] { doCopy(keyMenuElm()); }, false);
     pasteItem = addEditItem("Paste", QKeySequence::Paste, [this] { doPaste(); });
     addEditItem("Duplicate", QKeySequence(Qt::CTRL | Qt::Key_D), [this] { doDuplicate(keyMenuElm()); });
     edit->addSeparator();
@@ -930,7 +931,10 @@ void CirSim::runBatch(PerfMonitor *perfmon, bool run) {
         stop();
     }
 
-    if (sim->needsStamp && simRunning) {
+    bool stampViewed = stampViewedList && didAnalyze;
+    if (didAnalyze)
+        stampViewedList = false;
+    if (sim->needsStamp && (simRunning || stampViewed)) {
         start("stampCircuit()");
         try {
             sim->preStampAndStampCircuit();
