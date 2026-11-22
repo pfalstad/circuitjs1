@@ -250,8 +250,11 @@ export class SubcircuitModel {
         return true;
     }
 
-    // build XML attributes and children into the given element
-    buildXmlElement(doc: Document, elem: Element): void {
+    // build XML attributes and children into the given element.  If skipDumped, leave out
+    // embedded (nested) model definitions already dumped into this document, so a circuit file
+    // doesn't contain each nested model twice; the definition is then found at the top level
+    // (an embedded copy of a model that already exists is ignored on load anyway).
+    buildXmlElement(doc: Document, elem: Element, skipDumped: boolean = false): void {
         CircuitXMLSerializer.dumpAttr(elem, "nm", this.name);
         CircuitXMLSerializer.dumpAttr(elem, "f",  this.flags);
         CircuitXMLSerializer.dumpAttr(elem, "sx", this.sizeX);
@@ -277,6 +280,10 @@ export class SubcircuitModel {
             for (let i = 0; i < children.length; i++) {
                 const node = children[i];
                 if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                if (skipDumped && (node as Element).tagName === "ccm") {
+                    const m = SubcircuitModel.getModelWithName((node as Element).getAttribute("nm") ?? "");
+                    if (m && m.dumped) continue;
+                }
                 const imported = doc.importNode(node, true);
                 elem.appendChild(imported);
             }
@@ -287,7 +294,7 @@ export class SubcircuitModel {
         if (this.internal) return;
         this.dumped = true;
         const elem = doc.createElement("ccm");
-        this.buildXmlElement(doc, elem);
+        this.buildXmlElement(doc, elem, true);
         doc.documentElement.appendChild(elem);
     }
 
