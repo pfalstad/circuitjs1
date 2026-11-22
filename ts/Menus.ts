@@ -108,12 +108,84 @@ export class MenuItem {
 
 // ---- Internal menu-building helpers ----
 
-function closeAllMenus(): void {
+export function closeAllMenus(): void {
     document.querySelectorAll('.gwt-MenuItem.open, .topMenuItem.open, li.hasSubmenu.open').forEach(el => el.classList.remove('open'));
+}
+
+// Get out of the way once an element or tool is picked: close the dropdowns and, in the
+// collapsed (touch) layout, the hamburger menu bar and the sidebar -- they cover the canvas
+// the element is about to be placed on.
+export function closeMenusAndOverlays(): void {
+    closeAllMenus();
+    document.querySelectorAll<HTMLInputElement>('input.toptrigger:checked, input.trigger:checked')
+        .forEach(cb => { cb.checked = false; });
 }
 
 function anyMenuOpen(): boolean {
     return document.querySelector('.gwt-MenuItem.open, .topMenuItem.open') !== null;
+}
+
+const MENU_PANEL_SELECTOR = '.menuDropdown, .elmContextMenu';
+// an *open* panel, i.e. the one whose halo counts when deciding whether a tap dismisses
+const OPEN_PANEL_SELECTOR = 'td.gwt-MenuItem.open > .menuDropdown, .elmContextMenu';
+// How close a tap has to be to an open panel to still count as "aimed at the menu". A finger
+// missing a row by a few pixels -- beside the panel, at its arrow, just under the last row or
+// just above it on the bar -- is aiming at the menu, not at "dismiss it".
+const NEAR_PANEL_PAD = 16;
+
+// Does hovering open a menu here? Only in the full menu bar. The collapsed layout -- used on
+// narrow windows as well as on touch screens -- is a list that is opened by tapping; letting a
+// mouse hover pop the menus open there was jarring. Keep the breakpoint in sync with the
+// media query in style.css.
+let collapsedLayout: MediaQueryList | null = null;
+function hoverOpensMenus(): boolean {
+    if (collapsedLayout == null) collapsedLayout = window.matchMedia('(max-width: 600px), (pointer: coarse)');
+    return !collapsedLayout.matches;
+}
+
+function isInPanel(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest(MENU_PANEL_SELECTOR) !== null;
+}
+
+// Should this interaction dismiss the menus? Only if it neither hit a panel nor landed within
+// the halo of one. Deciding by hit target instead of relying on stopPropagation from every
+// entry: panels built elsewhere (scope popups, dynamic subcircuits), separators, gaps and
+// sub-panel padding have no listener of their own, and nested inline submenus expose plenty
+// of those surfaces.
+function dismissesMenus(e: Event): boolean {
+    if (isInPanel(e.target)) return false;
+    const p = e as MouseEvent;
+    const t = (e as TouchEvent).changedTouches?.[0] ?? (e as TouchEvent).touches?.[0];
+    const x = p.clientX ?? t?.clientX;
+    const y = p.clientY ?? t?.clientY;
+    if (x == null || y == null) return true;
+    for (const panel of Array.from(document.querySelectorAll<HTMLElement>(OPEN_PANEL_SELECTOR))) {
+        const r = panel.getBoundingClientRect();
+        if (x >= r.left - NEAR_PANEL_PAD && x <= r.right + NEAR_PANEL_PAD &&
+            y >= r.top - NEAR_PANEL_PAD && y <= r.bottom + NEAR_PANEL_PAD) return false;
+    }
+    return true;
+}
+
+// Keep a dropdown panel inside the viewport horizontally. A panel opens to the right of
+// its anchor by default; with many top-level menus (or a narrow landscape window) the
+// right-most ones would hang off the screen, where their items cannot be tapped. Align
+// such a panel to the anchor's right edge instead (opens leftwards). Only absolute
+// positioning is adjusted: the small-screen layout pins panels with position: fixed.
+function fitDropdown(ul: HTMLUListElement): void {
+    ul.style.left = '';
+    ul.style.right = '';
+    ul.style.maxHeight = '';
+    if (getComputedStyle(ul).position !== 'absolute') return;
+    // Horizontal: the panel is laid out where the stylesheet puts it (left: 0 below a
+    // top-level menu, left: 100% below a submenu entry). If that hangs off the right side of
+    // the window, pin it to the anchor's right edge instead so it opens leftwards.
+    // left must be reset to auto too: with both left and right set the box is
+    // over-constrained and right would be ignored.
+    if (ul.getBoundingClientRect().right > window.innerWidth) {
+        ul.style.left = 'auto';
+        ul.style.right = '0';
+    }
 }
 
 // Build "<i class='cirjsicon-X'></i>&nbsp;Label" HTML for icon menu items.
@@ -217,13 +289,34 @@ export class Menu {
             for (const sib of Array.from(this.ul.children))
                 if (sib !== li) sib.classList.remove('open');
             li.classList.add('open');
+            fitDropdown(sub.ul);
+            // Do NOT scroll the panel here. Scrolling right after expanding moved the entry
+            // out from under the finger: the next tap then hit the first child -- a command
+            // that silently added an element and closed the menu. The header stays where it
+            // was tapped; the submenu expands below it and the user scrolls if it does not fit.
         };
-        li.addEventListener('mouseover', e => { e.stopPropagation(); openThis(); });
-        // stopPropagation here (and on the click below) keeps the document-level "tap
-        // elsewhere closes everything" handler from firing on the very tap that opened
-        // this submenu -- it should only close on a *later* tap outside the menu.
-        li.addEventListener('touchstart', e => { e.stopPropagation(); openThis(); }, { passive: true });
-        li.addEventListener('click', e => e.stopPropagation());
+        // Hover, real mouse only. A touch tap also fires a synthesized mouseover just before
+        // the click; opening there expanded the submenu, shifted the entries under the finger
+        // and the click then landed on a different element (typically the top-level menu
+        // entry), closing everything again. On touch the click alone opens it.
+        li.addEventListener('pointerover', e => {
+            if (e.pointerType !== 'mouse' || !hoverOpensMenus()) return;
+            e.stopPropagation();
+            openThis();
+        });
+        // stopPropagation on touchstart (and on the click below) keeps the document-level
+        // "tap elsewhere closes everything" handler from firing on the interaction with this
+        // entry -- it should only close on a *later* tap outside the menu.
+        // The submenu is opened on click, not on touchstart: touchstart fires the moment a
+        // finger lands, so scrolling the (already overflowing) panel would open whichever
+        // submenu happened to be under the finger. A scroll gesture suppresses the click, so
+        // opening only happens on a real tap. Opening is idempotent -- no toggle on a second
+        // tap, which on touch only ever meant "tap, then get closed again on release".
+        li.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+        li.addEventListener('click', e => {
+            e.stopPropagation();
+            openThis();
+        });
         return li;
     }
 
@@ -358,7 +451,13 @@ export class Menus {
         bar.style.cssText = 'outline: 0; position: absolute; inset: 0;';
 
         const table = document.createElement('table');
-        table.addEventListener('click', () => closeAllMenus());
+        // Only a click on the bar itself closes: the dropdown panels are children of the
+        // cells, and an unstoppable click from inside one must not dismiss everything. A tap
+        // just above a panel also lands here (the bar is directly above the dropdown) -- that
+        // is a miss aiming at the top row, not a request to close.
+        table.addEventListener('click', e => {
+            if (dismissesMenus(e)) closeAllMenus();
+        });
         const tbody = document.createElement('tbody');
         this.menuBarRow = document.createElement('tr');
         tbody.appendChild(this.menuBarRow);
@@ -518,11 +617,13 @@ export class Menus {
         // for its drag/pinch gestures), which suppresses the browser's synthetic click for
         // that tap -- so on touch devices, tapping the canvas to dismiss an open menu would
         // otherwise never reach this listener via 'click' at all. touchstart still bubbles
-        // here fine since preventDefault() doesn't stop propagation; menu items that open
-        // something on their own touchstart (e.g. addSubmenu) call stopPropagation() so
-        // that doesn't also trigger this and immediately close what it just opened.
-        document.addEventListener('click', () => closeAllMenus());
-        document.addEventListener('touchstart', () => closeAllMenus(), { passive: true });
+        // here fine since preventDefault() doesn't stop propagation.
+        // Guard by target instead of relying on stopPropagation from every entry: panels built
+        // in other places (scope popups, dynamic subcircuits) do not necessarily have the
+        // per-element listeners, and with deeply nested inline submenus a tap easily lands on
+        // a sub-panel, a gap or a separator. Any interaction inside a menu must never close it.
+        document.addEventListener('click', e => { if (dismissesMenus(e)) closeAllMenus(); });
+        document.addEventListener('touchstart', e => { if (dismissesMenus(e)) closeAllMenus(); }, { passive: true });
     }
 
     // this is called twice, once for the Draw menu, once for the right mouse popup menu
@@ -839,15 +940,25 @@ export class Menus {
 
         td.addEventListener('click', e => {
             e.stopPropagation();
+            // the dropdown is a child of this cell: a click that comes from inside it must
+            // not toggle the whole menu shut
+            if (isInPanel(e.target)) return;
             const wasOpen = td.classList.contains('open');
             closeAllMenus();
-            if (!wasOpen) td.classList.add('open');
+            if (!wasOpen) {
+                td.classList.add('open');
+                fitDropdown(menu.ul);
+            }
         });
 
-        td.addEventListener('mouseover', e => {
+        // Switch menus on hover, real mouse only: on a touch device this mouseover is
+        // synthesized for the tap, so it would close the menu it is about to open.
+        td.addEventListener('pointerover', e => {
+            if (e.pointerType !== 'mouse' || !hoverOpensMenus()) return;
             if (anyMenuOpen()) {
                 closeAllMenus();
                 td.classList.add('open');
+                fitDropdown(menu.ul);
             }
         });
 
