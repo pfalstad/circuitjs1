@@ -273,6 +273,29 @@ export class SubcircuitElm extends CompositeElm {
         this.setPoints();
     }
 
+    addJSMethods(): void {
+        super.addJSMethods();
+        const p = this._jsProxy!;
+        p['getModelName'] = () => this.modelName;
+        // the simulated elements inside (wires, labeled nodes and grounds are not included;
+        // they're dropped when the subcircuit is flattened)
+        p['getChildren'] = () => this.compElmList.map(ce => {
+            ce.addJSMethods();
+            return ce.getJavaScriptObject();
+        });
+        // switch the UI to view inside this subcircuit.  only works if this element is in the
+        // circuit currently being viewed (the top level, or the subcircuit being viewed)
+        p['enterSubcircuit'] = (): boolean => {
+            const ui = CircuitElm.app.ui;
+            if (!this.canViewComponents() || !ui.elmList.includes(this))
+                return false;
+            CirSim.editDialog?.closeDialog();
+            ui.pushSubcircuit(this, this.buildDisplayElmList());
+            CircuitElm.app.repaint();
+            return true;
+        };
+    }
+
     // build a display list with all elements including ones skipped by loadCompositeXml
     buildDisplayElmList(): CircuitElm[] {
         const allElms: CircuitElm[] = [...this.compElmList];

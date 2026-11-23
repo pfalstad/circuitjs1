@@ -166,6 +166,18 @@ voltage is determined by javascript code.</li>
     <li><strong>Example:</strong> <code>var elements = CircuitJS1.getElements();</code></li>
 </ul>
 
+<h3><code>getSubcircuitPath()</code></h3>
+<ul>
+    <li><strong>Description:</strong> Returns the model names of the subcircuits being viewed in the UI, outermost first. Returns an empty array when viewing the top-level circuit.</li>
+    <li><strong>Example:</strong> <code>var path = CircuitJS1.getSubcircuitPath();  // e.g. ["adder-4", "full adder"]</code></li>
+</ul>
+
+<h3><code>exitSubcircuit()</code></h3>
+<ul>
+    <li><strong>Description:</strong> When viewing inside a subcircuit, goes back up one level (like the Back button). Returns <code>false</code> if already at the top level.</li>
+    <li><strong>Example:</strong> <code>while (CircuitJS1.exitSubcircuit()) ;  // back to the top level</code></li>
+</ul>
+
 <h3><code>getCircuitAsSVG()</code></h3>
 <ul>
     <li><strong>Description:</strong> Exports the current circuit as an SVG string. The result is delivered asynchronously via the <code>onsvgrendered</code> callback.</li>
@@ -269,6 +281,19 @@ sim.getCircuitAsSVG();</code></pre>
 <ul>
     <li><strong>Description:</strong> <code>getContents()</code> returns the contents as text (Contents field format). <code>getValue</code>/<code>setValue</code> read or write a single address. <code>getAddressBits</code>/<code>getDataBits</code> return the memory's size.</li>
     <li><strong>Example:</strong> <code>var v = ram.getValue(16); ram.setValue(16, v+1);</code></li>
+</ul>
+
+<h3><code>getModelName()</code>, <code>getChildren()</code>, <code>enterSubcircuit()</code> (For SubcircuitElm)</h3>
+<ul>
+    <li><strong>Description:</strong> <code>getModelName()</code> returns the name of the subcircuit's model, so you can find a particular subcircuit. <code>getChildren()</code> returns the elements inside the subcircuit, without changing the UI. These support the same methods as the elements from <code>getElements()</code>, so you can read their voltages and currents, and call <code>getChildren()</code> again on nested subcircuits. Wires, labeled nodes and grounds inside the subcircuit are not included. <code>enterSubcircuit()</code> switches the UI to view inside the subcircuit (like double-clicking it). This only works if the subcircuit is in the circuit being viewed: to view a nested subcircuit, enter its parent first. It returns <code>false</code> if the subcircuit can't be viewed. Use <code>CircuitJS1.exitSubcircuit()</code> to go back.</li>
+    <li><strong>Example:</strong>
+<pre><code>var adder = sim.getElements().find(e =&gt; e.getType() == "SubcircuitElm" &amp;&amp; e.getModelName() == "adder-4");
+var fa = adder.getChildren().find(e =&gt; e.getType() == "SubcircuitElm");
+adder.enterSubcircuit();
+fa.enterSubcircuit();   // now viewing adder-4 &gt; full adder
+sim.exitSubcircuit();
+sim.exitSubcircuit();</code></pre>
+    </li>
 </ul>
 
 <h3><code>getPostCount()</code></h3>

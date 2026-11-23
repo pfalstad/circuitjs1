@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { CirSim } from "./CirSim";
 
 export class JSInterface {
     app: any;
@@ -43,6 +44,21 @@ export class JSInterface {
             arr.push(ce.getJavaScriptObject());
         }
         return arr;
+    }
+
+    // go back up one level when viewing inside a subcircuit.  returns false if at the top level
+    exitSubcircuit(): boolean {
+        const ui = this.app.ui;
+        if (ui.subcircuitStack.length === 0)
+            return false;
+        CirSim.editDialog?.closeDialog();
+        ui.popSubcircuit();
+        return true;
+    }
+
+    // model names of the subcircuits being viewed, outermost first ([] at the top level)
+    getSubcircuitPath(): string[] {
+        return this.app.ui.subcircuitStack.map((cce: any) => cce.modelName);
     }
 
     getLabeledNodeVoltage(name: string): number { return this.app.sim.getLabeledNodeVoltage(name); }
@@ -72,6 +88,8 @@ export class JSInterface {
             getNodeVoltage: (n: string) => that.getLabeledNodeVoltage(n),
             setExtVoltage:  (n: string, v: number) => that.setExtVoltage(n, v),
             getElements:    () => that.getJSElements(),
+            exitSubcircuit: () => that.exitSubcircuit(),
+            getSubcircuitPath: () => that.getSubcircuitPath(),
             getCircuitAsSVG: () => that.doExportAsSVGFromAPI(),
             exportCircuit:  () => that.dumpCircuit(),
             importCircuit:  (circuit: string, subcircuitsOnly: boolean) => that.importCircuitFromText(circuit, subcircuitsOnly),
