@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { CirSim } from "./CirSim";
 
 import { digitalScopeSourceNew, serializeDigitalCircuit } from "./digital/DigitalGraphBuilder";
 import { ChipState } from "./digital/chip";
@@ -105,6 +106,21 @@ export class JSInterface {
             arr.push(ce.getJavaScriptObject());
         }
         return arr;
+    }
+
+    // go back up one level when viewing inside a subcircuit.  returns false if at the top level
+    exitSubcircuit(): boolean {
+        const ui = this.app.ui;
+        if (ui.subcircuitStack.length === 0)
+            return false;
+        CirSim.editDialog?.closeDialog();
+        ui.popSubcircuit();
+        return true;
+    }
+
+    // model names of the subcircuits being viewed, outermost first ([] at the top level)
+    getSubcircuitPath(): string[] {
+        return this.app.ui.subcircuitStack.map((cce: any) => cce.modelName);
     }
 
     getLabeledNodeVoltage(name: string): number { return this.app.sim.getLabeledNodeVoltage(name); }
@@ -252,6 +268,8 @@ export class JSInterface {
             watchSignal:    (n: string) => that.watchSignal(n),
             unwatchSignal:  (n: string) => that.unwatchSignal(n),
             setExtClock:    (n: string, phaseShift: number, dutyCycle?: number) => that.setExtClock(n, phaseShift, dutyCycle),
+            exitSubcircuit: () => that.exitSubcircuit(),
+            getSubcircuitPath: () => that.getSubcircuitPath(),
             getCircuitAsSVG: () => that.doExportAsSVGFromAPI(),
             exportCircuit:  () => that.dumpCircuit(),
             // Developer hook: the current circuit's digital netlist as JSON (see
