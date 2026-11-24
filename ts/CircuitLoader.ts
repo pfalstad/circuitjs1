@@ -173,6 +173,12 @@ export class CircuitLoader {
         if ((flags & (CircuitLoader.RC_RETAIN | CircuitLoader.RC_KEEP_MODELS)) === 0 &&
                 this.app.contextStack.length === 0)
             ModelRegistry.clearAllLocal();
+        // Whatever's about to load didn't come through readSetupFile/
+        // readSetupExtraFile (they set these themselves right after this
+        // returns), so it's not exportable as a Start Circuit reference.
+        this.app.currentCircuitFile = null;
+        this.app.currentCircuitTitle = null;
+        this.app.currentCircuitExtraKey = null;
         if (text.startsWith("<")) {
 	    if ((flags & CircuitLoader.RC_RETAIN) == 0)
 		this.clearCircuit();
@@ -361,13 +367,19 @@ export class CircuitLoader {
         this.app.autoDCOnReset = (flags & 128) != 0;
     }
 
-    // fallbackUrl, if given, is tried if url can't be loaded (e.g. a circuits/
-    // lookup falling back to applied/)
-    async loadFileFromURL(url: string, fallbackUrl?: string): Promise<void> {
+    // fallbackUrls, if given, are tried in order if url can't be loaded (e.g.
+    // circuits/ falling back to applied/, then to each extra menu's directory)
+    async loadFileFromURL(url: string, fallbackUrls?: string[]): Promise<void> {
+	const tryNext = (): Promise<void> | undefined => {
+	    if (!fallbackUrls || fallbackUrls.length === 0) return undefined;
+	    return this.loadFileFromURL(fallbackUrls[0], fallbackUrls.slice(1));
+	};
 	try {
 	    const response = await fetch(url);
-	    if (!response.ok && fallbackUrl)
-		return this.loadFileFromURL(fallbackUrl);
+	    if (!response.ok) {
+		const next = tryNext();
+		if (next) return next;
+	    }
 	    if (response.ok) {
 		const text = await response.text();
 		await this.readCircuit(text, CircuitLoader.RC_KEEP_TITLE);
@@ -379,8 +391,8 @@ export class CircuitLoader {
 		console.log("Bad file server response:" + response.statusText);
 	    }
 	} catch (e) {
-	    if (fallbackUrl)
-		return this.loadFileFromURL(fallbackUrl);
+	    const next = tryNext();
+	    if (next) return next;
 	    console.log("failed file reading", e);
 	}
     }

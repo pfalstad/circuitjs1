@@ -83,6 +83,8 @@ export class CommandManager {
             this.doExportAsUrl();
             this.app.unsavedChanges = false;
         }
+        if (item == "exportasstartcircuit")
+            this.doExportAsStartCircuit();
         if (item == "exportaslocalfile") {
             this.doExportAsLocalFile();
             this.app.unsavedChanges = false;
@@ -414,6 +416,18 @@ export class CommandManager {
     doExportAsUrl(): void {
         const dump = this.app.dumpCircuit();
         CirSim.dialogShowing = new (window as any).ExportAsUrlDialog(dump);
+        CirSim.dialogShowing.show();
+    }
+
+    // Unlike Export As Link (which embeds the whole circuit in the URL),
+    // this references the actual menu file by name, so the link is short and
+    // the exported circuit is identifiable. Only available when the current
+    // circuit was loaded unmodified from a menu -- see UIManager.allowSave.
+    doExportAsStartCircuit(): void {
+        if (this.app.currentCircuitFile == null)
+            return;
+        CirSim.dialogShowing = new (window as any).ExportAsStartCircuitDialog(
+            this.app.currentCircuitFile, this.app.currentCircuitTitle);
         CirSim.dialogShowing.show();
     }
 

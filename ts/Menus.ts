@@ -268,6 +268,7 @@ export class Menus {
     importFromLocalFileItem  = new MenuItem();
     importFromTextItem       = new MenuItem();
     exportAsUrlItem          = new MenuItem();
+    exportAsStartCircuitItem = new MenuItem();
     exportAsLocalFileItem    = new MenuItem();
     exportAsTextItem         = new MenuItem();
     printItem                = new MenuItem();
@@ -405,6 +406,10 @@ export class Menus {
 
         fileMenu.addMenuItem(this.exportAsUrlItem,
             iconHtml("export", "Export As Link..."), "file", "exportasurl");
+        fileMenu.addMenuItem(this.exportAsStartCircuitItem,
+            iconHtml("export", "Export As Start Circuit..."), "file", "exportasstartcircuit");
+        // only makes sense for a circuit loaded unmodified from a menu; UIManager.allowSave keeps this in sync
+        this.exportAsStartCircuitItem.setEnabled(false);
         fileMenu.addMenuItem(this.exportAsTextItem,
             iconHtml("export", "Export As Text..."), "file", "exportastext");
         fileMenu.addCommand(iconHtml("export", "Export As KiCad Schematic..."),         "file", "exportaskicad");
@@ -503,7 +508,14 @@ export class Menus {
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----
-        this.addTopItem(this.menuBarRow, Locale.LS("File"),    fileMenu);
+        const fileMenuTab = this.addTopItem(this.menuBarRow, Locale.LS("File"),    fileMenu);
+        // unsavedChanges can go true in several places (MouseManager, UndoManager)
+        // that don't route through allowSave(), so re-check live right as File
+        // opens rather than trying to catch every place that edits the circuit.
+        fileMenuTab.addEventListener('click', () => {
+            this.exportAsStartCircuitItem.setEnabled(
+                !this.app.unsavedChanges && this.app.currentCircuitFile != null);
+        });
         this.addTopItem(this.menuBarRow, Locale.LS("Edit"),    editMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Draw"),    drawMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Scopes"),  scopesMenu);
@@ -794,6 +806,19 @@ export class Menus {
     // (The PWA service worker can cache extramenus.txt; hard-refresh if an
     // edit doesn't show.)
     async getExtraManifestMenus(openDefault: boolean): Promise<void> {
+        for (const { file, title } of await this.getExtraMenuEntries()) {
+            const key = this.extraMenuKeyFromFile(file);
+            try {
+                const r = await fetch(moduleBaseURL + file);
+                if (r.ok)
+                    this.processSetupList(await r.text(), openDefault, title, key);
+            } catch (e) { }
+        }
+    }
+
+    // Parses extramenus.txt into its "<list-filename> <Menu Name>" entries, or
+    // [] if it's absent or empty.
+    async getExtraMenuEntries(): Promise<{ file: string, title: string }[]> {
         const entries: { file: string, title: string }[] = [];
         try {
             const r = await fetch(moduleBaseURL + 'extramenus.txt');
@@ -806,14 +831,7 @@ export class Menus {
                         entries.push({ file: t.substring(0, sp), title: t.substring(sp + 1) });
                 }
         } catch (e) { }
-        for (const { file, title } of entries) {
-            const key = this.extraMenuKeyFromFile(file);
-            try {
-                const r = await fetch(moduleBaseURL + file);
-                if (r.ok)
-                    this.processSetupList(await r.text(), openDefault, title, key);
-            } catch (e) { }
-        }
+        return entries;
     }
 
     // Derives a manifest entry's circuits-directory key from its list filename,
@@ -875,27 +893,46 @@ export class Menus {
         }
     }
 
-    readSetupFile(str: string, title: string | null): void {
+    // Looks for str in circuits/, then applied/, then each extra manifest
+    // menu's own directory, in that order (first match wins, e.g. if the same
+    // filename happens to exist in two of them). This is also how a
+    // ?startCircuit= link resolves, so a circuit "Export"ed as a Start Circuit
+    // (see ExportAsStartCircuitDialog) loads correctly no matter which menu it
+    // actually lives in.
+    async readSetupFile(str: string, title: string | null): Promise<void> {
         console.log(str);
         (this.app as any).resetEditingContext?.();
         // don't avoid caching here, it's unnecessary and makes offline PWA's not work
         const url = moduleBaseURL + 'circuits/' + str;
-        // if it's not in circuits/, fall back to applied/ before giving up
-        (this.app as any).loader?.loadFileFromURL(url, moduleBaseURL + 'applied/' + str);
+        const extraKeys = (await this.getExtraMenuEntries()).map(e => this.extraMenuKeyFromFile(e.file));
+        const fallbacks = [moduleBaseURL + 'applied/' + str, ...extraKeys.map(key => moduleBaseURL + key + '/' + str)];
+        await this.app.loader?.loadFileFromURL(url, fallbacks);
         if (title != null)
             this.app.setCircuitTitle(title);
         this.app.unsavedChanges = false;
         this.app.savedFlag = true;
+        this.app.currentCircuitFile = str;
+        this.app.currentCircuitTitle = title;
+        this.app.currentCircuitExtraKey = null;
+        // loadFileFromURL already called allowSave(false), but before the lines
+        // above -- currentCircuitFile was still null then, so re-run it now that
+        // it's set, or Export As Start Circuit never re-enables.
+        this.app.allowSave(false);
     }
 
-    readSetupExtraFile(key: string, str: string, title: string | null): void {
+    async readSetupExtraFile(key: string, str: string, title: string | null): Promise<void> {
         console.log(str);
         (this.app as any).resetEditingContext?.();
-        (this.app as any).loader?.loadFileFromURL(moduleBaseURL + key + '/' + str);
+        await this.app.loader?.loadFileFromURL(moduleBaseURL + key + '/' + str);
         if (title != null)
             this.app.setCircuitTitle(title);
         this.app.unsavedChanges = false;
         this.app.savedFlag = true;
+        this.app.currentCircuitFile = str;
+        this.app.currentCircuitTitle = title;
+        this.app.currentCircuitExtraKey = key;
+        // see readSetupFile -- allowSave(false) already ran before this was set
+        this.app.allowSave(false);
     }
 
     // ---- Private helpers ----

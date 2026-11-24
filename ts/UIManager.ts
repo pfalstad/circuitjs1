@@ -2192,6 +2192,11 @@ export class UIManager {
     allowSave(b: boolean): void {
         if (this.menus.saveFileItem != null)
             this.menus.saveFileItem.setEnabled(b);
+        // Export As Start Circuit only makes sense for a circuit loaded
+        // unmodified from a menu: b true means there's something new to
+        // save, i.e. the opposite of "unmodified".
+        if (this.menus.exportAsStartCircuitItem != null)
+            this.menus.exportAsStartCircuitItem.setEnabled(!b && this.app.currentCircuitFile != null);
     }
 
     isSelection(): boolean {
