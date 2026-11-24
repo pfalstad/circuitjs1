@@ -1487,7 +1487,8 @@ export class MouseManager {
 	}
 
 	// IES - Grab resize handles in select mode if they are far enough apart and you are on top of them
-	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.mouseElm != null && !this.ui.isReadOnly() &&
+	// (not with shift, which adds/removes the element from the selection)
+	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.mouseElm != null && !this.ui.isReadOnly() && !e.shiftKey &&
 	    this.mouseElm.getHandleGrabbedClose(gx, gy, MouseManager.POSTGRABSQ, MouseManager.MINPOSTGRABSIZE) >= 0 &&
 	    !this.anySelectedButMouse())
 	    this.tempMouseMode = MouseManager.MODE_DRAG_POST;
@@ -1580,9 +1581,15 @@ export class MouseManager {
 	if (this.isToolbarDragPending())
 	    return;
 
-	// click to clear selection (but not on a right-click, e.g. from a context-menu mouseup)
-	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null && e.button === 0)
-	    this.clearSelection();
+	// click to clear selection (but not on a right-click, e.g. from a context-menu mouseup);
+	// shift-click on an element toggles it in or out of the selection instead
+	if (this.tempMouseMode === MouseManager.MODE_SELECT && this.selectedArea == null && e.button === 0) {
+	    if (e.shiftKey && this.mouseElm != null) {
+		this.mouseElm.setSelected(!this.mouseElm.isSelected());
+		this.enableDisableMenuItems();
+	    } else
+		this.clearSelection();
+	}
 
 	// click on empty space (not on the selection) clears the post selection
 	if (this.tempMouseMode === MouseManager.MODE_SELECT_POSTS && !this.postDragActive &&
