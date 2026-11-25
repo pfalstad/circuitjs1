@@ -20,14 +20,14 @@
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
-// One circuit entry from a menu list file (setuplist.txt, or an extra menu's
-// list from extramenus.txt).
+// One circuit entry from a menu list file (setuplist.txt, setupappliedlist.txt,
+// or an extra menu's list from extramenus.txt).
 interface CircuitEntry {
     file: string;        // as in the list file, e.g. "lrc.txt"
     stem: string;        // file without .txt, e.g. "lrc"
     title: string;       // menu title, e.g. "LRC Circuit"
     path: string;        // where it lives in the menus, e.g. "Circuits > Basics"
-    key: string | null;  // null for Circuits, else the extra menu's key (its directory)
+    key: string | null;  // null for Circuits, "applied" for Applied, else the extra menu's key (its directory)
     menu: string;        // menu command it runs: "circuits" or "extra:<key>"
 }
 
@@ -44,7 +44,8 @@ interface CircuitHit {
 // so a checkbox in front of it switches between components and circuits.
 //
 // A prefix limits the search to one place: C:, Cir: or Circuits: for the
-// Circuits menu; E:, X: or Ext: for all extra menus; or an extra menu's
+// Circuits menu; A:, App: or Applied: for the Applied menu; E:, X: or Ext:
+// for all extra menus; or an extra menu's
 // directory name (e.g. Testbed:) for just that menu. Case is ignored, and a
 // prefix alone lists everything in that place.
 export class CircuitSearch {
@@ -76,8 +77,10 @@ export class CircuitSearch {
             const text = m[2];
             if (p === "c" || p === "cir" || p === "circuits")
                 return { filter: e => e.key == null, text };
+            if (p === "a" || p === "app" || p === "applied")
+                return { filter: e => e.key === "applied", text };
             if (p === "e" || p === "x" || p === "ext")
-                return { filter: e => e.key != null, text };
+                return { filter: e => e.key != null && e.key !== "applied", text };
             if (CircuitSearch.entries.some(e => e.key != null && e.key.toLowerCase() === p))
                 return { filter: e => e.key != null && e.key.toLowerCase() === p, text };
         }
