@@ -605,6 +605,7 @@ export class Menus {
             "Add Text",                       "TextElm",
             "Add Box",                        "BoxElm",
             "Add Line",                       "LineElm",
+            "Add Link",                       "LinkElm",
             "Add Labeled Node",               "LabeledNodeElm",
             "Add Voltmeter/Scope Probe",      "ProbeElm",
             "Add Ohmmeter",                   "OhmMeterElm",

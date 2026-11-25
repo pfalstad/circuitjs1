@@ -1104,6 +1104,8 @@ export class MouseManager {
 	    return;
 	}
 	this.mouseSelect(e);
+	(canvas as HTMLElement).style.cursor =
+	    (this.mouseElm != null && this.mouseElm.isLinkElm() && this.mouseMode !== MouseManager.MODE_ADD_ELM) ? "pointer" : "";
 	this.sim.scopeManager.scopeMenuSelected = -1;
     }
 
@@ -1365,7 +1367,8 @@ export class MouseManager {
 	    (this.mouseElm as any).onDoubleClick();
 	    return;
 	}
-	if (!this.mouseElm.isSwitchElm() && this.mouseElm.hasProperties() && this.ui.canEditProperties(this.mouseElm))
+	// (a link isn't edited by double-click: the clicks already followed it; edit from the right-click menu)
+	if (!this.mouseElm.isSwitchElm() && !this.mouseElm.isLinkElm() && this.mouseElm.hasProperties() && this.ui.canEditProperties(this.mouseElm))
 	    this.sim.commands.doEdit(this.mouseElm);
     }
 
@@ -1609,6 +1612,7 @@ export class MouseManager {
 	    this.tempMouseMode !== MouseManager.MODE_SELECT_POSTS &&
 	    !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
 	let clickedElm: CircuitElm | null = null;
+	let clickedLink: CircuitElm | null = null;	// a link is followed, not edited (also read-only, touch)
 	let clickedEmpty = false;
 	if (wasPlainClick) {
 	    // (movement is tracked in onMouseMove rather than by checking this event's
@@ -1617,7 +1621,9 @@ export class MouseManager {
 	    // shouldn't bring up the editor for the scope's element, or close the editor)
 	    if (!this.movedSinceMouseDown && this.sim.scopeManager.scopeSelected === -1) {
 		// never moved (much) since mousedown, so it's a click, not a drag
-		if (this.mouseElm != null && !this.mouseElm.isSwitchElm())
+		if (this.mouseElm != null && this.mouseElm.isLinkElm())
+		    clickedLink = this.mouseElm;
+		else if (this.mouseElm != null && !this.mouseElm.isSwitchElm())
 		    clickedElm = this.mouseElm;
 		else if (this.mouseElm == null)
 		    clickedEmpty = true;
@@ -1626,7 +1632,9 @@ export class MouseManager {
 
 	const createdElm = this.endDrag();
 
-	if (createdElm != null) {
+	if (clickedLink != null) {
+	    (clickedLink as any).followLink();
+	} else if (createdElm != null) {
 	    this.editCreatedElm(createdElm);
 	} else if (clickedElm != null && !(e as any).fromTouch && this.ui.canEditProperties(clickedElm) &&
 		   this.sim.showPropsOnClick) {
