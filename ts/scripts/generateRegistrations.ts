@@ -20,7 +20,7 @@ import { ElementFactory } from "../ElementFactory";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out  = join(root, "registerElements.ts");
 
-const SKIP = new Set(["GateElm", "ChipElm", "CompositeElm", "SubcircuitChipElm", "JfetElm", "GraphicElm", "ControlledSourceElm"]);
+const SKIP = new Set(["GateElm", "ChipElm", "CompositeElm", "SubcircuitChipElm", "JfetElm", "GraphicElm", "ControlledSourceElm", "ShapeElm"]);
 
 // Classes used in so many circuits (or on the toolbar) that they're worth loading at
 // startup even though the startup code doesn't import them.
