@@ -874,8 +874,11 @@ export class SimulationManager {
 		cnl.num = i;
 		cnl.elm = ce;
 		cn.links.push(cnl);
-		// this is needed so findUnconnectedNodes() works
-		cn.internal = false;
+		// the composite's internal nodes are this child's posts, so they must be
+		// non-internal for findUnconnectedNodes() to check them.  but leave the
+		// child's own internal nodes alone, or they all get reported as unconnected
+		if (i < ce.getPostCount())
+		    cn.internal = false;
 	    }
 	}
     }
