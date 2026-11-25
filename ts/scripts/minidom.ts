@@ -26,6 +26,7 @@ class MiniElement {
     get localName(): string { return this.tagName; }
     get children(): MiniElement[] { return this.childNodes.filter((n): n is MiniElement => n.nodeType === ELEMENT_NODE); }
     get firstChild(): MiniElement | MiniText | null { return this.childNodes[0] ?? null; }
+    hasChildNodes(): boolean { return this.childNodes.length > 0; }
     get firstElementChild(): MiniElement | null { return this.children[0] ?? null; }
     get attributes(): { name: string; value: string }[] { return [...this.attrs].map(([name, value]) => ({ name, value })); }
     get textContent(): string { return this.childNodes.map(n => n.textContent).join(""); }
