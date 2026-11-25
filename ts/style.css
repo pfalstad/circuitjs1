@@ -688,8 +688,62 @@ td.gwt-MenuItem.open > .menuDropdown {
     color: #777;
 }
 
+/* Circuit search: left of the component search, with a wider list for the
+   menu path on the right. Its mobile checkbox is hidden on desktop. */
+.circuitSearch {
+    right: 236px;
+}
+
+.circuitSearchList {
+    width: 420px;
+}
+
+.circuitSearchFile {
+    color: #777;
+}
+
+.componentSearchItemSelected .circuitSearchFile {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.circuitSearchToggle {
+    display: none;
+}
+
 @media (max-width: 900px) {
     .componentSearchInput { width: 150px; }
+    .circuitSearch { right: 166px; }
+}
+
+/* Landscape phones and small tablets: full menus, but no room for two
+   fields, so one field with the checkbox just left of it (as on mobile). */
+@media (min-width: 601px) and (max-width: 1000px) {
+    .circuitSearchToggle {
+        display: block;
+        position: absolute;
+        right: 234px;
+        top: 50%;
+        transform: translateY(-50%);
+        margin: 0;
+        z-index: 7;
+    }
+
+    .circuitSearch {
+        right: 8px;
+        display: none;
+    }
+
+    .circuitSearchMode .circuitSearch {
+        display: flex;
+    }
+
+    .circuitSearchMode .componentSearch:not(.circuitSearch) {
+        display: none;
+    }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+    .circuitSearchToggle { right: 164px; }
 }
 
 /* Mobile: the menu bar collapses to a hamburger, but the search field stays
@@ -726,5 +780,35 @@ td.gwt-MenuItem.open > .menuDropdown {
 
     .componentSearchHint {
         font-size: 12px;
+    }
+
+    /* One field: the checkbox in front picks components or circuits. */
+    .circuitSearchToggle {
+        display: block;
+        position: absolute;
+        left: 4px;
+        top: 7px;
+        margin: 0;
+        width: 16px;
+        height: 16px;
+        z-index: 7;
+    }
+
+    .componentSearch,
+    .circuitSearch {
+        left: 26px;
+    }
+
+    .circuitSearch,
+    .circuitSearchMode .componentSearch:not(.circuitSearch) {
+        display: none;
+    }
+
+    .circuitSearchMode .circuitSearch {
+        display: flex;
+    }
+
+    .circuitSearchList {
+        width: auto;
     }
 }

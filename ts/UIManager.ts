@@ -44,6 +44,7 @@ import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
 import { EditDialog } from "./EditDialog";
 import { ComponentSearch } from "./ComponentSearch";
+import { CircuitSearch } from "./CircuitSearch";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -487,6 +488,7 @@ export class UIManager {
 
     toolbar: Toolbar;
     componentSearch: ComponentSearch | null = null;
+    circuitSearch: CircuitSearch | null = null;
     subcircuitBar: SubcircuitBar;
 
     layoutPanel: HTMLElement;
@@ -712,6 +714,8 @@ export class UIManager {
             this.layoutPanel.appendChild(menuBar);
             // Always-visible component search, right-aligned in the menu bar.
             this.componentSearch = new ComponentSearch(this.app, menuBar);
+            // Circuit search beside it (on mobile, in its place, via a checkbox).
+            this.circuitSearch = new CircuitSearch(this.app, menuBar);
         }
 
         // sidebar: right strip from below menu bar to bottom

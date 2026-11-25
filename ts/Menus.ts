@@ -22,6 +22,7 @@
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { CircuitSearch } from "./CircuitSearch";
 import { moduleBaseURL } from "./ModuleBase";
 
 // ---- State classes used by UIManager ----
@@ -873,6 +874,10 @@ export class Menus {
                     // Also searchable from the command palette (query length >= 2).
                     if (!extraKey)
                         CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
+                    // And from the Search circuits field, with its full menu path.
+                    if (!extraKey)
+                        CircuitSearch.register("circuits", file, title,
+                            [menuTitle, ...submenuStack.slice(1)].map(s => Locale.LS(s)).join(" > "));
 
                     const app = this.app as any;
                     if (file === app.startCircuit && app.startLabel == null) {
