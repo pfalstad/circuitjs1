@@ -206,6 +206,8 @@ export function registerElements(): void {
         dumpType: 168, xmlDumpType: "Latch", dumpClass: "LatchElm", shortcut: 0 });
     CirSim.theApp.registerLazy({ name: "LineElm", load: async () => (await import("./LineElm")).LineElm as any, deps: [],
         dumpType: 423, xmlDumpType: "Line", dumpClass: "LineElm", shortcut: 0 });
+    CirSim.theApp.registerLazy({ name: "LinkElm", load: async () => (await import("./LinkElm")).LinkElm as any, deps: [],
+        dumpType: 443, xmlDumpType: "Link", dumpClass: "LinkElm", shortcut: 0 });
     CirSim.theApp.register("LogicInputElm", new LogicInputElm(0, 0));
     CirSim.theApp.register("LogicOutputElm", new LogicOutputElm(0, 0));
     CirSim.theApp.registerLazy({ name: "MBBSwitchElm", load: async () => (await import("./MBBSwitchElm")).MBBSwitchElm as any, deps: [],

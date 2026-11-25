@@ -23,6 +23,7 @@ import "./ScopePropertiesDialog";
 import "./ShortcutsDialog";
 import "./ModelManagerDialog";
 import "./ExportAsUrlDialog";
+import "./ExportAsStartCircuitDialog";
 import "./ExportAsImageDialog";
 import "./ScopeExportImageDialog";
 import "./ImportFromDropboxDialog";

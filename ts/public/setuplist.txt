@@ -21,6 +21,7 @@ indmultfreq.txt Inductors w/ Various Frequencies
 impedance.txt Impedances of Same Magnitude
 res-series.txt Series Resonance
 res-par.txt Parallel Resonance
+wattmeter.txt Wattmeter
 -
 +Passive Filters
 filt-hipass.txt High-Pass Filter (RC)

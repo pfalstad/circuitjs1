@@ -156,6 +156,14 @@ export class CirSim {
     startCircuitText: string | null = null;
     startCircuitLink: string | null = null;
 
+    // The file/title/extra-menu-key of whatever circuit is currently loaded,
+    // if (and only if) it was loaded unmodified from a menu (Circuits, Applied,
+    // or a manifest menu) rather than imported, pasted, or edited since. Used
+    // to enable/drive "Export as Start Circuit". extraKey is null for Circuits.
+    currentCircuitFile: string | null = null;
+    currentCircuitTitle: string | null = null;
+    currentCircuitExtraKey: string | null = null;
+
     // circuit layout
     transform: number[] = [0, 0, 0, 0, 0, 0]; // [scaleX, 0, 0, scaleY, transX, transY]
     circuitArea: Rectangle = new Rectangle(0, 0, 800, 600);

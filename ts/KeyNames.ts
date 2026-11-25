@@ -146,6 +146,37 @@ export class KeyNames {
         return sb;
     }
 
+    // reverse of displayText(): turns a readable name ("a", "Space", "F1", "Ctrl-Shift-X")
+    // back into a stored single-char shortcut string, or null if it isn't one we know.
+    // Used to save switch keys in circuit files by name rather than by placeholder code.
+    // Accepts both the Mac and PC modifier names, so a file saved on one works on the other.
+    static parseName(s: string | null): string | null {
+        if (s == null || s.length === 0)
+            return null;
+        if (s.length === 1)
+            return s;
+        if (s === "Space")
+            return " ";
+        const prefixes = ["Ctrl-", "Alt-", "Opt-", "Cmd-", "Win-", "Shift-"];
+        const bits = [KeyNames.MOD_CTRL, KeyNames.MOD_ALT, KeyNames.MOD_ALT,
+                      KeyNames.MOD_META, KeyNames.MOD_META, KeyNames.MOD_SHIFT];
+        let mods = 0;
+        let found = true;
+        while (found) {
+            found = false;
+            for (let i = 0; i !== prefixes.length; i++)
+                if (s.startsWith(prefixes[i]) && s.length > prefixes[i].length) {
+                    mods |= bits[i];
+                    s = s.substring(prefixes[i].length);
+                    found = true;
+                }
+        }
+        for (let k = 0; k < (1 << KeyNames.KEYCODE_BITS); k++)
+            if (KeyNames.keyLabel(k) === s)
+                return String.fromCharCode(KeyNames.PLACEHOLDER_BASE + k + (mods << KeyNames.KEYCODE_BITS));
+        return null;
+    }
+
     // text to show in the UI for a stored (single-char) shortcut string
     static displayText(shortcut: string | null): string | null {
         if (shortcut == null || shortcut.length !== 1)

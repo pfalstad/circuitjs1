@@ -22,6 +22,7 @@
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { CircuitSearch } from "./CircuitSearch";
 import { moduleBaseURL } from "./ModuleBase";
 
 // ---- State classes used by UIManager ----
@@ -268,6 +269,7 @@ export class Menus {
     importFromLocalFileItem  = new MenuItem();
     importFromTextItem       = new MenuItem();
     exportAsUrlItem          = new MenuItem();
+    exportAsStartCircuitItem = new MenuItem();
     exportAsLocalFileItem    = new MenuItem();
     exportAsTextItem         = new MenuItem();
     printItem                = new MenuItem();
@@ -405,6 +407,10 @@ export class Menus {
 
         fileMenu.addMenuItem(this.exportAsUrlItem,
             iconHtml("export", "Export As Link..."), "file", "exportasurl");
+        fileMenu.addMenuItem(this.exportAsStartCircuitItem,
+            iconHtml("export", "Export As Start Circuit..."), "file", "exportasstartcircuit");
+        // only makes sense for a circuit loaded unmodified from a menu; UIManager.allowSave keeps this in sync
+        this.exportAsStartCircuitItem.setEnabled(false);
         fileMenu.addMenuItem(this.exportAsTextItem,
             iconHtml("export", "Export As Text..."), "file", "exportastext");
         fileMenu.addCommand(iconHtml("export", "Export As KiCad Schematic..."),         "file", "exportaskicad");
@@ -503,7 +509,14 @@ export class Menus {
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----
-        this.addTopItem(this.menuBarRow, Locale.LS("File"),    fileMenu);
+        const fileMenuTab = this.addTopItem(this.menuBarRow, Locale.LS("File"),    fileMenu);
+        // unsavedChanges can go true in several places (MouseManager, UndoManager)
+        // that don't route through allowSave(), so re-check live right as File
+        // opens rather than trying to catch every place that edits the circuit.
+        fileMenuTab.addEventListener('click', () => {
+            this.exportAsStartCircuitItem.setEnabled(
+                !this.app.unsavedChanges && this.app.currentCircuitFile != null);
+        });
         this.addTopItem(this.menuBarRow, Locale.LS("Edit"),    editMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Draw"),    drawMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Scopes"),  scopesMenu);
@@ -593,6 +606,7 @@ export class Menus {
             "Add Text",                       "TextElm",
             "Add Box",                        "BoxElm",
             "Add Line",                       "LineElm",
+            "Add Link",                       "LinkElm",
             "Add Labeled Node",               "LabeledNodeElm",
             "Add Voltmeter/Scope Probe",      "ProbeElm",
             "Add Ohmmeter",                   "OhmMeterElm",
@@ -766,15 +780,76 @@ export class Menus {
                 return r.text();
             })
             .then(text => { if (text) this.processSetupList(text, openDefault); })
-            .catch(() => { CirSim.console("Can't load circuit list!"); });
+            .catch(() => { CirSim.console("Can't load circuit list!"); })
+            // Applied, then any manifest menus, only after Circuits is built,
+            // so they always come after it and in that order.
+            .finally(() => this.getSetupExtraLists(openDefault).then(() => this.getExtraManifestMenus(openDefault)));
     }
 
-    processSetupList(text: string, openDefault: boolean): void {
+    // Optional "Applied" menu after Circuits: setupappliedlist.txt, with its
+    // circuits in applied/. Entirely optional and server-side only: with it
+    // absent, nothing changes.
+    async getSetupExtraLists(openDefault: boolean): Promise<void> {
+        try {
+            const r = await fetch(moduleBaseURL + 'setupappliedlist.txt');
+            if (r.ok)
+                this.processSetupList(await r.text(), openDefault, "Applied", "applied");
+        } catch (e) { }
+    }
+
+    // Optional further menus after Circuits and Applied, from extramenus.txt:
+    // one "<list-filename> <Menu Name>" pair per line -- the same format as an
+    // entry in setuplist.txt itself -- # comments and blank lines ignored. Each
+    // listed file's own circuits live in a directory named after it (its
+    // "setup"..."list.txt" wrapper stripped, e.g. setupTestbedlist.txt ->
+    // Testbed/). All of this is optional and server-side only: with
+    // extramenus.txt absent nothing changes, and adding a menu needs no
+    // rebuild. Menus load one at a time so they appear in manifest order.
+    // (The PWA service worker can cache extramenus.txt; hard-refresh if an
+    // edit doesn't show.)
+    async getExtraManifestMenus(openDefault: boolean): Promise<void> {
+        for (const { file, title } of await this.getExtraMenuEntries()) {
+            const key = this.extraMenuKeyFromFile(file);
+            try {
+                const r = await fetch(moduleBaseURL + file);
+                if (r.ok)
+                    this.processSetupList(await r.text(), openDefault, title, key);
+            } catch (e) { }
+        }
+    }
+
+    // Parses extramenus.txt into its "<list-filename> <Menu Name>" entries, or
+    // [] if it's absent or empty.
+    async getExtraMenuEntries(): Promise<{ file: string, title: string }[]> {
+        const entries: { file: string, title: string }[] = [];
+        try {
+            const r = await fetch(moduleBaseURL + 'extramenus.txt');
+            if (r.ok)
+                for (const line of (await r.text()).split(/\r?\n/)) {
+                    const t = line.trim();
+                    if (!t || t[0] === '#') continue;
+                    const sp = t.indexOf(' ');
+                    if (sp > 0)
+                        entries.push({ file: t.substring(0, sp), title: t.substring(sp + 1) });
+                }
+        } catch (e) { }
+        return entries;
+    }
+
+    // Derives a manifest entry's circuits-directory key from its list filename,
+    // e.g. setupTestbedlist.txt -> Testbed.
+    extraMenuKeyFromFile(file: string): string {
+        return file.replace(/^setup/, '').replace(/list\.txt$/, '');
+    }
+
+    // extraKey is null for the Circuits menu, otherwise the extra menu's key
+    // (its circuits are loaded from extraKey/)
+    processSetupList(text: string, openDefault: boolean, menuTitle = "Circuits", extraKey: string | null = null): void {
         const lines = text.split(/\r?\n/);
         const stack: Menu[] = [];
         const submenuStack: string[] = [""]; // submenu titles for palette circuit hints
         let currentMenu = new Menu(this.app);
-        this.addTopItem(this.menuBarRow, Locale.LS("Circuits"), currentMenu);
+        this.addTopItem(this.menuBarRow, Locale.LS(menuTitle), currentMenu);
         stack.push(currentMenu);
 
         for (const line of lines) {
@@ -795,9 +870,13 @@ export class Menus {
                     const first = line[0] === '>';
                     const file  = line.substring(first ? 1 : 0, sp);
                     const title = Locale.LS(line.substring(sp + 1));
-                    currentMenu.addCommand(title, "circuits", "setup " + file + " " + title);
+                    currentMenu.addCommand(title, extraKey ? "extra:" + extraKey : "circuits", "setup " + file + " " + title);
                     // Also searchable from the command palette (query length >= 2).
-                    CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
+                    if (!extraKey)
+                        CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
+                    // And from the Search circuits field, with its full menu path.
+                    CircuitSearch.register(extraKey, file, title,
+                        [menuTitle, ...submenuStack.slice(1)].map(s => Locale.LS(s)).join(" > "));
 
                     const app = this.app as any;
                     if (file === app.startCircuit && app.startLabel == null) {
@@ -807,24 +886,58 @@ export class Menus {
                     if (first && app.startCircuit == null) {
                         app.startCircuit = file;
                         app.startLabel   = title;
-                        if (openDefault && this.app.stopMessage == null)
-                            this.readSetupFile(app.startCircuit, app.startLabel);
+                        if (openDefault && this.app.stopMessage == null) {
+                            if (extraKey)
+                                this.readSetupExtraFile(extraKey, app.startCircuit, app.startLabel);
+                            else
+                                this.readSetupFile(app.startCircuit, app.startLabel);
+                        }
                     }
                 }
             }
         }
     }
 
-    readSetupFile(str: string, title: string | null): void {
+    // Looks for str in circuits/, then applied/, then each extra manifest
+    // menu's own directory, in that order (first match wins, e.g. if the same
+    // filename happens to exist in two of them). This is also how a
+    // ?startCircuit= link resolves, so a circuit "Export"ed as a Start Circuit
+    // (see ExportAsStartCircuitDialog) loads correctly no matter which menu it
+    // actually lives in.
+    async readSetupFile(str: string, title: string | null): Promise<void> {
         console.log(str);
         (this.app as any).resetEditingContext?.();
         // don't avoid caching here, it's unnecessary and makes offline PWA's not work
         const url = moduleBaseURL + 'circuits/' + str;
-        (this.app as any).loader?.loadFileFromURL(url);
+        const extraKeys = (await this.getExtraMenuEntries()).map(e => this.extraMenuKeyFromFile(e.file));
+        const fallbacks = [moduleBaseURL + 'applied/' + str, ...extraKeys.map(key => moduleBaseURL + key + '/' + str)];
+        await this.app.loader?.loadFileFromURL(url, fallbacks);
         if (title != null)
             this.app.setCircuitTitle(title);
         this.app.unsavedChanges = false;
         this.app.savedFlag = true;
+        this.app.currentCircuitFile = str;
+        this.app.currentCircuitTitle = title;
+        this.app.currentCircuitExtraKey = null;
+        // loadFileFromURL already called allowSave(false), but before the lines
+        // above -- currentCircuitFile was still null then, so re-run it now that
+        // it's set, or Export As Start Circuit never re-enables.
+        this.app.allowSave(false);
+    }
+
+    async readSetupExtraFile(key: string, str: string, title: string | null): Promise<void> {
+        console.log(str);
+        (this.app as any).resetEditingContext?.();
+        await this.app.loader?.loadFileFromURL(moduleBaseURL + key + '/' + str);
+        if (title != null)
+            this.app.setCircuitTitle(title);
+        this.app.unsavedChanges = false;
+        this.app.savedFlag = true;
+        this.app.currentCircuitFile = str;
+        this.app.currentCircuitTitle = title;
+        this.app.currentCircuitExtraKey = key;
+        // see readSetupFile -- allowSave(false) already ran before this was set
+        this.app.allowSave(false);
     }
 
     // ---- Private helpers ----
