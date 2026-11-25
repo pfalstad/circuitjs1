@@ -52,6 +52,9 @@ export class VarRailElm extends RailElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
+        // the slider sets the voltage; moving it doesn't count as modifying the circuit
+        if (CircuitXMLSerializer.comparing)
+            elem.removeAttribute("fr");
         CircuitXMLSerializer.dumpAttr(elem, "st", this.sliderText);
     }
 

@@ -133,7 +133,7 @@ export class CirSim {
         if (!b)
             this.savedDumpPending = true;
     }
-    savedDump: string | null = null;  // the circuit (without state) as of the last load or save
+    savedDump: string | null = null;  // dumpCircuitForCompare() as of the last load or save
     savedDumpPending: boolean = true;
     shown: boolean = false;
     developerMode: boolean = false;
@@ -494,16 +494,19 @@ export class CirSim {
             return false;
         if (this.savedDump == null || this.savedDumpPending)
             return true;
-        return UndoManager.withoutSliders(this.dumpCircuit(false)) !== UndoManager.withoutSliders(this.savedDump);
+        return this.dumpCircuitForCompare() !== this.savedDump;
     }
 
-    // saveState=false: without simulation state or scopes (see CircuitXMLSerializer)
-    dumpCircuit(saveState: boolean = true): string {
+    dumpCircuit(): string {
         ModelRegistry.clearAllDumpedFlags();
+        return new CircuitXMLSerializer(this).dumpCircuit();
+    }
 
-        const xml = new CircuitXMLSerializer(this);
-        xml.saveState = saveState;
-        return xml.dumpCircuit();
+    // for isModified(): leaves out state, scopes, sliders, switch positions and so on
+    // (see CircuitXMLSerializer.comparing)
+    dumpCircuitForCompare(): string {
+        ModelRegistry.clearAllDumpedFlags();
+        return new CircuitXMLSerializer(this).dumpCircuit(true);
     }
 
     setCircuitTitle(s: string | null): void { this.ui.setCircuitTitle(s); }

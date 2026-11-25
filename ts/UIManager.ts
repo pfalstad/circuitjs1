@@ -1335,7 +1335,7 @@ export class UIManager {
 
         if (this.app.savedDumpPending) {
             this.app.savedDumpPending = false;
-            this.app.savedDump = this.app.dumpCircuit(false);
+            this.app.savedDump = this.app.dumpCircuitForCompare();
         }
 
         perfmon.stopContext(); // updateCircuit

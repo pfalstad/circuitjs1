@@ -24,6 +24,7 @@
 
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
+import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 
 export class CircuitXMLSerializer {
     app: CirSim;
@@ -89,11 +90,24 @@ export class CircuitXMLSerializer {
         return sb;
     }
 
-    // false leaves out simulation state and scopes, whose settings drift as they run (auto
-    // scale, plot speed), for checking whether the circuit itself has changed since it was saved
-    saveState = true;
+    // true while making a comparison dump, for checking whether the circuit has changed since
+    // it was loaded or saved.  that leaves out simulation state and scopes (whose settings drift
+    // as they run: auto scale, plot speed), the sidebar sliders, and anything else that is just
+    // operating the circuit rather than changing it (elements check this, e.g. switch positions)
+    static comparing = false;
 
-    dumpCircuit(): string {
+    dumpCircuit(comparing: boolean = false): string {
+        const prev = CircuitXMLSerializer.comparing;
+        CircuitXMLSerializer.comparing = comparing;
+        try {
+            return this.dumpCircuitInner();
+        } finally {
+            CircuitXMLSerializer.comparing = prev;
+        }
+    }
+
+    private dumpCircuitInner(): string {
+        const comparing = CircuitXMLSerializer.comparing;
         const doc = document.implementation.createDocument(null, "cir", null);
         const root = doc.documentElement;
 
@@ -109,10 +123,12 @@ export class CircuitXMLSerializer {
         f |= this.app.autoDCOnReset ? 128 : 0;
         CircuitXMLSerializer.dumpAttr(root, "f", f);
         CircuitXMLSerializer.dumpAttr(root, "ts", sim.maxTimeStep);
-        CircuitXMLSerializer.dumpAttr(root, "ic", this.app.getIterCount());
         const ui = this.app.ui;
-        CircuitXMLSerializer.dumpAttr(root, "cb", ui.currentBar.getValue());
-        CircuitXMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
+        if (!comparing) {
+            CircuitXMLSerializer.dumpAttr(root, "ic", this.app.getIterCount());
+            CircuitXMLSerializer.dumpAttr(root, "cb", ui.currentBar.getValue());
+            CircuitXMLSerializer.dumpAttr(root, "pb", ui.powerBar.getValue());
+        }
         CircuitXMLSerializer.dumpAttr(root, "vr", CircuitElm.voltageRange);
         CircuitXMLSerializer.dumpAttr(root, "mts", sim.minTimeStep);
         if (sim.solverType !== 0)
@@ -121,12 +137,14 @@ export class CircuitXMLSerializer {
         for (const ce of this.app.elmList) {
             const elem = doc.createElement(ce.getXmlDumpType());
             ce.dumpXml(doc, elem);
-            if (this.saveState)
+            if (!comparing)
                 ce.dumpXmlState(doc, elem);
+            else
+                this.removeSliderControlledAttrs(ce, elem, doc);
             root.appendChild(elem);
         }
         const sm = this.app.scopeManager;
-        if (this.saveState)
+        if (!comparing)
             for (let i = 0; i !== sm.scopeCount; i++)
                 sm.scopes[i].dumpXml(doc, root);
         for (let i = 0; i !== this.app.adjustables.length; i++)
@@ -139,6 +157,57 @@ export class CircuitXMLSerializer {
             root.appendChild(h);
         }
         return CircuitXMLSerializer.prettyPrint(doc);
+    }
+
+    // for a comparison dump: leave out the values that sliders (see Adjustable) control, so
+    // moving a slider doesn't count as a change.  we don't know which attributes an edit item
+    // is saved in, so find out by moving the value on a copy of the element and seeing which
+    // attributes change.  (if that fails, the attributes stay, and moving the slider counts.)
+    // this can't tell a slider move from other edits, so typing a new value for something that
+    // has a slider (in the edit dialog, say) doesn't count as a change either.
+    private removeSliderControlledAttrs(ce: CircuitElm, elem: Element, doc: Document): void {
+        const adjs = this.app.adjustables.filter((a: any) => a.elm === ce);
+        if (adjs.length === 0)
+            return;
+        const orig = elem.cloneNode(true) as Element;
+        const remove = new Set<string>();
+        for (const adj of adjs) {
+            let copy: CircuitElm | null = null;
+            try {
+                const className = CirSim.xmlDumpTypeMap.get(orig.tagName);
+                copy = className != null ? this.app.constructElement(className, 0, 0) : null;
+                if (copy == null)
+                    continue;
+                const xml = new CircuitXMLDeserializer(this.app);
+                xml.currentXmlElement = orig;
+                xml.currentElm = copy;
+                copy.undumpXml(xml);
+                copy.allocNodes();
+                copy.setPositionFromXml(orig);
+                const ei = copy.getEditInfo(adj.editItem);
+                if (ei == null || ei.text != null)
+                    continue;
+                ei.value = (ei.value !== adj.maxValue) ? adj.maxValue : adj.minValue;
+                if (ei.value === adj.maxValue && ei.value === adj.minValue)
+                    ei.value = ei.value * 2 + 1;
+                ei.continuous = true;
+                copy.setEditValue(adj.editItem, ei);
+                const moved = doc.createElement(orig.tagName);
+                copy.dumpXml(doc, moved);
+                for (const a of Array.from(orig.attributes))
+                    if (moved.getAttribute(a.name) !== a.value)
+                        remove.add(a.name);
+                for (const a of Array.from(moved.attributes))
+                    if (orig.getAttribute(a.name) === null)
+                        remove.add(a.name);
+            } catch (e) {
+                console.log("can't find slider attribute: " + e);
+            } finally {
+                try { copy?.delete(); } catch (e) { /* ignore */ }
+            }
+        }
+        for (const name of remove)
+            elem.removeAttribute(name);
     }
 
     static checkAttr(elem: Element, name: string): void {

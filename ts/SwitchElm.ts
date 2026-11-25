@@ -82,7 +82,8 @@ export class SwitchElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        if (this.position !== 0)
+        // (flipping a switch doesn't count as modifying the circuit)
+        if (this.position !== 0 && !CircuitXMLSerializer.comparing)
             CircuitXMLSerializer.dumpAttr(elem, "p", this.position);
         if (this.momentary)
             CircuitXMLSerializer.dumpAttr(elem, "mm", this.momentary);
