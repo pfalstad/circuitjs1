@@ -20,13 +20,15 @@
 import { CirSim } from "./CirSim";
 import { Locale } from "./Locale";
 
-// One circuit entry from a menu list file (setuplist.txt).
+// One circuit entry from a menu list file (setuplist.txt, or an extra menu's
+// list from extramenus.txt).
 interface CircuitEntry {
-    file: string;   // as in the list file, e.g. "lrc.txt"
-    stem: string;   // file without .txt, e.g. "lrc"
-    title: string;  // menu title, e.g. "LRC Circuit"
-    path: string;   // where it lives in the menus, e.g. "Circuits > Basics"
-    menu: string;   // menu command it runs, e.g. "circuits"
+    file: string;        // as in the list file, e.g. "lrc.txt"
+    stem: string;        // file without .txt, e.g. "lrc"
+    title: string;       // menu title, e.g. "LRC Circuit"
+    path: string;        // where it lives in the menus, e.g. "Circuits > Basics"
+    key: string | null;  // null for Circuits, else the extra menu's key (its directory)
+    menu: string;        // menu command it runs: "circuits" or "extra:<key>"
 }
 
 interface CircuitHit {
@@ -40,6 +42,11 @@ interface CircuitHit {
 // would. Results come in menu order; a filename match wins over a title match,
 // so each circuit is listed once. On mobile there's room for only one field,
 // so a checkbox in front of it switches between components and circuits.
+//
+// A prefix limits the search to one place: C:, Cir: or Circuits: for the
+// Circuits menu; E:, X: or Ext: for all extra menus; or an extra menu's
+// directory name (e.g. Testbed:) for just that menu. Case is ignored, and a
+// prefix alone lists everything in that place.
 export class CircuitSearch {
     static entries: CircuitEntry[] = [];
 
@@ -53,10 +60,28 @@ export class CircuitSearch {
     private static readonly VISIBLE_ROWS = 10;
 
     // Called from Menus.processSetupList() for each circuit in a list file.
-    static register(menu: string, file: string, title: string, path: string): void {
-        if (CircuitSearch.entries.some(e => e.menu === menu && e.file === file))
+    static register(key: string | null, file: string, title: string, path: string): void {
+        if (CircuitSearch.entries.some(e => e.key === key && e.file === file))
             return;
-        CircuitSearch.entries.push({ file, stem: file.replace(/\.txt$/i, ""), title, path, menu });
+        const menu = key == null ? "circuits" : "extra:" + key;
+        CircuitSearch.entries.push({ file, stem: file.replace(/\.txt$/i, ""), title, path, key, menu });
+    }
+
+    // Splits off a recognized prefix. Returns the entry filter (null = all
+    // circuits) and the text left to match; an unknown prefix is just text.
+    static parsePrefix(query: string): { filter: ((e: CircuitEntry) => boolean) | null, text: string } {
+        const m = /^([^:\s]+):\s*(.*)$/.exec(query);
+        if (m != null) {
+            const p = m[1].toLowerCase();
+            const text = m[2];
+            if (p === "c" || p === "cir" || p === "circuits")
+                return { filter: e => e.key == null, text };
+            if (p === "e" || p === "x" || p === "ext")
+                return { filter: e => e.key != null, text };
+            if (CircuitSearch.entries.some(e => e.key != null && e.key.toLowerCase() === p))
+                return { filter: e => e.key != null && e.key.toLowerCase() === p, text };
+        }
+        return { filter: null, text: query };
     }
 
     // Text as typed, case ignored; each ? matches exactly one character.
@@ -66,13 +91,15 @@ export class CircuitSearch {
     }
 
     static search(query: string): CircuitHit[] {
-        const text = query.trim();
-        if (text.length === 0)
+        const { filter, text } = CircuitSearch.parsePrefix(query.trim());
+        if (filter == null && text.length === 0)
             return [];
         const re = CircuitSearch.pattern(text);
         const hits: CircuitHit[] = [];
         for (const entry of CircuitSearch.entries) {
-            if (re.test(entry.stem))
+            if (filter != null && !filter(entry))
+                continue;
+            if (text.length > 0 && re.test(entry.stem))
                 hits.push({ entry, onFile: true });
             else if (re.test(entry.title))
                 hits.push({ entry, onFile: false });
@@ -147,7 +174,7 @@ export class CircuitSearch {
         }
         this.results = CircuitSearch.search(query);
         this.selected = 0;
-        this.render(CircuitSearch.pattern(query));
+        this.render(CircuitSearch.pattern(CircuitSearch.parsePrefix(query).text));
     }
 
     private render(re: RegExp): void {
@@ -234,7 +261,7 @@ export class CircuitSearch {
 
     private static highlight(text: string, re: RegExp): string {
         const m = re.exec(text);
-        if (m == null)
+        if (m == null || m[0].length === 0)
             return CircuitSearch.escapeHtml(text);
         return CircuitSearch.escapeHtml(text.substring(0, m.index))
             + "<b>" + CircuitSearch.escapeHtml(m[0]) + "</b>"

@@ -875,8 +875,8 @@ export class Menus {
                     if (!extraKey)
                         CommandPaletteRegistry.registerCircuit(file, title, submenuStack[submenuStack.length - 1]);
                     // And from the Search circuits field, with its full menu path.
-                    if (!extraKey)
-                        CircuitSearch.register("circuits", file, title,
+                    if (extraKey !== "applied")
+                        CircuitSearch.register(extraKey, file, title,
                             [menuTitle, ...submenuStack.slice(1)].map(s => Locale.LS(s)).join(" > "));
 
                     const app = this.app as any;

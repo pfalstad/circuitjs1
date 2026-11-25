@@ -696,6 +696,20 @@ td.gwt-MenuItem.open > .menuDropdown {
 
 .circuitSearchList {
     width: 420px;
+    overflow-x: hidden;
+}
+
+/* Long titles/filenames get trimmed with "..."; the menu path stays whole
+   (up to half the row) since it's the part you can't guess. */
+.circuitSearchList .componentSearchLabel {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.circuitSearchList .componentSearchHint {
+    flex-shrink: 0;
+    max-width: 50%;
 }
 
 .circuitSearchFile {
