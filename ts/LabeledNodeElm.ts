@@ -93,6 +93,28 @@ export class LabeledNodeElm extends CircuitElm {
     setPoints(): void {
         super.setPoints();
         this.lead1 = this.interpPoint(this.point1, this.point2, 1 - this.circleSize / this.dn);
+        this.updateBbox();
+    }
+
+    private static measureGraphics: Graphics | null = null;
+
+    // Compute the bounding box including the label text, the same way draw() does.  Without
+    // this the bbox doesn't include the text until the first draw, so centerCircuit() right
+    // after loading a circuit can cut off labels at the edge.
+    private updateBbox(): void {
+        let g = LabeledNodeElm.measureGraphics;
+        if (g == null) {
+            if (typeof document === "undefined")
+                return;
+            const ctx = document.createElement("canvas").getContext("2d");
+            if (ctx == null)
+                return;
+            g = LabeledNodeElm.measureGraphics = new Graphics(ctx);
+        }
+        g.setFont(CircuitElm.unitsFont);
+        const ps2 = this.interpPoint(this.point1, this.point2, 1 + 11 / this.dn);
+        this.setBbox(this.point1, ps2, this.circleSize);
+        this.drawLabeledNode(g, this.text, this.point1, this.lead1!);
     }
 
     // name of the net that post n is on (labels with the same key are connected)
