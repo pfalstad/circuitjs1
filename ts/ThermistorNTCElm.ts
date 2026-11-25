@@ -62,7 +62,9 @@ export class ThermistorNTCElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "r50", this.r50);
         CircuitXMLSerializer.dumpAttr(elem, "mnt", this.minTempr);
         CircuitXMLSerializer.dumpAttr(elem, "mxt", this.maxTempr);
-        CircuitXMLSerializer.dumpAttr(elem, "ps", this.position);
+        // (moving the slider doesn't count as modifying the circuit)
+        if (!CircuitXMLSerializer.comparing)
+            CircuitXMLSerializer.dumpAttr(elem, "ps", this.position);
         CircuitXMLSerializer.dumpAttr(elem, "st", this.sliderText);
     }
 

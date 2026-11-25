@@ -46,7 +46,9 @@ export class LDRElm extends CircuitElm {
 
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
-        CircuitXMLSerializer.dumpAttr(elem, "ps", this.position);
+        // (moving the slider doesn't count as modifying the circuit)
+        if (!CircuitXMLSerializer.comparing)
+            CircuitXMLSerializer.dumpAttr(elem, "ps", this.position);
         CircuitXMLSerializer.dumpAttr(elem, "st", this.sliderText);
     }
 

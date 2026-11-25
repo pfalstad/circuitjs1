@@ -95,7 +95,9 @@ export class PotElm extends CircuitElm {
     dumpXml(doc: Document, elem: Element): void {
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "ma", this.maxResistance);
-        CircuitXMLSerializer.dumpAttr(elem, "po", this.position);
+        // (moving the slider doesn't count as modifying the circuit)
+        if (!CircuitXMLSerializer.comparing)
+            CircuitXMLSerializer.dumpAttr(elem, "po", this.position);
         CircuitXMLSerializer.dumpAttr(elem, "sl", this.sliderText);
         if (this.link !== 0)
             CircuitXMLSerializer.dumpAttr(elem, "li", this.link);
