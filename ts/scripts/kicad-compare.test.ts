@@ -16,8 +16,8 @@ import { execFileSync } from "child_process";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 import { makeApp, loadCircuit, startSimulator, runSimulator, readWrdata, differences } from "./simHarness";
-import { exportKicadProject } from "../KicadExporter";
-import { spiceValue } from "../SpiceExporter";
+import { exportKicadProject } from "../src/KicadExporter";
+import { spiceValue } from "../src/SpiceExporter";
 
 const FILE = process.env.CIRCUIT ?? "";
 const NAME = basename(FILE).replace(/\.\w+$/, "");

@@ -285,7 +285,7 @@ export class CommandPaletteRegistry {
             execute: () => { toolbar.toggle(); app.setToolbar(); }
         });
         const crossHair = m.crossHairCheckItem;
-        CommandPaletteRegistry.addToggle("options:crosshair", "Show Cursor Crosshair", "Options", "crosshair cursor", {
+        CommandPaletteRegistry.addToggle("options:crosshair", "Show Cursor Cross Hairs", "Options", "crosshair cursor", {
             execute: () => { crossHair.toggle(); app.setOptionInStorage("crossHair", crossHair.getState()); }
         });
         const euroRes = m.euroResistorCheckItem;

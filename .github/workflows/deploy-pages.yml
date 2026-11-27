@@ -37,33 +37,12 @@ jobs:
       - name: Mark version as alpha with build time
         run: |
           BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')
-          sed -E -i "s/(versionString: string = \"[^\"]*)\"/\1 (alpha $BUILT)\"/" ts/CirSim.ts
-          grep 'versionString: string = ".* (alpha .*)"' ts/CirSim.ts
+          sed -E -i "s/(versionString: string = \"[^\"]*)\"/\1 (alpha $BUILT)\"/" ts/src/CirSim.ts
+          grep 'versionString: string = ".* (alpha .*)"' ts/src/CirSim.ts
 
       - name: Build site
         run: ./dist-offline.sh
 
-      # site/ has no index.html of its own (the app's entry point is
-      # circuitjs.html), so GitHub Pages 404s at the site root without this.
-      # Scoped to this workflow only — not added to ts/ or the other build
-      # scripts, which don't need it (dist.sh/dist-offline.sh deployments are
-      # placed under a path where the caller already knows to link straight
-      # to circuitjs.html, and the Electron app loads it directly by name).
-      - name: Add index.html redirect to circuitjs.html
-        run: |
-          cat > site/index.html <<'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta http-equiv="refresh" content="0; url=circuitjs.html">
-            <title>CircuitJS</title>
-          </head>
-          <body>
-            <a href="circuitjs.html">CircuitJS</a>
-          </body>
-          </html>
-          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

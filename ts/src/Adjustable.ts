@@ -26,6 +26,7 @@ import { Scrollbar } from "./UIManager";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
+import { Locale } from "./Locale";
 
 export class Adjustable {
     elm: CircuitElm | null;
@@ -136,7 +137,7 @@ export class Adjustable {
 
     createSliderWithValue(sim: CirSim, value: number): void {
         const lbl = document.createElement("label");
-        lbl.textContent = this.sliderText;
+        lbl.textContent = Locale.LS(this.sliderText);
         lbl.classList.add("topSpace");
         this.label = lbl;
         sim.addWidgetToVerticalPanel(lbl);

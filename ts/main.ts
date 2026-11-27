@@ -1,31 +1,31 @@
 /// <reference types="vite/client" />
-import { CircuitElm } from "./CircuitElm";
-import { Graphics } from "./Graphics";
-import { Color } from "./Color";
-import { CirSim } from "./CirSim";
-import { SimulationManager } from "./SimulationManager";
-import { UIManager } from "./UIManager";
-import { ScopeManager } from "./ScopeManager";
-import { CircuitLoader } from "./CircuitLoader";
-import { JSInterface } from "./JSInterface";
-import { HookRegistry } from "./HookRegistry";
-import { Locale } from "./Locale";
+import { CircuitElm } from "./src/CircuitElm";
+import { Graphics } from "./src/Graphics";
+import { Color } from "./src/Color";
+import { CirSim } from "./src/CirSim";
+import { SimulationManager } from "./src/SimulationManager";
+import { UIManager } from "./src/UIManager";
+import { ScopeManager } from "./src/ScopeManager";
+import { CircuitLoader } from "./src/CircuitLoader";
+import { JSInterface } from "./src/JSInterface";
+import { HookRegistry } from "./src/HookRegistry";
+import { Locale } from "./src/Locale";
 import * as LZString from "lz-string";
-import "./canvas2svg.js";
-import { ImageExporter } from "./ImageExporter";
-import { CommandManager } from "./CommandManager";
-import { registerElements, registerLastElements } from "./registerElements";
+import "./src/canvas2svg.js";
+import { ImageExporter } from "./src/ImageExporter";
+import { CommandManager } from "./src/CommandManager";
+import { registerElements, registerLastElements } from "./src/registerElements";
 // these only install themselves into window or HookRegistry
-import "./Adjustable";
-import "./AboutBox";
-import "./SliderDialog";
-import "./ScopePropertiesDialog";
-import "./ShortcutsDialog";
-import "./ModelManagerDialog";
-import "./ExportAsUrlDialog";
-import "./ExportAsImageDialog";
-import "./ScopeExportImageDialog";
-import "./ImportFromDropboxDialog";
+import "./src/Adjustable";
+import "./src/AboutBox";
+import "./src/SliderDialog";
+import "./src/ScopePropertiesDialog";
+import "./src/ShortcutsDialog";
+import "./src/ModelManagerDialog";
+import "./src/ExportAsUrlDialog";
+import "./src/ExportAsImageDialog";
+import "./src/ScopeExportImageDialog";
+import "./src/ImportFromDropboxDialog";
 
 // used via the global (window.LZString) by CirSim.decompress() and ExportAsUrlDialog
 (window as any).LZString = LZString;
@@ -92,7 +92,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol ==
 {
     const qp = new URLSearchParams(window.location.search);
     if (["test", "testlist", "testui"].some(k => qp.has(k))) {
-        const { TestManager } = await import("./TestManager");
+        const { TestManager } = await import("./src/TestManager");
         TestManager.enabled = qp.has("testui");
     }
 }

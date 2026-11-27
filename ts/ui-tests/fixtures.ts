@@ -21,7 +21,7 @@ export class Sim {
             params.set("startCircuit", "blank.txt");
         else
             params.set("cct", circuit);
-        await this.page.goto("circuitjs.html?" + params);
+        await this.page.goto("index.html?" + params);
         await this.page.waitForFunction(() => (window as any).__app?.mouse != null);
     }
 

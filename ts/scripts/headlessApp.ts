@@ -3,9 +3,9 @@
 // browser.  Shared by the comparison tools (via simHarness) and generateRegistrations.ts,
 // which runs under tsx rather than vitest
 
-import { CircuitElm } from "../CircuitElm";
-import { CirSim } from "../CirSim";
-import { SimulationManager } from "../SimulationManager";
+import { CircuitElm } from "../src/CircuitElm";
+import { CirSim } from "../src/CirSim";
+import { SimulationManager } from "../src/SimulationManager";
 import { installMiniDom, miniImplementation } from "./minidom";
 
 // stands in for anything (the DOM, UI widgets) the elements touch while being built

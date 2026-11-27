@@ -36,7 +36,7 @@ export default defineConfig({
     },
     webServer: {
         command: `npx vite --port ${port} --strictPort --open false`,
-        url: `http://localhost:${port}/circuitjs.html`,
+        url: `http://localhost:${port}/index.html`,
         reuseExistingServer: true,
     },
 });
