@@ -26,6 +26,9 @@ import { Choice } from "./Choice";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseIntStrict } from "./NumberParse";
+import { chipStart } from "./digital/chip_desc";
+import type { ChipDesc, ChipLogic } from "./digital/chip_desc";
+import type { DigitalSynthesis } from "./digital/DigitalGraphBuilder";
 
 export class DeMultiplexerElm extends ChipElm {
     static readonly FLAG_BUS_SELECT = 1 << 3;
@@ -221,6 +224,32 @@ export class DeMultiplexerElm extends ChipElm {
             if (this.pins[this.selectPin + i].value)
                 sel |= 1 << i;
         return sel;
+    }
+
+    /** Digital fast path: one cell per output post, out = (select == its group) ? input : idle,
+     * as execute() does.  Delay roughly a 74138's (select to output). */
+    digitalSynthesis(): DigitalSynthesis {
+        const D = DeMultiplexerElm;
+        const postCount = this.getPostCount();
+        const pinMap = new Map<number, number>();
+        for (let i = 0; i < postCount; i++) pinMap.set(i, i + 1);
+        const width = (this.outputMode === D.OUTPUT_MODE_BUS_BUS) ? this.dataBusWidth : 1;
+        const selectPins = Array.from({ length: this.selectBitCount }, (_, i) => this.selectPin + i + 1);
+        const idle = this.invertOutputs() ? 1 : 0;
+        const desc: ChipDesc[] = [];
+        for (let g = 0; g < this.outputCount; g++)
+            for (let b = 0; b < width; b++) {
+                const inPin = this.inputPin + b + 1;
+                const outPin = this.outputPin + g * width + b + 1;
+                const logic: ChipLogic = (pin) => {
+                    let sel = 0;
+                    for (let k = 0; k < selectPins.length; k++)
+                        if (pin[selectPins[k]]) sel |= 1 << k;
+                    pin[outPin] = sel === g ? pin[inPin] : idle;
+                };
+                desc.push(chipStart(logic).inputPins(inPin, ...selectPins).outputPin(outPin).outputDelayNs(18.0, 21.0));
+            }
+        return { desc, pinMap };
     }
 
     execute(): void {
