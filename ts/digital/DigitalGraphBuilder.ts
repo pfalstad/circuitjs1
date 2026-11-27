@@ -427,8 +427,10 @@ function mergeNodeDrivers(candidates: DriverCandidate[], wantEnable: boolean, ce
  * nothing driving gives 1 on both.) A tri-state that doesn't export its enable (SRAM, ROM) can't
  * tell the node when it's off, so it's ORed into the result, and its node never holds.
  *
- * Returns each grouped node's resolver; a group too big for MAX_PASS_GROUP_INPUTS is left out,
- * with a warning, so its switches act open and its nodes don't hold.
+ * A group too big for MAX_PASS_GROUP_INPUTS is first split at its nodes with an always-on driver
+ * (or ground), which then read only their own drivers. Returns each grouped node's resolver; a
+ * group still too big is left out, with a warning, so its switches act open and its nodes don't
+ * hold.
  */
 function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map<any, DriverCandidate[]>,
         extra: CircuitEntry[]): { byNode: Map<any, { entry: SynthEntry; pin: number }>; voltage: Map<any, number> } {
@@ -436,62 +438,109 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
     const voltage = new Map<any, number>();
     const isTri = (c: DriverCandidate) => isDigitalTriStateDriver(c.elm) && c.elm.isTriStateOutput(c.postIndex);
 
-    // union-find over node objects
-    const parent = new Map<any, any>();
-    const find = (n: any): any => {
-        let r = n;
-        while (parent.get(r) !== r) r = parent.get(r);
-        parent.set(n, r);
-        return r;
+    // A ground node counts as driven by _GND when splitting a group (see below): GroundElm isn't
+    // a tie source in general, but here it's what a DAC's bit switches, each choosing a reference
+    // or ground, would otherwise all join through.
+    const gndEntry: SynthEntry = { name: "_GND", desc: tieDesc(), pinMap: new Map([[0, TIE_OUT_PIN]]), isTie: true };
+    const groundCandidates = (n: any): DriverCandidate[] => {
+        const g = (n?.links ?? []).find((l: any) => l.elm?.isGroundElm?.());
+        return g ? [{ entry: gndEntry, pin: TIE_OUT_PIN, postIndex: 0, elm: g.elm }] : [];
     };
-    const add = (n: any) => { if (!parent.has(n)) parent.set(n, n); };
-    const pairs: { na: any; nb: any; closed: PinRef }[] = [];
+    // a node with an ordinary (always-enabled) driver, or ground
+    const hard = (n: any) => (candidatesByNode.get(n) ?? groundCandidates(n)).some(c => !isTri(c));
+
+    type Pair = { na: any; nb: any; closed: PinRef };
+    const pairs: Pair[] = [];
     for (const [elm, entry] of synthMap) {
         if (!isDigitalPassSwitch(elm)) continue;
         for (const p of elm.digitalPassPairs()) {
             const na = (elm as any).nodes?.[p.a], nb = (elm as any).nodes?.[p.b];
             if (na == null || nb == null || na === nb) continue;
-            add(na); add(nb);
-            parent.set(find(na), find(nb));
             pairs.push({ na, nb, closed: { name: entry.name, pin: p.closedPin } });
         }
     }
     // charge-storing nodes with tri-state drivers, as groups of their own unless a switch joined them
+    const charged: any[] = [];
     for (const [node, candidates] of candidatesByNode)
-        if (candidates.some(isTri) && nodeHoldsCharge(node)) add(node);
+        if (candidates.some(isTri) && nodeHoldsCharge(node)) charged.push(node);
 
-    const groups = new Map<any, { nodes: any[]; pairs: typeof pairs }>();
-    for (const n of parent.keys()) {
-        const r = find(n);
-        if (!groups.has(r)) groups.set(r, { nodes: [], pairs: [] });
-        groups.get(r)!.nodes.push(n);
-    }
-    for (const p of pairs) groups.get(find(p.na))!.pairs.push(p);
+    type Group = { nodes: any[]; pairs: Pair[]; inner: Set<any> };
+    // Union-find over the switches. A `boundary` node joins no group: it keeps reading its own
+    // drivers, and only feeds the groups on its switches' other sides (listed after their own
+    // nodes; not in `inner`).
+    const buildGroups = (boundary: (n: any) => boolean): Group[] => {
+        const parent = new Map<any, any>();
+        const find = (n: any): any => {
+            let r = n;
+            while (parent.get(r) !== r) r = parent.get(r);
+            parent.set(n, r);
+            return r;
+        };
+        const add = (n: any) => { if (!parent.has(n)) parent.set(n, n); };
+        const used: Pair[] = [];
+        for (const p of pairs) {
+            const ba = boundary(p.na), bb = boundary(p.nb);
+            if (ba && bb) continue;
+            if (!ba) add(p.na);
+            if (!bb) add(p.nb);
+            if (!ba && !bb) parent.set(find(p.na), find(p.nb));
+            used.push(p);
+        }
+        for (const n of charged) if (!boundary(n)) add(n);
+        const groups = new Map<any, Group>();
+        for (const n of parent.keys()) {
+            const r = find(n);
+            if (!groups.has(r)) groups.set(r, { nodes: [], pairs: [], inner: new Set() });
+            groups.get(r)!.nodes.push(n);
+            groups.get(r)!.inner.add(n);
+        }
+        for (const p of used) {
+            const inner = parent.has(p.na) ? p.na : p.nb, other = inner === p.na ? p.nb : p.na;
+            const g = groups.get(find(inner))!;
+            g.pairs.push(p);
+            if (!parent.has(other) && !g.nodes.includes(other)) g.nodes.push(other);
+        }
+        return [...groups.values()];
+    };
 
-    let counter = 0, cells = 0;
-    const cellName = () => "_pm" + cells++;
-    for (const group of groups.values()) {
-        const n = group.nodes.length;
-        const index = new Map(group.nodes.map((nd, i) => [nd, i]));
-        let high = 5;
-
-        // each node's drivers (none: nothing ever drives it)
-        // (inputs: how many resolver inputs its merged drivers take - see mergeNodeDrivers())
+    // each node's drivers (none: nothing ever drives it), and how many resolver inputs its
+    // merged drivers take (see mergeNodeDrivers()); ground only counts at a group's boundary
+    const driversOf = (group: Group) => {
         const driven: { x: number; candidates: DriverCandidate[]; inputs: number }[] = [];
         for (const [x, node] of group.nodes.entries()) {
-            const candidates = candidatesByNode.get(node) ?? [];
+            const candidates = candidatesByNode.get(node) ?? (group.inner.has(node) ? [] : groundCandidates(node));
             if (candidates.length === 0) continue;
-            for (const c of candidates) if (typeof c.elm.highVoltage === "number") high = c.elm.highVoltage;
             const known = candidates.filter(c => !isTri(c) || exportedEnable(c) != null);
             const hasEnable = known.length > 0 && known.every(isTri);
             const hasUnknown = known.length < candidates.length;
             driven.push({ x, candidates, inputs: (known.length ? 1 : 0) + (hasEnable ? 1 : 0) + (hasUnknown ? 1 : 0) });
         }
-        const caps = group.nodes.map((nd, i) => nodeHoldsCharge(nd) ? i : -1).filter(i => i >= 0);
-        if (driven.length === 0) continue;
-
+        const caps = group.nodes.map((nd, i) => group.inner.has(nd) && nodeHoldsCharge(nd) ? i : -1).filter(i => i >= 0);
         const shared = driven.reduce((s, p) => s + p.inputs, 0) + group.pairs.length;
-        if (shared + caps.length > MAX_PASS_GROUP_INPUTS) {
+        return { driven, caps, shared, fits: shared + caps.length <= MAX_PASS_GROUP_INPUTS };
+    };
+
+    // Each group's resolver is a lookup table over all its inputs, so it can't be too big. A
+    // group that is gets split at its hard nodes instead (a chain of dynamic latches, each
+    // stage's gate output switched into the next stage's input, would otherwise be one group):
+    // each such node then reads only its own drivers, so contention through a closed switch
+    // between two always-on drivers isn't seen there. Groups that fit keep the full model.
+    let groups = buildGroups(() => false);
+    const tooBig = new Set<any>();
+    for (const g of groups) if (!driversOf(g).fits) for (const n of g.nodes) tooBig.add(n);
+    if (tooBig.size) groups = buildGroups(n => tooBig.has(n) && hard(n));
+
+    let counter = 0, cells = 0;
+    const cellName = () => "_pm" + cells++;
+    for (const group of groups) {
+        const n = group.nodes.length;
+        const index = new Map(group.nodes.map((nd, i) => [nd, i]));
+        let high = 5;
+
+        const { driven, caps, shared, fits } = driversOf(group);
+        for (const p of driven) for (const c of p.candidates) if (typeof c.elm.highVoltage === "number") high = c.elm.highVoltage;
+        if (driven.length === 0) continue;
+        if (!fits) {
             console.log("digital wiring: too many switches/drivers in one switch-connected group; its switches act open",
                 `(nodes ${n}, switches ${group.pairs.length}, driven nodes ${driven.length}, caps ${caps.length})`);
             continue;
@@ -510,6 +559,7 @@ function resolvePassGroups(synthMap: Map<any, SynthEntry>, candidatesByNode: Map
         const outPinOf = (x: number) => shared + caps.filter(y => y !== x).length + 1;
 
         for (let x = 0; x < n; x++) {
+            if (!group.inner.has(group.nodes[x])) continue; // boundary node: resolved by its own drivers
             const name = nameOf(x);
             let next = 1;
             const conns: [PinRef, number][] = [];
