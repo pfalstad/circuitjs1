@@ -1513,6 +1513,10 @@ export abstract class CircuitElm implements Editable {
     lineDistanceSq(xa: number, ya: number, xb: number, yb: number, gx: number, gy: number): number {
         const dtop = (yb-ya)*gx - (xb-xa)*gy + xb*ya - yb*xa;
         const dbot = (yb-ya)*(yb-ya) + (xb-xa)*(xb-xa);
+        // zero-length element (e.g. a chip saved with x2,y2 == x,y): 0/0 would give NaN,
+        // which never compares less than bestDist, making the element impossible to hover
+        if (dbot === 0)
+            return Graphics.distanceSq(gx, gy, xa, ya);
         return dtop*dtop / dbot;
     }
 
