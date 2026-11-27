@@ -41,14 +41,14 @@ cp -r "$DIR/ts/dist/." site
   # caches are cleaned up in the 'activate' handler) so updates take effect
   # instead of serving a stale cached copy.  It gets two file lists:
   #
-  # - the app shell, precached on install: the JS/CSS that circuitjs.html
+  # - the app shell, precached on install: the JS/CSS that index.html
   #   loads directly (script, modulepreload and stylesheet links), the icon
   #   font, and setuplist.txt.  The font is listed with the exact URL
   #   fontello.css requests, query string and all, so the cache key matches.
   # - every file in the versioned directory, downloaded in the background
   #   for installed apps.  Skip dotfiles (.DS_Store) and stray scripts the
   #   web server won't serve.
-  { grep -o "\(src\|href\)=\"\(\./\)\{0,1\}circuitjs$num/[^\"]*\"" circuitjs.html |
+  { grep -o "\(src\|href\)=\"\(\./\)\{0,1\}circuitjs$num/[^\"]*\"" index.html |
       sed -e 's/^[a-z]*="//' -e 's#^\./##' -e 's/"$//'
     grep -o "fontello\.woff2[^')]*" "circuitjs$num/font/fontello.css" | head -1 |
       sed "s#^#circuitjs$num/font/#"
@@ -64,19 +64,14 @@ cp -r "$DIR/ts/dist/." site
 }" "$DIR/ts/service-worker.template.js" | sed "s/VERSION_PLACEHOLDER/$num/" > service-worker.js
   rm -f shelllist.$$ filelist.$$
 
-  # circuitjs.html is the versioned entry point too, so it gets the same
+  # index.html is the versioned entry point too, so it gets the same
   # per-version name as its assets directory. Fix up
   # service-worker.js's own cached file list. (JS
   # chunks are deliberately NOT touched here: ExportAsUrlDialog hardcodes
   # the canonical https://www.falstad.com/circuit/circuitjs.html for
   # Electron's share-URL fallback, which should always point at "latest",
   # not this specific version.)
-  for f in service-worker.js; do
-    [ -f "$f" ] || continue
-    sed -i.bak "s#circuitjs\.html#circuitjs$num.html#g" "$f"
-    rm -f "$f.bak"
-  done
-  cp circuitjs.html "circuitjs$num.html"
+  cp index.html "circuitjs$num.html"
 )
 
 echo "=== Done: site/circuitjs$num (entry: site/circuitjs$num.html) ==="

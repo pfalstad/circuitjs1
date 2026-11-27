@@ -3,18 +3,18 @@
 // headlessly, as the app would, and running the simulator on it
 
 import { vi } from "vitest";
-import { CirSim } from "../CirSim";
-import { StringTokenizer } from "../StringTokenizer";
-import { CustomLogicModel } from "../CustomLogicModel";
-import { DiodeModel } from "../DiodeModel";
-import { TransistorModel } from "../TransistorModel";
-import { SubcircuitModel } from "../SubcircuitModel";
-import { MosfetModel } from "../MosfetModel";
-import { RelayModel } from "../RelayModel";
-import { CircuitXMLDeserializer } from "../CircuitXMLDeserializer";
+import { CirSim } from "../src/CirSim";
+import { StringTokenizer } from "../src/StringTokenizer";
+import { CustomLogicModel } from "../src/CustomLogicModel";
+import { DiodeModel } from "../src/DiodeModel";
+import { TransistorModel } from "../src/TransistorModel";
+import { SubcircuitModel } from "../src/SubcircuitModel";
+import { MosfetModel } from "../src/MosfetModel";
+import { RelayModel } from "../src/RelayModel";
+import { CircuitXMLDeserializer } from "../src/CircuitXMLDeserializer";
 import { makeHeadlessApp } from "./headlessApp";
-import { registerElements, registerLastElements } from "../registerElements";
-import { ElementFactory } from "../ElementFactory";
+import { registerElements, registerLastElements } from "../src/registerElements";
+import { ElementFactory } from "../src/ElementFactory";
 
 // just enough of the app for the simulator to run, with every element class loaded
 export async function makeApp(): Promise<any> {

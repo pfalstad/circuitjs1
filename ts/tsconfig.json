@@ -43,5 +43,6 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
   },
-  "exclude": ["old", "node_modules", "vite.config.ts"]
+  "exclude": ["old", "node_modules", "vite.config.ts"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

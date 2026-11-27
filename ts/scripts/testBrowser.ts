@@ -45,7 +45,7 @@ export async function newPage(browser: Browser): Promise<Page> {
 
 // the app, with TestManager given these query parameters
 export function appUrl(base: string, params: Record<string, string>): string {
-    const url = new URL("circuitjs.html", base);
+    const url = new URL("index.html", base);
     url.searchParams.set("testbase", new URL("auto-tests/", base).href);
     url.searchParams.set("headless", "1");
     // run this many batches of time steps each frame, so tests aren't held to the frame rate

@@ -14,7 +14,7 @@ import { Project, SyntaxKind } from "ts-morph";
 // copy of the element names.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const localeDir = path.join(here, "public", "locale");
+const localeDir = path.join(here, "..", "public", "locale");
 
 function elementLabels(): Map<string, string> {
     // Same pairs the Draw menu is built from: makeClassCheckItems(menu, ["Add

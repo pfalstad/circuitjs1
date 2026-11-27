@@ -216,13 +216,13 @@ export class EditDialog extends Dialog {
                 const cbLabel = document.createElement("label");
                 cbLabel.style.cssText = "display:flex;align-items:center;gap:4px;";
                 cbLabel.appendChild(cb);
-                cbLabel.appendChild(document.createTextNode(ei.checkbox.name));
+                cbLabel.appendChild(document.createTextNode(Locale.LS(ei.checkbox.name)));
                 cb.onchange = () => this.itemStateChanged(idx);
                 this.activeCol.appendChild(cbLabel);
 
             } else if (ei.button !== null) {
                 const btn = document.createElement("button");
-                btn.textContent = ei.button.label ?? ei.button.textContent ?? String(ei.button);
+                btn.textContent = Locale.LS(ei.button.label ?? ei.button.textContent ?? String(ei.button));
                 btn.onclick = () => this.itemStateChanged(idx);
                 this.activeCol.appendChild(btn);
 

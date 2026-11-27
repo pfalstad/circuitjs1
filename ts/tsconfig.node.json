@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
-    "noEmit": true,
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./node_modules/.tmp/tsconfig.node",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "module": "esnext",
     "moduleResolution": "bundler",
     "target": "esnext",

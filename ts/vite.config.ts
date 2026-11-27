@@ -20,7 +20,7 @@ const mimeTypes: Record<string, string> = {
 
 // Serves the legacy war/ pages (index.html, e-*.html, and friends) during
 // `npm run dev`, without copying them into ts/. Files that ts/ already has
-// (circuitjs.html, about.html, etc.) are always served from ts/ instead —
+// (index.html, about.html, etc.) are always served from ts/ instead —
 // this only fills in the gaps. A bare "/" is treated as "/index.html", so
 // the dev server's landing page is the same one used in production.
 function serveWarDir(): Plugin {
@@ -87,7 +87,7 @@ const assetsDir = 'circuitjs'
 
 // After the normal build, copies circuits/, locale/, images/, setuplist.txt,
 // and font/ (the last one nested under ts/public/circuitjs/ already, since
-// it's referenced via hardcoded "circuitjs/font/..." hrefs in circuitjs.html
+// it's referenced via hardcoded "circuitjs/font/..." hrefs in index.html
 // and about.html rather than ModuleBase-relative JS code) from ts/public/
 // into dist/<assetsDir>/, instead of Vite's default publicDir copy to dist
 // root, so they sit alongside the JS/CSS bundle.
@@ -104,6 +104,7 @@ function copyPublicAssets(): Plugin {
       }
       fs.cpSync(path.join(publicDir, 'circuitjs', 'font'), path.join(nested, 'font'), { recursive: true })
       fs.cpSync(path.join(publicDir, 'setuplist.txt'), path.join(nested, 'setuplist.txt'))
+      fs.cpSync(path.join(publicDir, 'circuit'), path.join(tsRoot, 'dist', 'circuit'), { recursive: true })
       for (const page of ['iframe.html', 'jsinterface.html', 'circuitjs/about.html']) {
         fs.cpSync(path.join(tsRoot, page), path.join(tsRoot, 'dist', page))
       }
@@ -150,10 +151,10 @@ export default defineConfig({
     assetsDir,
     copyPublicDir: false,
     rolldownOptions: {
-      // circuitjs.html is the only page with app code. The other static
+      // index.html is the only page with app code. The other static
       // pages are copied by copyPublicAssets().
       input: {
-        circuitjs: 'circuitjs.html',
+        index: 'index.html',
       },
       output: {
         // Startup code is all imported statically, so it lands in the main

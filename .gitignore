@@ -17,6 +17,9 @@ circuitjs1.tar.gz
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
+.idea
+.setting
+.project
 
 # Folder config file
 Desktop.ini

@@ -16,7 +16,7 @@ import { execFileSync } from "child_process";
 import { tmpdir } from "os";
 import { basename, join } from "path";
 import { makeApp, loadCircuit, startSimulator, runSimulator, readWrdata, differences } from "./simHarness";
-import { exportSpiceNetlist } from "../SpiceExporter";
+import { exportSpiceNetlist } from "../src/SpiceExporter";
 
 const FILE = process.env.CIRCUIT ?? "";
 const OUT = process.env.OUT ?? join(tmpdir(), "spice-compare-" + basename(FILE).replace(/\.\w+$/, ""));

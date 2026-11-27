@@ -9,7 +9,7 @@ const CACHE_NAME = 'circuitjs-cache-VERSION_PLACEHOLDER';
 // and setuplist.txt.  The browser has just downloaded all of these to show
 // the page, so precaching them on install costs almost no network.
 const shellFiles = [
-  'circuitjs.html',
+  'index.html',
 SHELL_FILES_GO_HERE
 ];
 
@@ -17,7 +17,7 @@ SHELL_FILES_GO_HERE
 // the 'message' handler), which happens when it's running as an installed
 // app.  Otherwise files are cached by the fetch handler as they're used.
 const allFiles = [
-  'circuitjs.html',
+  'index.html',
   'iframe.html',
   'jsinterface.html',
 FILE_LIST_GOES_HERE

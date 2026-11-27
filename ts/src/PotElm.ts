@@ -161,7 +161,7 @@ export class PotElm extends CircuitElm {
             }
         }
         const lbl = document.createElement('div');
-        lbl.textContent = this.sliderText;
+        lbl.textContent = Locale.LS(this.sliderText);
         lbl.className = 'topSpace';
         this.labelEl = lbl;
         CircuitElm.app.addWidgetToVerticalPanel(lbl);
